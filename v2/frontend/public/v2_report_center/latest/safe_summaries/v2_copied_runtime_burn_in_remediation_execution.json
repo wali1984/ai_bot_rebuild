@@ -1,0 +1,35 @@
+{
+  "freshness_seconds": 1887365.0950193405,
+  "go_no_go": "V2_COPIED_RUNTIME_BURN_IN_REMEDIATION_EXECUTION_READY",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "owner": "CLAUDE+CODEX",
+  "redaction_applied": true,
+  "report_id": "v2_copied_runtime_burn_in_remediation_execution",
+  "sanitized_summary": {
+    "go_no_go": "V2_COPIED_RUNTIME_BURN_IN_REMEDIATION_EXECUTION_READY",
+    "pruned": {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "calls_exchange_mutation": false,
+      "generated_est": "2026-05-30T23:59:00-0400",
+      "generated_utc": "2026-05-31T03:59:00Z",
+      "go_no_go": "V2_COPIED_RUNTIME_BURN_IN_REMEDIATION_EXECUTION_READY",
+      "leverage_changed": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "margin_mode_changed": false,
+      "places_real_order": false,
+      "schema_version": "operator_dashboard_payload_v1",
+      "writes_old_redis": false
+    },
+    "redaction_applied": true,
+    "redaction_token": "***REDACTED***",
+    "status": "READY"
+  },
+  "stale": true,
+  "status": "READY",
+  "title": "V2 Copied Runtime Burn-In Remediation Execution"
+}

@@ -1,0 +1,111 @@
+{
+  "controller": {
+    "issue_classifier_fresh": true,
+    "issue_summary": {
+      "EVENT_DEPENDENT": 1,
+      "EXTERNAL_SOURCE_REQUIRED": 3,
+      "NO_AUTOMATABLE_WORK_REMAINING": 1,
+      "OPERATOR_DECISION_REQUIRED": 1,
+      "POSITION_DEPENDENT": 1
+    },
+    "operator_owned_blocker_count": 6,
+    "pending_task_watchdog_fresh": true,
+    "selected_work": null,
+    "selector_status": "NO_AUTOMATABLE_WORK_REMAINING",
+    "self_healing_controller_fresh": true,
+    "self_healing_controller_go_no_go": "V2_AUTONOMOUS_FULL_REBUILD_SELF_HEALING_CONTROLLER_READY",
+    "watchdog": {
+      "field_group_duplicates": {},
+      "pending_claude_count": 0,
+      "pending_codex_count": 0,
+      "stale_claude_count": 0,
+      "stale_codex_count": 0
+    },
+    "work_selector_fresh": true
+  },
+  "fail_blockers": [],
+  "frontend_truth": {
+    "current_website_blocker_visible": false,
+    "no_fake_readiness": true,
+    "no_hidden_blockers": true,
+    "no_live_shutdown_implication": true
+  },
+  "generated_utc": "2026-05-23T03:49:30Z",
+  "go_no_go": "CODEX_FULL_REBUILD_SELF_HEALING_REVIEW_AND_TAKEOVER_GOVERNOR_READY",
+  "lane_priorities": {
+    "checkpoint_compatibility_claimed": false,
+    "checkpoint_model_before_shutdown_live": true,
+    "full_observation_before_policy_architecture": true,
+    "full_observation_state": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+    "policy_architecture_before_checkpoint_parity": true,
+    "policy_architecture_parity_claimed": false
+  },
+  "runtime": {
+    "comparator_fresh": true,
+    "legacy_log_observer_fresh": true,
+    "liquidation_wss_heartbeat_fresh": true,
+    "live_gate": "blocked_human_only",
+    "live_safe": true,
+    "live_symbols": [],
+    "position_history_heartbeat_fresh": true,
+    "process_checks": {
+      "continuous_remediation_loop": true,
+      "legacy_log_observer": true,
+      "legacy_v2_comparator": true,
+      "liquidation_wss_daemon": true,
+      "position_history_persistent_tracker": true
+    },
+    "runtime_go_no_go": "READY",
+    "soak_6h_ready": true,
+    "v2_namespace_count": 62,
+    "v2_namespaces_non_empty": true,
+    "v2_processes_ok": true,
+    "war_room_age_seconds": 32.37377715110779
+  },
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "did_not_call_exchange": true,
+    "did_not_create_approvals": true,
+    "did_not_touch_legacy": true,
+    "did_not_write_redis": true,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "schema_version": "codex_full_rebuild_self_healing_review_and_takeover_governor_v1",
+  "takeover_actions": {
+    "remediation_task": {
+      "created": false,
+      "reason": "selected_work_is_not_codex_review_fail"
+    },
+    "stale_codex_descriptors_retired": [
+      "stale_codex_descriptor_retirement.json",
+      "stale_codex_descriptor_retirement_round_2.json",
+      "stale_codex_descriptor_retirement_round_3.json"
+    ],
+    "tool_runs": [
+      {
+        "command": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python /home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools/v2_autonomous_full_rebuild_self_healing_controller.py --once",
+        "returncode": 0,
+        "stderr_tail": "",
+        "stdout_tail": "{\n  \"automatable_issue_count\": 0,\n  \"controller\": \"v2_autonomous_full_rebuild_self_healing_controller\",\n  \"go_no_go\": \"V2_AUTONOMOUS_FULL_REBUILD_SELF_HEALING_CONTROLLER_READY\",\n  \"operator_owned_issue_count\": 7,\n  \"selected_work\": null,\n  \"selector_status\": \"NO_AUTOMATABLE_WORK_REMAINING\"\n}\n"
+      },
+      {
+        "command": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python /home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools/v2_pending_task_watchdog.py --json",
+        "returncode": 0,
+        "stderr_tail": "",
+        "stdout_tail": "{\n  \"actions\": [],\n  \"allow_redispatch\": false,\n  \"field_group_duplicates\": {},\n  \"generated_utc\": \"2026-05-23T03:49:30Z\",\n  \"pending_claude_count\": 0,\n  \"pending_codex_count\": 0,\n  \"safety\": {\n    \"did_not_call_exchange\": true,\n    \"did_not_delete_tasks\": true,\n    \"did_not_restart_agent\": true,\n    \"did_not_touch_legacy\": true,\n    \"did_not_write_redis\": true\n  },\n  \"schema_version\": \"v2_autonomous_full_rebuild_self_healing_pending_task_watchdog_v1\",\n  \"stale_claude_count\": 0,\n  \"stale_claude_tasks\": [],\n  \"stale_codex_count\": 0,\n  \"stale_codex_tasks\": [],\n  \"stale_seconds_threshold\": 300\n}\n"
+      }
+    ],
+    "unsafe_live_shutdown_codex_fails_operator_held": true
+  },
+  "task_hygiene": {
+    "frontend_truth_blocker_selected": false,
+    "no_duplicate_tasks": true,
+    "no_stale_claude_tasks": true,
+    "no_stale_codex_tasks": true,
+    "ui_only_drift": null
+  }
+}

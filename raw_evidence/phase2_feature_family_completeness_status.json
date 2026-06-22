@@ -1,0 +1,142 @@
+{
+  "schema_version": "v2_phase2_feature_family_completeness_status_v2",
+  "generated_at": "2026-06-17T19:30:00Z",
+  "session_label": "Phase 2 — feature-family completeness gate + inference mode",
+  "phase_summary": "Added inference-mode classification to feature_family_classifier.py; gate correctly blocks high-precision entries on fully-absent critical families without false-blocking hard-critical families that are present.",
+  "prediction_rows_scanned": 300,
+  "family_coverage_distribution": {
+    "FULLY_MISSING_all_members_in_missing_feature_names": {
+      "liquidation_clusters": {"rows": 295, "pct": 98},
+      "paper_context": {"rows": 295, "pct": 98},
+      "public_intel": {"rows": 295, "pct": 98}
+    },
+    "PARTIALLY_MISSING_some_members_in_missing_feature_names": {
+      "microstructure": {
+        "rows": 295, "pct": 98,
+        "present_members": ["taker_buy_ratio", "taker_sell_ratio"],
+        "missing_members": ["tape_imbalance", "coinapi_wsds_tape_imbalance", "order_flow_imbalance"]
+      },
+      "sweep_spoof_wall": {
+        "rows": 295, "pct": 98,
+        "present_members": ["sweep_up_detected", "sweep_down_detected", "spoof_wall_detected", "liquidity_hunt_detected", "stop_run_risk", "toxic_flow_detected"],
+        "missing_members": ["depth_vs_tape_divergence"]
+      }
+    },
+    "PRESENT_INFERRED_no_member_in_missing_feature_names": {
+      "mark_price": {"rows": 300, "pct": 100},
+      "candles": {"rows": 300, "pct": 100},
+      "volume": {"rows": 300, "pct": 100},
+      "atr": {"rows": 300, "pct": 100},
+      "orderbook": {"rows": 300, "pct": 100},
+      "oi_funding": {"rows": 300, "pct": 100},
+      "long_short_ratio": {"rows": 300, "pct": 100}
+    }
+  },
+  "gate_scan_results": {
+    "config": {
+      "require_multi_tf_agreement": false,
+      "require_orderbook_confirmation": false,
+      "require_full_feature_coverage": true,
+      "required_critical_families": 12
+    },
+    "total_rows": 300,
+    "blocked_by_missing_families": 295,
+    "blocked_only_by_missing_families": 280,
+    "also_blocked_by_confidence": 300,
+    "also_blocked_by_coverage": 300,
+    "families_appearing_in_block_reasons": ["liquidation_clusters", "paper_context", "public_intel"]
+  },
+  "inference_mode": {
+    "trigger": "feature_names field is absent in all 300 production prediction rows",
+    "strategy": "A family is MISSING_CONFIRMED if ALL its canonical members appear in missing_feature_names. Otherwise PRESENT_INFERRED (at least one member plausibly available).",
+    "partial_family_handling": "Partial families (some members present, some missing) are counted as PRESENT_INFERRED. Only fully-absent families block the gate.",
+    "key_property": "Hard-critical families (mark_price, candles, volume, atr, orderbook, oi_funding, long_short_ratio) are 100% PRESENT_INFERRED — never falsely blocked."
+  },
+  "fixes_applied": [
+    {
+      "file": "v2/backend/app/services/paper_trade_management/feature_family_classifier.py",
+      "change": "Added inference mode to classify_feature_families: when feature_names is None/empty and missing_feature_names is provided, family is MISSING_CONFIRMED only if ALL canonical members are in missing_feature_names.",
+      "backward_compatible": true
+    },
+    {
+      "file": "v2/backend/app/services/paper_trade_management/feature_family_classifier.py",
+      "change": "Added classification_mode parameter to feature_family_coverage_summary (default 'normal'; set to 'inference_missing_names_only' when inference path used)."
+    },
+    {
+      "file": "v2/backend/app/services/paper_trade_management/high_precision_gate.py",
+      "change": "Condition 5 now detects when feature_names is absent and sets classification_mode='inference_missing_names_only' for audit transparency."
+    },
+    {
+      "file": "v2/backend/app/composition/current_signal_lineage_adapter/runtime.py",
+      "change": "Added orchestrator_decision_id extraction in ids dict; split paper_ledger_entry_id into FULL_CHAIN_LINEAGE_IDS (deferred BLOCKER-1) separate from REQUIRED_LINEAGE_IDS."
+    }
+  ],
+  "pre_existing_test_failures_fixed": [
+    {
+      "test": "test_short_expected_edge_positive_when_price_expected_down",
+      "root_cause": "Phase 4 raised default min_confidence to 0.75; test used 0.72 with no explicit config override. Also required Phase 4 multi-TF/OB checks not disabled.",
+      "fix": "Added min_confidence=0.70, require_multi_tf_agreement=False, require_orderbook_confirmation=False to test config."
+    },
+    {
+      "test": "test_high_precision_gate_abstains_on_weak_evidence",
+      "root_cause": "Phase 4 added multi-TF and orderbook checks; test config did not disable them. Also feature-family gate required all 12 families.",
+      "fix": "Added require_full_feature_coverage=False, require_multi_tf_agreement=False, require_orderbook_confirmation=False to test config."
+    },
+    {
+      "test": "test_adapter_builds_current_lineage_record",
+      "root_cause": "REQUIRED_LINEAGE_IDS included orchestrator_decision_id and paper_ledger_entry_id but runtime.py ids dict did not extract orchestrator_decision_id. Test payload also missing orchestrator_decision_id.",
+      "fix": "Added orchestrator_decision_id extraction; moved paper_ledger_entry_id to FULL_CHAIN_LINEAGE_IDS; added orchestrator_decision_id to test payload."
+    },
+    {
+      "tests": "test_v2_paper_position_acceptance_state_normalization.py (5 tests)",
+      "root_cause": "Test signals used timeframe=1m which is blocked by Phase 3 entry gate default (allows 15m/1h/4h only).",
+      "fix": "Changed timeframe from 1m to 15m in _signal() helper."
+    },
+    {
+      "test": "test_paper_loop_reads_per_symbol_paper_signal_keys",
+      "root_cause": "Same timeframe=1m issue.",
+      "fix": "Changed timeframe from 1m to 15m in test payload."
+    },
+    {
+      "test": "test_active_runtime_cli_source_has_no_literal_btc_or_three_symbol_default",
+      "root_cause": "v2_backtest_runner.py (dev/research tool) has add_argument(--symbol, default=BTCUSDT). This is legitimate for a dev tool but was not in the allowlist.",
+      "fix": "Added v2_backtest_runner.py to ACTIVE_RUNTIME_CLI_DRIFT_ALLOWLIST with comment."
+    }
+  ],
+  "new_tests_added": {
+    "file": "v2/backend/tests/unit/services/paper_trade_management/test_phase2_3_4_gates.py",
+    "count": 8,
+    "tests": [
+      "test_inference_mode_hard_critical_families_present",
+      "test_inference_mode_fully_absent_families_missing",
+      "test_inference_mode_partial_family_counted_as_present",
+      "test_inference_mode_empty_missing_list_all_present",
+      "test_inference_mode_coverage_summary_records_mode",
+      "test_gate_inference_mode_blocks_fully_absent_critical_family",
+      "test_gate_inference_mode_does_not_block_hard_critical_when_present",
+      "test_gate_inference_records_classification_mode_in_coverage"
+    ]
+  },
+  "full_test_suite": {
+    "total": 4332,
+    "passed": 4332,
+    "failed": 0,
+    "skipped": 4,
+    "duration_seconds": 454
+  },
+  "safety_invariants": {
+    "gate_never_passes_live_orders": true,
+    "inference_mode_conservative": "partial families are PRESENT to avoid false blocking hard-critical data",
+    "inference_mode_auditable": "classification_mode field in feature_coverage dict logs which path was used",
+    "gate_blocked_families_explicit": "MISSING_FEATURE_FAMILIES reason string lists all blocked family names"
+  },
+  "root_cause_of_missing_families": {
+    "liquidation_clusters": "On-chain liquidation cluster data feed (Coinglass/Hyperliquid) not yet wired to feature pipeline",
+    "paper_context": "paper_position_present, paper_unrealized_bps, risk_recent_allow_rate, orchestrator_recent_allow_rate not yet written to feature snapshot by paper_online_runtime",
+    "public_intel": "Nansen, Lunarcrush, AICoin, Surf external data feeds not connected to feature pipeline"
+  },
+  "phase_verdict": "PHASE_2_PASS",
+  "phase_status": "COMPLETE",
+  "advance_to_phase_3": true,
+  "phase_3_description": "High-precision entries are now blocked when critical families missing; next sprint should wire paper_context features into paper_online_runtime feature snapshot"
+}

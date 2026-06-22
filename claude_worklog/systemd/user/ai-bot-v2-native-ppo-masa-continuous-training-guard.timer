@@ -1,0 +1,12 @@
+[Unit]
+Description=Run AI Bot V2 native PPO/MASA continuous training guard every minute
+
+[Timer]
+OnBootSec=60s
+OnUnitInactiveSec=60s
+AccuracySec=10s
+Persistent=true
+Unit=ai-bot-v2-native-ppo-masa-continuous-training-guard.service
+
+[Install]
+WantedBy=timers.target

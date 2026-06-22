@@ -1,0 +1,48 @@
+{
+  "agent": "codex",
+  "autoseed_metadata": {
+    "generated_at": "2026-06-05T00:00:00+00:00",
+    "source": "v2_autonomous_mission_backlog_autoseed",
+    "task_role": "codex_review",
+    "title": "CUDA live-gate single-pass: edge recompute missing",
+    "pass_marker": "V2_CUDA_SINGLE_PASS_EDGE_RECOMPUTE_CODEX_PASS",
+    "fail_marker": "V2_CUDA_SINGLE_PASS_EDGE_RECOMPUTE_CODEX_FAIL"
+  },
+  "codex_cli_form": "codex_exec_review",
+  "codex_pair_task_id": "claude_autoseed_cuda_live_gate_single_pass_edge_recompute_missing_r1",
+  "created_at": "2026-06-05T00:00:00+00:00",
+  "depends_on": [
+    "claude_autoseed_cuda_live_gate_single_pass_edge_recompute_missing_r1"
+  ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "file_lock_group": "cuda_live_gate_single_pass_edge_recompute_missing",
+  "goal": "V2_CUDA_TRAINER_GPU_TRADER_BINANCE_LIVE_GATE_SINGLE_PASS_READY",
+  "lane": "non_drift_codex_audit",
+  "owner": "CODEX",
+  "predecessor_task_ids": [
+    "claude_autoseed_cuda_live_gate_single_pass_edge_recompute_missing_r1"
+  ],
+  "prompt": "Review the paired implementation for edge recompute miss remediation. Validate recompute gating, explicit miss markers, and safe fail-safe transitions when recompute evidence is incomplete. Verify no order routing, leverage/margin mutation, or redis legacy writes were introduced.",
+  "priority": 9056,
+  "risk_level": "L1",
+  "scope_paths": [
+    "v2/backend/app",
+    "v2/backend/tests/unit"
+  ],
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "status": "pending",
+  "task_id": "codex_review_autoseed_cuda_live_gate_single_pass_edge_recompute_missing_r1",
+  "task_type": "CODEX_REVIEW",
+  "title": "Codex review for CUDA live-gate single-pass: edge recompute missing",
+  "updated_at": "2026-06-05T00:00:00+00:00"
+}

@@ -1,0 +1,120 @@
+{
+  "active_claude_workers": 3,
+  "active_codex_workers": 3,
+  "active_lane_count": 6,
+  "active_leases_count": 4,
+  "automation_state": "execution_active",
+  "blocked_task_count_this_cycle": 0,
+  "blockers": [],
+  "completed_task_count_this_cycle": 0,
+  "current_automatable_count": 4,
+  "current_automatable_count_by_lane": {
+    "CLAUDE_IMPLEMENTATION": 3,
+    "CODEX_REVIEW": 1,
+    "CODEX_TAKEOVER": 0,
+    "REMEDIATION": 0
+  },
+  "current_task_assignments": [
+    {
+      "child_process_pid": null,
+      "descriptor_path": "claude_worklog/agent_supervisor/tasks/codex_review_fix_v2_gap_trainer_missing_checkpoint_weight_shape_contract.json",
+      "expected_output_paths": [],
+      "file_lock_group": "fix_v2_gap_trainer_missing_checkpoint_weight_shape_contract",
+      "heartbeat_at": "2026-05-24T23:42:54Z",
+      "lane_type": "CODEX_REVIEW",
+      "lease_id": "7414c846157140618d3245cd78d28c85",
+      "lease_status": "running",
+      "leased_at": "2026-05-24T23:41:24Z",
+      "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/codex_review_fix_v2_gap_trainer_missing_checkpoint_weight_shape_contract_codex.log",
+      "task_id": "codex_review_fix_v2_gap_trainer_missing_checkpoint_weight_shape_contract",
+      "worker_current_lease_id": "7414c846157140618d3245cd78d28c85",
+      "worker_heartbeat": "2026-05-24T23:42:54Z",
+      "worker_id": "codex-2",
+      "worker_pid": 1572936,
+      "worker_state": "busy"
+    },
+    {
+      "child_process_pid": 1907859,
+      "descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_baseline_after_cost_calibration_r15.json",
+      "expected_output_paths": [
+        "claude_worklog/final_readiness/v2_autonomous_mission_backlog/per_task/baseline_after_cost_calibration/IMPLEMENTATION_REPORT.md"
+      ],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "heartbeat_at": "2026-05-24T23:42:54Z",
+      "lane_type": "CLAUDE_IMPLEMENTATION",
+      "lease_id": "a22cc0de8a0e477f9500fb37948f0336",
+      "lease_status": "running",
+      "leased_at": "2026-05-24T23:41:24Z",
+      "log_path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/claude_autoseed_baseline_after_cost_calibration_r15.log",
+      "task_id": "claude_autoseed_baseline_after_cost_calibration_r15",
+      "worker_current_lease_id": "a22cc0de8a0e477f9500fb37948f0336",
+      "worker_heartbeat": "2026-05-24T23:42:54Z",
+      "worker_id": "claude-2",
+      "worker_pid": 1572990,
+      "worker_state": "busy"
+    },
+    {
+      "child_process_pid": 1908036,
+      "descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_observation_gap_feature_source_burndown_r15.json",
+      "expected_output_paths": [
+        "claude_worklog/final_readiness/v2_autonomous_mission_backlog/per_task/observation_gap_feature_source_burndown/IMPLEMENTATION_REPORT.md"
+      ],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "heartbeat_at": "2026-05-24T23:42:58Z",
+      "lane_type": "CLAUDE_IMPLEMENTATION",
+      "lease_id": "19c29f7d16234a6f8017061d4efc266f",
+      "lease_status": "running",
+      "leased_at": "2026-05-24T23:41:28Z",
+      "log_path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/claude_autoseed_observation_gap_feature_source_burndown_r15.log",
+      "task_id": "claude_autoseed_observation_gap_feature_source_burndown_r15",
+      "worker_current_lease_id": "19c29f7d16234a6f8017061d4efc266f",
+      "worker_heartbeat": "2026-05-24T23:42:58Z",
+      "worker_id": "claude-3",
+      "worker_pid": 1573127,
+      "worker_state": "busy"
+    },
+    {
+      "child_process_pid": 1908179,
+      "descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r14.json",
+      "expected_output_paths": [
+        "claude_worklog/final_readiness/v2_autonomous_mission_backlog/per_task/paper_edge_false_negative_gate_reason_enrichment/IMPLEMENTATION_REPORT.md"
+      ],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "heartbeat_at": "2026-05-24T23:42:47Z",
+      "lane_type": "CLAUDE_IMPLEMENTATION",
+      "lease_id": "a25c910896aa4d838bd972e389c24d3c",
+      "lease_status": "running",
+      "leased_at": "2026-05-24T23:41:32Z",
+      "log_path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r14.log",
+      "task_id": "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r14",
+      "worker_current_lease_id": "a25c910896aa4d838bd972e389c24d3c",
+      "worker_heartbeat": "2026-05-24T23:42:47Z",
+      "worker_id": "claude-1",
+      "worker_pid": 1573506,
+      "worker_state": "busy"
+    }
+  ],
+  "failed_task_count_this_cycle": 0,
+  "generated_utc": "2026-05-24T23:42:59Z",
+  "go_no_go": "V2_WORKER_POOL_QUEUE_CONSUMPTION_REMEDIATION_READY",
+  "idle_workers_with_eligible_work_count": 0,
+  "marker": "V2_WORKER_POOL_QUEUE_CONSUMPTION_REMEDIATION_READY",
+  "next_action": "Queue consumption READY \u2014 workers leasing and executing current work.",
+  "ready": true,
+  "remediation_created_count_this_cycle": 0,
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "schema_version": "v2_worker_pool_queue_consumption_operator_payload_v1",
+  "still_running_task_count": 4,
+  "worker_count_busy": 4,
+  "worker_count_idle_ready": 2
+}

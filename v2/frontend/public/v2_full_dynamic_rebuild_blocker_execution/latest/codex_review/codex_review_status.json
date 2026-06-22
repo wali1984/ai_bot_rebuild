@@ -1,0 +1,162 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "claude_claimed_go_no_go": "V2_FULL_DYNAMIC_REBUILD_BLOCKER_EXECUTION_READY",
+  "codex_go_no_go": "V2_FULL_DYNAMIC_REBUILD_BLOCKER_EXECUTION_CODEX_FAIL",
+  "credentials_values_exposed": false,
+  "fail_reasons": [
+    {
+      "evidence": [
+        "v2/backend/app/cli/v2_binance_public_metadata_ingestor.py:45 DEFAULT_SYMBOLS = (\"BTCUSDT\", \"ETHUSDT\", \"SOLUSDT\")",
+        "v2/backend/app/cli/v2_binance_public_metadata_ingestor.py:241 --symbols defaults to DEFAULT_SYMBOLS",
+        "v2/backend/app/cli/v2_liquidation_observation_aggregator_status.py:32 --symbols defaults to BTCUSDT,ETHUSDT,SOLUSDT",
+        "v2/backend/app/cli/v2_liquidation_observation_aggregator_status.py:39 falls back to BTCUSDT,ETHUSDT,SOLUSDT",
+        "v2/backend/app/cli/v2_coinank_and_liquidation_bridge.py:103 DEFAULT_SYMBOLS starts with BTCUSDT,ETHUSDT,SOLUSDT and current public status used 3 symbols",
+        "v2/backend/app/cli/v2_feature_pipeline_and_ta_worker.py:545 --symbol defaults to BTCUSDT",
+        "cmd_logs/binance_public_metadata.log symbols = [BTCUSDT, ETHUSDT, SOLUSDT]",
+        "current public v2_binance_public_metadata payload symbols = [BTCUSDT, ETHUSDT, SOLUSDT]",
+        "current public coinank_market_intelligence payload symbols = [BTCUSDT, ETHUSDT, SOLUSDT]",
+        "current public v2_feature_pipeline_and_ta_worker payload symbols = [BTCUSDT]"
+      ],
+      "owner": "Claude implementation, Codex review",
+      "remediation": "Replace static BTC/ETH/SOL or BTC-only defaults with the dynamic symbol-universe source and the 25-symbol legacy baseline minimum. Re-run blocker execution against the baseline/dynamic universe and add a guard test that rejects 3-symbol defaults outside explicit smoke-test flags.",
+      "severity": "HIGH",
+      "summary": "3-symbol/default-symbol mode is still present in current blocker execution and active public runtime evidence."
+    },
+    {
+      "evidence": [
+        "v2_missing_component_start_execution_status.json reports 13/13 started_via_one_shot=true",
+        "V2_FULL_DYNAMIC_REBUILD_BLOCKER_EXECUTION_REPORT.md says persistent systemd wiring is intentionally not done in this lane",
+        "coinank_and_liquidation_bridge.log is empty with redis_key_count_after_run=0 for coinank entries",
+        "feature_pipeline_and_ta_worker.log is empty while current public feature payload shows BTCUSDT only"
+      ],
+      "owner": "Claude implementation, Spark scheduling, Codex review",
+      "remediation": "Classify this packet as one-shot execution evidence only. Wire persistent V2 services separately after Codex review and publish fresh per-service payloads showing dynamic/25-symbol scope.",
+      "severity": "MEDIUM",
+      "summary": "Not-running components were exercised, but this is not proof that all required components are running persistently."
+    },
+    {
+      "evidence": [
+        "v2_old_redis_write_observer_status.json is a static-source scan",
+        "many active V2 units report no CLI module hint in ExecStart line",
+        "current Redis old order namespaces are zero, but the observer does not fully prove writer state for every active tool-backed service"
+      ],
+      "owner": "Codex review",
+      "remediation": "Add a bounded read-only writer observer that maps every active V2 unit to source or a declared blocked reason, and compare old namespace counts before/after the blocker run without MONITOR, trim, delete, or flush.",
+      "severity": "MEDIUM",
+      "summary": "Old-Redis proof is useful but incomplete."
+    }
+  ],
+  "live_symbols": [],
+  "no_canary_approval": true,
+  "no_exchange_mutation_observed": true,
+  "no_legacy_redis_trim_or_delete": true,
+  "no_live_approval": true,
+  "no_real_order_attempted": true,
+  "no_real_order_submitted": true,
+  "no_shutdown_approval": true,
+  "old_redis_count_comparison": {
+    "current": {
+      "*leverage*": 0,
+      "*margin*": 0,
+      "exchange:order:*": 0,
+      "features:coinank:*": 1564,
+      "kc:*": 150,
+      "live_orders:*": 0,
+      "ohlcv:list:*": 25,
+      "orchestrator:*": 0,
+      "prediction:*": 1,
+      "price:*": 31,
+      "signals:trading:*": 2,
+      "ta:*": 150
+    },
+    "matched_prior_codex_baseline": true,
+    "old_order_namespace_counts_zero": true
+  },
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "review_checks": [
+    {
+      "id": 1,
+      "name": "not-running components started or explicitly blocked",
+      "status": "PARTIAL",
+      "summary": "13/13 V2_IMPLEMENTED_NOT_RUNNING items were invoked in --once mode; 7 credential providers and 4 raw-old-Redis components are explicitly blocked. Persistent runtime start remains unproven."
+    },
+    {
+      "id": 2,
+      "name": "backtest first run happened",
+      "status": "PASS_WITH_CAVEAT",
+      "summary": "12 artifacts exist for historical_30d_replay_and_paper_proof. The run is an offline deterministic fixture, not proof of edge."
+    },
+    {
+      "id": 3,
+      "name": "dynamic symbol discovery is active",
+      "status": "PASS",
+      "summary": "symbol_universe_status.json is fresh and reports 27 discovered symbols."
+    },
+    {
+      "id": 4,
+      "name": "25 baseline symbols are enforced",
+      "status": "PASS",
+      "summary": "baseline_missing=[] and legacy_active_symbols contains the 25-symbol migration baseline."
+    },
+    {
+      "id": 5,
+      "name": "3-symbol mode is not default",
+      "status": "FAIL",
+      "summary": "Current execution and CLI defaults still use BTC/ETH/SOL or BTC-only defaults in market/feature/liquidation lanes."
+    },
+    {
+      "id": 6,
+      "name": "feature/TA parity improved or exact blockers exist",
+      "status": "PASS_WITH_BLOCKERS",
+      "summary": "14 full coverage, 11 partial with exact missing OHLCV or TA blockers listed."
+    },
+    {
+      "id": 7,
+      "name": "old-Redis write observer proves current writer state",
+      "status": "PARTIAL",
+      "summary": "0 proven old writers and old order namespace counts are zero, but static-source scan misses direct proof for several active services."
+    },
+    {
+      "id": 8,
+      "name": "no old Redis writes were added",
+      "status": "PASS",
+      "summary": "Old preserved namespace counts match the prior Codex baseline; orchestrator/live_orders/exchange:order/order/leverage/margin patterns are zero."
+    },
+    {
+      "id": 9,
+      "name": "no exchange mutation",
+      "status": "PASS",
+      "summary": "No exchange order/leverage/margin Redis evidence and packet flags report writes_exchange_orders=false."
+    },
+    {
+      "id": 10,
+      "name": "no live/canary/shutdown approval",
+      "status": "PASS",
+      "summary": "Packet and report-center logs keep canary, shutdown, and live approval false/blocked."
+    },
+    {
+      "id": 11,
+      "name": "live_gate=blocked_human_only",
+      "status": "PASS",
+      "summary": "All reviewed blocker artifacts and current public runtime payloads keep live_gate blocked_human_only."
+    },
+    {
+      "id": 12,
+      "name": "live_symbols=[]",
+      "status": "PASS",
+      "summary": "All reviewed blocker artifacts and current public runtime payloads keep live_symbols empty."
+    }
+  ],
+  "safe_fixes_applied_by_codex": [
+    "Created Codex FAIL review artifacts.",
+    "Updated operator-dashboard payload to expose the Codex FAIL override.",
+    "Registered the blocker-execution lane in Report Center as live/shutdown/production-equivalence blocking.",
+    "No trading, Redis trim/delete, or legacy restart performed."
+  ],
+  "ts_est": "20260526T011100EST",
+  "ts_iso_est": "2026-05-26T01:11:00-0400",
+  "writes_exchange_orders": false
+}

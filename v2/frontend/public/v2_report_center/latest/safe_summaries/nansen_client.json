@@ -1,0 +1,30 @@
+{
+  "freshness_seconds": 4118.169239282608,
+  "go_no_go": "V2_NANSEN_FREE_TIER_CLIENT_PAPER_SHADOW_READY",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "owner": "CLAUDE",
+  "redaction_applied": false,
+  "report_id": "nansen_client",
+  "sanitized_summary": {
+    "go_no_go": "V2_NANSEN_FREE_TIER_CLIENT_PAPER_SHADOW_READY",
+    "pruned": {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "generated_utc": "2026-06-21T23:19:52Z",
+      "go_no_go": "V2_NANSEN_FREE_TIER_CLIENT_PAPER_SHADOW_READY",
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "schema_version": "v2_altdata_nansen_status_v1",
+      "symbol_count": 101
+    },
+    "redaction_applied": false,
+    "redaction_token": null,
+    "status": "READY"
+  },
+  "stale": true,
+  "status": "READY",
+  "title": "Nansen Alt-Data Client (paper/shadow)"
+}

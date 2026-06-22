@@ -1,0 +1,96 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "claude_remediation_task": "claude_zero_miss_legacy_core_lift_remediation",
+  "codex_go_no_go": "ZERO_MISS_LEGACY_CORE_TO_V2_CODEX_FAIL",
+  "config_parity": {
+    "dangerous_keys": [],
+    "operator_decision_required_count": 1917,
+    "secret_redacted_count": 13,
+    "status": "FAIL_UNMAPPED_KEYS_OPERATOR_DECISION_REQUIRED",
+    "unmapped_key_count": 1917
+  },
+  "current_status_simple": "Zero-miss migration is still blocked. Codex fixed the evidence truth layer and copied omitted preserved RL files, but V2 still cannot prove full legacy ownership, strict import smoke is failing, config mapping is incomplete, and the native trading core is not implemented.",
+  "dependency_closure": {
+    "external_dependencies": [
+      "aiohttp",
+      "binance",
+      "ccxt",
+      "cloudpickle",
+      "dateutil",
+      "dotenv",
+      "gymnasium",
+      "numpy",
+      "nvidia_ml_py",
+      "nvidia_ml_py3",
+      "pandas",
+      "psutil",
+      "pynvml",
+      "pytz",
+      "redis",
+      "requests",
+      "schedule",
+      "scipy",
+      "stable_baselines3",
+      "torch",
+      "tqdm",
+      "urllib3",
+      "websockets"
+    ],
+    "external_dependencies_count": 23,
+    "parse_errors": [],
+    "py_file_count": 253,
+    "status": "FAIL",
+    "unresolved_local_imports": [
+      "tools"
+    ],
+    "unresolved_local_imports_count": 1
+  },
+  "evidence_paths": [
+    "claude_worklog/final_readiness/zero_miss_legacy_core_lift/latest/codex_governor/CODEX_15M_STATUS.md",
+    "claude_worklog/final_readiness/zero_miss_legacy_core_lift/latest/codex_review/CODEX_ZERO_MISS_REVIEW.md",
+    "claude_worklog/final_readiness/zero_miss_legacy_core_lift/latest/V2_OWNED_RUNTIME_IMPORT_PROOF.json",
+    "claude_worklog/final_readiness/zero_miss_legacy_core_lift/latest/ZERO_MISS_DEPENDENCY_CLOSURE.json",
+    "claude_worklog/final_readiness/zero_miss_legacy_core_lift/latest/FULL_LEGACY_CORE_COPY_MANIFEST.json"
+  ],
+  "generated_at": "2026-05-16T00:07:41Z",
+  "last_updated": "2026-05-16T00:10:28Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "missing_owned_runtime_files": [],
+  "primary_blockers": [
+    "LEGACY_ROOT_READ_ACCESS_DENIED_FULL_216K_LOC_TREE_NOT_MIRRORED",
+    "DEPENDENCY_CLOSURE_UNRESOLVED_LOCAL_IMPORT_TOOLS",
+    "V2_OWNED_RUNTIME_SMOKE_FAILURES_IMPORTS_AND_EXTERNALS",
+    "CONFIG_KEYS_UNMAPPED_1917_OPERATOR_DECISION_REQUIRED",
+    "NATIVE_ALGORITHMIC_CORE_NOT_MIGRATED",
+    "INGEST_TECHNICAL_ANALYSIS_SOURCE_MISSING_FROM_PRESERVED_COPY",
+    "MONITORING_SOURCE_MISSING_FROM_PRESERVED_COPY"
+  ],
+  "readiness": "NO_GO",
+  "shutdown_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",
+  "strict_smoke": {
+    "all_smoke_passed": false,
+    "failed_wrappers": [
+      "v2_owned_ingestors",
+      "v2_owned_monitoring",
+      "v2_owned_trainer"
+    ]
+  },
+  "validation": {
+    "focused_zero_miss_tests": "PASS_16",
+    "frontend_build": "PASS",
+    "frontend_typecheck": "PASS",
+    "full_copied_runtime_py_compile": "PASS",
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "what_codex_fixed": [
+    "Smoke pass now fails on unresolved imports and missing external dependencies.",
+    "Seven omitted preserved RL runtime files were copied into the V2-owned mirror.",
+    "Copied microstructure syntax errors were repaired in the V2-owned mirror.",
+    "Dependency closure and atlases were regenerated."
+  ]
+}

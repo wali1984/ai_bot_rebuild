@@ -1,0 +1,23 @@
+{
+  "codex_pair_task_id": "198_claude_fix_v2_full_observation_portfolio_state_v2_orchestrator_keys_written_count",
+  "created_at": "2026-05-24T04:17:55Z",
+  "file_lock_group": "v2_full_observation_portfolio_state_v2_orchestrator_keys_written_count",
+  "owner": "CODEX",
+  "prompt": "Codex review for paired Claude task 198_claude_fix_v2_full_observation_portfolio_state_v2_orchestrator_keys_written_count. Scope: V2 changes only. Do not approve live, canary, legacy shutdown or Redis trim. End with <NAME>_CODEX_PASS or <NAME>_CODEX_FAIL.",
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "scope_paths": [],
+  "status": "pending",
+  "task_id": "closed_loop_codex_review_198_claude_fix_v2_full_observation_portfolio_state_v2_orchestrator_keys_written_count",
+  "task_type": "CODEX_REVIEW",
+  "updated_at": "2026-05-24T04:17:55Z"
+}

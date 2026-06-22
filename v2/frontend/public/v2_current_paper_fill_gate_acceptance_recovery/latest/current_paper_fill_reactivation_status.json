@@ -1,0 +1,17 @@
+{
+  "accepted_fill_count_after": 6,
+  "audit_payload_written": true,
+  "bug_blocks_remaining": 0,
+  "exact_reason_if_zero": null,
+  "fills_fabricated": false,
+  "generated_est": "2026-06-09T15:07:21-04:00",
+  "generated_utc": "2026-06-09T19:07:21Z",
+  "live_independent": true,
+  "old_june_5_fills_reused": false,
+  "overstrict_blocks_remaining": 0,
+  "paper_equity_updates_if_fills_exist": true,
+  "paper_only": true,
+  "profile_changed": false,
+  "schema_version": "current_paper_fill_reactivation_status_v1",
+  "valid_blocks_remained_blocked": 116
+}

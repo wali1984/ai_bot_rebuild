@@ -1,0 +1,23 @@
+{
+  "codex_pair_task_id": "218_claude_fix_v2_full_observation_position_context_v2_fee_gate_allowed_rate",
+  "created_at": "2026-05-24T04:17:55Z",
+  "file_lock_group": "v2_full_observation_position_context_v2_fee_gate_allowed_rate",
+  "owner": "CODEX",
+  "prompt": "Codex review for paired Claude task 218_claude_fix_v2_full_observation_position_context_v2_fee_gate_allowed_rate. Scope: V2 changes only. Do not approve live, canary, legacy shutdown or Redis trim. End with <NAME>_CODEX_PASS or <NAME>_CODEX_FAIL.",
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "scope_paths": [],
+  "status": "pending",
+  "task_id": "closed_loop_codex_review_218_claude_fix_v2_full_observation_position_context_v2_fee_gate_allowed_rate",
+  "task_type": "CODEX_REVIEW",
+  "updated_at": "2026-05-24T04:17:55Z"
+}

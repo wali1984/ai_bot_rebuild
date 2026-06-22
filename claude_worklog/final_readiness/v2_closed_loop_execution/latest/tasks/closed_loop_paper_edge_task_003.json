@@ -1,0 +1,29 @@
+{
+  "agent": "claude",
+  "created_at": "2026-05-25T02:57:48.606661Z",
+  "depends_on_task_id": null,
+  "file_lock_group": "paper_edge_4",
+  "lane_group": "proof-claude",
+  "lane_type": "CLAUDE_IMPLEMENTATION",
+  "mission_category": "paper_edge",
+  "notes": "Proof task with Codex review coverage.",
+  "owner": "CLAUDE",
+  "paired_task_id": "codex_review_closed_loop_paper_edge_task_003",
+  "prompt": "Implement closed_loop_paper_edge_task_003 under V2 closed-loop constraints",
+  "safe_envelope": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "scope_paths": [
+    "v2/backend/app/services/proof"
+  ],
+  "status": "pending",
+  "task_id": "closed_loop_paper_edge_task_003",
+  "task_type": "CLAUDE_IMPLEMENTATION",
+  "title": "Spark proof seed",
+  "updated_at": "2026-05-25T06:59:30.968496Z"
+}

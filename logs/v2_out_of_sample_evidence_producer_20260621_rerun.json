@@ -1,0 +1,217 @@
+{
+  "schema_version": "v2_out_of_sample_reverify_evidence_producer_v1",
+  "generated_utc": "2026-06-21T21:57:00Z",
+  "selector_policy_fingerprint": "c4b8fb1ed12aabcb87224723f1758563eefff10de90288be09866d2bf3fa74b5",
+  "producer": "both",
+  "paper_only": true,
+  "places_real_order": false,
+  "test_orders": false,
+  "leverage_mutation": false,
+  "margin_mode_mutation": false,
+  "old_redis_writes": false,
+  "holdout": {
+    "schema_version": "v2_out_of_sample_reverify_evidence_producer_v1",
+    "generated_utc": "2026-06-21T21:57:00Z",
+    "producer": "holdout",
+    "status": "NO_COUNTABLE_HOLDOUT_ROWS_APPENDED",
+    "selector_policy_fingerprint": "c4b8fb1ed12aabcb87224723f1758563eefff10de90288be09866d2bf3fa74b5",
+    "source_status": {
+      "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/closed_candle_replay_evidence_rows.jsonl",
+      "exists": true,
+      "scanned_line_count": 19800,
+      "parse_error_count": 0,
+      "parse_error_sample": [],
+      "sha256": "0f04e7a8590970c5859b9f15c4b3e4deb514d43e519b6ad35242efa8e12dc395"
+    },
+    "bucket_matrix_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/a_grade_bucket_performance_matrix.json",
+    "eligible_bucket_count": 5,
+    "registry_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_window_registry.json",
+    "registry_status": "NO_ELIGIBLE_HOLDOUT_WINDOWS_REGISTERED",
+    "registered_window_count": 0,
+    "processed_source_row_count": 19800,
+    "accepted_appended_count": 0,
+    "pending_appended_count": 0,
+    "rejected_appended_count": 1842,
+    "duplicate_skipped_count": 17958,
+    "rejection_reason_counts": {
+      "DYNAMIC_BUCKET_NOT_A_GRADE_ELIGIBLE": 1816,
+      "NON_POSITIVE_DECISION_TIME_EXPECTED_EDGE": 564,
+      "NO_PRE_REGISTERED_HOLDOUT_WINDOW": 1842
+    },
+    "sidecar_summary": {
+      "source_status": {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_reverify_rows.jsonl",
+        "exists": true,
+        "scanned_line_count": 0,
+        "parse_error_count": 0,
+        "parse_error_sample": [],
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "row_count": 0,
+      "symbol_count": 0,
+      "symbols_sample": [],
+      "side_counts": {},
+      "expectancy_metric": null,
+      "profit_factor": null,
+      "profit_factor_numeric": null,
+      "profit_concentration_status": {
+        "symbol": {
+          "dimension": "symbol",
+          "top_profit_share": null,
+          "status": "NO_GROSS_PROFIT"
+        },
+        "timeframe": {
+          "dimension": "timeframe",
+          "top_profit_share": null,
+          "status": "NO_GROSS_PROFIT"
+        },
+        "regime": {
+          "dimension": "regime",
+          "top_profit_share": null,
+          "status": "NO_GROSS_PROFIT"
+        },
+        "strategy": {
+          "dimension": "strategy",
+          "top_profit_share": null,
+          "status": "NO_GROSS_PROFIT"
+        }
+      }
+    },
+    "hash_chain_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_reverify_rows.jsonl.hash_chain.jsonl",
+    "paper_only": true,
+    "places_real_order": false,
+    "test_orders": false,
+    "leverage_mutation": false,
+    "margin_mode_mutation": false,
+    "old_redis_writes": false
+  },
+  "realtime": {
+    "schema_version": "v2_out_of_sample_reverify_evidence_producer_v1",
+    "generated_utc": "2026-06-21T21:57:00Z",
+    "producer": "realtime",
+    "status": "NO_COUNTABLE_REALTIME_ROWS_APPENDED",
+    "selector_policy_fingerprint": "c4b8fb1ed12aabcb87224723f1758563eefff10de90288be09866d2bf3fa74b5",
+    "source_statuses": [
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_trade_management_paper/live/latest/v2_trade_management_paper_live_status.json",
+        "exists": true,
+        "row_count": 0,
+        "sha256": "7011fe682500ed40faebff9ce1c5a18ca9925969df2ddf5dabf38366485b9aec"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/paper_online/latest/paper_ledger_tail.json",
+        "exists": true,
+        "row_count": 1,
+        "sha256": "2f8522d1815fbc9f5beef6773e5e888ff0fe836c0ebf5972b3d2f14dd5926e12"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/paper_online/latest/paper_events.jsonl",
+        "exists": true,
+        "scanned_line_count": 95610,
+        "parse_error_count": 3,
+        "parse_error_sample": [
+          {
+            "line_number": 33926,
+            "error": "Expecting value: line 1 column 1 (char 0)"
+          },
+          {
+            "line_number": 34466,
+            "error": "Expecting value: line 1 column 1 (char 0)"
+          },
+          {
+            "line_number": 43086,
+            "error": "Expecting value: line 1 column 1 (char 0)"
+          }
+        ],
+        "sha256": "31d3b0131b7586e60860044790faee343497470be6a847fe75d7c43a93a6ff4c"
+      }
+    ],
+    "bucket_matrix_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/a_grade_bucket_performance_matrix.json",
+    "eligible_bucket_count": 5,
+    "processed_source_row_count": 95608,
+    "accepted_appended_count": 0,
+    "pending_appended_count": 0,
+    "rejected_appended_count": 80755,
+    "duplicate_skipped_count": 14853,
+    "rejection_reason_counts": {
+      "DYNAMIC_BUCKET_NOT_A_GRADE_ELIGIBLE": 80755,
+      "MISSING_ACCOUNTING_ALLOCATED_MARGIN": 80755,
+      "MISSING_ACCOUNTING_DEPTH_IMPACT": 80755,
+      "MISSING_ACCOUNTING_FEES": 19310,
+      "MISSING_ACCOUNTING_FUNDING": 80755,
+      "MISSING_ACCOUNTING_GROSS_NOTIONAL": 78467,
+      "MISSING_ACCOUNTING_HEDGE": 80755,
+      "MISSING_ACCOUNTING_LEVERAGE": 80755,
+      "MISSING_ACCOUNTING_LIQUIDATION_BUFFER": 80755,
+      "MISSING_ACCOUNTING_MARGIN_MODE": 80755,
+      "MISSING_ACCOUNTING_OBSERVED_SPREAD": 19310,
+      "MISSING_ACCOUNTING_PORTFOLIO_CORRELATION": 80755,
+      "MISSING_ACCOUNTING_STOP_DISTANCE": 80755,
+      "MISSING_ACCOUNTING_TAKE_PROFIT_STRUCTURE": 80755,
+      "MISSING_AVAILABLE_AT": 80755,
+      "MISSING_FEATURE_CUTOFF": 80755,
+      "NON_DIRECTIONAL_SIDE": 71357,
+      "NON_POSITIVE_DECISION_TIME_EXPECTED_EDGE": 74342
+    },
+    "sidecar_summary": {
+      "source_status": {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_realtime_paper_reverify_rows.jsonl",
+        "exists": true,
+        "scanned_line_count": 0,
+        "parse_error_count": 0,
+        "parse_error_sample": [],
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "row_count": 0,
+      "symbol_count": 0,
+      "symbols_sample": [],
+      "side_counts": {},
+      "expectancy_metric": null,
+      "profit_factor": null,
+      "profit_factor_numeric": null,
+      "profit_concentration_status": {
+        "symbol": {
+          "dimension": "symbol",
+          "top_profit_share": null,
+          "status": "NO_GROSS_PROFIT"
+        },
+        "timeframe": {
+          "dimension": "timeframe",
+          "top_profit_share": null,
+          "status": "NO_GROSS_PROFIT"
+        },
+        "regime": {
+          "dimension": "regime",
+          "top_profit_share": null,
+          "status": "NO_GROSS_PROFIT"
+        },
+        "strategy": {
+          "dimension": "strategy",
+          "top_profit_share": null,
+          "status": "NO_GROSS_PROFIT"
+        }
+      }
+    },
+    "hash_chain_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_realtime_paper_reverify_rows.jsonl.hash_chain.jsonl",
+    "replay_projection_expectancy_after_cost_bps": 41.76153327,
+    "minimum_realtime_expectancy_after_cost_bps": 20.88076664,
+    "paper_only": true,
+    "places_real_order": false,
+    "test_orders": false,
+    "leverage_mutation": false,
+    "margin_mode_mutation": false,
+    "old_redis_writes": false
+  },
+  "status_regeneration": {
+    "command": [
+      "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python",
+      "-m",
+      "v2.backend.app.cli.v2_adaptive_capital_productivity_status",
+      "--horizon-years",
+      "5.0"
+    ],
+    "returncode": 2,
+    "duration_seconds": 129.61374521,
+    "log_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_evidence_producer_status_regeneration.log"
+  }
+}

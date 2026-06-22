@@ -1,0 +1,158 @@
+{
+  "approves_live": false,
+  "generated_at": "2026-05-25T02:39:00.415774Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "output_freshness": {
+    "closed_loop_execution_status": {
+      "age_seconds": 75,
+      "exists": true,
+      "path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/closed_loop_execution_status.json"
+    },
+    "report_center_index": {
+      "age_seconds": 26448,
+      "exists": true,
+      "path": "v2/backend/app/cli/v2_report_center_indexer.py"
+    },
+    "worker_leases": {
+      "age_seconds": 128,
+      "exists": true,
+      "path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/worker_leases.json"
+    }
+  },
+  "persistent_workers_running": true,
+  "regression_check": {
+    "autoseed_legacy_args_fixed": true,
+    "autoseed_service_pythonpath_fixed": true,
+    "burndown_legacy_args_fixed": true,
+    "no_approvals": true,
+    "no_exchange_mutation": true,
+    "no_old_redis_writes": true,
+    "worker_pool_legacy_args_fixed": true
+  },
+  "schema_version": "1",
+  "services": {
+    "agent_supervisor": {
+      "ActiveState": "active",
+      "ExecMainStartTimestamp": "Thu 2026-05-14 20:15:37 EDT",
+      "Result": "success",
+      "SubState": "running"
+    },
+    "autoseed": {
+      "ActiveState": "inactive",
+      "ExecMainStartTimestamp": "Sun 2026-05-24 22:37:45 EDT",
+      "Result": "success",
+      "SubState": "dead"
+    },
+    "burndown": {
+      "ActiveState": "inactive",
+      "ExecMainStartTimestamp": "Sun 2026-05-24 23:01:38 EDT",
+      "Result": "success",
+      "SubState": "dead"
+    },
+    "claude_worker_1": {
+      "ActiveState": "active",
+      "ExecMainStartTimestamp": "Sun 2026-05-24 14:59:10 EDT",
+      "Result": "success",
+      "SubState": "running"
+    },
+    "claude_worker_2": {
+      "ActiveState": "active",
+      "ExecMainStartTimestamp": "Sun 2026-05-24 14:58:58 EDT",
+      "Result": "success",
+      "SubState": "running"
+    },
+    "claude_worker_3": {
+      "ActiveState": "active",
+      "ExecMainStartTimestamp": "Sun 2026-05-24 14:59:00 EDT",
+      "Result": "success",
+      "SubState": "running"
+    },
+    "codex_governor_8h": {
+      "ActiveState": "inactive",
+      "ExecMainStartTimestamp": "Sun 2026-05-24 22:35:31 EDT",
+      "Result": "success",
+      "SubState": "dead"
+    },
+    "codex_governor_continuous": {
+      "ActiveState": "inactive",
+      "ExecMainStartTimestamp": "Sun 2026-05-24 22:35:31 EDT",
+      "Result": "success",
+      "SubState": "dead"
+    },
+    "codex_worker_1": {
+      "ActiveState": "active",
+      "ExecMainStartTimestamp": "Sun 2026-05-24 14:59:06 EDT",
+      "Result": "success",
+      "SubState": "running"
+    },
+    "codex_worker_2": {
+      "ActiveState": "active",
+      "ExecMainStartTimestamp": "Sun 2026-05-24 14:58:57 EDT",
+      "Result": "success",
+      "SubState": "running"
+    },
+    "codex_worker_3": {
+      "ActiveState": "active",
+      "ExecMainStartTimestamp": "Sun 2026-05-24 14:59:01 EDT",
+      "Result": "success",
+      "SubState": "running"
+    },
+    "executive_command_center": {
+      "ActiveState": "inactive",
+      "ExecMainStartTimestamp": "Sun 2026-05-24 22:30:18 EDT",
+      "Result": "success",
+      "SubState": "dead"
+    },
+    "replay_miner": {
+      "ActiveState": "inactive",
+      "ExecMainStartTimestamp": "Sun 2026-05-24 22:38:15 EDT",
+      "Result": "success",
+      "SubState": "dead"
+    },
+    "report_center_indexer": {
+      "ActiveState": "inactive",
+      "ExecMainStartTimestamp": "Sun 2026-05-24 22:38:30 EDT",
+      "Result": "success",
+      "SubState": "dead"
+    },
+    "worker_pool": {
+      "ActiveState": "inactive",
+      "ExecMainStartTimestamp": "Sun 2026-05-24 22:37:45 EDT",
+      "Result": "success",
+      "SubState": "dead"
+    }
+  },
+  "timers": {
+    "autoseed_timer": {
+      "ActiveState": "active",
+      "LastTriggerUSec": "Sun 2026-05-24 22:37:45 EDT",
+      "NextElapseUSecRealtime": ""
+    },
+    "burndown_timer": {
+      "ActiveState": "active",
+      "LastTriggerUSec": "Sun 2026-05-24 22:57:59 EDT",
+      "NextElapseUSecRealtime": "Sun 2026-05-24 23:06:38 EDT"
+    },
+    "executive_timer": {
+      "ActiveState": "active",
+      "LastTriggerUSec": "Sun 2026-05-24 22:30:18 EDT",
+      "NextElapseUSecRealtime": ""
+    },
+    "replay_miner_timer": {
+      "ActiveState": "active",
+      "LastTriggerUSec": "Sun 2026-05-24 22:38:15 EDT",
+      "NextElapseUSecRealtime": ""
+    },
+    "report_center_timer": {
+      "ActiveState": "active",
+      "LastTriggerUSec": "Sun 2026-05-24 22:38:30 EDT",
+      "NextElapseUSecRealtime": ""
+    },
+    "worker_pool_timer": {
+      "ActiveState": "active",
+      "LastTriggerUSec": "Sun 2026-05-24 22:37:45 EDT",
+      "NextElapseUSecRealtime": ""
+    }
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "agent": "claude",
+  "created_at": "2026-05-31T00:00:00Z",
+  "current_active": false,
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": null,
+  "duplicate_suppression_key": null,
+  "expected_output_paths": [
+    "claude_worklog/final_readiness/v2_zero_exception_parity_implementation_burndown_20260531/hardcoded_ta_rsi_14/IMPLEMENTATION_REPORT.md",
+    "claude_worklog/final_readiness/v2_zero_exception_parity_implementation_burndown_20260531/hardcoded_ta_rsi_14/GO_NO_GO.md",
+    "claude_worklog/final_readiness/v2_zero_exception_parity_implementation_burndown_20260531/hardcoded_ta_rsi_14/STATUS.json"
+  ],
+  "fail_blockers": [],
+  "file_lock_group": "v2_zero_exception_parity_hardcoded_ta_rsi_14",
+  "max_stall_relaunches": 1,
+  "mission_category": "ZERO_EXCEPTION_PARITY",
+  "next_action": "Implement and emit evidence artifacts in scope.",
+  "owner": "CLAUDE",
+  "paired_task_id": "codex_review_v2_zero_exception_parity_hardcoded_ta_rsi_14_20260531",
+  "predecessor_task_ids": null,
+  "priority": 9000,
+  "prompt": "Implement Hardcoded TA constant field: rsi_14 as part of V2_ZERO_EXCEPTION_PARITY_IMPLEMENTATION_BURNDOWN_READY. Do not run live, canary, or shutdown operations. Keep V2 scoped writes only and preserve no legacy Redis key writes. Emit concrete evidence artifacts at expected output paths.",
+  "risk_level": "L1",
+  "safe_envelope": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "scope_paths": [
+    "v2/backend/app/services/feature_pipeline_and_ta/service.py",
+    "v2/frontend/public/v2_legacy_data_zero_exception_parity_and_full_runtime_startup/latest/v2_feature_ta_zero_exception_parity_status.json"
+  ],
+  "source_matrix_row": "v2_zero_exception_parity_hardcoded_ta_rsi_14",
+  "stall_count": 0,
+  "stall_threshold_seconds": 600,
+  "status": "done",
+  "task_id": "claude_v2_zero_exception_parity_hardcoded_ta_rsi_14_20260531",
+  "task_type": "CLAUDE_IMPLEMENTATION",
+  "updated_at": "2026-06-01T21:50:28Z",
+  "completion_evidence": {
+    "completed_est": "2026-06-01T17:50:28-0400",
+    "claim": "TA feature `rsi_14` is REAL_COMPUTED in live V2 Redis (pre: hardcoded 50.0). Live value=45.54189199524716. Source: Wilder RSI over v2:market:ohlcv:binance:{sym}:1m closes.",
+    "raw_evidence": "`v2:features:latest:BTCUSDT:1m`.features.rsi_14 = 45.54189199524716 (generated_at=2026-06-01T21:50:20Z); BTC snapshot real_feature_count=25, missing_feature_count=0; 27 live v2:features:latest:*:1m keys. Code: v2/backend/app/cli/v2_feature_pipeline_native_loop.py _features_from_market().",
+    "verification_command": "redis-cli get v2:features:latest:BTCUSDT:1m | python3 -c \"import json,sys;d=json.load(sys.stdin);print(d['real_feature_count'],d['missing_feature_count'],d['features'])\"",
+    "confidence": "HIGH",
+    "artifact_dir": "claude_worklog/final_readiness/v2_zero_exception_parity_implementation_burndown_20260531/hardcoded_ta_rsi_14"
+  }
+}

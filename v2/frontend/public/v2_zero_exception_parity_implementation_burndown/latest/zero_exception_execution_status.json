@@ -1,0 +1,67 @@
+{
+  "schema_version": "zero_exception_execution_status_v1",
+  "milestone": "v2_zero_exception_parity_implementation_burndown",
+  "phase": 1,
+  "generated_est": "2026-06-03T18:38:54-0400",
+  "generated_utc": "2026-06-03T22:38:54Z",
+  "implemented_this_turn": [
+    {
+      "row": "feature_pipeline.py",
+      "what_was_done": "Replaced all hardcoded TA constants with real pure-language TA (RSI/MACD/EMA/SMA/ATR/BB) + orderbook depth imbalance + bid-ask spread. Pre: 0 real TA fields. Post: 22 of 25 features REAL_COMPUTED."
+    },
+    {
+      "row": "ingest/live_binance.py",
+      "what_was_done": "Added Binance public klines + depth fetchers; v2:market:ohlcv:binance:{sym}:1m and v2:market:orderbook:{sym} now populate every 60s."
+    },
+    {
+      "row": "ingest/live_coinank_global_aggregator.py",
+      "what_was_done": "Added V2 Redis input loading and V2-prefixed global 11-key mirrors. One-shot proof wrote 34 v2: global keys from 4 symbols without old Redis writes."
+    },
+    {
+      "row": "ingest/live_kucoin.py",
+      "what_was_done": "Converted v2_kucoin_ingestor_worker from descriptive-only stub to real public REST fetcher for ticker, 1m kline, orderbook20, funding, and contract detail with V2-only Redis writes."
+    },
+    {
+      "row": "(misc/state keys)",
+      "what_was_done": "Added v2_misc_state_keys_publisher for config:symbols -> v2:symbol_universe:contract and market:state -> v2:market:state plus per-symbol v2:market:state:{symbol} records."
+    }
+  ],
+  "files_modified": [
+    "v2/backend/app/cli/v2_native_ingestors_live_loop.py",
+    "v2/backend/app/cli/v2_feature_pipeline_native_loop.py",
+    "v2/backend/app/cli/v2_coinank_and_liquidation_bridge.py",
+    "v2/backend/app/services/coinank_bridge/service.py",
+    "v2/backend/app/cli/v2_kucoin_ingestor_worker.py",
+    "v2/backend/app/cli/v2_misc_state_keys_publisher.py",
+    "v2/backend/app/services/website/redis_bridge_contracts.py"
+  ],
+  "services_restarted": [
+    "ai-bot-v2-native-ingestors-live-loop.service",
+    "ai-bot-v2-feature-pipeline-native-loop.service"
+  ],
+  "still_pending_implementation_now": [
+    "CoinAPI v1 CLI (no V2 implementation)",
+    "Dedicated v2:technical_analysis:{symbol}:{tf} family (TA currently embedded in v2:features:latest:*)",
+    "v2 feature pipeline full 562-field parity (currently 25-field stub with 22 real)",
+    "Orchestrator signal merger / WMA pipeline",
+    "Opportunity tracker",
+    "Portfolio monitor",
+    "5 missing website pages (Ingestors, Technical Analysis, Liquidation Bridge / Levels, Strategy / Backtesting, Logs / Errors)"
+  ],
+  "still_pending_credential_required": [
+    "COINANK_API_KEY",
+    "LUNARCRUSH_API_KEY",
+    "NANSEN_API_KEY (currently 403)",
+    "COINAPI_API_KEY",
+    "ALPHAVANTAGE_API_KEY"
+  ],
+  "still_pending_operator_required": [
+    "rl/hybrid_trainer.py adoption-in-V2-paper-mode OR new V2 native trainer",
+    "TokenMetrics re-enable decision",
+    "CCXT multi-exchange approval",
+    "CoinAPI WSDS paid tier approval",
+    "trader-asjad",
+    "Telegram alerts path"
+  ],
+  "live_safety": {"live_gate_status": "blocked_human_only", "live_symbols": []}
+}

@@ -1,0 +1,42 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "controller_intent": "annotate-and-route",
+  "forbidden_actions": [
+    "modify /home/wali/Desktop/AI BOT",
+    "place or cancel or modify exchange orders",
+    "change leverage or margin",
+    "enable live trading",
+    "create live/canary/shutdown/Redis-trim approval tokens",
+    "create paper-only shutdown acceptance file",
+    "expose raw API keys",
+    "deserialize checkpoint blobs",
+    "write old (legacy) Redis keys",
+    "claim checkpoint compatibility",
+    "claim policy architecture parity",
+    "zero-fill unknown values",
+    "stop V2 runtime, remediation governor, legacy log observer, V2-vs-legacy comparator, liquidation WSS daemon, position-history daemon",
+    "automatic Symbol Universe adoption",
+    "automatic external source adoption"
+  ],
+  "generated_utc": "2026-06-22T00:26:46Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "next_action": "route category 'RUNTIME_PROCESS_DOWN' via supervisor to CLAUDE",
+  "schema_version": "v2_autonomous_full_rebuild_self_healing_action_plan_v1",
+  "selected_work": {
+    "category": "RUNTIME_PROCESS_DOWN",
+    "duplicate_key": "4d972e8257fcbbf9",
+    "evidence": {
+      "pattern": "v2_continuous_legacy_log_to_rebuild_remediation",
+      "running": false
+    },
+    "owner": "CLAUDE",
+    "remediation": "investigate or restart per its start script; do not stop legacy",
+    "severity": "P1",
+    "source": "continuous_legacy_log_remediation"
+  },
+  "selector_status": "AUTOMATABLE_WORK_SELECTED"
+}

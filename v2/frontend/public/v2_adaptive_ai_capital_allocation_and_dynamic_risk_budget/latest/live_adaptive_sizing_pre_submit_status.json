@@ -1,0 +1,15 @@
+{
+  "status": "LIVE_PRE_SUBMIT_ALLOCATOR_ACTIVE_AND_HELD",
+  "generated_est": "2026-06-11T16:19:38-04:00",
+  "live_pre_submit_path": "v2/backend/app/services/live_gate/binance_live_order_transport.py",
+  "uses_adaptive_allocator": true,
+  "live_submit_changed": false,
+  "live_gate_expected": "enabled_operator_approved",
+  "trader_state_expected": "LIVE_ARMED_BALANCE_HOLD",
+  "submit_allowed_without_margin": false,
+  "insufficient_margin_blocker_preserved": "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER",
+  "test_order_endpoint_attempted": false,
+  "leverage_changed": false,
+  "margin_mode_changed": false,
+  "real_order_submitted_by_validation": false
+}

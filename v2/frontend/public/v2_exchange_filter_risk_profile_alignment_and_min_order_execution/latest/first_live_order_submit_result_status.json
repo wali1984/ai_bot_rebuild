@@ -1,0 +1,92 @@
+{
+  "blockers": [
+    "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER"
+  ],
+  "generated_est": "2026-06-07T22:41:14-04:00",
+  "order_submitted": false,
+  "places_real_order": false,
+  "schema_version": "first_live_order_submit_result_status_v1",
+  "selected_candidate": {
+    "account_margin_status": {
+      "available_balance_checked": true,
+      "available_balance_redacted": true,
+      "available_balance_sufficient": false,
+      "balances_redacted": true,
+      "can_trade": null,
+      "endpoint": "GET /fapi/v3/account",
+      "error_type": null,
+      "ok": true,
+      "required_initial_margin_usdt": 64.86,
+      "required_notional_usdt": 64.86,
+      "source": "binance_signed_readonly",
+      "status_code": 200
+    },
+    "confidence": 0.6809434355382293,
+    "expected_move_after_cost_bps": 108.56573370692621,
+    "final_approval_audit_id": "live_gate_final_1df15ae557ff43b994ddee7fcee75d2f",
+    "lineage": {
+      "live_gate_audit_id": "live_gate_enable_a625277031184b56a17cef3f7b620de8",
+      "orchestrator_decision_id": "v2_native_pred_bbc22136a9074a1824fa4be08875dd88_219a2190e2b0ebb8",
+      "prediction_id": "v2_native_pred_bbc22136a9074a1824fa4be08875dd88_219a2190e2b0ebb8",
+      "risk_decision_id": "rd_dec_v2_native_pred_bbc22136a9074a1824fa4be08875dd88_219a2190e2b0ebb8",
+      "risk_profile_audit_id": "live_gate_risk_d72f2d3f5e7f4667bae74c8931a78049",
+      "signal_id": "v2_native_pred_bbc22136a9074a1824fa4be08875dd88_219a2190e2b0ebb8",
+      "symbols_audit_id": "live_gate_symbols_aca7a192fba941b8873df0cf864f5c52"
+    },
+    "position_side": "LONG",
+    "price_reference": 63660.310078536764,
+    "quantity": 0.001,
+    "requested_notional_usdt": 64.86,
+    "risk_gateway_record": {
+      "legacy_live_blocked_label": "LEGACY_LIVE_PATH_BLOCKED_NOT_V2",
+      "live_blocked": true,
+      "risk_action": "allow",
+      "risk_decision_id": "rd_dec_v2_native_pred_bbc22136a9074a1824fa4be08875dd88_219a2190e2b0ebb8",
+      "risk_reason_code": "allow_proceed_long"
+    },
+    "side": "BUY",
+    "source_generated_est": "2026-06-07T22:40:57-04:00",
+    "source_signal_live_gate": "enabled_operator_approved",
+    "source_signal_live_symbols": [
+      "BNBUSDT",
+      "BTCUSDT",
+      "ETHUSDT",
+      "PAXGUSDT",
+      "XAUTUSDT",
+      "ZECUSDT"
+    ],
+    "symbol": "BTCUSDT",
+    "symbol_filter_status": {
+      "endpoint": "GET /fapi/v1/exchangeInfo",
+      "error_type": null,
+      "max_price": "4529764",
+      "max_qty": "120",
+      "min_executable_order": {
+        "blockers": [],
+        "min_executable_notional": 63.66031007853677,
+        "min_executable_notional_text": "63.660310078536764",
+        "min_executable_quantity": 0.001,
+        "min_executable_quantity_text": "0.001",
+        "ok": true,
+        "raw_qty_for_min_notional": 0.000785418731676232
+      },
+      "min_notional": "50",
+      "min_price": "556.80",
+      "min_qty": "0.001",
+      "ok": true,
+      "price_precision": 2,
+      "quantity_precision": 3,
+      "status": "TRADING",
+      "step_size": "0.001",
+      "symbol": "BTCUSDT",
+      "tick_size": "0.10"
+    }
+  },
+  "skipped_reason": "LIVE_ORDER_TRANSPORT_SUBMIT_SKIPPED_PRECHECK_BLOCKERS",
+  "status": "LIVE_ORDER_TRANSPORT_SUBMIT_SKIPPED_PRECHECK_BLOCKERS",
+  "submit_result": null,
+  "warnings": [
+    "RISK_GATEWAY_LEGACY_LIVE_BLOCKED_TRUE_PRESENT"
+  ],
+  "writes_exchange_orders": false
+}

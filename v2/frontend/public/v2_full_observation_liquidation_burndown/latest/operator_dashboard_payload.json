@@ -1,0 +1,84 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "checkpoint_compatibility_claimed": false,
+  "external_source_required_families": [
+    "unified_feature_family.token_metrics",
+    "onchain_btc",
+    "onchain_eth"
+  ],
+  "generated_utc": "2026-05-17T21:08:36Z",
+  "go_no_go": "V2_FULL_OBSERVATION_LIQUIDATION_BURNDOWN_READY_PARTIAL_PROGRESS",
+  "liquidation_present_after_total": 24,
+  "liquidation_present_before_total": 12,
+  "liquidation_target_total": 36,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "next_required_family": "liquidations",
+  "no_legacy_filesystem_read": true,
+  "no_pickle_loaded": true,
+  "no_torch_imported": true,
+  "no_zero_fill_for_unknown_fields": true,
+  "operator_decision_required_families": [
+    "unified_feature_family.ccxt_ohlcv"
+  ],
+  "per_symbol_accounting": [
+    {
+      "delta": 4,
+      "liquidation_missing_after": 4,
+      "liquidation_missing_before": 8,
+      "liquidation_present_after": 8,
+      "liquidation_present_before": 4,
+      "new_generated_dim": 148,
+      "prior_generated_dim": 144,
+      "symbol": "BTCUSDT"
+    },
+    {
+      "delta": 4,
+      "liquidation_missing_after": 4,
+      "liquidation_missing_before": 8,
+      "liquidation_present_after": 8,
+      "liquidation_present_before": 4,
+      "new_generated_dim": 148,
+      "prior_generated_dim": 144,
+      "symbol": "ETHUSDT"
+    },
+    {
+      "delta": 4,
+      "liquidation_missing_after": 4,
+      "liquidation_missing_before": 8,
+      "liquidation_present_after": 8,
+      "liquidation_present_before": 4,
+      "new_generated_dim": 143,
+      "prior_generated_dim": 139,
+      "symbol": "SOLUSDT"
+    }
+  ],
+  "policy_architecture_parity_claimed": false,
+  "schema_version": "v2_full_observation_liquidation_burndown_status_v1",
+  "state": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+  "subfamily_present_counts_total": {
+    "binance_klines": 60,
+    "binance_orderbook": 45,
+    "ccxt_ohlcv": 0,
+    "coinank": 48,
+    "liquidations": 24,
+    "portfolio_state_unified": 45,
+    "technical_analysis": 72,
+    "token_metrics": 0
+  },
+  "subfamily_target_counts_total": {
+    "binance_klines": 20,
+    "binance_orderbook": 15,
+    "ccxt_ohlcv": 10,
+    "coinank": 22,
+    "liquidations": 12,
+    "portfolio_state_unified": 15,
+    "technical_analysis": 25,
+    "token_metrics": 18
+  },
+  "target_full_observation_dim": 1911,
+  "v2_liquidation_aggregator_per_symbol_source_available": false
+}

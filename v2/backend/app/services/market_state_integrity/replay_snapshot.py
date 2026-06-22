@@ -4,6 +4,8 @@ import hashlib
 import json
 from typing import Any
 
+from .trust import TRUST_SCHEMA_VERSION
+
 
 def stable_hash(value: Any) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, default=str).encode("utf-8")).hexdigest()
@@ -21,11 +23,36 @@ def build_replay_snapshot(
     prediction = prediction or {}
     integrity = integrity or {}
     return {
+        "trust_schema_version": TRUST_SCHEMA_VERSION,
         "decision_id": decision_id,
         "prediction_id": prediction.get("prediction_id") or (paper_candidate or {}).get("prediction_id"),
         "decision_time_est": prediction.get("generated_est") or prediction.get("generated_utc"),
+        "decision_time": prediction.get("decision_time") or prediction.get("generated_est") or prediction.get("generated_utc"),
+        "generated_at": prediction.get("generated_at") or prediction.get("generated_est") or prediction.get("generated_utc"),
         "symbol": prediction.get("symbol") or (paper_candidate or {}).get("symbol"),
         "timeframe": prediction.get("timeframe") or (paper_candidate or {}).get("timeframe"),
+        "replay_snapshot_id": prediction.get("replay_snapshot_id") or decision_id,
+        "mtf_snapshot_id": prediction.get("mtf_snapshot_id"),
+        "mtf_snapshot_valid": prediction.get("mtf_snapshot_valid"),
+        "masa_generated_at": prediction.get("masa_generated_at")
+        or prediction.get("masa_prediction_timestamp")
+        or prediction.get("generated_at")
+        or prediction.get("generated_est")
+        or prediction.get("generated_utc"),
+        "masa_feature_cutoff": prediction.get("masa_feature_cutoff") or prediction.get("feature_cutoff"),
+        "masa_forecast_horizon": prediction.get("masa_forecast_horizon")
+        or prediction.get("forecast_horizon")
+        or prediction.get("timeframe"),
+        "masa_symbol": prediction.get("masa_symbol") or prediction.get("symbol"),
+        "masa_timeframe": prediction.get("masa_timeframe") or prediction.get("timeframe"),
+        "ppo_observation_time": prediction.get("ppo_observation_time")
+        or prediction.get("ppo_observation_timestamp")
+        or prediction.get("generated_at")
+        or prediction.get("generated_est")
+        or prediction.get("generated_utc"),
+        "ppo_feature_cutoff": prediction.get("ppo_feature_cutoff") or prediction.get("feature_cutoff"),
+        "ppo_symbol": prediction.get("ppo_symbol") or prediction.get("symbol"),
+        "ppo_timeframe": prediction.get("ppo_timeframe") or prediction.get("timeframe"),
         "all_tf_candle_timestamps": prediction.get("all_tf_candle_timestamps") or [],
         "all_source_event_times": prediction.get("all_source_event_times") or [],
         "feature_vector_hash": prediction.get("feature_vector_hash") or stable_hash(prediction.get("features") or {}),

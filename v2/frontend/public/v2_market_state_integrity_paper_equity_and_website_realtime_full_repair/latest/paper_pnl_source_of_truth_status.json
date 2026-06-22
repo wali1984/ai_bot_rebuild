@@ -1,0 +1,33 @@
+{
+  "accepted_fill_count": 0,
+  "current_active_session_reason": "NO_ACCEPTED_PAPER_FILL_IN_CURRENT_V2_LEDGER",
+  "current_cash": 10000.0,
+  "current_loss_fill_rows": [],
+  "current_session_equity": 10000.0,
+  "current_session_pnl": 0.0,
+  "fills_fabricated": false,
+  "generated_est": "2026-06-08T23:21:50-04:00",
+  "generated_utc": "2026-06-09T03:21:50Z",
+  "held_row_count": 122,
+  "initial_capital": 10000.0,
+  "last_equity_update_est": "2026-06-08T23:21:50-04:00",
+  "last_fill_est": null,
+  "lifetime_paper_pnl": -49.345535,
+  "old_june_5_fills_reused": false,
+  "open_positions": 0,
+  "paper_minus_49_classification": "STALE_OR_LIFETIME_PAPER_ONLINE_PNL_NOT_CURRENT_SESSION",
+  "pnl_source_payload": "operator_runtime/v2_portfolio_state/latest/v2_portfolio_state.json",
+  "pnl_source_redis_keys": [
+    "v2:paper:ledger",
+    "v2:portfolio:state"
+  ],
+  "realized_pnl": 0.0,
+  "rolling_1h_paper_pnl": 0.0,
+  "rolling_24h_paper_pnl": 0.0,
+  "schema_version": "paper_pnl_source_of_truth_status_v1",
+  "shadow_observation_count": 0,
+  "stale_source_detected": true,
+  "stale_source_path_if_any": "v2/frontend/public/operator_runtime/paper_online/latest/paper_events.jsonl",
+  "today_paper_pnl": 0.0,
+  "unrealized_pnl": 0.0
+}

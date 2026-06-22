@@ -1,8 +1,8 @@
-# AI BOT V2 — iOS / iPadOS / watchOS Native App
+# NERVYX ONE — iOS / iPadOS / watchOS Native App
 
 **Platform:** iOS 17+ / iPadOS 17+ / watchOS 10+  
 **Language:** Swift 5.9 / SwiftUI  
-**Backend:** AI BOT V2 FastAPI backend at `http://127.0.0.1:5173`
+**Backend:** NERVYX ONE FastAPI backend at `http://127.0.0.1:5173`
 
 ---
 

@@ -1,0 +1,147 @@
+{
+  "generated_utc": "2026-06-16T06:27:08Z",
+  "paper_only": true,
+  "places_real_order": false,
+  "trainer_feedback_outcomes": [],
+  "trainer_feedback_outcomes_quarantine": [
+    {
+      "action": null,
+      "drawdown_at_entry": 0.0,
+      "entry_feature_snapshot_id": null,
+      "entry_market_state_id": null,
+      "entry_prediction_id": "pred",
+      "entry_price": null,
+      "entry_reason": null,
+      "entry_signal_id": null,
+      "exit_prediction_id": null,
+      "exit_price": null,
+      "exit_reason": "TIER_2_TAKE_PROFIT",
+      "exit_signal_id": null,
+      "exit_time": "2026-06-11T10:00:00Z",
+      "feature_snapshot_id": null,
+      "feedback_schema_version": "strategy_hedge_exit_feedback_v1",
+      "fill_price_utc": null,
+      "future_window_label_source": "closed_trade_outcome",
+      "hedge_reason": "NO_HEDGE_CONTEXT",
+      "hedge_state": "NO_HEDGE",
+      "hold_time_seconds": 120,
+      "lineage_backfilled_from_prediction_id": null,
+      "liquidation_context": {
+        "source": "V2_FEEDBACK_ENRICHMENT_DEFAULT_LIQUIDATION",
+        "status": "not_provided"
+      },
+      "liquidation_distance_context": {
+        "source": "V2_FEEDBACK_ENRICHMENT_DEFAULT_LIQUIDATION",
+        "status": "not_provided"
+      },
+      "liquidity_context": {
+        "source": "V2_FEEDBACK_ENRICHMENT_DEFAULT_LIQUIDITY",
+        "status": "not_provided"
+      },
+      "liquidity_zone_context": {
+        "source": "V2_FEEDBACK_ENRICHMENT_DEFAULT_LIQUIDITY",
+        "status": "not_provided"
+      },
+      "major_move_context": {
+        "major_move_signal_id": null,
+        "regime": null,
+        "source": "V2_PAPER_MAJOR_MOVE_CONTEXT",
+        "squeeze_evidence_score": null,
+        "status": "not_major_move_trade"
+      },
+      "major_move_signal_id": null,
+      "market_regime": null,
+      "market_regime_at_entry": null,
+      "market_regime_at_exit": null,
+      "market_state_id": null,
+      "microstructure_context": {
+        "source": "V2_FEEDBACK_ENRICHMENT_DEFAULT_MICROSTRUCTURE",
+        "status": "not_provided"
+      },
+      "missing_feedback_classifications": [
+        "missing_action",
+        "missing_entry_price",
+        "missing_exit_price",
+        "missing_feature_snapshot_id",
+        "missing_market_state_id",
+        "missing_realized_pnl",
+        "missing_signal_id",
+        "missing_strategy_id",
+        "schema_mismatch"
+      ],
+      "missing_feedback_fields": [
+        "signal_id",
+        "feature_snapshot_id",
+        "market_state_id",
+        "action",
+        "entry_price",
+        "exit_price",
+        "realized_pnl",
+        "strategy_id",
+        "strategy_family",
+        "strategy_subtype",
+        "entry_reason",
+        "market_regime_at_entry",
+        "market_regime_at_exit",
+        "market_regime"
+      ],
+      "non_critical_quarantine_reason": null,
+      "oi_funding_context": {
+        "source": "V2_FEEDBACK_ENRICHMENT_DEFAULT_OI_FUNDING",
+        "status": "not_provided"
+      },
+      "original_fill_utc": null,
+      "outcome_label_id": "out_incomplete",
+      "paper_fill_persistence_status": null,
+      "paper_only": true,
+      "places_real_order": false,
+      "position_id": "pos_incomplete",
+      "prediction_id": "pred",
+      "public_intel_context": {
+        "source": "V2_FEEDBACK_ENRICHMENT_DEFAULT_PUBLIC_INTEL",
+        "status": "not_provided"
+      },
+      "quarantine_non_critical": false,
+      "quarantine_reason": "missing_action,missing_entry_price,missing_exit_price,missing_feature_snapshot_id,missing_market_state_id,missing_realized_pnl,missing_signal_id,missing_strategy_id,schema_mismatch",
+      "realized_pnl": null,
+      "realized_pnl_bps": 4.2,
+      "signal_id": null,
+      "squeeze_evidence_score": null,
+      "strategy_family": null,
+      "strategy_id": null,
+      "strategy_subtype": null,
+      "symbol": "BTCUSDT",
+      "timeframe": "1m",
+      "trainer_consumable": false,
+      "trainer_feedback_id": "fb_incomplete",
+      "trainer_feedback_source": "V2_PAPER_TRADE_MANAGEMENT_CLOSED_TRADE"
+    }
+  ],
+  "trainer_strategy_hedge_feedback_status": {
+    "exit_fields_present": true,
+    "future_window_label_fields_present": true,
+    "hedge_fields_present": true,
+    "liquidity_context_present": true,
+    "liquidity_fields_present": true,
+    "major_move_fields_present": false,
+    "microstructure_fields_present": true,
+    "missing_feedback_classification_counts": {
+      "missing_action": 1,
+      "missing_entry_price": 1,
+      "missing_exit_price": 1,
+      "missing_feature_snapshot_id": 1,
+      "missing_market_state_id": 1,
+      "missing_realized_pnl": 1,
+      "missing_signal_id": 1,
+      "missing_strategy_id": 1,
+      "schema_mismatch": 1
+    },
+    "oi_funding_fields_present": true,
+    "public_intel_fields_present": true,
+    "strategy_fields_present": false,
+    "trainer_consumable_rows": 0,
+    "trainer_feedback_quarantined_rows": 1,
+    "trainer_feedback_rows": 1,
+    "trainer_feedback_total_rows": 1
+  }
+}

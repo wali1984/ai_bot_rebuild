@@ -1,0 +1,2470 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AlphaForge Product Readiness Status",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "generated",
+    "purpose",
+    "source_of_truth",
+    "launch_status",
+    "route_status",
+    "phase_status",
+    "current_blockers",
+    "last_current_evidence",
+    "pending_validation_queue",
+    "guardrails"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "./product-readiness-status.schema.json"
+    },
+    "generated": {
+      "type": "string"
+    },
+    "purpose": {
+      "type": "string"
+    },
+    "source_of_truth": {
+      "type": "object",
+      "required": [
+        "docs_index",
+        "current_status",
+        "completion_checklist",
+        "readiness_monitor",
+        "monitor_log",
+        "phase_blocker_map",
+        "blocker_owner_map",
+        "blocker_closure_ledger",
+        "change_control",
+        "monitor_runbook",
+        "phase_progress",
+        "master_todo",
+        "acceptance_matrix",
+        "launch_readiness",
+        "trade_redesign_audit",
+        "visible_string_ledger",
+        "data_source_inventory",
+        "auth_rbac_audit",
+        "api_gap_register",
+        "phase_13a_visual_review",
+        "ui_defect_log_after",
+        "current_blocker_ledger",
+        "validation_queue_ledger",
+        "source_artifact_existence_ledger",
+        "source_of_truth_ledger",
+        "status_schema",
+        "status_history",
+        "history_event_ledger",
+        "history_supersession_ledger",
+        "evidence_status_ledger",
+        "pending_evidence_ledger",
+        "status_snapshot",
+        "status_snapshot_manifest_ledger",
+        "status_guard",
+        "docs_status_guard",
+        "schema_requirements_guard",
+        "guardrail_ledger",
+        "route_status_ledger",
+        "route_closure_ledger",
+        "route_blocker_ledger",
+        "phase_launch_ledger",
+        "pending_evidence_validation_coverage_ledger"
+      ],
+      "properties": {
+        "docs_index": {
+          "const": "docs/product-readiness-docs-index.md"
+        },
+        "completion_checklist": {
+          "const": "docs/product-readiness-completion-checklist.md"
+        },
+        "readiness_monitor": {
+          "const": "docs/product-readiness-monitor.md"
+        },
+        "monitor_log": {
+          "const": "docs/product-readiness-monitor-log.md"
+        },
+        "phase_blocker_map": {
+          "const": "docs/product-readiness-phase-blocker-map.md"
+        },
+        "blocker_owner_map": {
+          "const": "docs/product-readiness-blocker-owner-map.md"
+        },
+        "change_control": {
+          "const": "docs/product-readiness-change-control.md"
+        },
+        "monitor_runbook": {
+          "const": "docs/product-readiness-monitor-runbook.md"
+        },
+        "phase_progress": {
+          "const": "docs/frontend-redesign-phase-progress.md"
+        },
+        "acceptance_matrix": {
+          "const": "docs/redesign-acceptance-matrix.md"
+        },
+        "launch_readiness": {
+          "const": "docs/launch-readiness.md"
+        },
+        "status_schema": {
+          "const": "docs/product-readiness-status.schema.json"
+        },
+        "status_guard": {
+          "const": "scripts/check_product_readiness_status.py"
+        },
+        "docs_status_guard": {
+          "const": "scripts/check_readiness_docs_consistency.py"
+        },
+        "schema_requirements_guard": {
+          "const": "scripts/check_product_readiness_schema_requirements.py"
+        },
+        "current_status": {
+          "const": "docs/product-readiness-current-status.md"
+        },
+        "status_snapshot": {
+          "const": "docs/product-readiness-status.json"
+        },
+        "status_history": {
+          "const": "docs/product-readiness-status-history.jsonl"
+        },
+        "master_todo": {
+          "const": "docs/frontend-redesign-master-todo.md"
+        },
+        "api_gap_register": {
+          "const": "docs/api-gap-register.md"
+        },
+        "auth_rbac_audit": {
+          "const": "docs/auth-rbac-audit.md"
+        },
+        "data_source_inventory": {
+          "const": "docs/data-source-inventory.md"
+        },
+        "visible_string_ledger": {
+          "const": "docs/visible-string-ledger.md"
+        },
+        "trade_redesign_audit": {
+          "const": "docs/trade-redesign-audit.md"
+        },
+        "phase_13a_visual_review": {
+          "const": "docs/phase-13a-visual-review.md"
+        },
+        "ui_defect_log_after": {
+          "const": "docs/ui-defect-log-after.md"
+        },
+        "pending_evidence_ledger": {
+          "const": "docs/product-readiness-pending-evidence-ledger.md"
+        },
+        "guardrail_ledger": {
+          "const": "docs/product-readiness-guardrail-ledger.md"
+        },
+        "route_blocker_ledger": {
+          "const": "docs/product-readiness-route-blocker-ledger.md"
+        },
+        "phase_launch_ledger": {
+          "const": "docs/product-readiness-phase-launch-ledger.md"
+        },
+        "route_status_ledger": {
+          "const": "docs/product-readiness-route-status-ledger.md"
+        },
+        "source_of_truth_ledger": {
+          "const": "docs/product-readiness-source-of-truth-ledger.md"
+        },
+        "current_blocker_ledger": {
+          "const": "docs/product-readiness-current-blocker-ledger.md"
+        },
+        "validation_queue_ledger": {
+          "const": "docs/product-readiness-validation-queue-ledger.md"
+        },
+        "evidence_status_ledger": {
+          "const": "docs/product-readiness-evidence-status-ledger.md"
+        },
+        "source_artifact_existence_ledger": {
+          "const": "docs/product-readiness-source-artifact-existence-ledger.md"
+        },
+        "status_snapshot_manifest_ledger": {
+          "const": "docs/product-readiness-status-snapshot-manifest-ledger.md"
+        },
+        "history_event_ledger": {
+          "const": "docs/product-readiness-history-event-ledger.md"
+        },
+        "blocker_closure_ledger": {
+          "const": "docs/product-readiness-blocker-closure-ledger.md"
+        },
+        "route_closure_ledger": {
+          "const": "docs/product-readiness-route-closure-ledger.md"
+        },
+        "history_supersession_ledger": {
+          "const": "docs/product-readiness-history-supersession-ledger.md"
+        },
+        "pending_evidence_validation_coverage_ledger": {
+          "const": "docs/product-readiness-pending-evidence-validation-coverage-ledger.md"
+        }
+      },
+      "additionalProperties": false
+    },
+    "launch_status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "full_product_launch",
+        "paper_read_only_launch",
+        "real_live_trading",
+        "production_ready_claim"
+      ],
+      "properties": {
+        "full_product_launch": {
+          "const": "BLOCKED"
+        },
+        "paper_read_only_launch": {
+          "const": "BLOCKED"
+        },
+        "real_live_trading": {
+          "const": "BLOCKED"
+        },
+        "production_ready_claim": {
+          "const": "BLOCKED"
+        }
+      }
+    },
+    "route_status": {
+      "type": "object",
+      "required": [
+        "/",
+        "/login",
+        "/account-settings",
+        "/status",
+        "/dashboard",
+        "/markets",
+        "/markets/symbols",
+        "/trade",
+        "/trade/paper",
+        "/market/:symbol",
+        "/chart/:symbol",
+        "/derivatives",
+        "/signals",
+        "/ai-predictions",
+        "/ai-predictions/model-state",
+        "/alerts",
+        "/backtests",
+        "/backtests/replay",
+        "/research",
+        "/research/technical-analysis",
+        "/portfolio",
+        "/portfolio/executions",
+        "/portfolio/history",
+        "/admin",
+        "/admin/system",
+        "/admin/ingestors",
+        "/admin/trainer",
+        "/admin/orchestrator",
+        "/admin/risk",
+        "/admin/traders",
+        "/admin/execution",
+        "/admin/exchanges",
+        "/admin/config",
+        "/admin/readiness",
+        "/admin/users",
+        "/admin/logs",
+        "/admin/reports",
+        "/system/*",
+        "/admin/audit",
+        "/admin/evidence",
+        "/admin/scripts",
+        "/admin/build-validation",
+        "/admin/coverage",
+        "/admin/migrations",
+        "/admin/codex",
+        "/admin/ai-tools"
+      ],
+      "properties": {
+        "/": {
+          "$ref": "#/$defs/landingRoute"
+        },
+        "/login": {
+          "$ref": "#/$defs/loginRoute"
+        },
+        "/account-settings": {
+          "$ref": "#/$defs/accountSettingsRoute"
+        },
+        "/status": {
+          "$ref": "#/$defs/statusRoute"
+        },
+        "/dashboard": {
+          "$ref": "#/$defs/dashboardRoute"
+        },
+        "/markets": {
+          "$ref": "#/$defs/marketsRoute"
+        },
+        "/markets/symbols": {
+          "$ref": "#/$defs/redirectRoute"
+        },
+        "/trade": {
+          "$ref": "#/$defs/tradeRoute"
+        },
+        "/trade/paper": {
+          "$ref": "#/$defs/redirectRoute"
+        },
+        "/market/:symbol": {
+          "$ref": "#/$defs/marketSymbolRoute"
+        },
+        "/chart/:symbol": {
+          "$ref": "#/$defs/proChartRoute"
+        },
+        "/derivatives": {
+          "$ref": "#/$defs/derivativesRoute"
+        },
+        "/signals": {
+          "$ref": "#/$defs/signalEvidenceRoute"
+        },
+        "/ai-predictions": {
+          "$ref": "#/$defs/signalEvidenceRoute"
+        },
+        "/ai-predictions/model-state": {
+          "$ref": "#/$defs/redirectRoute"
+        },
+        "/alerts": {
+          "$ref": "#/$defs/alertsRoute"
+        },
+        "/backtests": {
+          "$ref": "#/$defs/traderReadOnlyRoute"
+        },
+        "/backtests/replay": {
+          "$ref": "#/$defs/redirectRoute"
+        },
+        "/research": {
+          "$ref": "#/$defs/traderReadOnlyRoute"
+        },
+        "/research/technical-analysis": {
+          "$ref": "#/$defs/redirectRoute"
+        },
+        "/portfolio": {
+          "$ref": "#/$defs/portfolioRoute"
+        },
+        "/portfolio/executions": {
+          "$ref": "#/$defs/portfolioExecutionsRoute"
+        },
+        "/portfolio/history": {
+          "$ref": "#/$defs/portfolioHistoryRoute"
+        },
+        "/admin": {
+          "$ref": "#/$defs/adminRoute"
+        },
+        "/admin/system": {
+          "$ref": "#/$defs/adminRoute"
+        },
+        "/admin/ingestors": {
+          "$ref": "#/$defs/adminRoute"
+        },
+        "/admin/trainer": {
+          "$ref": "#/$defs/adminRoute"
+        },
+        "/admin/orchestrator": {
+          "$ref": "#/$defs/adminRoute"
+        },
+        "/admin/risk": {
+          "$ref": "#/$defs/adminRoute"
+        },
+        "/admin/traders": {
+          "$ref": "#/$defs/adminRoute"
+        },
+        "/admin/execution": {
+          "$ref": "#/$defs/adminRoute"
+        },
+        "/admin/exchanges": {
+          "$ref": "#/$defs/adminRoute"
+        },
+        "/admin/config": {
+          "$ref": "#/$defs/adminRoute"
+        },
+        "/admin/readiness": {
+          "$ref": "#/$defs/adminRoute"
+        },
+        "/admin/users": {
+          "$ref": "#/$defs/adminRoute"
+        },
+        "/admin/logs": {
+          "$ref": "#/$defs/adminRoute"
+        },
+        "/admin/reports": {
+          "$ref": "#/$defs/adminRoute"
+        },
+        "/system/*": {
+          "$ref": "#/$defs/adminRoute"
+        },
+        "/admin/audit": {
+          "$ref": "#/$defs/superadminRoute"
+        },
+        "/admin/evidence": {
+          "$ref": "#/$defs/superadminRoute"
+        },
+        "/admin/scripts": {
+          "$ref": "#/$defs/superadminRoute"
+        },
+        "/admin/build-validation": {
+          "$ref": "#/$defs/superadminRoute"
+        },
+        "/admin/coverage": {
+          "$ref": "#/$defs/superadminRoute"
+        },
+        "/admin/migrations": {
+          "$ref": "#/$defs/superadminRoute"
+        },
+        "/admin/codex": {
+          "$ref": "#/$defs/superadminRoute"
+        },
+        "/admin/ai-tools": {
+          "$ref": "#/$defs/superadminRoute"
+        }
+      },
+      "additionalProperties": false
+    },
+    "phase_status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15"
+      ],
+      "properties": {
+        "0": {
+          "const": "IN_PROGRESS"
+        },
+        "1": {
+          "const": "IN_PROGRESS"
+        },
+        "2": {
+          "const": "IN_PROGRESS"
+        },
+        "3": {
+          "const": "IN_PROGRESS"
+        },
+        "4": {
+          "const": "IN_PROGRESS"
+        },
+        "5": {
+          "const": "IN_PROGRESS"
+        },
+        "6": {
+          "const": "IN_PROGRESS"
+        },
+        "7": {
+          "const": "IN_PROGRESS"
+        },
+        "8": {
+          "const": "IN_PROGRESS"
+        },
+        "9": {
+          "const": "IN_PROGRESS"
+        },
+        "10": {
+          "const": "IN_PROGRESS"
+        },
+        "11": {
+          "const": "IN_PROGRESS"
+        },
+        "12": {
+          "const": "IN_PROGRESS"
+        },
+        "13": {
+          "const": "IN_PROGRESS"
+        },
+        "14": {
+          "const": "IN_PROGRESS"
+        },
+        "15": {
+          "const": "BLOCKED"
+        }
+      }
+    },
+    "current_blockers": {
+      "type": "array",
+      "minItems": 13,
+      "allOf": [
+        {
+          "contains": {
+            "const": "production_trader_account_repositories_and_writers_missing"
+          }
+        },
+        {
+          "contains": {
+            "const": "backend_only_binance_credential_vault_missing"
+          }
+        },
+        {
+          "contains": {
+            "const": "production_stream_validation_alerting_missing"
+          }
+        },
+        {
+          "contains": {
+            "const": "derivatives_realtime_sources_missing"
+          }
+        },
+        {
+          "contains": {
+            "const": "alert_crud_delivery_audit_repositories_missing"
+          }
+        },
+        {
+          "contains": {
+            "const": "production_paper_fill_writer_missing"
+          }
+        },
+        {
+          "contains": {
+            "const": "production_paper_submit_cancel_validation_missing"
+          }
+        },
+        {
+          "contains": {
+            "const": "durable_paper_audit_policy_missing"
+          }
+        },
+        {
+          "contains": {
+            "const": "production_auth_session_hardening_missing"
+          }
+        },
+        {
+          "contains": {
+            "const": "alembic_auth_revocation_admin_audit_migration_approval_missing"
+          }
+        },
+        {
+          "contains": {
+            "const": "full_phase13_visual_review_missing"
+          }
+        },
+        {
+          "contains": {
+            "const": "production_https_smoke_missing"
+          }
+        },
+        {
+          "contains": {
+            "const": "current_validation_rerun_pending"
+          }
+        }
+      ],
+      "items": {
+        "enum": [
+          "production_trader_account_repositories_and_writers_missing",
+          "backend_only_binance_credential_vault_missing",
+          "production_stream_validation_alerting_missing",
+          "derivatives_realtime_sources_missing",
+          "alert_crud_delivery_audit_repositories_missing",
+          "production_paper_fill_writer_missing",
+          "production_paper_submit_cancel_validation_missing",
+          "durable_paper_audit_policy_missing",
+          "production_auth_session_hardening_missing",
+          "alembic_auth_revocation_admin_audit_migration_approval_missing",
+          "full_phase13_visual_review_missing",
+          "production_https_smoke_missing",
+          "current_validation_rerun_pending"
+        ]
+      },
+      "maxItems": 13,
+      "uniqueItems": true
+    },
+    "last_current_evidence": {
+      "type": "object",
+      "required": [
+        "status_schema_blocker_requirements_after_latest_changes",
+        "status_schema_evidence_queue_requirements_after_latest_changes",
+        "status_schema_source_of_truth_requirements_after_latest_changes",
+        "status_schema_launch_phase_guardrail_requirements_after_latest_changes",
+        "readiness_schema_guard_evidence_keys_aligned_after_latest_changes",
+        "readiness_docs_consistency_guard_after_latest_changes",
+        "readiness_change_control_status_lock_guard_after_latest_changes",
+        "readiness_docs_route_table_drift_guard_after_latest_changes",
+        "readiness_monitor_route_status_drift_guard_after_latest_changes",
+        "readiness_docs_phase_status_drift_guard_after_latest_changes",
+        "readiness_completion_checklist_phase_status_drift_guard_after_latest_changes",
+        "readiness_phase_progress_status_drift_guard_after_latest_changes",
+        "readiness_docs_launch_status_drift_guard_after_latest_changes",
+        "readiness_docs_exchange_scope_phrase_guard_after_latest_changes",
+        "readiness_launch_readiness_status_drift_guard_after_latest_changes",
+        "readiness_phase_launch_ledger_drift_guard_after_latest_changes",
+        "readiness_docs_current_blocker_key_drift_guard_after_latest_changes",
+        "readiness_blocker_owner_label_guard_after_latest_changes",
+        "readiness_blocker_closure_ledger_drift_guard_after_latest_changes",
+        "readiness_docs_phase_blocker_current_key_drift_guard_after_latest_changes",
+        "readiness_current_blockers_exact_key_guard_after_latest_changes",
+        "readiness_current_blocker_ledger_drift_guard_after_latest_changes",
+        "readiness_docs_validation_queue_drift_guard_after_latest_changes",
+        "readiness_completion_checklist_validation_queue_drift_guard_after_latest_changes",
+        "readiness_validation_queue_exact_command_guard_after_latest_changes",
+        "readiness_validation_queue_ledger_drift_guard_after_latest_changes",
+        "readiness_docs_source_of_truth_drift_guard_after_latest_changes",
+        "readiness_source_of_truth_exact_key_guard_after_latest_changes",
+        "readiness_source_of_truth_ledger_drift_guard_after_latest_changes",
+        "readiness_source_of_truth_artifact_existence_guard_after_latest_changes",
+        "readiness_source_artifact_existence_ledger_drift_guard_after_latest_changes",
+        "readiness_source_of_truth_core_artifacts_after_latest_changes",
+        "readiness_status_snapshot_manifest_ledger_drift_guard_after_latest_changes",
+        "readiness_source_of_truth_docs_guard_checked_artifacts_after_latest_changes",
+        "readiness_docs_to_check_source_of_truth_coupling_after_latest_changes",
+        "readiness_pending_evidence_ledger_after_latest_changes",
+        "readiness_pending_evidence_ledger_drift_guard_after_latest_changes",
+        "readiness_guardrail_ledger_drift_guard_after_latest_changes",
+        "readiness_history_event_monitor_log_drift_guard_after_latest_changes",
+        "readiness_history_event_ledger_drift_guard_after_latest_changes",
+        "readiness_history_supersession_ledger_drift_guard_after_latest_changes",
+        "readiness_history_evidence_key_snapshot_guard_after_latest_changes",
+        "readiness_docs_acceptance_matrix_route_status_drift_guard_after_latest_changes",
+        "readiness_route_status_exact_key_guard_after_latest_changes",
+        "readiness_route_status_ledger_drift_guard_after_latest_changes",
+        "readiness_route_blockers_exact_key_guard_after_latest_changes",
+        "readiness_route_blockers_global_blocker_coupling_after_latest_changes",
+        "readiness_route_closure_ledger_drift_guard_after_latest_changes",
+        "readiness_route_blocker_ledger_drift_guard_after_latest_changes",
+        "readiness_launch_phase_guardrail_exact_key_guard_after_latest_changes",
+        "readiness_evidence_exact_key_guard_after_latest_changes",
+        "readiness_evidence_status_ledger_drift_guard_after_latest_changes",
+        "readiness_runbook_exact_guard_coverage_after_latest_changes",
+        "readiness_current_status_index_exact_guard_coverage_after_latest_changes",
+        "readiness_docs_guard_repository_credential_phrases_after_latest_changes",
+        "readiness_docs_guard_account_scope_prochart_phrases_after_latest_changes",
+        "phase_blocker_map_repository_credential_boundary_after_latest_changes",
+        "browser_side_native_public_stream_after_latest_changes",
+        "backend_native_public_stream_after_latest_changes",
+        "market_stream_telemetry_after_latest_changes",
+        "market_stream_telemetry_persistence_after_latest_changes",
+        "public_status_market_stream_health_after_latest_changes",
+        "public_status_market_stream_alert_after_latest_changes",
+        "market_stream_alert_history_after_latest_changes",
+        "market_stream_alert_webhook_notifier_after_latest_changes",
+        "market_stream_alert_active_only_delivery_after_latest_changes",
+        "production_stream_alerting_artifact_after_latest_changes",
+        "production_stream_alerting_smoke_runner_after_latest_changes",
+        "landing_public_account_metrics_removed_after_latest_changes",
+        "backend_only_credential_status_after_latest_changes",
+        "admin_audit_readiness_status_after_latest_changes",
+        "credential_reference_hidden_after_latest_changes",
+        "credential_vault_readiness_status_after_latest_changes",
+        "credential_permission_probe_artifact_after_latest_changes",
+        "signed_read_validation_artifact_after_latest_changes",
+        "credential_secret_redaction_smoke_artifact_after_latest_changes",
+        "secret_redaction_smoke_runner_after_latest_changes",
+        "auth_production_secret_fail_closed_after_latest_changes",
+        "auth_production_secret_strength_after_latest_changes",
+        "auth_secret_rotation_after_latest_changes",
+        "auth_production_revocation_store_fail_closed_after_latest_changes",
+        "auth_revocation_store_error_fail_closed_after_latest_changes",
+        "auth_sqlalchemy_revocation_store_after_latest_changes",
+        "admin_sqlalchemy_audit_store_after_latest_changes",
+        "admin_audit_retention_policy_after_latest_changes",
+        "alembic_auth_revocation_admin_audit_migration_approval_after_latest_changes",
+        "auth_admin_step_up_after_latest_changes",
+        "auth_admin_activation_audit_after_latest_changes",
+        "auth_admin_user_mutation_audit_after_latest_changes",
+        "auth_production_issuer_audience_fail_closed_after_latest_changes",
+        "auth_production_session_minutes_fail_closed_after_latest_changes",
+        "auth_production_password_policy_after_latest_changes",
+        "auth_production_cookie_samesite_fail_closed_after_latest_changes",
+        "auth_secure_cookie_after_latest_changes",
+        "auth_session_issuer_audience_after_latest_changes",
+        "auth_session_ttl_after_latest_changes",
+        "auth_session_security_status_after_latest_changes",
+        "auth_refresh_token_rotation_after_latest_changes",
+        "auth_password_change_session_revocation_after_latest_changes",
+        "auth_session_version_invalidation_after_latest_changes",
+        "trader_scoped_signed_readonly_account_after_latest_changes",
+        "frontend_credential_status_display_after_latest_changes",
+        "backend_credential_binding_after_latest_changes",
+        "credential_readonly_scope_enforcement_after_latest_changes",
+        "trader_exchange_account_scope_normalization_after_latest_changes",
+        "admin_exchange_account_readonly_normalization_after_latest_changes",
+        "account_scope_proof_metadata_after_latest_changes",
+        "account_scope_strict_data_match_after_latest_changes",
+        "account_scope_partial_match_fail_closed_after_latest_changes",
+        "trader_account_binding_copy_after_latest_changes",
+        "auth_session_revocation_after_latest_changes",
+        "trader_user_scope_enforcement_after_latest_changes",
+        "frontend_trader_scoped_paper_account_after_latest_changes",
+        "frontend_primary_exchange_account_scope_selection_after_latest_changes",
+        "dashboard_trader_scoped_account_after_latest_changes",
+        "positions_trader_scoped_account_after_latest_changes",
+        "paper_trading_trader_scoped_account_after_latest_changes",
+        "broader_trader_account_metric_scope_cleanup_after_latest_changes",
+        "all_public_trader_account_scope_call_sites_reviewed_after_latest_changes",
+        "public_trader_source_copy_cleanup_after_latest_changes",
+        "markets_symbols_readonly_contract_after_latest_changes",
+        "trader_account_repository_strict_matching_after_latest_changes",
+        "trader_account_repository_unique_paper_scope_after_latest_changes",
+        "trader_repository_readiness_status_after_latest_changes",
+        "trader_account_scope_smoke_runner_after_latest_changes",
+        "trader_account_scope_smoke_artifact_after_latest_changes",
+        "repository_row_level_scope_filtering_after_latest_changes",
+        "sqlalchemy_trader_account_repository_after_latest_changes",
+        "frontend_typed_activity_row_scope_filter_after_latest_changes",
+        "frontend_typed_portfolio_signal_scope_filter_after_latest_changes",
+        "trade_typed_activity_tabs_after_latest_changes",
+        "symbol_data_legacy_terminal_fallback_removed_after_latest_changes",
+        "trade_open_order_paper_fill_ui_after_latest_changes",
+        "trade_open_order_explicit_local_repository_guard_after_latest_changes",
+        "paper_order_repository_submit_cancel_after_latest_changes",
+        "local_paper_fill_writer_after_latest_changes",
+        "paper_order_audit_events_after_latest_changes",
+        "local_paper_audit_ledger_after_latest_changes",
+        "paper_audit_retention_policy_after_latest_changes",
+        "durable_paper_audit_policy_artifact_after_latest_changes",
+        "durable_paper_audit_policy_smoke_runner_after_latest_changes",
+        "local_paper_audit_chain_verification_after_latest_changes",
+        "local_paper_audit_chain_window_completeness_after_latest_changes",
+        "paper_execution_policy_status_after_latest_changes",
+        "production_paper_actions_fail_closed_after_latest_changes",
+        "prochart_derivative_overlay_null_clear_after_latest_changes",
+        "prochart_realtime_merge_after_latest_changes",
+        "prochart_timestamp_normalization_after_latest_changes",
+        "prochart_overlay_timestamp_normalization_after_latest_changes",
+        "prochart_stream_symbol_timeframe_filter_after_latest_changes",
+        "prochart_typed_candle_envelope_filter_after_latest_changes",
+        "prochart_backend_snapshot_live_candle_filter_after_latest_changes",
+        "prochart_realtime_contract_spec_after_latest_changes",
+        "admin_paper_account_preservation_after_latest_changes",
+        "frontend_realtime_stream_merge_after_latest_changes",
+        "market_stream_status_alert_after_latest_changes",
+        "market_derivatives_contract_after_latest_changes",
+        "alerts_contract_after_latest_changes",
+        "alerts_crud_delivery_audit_repositories",
+        "backend_pytest_after_latest_changes",
+        "typecheck_after_latest_changes",
+        "build_after_latest_changes",
+        "lint_after_latest_changes",
+        "focused_playwright_after_latest_changes",
+        "screenshot_overflow_after_latest_changes",
+        "full_chromium_after_latest_changes",
+        "production_https_smoke",
+        "full_phase13_visual_review",
+        "backend_only_binance_credential_vault",
+        "production_stream_validation_alerting",
+        "production_trader_repositories_and_writers",
+        "production_paper_submit_cancel_validation",
+        "durable_paper_audit_policy",
+        "real_live_trading_approval",
+        "readiness_pending_evidence_validation_coverage_ledger_drift_guard_after_latest_changes",
+        "production_https_smoke_runner_after_latest_changes",
+        "production_https_smoke_artifact_metadata_after_latest_changes",
+        "production_trader_repository_smoke_runner_after_latest_changes",
+        "production_trader_repository_smoke_artifact_metadata_after_latest_changes",
+        "production_paper_action_validation_smoke_runner_after_latest_changes",
+        "production_paper_action_validation_artifact_metadata_after_latest_changes",
+        "production_alert_delivery_audit_smoke_runner_after_latest_changes",
+        "sqlalchemy_alert_repository_after_latest_changes",
+        "production_alert_delivery_audit_artifact_metadata_after_latest_changes",
+        "auth_session_hardening_artifact_metadata_after_latest_changes",
+        "auth_session_hardening_smoke_runner_after_latest_changes",
+        "production_paper_fill_writer_artifact_metadata_after_latest_changes",
+        "durable_credential_vault_artifact_metadata_after_latest_changes",
+        "durable_credential_vault_smoke_runner_after_latest_changes",
+        "derivatives_realtime_source_smoke_runner_after_latest_changes",
+        "phase13_visual_review_smoke_runner_after_latest_changes",
+        "alembic_auth_migration_approval_smoke_runner_after_latest_changes",
+        "production_stream_validation_artifact_metadata_after_latest_changes",
+        "current_validation_evidence_smoke_runner_after_latest_changes"
+      ],
+      "properties": {
+        "status_schema_blocker_requirements_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "status_schema_evidence_queue_requirements_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "status_schema_source_of_truth_requirements_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "status_schema_launch_phase_guardrail_requirements_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_schema_guard_evidence_keys_aligned_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_docs_consistency_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_change_control_status_lock_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_docs_route_table_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_monitor_route_status_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_docs_phase_status_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_completion_checklist_phase_status_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_phase_progress_status_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_docs_launch_status_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_launch_readiness_status_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_docs_current_blocker_key_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_blocker_owner_label_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_docs_phase_blocker_current_key_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_current_blockers_exact_key_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_docs_validation_queue_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_completion_checklist_validation_queue_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_validation_queue_exact_command_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_docs_source_of_truth_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_source_of_truth_exact_key_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_source_of_truth_artifact_existence_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_source_of_truth_core_artifacts_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_source_of_truth_docs_guard_checked_artifacts_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_docs_to_check_source_of_truth_coupling_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_pending_evidence_ledger_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_pending_evidence_ledger_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_history_event_monitor_log_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_history_evidence_key_snapshot_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_docs_acceptance_matrix_route_status_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_route_status_exact_key_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_route_blockers_exact_key_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_route_blockers_global_blocker_coupling_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_launch_phase_guardrail_exact_key_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_evidence_exact_key_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_runbook_exact_guard_coverage_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_current_status_index_exact_guard_coverage_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_docs_guard_repository_credential_phrases_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_docs_guard_account_scope_prochart_phrases_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "phase_blocker_map_repository_credential_boundary_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "browser_side_native_public_stream_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "backend_native_public_stream_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "market_stream_telemetry_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "market_stream_telemetry_persistence_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "public_status_market_stream_health_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "public_status_market_stream_alert_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "market_stream_alert_history_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "market_stream_alert_webhook_notifier_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "market_stream_alert_active_only_delivery_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "production_stream_alerting_artifact_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "production_stream_alerting_smoke_runner_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "landing_public_account_metrics_removed_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "backend_only_credential_status_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "admin_audit_readiness_status_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "credential_reference_hidden_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "credential_vault_readiness_status_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "credential_permission_probe_artifact_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "signed_read_validation_artifact_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "credential_secret_redaction_smoke_artifact_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "secret_redaction_smoke_runner_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "auth_production_secret_fail_closed_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "auth_production_secret_strength_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "auth_secret_rotation_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "auth_production_revocation_store_fail_closed_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "auth_revocation_store_error_fail_closed_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "auth_sqlalchemy_revocation_store_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "admin_sqlalchemy_audit_store_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "admin_audit_retention_policy_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "alembic_auth_revocation_admin_audit_migration_approval_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "auth_admin_step_up_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "auth_admin_activation_audit_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "auth_admin_user_mutation_audit_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "auth_production_issuer_audience_fail_closed_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "auth_production_session_minutes_fail_closed_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "auth_production_password_policy_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "auth_production_cookie_samesite_fail_closed_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "auth_secure_cookie_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "auth_session_issuer_audience_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "frontend_credential_status_display_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "trader_exchange_account_scope_normalization_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "account_scope_proof_metadata_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "account_scope_strict_data_match_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "account_scope_partial_match_fail_closed_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "trader_account_binding_copy_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "trader_user_scope_enforcement_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "frontend_trader_scoped_paper_account_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "frontend_primary_exchange_account_scope_selection_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "dashboard_trader_scoped_account_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "positions_trader_scoped_account_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "paper_trading_trader_scoped_account_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "broader_trader_account_metric_scope_cleanup_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "all_public_trader_account_scope_call_sites_reviewed_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "public_trader_source_copy_cleanup_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "markets_symbols_readonly_contract_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "backend_credential_binding_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "credential_readonly_scope_enforcement_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "admin_exchange_account_readonly_normalization_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "auth_session_revocation_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "auth_session_ttl_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "auth_session_security_status_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "auth_refresh_token_rotation_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "auth_password_change_session_revocation_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "auth_session_version_invalidation_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "trade_typed_activity_tabs_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "symbol_data_legacy_terminal_fallback_removed_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "trade_open_order_paper_fill_ui_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "trade_open_order_explicit_local_repository_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "local_paper_fill_writer_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "paper_order_audit_events_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "local_paper_audit_ledger_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "paper_audit_retention_policy_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "durable_paper_audit_policy_artifact_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "local_paper_audit_chain_verification_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "local_paper_audit_chain_window_completeness_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "paper_execution_policy_status_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "production_paper_actions_fail_closed_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "prochart_derivative_overlay_null_clear_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "prochart_realtime_merge_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "prochart_timestamp_normalization_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "prochart_overlay_timestamp_normalization_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "prochart_stream_symbol_timeframe_filter_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "prochart_typed_candle_envelope_filter_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "prochart_realtime_contract_spec_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "admin_paper_account_preservation_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "frontend_realtime_stream_merge_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "market_stream_status_alert_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "alerts_contract_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "alerts_crud_delivery_audit_repositories": {
+          "const": "MISSING"
+        },
+        "backend_pytest_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "typecheck_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "build_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "lint_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "focused_playwright_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "screenshot_overflow_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "full_chromium_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "production_https_smoke": {
+          "const": "MISSING"
+        },
+        "full_phase13_visual_review": {
+          "const": "MISSING"
+        },
+        "backend_only_binance_credential_vault": {
+          "const": "PARTIAL"
+        },
+        "production_stream_validation_alerting": {
+          "const": "PARTIAL"
+        },
+        "production_trader_repositories_and_writers": {
+          "const": "MISSING"
+        },
+        "production_paper_submit_cancel_validation": {
+          "const": "MISSING"
+        },
+        "durable_paper_audit_policy": {
+          "const": "PARTIAL"
+        },
+        "real_live_trading_approval": {
+          "const": "MISSING"
+        },
+        "market_derivatives_contract_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "trader_scoped_signed_readonly_account_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "paper_order_repository_submit_cancel_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "trader_account_repository_strict_matching_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "trader_account_repository_unique_paper_scope_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "trader_repository_readiness_status_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "sqlalchemy_trader_account_repository_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "trader_account_scope_smoke_runner_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "trader_account_scope_smoke_artifact_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "repository_row_level_scope_filtering_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "frontend_typed_activity_row_scope_filter_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "frontend_typed_portfolio_signal_scope_filter_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_guardrail_ledger_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_route_blocker_ledger_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_phase_launch_ledger_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_route_status_ledger_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_source_of_truth_ledger_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_current_blocker_ledger_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_validation_queue_ledger_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_evidence_status_ledger_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_source_artifact_existence_ledger_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_status_snapshot_manifest_ledger_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_history_event_ledger_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_blocker_closure_ledger_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_route_closure_ledger_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "prochart_backend_snapshot_live_candle_filter_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_docs_exchange_scope_phrase_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_history_supersession_ledger_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "readiness_pending_evidence_validation_coverage_ledger_drift_guard_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "production_https_smoke_runner_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "production_https_smoke_artifact_metadata_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "production_trader_repository_smoke_runner_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "production_trader_repository_smoke_artifact_metadata_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "durable_paper_audit_policy_smoke_runner_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "production_paper_action_validation_smoke_runner_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "production_paper_action_validation_artifact_metadata_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "production_alert_delivery_audit_smoke_runner_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "sqlalchemy_alert_repository_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "production_alert_delivery_audit_artifact_metadata_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "auth_session_hardening_artifact_metadata_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "auth_session_hardening_smoke_runner_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "production_paper_fill_writer_artifact_metadata_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "durable_credential_vault_artifact_metadata_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "durable_credential_vault_smoke_runner_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "derivatives_realtime_source_smoke_runner_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "phase13_visual_review_smoke_runner_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "alembic_auth_migration_approval_smoke_runner_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "production_stream_validation_artifact_metadata_after_latest_changes": {
+          "const": "PENDING"
+        },
+        "current_validation_evidence_smoke_runner_after_latest_changes": {
+          "const": "PENDING"
+        }
+      },
+      "additionalProperties": false
+    },
+    "pending_validation_queue": {
+      "type": "array",
+      "minItems": 31,
+      "allOf": [
+        {
+          "contains": {
+            "const": "python scripts/check_product_readiness_status.py"
+          }
+        },
+        {
+          "contains": {
+            "const": "python scripts/check_readiness_docs_consistency.py"
+          }
+        },
+        {
+          "contains": {
+            "const": "python scripts/check_product_readiness_schema_requirements.py"
+          }
+        },
+        {
+          "contains": {
+            "const": "../.venv/bin/python -m pytest backend/tests/integration/api/test_auth_rbac_and_status.py backend/tests/integration/api/v2/test_market_contract_routes.py"
+          }
+        },
+        {
+          "contains": {
+            "const": "../.venv/bin/python -m pytest backend/tests/unit/api/test_readonly_market_stream_parser.py"
+          }
+        },
+        {
+          "contains": {
+            "const": "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_production_stream_alerting_smoke.py"
+          }
+        },
+        {
+          "contains": {
+            "const": "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_trader_account_scope_smoke.py"
+          }
+        },
+        {
+          "contains": {
+            "const": "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_check_readiness_docs_consistency.py"
+          }
+        },
+        {
+          "contains": {
+            "const": "npm run typecheck"
+          }
+        },
+        {
+          "contains": {
+            "const": "npm run build"
+          }
+        },
+        {
+          "contains": {
+            "const": "npm run lint --if-present"
+          }
+        },
+        {
+          "contains": {
+            "const": "npx playwright test tests/e2e/trade_terminal_redesign.spec.ts --project=chromium"
+          }
+        },
+        {
+          "contains": {
+            "const": "npx playwright test tests/e2e/market_detail_redesign.spec.ts --project=chromium"
+          }
+        },
+        {
+          "contains": {
+            "const": "npx playwright test tests/e2e/api_v2_contract_states.spec.ts --project=chromium"
+          }
+        },
+        {
+          "contains": {
+            "const": "npx playwright test tests/e2e/trader_nav_cleanliness.spec.ts --project=chromium"
+          }
+        },
+        {
+          "contains": {
+            "const": "npx playwright test tests/e2e/pro_chart_realtime_contract.spec.ts --project=chromium"
+          }
+        },
+        {
+          "contains": {
+            "const": "npx playwright test tests/e2e/redesign_screenshot_overflow.spec.ts --project=chromium"
+          }
+        },
+        {
+          "contains": {
+            "const": "npx playwright test tests/e2e/symbols_route_readonly_contract.spec.ts --project=chromium"
+          }
+        },
+        {
+          "contains": {
+            "const": "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_current_validation_evidence_smoke.py"
+          }
+        },
+        {
+          "contains": {
+            "const": "npx playwright test --project=chromium"
+          }
+        },
+        {
+          "contains": {
+            "const": "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_auth_session_hardening_smoke.py"
+          }
+        },
+        {
+          "contains": {
+            "const": "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_durable_credential_vault_smoke.py"
+          }
+        },
+        {
+          "contains": {
+            "const": "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_derivatives_realtime_source_smoke.py"
+          }
+        },
+        {
+          "contains": {
+            "const": "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_phase13_visual_review_smoke.py"
+          }
+        },
+        {
+          "contains": {
+            "const": "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_alembic_auth_migration_approval_smoke.py"
+          }
+        }
+      ],
+      "items": {
+        "enum": [
+          "../.venv/bin/python -m pytest backend/tests/integration/api/test_auth_rbac_and_status.py backend/tests/integration/api/v2/test_market_contract_routes.py",
+          "../.venv/bin/python -m pytest backend/tests/unit/api/test_readonly_market_stream_parser.py",
+          "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_alembic_auth_migration_approval_smoke.py",
+          "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_auth_session_hardening_smoke.py",
+          "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_current_validation_evidence_smoke.py",
+          "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_derivatives_realtime_source_smoke.py",
+          "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_durable_credential_vault_smoke.py",
+          "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_durable_paper_audit_policy_smoke.py",
+          "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_phase13_visual_review_smoke.py",
+          "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_production_alert_delivery_audit_smoke.py",
+          "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_production_https_smoke.py",
+          "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_production_paper_action_validation_smoke.py",
+          "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_production_stream_alerting_smoke.py",
+          "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_production_trader_repository_smoke.py",
+          "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_trader_account_scope_smoke.py",
+          "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_check_readiness_docs_consistency.py",
+          "../.venv/bin/python -m pytest backend/tests/unit/services/website/test_website_contracts.py",
+          "npm run build",
+          "npm run lint --if-present",
+          "npm run typecheck",
+          "npx playwright test --project=chromium",
+          "npx playwright test tests/e2e/api_v2_contract_states.spec.ts --project=chromium",
+          "npx playwright test tests/e2e/market_detail_redesign.spec.ts --project=chromium",
+          "npx playwright test tests/e2e/pro_chart_realtime_contract.spec.ts --project=chromium",
+          "npx playwright test tests/e2e/redesign_screenshot_overflow.spec.ts --project=chromium",
+          "npx playwright test tests/e2e/symbols_route_readonly_contract.spec.ts --project=chromium",
+          "npx playwright test tests/e2e/trade_terminal_redesign.spec.ts --project=chromium",
+          "npx playwright test tests/e2e/trader_nav_cleanliness.spec.ts --project=chromium",
+          "python scripts/check_product_readiness_schema_requirements.py",
+          "python scripts/check_product_readiness_status.py",
+          "python scripts/check_readiness_docs_consistency.py"
+        ]
+      },
+      "maxItems": 31,
+      "uniqueItems": true
+    },
+    "guardrails": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "do_not_mark_trade_pass",
+        "do_not_mark_market_symbol_pass",
+        "do_not_mark_phase13_pass",
+        "do_not_mark_phase14_pass_without_current_rerun",
+        "do_not_mark_phase15_pass",
+        "do_not_mark_paper_launch_pass",
+        "do_not_mark_full_product_launch_pass",
+        "do_not_mark_admin_security_pass",
+        "do_not_mark_any_monitored_route_pass_without_current_evidence",
+        "do_not_mark_real_live_trading_pass",
+        "treat_prior_pass_evidence_as_historical_after_changes"
+      ],
+      "properties": {
+        "do_not_mark_trade_pass": {
+          "const": true
+        },
+        "do_not_mark_market_symbol_pass": {
+          "const": true
+        },
+        "do_not_mark_phase13_pass": {
+          "const": true
+        },
+        "do_not_mark_phase14_pass_without_current_rerun": {
+          "const": true
+        },
+        "do_not_mark_phase15_pass": {
+          "const": true
+        },
+        "do_not_mark_paper_launch_pass": {
+          "const": true
+        },
+        "do_not_mark_full_product_launch_pass": {
+          "const": true
+        },
+        "do_not_mark_admin_security_pass": {
+          "const": true
+        },
+        "do_not_mark_any_monitored_route_pass_without_current_evidence": {
+          "const": true
+        },
+        "do_not_mark_real_live_trading_pass": {
+          "const": true
+        },
+        "treat_prior_pass_evidence_as_historical_after_changes": {
+          "const": true
+        }
+      }
+    }
+  },
+  "$defs": {
+    "route": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "blockers"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "IN_PROGRESS",
+            "BLOCKED"
+          ]
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "inProgressRoute": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/route"
+        },
+        {
+          "properties": {
+            "status": {
+              "const": "IN_PROGRESS"
+            }
+          }
+        }
+      ]
+    },
+    "landingRoute": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/inProgressRoute"
+        },
+        {
+          "properties": {
+            "blockers": {
+              "allOf": [
+                {
+                  "contains": {
+                    "const": "full_phase13_visual_review_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "production_https_smoke_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "current_validation_rerun_pending"
+                  }
+                }
+              ],
+              "minItems": 3,
+              "maxItems": 3,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "current_validation_rerun_pending",
+                  "full_phase13_visual_review_missing",
+                  "production_https_smoke_missing"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "loginRoute": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/inProgressRoute"
+        },
+        {
+          "properties": {
+            "blockers": {
+              "allOf": [
+                {
+                  "contains": {
+                    "const": "production_auth_session_hardening_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "full_phase13_visual_review_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "production_https_smoke_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "current_validation_rerun_pending"
+                  }
+                }
+              ],
+              "minItems": 4,
+              "maxItems": 4,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "current_validation_rerun_pending",
+                  "full_phase13_visual_review_missing",
+                  "production_auth_session_hardening_missing",
+                  "production_https_smoke_missing"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "accountSettingsRoute": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/inProgressRoute"
+        },
+        {
+          "properties": {
+            "blockers": {
+              "allOf": [
+                {
+                  "contains": {
+                    "const": "production_auth_session_hardening_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "production_trader_account_repositories_and_writers_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "backend_only_binance_credential_vault_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "full_phase13_visual_review_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "production_https_smoke_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "current_validation_rerun_pending"
+                  }
+                }
+              ],
+              "minItems": 6,
+              "maxItems": 6,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "backend_only_binance_credential_vault_missing",
+                  "current_validation_rerun_pending",
+                  "full_phase13_visual_review_missing",
+                  "production_auth_session_hardening_missing",
+                  "production_https_smoke_missing",
+                  "production_trader_account_repositories_and_writers_missing"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "statusRoute": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/inProgressRoute"
+        },
+        {
+          "properties": {
+            "blockers": {
+              "allOf": [
+                {
+                  "contains": {
+                    "const": "production_stream_validation_alerting_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "full_phase13_visual_review_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "production_https_smoke_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "current_validation_rerun_pending"
+                  }
+                }
+              ],
+              "minItems": 4,
+              "maxItems": 4,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "current_validation_rerun_pending",
+                  "full_phase13_visual_review_missing",
+                  "production_https_smoke_missing",
+                  "production_stream_validation_alerting_missing"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "tradeRoute": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/inProgressRoute"
+        },
+        {
+          "properties": {
+            "blockers": {
+              "allOf": [
+                {
+                  "contains": {
+                    "const": "production_stream_validation_alerting_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "production_trader_account_repositories_and_writers_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "backend_only_binance_credential_vault_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "production_paper_submit_cancel_validation_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "durable_paper_audit_policy_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "current_validation_rerun_pending"
+                  }
+                }
+              ],
+              "minItems": 6,
+              "maxItems": 6,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "backend_only_binance_credential_vault_missing",
+                  "current_validation_rerun_pending",
+                  "durable_paper_audit_policy_missing",
+                  "production_paper_submit_cancel_validation_missing",
+                  "production_stream_validation_alerting_missing",
+                  "production_trader_account_repositories_and_writers_missing"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "dashboardRoute": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/inProgressRoute"
+        },
+        {
+          "properties": {
+            "blockers": {
+              "allOf": [
+                {
+                  "contains": {
+                    "const": "production_trader_account_repositories_and_writers_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "full_phase13_visual_review_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "current_validation_rerun_pending"
+                  }
+                }
+              ],
+              "minItems": 3,
+              "maxItems": 3,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "current_validation_rerun_pending",
+                  "full_phase13_visual_review_missing",
+                  "production_trader_account_repositories_and_writers_missing"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "marketsRoute": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/inProgressRoute"
+        },
+        {
+          "properties": {
+            "blockers": {
+              "allOf": [
+                {
+                  "contains": {
+                    "const": "production_stream_validation_alerting_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "derivatives_realtime_sources_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "full_phase13_visual_review_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "current_validation_rerun_pending"
+                  }
+                }
+              ],
+              "minItems": 4,
+              "maxItems": 4,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "current_validation_rerun_pending",
+                  "derivatives_realtime_sources_missing",
+                  "full_phase13_visual_review_missing",
+                  "production_stream_validation_alerting_missing"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "redirectRoute": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/inProgressRoute"
+        },
+        {
+          "properties": {
+            "blockers": {
+              "allOf": [
+                {
+                  "contains": {
+                    "const": "full_phase13_visual_review_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "current_validation_rerun_pending"
+                  }
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "current_validation_rerun_pending",
+                  "full_phase13_visual_review_missing"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "derivativesRoute": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/inProgressRoute"
+        },
+        {
+          "properties": {
+            "blockers": {
+              "allOf": [
+                {
+                  "contains": {
+                    "const": "production_stream_validation_alerting_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "derivatives_realtime_sources_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "full_phase13_visual_review_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "current_validation_rerun_pending"
+                  }
+                }
+              ],
+              "minItems": 4,
+              "maxItems": 4,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "current_validation_rerun_pending",
+                  "derivatives_realtime_sources_missing",
+                  "full_phase13_visual_review_missing",
+                  "production_stream_validation_alerting_missing"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "signalEvidenceRoute": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/inProgressRoute"
+        },
+        {
+          "properties": {
+            "blockers": {
+              "allOf": [
+                {
+                  "contains": {
+                    "const": "production_stream_validation_alerting_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "production_trader_account_repositories_and_writers_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "full_phase13_visual_review_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "current_validation_rerun_pending"
+                  }
+                }
+              ],
+              "minItems": 4,
+              "maxItems": 4,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "current_validation_rerun_pending",
+                  "full_phase13_visual_review_missing",
+                  "production_stream_validation_alerting_missing",
+                  "production_trader_account_repositories_and_writers_missing"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "traderReadOnlyRoute": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/inProgressRoute"
+        },
+        {
+          "properties": {
+            "blockers": {
+              "allOf": [
+                {
+                  "contains": {
+                    "const": "full_phase13_visual_review_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "current_validation_rerun_pending"
+                  }
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "current_validation_rerun_pending",
+                  "full_phase13_visual_review_missing"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "marketSymbolRoute": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/inProgressRoute"
+        },
+        {
+          "properties": {
+            "blockers": {
+              "allOf": [
+                {
+                  "contains": {
+                    "const": "production_stream_validation_alerting_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "derivatives_realtime_sources_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "current_validation_rerun_pending"
+                  }
+                }
+              ],
+              "minItems": 3,
+              "maxItems": 3,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "current_validation_rerun_pending",
+                  "derivatives_realtime_sources_missing",
+                  "production_stream_validation_alerting_missing"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "proChartRoute": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/inProgressRoute"
+        },
+        {
+          "properties": {
+            "blockers": {
+              "allOf": [
+                {
+                  "contains": {
+                    "const": "production_https_smoke_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "production_stream_validation_alerting_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "full_phase13_visual_review_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "current_validation_rerun_pending"
+                  }
+                }
+              ],
+              "minItems": 4,
+              "maxItems": 4,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "current_validation_rerun_pending",
+                  "full_phase13_visual_review_missing",
+                  "production_https_smoke_missing",
+                  "production_stream_validation_alerting_missing"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "alertsRoute": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/inProgressRoute"
+        },
+        {
+          "properties": {
+            "blockers": {
+              "allOf": [
+                {
+                  "contains": {
+                    "const": "alert_crud_delivery_audit_repositories_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "full_phase13_visual_review_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "current_validation_rerun_pending"
+                  }
+                }
+              ],
+              "minItems": 3,
+              "maxItems": 3,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "alert_crud_delivery_audit_repositories_missing",
+                  "current_validation_rerun_pending",
+                  "full_phase13_visual_review_missing"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "portfolioRoute": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/inProgressRoute"
+        },
+        {
+          "properties": {
+            "blockers": {
+              "allOf": [
+                {
+                  "contains": {
+                    "const": "production_trader_account_repositories_and_writers_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "full_phase13_visual_review_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "current_validation_rerun_pending"
+                  }
+                }
+              ],
+              "minItems": 3,
+              "maxItems": 3,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "current_validation_rerun_pending",
+                  "full_phase13_visual_review_missing",
+                  "production_trader_account_repositories_and_writers_missing"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "portfolioExecutionsRoute": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/inProgressRoute"
+        },
+        {
+          "properties": {
+            "blockers": {
+              "allOf": [
+                {
+                  "contains": {
+                    "const": "production_trader_account_repositories_and_writers_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "full_phase13_visual_review_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "current_validation_rerun_pending"
+                  }
+                }
+              ],
+              "minItems": 3,
+              "maxItems": 3,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "current_validation_rerun_pending",
+                  "full_phase13_visual_review_missing",
+                  "production_trader_account_repositories_and_writers_missing"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "portfolioHistoryRoute": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/inProgressRoute"
+        },
+        {
+          "properties": {
+            "blockers": {
+              "allOf": [
+                {
+                  "contains": {
+                    "const": "production_trader_account_repositories_and_writers_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "full_phase13_visual_review_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "current_validation_rerun_pending"
+                  }
+                }
+              ],
+              "minItems": 3,
+              "maxItems": 3,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "current_validation_rerun_pending",
+                  "full_phase13_visual_review_missing",
+                  "production_trader_account_repositories_and_writers_missing"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "adminRoute": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/inProgressRoute"
+        },
+        {
+          "properties": {
+            "blockers": {
+              "allOf": [
+                {
+                  "contains": {
+                    "const": "production_auth_session_hardening_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "alembic_auth_revocation_admin_audit_migration_approval_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "full_phase13_visual_review_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "production_https_smoke_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "current_validation_rerun_pending"
+                  }
+                }
+              ],
+              "minItems": 5,
+              "maxItems": 5,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "alembic_auth_revocation_admin_audit_migration_approval_missing",
+                  "current_validation_rerun_pending",
+                  "full_phase13_visual_review_missing",
+                  "production_auth_session_hardening_missing",
+                  "production_https_smoke_missing"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "superadminRoute": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/inProgressRoute"
+        },
+        {
+          "properties": {
+            "blockers": {
+              "allOf": [
+                {
+                  "contains": {
+                    "const": "production_auth_session_hardening_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "alembic_auth_revocation_admin_audit_migration_approval_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "full_phase13_visual_review_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "production_https_smoke_missing"
+                  }
+                },
+                {
+                  "contains": {
+                    "const": "current_validation_rerun_pending"
+                  }
+                }
+              ],
+              "minItems": 5,
+              "maxItems": 5,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "alembic_auth_revocation_admin_audit_migration_approval_missing",
+                  "current_validation_rerun_pending",
+                  "full_phase13_visual_review_missing",
+                  "production_auth_session_hardening_missing",
+                  "production_https_smoke_missing"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

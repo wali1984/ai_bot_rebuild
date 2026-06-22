@@ -1,0 +1,85 @@
+{
+  "schema_version": "v2_exchange_permission_no_order_probe_plan_v1",
+  "generated_utc": "2026-05-25T19:30:00Z",
+  "git_head": "10513bbe0517fd81c9c87e4672bb15486a083c02",
+  "lane_id": "v2_live_readiness_blocker_burndown_excluding_tokenmetrics",
+  "scope": "PHASE_6_EXCHANGE_PERMISSION_NO_ORDER_PROBE_PLAN_DRAFT_ONLY",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "this_is_plan_or_status_only": true,
+  "probe_executed_at_this_packet": false,
+  "operator_approval_required_before_any_execution": true,
+  "allowed_probe_surface": {
+    "account_connection_check": {
+      "allowed_when_operator_signs": true,
+      "scope": "read_only_GET_account_or_GET_balance_only_with_redacted_response",
+      "no_order_endpoint": true,
+      "no_modify_endpoint": true,
+      "no_cancel_endpoint": true,
+      "no_leverage_endpoint": true,
+      "no_margin_endpoint": true,
+      "balance_exposure_in_public_payload": "FORBIDDEN_REDACTED_TO_RANGE_BUCKET_ONLY_AND_NEVER_RAW",
+      "credentials_in_logs_or_payload": "FORBIDDEN_NEVER_PRINTED"
+    },
+    "permission_introspection": {
+      "allowed_when_operator_signs": true,
+      "scope": "read_only_GET_api_key_permissions_only",
+      "reveals_only_capability_flags": true,
+      "no_secret_value_returned_or_logged": true
+    }
+  },
+  "explicitly_forbidden_endpoints": [
+    "POST /fapi/v1/order",
+    "PUT /fapi/v1/order",
+    "DELETE /fapi/v1/order",
+    "POST /fapi/v1/order/test",
+    "POST /fapi/v1/leverage",
+    "POST /fapi/v1/marginType",
+    "POST /fapi/v1/positionSide/dual",
+    "POST /fapi/v1/batchOrders",
+    "any_endpoint_that_mutates_exchange_state"
+  ],
+  "test_order_policy": {
+    "test_order_permitted": false,
+    "test_order_permitted_only_when": "operator explicitly signs a SEPARATE one-order approval per existing v2_live_canary_one_order_enablement gate; that lane is NOT this lane.",
+    "this_lane_creates_test_order_approval": false
+  },
+  "credential_safety_invariants": {
+    "credentials_not_printed_to_console": true,
+    "credentials_not_persisted_in_worklog": true,
+    "credentials_not_persisted_in_public_payload": true,
+    "credentials_loaded_from_local_secrets_only_at_probe_time_by_existing_credential_loader": true,
+    "credentials_referenced_in_payloads_by_env_var_NAME_only": true
+  },
+  "probe_execution_workflow": {
+    "step_1_operator_signs_probe_approval_artifact": "OPERATOR_DECISION_REQUIRED",
+    "step_2_probe_runs_read_only_calls_only": "AUTOMATABLE_AFTER_STEP_1",
+    "step_3_probe_emits_capability_flags_payload_with_balances_bucketed": "AUTOMATABLE_AFTER_STEP_1",
+    "step_4_codex_review_verifies_no_mutation_and_no_raw_secret_exposure": "AUTOMATABLE_AFTER_STEP_1"
+  },
+  "current_probe_state": "PLAN_DRAFT_NOT_EXECUTED",
+  "probe_executor_evidence_path": "v2/backend/app/services/live_canary/permission_probe.py",
+  "blocks_canary": true,
+  "blocks_live": true,
+  "next_operator_action": "Operator signs read-only permission probe approval (separate artifact). This lane does NOT create that approval.",
+  "next_automatic_action_after_operator_approval": "Permission probe runs read-only GETs; payload omits balances; Codex reviews; results feed live_readiness_blocker_matrix.",
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "writes_old_redis": false,
+    "calls_exchange_mutation": false,
+    "places_real_order": false,
+    "leverage_changed": false,
+    "margin_mode_changed": false,
+    "creates_approval_tokens": false,
+    "creates_approval_artifacts": false,
+    "fabricates_edge": false,
+    "modifies_legacy_repo": false,
+    "raw_values_read": false,
+    "raw_values_exposed": false
+  }
+}

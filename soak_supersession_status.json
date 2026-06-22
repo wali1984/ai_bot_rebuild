@@ -1,0 +1,50 @@
+{
+  "schema_version": "v2_full_legacy_trainer_remediation_phase0_soak_supersession_v1",
+  "generated_at_utc": "2026-06-14T00:00:00Z",
+  "phase": "Phase 0 - Soak supersession status",
+  "status": "NOT_SUPERSEDED_YET_BUT_WILL_SUPERSEDE_ON_MATERIAL_RUNTIME_CHANGE",
+  "current_soak": {
+    "source_dir": "v2/frontend/public/v2_adaptive_allocation_and_trade_lifecycle_24h_paper_soak/latest",
+    "proof_status": "SOAK_24H_COMPLETE",
+    "soak_24h_complete": true,
+    "observed_hours": 46.0897,
+    "completion_report": "v2/frontend/public/v2_adaptive_allocation_and_trade_lifecycle_24h_paper_soak/latest/V2_ADAPTIVE_ALLOCATION_AND_TRADE_LIFECYCLE_24H_PAPER_SOAK_COMPLETION_REPORT.md",
+    "valid_for": "pre-remediation runtime behavior only"
+  },
+  "supersession_rule": {
+    "must_supersede_if_any_modified": [
+      "v2/backend/app/services/native_trainer",
+      "v2/backend/app/services/paper_trade_management",
+      "v2/backend/app/services/adaptive_capital_allocator",
+      "v2/backend/app/services/risk_gateway",
+      "v2/backend/app/services/trade_lifecycle_guard",
+      "trainer decision logic",
+      "paper trade-management behavior",
+      "adaptive allocator behavior",
+      "risk evaluator behavior",
+      "trade lifecycle guard behavior"
+    ],
+    "must_restart_density_aware_24h_soak_after_material_remediation": true,
+    "must_not_use_pre_fix_soak_as_post_fix_evidence": true
+  },
+  "current_pass_state": {
+    "phase0_created_before_material_changes": true,
+    "material_runtime_behavior_changes_started": false,
+    "soak_superseded_now": false,
+    "next_material_change_requires_supersession": true
+  },
+  "required_post_remediation_action": {
+    "restart_soak": true,
+    "soak_type": "density-aware 24h paper soak",
+    "required_before_claiming_new_runtime_ready": true,
+    "reason": "The requested remediation pass is expected to inspect and potentially modify trainer, paper trade-management, adaptive allocator, risk gateway, and lifecycle guard behavior. Any such modification invalidates the old soak as proof for the new behavior."
+  },
+  "live_boundary": {
+    "live_must_remain_balance_held": true,
+    "required_state": "LIVE_ARMED_BALANCE_HOLD",
+    "known_blocker": "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER",
+    "real_orders_allowed": false,
+    "test_orders_allowed": false,
+    "leverage_or_margin_mutation_allowed": false
+  }
+}

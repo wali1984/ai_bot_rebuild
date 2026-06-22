@@ -1,0 +1,27 @@
+{
+  "expected_header_story": {
+    "live": "gate approved",
+    "paper_equity": 10056.49408454,
+    "paper_pnl": 56.49408454,
+    "predictions": 680,
+    "submit": "held until margin is sufficient",
+    "trader": "armed, balance hold"
+  },
+  "forbidden_current_labels": [
+    "9950.654465",
+    "-49",
+    "-45",
+    "blocked_human_only",
+    "Bridge CURRENT"
+  ],
+  "generated_est": "2026-06-14T17:01:46-04:00",
+  "schema_version": "global_shell_runtime_truth_source_status_v1",
+  "sources": [
+    "operator_runtime/v2_runtime_truth/latest/runtime_pages_payload.json",
+    "operator_runtime/v2_portfolio_state/latest/v2_portfolio_state.json",
+    "operator_runtime/v2_live_gate_runtime/latest/live_gate_runtime_state.json",
+    "operator_runtime/v2_native_trainer/latest/native_trainer_runtime_status.json",
+    "operator_runtime/v2_signals/latest/all_symbol_all_timeframe_cuda_prediction_status.json"
+  ],
+  "stale_header_source_allowed": false
+}

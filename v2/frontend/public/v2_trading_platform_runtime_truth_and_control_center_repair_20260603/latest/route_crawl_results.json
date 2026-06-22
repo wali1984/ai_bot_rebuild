@@ -1,0 +1,57 @@
+{
+  "generated_utc": "2026-06-04T03:23:33.725Z",
+  "base": "http://127.0.0.1:4177",
+  "pass": true,
+  "results": [
+    {
+      "route": "/admin/market-intelligence?role=admin",
+      "final_url": "http://127.0.0.1:4177/admin/market-intelligence?role=admin",
+      "status": 200,
+      "screenshot": "screenshots/admin-market-intelligence.png",
+      "checks": {
+        "http_ok": true,
+        "est_visible": true,
+        "no_enabled_live_controls": true,
+        "no_raw_credentials": true,
+        "no_console_errors": true,
+        "no_request_failures": true,
+        "live_gate_blocked": true,
+        "live_symbols_empty": true,
+        "no_ready_claim": true,
+        "market_current_payload": true,
+        "market_no_obsolete_placeholders": true,
+        "market_core_symbols_visible": true,
+        "market_no_old_redis_write_claim": true
+      },
+      "failed": [],
+      "text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT / PAPER-SHADOW TWIN AI BOT V2 Shadow Desk LIVE: BLOCKED_HUMAN_ONLY PAPER: PAPER_RUNTIME_ONLINE_ACTIVE BRIDGE: CURRENT BTCUSDT: 0.004909 SUPERVISOR: CURRENT ROUTES: 0 PUBLIC FAILS NEXT: CLAUDE_V2_NATIVE_CORE_P0_TRUE_MIGRATION_SPRINT TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Mode: paper_shadow_live_blocked sig_paper_tick_1780543358790 Risk: BLOCKED Paper equity: 9950.654465 Canary: approval required, not created AI BOT V2Paper / Shadow Role admin ● Live DASHBOARD 13 Trading Dashboard MARKETS Symbols Market Intelligence Exchange Manager DATA SOURCES Ingestors Technical Analysis Liquidation Bridge / Levels AI / STRATEGY Trainer Prediction Monitor Signal Explainability AI Brain Strategy Admin Trainer Admin Orchestrator Admin EXECUTION Signals Trader Executions Positions Strategy / Backtesting Execution Admin Paper Trading Replay RISK Risk Control Position Quarantine Live Readiness SYSTEM Monitor Center Feature Pipeline Script Monitor Logs / Errors System Health CONFIG Automation Config Admin Operator Decisions Operator Proof Dashboard REPORTS 13 History Audit Ledger Report Center Executive Status Build/Validation Status MARKETS / RUNTIME INTELLIGENCE Market Intelligence Current V2 operator runtime for derivatives data, symbol coverage, public market feeds, and trainer-facing feature intake. Missing or stale inputs stay visible. LIVE_GATE: BLOCKED_HUMAN_ONLY COINANK RUNTIME: CURRENT 1M AGO EST 2026-06-03 23:22:18 EST OBSERVED MARKET FEED 1000BONKUSDT READONLY_MARKET_FEED / binance_usdm_public_get_only ",
+      "consoleErrors": [],
+      "requestFailures": []
+    },
+    {
+      "route": "/admin/live-readiness?role=admin",
+      "final_url": "http://127.0.0.1:4177/admin/live-readiness?role=admin",
+      "status": 200,
+      "screenshot": "screenshots/admin-live-readiness.png",
+      "checks": {
+        "http_ok": true,
+        "est_visible": true,
+        "no_enabled_live_controls": true,
+        "no_raw_credentials": true,
+        "no_console_errors": true,
+        "no_request_failures": true,
+        "live_gate_blocked": true,
+        "live_symbols_empty": true,
+        "no_ready_claim": true,
+        "live_blockers_visible": true,
+        "live_no_hidden_blockers": true,
+        "live_mutation_false_visible": true,
+        "live_raw_credential_never": true
+      },
+      "failed": [],
+      "text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT / PAPER-SHADOW TWIN AI BOT V2 Shadow Desk LIVE: BLOCKED_HUMAN_ONLY PAPER: PAPER_RUNTIME_ONLINE_ACTIVE BRIDGE: CURRENT BTCUSDT: 0.004909 SUPERVISOR: CURRENT ROUTES: 0 PUBLIC FAILS NEXT: CLAUDE_V2_NATIVE_CORE_P0_TRUE_MIGRATION_SPRINT TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Mode: paper_shadow_live_blocked sig_paper_tick_1780543358790 Risk: BLOCKED Paper equity: 9950.654465 Canary: approval required, not created AI BOT V2Paper / Shadow Role admin ● Live DASHBOARD 13 Trading Dashboard MARKETS Symbols Market Intelligence Exchange Manager DATA SOURCES Ingestors Technical Analysis Liquidation Bridge / Levels AI / STRATEGY Trainer Prediction Monitor Signal Explainability AI Brain Strategy Admin Trainer Admin Orchestrator Admin EXECUTION Signals Trader Executions Positions Strategy / Backtesting Execution Admin Paper Trading Replay RISK Risk Control Position Quarantine Live Readiness SYSTEM Monitor Center Feature Pipeline Script Monitor Logs / Errors System Health CONFIG Automation Config Admin Operator Decisions Operator Proof Dashboard REPORTS 13 History Audit Ledger Report Center Executive Status Build/Validation Status RISK Live Readiness Operator live-gate blocker dashboard. Live, canary, order, leverage, and margin controls remain disabled until a separate human approval path changes the runtime gate. LIVE GATE: BLOCKED_HUMAN_ONLYCANARY: BLOCKEDLIVE_SYMBOLS: []AGE: 1M AGOPROBE: 1M AGO LIVE GATE VERDICT LIVE BLOCKED GO_NO_GO V2_24H_LIVE_CANARY_BLOCKED_EXCHANGE_PERMISSION_UNKNOWN PERMISSION_PROBE V2_",
+      "consoleErrors": [],
+      "requestFailures": []
+    }
+  ]
+}

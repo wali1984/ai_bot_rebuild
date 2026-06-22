@@ -1,0 +1,61 @@
+# Files Changed
+
+## New Source And Tests
+
+- `v2/backend/app/cli/v2_out_of_sample_reverify_evidence_producer.py`
+- `v2/backend/tests/unit/cli/test_v2_out_of_sample_reverify_evidence_producer.py`
+
+## Evidence Sidecars And Producer Artifacts
+
+- `v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_reverify_rows.jsonl`
+- `v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_reverify_rejected.jsonl`
+- `v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_reverify_rows.jsonl.hash_chain.jsonl`
+- `v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_reverify_rows.jsonl.manifest.json`
+- `v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_window_registry.json`
+- `v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_window_registry_preflight.json`
+- `v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_realtime_paper_reverify_rows.jsonl`
+- `v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_realtime_paper_reverify_rejected.jsonl`
+- `v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_realtime_paper_reverify_rows.jsonl.hash_chain.jsonl`
+- `v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_realtime_paper_reverify_rows.jsonl.manifest.json`
+- `v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_evidence_producer_summary.json`
+- `v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_evidence_producer_status_regeneration.log`
+- `v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_evidence_integrity_status.json`
+
+## Regenerated Status Artifacts
+
+- `v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/operator_dashboard_payload.json`
+- `v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_live_grade_reverify_status.json`
+- `v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/GO_NO_GO.md`
+
+## Logs
+
+- `logs/v2_out_of_sample_evidence_producer_20260621.json`
+- `logs/v2_out_of_sample_evidence_producer_20260621_rerun.json`
+- `logs/v2_out_of_sample_evidence_producer_20260621_read_redis.json`
+- `logs/v2_out_of_sample_evidence_producer_20260621_pending_merge.json`
+- `logs/v2_out_of_sample_evidence_producer_20260621_watch.json`
+- `logs/v2_out_of_sample_evidence_producer_20260621_verify_integrity.json`
+- `logs/v2_out_of_sample_evidence_producer_20260621_verify_integrity_preserve_counts.json`
+- `logs/v2_out_of_sample_evidence_producer_20260621_redis_only_watch.json`
+- `logs/v2_out_of_sample_evidence_producer_20260621_alias_match_watch.json`
+- `logs/v2_out_of_sample_evidence_producer_20260621_rejection_diagnostics.json`
+- `logs/v2_out_of_sample_evidence_producer_20260621_source_gate_breakdown.json`
+- `logs/v2_out_of_sample_evidence_producer_20260622_holdout_registry_preflight.json`
+- `logs/v2_out_of_sample_evidence_producer_20260622_holdout_registry_preflight_redis.json`
+- `logs/v2_out_of_sample_evidence_producer_20260622_holdout_two_pass_labeling.json`
+
+## Goal-State Snapshot
+
+- `goal_state/V2_ADAPTIVE_CAPITAL_OUT_OF_SAMPLE_EVIDENCE_PRODUCER_AND_LIVE_GRADE_REVERIFY/COMMANDS_RUN.md`
+- `goal_state/V2_ADAPTIVE_CAPITAL_OUT_OF_SAMPLE_EVIDENCE_PRODUCER_AND_LIVE_GRADE_REVERIFY/FILES_CHANGED.md`
+- `goal_state/V2_ADAPTIVE_CAPITAL_OUT_OF_SAMPLE_EVIDENCE_PRODUCER_AND_LIVE_GRADE_REVERIFY/FINAL_BLOCKERS.json`
+- `goal_state/V2_ADAPTIVE_CAPITAL_OUT_OF_SAMPLE_EVIDENCE_PRODUCER_AND_LIVE_GRADE_REVERIFY/GO_NO_GO.md`
+- `goal_state/V2_ADAPTIVE_CAPITAL_OUT_OF_SAMPLE_EVIDENCE_PRODUCER_AND_LIVE_GRADE_REVERIFY/VALIDATION_LEDGER.md`
+- `goal_state/V2_ADAPTIVE_CAPITAL_OUT_OF_SAMPLE_EVIDENCE_PRODUCER_AND_LIVE_GRADE_REVERIFY/operator_dashboard_payload.json`
+- `goal_state/V2_ADAPTIVE_CAPITAL_OUT_OF_SAMPLE_EVIDENCE_PRODUCER_AND_LIVE_GRADE_REVERIFY/out_of_sample_evidence_producer_summary.json`
+- `goal_state/V2_ADAPTIVE_CAPITAL_OUT_OF_SAMPLE_EVIDENCE_PRODUCER_AND_LIVE_GRADE_REVERIFY/out_of_sample_evidence_integrity_status.json`
+- `goal_state/V2_ADAPTIVE_CAPITAL_OUT_OF_SAMPLE_EVIDENCE_PRODUCER_AND_LIVE_GRADE_REVERIFY/out_of_sample_holdout_reverify_rows.jsonl.manifest.json`
+- `goal_state/V2_ADAPTIVE_CAPITAL_OUT_OF_SAMPLE_EVIDENCE_PRODUCER_AND_LIVE_GRADE_REVERIFY/out_of_sample_holdout_window_registry.json`
+- `goal_state/V2_ADAPTIVE_CAPITAL_OUT_OF_SAMPLE_EVIDENCE_PRODUCER_AND_LIVE_GRADE_REVERIFY/out_of_sample_holdout_window_registry_preflight.json`
+- `goal_state/V2_ADAPTIVE_CAPITAL_OUT_OF_SAMPLE_EVIDENCE_PRODUCER_AND_LIVE_GRADE_REVERIFY/out_of_sample_live_grade_reverify_status.json`
+- `goal_state/V2_ADAPTIVE_CAPITAL_OUT_OF_SAMPLE_EVIDENCE_PRODUCER_AND_LIVE_GRADE_REVERIFY/out_of_sample_realtime_paper_reverify_rows.jsonl.manifest.json`

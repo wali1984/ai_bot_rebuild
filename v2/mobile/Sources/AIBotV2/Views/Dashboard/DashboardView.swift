@@ -9,17 +9,49 @@ struct DashboardView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
-                    LiveBlockBanner()
+                    brandHeader
+                    streamStatus
                     content
                 }
             }
-            .navigationTitle("Dashboard")
+            .navigationTitle("NERVYX SENSE")
             .toolbar { refreshButton }
             .refreshable { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) }
         }
         .task { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) }
-        .onAppear { vm.startAutoRefresh(token: auth.currentToken(), baseURL: appState.baseURL) }
-        .onDisappear { vm.stopAutoRefresh() }
+        .onDisappear { vm.stopStreams() }
+    }
+
+    private var brandHeader: some View {
+        HStack(spacing: 12) {
+            Image(NervyxAssets.mark)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 34, height: 34)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(NervyxBrand.productName)
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(NervyxColors.textPrimary)
+                Text(NervyxBrand.descriptor)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.horizontal)
+        .padding(.top, 8)
+    }
+
+    private var streamStatus: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "dot.radiowaves.left.and.right")
+                .foregroundStyle(NervyxColors.validationAccent)
+            Text(vm.streamSummary)
+                .font(NervyxTypography.data)
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(.horizontal)
     }
 
     @ViewBuilder
@@ -51,7 +83,7 @@ struct DashboardView: View {
 
     private func systemStatusSection(_ d: MobileDashboard) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader("System Status", icon: "checkmark.shield")
+            sectionHeader("NERVYX OBSERVE · System Status", icon: "checkmark.shield")
             HStack(spacing: 12) {
                 MetricCard(
                     title: "Redis",
@@ -71,7 +103,7 @@ struct DashboardView: View {
 
     private func paperSection(_ paper: PaperState) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader("Paper Trading", icon: "doc.plaintext")
+            sectionHeader("NERVYX EXECUTE · Runtime", icon: "bolt.horizontal.circle")
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 MetricCard(
                     title: "Open Positions",
@@ -110,7 +142,7 @@ struct DashboardView: View {
 
     private func trainerSection(_ trainer: TrainerState) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader("Trainer", icon: "brain")
+            sectionHeader("NERVYX CORE · Trainer", icon: "brain")
             HStack(spacing: 12) {
                 MetricCard(
                     title: "State",
@@ -136,7 +168,7 @@ struct DashboardView: View {
 
     private func gpuSection(_ gpu: GPUState) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader("GPU — \(gpu.name.isEmpty ? "Unknown" : gpu.name)", icon: "cpu.fill")
+            sectionHeader("NERVYX CORE · GPU — \(gpu.name.isEmpty ? "Unknown" : gpu.name)", icon: "cpu.fill")
             HStack(spacing: 12) {
                 GaugeCard(
                     title: "Utilization",
@@ -158,7 +190,7 @@ struct DashboardView: View {
 
     private func alertsPreviewSection(_ alerts: [MobileAlert]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            sectionHeader("Recent Alerts", icon: "bell.badge")
+            sectionHeader("NERVYX OBSERVE · Recent Alerts", icon: "bell.badge")
             ForEach(alerts.prefix(3)) { alert in
                 HStack(alignment: .top, spacing: 8) {
                     Circle()

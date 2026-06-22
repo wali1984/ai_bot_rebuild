@@ -1,0 +1,310 @@
+{
+  "audit_utc": "2026-06-19T00:15:00Z",
+  "total_trades": 645,
+  "per_timeframe": {
+    "15m": {
+      "count": 113,
+      "wins": 34,
+      "wr_pct": 30.1,
+      "total_pnl_usd": 12.99,
+      "status": "POSITIVE"
+    },
+    "1h": {
+      "count": 127,
+      "wins": 45,
+      "wr_pct": 35.4,
+      "total_pnl_usd": 5.57,
+      "status": "POSITIVE"
+    },
+    "1m": {
+      "count": 124,
+      "wins": 44,
+      "wr_pct": 35.5,
+      "total_pnl_usd": 17.46,
+      "status": "POSITIVE"
+    },
+    "4h": {
+      "count": 138,
+      "wins": 34,
+      "wr_pct": 24.6,
+      "total_pnl_usd": -3.65,
+      "status": "NEGATIVE"
+    },
+    "5m": {
+      "count": 143,
+      "wins": 39,
+      "wr_pct": 27.3,
+      "total_pnl_usd": -10.15,
+      "status": "NEGATIVE"
+    }
+  },
+  "per_strategy_mode": {
+    "trend_mode": {
+      "count": 590,
+      "wins": 158,
+      "wr_pct": 26.8,
+      "pct_of_all_trades": 91.5,
+      "total_pnl_usd": -21.63,
+      "status": "NEGATIVE"
+    },
+    "reduce_size_mode": {
+      "count": 32,
+      "wins": 20,
+      "wr_pct": 62.5,
+      "pct_of_all_trades": 5.0,
+      "total_pnl_usd": 44.62,
+      "status": "POSITIVE"
+    },
+    "mean_reversion_mode": {
+      "count": 23,
+      "wins": 18,
+      "wr_pct": 78.3,
+      "pct_of_all_trades": 3.6,
+      "total_pnl_usd": -0.77,
+      "status": "NEGATIVE"
+    }
+  },
+  "strategy_x_timeframe": {
+    "mean_reversion_mode|15m": {
+      "count": 6,
+      "wins": 5,
+      "wr_pct": 83.3,
+      "total_pnl_usd": 1.19
+    },
+    "mean_reversion_mode|1h": {
+      "count": 5,
+      "wins": 4,
+      "wr_pct": 80.0,
+      "total_pnl_usd": -4.21
+    },
+    "mean_reversion_mode|1m": {
+      "count": 5,
+      "wins": 5,
+      "wr_pct": 100.0,
+      "total_pnl_usd": 1.21
+    },
+    "mean_reversion_mode|4h": {
+      "count": 2,
+      "wins": 2,
+      "wr_pct": 100.0,
+      "total_pnl_usd": 0.63
+    },
+    "mean_reversion_mode|5m": {
+      "count": 5,
+      "wins": 2,
+      "wr_pct": 40.0,
+      "total_pnl_usd": 0.43
+    },
+    "reduce_size_mode|15m": {
+      "count": 3,
+      "wins": 3,
+      "wr_pct": 100.0,
+      "total_pnl_usd": 10.34
+    },
+    "reduce_size_mode|1h": {
+      "count": 3,
+      "wins": 2,
+      "wr_pct": 66.7,
+      "total_pnl_usd": 10.37
+    },
+    "reduce_size_mode|1m": {
+      "count": 15,
+      "wins": 7,
+      "wr_pct": 46.7,
+      "total_pnl_usd": 9.9
+    },
+    "reduce_size_mode|4h": {
+      "count": 3,
+      "wins": 3,
+      "wr_pct": 100.0,
+      "total_pnl_usd": 8.08
+    },
+    "reduce_size_mode|5m": {
+      "count": 8,
+      "wins": 5,
+      "wr_pct": 62.5,
+      "total_pnl_usd": 5.92
+    },
+    "trend_mode|15m": {
+      "count": 104,
+      "wins": 26,
+      "wr_pct": 25.0,
+      "total_pnl_usd": 1.47
+    },
+    "trend_mode|1h": {
+      "count": 119,
+      "wins": 39,
+      "wr_pct": 32.8,
+      "total_pnl_usd": -0.59
+    },
+    "trend_mode|1m": {
+      "count": 104,
+      "wins": 32,
+      "wr_pct": 30.8,
+      "total_pnl_usd": 6.35
+    },
+    "trend_mode|4h": {
+      "count": 133,
+      "wins": 29,
+      "wr_pct": 21.8,
+      "total_pnl_usd": -12.36
+    },
+    "trend_mode|5m": {
+      "count": 130,
+      "wins": 32,
+      "wr_pct": 24.6,
+      "total_pnl_usd": -16.5
+    }
+  },
+  "symbol_worst_10": [
+    {
+      "symbol": "PORTALUSDT",
+      "count": 2,
+      "wins": 0,
+      "wr_pct": 0.0,
+      "total_pnl_usd": -7.36
+    },
+    {
+      "symbol": "NIGHTUSDT",
+      "count": 5,
+      "wins": 0,
+      "wr_pct": 0.0,
+      "total_pnl_usd": -5.64
+    },
+    {
+      "symbol": "ALLOUSDT",
+      "count": 19,
+      "wins": 4,
+      "wr_pct": 21.1,
+      "total_pnl_usd": -5.49
+    },
+    {
+      "symbol": "DOTUSDT",
+      "count": 11,
+      "wins": 3,
+      "wr_pct": 27.3,
+      "total_pnl_usd": -4.43
+    },
+    {
+      "symbol": "CRVUSDT",
+      "count": 14,
+      "wins": 2,
+      "wr_pct": 14.3,
+      "total_pnl_usd": -4.03
+    },
+    {
+      "symbol": "ENAUSDT",
+      "count": 20,
+      "wins": 3,
+      "wr_pct": 15.0,
+      "total_pnl_usd": -3.11
+    },
+    {
+      "symbol": "TIAUSDT",
+      "count": 3,
+      "wins": 0,
+      "wr_pct": 0.0,
+      "total_pnl_usd": -2.85
+    },
+    {
+      "symbol": "BIOUSDT",
+      "count": 29,
+      "wins": 8,
+      "wr_pct": 27.6,
+      "total_pnl_usd": -2.63
+    },
+    {
+      "symbol": "NEARUSDT",
+      "count": 11,
+      "wins": 2,
+      "wr_pct": 18.2,
+      "total_pnl_usd": -2.56
+    },
+    {
+      "symbol": "PUMPUSDT",
+      "count": 3,
+      "wins": 0,
+      "wr_pct": 0.0,
+      "total_pnl_usd": -2.53
+    }
+  ],
+  "symbol_best_10": [
+    {
+      "symbol": "BCHUSDT",
+      "count": 12,
+      "wins": 2,
+      "wr_pct": 16.7,
+      "total_pnl_usd": 2.81
+    },
+    {
+      "symbol": "XAUTUSDT",
+      "count": 1,
+      "wins": 1,
+      "wr_pct": 100.0,
+      "total_pnl_usd": 3.27
+    },
+    {
+      "symbol": "ALGOUSDT",
+      "count": 21,
+      "wins": 5,
+      "wr_pct": 23.8,
+      "total_pnl_usd": 3.48
+    },
+    {
+      "symbol": "HOMEUSDT",
+      "count": 21,
+      "wins": 7,
+      "wr_pct": 33.3,
+      "total_pnl_usd": 3.8
+    },
+    {
+      "symbol": "PAXGUSDT",
+      "count": 1,
+      "wins": 1,
+      "wr_pct": 100.0,
+      "total_pnl_usd": 4.5
+    },
+    {
+      "symbol": "TAOUSDT",
+      "count": 3,
+      "wins": 1,
+      "wr_pct": 33.3,
+      "total_pnl_usd": 4.52
+    },
+    {
+      "symbol": "ESPORTSUSDT",
+      "count": 40,
+      "wins": 19,
+      "wr_pct": 47.5,
+      "total_pnl_usd": 7.24
+    },
+    {
+      "symbol": "BNBUSDT",
+      "count": 3,
+      "wins": 2,
+      "wr_pct": 66.7,
+      "total_pnl_usd": 7.39
+    },
+    {
+      "symbol": "BSBUSDT",
+      "count": 22,
+      "wins": 9,
+      "wr_pct": 40.9,
+      "total_pnl_usd": 8.04
+    },
+    {
+      "symbol": "AEROUSDT",
+      "count": 18,
+      "wins": 7,
+      "wr_pct": 38.9,
+      "total_pnl_usd": 8.55
+    }
+  ],
+  "structural_findings": {
+    "trend_mode_dominance": "590/645 trades (91.5%) route to trend_mode. Root cause: PPO always outputs short + MASA higher_direction also short \u2192 perfect alignment triggers trend_mode on every eligible trade.",
+    "5m_structural_loss": "5m: n=143, WR=27.3%, pnl=-$10.15. Every timeframe soak shows 5m net-negative.",
+    "4h_structural_loss": "4h: n=138, WR=24.6%, pnl=-$3.65. 4h is net-negative \u2014 likely mean-reversion signals in directional regime.",
+    "mean_reversion_mode_underperforms": "mean_reversion_mode: 23 trades, WR=17.4%, pnl=-$X. Regime detection assigns RANGE regime to 3.6% of trades \u2014 these are the only non-TREND entries.",
+    "positive_timeframes": "1m (+$17.46), 15m (+$12.99), 1h (+$5.57) are all net-positive \u2014 these are the only viable timeframes at current settings."
+  }
+}

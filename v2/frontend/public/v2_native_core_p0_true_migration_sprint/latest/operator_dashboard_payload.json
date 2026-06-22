@@ -1,0 +1,29 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "codex_review_task_id": "codex_review_v2_native_core_p0_true_migration_sprint",
+  "current_status_simple": "Native core P0 true migration is blocked. Paper edge is treated as a symptom until native V2 feature, RL/MASA/PPO, orchestrator, trade-management, and ingestor proof exists.",
+  "delegated_claude_task_id": "claude_v2_native_core_p0_true_migration_sprint",
+  "evidence_paths": [
+    "claude_worklog/final_readiness/v2_native_core_p0_true_migration_sprint/latest/V2_NATIVE_CORE_P0_TRUE_MIGRATION_SPRINT_REPORT.md",
+    "claude_worklog/final_readiness/v2_native_core_p0_true_migration_sprint/latest/native_core_p0_true_migration_sprint_status.json",
+    "claude_worklog/final_readiness/v2_native_core_p0_true_migration_sprint/latest/codex_review/CODEX_NATIVE_CORE_P0_TRUE_MIGRATION_REVIEW.md",
+    "claude_worklog/final_readiness/independent_migration_audit_reconciliation/latest/NEXT_TRUE_MIGRATION_TASKS.md"
+  ],
+  "generated_at": "2026-05-15T23:07:30Z",
+  "go_no_go": "V2_NATIVE_CORE_P0_TRUE_MIGRATION_SPRINT_BLOCKED",
+  "last_updated": "2026-05-15T23:07:30Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "primary_blockers": [
+    "native_feature_pipeline_missing_or_unproven",
+    "rl_masa_ppo_reward_stack_missing_or_unproven",
+    "orchestrator_arbitration_missing_or_unproven",
+    "stop_tp_stealth_exit_engine_missing_or_unproven",
+    "native_ingestor_independence_missing_or_unproven"
+  ],
+  "readiness": "NO_GO",
+  "shutdown_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE"
+}

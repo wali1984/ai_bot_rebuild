@@ -1,0 +1,34 @@
+{
+  "artifact_paths_checked": [
+    "claude_worklog/final_readiness/v2_zero_exception_parity_implementation_burndown_20260531/adapter_technical_analysis/IMPLEMENTATION_REPORT.md",
+    "claude_worklog/final_readiness/v2_zero_exception_parity_implementation_burndown_20260531/adapter_technical_analysis/GO_NO_GO.md",
+    "claude_worklog/final_readiness/v2_zero_exception_parity_implementation_burndown_20260531/adapter_technical_analysis/STATUS.json"
+  ],
+  "decision": "FAIL",
+  "generated_est": "2026-06-03T22:51:41-04:00",
+  "generated_utc": "2026-06-04T02:51:41Z",
+  "implementation_missing_evidence": "None for V2 TA compatibility; full legacy 562-field unified vector remains tracked separately by feature-pipeline parity.",
+  "implementation_status": "blocked_operator_required",
+  "live_safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "exchange_action_taken": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "places_real_order": false,
+    "trader_execution_enabled": false,
+    "writes_exchange_orders": false,
+    "writes_legacy_redis": false
+  },
+  "marker": "V2_ZERO_EXCEPTION_PARITY_ADAPTER_TECHNICAL_ANALYSIS_CODEX_FAIL",
+  "milestone": "v2_zero_exception_parity_codex_review_burndown_20260531",
+  "missing_artifacts": [],
+  "paired_implementation_task_id": "claude_v2_zero_exception_parity_adapter_technical_analysis_20260531",
+  "review_claim": "Review failed; see missing_artifacts/safety_failures.",
+  "safety_failures": [],
+  "schema_version": "v2_zero_exception_parity_codex_review_status_v2",
+  "status": "DONE_FAILED",
+  "task_slug": "adapter_technical_analysis"
+}

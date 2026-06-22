@@ -1,17 +1,26 @@
 {
-  "task_id": "020_codex_review_015a_scaffold",
   "agent": "codex",
-  "risk_level": "L1",
-  "status": "pending",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "claude_worklog/v2_scaffold_reviews/"
   ],
+  "completed_at": "2026-05-02T00:20:48.370072+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_recommended_action": "If PASS, request human approval for 015B only. Do not unblock 015B automatically.",
+  "prompt": "Review the completed 015A V2 repo/package scaffold only. Do not modify /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Do not run 015B-015F. Do not mutate legacy bot. Review only. Inputs: v2/, claude_worklog/approvals/APPROVE_UNBLOCK_015A_ONLY.md, claude_worklog/agent_supervisor/tasks/015a_repo_package_skeleton.json, claude_worklog/v2_scaffold_queue/, claude_worklog/v2_scaffold_planning/, claude_worklog/v2_architecture/, claude_worklog/v2_requirements/. Verify: no legacy bot mutation; no Redis writes; no live trading enablement; no implementation beyond skeleton boundaries; package/module layout matches scaffold plan; Python syntax checks are appropriate; tests are scaffold-only and safe; CI shell stubs are safe; 015B-015F remain blocked_approval; no secrets; no accidental dependency on legacy venv; no runtime server launched; no exchange/API/network side effects. Output exactly two BEGIN_FILE blocks. Use exactly these paths: claude_worklog/v2_scaffold_reviews/020_CODEX_REVIEW_015A.md and claude_worklog/v2_scaffold_reviews/020_CODEX_GO_NO_GO_015A.md. GO/NO-GO file must contain exactly one line: 015A_CODEX_REVIEW_PASS or 015A_CODEX_REVIEW_FAIL.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/v2_scaffold_reviews/020_CODEX_REVIEW_015A.md",
     "claude_worklog/v2_scaffold_reviews/020_CODEX_GO_NO_GO_015A.md"
   ],
-  "prompt": "Review the completed 015A V2 repo/package scaffold only. Do not modify /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Do not run 015B-015F. Do not mutate legacy bot. Review only. Inputs: v2/, claude_worklog/approvals/APPROVE_UNBLOCK_015A_ONLY.md, claude_worklog/agent_supervisor/tasks/015a_repo_package_skeleton.json, claude_worklog/v2_scaffold_queue/, claude_worklog/v2_scaffold_planning/, claude_worklog/v2_architecture/, claude_worklog/v2_requirements/. Verify: no legacy bot mutation; no Redis writes; no live trading enablement; no implementation beyond skeleton boundaries; package/module layout matches scaffold plan; Python syntax checks are appropriate; tests are scaffold-only and safe; CI shell stubs are safe; 015B-015F remain blocked_approval; no secrets; no accidental dependency on legacy venv; no runtime server launched; no exchange/API/network side effects. Output exactly two BEGIN_FILE blocks. Use exactly these paths: claude_worklog/v2_scaffold_reviews/020_CODEX_REVIEW_015A.md and claude_worklog/v2_scaffold_reviews/020_CODEX_GO_NO_GO_015A.md. GO/NO-GO file must contain exactly one line: 015A_CODEX_REVIEW_PASS or 015A_CODEX_REVIEW_FAIL.",
-  "next_recommended_action": "If PASS, request human approval for 015B only. Do not unblock 015B automatically."
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-05-02T00:20:48.370072+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/020_codex_review_015a_scaffold.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "020_codex_review_015a_scaffold",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

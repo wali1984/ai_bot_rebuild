@@ -1,0 +1,118 @@
+{
+  "schema_version": "v2_capital_recovery_gate_status_v1",
+  "generated_utc": "2026-05-25T06:15:00Z",
+  "git_head": "10513bbe0517fd81c9c87e4672bb15486a083c02",
+  "lane_id": "lane_3_capital_recovery_gate",
+  "blocker_id": "capital_recovery_gate_unset",
+  "operator_selected_option": "REQUIRE_IMPLEMENTATION_BEFORE_SHUTDOWN",
+  "operator_accepted": false,
+  "goal": "Convert recovery goal into a controlled risk framework. No revenge trading.",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "framework": {
+    "version": "v2_capital_recovery_framework_v1",
+    "no_revenge_trading_enforced": true,
+    "proof_before_scale_required": true,
+    "recovery_stages": [
+      {
+        "stage_id": "stage_0_paper_only",
+        "label": "Paper-only proof",
+        "scope": "paper",
+        "live_capital_at_risk_usdt": 0,
+        "entry_criteria": "any (default)",
+        "exit_criteria_to_advance": "paper edge proven under operator-signed thresholds AND post-cost CI lower > 0 for >= operator-signed min_sample_count",
+        "approves_canary": false,
+        "approves_live": false
+      },
+      {
+        "stage_id": "stage_1_shadow_paper_extended",
+        "label": "Extended paper / shadow",
+        "scope": "paper",
+        "live_capital_at_risk_usdt": 0,
+        "entry_criteria": "stage_0 exit met AND drawdown discipline observed under operator-signed max_drawdown_bps_rolling",
+        "exit_criteria_to_advance": "operator review",
+        "approves_canary": false,
+        "approves_live": false
+      },
+      {
+        "stage_id": "stage_2_canary_capital_dollars",
+        "label": "Canary capital (dollar-bounded, operator-signed)",
+        "scope": "canary",
+        "live_capital_at_risk_usdt": "OPERATOR_DECISION_REQUIRED",
+        "entry_criteria": "stage_1 exit met AND risk caps signed AND canary allowlist signed AND kill switch signed",
+        "exit_criteria_to_advance": "OPERATOR_DECISION_REQUIRED",
+        "approves_canary": false,
+        "approves_live": false,
+        "note": "This stage is documented; it is not enabled. live_gate remains blocked_human_only."
+      },
+      {
+        "stage_id": "stage_3_scaled_live",
+        "label": "Scaled live",
+        "scope": "live",
+        "live_capital_at_risk_usdt": "OPERATOR_DECISION_REQUIRED",
+        "entry_criteria": "OPERATOR_DECISION_REQUIRED",
+        "approves_canary": false,
+        "approves_live": false,
+        "note": "Documented only. live_gate remains blocked_human_only."
+      }
+    ],
+    "capital_protection_rules": [
+      {"rule_id": "no_revenge_trading", "rule": "After any loss event, system must not increase position size or trade frequency above stage cap.", "enforced_at": "engine_pretrade"},
+      {"rule_id": "stop_loss_mandatory", "rule": "Every position must carry a mandatory stop-loss order tracked by the engine.", "enforced_at": "engine_pretrade"},
+      {"rule_id": "no_doubling_into_loss", "rule": "Disallow adding to a losing position outside operator-signed DCA/hedge plan.", "enforced_at": "engine_pretrade"},
+      {"rule_id": "respect_kill_switch", "rule": "If kill switch trips, all open positions must close to a stop and new entries blocked until operator reset.", "enforced_at": "engine_runtime"},
+      {"rule_id": "respect_capital_recovery_threshold", "rule": "If capital falls below operator-signed recovery threshold, system reverts to paper.", "enforced_at": "engine_runtime"}
+    ],
+    "scaling_rules": [
+      {"rule_id": "stage_advance_requires_evidence", "rule": "No stage advance without paper-edge proof AND operator signature.", "operator_decision_required": true},
+      {"rule_id": "scale_by_signed_step", "rule": "Capital scaling per stage is bounded by operator-signed step.", "operator_decision_required": true},
+      {"rule_id": "halve_on_breach", "rule": "On any cap breach, automatically halve next-stage capital target until operator review.", "operator_decision_required": true}
+    ],
+    "stop_conditions": [
+      {"id": "capital_recovery_threshold_breached", "action": "revert_to_paper_and_alert", "threshold_usdt": "OPERATOR_DECISION_REQUIRED"},
+      {"id": "consecutive_loss_breach", "action": "kill_switch_trigger", "threshold_count": "OPERATOR_DECISION_REQUIRED"},
+      {"id": "daily_loss_breach", "action": "kill_switch_trigger", "threshold_pct": "OPERATOR_DECISION_REQUIRED"},
+      {"id": "rolling_drawdown_breach", "action": "kill_switch_trigger", "threshold_pct": "OPERATOR_DECISION_REQUIRED"}
+    ],
+    "proof_before_scale_requirements": [
+      "paper edge proven under operator-signed thresholds",
+      "stage_0 sample count >= operator-signed min_sample_count",
+      "stage_0 after-cost CI lower > operator-signed min_after_cost_lower_ci_bps",
+      "operator-signed checkpoint promotion present",
+      "operator-signed risk caps + kill switch present"
+    ]
+  },
+  "current_state": {
+    "active_stage": "stage_0_paper_only",
+    "capital_recovery_threshold_usdt": "OPERATOR_DECISION_REQUIRED",
+    "stage_advance_eligible": false,
+    "approves_canary": false,
+    "approves_live": false
+  },
+  "tasks": [
+    {"id": "define_recovery_stages", "state": "DONE"},
+    {"id": "define_capital_protection_rules", "state": "DONE"},
+    {"id": "define_scaling_rules", "state": "DONE"},
+    {"id": "define_stop_conditions", "state": "DONE"},
+    {"id": "define_proof_before_scale", "state": "DONE"},
+    {"id": "no_revenge_trading", "state": "ENFORCED"}
+  ],
+  "blocks_paper_only_shutdown": true,
+  "blocks_live": true,
+  "blocks_canary": true,
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "writes_old_redis": false,
+    "calls_exchange_mutation": false,
+    "creates_approval_tokens": false,
+    "creates_approval_artifacts": false,
+    "modifies_legacy_repo": false,
+    "stops_legacy": false,
+    "stops_v2_runtime": false
+  }
+}

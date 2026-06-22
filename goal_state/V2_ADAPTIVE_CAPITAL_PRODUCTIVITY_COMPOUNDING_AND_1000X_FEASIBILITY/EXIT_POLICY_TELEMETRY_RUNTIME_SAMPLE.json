@@ -1,0 +1,39 @@
+{
+  "sample_type": "latest_exit_policy_telemetry_closed_trade",
+  "latest_closed_trade": {
+    "close_id": "paper_close_paper_pos_JTOUSDT_12_3414717",
+    "symbol": "JTOUSDT",
+    "side": "long",
+    "timeframe": "15m",
+    "close_reason": "TIER_2_TAKE_PROFIT",
+    "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+    "trailing_after_cost_floor_enabled": true,
+    "min_profit_before_trailing_bps": 30.0,
+    "trailing_stop_min_after_cost_buffer_bps": 12.0,
+    "trailing_after_cost_buffer_bps": null,
+    "trailing_profit_floor_bps": null,
+    "trailing_stop_bps_effective": null,
+    "realized_pnl_usd": 3.4147175836271355,
+    "exit_price_utc": "2026-06-19T12:14:01Z",
+    "paper_only": true,
+    "places_real_order": false
+  },
+  "latest_outcome_label": {
+    "outcome_label_id": "paper_outcome_paper_close_paper_pos_JTOUSDT_12_3414717",
+    "symbol": "JTOUSDT",
+    "side": "long",
+    "timeframe": "15m",
+    "close_reason": "TIER_2_TAKE_PROFIT",
+    "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+    "trailing_after_cost_floor_enabled": true,
+    "min_profit_before_trailing_bps": 30.0,
+    "trailing_stop_min_after_cost_buffer_bps": 12.0,
+    "trailing_after_cost_buffer_bps": null,
+    "trailing_profit_floor_bps": null,
+    "trailing_stop_bps_effective": null,
+    "realized_pnl_usd": 3.4147175836271355,
+    "exit_time": "2026-06-19T12:14:01Z",
+    "paper_only": true,
+    "places_real_order": false
+  }
+}

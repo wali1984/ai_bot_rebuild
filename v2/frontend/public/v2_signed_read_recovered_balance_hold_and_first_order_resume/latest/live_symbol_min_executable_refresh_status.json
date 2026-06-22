@@ -1,0 +1,290 @@
+{
+  "accepted_symbols": [
+    "BNBUSDT",
+    "BTCUSDT",
+    "ETHUSDT",
+    "PAXGUSDT",
+    "XAUTUSDT",
+    "ZECUSDT"
+  ],
+  "available_margin": 0.0,
+  "blocked_symbols_with_current_balance": [
+    "BNBUSDT",
+    "BTCUSDT",
+    "ETHUSDT",
+    "PAXGUSDT",
+    "XAUTUSDT",
+    "ZECUSDT"
+  ],
+  "executable_symbols_with_current_balance": [],
+  "generated_est": "2026-06-09T16:40:28-04:00",
+  "minimum_required_initial_margin_any_accepted_symbol": 50.13845567,
+  "rows": [
+    {
+      "balance_required": 50.13845567,
+      "blockers": [
+        "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER"
+      ],
+      "executable_with_current_balance": false,
+      "filter_status": {
+        "endpoint": "GET /fapi/v1/exchangeInfo",
+        "error_type": null,
+        "max_price": "4529764",
+        "max_qty": "120",
+        "min_notional": "50",
+        "min_price": "556.80",
+        "min_qty": "0.001",
+        "ok": true,
+        "price_precision": 2,
+        "quantity_precision": 3,
+        "status": "TRADING",
+        "step_size": "0.001",
+        "symbol": "BNBUSDT",
+        "tick_size": "0.10"
+      },
+      "mark_price": 604.0777791778,
+      "mark_price_source": "signal.price_target_after_cost",
+      "min_executable_notional": 50.1384556717574,
+      "min_executable_qty": 0.083,
+      "min_notional": 50.0,
+      "min_qty": 0.001,
+      "risk_profile_can_size": true,
+      "risk_profile_max_leverage": 1.0,
+      "risk_profile_max_notional": 64.86,
+      "sizing_status": {
+        "blockers": [],
+        "min_executable_notional": 50.1384556717574,
+        "min_executable_notional_text": "50.1384556717574",
+        "min_executable_quantity": 0.083,
+        "min_executable_quantity_text": "0.083",
+        "ok": true,
+        "raw_qty_for_min_notional": 0.08277079827047132
+      },
+      "step_size": "0.001",
+      "symbol": "BNBUSDT",
+      "tick_size": "0.10"
+    },
+    {
+      "balance_required": 62.7072745,
+      "blockers": [
+        "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER"
+      ],
+      "executable_with_current_balance": false,
+      "filter_status": {
+        "endpoint": "GET /fapi/v1/exchangeInfo",
+        "error_type": null,
+        "max_price": "4529764",
+        "max_qty": "120",
+        "min_notional": "50",
+        "min_price": "556.80",
+        "min_qty": "0.001",
+        "ok": true,
+        "price_precision": 2,
+        "quantity_precision": 3,
+        "status": "TRADING",
+        "step_size": "0.001",
+        "symbol": "BTCUSDT",
+        "tick_size": "0.10"
+      },
+      "mark_price": 62707.27450116288,
+      "mark_price_source": "signal.price_target_after_cost",
+      "min_executable_notional": 62.70727450116288,
+      "min_executable_qty": 0.001,
+      "min_notional": 50.0,
+      "min_qty": 0.001,
+      "risk_profile_can_size": true,
+      "risk_profile_max_leverage": 1.0,
+      "risk_profile_max_notional": 64.86,
+      "sizing_status": {
+        "blockers": [],
+        "min_executable_notional": 62.70727450116288,
+        "min_executable_notional_text": "62.70727450116288",
+        "min_executable_quantity": 0.001,
+        "min_executable_quantity_text": "0.001",
+        "ok": true,
+        "raw_qty_for_min_notional": 0.0007973556560662315
+      },
+      "step_size": "0.001",
+      "symbol": "BTCUSDT",
+      "tick_size": "0.10"
+    },
+    {
+      "balance_required": 50.2663594,
+      "blockers": [
+        "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER"
+      ],
+      "executable_with_current_balance": false,
+      "filter_status": {
+        "endpoint": "GET /fapi/v1/exchangeInfo",
+        "error_type": null,
+        "max_price": "4529764",
+        "max_qty": "120",
+        "min_notional": "50",
+        "min_price": "556.80",
+        "min_qty": "0.001",
+        "ok": true,
+        "price_precision": 2,
+        "quantity_precision": 3,
+        "status": "TRADING",
+        "step_size": "0.001",
+        "symbol": "ETHUSDT",
+        "tick_size": "0.10"
+      },
+      "mark_price": 1675.545313190592,
+      "mark_price_source": "signal.price_target_after_cost",
+      "min_executable_notional": 50.26635939571776,
+      "min_executable_qty": 0.03,
+      "min_notional": 50.0,
+      "min_qty": 0.001,
+      "risk_profile_can_size": true,
+      "risk_profile_max_leverage": 1.0,
+      "risk_profile_max_notional": 64.86,
+      "sizing_status": {
+        "blockers": [],
+        "min_executable_notional": 50.26635939571776,
+        "min_executable_notional_text": "50.26635939571776",
+        "min_executable_quantity": 0.03,
+        "min_executable_quantity_text": "0.03",
+        "ok": true,
+        "raw_qty_for_min_notional": 0.029841031219137514
+      },
+      "step_size": "0.001",
+      "symbol": "ETHUSDT",
+      "tick_size": "0.10"
+    },
+    {
+      "balance_required": 51.61579227,
+      "blockers": [
+        "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER"
+      ],
+      "executable_with_current_balance": false,
+      "filter_status": {
+        "endpoint": "GET /fapi/v1/exchangeInfo",
+        "error_type": null,
+        "max_price": "4529764",
+        "max_qty": "120",
+        "min_notional": "50",
+        "min_price": "556.80",
+        "min_qty": "0.001",
+        "ok": true,
+        "price_precision": 2,
+        "quantity_precision": 3,
+        "status": "TRADING",
+        "step_size": "0.001",
+        "symbol": "PAXGUSDT",
+        "tick_size": "0.10"
+      },
+      "mark_price": 4301.316022481102,
+      "mark_price_source": "signal.price_target_after_cost",
+      "min_executable_notional": 51.61579226977322,
+      "min_executable_qty": 0.012,
+      "min_notional": 50.0,
+      "min_qty": 0.001,
+      "risk_profile_can_size": true,
+      "risk_profile_max_leverage": 1.0,
+      "risk_profile_max_notional": 64.86,
+      "sizing_status": {
+        "blockers": [],
+        "min_executable_notional": 51.61579226977322,
+        "min_executable_notional_text": "51.615792269773224",
+        "min_executable_quantity": 0.012,
+        "min_executable_quantity_text": "0.012",
+        "ok": true,
+        "raw_qty_for_min_notional": 0.01162434932440951
+      },
+      "step_size": "0.001",
+      "symbol": "PAXGUSDT",
+      "tick_size": "0.10"
+    },
+    {
+      "balance_required": 51.5039511,
+      "blockers": [
+        "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER"
+      ],
+      "executable_with_current_balance": false,
+      "filter_status": {
+        "endpoint": "GET /fapi/v1/exchangeInfo",
+        "error_type": null,
+        "max_price": "4529764",
+        "max_qty": "120",
+        "min_notional": "50",
+        "min_price": "556.80",
+        "min_qty": "0.001",
+        "ok": true,
+        "price_precision": 2,
+        "quantity_precision": 3,
+        "status": "TRADING",
+        "step_size": "0.001",
+        "symbol": "XAUTUSDT",
+        "tick_size": "0.10"
+      },
+      "mark_price": 4291.995924874624,
+      "mark_price_source": "signal.price_target_after_cost",
+      "min_executable_notional": 51.503951098495484,
+      "min_executable_qty": 0.012,
+      "min_notional": 50.0,
+      "min_qty": 0.001,
+      "risk_profile_can_size": true,
+      "risk_profile_max_leverage": 1.0,
+      "risk_profile_max_notional": 64.86,
+      "sizing_status": {
+        "blockers": [],
+        "min_executable_notional": 51.503951098495484,
+        "min_executable_notional_text": "51.503951098495488",
+        "min_executable_quantity": 0.012,
+        "min_executable_quantity_text": "0.012",
+        "ok": true,
+        "raw_qty_for_min_notional": 0.011649591676036034
+      },
+      "step_size": "0.001",
+      "symbol": "XAUTUSDT",
+      "tick_size": "0.10"
+    },
+    {
+      "balance_required": 50.30124554,
+      "blockers": [
+        "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER"
+      ],
+      "executable_with_current_balance": false,
+      "filter_status": {
+        "endpoint": "GET /fapi/v1/exchangeInfo",
+        "error_type": null,
+        "max_price": "4529764",
+        "max_qty": "120",
+        "min_notional": "50",
+        "min_price": "556.80",
+        "min_qty": "0.001",
+        "ok": true,
+        "price_precision": 2,
+        "quantity_precision": 3,
+        "status": "TRADING",
+        "step_size": "0.001",
+        "symbol": "ZECUSDT",
+        "tick_size": "0.10"
+      },
+      "mark_price": 453.164374240057,
+      "mark_price_source": "signal.price_target_after_cost",
+      "min_executable_notional": 50.30124554064633,
+      "min_executable_qty": 0.111,
+      "min_notional": 50.0,
+      "min_qty": 0.001,
+      "risk_profile_can_size": true,
+      "risk_profile_max_leverage": 1.0,
+      "risk_profile_max_notional": 64.86,
+      "sizing_status": {
+        "blockers": [],
+        "min_executable_notional": 50.30124554064633,
+        "min_executable_notional_text": "50.301245540646327",
+        "min_executable_quantity": 0.111,
+        "min_executable_quantity_text": "0.111",
+        "ok": true,
+        "raw_qty_for_min_notional": 0.11033524001936051
+      },
+      "step_size": "0.001",
+      "symbol": "ZECUSDT",
+      "tick_size": "0.10"
+    }
+  ],
+  "schema_version": "live_symbol_min_executable_refresh_status_v1",
+  "status": "LIVE_SYMBOL_MIN_EXECUTABLE_BALANCE_HOLD"
+}

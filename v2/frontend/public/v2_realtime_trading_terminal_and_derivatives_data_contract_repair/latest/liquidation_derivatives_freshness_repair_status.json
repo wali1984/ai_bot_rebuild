@@ -1,0 +1,10 @@
+{
+  "generated_est": "2026-06-09T18:18:15-04:00",
+  "liquidation_rows": 6,
+  "schema_version": "liquidation_derivatives_freshness_repair_status_v1",
+  "stale_4d_bridge_payload_as_current_allowed": false,
+  "status": "CURRENT_OR_RECENT",
+  "trade_terminal_liquidation_level_count": 5,
+  "trade_terminal_liquidation_source": "v2:liquidations:levels:BTCUSDT:*",
+  "trade_terminal_liquidation_stream_xlen": 10017
+}

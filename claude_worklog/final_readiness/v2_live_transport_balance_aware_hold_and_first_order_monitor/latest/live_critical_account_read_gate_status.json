@@ -1,0 +1,28 @@
+{
+  "account_critical_reads": {
+    "account_info": "BLOCKED",
+    "balance": "BLOCKED",
+    "exchange_filters": "API_OK",
+    "leverage_read_only": "API_OK",
+    "margin_mode_read_only": "API_OK",
+    "open_orders": "BLOCKED",
+    "position_mode": "API_OK",
+    "positions": "API_OK"
+  },
+  "blockers": [
+    "ACCOUNT_CRITICAL_SIGNED_READS_NOT_PROVEN"
+  ],
+  "failed_signed_endpoints": [
+    "GET /fapi/v1/openOrders",
+    "GET /fapi/v3/account"
+  ],
+  "filter_failures": [],
+  "generated_est": "2026-06-21T20:28:07-04:00",
+  "ok": false,
+  "order_submitted": false,
+  "raw_credentials_exposed": false,
+  "restricted_location_detected": false,
+  "retry_allowed": false,
+  "schema_version": "live_critical_account_read_gate_status_v1",
+  "status": "CRITICAL_ACCOUNT_READ_GATE_BLOCKED"
+}

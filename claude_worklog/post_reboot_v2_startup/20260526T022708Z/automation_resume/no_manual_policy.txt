@@ -1,0 +1,10 @@
+      "tasks_missing_safe_envelope": 0,
+      "tasks_missing_safe_envelope_detail": []
+    },
+    "remediations_created_last_hour": 0,
+    "tasks_completed_last_hour": 4,
+    "unmapped_codex_fail_count": 0
+  },
+  "worker_heartbeat_counted_as_progress": false,
+  "writes_old_redis": false
+}

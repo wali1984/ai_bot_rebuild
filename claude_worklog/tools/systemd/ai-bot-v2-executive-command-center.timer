@@ -1,0 +1,12 @@
+[Unit]
+Description=AI BOT V2 Executive Recovery and Production-Readiness Command Center (every 15 minutes)
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=15min
+AccuracySec=1min
+Persistent=true
+Unit=ai-bot-v2-executive-command-center.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,53 @@
+{
+  "codex_decision": "PAPER_FILL_GATE_BLOCK_REASON_PASSTHROUGH_CODEX_PASS",
+  "codex_pass_reviewed_utc": "2026-05-17T05:49:00Z",
+  "completed_utc": "2026-05-17T05:49:00Z",
+  "created_utc": "2026-05-17T05:27:23Z",
+  "fail_conditions": [
+    "legacy evidence not cited",
+    "V2 issue not reproduced",
+    "fix is report-only",
+    "test missing",
+    "old Redis write appears",
+    "exchange mutation appears",
+    "live_gate changes",
+    "live_symbols not []",
+    "frontend hides blocker",
+    "broad migration claim from narrow fix"
+  ],
+  "gap_id": "paper_fill_gate_block_reason_passthrough_missing",
+  "kind": "codex_review",
+  "paired_claude_task_id": "claude_fix_v2_gap_paper_fill_gate_block_reason_passthrough_missing",
+  "review_inputs": [
+    "v2/backend/app/cli/v2_orchestrator_arbitration_loop.py",
+    "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+    "v2/backend/app/cli/v2_production_equivalence_comparator.py",
+    "claude_worklog/tools/v2_continuous_legacy_log_to_rebuild_remediation.py",
+    "v2/frontend/src/pages/monitor-center/index.tsx",
+    "v2/backend/tests/integration/cli/test_v2_paper_fill_gate_block_reason_passthrough.py",
+    "v2/backend/tests/unit/tools/test_v2_continuous_legacy_log_remediation_classification.py",
+    "claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/production_equivalence_comparison.json",
+    "claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/continuous_remediation/continuous_remediation_status.json",
+    "claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/continuous_remediation/legacy_log_v2_gap_matrix.json"
+  ],
+  "severity": "P1_FIX",
+  "status": "codex_pass_active_runtime_verified",
+  "task_id": "codex_review_fix_v2_gap_paper_fill_gate_block_reason_passthrough_missing",
+  "updated_utc": "2026-05-17T05:49:00Z",
+  "verification_checklist": [
+    "trainer_output emits paper_fill_gate_block_reasons (already true)",
+    "v2:prediction:{sym} payload carries paper_fill_gate_block_reasons (already true)",
+    "v2:orchestrator:decisions.held_by_paper_fill_gate carries block reasons for held symbols",
+    "v2:paper:intents_held_by_paper_fill_gate carries block reasons and places_real_order=false",
+    "production_equivalence_comparison.json per_symbol notes contain block_reasons_passthrough integrity entry",
+    "continuous remediation gap matrix includes paper_fill_gate_block_reasons on v2_paper_fill_gate_blocked rows",
+    "frontend Monitor Center renders block reasons inline on the gap matrix row",
+    "no gate behavior change (validate_for_paper_fill_gate untouched)",
+    "no threshold loosening",
+    "no fills created for held symbols",
+    "no v2:* prefix violations (all new writes are under v2:*)",
+    "no exchange SDK / order calls introduced",
+    "live_gate=blocked_human_only and live_symbols=[] in all new payloads",
+    "tests cover orchestrator passthrough, paper-loop passthrough, comparator integrity, missing-passthrough flag, v2-prefix guard, and gap-matrix carry-through (6 cases)"
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "approves_live": false,
+  "env_vars_read": [],
+  "exchange_methods_called": [],
+  "generated_utc": "2026-05-16",
+  "legacy_redis_keys_read_as_authoritative": [],
+  "legacy_redis_keys_written": [],
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "subproject": "v2_native_rl_masa_ppo_p0_2a",
+  "v2_config_keys": [
+    {
+      "category": "V2_TRAINER_CONFIG",
+      "default": 64,
+      "module": "environment",
+      "name": "max_steps",
+      "type": "int"
+    },
+    {
+      "category": "V2_TRADE_MANAGEMENT_CONFIG",
+      "default": 5.0,
+      "module": "environment/rewards",
+      "name": "fee_bps_per_side",
+      "type": "float"
+    },
+    {
+      "category": "V2_TRADE_MANAGEMENT_CONFIG",
+      "default": 1.0,
+      "module": "environment/rewards",
+      "name": "slippage_bps_per_side",
+      "type": "float"
+    },
+    {
+      "category": "V2_TRAINER_CONFIG",
+      "default": 0.5,
+      "module": "rewards.base_pnl_reward",
+      "name": "unrealized_discount",
+      "type": "float"
+    },
+    {
+      "category": "V2_TRADE_MANAGEMENT_CONFIG",
+      "default": 0.5,
+      "module": "rewards.fee_aware_reward",
+      "name": "max_ratio",
+      "type": "float"
+    },
+    {
+      "category": "V2_RISK_GATE",
+      "default": 200.0,
+      "module": "rewards.constrained_safety_penalty",
+      "name": "max_drawdown_bps",
+      "type": "float"
+    },
+    {
+      "category": "V2_RISK_GATE",
+      "default": 3600,
+      "module": "rewards.constrained_safety_penalty",
+      "name": "max_time_in_trade_seconds",
+      "type": "int"
+    },
+    {
+      "category": "V2_RISK_GATE",
+      "default": 1.0,
+      "module": "rewards.constrained_safety_penalty",
+      "name": "max_position_size",
+      "type": "float"
+    },
+    {
+      "category": "V2_TRAINER_CONFIG",
+      "default": 1000.0,
+      "module": "rewards.compute_reward_suite",
+      "name": "hard_clamp_bps",
+      "type": "float"
+    }
+  ]
+}

@@ -261,6 +261,7 @@ def _redis_fallback_shape(r: Any) -> dict[str, Any] | None:
     return shape
 
 
+@router.get("/status")
 @router.get("/summary")
 async def get_trainer_summary() -> dict[str, Any]:
     r = get_redis()

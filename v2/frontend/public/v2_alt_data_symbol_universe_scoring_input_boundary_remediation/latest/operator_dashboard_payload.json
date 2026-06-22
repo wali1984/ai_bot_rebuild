@@ -1,0 +1,65 @@
+{
+  "allowed_inputs_now": [
+    "v2:altdata:nansen:status",
+    "v2:altdata:nansen:symbol:{symbol}",
+    "v2:altdata:lunarcrush:status",
+    "v2:altdata:lunarcrush:symbol:{symbol}",
+    "v2:market:prices:{symbol}",
+    "v2:market:funding:{symbol}",
+    "v2:market:open_interest:{symbol}",
+    "v2:features:latest:{symbol}:{timeframe}"
+  ],
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "checkpoint_compatibility_claimed": false,
+  "files_shipped": [
+    "v2/backend/app/cli/v2_alt_data_symbol_universe_scoring.py",
+    "v2/backend/app/services/alternative_data/symbol_scoring_contract.py",
+    "v2/backend/tests/integration/cli/test_v2_alt_data_symbol_universe_scoring.py",
+    "claude_worklog/final_readiness/v2_alt_data_symbol_universe_scoring/latest/* (refreshed at runtime)"
+  ],
+  "fix_summary": "Removed v2:paper:* and v2:risk:* reads from _load_inputs_for_symbol; removed paper_payloads/risk_payloads kwargs from build_symbol_score_payload; removed paper/risk fields from input_presence; updated allowed_inputs to declare only v2:altdata:* + v2:market:* + v2:features:latest:*; added explicit forbidden_input_namespaces_for_alt_data_scoring=[v2:paper:*, v2:risk:*]; updated report body.",
+  "forbidden_input_namespaces": [
+    "v2:paper:*",
+    "v2:risk:*"
+  ],
+  "generated_utc": "2026-05-21T21:10:11Z",
+  "go_no_go": "V2_ALT_DATA_SYMBOL_UNIVERSE_SCORING_INPUT_BOUNDARY_REMEDIATION_READY",
+  "input_presence_keys_per_symbol_score": [
+    "nansen",
+    "lunarcrush",
+    "market",
+    "features"
+  ],
+  "input_presence_keys_removed": [
+    "paper",
+    "risk"
+  ],
+  "leverage_changed": false,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "margin_mode_changed": false,
+  "may_not_authorize_live_or_canary": true,
+  "may_not_override_strict_paper_fill_gate": true,
+  "may_not_place_orders": true,
+  "paper_symbols_expanded": false,
+  "policy_architecture_parity_claimed": false,
+  "raw_credential_in_payload": "NEVER",
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "redis_writes_remain_limited_to": [
+    "v2:altdata:symbol_score:{symbol}",
+    "v2:symbol_universe:altdata_candidates"
+  ],
+  "schema_version": "v2_alt_data_symbol_universe_scoring_input_boundary_remediation_status_v1",
+  "scoring_input_boundary_remediated": true,
+  "tests_new_regression": 8,
+  "tests_original_preserved": 14,
+  "tests_total": 22,
+  "underlying_scoring_generated_utc": "2026-05-21T21:09:14Z",
+  "underlying_scoring_go_no_go": "V2_ALT_DATA_SYMBOL_UNIVERSE_SCORING_READY",
+  "writes_exchange_orders": false,
+  "writes_old_redis": false
+}

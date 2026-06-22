@@ -1,0 +1,87 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "checkpoint_inventory_summary": {
+    "approved_local": 0,
+    "extension_counts_approved_exhaustive": {
+      ".ckpt": 0,
+      ".pickle": 0,
+      ".pkl": 0,
+      ".pt": 0,
+      ".pth": 0,
+      ".safetensors": 0
+    },
+    "extension_counts_legacy_exhaustive": {
+      ".ckpt": 0,
+      ".pickle": 0,
+      ".pkl": 0,
+      ".pt": 0,
+      ".pth": 0,
+      ".safetensors": 0
+    },
+    "legacy_reference_total_in_inventory_cap": 0,
+    "source_classification_counts": {
+      "APPROVED_LOCAL_MODEL_CANDIDATE": 0,
+      "BLOCKED_NO_OPERATOR_APPROVAL": 0,
+      "LEGACY_REFERENCE_ONLY": 0,
+      "UNSAFE_PICKLE_NO_LOAD": 0
+    }
+  },
+  "decision_match_shadow": {
+    "action_match_count": 0,
+    "action_match_rate": null,
+    "next_required_by_symbol": {},
+    "no_action_safe_block_count": 0,
+    "symbols_total": 0,
+    "v2_hold_due_checkpoint_count": 0,
+    "v2_hold_due_strict_gate_count": 0
+  },
+  "full_observation_builder_missing_categories": [
+    "onchain_btc",
+    "onchain_eth"
+  ],
+  "full_observation_builder_partial_categories": [
+    "portfolio_state",
+    "position_context",
+    "unified_features"
+  ],
+  "full_observation_builder_state": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+  "generated_utc": "2026-06-15T19:38:40Z",
+  "go_no_go": "V2_MODEL_PARITY_SPRINT_READY_FOR_FULL_OBSERVATION_BUILDER_IMPLEMENTATION",
+  "legacy_observation_summary": {
+    "action_space_size_resolved": null,
+    "largest_observation_dim": null,
+    "schema_versions": [],
+    "total_dim_by_version": {}
+  },
+  "legacy_runtime_unaffected": true,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "narrow_remediation_tasks_required": [
+    "claude_fix_v2_gap_policy_architecture_shape_contract",
+    "claude_fix_v2_gap_full_observation_vector_builder"
+  ],
+  "no_checkpoint_blob_committed_to_git": true,
+  "no_legacy_filesystem_modified": true,
+  "no_pickle_loaded": true,
+  "no_torch_imported": true,
+  "observation_gap": {
+    "action_space_compatibility": "UNKNOWN_OR_MATCHED",
+    "dim_gap": null,
+    "legacy_largest_dim": null,
+    "observation_compatibility": "UNKNOWN_OR_MATCHED",
+    "v2_compact_dim": 26
+  },
+  "paired_codex_review_task_ids_required": [
+    "codex_review_fix_v2_gap_policy_architecture_shape_contract",
+    "codex_review_fix_v2_gap_full_observation_vector_builder"
+  ],
+  "policy_architecture_classifications": [
+    "UNKNOWN_METADATA_REQUIRED"
+  ],
+  "policy_architecture_overall_classification": "UNKNOWN_METADATA_REQUIRED",
+  "schema_version": "v2_model_parity_sprint_status_v1",
+  "soak_runtime_unaffected": true
+}

@@ -1,0 +1,915 @@
+{
+  "generated_est": "2026-06-08T23:21:50-04:00",
+  "generated_utc": "2026-06-09T03:21:50Z",
+  "reject_statuses": [
+    "TF_MISALIGNED",
+    "UNCLOSED_CANDLE",
+    "FUTURE_LEAKAGE",
+    "SOURCE_EVENT_TIME_MISSING",
+    "BACKFILLED_NOT_AVAILABLE_AT_DECISION_TIME"
+  ],
+  "rows": [
+    {
+      "market_state_id": "mstate_dc5fc8f77c7d8e460094",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "NIGHTUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "market_state_id": "mstate_f63481f211f79e653676",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "SLXUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "market_state_id": "mstate_b5ead35e001cd65ca8d5",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "ZROUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "market_state_id": "mstate_240d24b904969eb9dce9",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "FARTCOINUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "market_state_id": "mstate_4ab780608defd586fec9",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "TAUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "market_state_id": "mstate_f75c9d634d02e59a6ca2",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "JSTUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "market_state_id": "mstate_9913730b2b0e1c93c726",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "LITUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "market_state_id": "mstate_ea23960f03b4f109087d",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "WLDUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "market_state_id": "mstate_a7c601464cbdea290aa5",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "LINKUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "market_state_id": "mstate_9233c115b9ad0dbcdae9",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "PARTIUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "market_state_id": "mstate_23fbc2d6b7f655b3b13b",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "BANKUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "market_state_id": "mstate_edbda0ad7d312349de8b",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "TONUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "market_state_id": "mstate_dd22f0d9857c4b112698",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "NIGHTUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "market_state_id": "mstate_f508ba83f35cc0ed2151",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "ASTERUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "market_state_id": "mstate_77390244832aa1e2cbbf",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "BABYUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "market_state_id": "mstate_54bc9c4f47bbd93bcdb7",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "ETCUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "market_state_id": "mstate_17d50ede818bee5724a1",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "LABUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "market_state_id": "mstate_4202fa3d9876169abd30",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "HOTUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "market_state_id": "mstate_c75df0bc4413d0ef7373",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "ASRUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "market_state_id": "mstate_14b346935699c7e63686",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "POLUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "market_state_id": "mstate_75e592568c0246e6f91b",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "TRUMPUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "market_state_id": "mstate_b11cac2a9cb223ddb66d",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "AVNTUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "market_state_id": "mstate_cb24b75c2401719f7f7d",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "MEMEUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "market_state_id": "mstate_f63abd4fd44aac8d8bc6",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "BILLUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "market_state_id": "mstate_910ab18237ca2af2c07b",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "XLMUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "market_state_id": "mstate_9bd544ffd8338c4d4795",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "1000LUNCUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "market_state_id": "mstate_5671cd01f78759bad1df",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "1000PEPEUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "market_state_id": "mstate_2259b284fd4a2c01b556",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "AVAXUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "market_state_id": "mstate_5fa8a8410803ba3ddc29",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "ONDOUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "market_state_id": "mstate_82340c0df2a3636cf747",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "BARDUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "market_state_id": "mstate_7daa31c198c6e11d4b0a",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "EPICUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "market_state_id": "mstate_f0b2433b084064e50d85",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "BEATUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "market_state_id": "mstate_35296a1226cea0d7af73",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "PIPPINUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "market_state_id": "mstate_3d75ac04d457ef030394",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "SSVUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "market_state_id": "mstate_6b9902995837e8aac34d",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "BILLUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "market_state_id": "mstate_94598b70e120bb6bfe6a",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "XAUTUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "market_state_id": "mstate_6fcac212d140044d532f",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "1000SHIBUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "market_state_id": "mstate_304f9be04a26d3841d47",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "ALICEUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "market_state_id": "mstate_069e46846ed14632758e",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "BSBUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "market_state_id": "mstate_36b74d2e79c65d5a07f7",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "XAUTUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "market_state_id": "mstate_f8681341cdb64bbeee05",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "ADAUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "market_state_id": "mstate_b427c239441544b4dd48",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "BCHUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "market_state_id": "mstate_1dc944c20e7730b8a22f",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "GALAUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "market_state_id": "mstate_8a44dc1bdbbf4ed7666d",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "BILLUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "market_state_id": "mstate_78b3bbe433e525274b87",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "ARUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "market_state_id": "mstate_f803c30451a87eba95cc",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "SUIUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "market_state_id": "mstate_e1baf5c38edd6e702f2f",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "IRYSUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "market_state_id": "mstate_cd6c9f25a6edd6839eeb",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "HEIUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "market_state_id": "mstate_43b959e63e526baa5cda",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "SOLUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "market_state_id": "mstate_7deecdfc307798d835b1",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "ZECUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "market_state_id": "mstate_4fd146e083ca874e7fa9",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "1000BONKUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "market_state_id": "mstate_fe194c8731959801fe28",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "SEIUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "market_state_id": "mstate_1c5f881d044d65c4b442",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "NEOUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "market_state_id": "mstate_5fe842a477656ea636e2",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "WIFUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "market_state_id": "mstate_b495e6fddb854c6ce841",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "ALICEUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "market_state_id": "mstate_1438051a98a5d7cce877",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "SKYAIUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "market_state_id": "mstate_247ae17120c385853a66",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "1000LUNCUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "market_state_id": "mstate_fd6c951a56146cd9647e",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "ZROUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "market_state_id": "mstate_fa2515f330ee37e7d59e",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "ASRUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "market_state_id": "mstate_104b625f8b663b38f6d1",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "SSVUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "market_state_id": "mstate_e7b959d3c1e1cb212609",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "RENDERUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "market_state_id": "mstate_c304aa6fa792358e20f0",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "STRKUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "market_state_id": "mstate_65223e1e10b8fa0dbbfd",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "NEOUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "market_state_id": "mstate_77d3b9024257d1c9454c",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "PENDLEUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "market_state_id": "mstate_871b521790528e5d5470",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "XLMUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "market_state_id": "mstate_8c8c5ec4a86046e97f39",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "ADAUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "market_state_id": "mstate_30da956670279ec624cb",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "SEIUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "market_state_id": "mstate_4b8b77acfb58d903260c",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "FETUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "market_state_id": "mstate_fa9705994657e4fdee53",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "MINAUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "market_state_id": "mstate_7e37673c3a029c981f9a",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "ETHUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "market_state_id": "mstate_c7bb31a2405d7e66b8a3",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "SUNUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "market_state_id": "mstate_2b9ff2b148df6f6891ad",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "PIPPINUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "market_state_id": "mstate_e33de7a400c9e181fca4",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "POLUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "market_state_id": "mstate_0c885ce9ac73f3a401d2",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "\u5e01\u5b89\u4eba\u751fUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "market_state_id": "mstate_c92ab663d5999108a505",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "MINAUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "market_state_id": "mstate_cf7bd81251fd494b7c95",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "CELRUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "market_state_id": "mstate_5468218566c56b307830",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "SOLUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "market_state_id": "mstate_8a6c29a1cfe3ff2ee9db",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "POLUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "market_state_id": "mstate_99d626a6cf458642d810",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "SUIUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "market_state_id": "mstate_f39231a08755bf9e9a02",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "JTOUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "market_state_id": "mstate_6608b17528c3acbbdc16",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "AAVEUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "market_state_id": "mstate_82753c0401544f74d489",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "CRVUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "market_state_id": "mstate_091cb0e54593327c14ae",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "GALAUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "market_state_id": "mstate_3c5ec1682bbd3ac73f8b",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "SUNUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "market_state_id": "mstate_e80e2dd1ffb2f3773f0d",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "1000SHIBUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "market_state_id": "mstate_94a525da7f02221c4968",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "CHZUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "market_state_id": "mstate_698959541770f6fe2ba9",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "HUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "market_state_id": "mstate_9eeb3a096a3390b9a423",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "CAKEUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "market_state_id": "mstate_77c4da501dd44f809784",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "MEMEUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "market_state_id": "mstate_69bb3fefbc14d1de0cdf",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "CHZUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "market_state_id": "mstate_a7763d798691a45e839a",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "MONUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "market_state_id": "mstate_1b7e88a556b8d2bfe4bf",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "HOMEUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "market_state_id": "mstate_dfd2060badb9e1fdbc7d",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "1000BONKUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "market_state_id": "mstate_fb5b82719ac97df1b604",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "WIFUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "market_state_id": "mstate_2f82488b6b038c61d1e5",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "NEARUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "market_state_id": "mstate_2a6702d9df6a19339483",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "HEIUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "market_state_id": "mstate_87dda1763d5e04caf4b0",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "PENGUUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "market_state_id": "mstate_7da912fab87c7d80e7b6",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "\u5e01\u5b89\u4eba\u751fUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "market_state_id": "mstate_23484166408a475ebc46",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "ATOMUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "market_state_id": "mstate_4a636ff2558ae6dbb91e",
+      "reject_reasons": [
+        "source_event_time_missing"
+      ],
+      "status": "TF_ALIGNED",
+      "symbol": "XPLUSDT",
+      "timeframe": "1m"
+    }
+  ],
+  "rows_checked": 100,
+  "schema_version": "event_time_alignment_validator_status_v1"
+}

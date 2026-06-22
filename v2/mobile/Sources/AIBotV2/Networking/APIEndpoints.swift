@@ -22,6 +22,7 @@ public enum APIEndpoints {
     public static let mobilePushRegister = "/api/v2/mobile/push/register"
 
     // MARK: - WebSocket streams
+    public static let wsResource = "/ws/resource"
     public static let wsMarketData = "/ws/market-data"
     public static let wsPaperActivity = "/ws/paper-activity"
 

@@ -1,0 +1,25 @@
+{
+  "checkpoint_version": "1",
+  "written_utc": "2026-06-20T18:48:16Z",
+  "session_id": "d58ec71b-e7cc-445a-b1ca-ffa6c17988f4",
+  "goal_id": "V2_CLAUDE_CONTINUOUS_ADVERSARIAL_VALIDATION_AND_CAPITAL_PRODUCTIVITY_GUARDIAN",
+  "state": "COMPLETE",
+  "completion_allowed": false,
+  "completion_gates_passed": 18,
+  "completion_gates_total": 18,
+  "open_finding_count": 0,
+  "critical_finding_count": 0,
+  "high_finding_count": 0,
+  "medium_finding_count": 0,
+  "last_heartbeat_utc": "2026-06-20T17:52:00Z",
+  "findings_on_disk": 48,
+  "key_files": {
+    "findings": "/home/wali/Desktop/AI BOT REBUILD/goal_state/V2_CLAUDE_CONTINUOUS_ADVERSARIAL_VALIDATION_AND_CAPITAL_PRODUCTIVITY_GUARDIAN/FINDINGS.jsonl",
+    "heartbeat": "/home/wali/Desktop/AI BOT REBUILD/goal_state/V2_CLAUDE_CONTINUOUS_ADVERSARIAL_VALIDATION_AND_CAPITAL_PRODUCTIVITY_GUARDIAN/HEARTBEAT.json",
+    "goal_state": "/home/wali/Desktop/AI BOT REBUILD/goal_state/V2_CLAUDE_CONTINUOUS_ADVERSARIAL_VALIDATION_AND_CAPITAL_PRODUCTIVITY_GUARDIAN/GOAL_STATE.json",
+    "status": "/home/wali/Desktop/AI BOT REBUILD/goal_state/V2_CLAUDE_CONTINUOUS_ADVERSARIAL_VALIDATION_AND_CAPITAL_PRODUCTIVITY_GUARDIAN/STATUS.md",
+    "runtime_observations": "/home/wali/Desktop/AI BOT REBUILD/goal_state/V2_CLAUDE_CONTINUOUS_ADVERSARIAL_VALIDATION_AND_CAPITAL_PRODUCTIVITY_GUARDIAN/RUNTIME_OBSERVATIONS.jsonl",
+    "resume_prompt": "/home/wali/Desktop/AI BOT REBUILD/goal_state/V2_CLAUDE_CONTINUOUS_ADVERSARIAL_VALIDATION_AND_CAPITAL_PRODUCTIVITY_GUARDIAN/RESUME_PROMPT.txt"
+  },
+  "resume_instruction": "Read STOP_CHECKPOINT.json + HEARTBEAT.json + GOAL_STATE.json + STATUS.md. Then run the full guardian cycle described in RESUME_PROMPT.txt starting at Step 1."
+}

@@ -1,0 +1,1886 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "generated_utc": "2026-05-26T10:02:28Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "no_legacy_filesystem_read": true,
+  "no_pickle_loaded": true,
+  "no_torch_imported": true,
+  "no_zero_fill_for_unknown_fields": true,
+  "per_symbol": [
+    {
+      "fields": [
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h_abs",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.liquidation_notional_24h_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_direction_bias",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_PROBE_FLAG_NO_PER_SYMBOL_LIQUIDATION_AGGREGATOR_PRESENT",
+          "value": 0.0
+        }
+      ],
+      "subfamily_missing": 4,
+      "subfamily_present": 8,
+      "subfamily_target": 12,
+      "symbol": "1000BONKUSDT"
+    },
+    {
+      "fields": [
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h_abs",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.liquidation_notional_24h_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_direction_bias",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_PROBE_FLAG_NO_PER_SYMBOL_LIQUIDATION_AGGREGATOR_PRESENT",
+          "value": 0.0
+        }
+      ],
+      "subfamily_missing": 4,
+      "subfamily_present": 8,
+      "subfamily_target": 12,
+      "symbol": "1000FLOKIUSDT"
+    },
+    {
+      "fields": [
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h_abs",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.liquidation_notional_24h_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_direction_bias",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_PROBE_FLAG_NO_PER_SYMBOL_LIQUIDATION_AGGREGATOR_PRESENT",
+          "value": 0.0
+        }
+      ],
+      "subfamily_missing": 4,
+      "subfamily_present": 8,
+      "subfamily_target": 12,
+      "symbol": "1000PEPEUSDT"
+    },
+    {
+      "fields": [
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h_abs",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.liquidation_notional_24h_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_direction_bias",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_PROBE_FLAG_NO_PER_SYMBOL_LIQUIDATION_AGGREGATOR_PRESENT",
+          "value": 0.0
+        }
+      ],
+      "subfamily_missing": 4,
+      "subfamily_present": 8,
+      "subfamily_target": 12,
+      "symbol": "1000SHIBUSDT"
+    },
+    {
+      "fields": [
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h_abs",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.liquidation_notional_24h_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_direction_bias",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_PROBE_FLAG_NO_PER_SYMBOL_LIQUIDATION_AGGREGATOR_PRESENT",
+          "value": 0.0
+        }
+      ],
+      "subfamily_missing": 4,
+      "subfamily_present": 8,
+      "subfamily_target": 12,
+      "symbol": "ALICEUSDT"
+    },
+    {
+      "fields": [
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h_abs",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.liquidation_notional_24h_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_direction_bias",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_PROBE_FLAG_NO_PER_SYMBOL_LIQUIDATION_AGGREGATOR_PRESENT",
+          "value": 0.0
+        }
+      ],
+      "subfamily_missing": 4,
+      "subfamily_present": 8,
+      "subfamily_target": 12,
+      "symbol": "ASTERUSDT"
+    },
+    {
+      "fields": [
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h_abs",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.liquidation_notional_24h_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_direction_bias",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_PROBE_FLAG_NO_PER_SYMBOL_LIQUIDATION_AGGREGATOR_PRESENT",
+          "value": 0.0
+        }
+      ],
+      "subfamily_missing": 4,
+      "subfamily_present": 8,
+      "subfamily_target": 12,
+      "symbol": "AUCTIONUSDT"
+    },
+    {
+      "fields": [
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h_abs",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.liquidation_notional_24h_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_direction_bias",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_PROBE_FLAG_NO_PER_SYMBOL_LIQUIDATION_AGGREGATOR_PRESENT",
+          "value": 0.0
+        }
+      ],
+      "subfamily_missing": 4,
+      "subfamily_present": 8,
+      "subfamily_target": 12,
+      "symbol": "AVNTUSDT"
+    },
+    {
+      "fields": [
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h_abs",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.liquidation_notional_24h_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_direction_bias",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_PROBE_FLAG_NO_PER_SYMBOL_LIQUIDATION_AGGREGATOR_PRESENT",
+          "value": 0.0
+        }
+      ],
+      "subfamily_missing": 4,
+      "subfamily_present": 8,
+      "subfamily_target": 12,
+      "symbol": "BANKUSDT"
+    },
+    {
+      "fields": [
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h_abs",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.liquidation_notional_24h_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_direction_bias",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_PROBE_FLAG_NO_PER_SYMBOL_LIQUIDATION_AGGREGATOR_PRESENT",
+          "value": 0.0
+        }
+      ],
+      "subfamily_missing": 4,
+      "subfamily_present": 8,
+      "subfamily_target": 12,
+      "symbol": "BARDUSDT"
+    },
+    {
+      "fields": [
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h_abs",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.liquidation_notional_24h_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_direction_bias",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_PROBE_FLAG_NO_PER_SYMBOL_LIQUIDATION_AGGREGATOR_PRESENT",
+          "value": 0.0
+        }
+      ],
+      "subfamily_missing": 4,
+      "subfamily_present": 8,
+      "subfamily_target": 12,
+      "symbol": "BTCUSDT"
+    },
+    {
+      "fields": [
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h_abs",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.liquidation_notional_24h_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_direction_bias",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_PROBE_FLAG_NO_PER_SYMBOL_LIQUIDATION_AGGREGATOR_PRESENT",
+          "value": 0.0
+        }
+      ],
+      "subfamily_missing": 4,
+      "subfamily_present": 8,
+      "subfamily_target": 12,
+      "symbol": "DOGEUSDT"
+    },
+    {
+      "fields": [
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h_abs",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.liquidation_notional_24h_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_direction_bias",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_PROBE_FLAG_NO_PER_SYMBOL_LIQUIDATION_AGGREGATOR_PRESENT",
+          "value": 0.0
+        }
+      ],
+      "subfamily_missing": 4,
+      "subfamily_present": 8,
+      "subfamily_target": 12,
+      "symbol": "ETHUSDT"
+    },
+    {
+      "fields": [
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h_abs",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.liquidation_notional_24h_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_direction_bias",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_PROBE_FLAG_NO_PER_SYMBOL_LIQUIDATION_AGGREGATOR_PRESENT",
+          "value": 0.0
+        }
+      ],
+      "subfamily_missing": 4,
+      "subfamily_present": 8,
+      "subfamily_target": 12,
+      "symbol": "FARTCOINUSDT"
+    },
+    {
+      "fields": [
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h_abs",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.liquidation_notional_24h_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_direction_bias",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_PROBE_FLAG_NO_PER_SYMBOL_LIQUIDATION_AGGREGATOR_PRESENT",
+          "value": 0.0
+        }
+      ],
+      "subfamily_missing": 4,
+      "subfamily_present": 8,
+      "subfamily_target": 12,
+      "symbol": "HIGHUSDT"
+    },
+    {
+      "fields": [
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h_abs",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.liquidation_notional_24h_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_direction_bias",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_PROBE_FLAG_NO_PER_SYMBOL_LIQUIDATION_AGGREGATOR_PRESENT",
+          "value": 0.0
+        }
+      ],
+      "subfamily_missing": 4,
+      "subfamily_present": 8,
+      "subfamily_target": 12,
+      "symbol": "LINKUSDT"
+    },
+    {
+      "fields": [
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h_abs",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.liquidation_notional_24h_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_direction_bias",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_PROBE_FLAG_NO_PER_SYMBOL_LIQUIDATION_AGGREGATOR_PRESENT",
+          "value": 0.0
+        }
+      ],
+      "subfamily_missing": 4,
+      "subfamily_present": 8,
+      "subfamily_target": 12,
+      "symbol": "LTCUSDT"
+    },
+    {
+      "fields": [
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h_abs",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.liquidation_notional_24h_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_direction_bias",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_PROBE_FLAG_NO_PER_SYMBOL_LIQUIDATION_AGGREGATOR_PRESENT",
+          "value": 0.0
+        }
+      ],
+      "subfamily_missing": 4,
+      "subfamily_present": 8,
+      "subfamily_target": 12,
+      "symbol": "PENGUUSDT"
+    },
+    {
+      "fields": [
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h_abs",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.liquidation_notional_24h_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_direction_bias",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_PROBE_FLAG_NO_PER_SYMBOL_LIQUIDATION_AGGREGATOR_PRESENT",
+          "value": 0.0
+        }
+      ],
+      "subfamily_missing": 4,
+      "subfamily_present": 8,
+      "subfamily_target": 12,
+      "symbol": "PIPPINUSDT"
+    },
+    {
+      "fields": [
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h_abs",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.liquidation_notional_24h_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_direction_bias",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_PROBE_FLAG_NO_PER_SYMBOL_LIQUIDATION_AGGREGATOR_PRESENT",
+          "value": 0.0
+        }
+      ],
+      "subfamily_missing": 4,
+      "subfamily_present": 8,
+      "subfamily_target": 12,
+      "symbol": "RAVEUSDT"
+    },
+    {
+      "fields": [
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h_abs",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.liquidation_notional_24h_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_direction_bias",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_PROBE_FLAG_NO_PER_SYMBOL_LIQUIDATION_AGGREGATOR_PRESENT",
+          "value": 0.0
+        }
+      ],
+      "subfamily_missing": 4,
+      "subfamily_present": 8,
+      "subfamily_target": 12,
+      "symbol": "RIVERUSDT"
+    },
+    {
+      "fields": [
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h_abs",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.liquidation_notional_24h_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_direction_bias",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_PROBE_FLAG_NO_PER_SYMBOL_LIQUIDATION_AGGREGATOR_PRESENT",
+          "value": 0.0
+        }
+      ],
+      "subfamily_missing": 4,
+      "subfamily_present": 8,
+      "subfamily_target": 12,
+      "symbol": "SOLUSDT"
+    },
+    {
+      "fields": [
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h_abs",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.liquidation_notional_24h_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_direction_bias",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_PROBE_FLAG_NO_PER_SYMBOL_LIQUIDATION_AGGREGATOR_PRESENT",
+          "value": 0.0
+        }
+      ],
+      "subfamily_missing": 4,
+      "subfamily_present": 8,
+      "subfamily_target": 12,
+      "symbol": "UNIUSDT"
+    },
+    {
+      "fields": [
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h_abs",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.liquidation_notional_24h_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_direction_bias",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_PROBE_FLAG_NO_PER_SYMBOL_LIQUIDATION_AGGREGATOR_PRESENT",
+          "value": 0.0
+        }
+      ],
+      "subfamily_missing": 4,
+      "subfamily_present": 8,
+      "subfamily_target": 12,
+      "symbol": "WIFUSDT"
+    },
+    {
+      "fields": [
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h_abs",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.liquidation_notional_24h_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_direction_bias",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_PROBE_FLAG_NO_PER_SYMBOL_LIQUIDATION_AGGREGATOR_PRESENT",
+          "value": 0.0
+        }
+      ],
+      "subfamily_missing": 4,
+      "subfamily_present": 8,
+      "subfamily_target": 12,
+      "symbol": "XRPUSDT"
+    },
+    {
+      "fields": [
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h_abs",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.liquidation_notional_24h_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_direction_bias",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_PROBE_FLAG_NO_PER_SYMBOL_LIQUIDATION_AGGREGATOR_PRESENT",
+          "value": 0.0
+        }
+      ],
+      "subfamily_missing": 4,
+      "subfamily_present": 8,
+      "subfamily_target": 12,
+      "symbol": "COINANK_ONLY_USDT"
+    },
+    {
+      "fields": [
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_bps_24h_abs",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.last_liq_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "MISSING_FROM_V2_LIQUIDATION_AGGREGATOR",
+          "value": null
+        },
+        {
+          "name": "liquidations.liquidation_notional_24h_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_direction_bias",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_PROBE_FLAG_NO_PER_SYMBOL_LIQUIDATION_AGGREGATOR_PRESENT",
+          "value": 0.0
+        }
+      ],
+      "subfamily_missing": 4,
+      "subfamily_present": 8,
+      "subfamily_target": 12,
+      "symbol": "KUCOIN_ONLY_USDT"
+    }
+  ],
+  "schema_version": "v2_liquidation_observation_aggregator_status_v1",
+  "subfamily_total_present_across_symbols": 216,
+  "subfamily_total_target_across_symbols": 324,
+  "symbols": [
+    "1000BONKUSDT",
+    "1000FLOKIUSDT",
+    "1000PEPEUSDT",
+    "1000SHIBUSDT",
+    "ALICEUSDT",
+    "ASTERUSDT",
+    "AUCTIONUSDT",
+    "AVNTUSDT",
+    "BANKUSDT",
+    "BARDUSDT",
+    "BTCUSDT",
+    "DOGEUSDT",
+    "ETHUSDT",
+    "FARTCOINUSDT",
+    "HIGHUSDT",
+    "LINKUSDT",
+    "LTCUSDT",
+    "PENGUUSDT",
+    "PIPPINUSDT",
+    "RAVEUSDT",
+    "RIVERUSDT",
+    "SOLUSDT",
+    "UNIUSDT",
+    "WIFUSDT",
+    "XRPUSDT",
+    "COINANK_ONLY_USDT",
+    "KUCOIN_ONLY_USDT"
+  ],
+  "target_per_symbol": 12,
+  "v2_coinank_intelligence_payload_present": true,
+  "v2_liquidation_aggregator_per_symbol_source_available": false
+}

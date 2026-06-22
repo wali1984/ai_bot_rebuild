@@ -1,0 +1,72 @@
+{
+  "generated_utc": "2026-06-15T19:42:24Z",
+  "paper_only": true,
+  "places_real_order": false,
+  "trainer_feedback_outcomes": [],
+  "trainer_feedback_outcomes_quarantine": [
+    {
+      "drawdown_at_entry": null,
+      "entry_reason": null,
+      "exit_reason": "TIER_2_TAKE_PROFIT",
+      "feedback_schema_version": "strategy_hedge_exit_feedback_v1",
+      "future_window_label_source": "closed_trade_outcome",
+      "hedge_reason": "NO_HEDGE_CONTEXT",
+      "hedge_state": "NO_HEDGE",
+      "hold_time_seconds": 120,
+      "liquidation_context": null,
+      "liquidation_distance_context": null,
+      "liquidity_zone_context": null,
+      "major_move_signal_id": null,
+      "market_regime_at_entry": null,
+      "market_regime_at_exit": null,
+      "microstructure_context": null,
+      "missing_feedback_fields": [
+        "strategy_id",
+        "strategy_family",
+        "strategy_subtype",
+        "entry_reason",
+        "market_regime_at_entry",
+        "market_regime_at_exit",
+        "liquidity_zone_context",
+        "liquidation_distance_context",
+        "microstructure_context",
+        "drawdown_at_entry"
+      ],
+      "oi_funding_context": {
+        "source": "V2_FEEDBACK_ENRICHMENT_DEFAULT",
+        "status": "not_provided"
+      },
+      "outcome_label_id": "out_incomplete",
+      "paper_only": true,
+      "places_real_order": false,
+      "position_id": "pos_incomplete",
+      "public_intel_context": {
+        "source": "V2_FEEDBACK_ENRICHMENT_DEFAULT",
+        "status": "not_provided"
+      },
+      "realized_pnl_bps": 4.2,
+      "squeeze_evidence_score": null,
+      "strategy_family": null,
+      "strategy_id": null,
+      "strategy_subtype": null,
+      "symbol": "BTCUSDT",
+      "trainer_consumable": false,
+      "trainer_feedback_id": "fb_incomplete"
+    }
+  ],
+  "trainer_strategy_hedge_feedback_status": {
+    "exit_fields_present": true,
+    "future_window_label_fields_present": true,
+    "hedge_fields_present": true,
+    "liquidity_fields_present": false,
+    "major_move_fields_present": false,
+    "microstructure_fields_present": false,
+    "oi_funding_fields_present": true,
+    "public_intel_fields_present": true,
+    "strategy_fields_present": false,
+    "trainer_consumable_rows": 0,
+    "trainer_feedback_quarantined_rows": 1,
+    "trainer_feedback_rows": 1,
+    "trainer_feedback_total_rows": 1
+  }
+}

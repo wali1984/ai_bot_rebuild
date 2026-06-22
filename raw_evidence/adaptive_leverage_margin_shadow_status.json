@@ -1,0 +1,14 @@
+{
+  "schema_version": "v2_continuous_hourly_monitor_v1",
+  "generated_at": "2026-06-21T23:02:29Z",
+  "recommendation_count": 0,
+  "margin_recommendation_count": 0,
+  "mutation_count_must_be_zero": 0,
+  "max_leverage_cap": 3,
+  "max_loss_budget_usd": 50.0,
+  "margin_mode": "isolated_only",
+  "cross_margin_blocked": true,
+  "gate_status": "blocked_human_only",
+  "mutates_exchange": false,
+  "recommendation_count_note": "0 is expected for pre-wiring-sprint fills (2279 events from old gates). Field 'leverage_recommendation' was added to paper events post-patch (2026-06-18). Count will increment only for new entries that pass Phase 3/4/9 gates (conf>=0.75, edge>=15bps, 15m+)."
+}

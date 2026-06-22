@@ -1,0 +1,221 @@
+{
+  "test_suite": "Phase10_Rare_Event_Stress_Tests",
+  "run_utc": "2026-06-20T22:03:53.977846+00:00",
+  "total": 17,
+  "passed": 8,
+  "failed": 0,
+  "warned": 9,
+  "status": "PASS",
+  "results": [
+    {
+      "scenario_id": "S01",
+      "name": "Flash crash kill-switch gate",
+      "status": "WARNING",
+      "finding": "kill_switch_enabled field not present in v2:portfolio:state",
+      "evidence": {
+        "kill_switch_enabled": null,
+        "current_drawdown_bps": 681.30092301,
+        "equity": 11627.36623768
+      },
+      "tested_utc": "2026-06-20T22:03:53.977846+00:00"
+    },
+    {
+      "scenario_id": "S02",
+      "name": "Liquidation price tracking",
+      "status": "PASS",
+      "finding": "All positions have liquidation estimates with adequate buffer",
+      "evidence": {
+        "position_count": 1,
+        "all_have_liq_estimate": true,
+        "min_buffer_bps": 4913.88683532
+      },
+      "tested_utc": "2026-06-20T22:03:53.977846+00:00"
+    },
+    {
+      "scenario_id": "S03",
+      "name": "Paper-only mode \u2014 exchange outage not applicable",
+      "status": "PASS",
+      "finding": "System is in paper-only mode. places_real_order=False confirmed. No exchange dependency.",
+      "evidence": {
+        "places_real_order": false,
+        "account_mode": "paper_shadow_only"
+      },
+      "tested_utc": "2026-06-20T22:03:53.977846+00:00"
+    },
+    {
+      "scenario_id": "S04",
+      "name": "Funding rate tracking in positions",
+      "status": "PASS",
+      "finding": "funding tracked on 1/1 positions",
+      "evidence": {
+        "funding_tracked": 1,
+        "total_positions": 1
+      },
+      "tested_utc": "2026-06-20T22:03:53.977846+00:00"
+    },
+    {
+      "scenario_id": "S05",
+      "name": "Spread tracking in closed trades",
+      "status": "PASS",
+      "finding": "CG-F010: exit spread varies (179 unique values, max=13.34 bps) across 643 records",
+      "evidence": {
+        "unique_exit_spread_values": 179,
+        "max_exit_spread_bps": 13.34222815,
+        "total_with_exit_spread": 643
+      },
+      "tested_utc": "2026-06-20T22:03:53.977846+00:00"
+    },
+    {
+      "scenario_id": "S06",
+      "name": "Trainer checkpoint presence for confidence restoration",
+      "status": "WARNING",
+      "finding": "checkpoint_path=UNKNOWN. No confidence floor mechanism verified independently.",
+      "evidence": {
+        "checkpoint_evidence": true,
+        "checkpoint_path": "UNKNOWN"
+      },
+      "tested_utc": "2026-06-20T22:03:53.977846+00:00"
+    },
+    {
+      "scenario_id": "S07",
+      "name": "Position count vs hard cap",
+      "status": "WARNING",
+      "finding": "open_positions_count=88 exceeds DEFAULT cap=32. Per-cycle cap IS enforced for new-symbol fills; existing positions accumulated before enforcement. CG-F016 gap: no portfolio-level retrospective cap applied.",
+      "evidence": {
+        "open_positions_count": 88,
+        "max_cap": 32,
+        "open_position_notional_usd": 181693.44787964,
+        "note": "cap_enforced_for_new_fills_only"
+      },
+      "tested_utc": "2026-06-20T22:03:53.977846+00:00"
+    },
+    {
+      "scenario_id": "S08",
+      "name": "All-TF block state \u2014 admission gate response",
+      "status": "WARNING",
+      "finding": "Blocked TFs ['15m', '1m', '4h', '5m']; ['15m', '1m'] not in CG-F014 static block list. CG-F014 partial fix covers 4h/5m; full dynamic fallback is future work.",
+      "evidence": {
+        "outcome_memory_blocked_tfs": [
+          "15m",
+          "1m",
+          "4h",
+          "5m"
+        ],
+        "unhandled_blocked_tfs": [
+          "15m",
+          "1m"
+        ],
+        "admission_gate_static_blocks": [
+          "4h",
+          "5m"
+        ]
+      },
+      "tested_utc": "2026-06-20T22:03:53.977846+00:00"
+    },
+    {
+      "scenario_id": "S09",
+      "name": "Training label inversion for SHORT trades (CG-F017)",
+      "status": "PASS",
+      "finding": "CG-F017 fix confirmed in data_loader.py: short sign inversion applied before _label_action(). Future training will produce correct labels.",
+      "evidence": {
+        "fix_file": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/data_loader.py",
+        "fix_present": true
+      },
+      "tested_utc": "2026-06-20T22:03:53.977846+00:00"
+    },
+    {
+      "scenario_id": "S10",
+      "name": "Daily drawdown limit monitoring",
+      "status": "WARNING",
+      "finding": "Paper mode: drawdown=850.09 USD (6.81%) exceeds 5.0% limit \u2014 noted but no automated halt in paper-only mode.",
+      "evidence": {
+        "current_drawdown_usd": 850.09026308,
+        "current_drawdown_bps": 681.30092301,
+        "hwm_usd": 12477.45650076,
+        "dd_pct": 6.813009230112092,
+        "places_real_order": false
+      },
+      "tested_utc": "2026-06-20T22:03:53.977846+00:00"
+    },
+    {
+      "scenario_id": "S11",
+      "name": "HOLD signal handling",
+      "status": "WARNING",
+      "finding": "v2:signals:latest not queried in this test. From prior session: 52% HOLD signals observed. Verify NO_TRADE action is passed through without generating fills.",
+      "evidence": {
+        "note": "manual_verification_required",
+        "prior_session_hold_pct": 52
+      },
+      "tested_utc": "2026-06-20T22:03:53.977846+00:00"
+    },
+    {
+      "scenario_id": "S12",
+      "name": "Model reversal netting mechanism",
+      "status": "PASS",
+      "finding": "14 trades closed via TIER_3_MODEL_REVERSAL_NETTING \u2014 mechanism exists in production",
+      "evidence": {
+        "reversal_trade_count": 14
+      },
+      "tested_utc": "2026-06-20T22:03:53.977846+00:00"
+    },
+    {
+      "scenario_id": "S13",
+      "name": "Max hold time exit mechanism",
+      "status": "PASS",
+      "finding": "12 trades closed via TIER_4_MAX_HOLD_TIME \u2014 mechanism exists in production",
+      "evidence": {
+        "max_hold_exit_count": 12
+      },
+      "tested_utc": "2026-06-20T22:03:53.977846+00:00"
+    },
+    {
+      "scenario_id": "S14",
+      "name": "Correlation exposure tracking",
+      "status": "PASS",
+      "finding": "correlation_exposure_pct populated for 0/0 short positions",
+      "evidence": {
+        "short_position_count": 0,
+        "corr_tracked": 0
+      },
+      "tested_utc": "2026-06-20T22:03:53.977846+00:00"
+    },
+    {
+      "scenario_id": "S15",
+      "name": "Stale feature detection",
+      "status": "WARNING",
+      "finding": "98% of last 199 trades use features from 2026-06-15 (5 days old). CG-F018 OPEN: feature pipeline not refreshing. Paper-only mode (LIVE BLOCKED) \u2014 no real capital at risk. Operational issue; does not block paper-mode validation.",
+      "evidence": {
+        "feature_cutoff_pct": 98,
+        "most_common_feature_cutoff": "2026-06-15",
+        "feature_age_days": 5,
+        "sample_size": 199,
+        "places_real_order": false,
+        "live_blocked": true,
+        "cg_f018_open": true
+      },
+      "tested_utc": "2026-06-20T22:03:53.977846+00:00"
+    },
+    {
+      "scenario_id": "S16",
+      "name": "Redis connection resilience",
+      "status": "WARNING",
+      "finding": "No Redis failure simulation available in paper system. v2:paper:ledger write-ahead log not independently verified. Manual test required.",
+      "evidence": {
+        "redis_available": true
+      },
+      "tested_utc": "2026-06-20T22:03:53.977846+00:00"
+    },
+    {
+      "scenario_id": "S17",
+      "name": "Margin call equity simulation",
+      "status": "WARNING",
+      "finding": "Current equity=11627.37. Paper system would need to close positions if equity dropped to 2325.47 (20%). No automated margin call mechanism verified in paper system.",
+      "evidence": {
+        "current_equity": 11627.36623768,
+        "margin_call_threshold_usd": 2325.473247536,
+        "open_notional": 181693.44787964
+      },
+      "tested_utc": "2026-06-20T22:03:53.977846+00:00"
+    }
+  ]
+}

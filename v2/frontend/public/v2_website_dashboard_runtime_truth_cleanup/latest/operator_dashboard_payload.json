@@ -1,0 +1,12 @@
+{
+  "gate": "V2_WEBSITE_DASHBOARD_RUNTIME_TRUTH_CLEANUP_READY",
+  "generated_est": "2026-06-10T13:11:44-04:00",
+  "headline": "Website runtime truth cleanup ready",
+  "live_gate_display": "gate approved",
+  "trader_state_display": "live armed, balance hold",
+  "submit_hold_display": "held until available margin covers the minimum order",
+  "local_routes": "32/32",
+  "production_routes": "32 fetched; strict stale-marker scan passed",
+  "blockers": [],
+  "next_action": "Continue runtime monitoring; live remains balance-held until available margin is sufficient."
+}

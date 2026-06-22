@@ -1,0 +1,32 @@
+{
+  "claim": "CoinAnk global V2 bridge is live and publishing V2-prefixed global features; full legacy endpoint/cursor breadth remains a separate parity expansion.",
+  "completed_by": "codex_takeover",
+  "confidence": "MEDIUM_HIGH",
+  "files_modified": [
+    "v2/backend/app/cli/v2_coinank_and_liquidation_bridge.py",
+    "v2/backend/app/services/coinank_bridge/service.py"
+  ],
+  "generated_est": "2026-06-03T22:44:59-04:00",
+  "generated_utc": "2026-06-04T02:44:59Z",
+  "implementation_marker": "V2_ZERO_EXCEPTION_PARITY_MISSING_IMPL_LIVE_COINANK_CODEX_TAKEOVER_DONE",
+  "live_safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "exchange_action_taken": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "places_real_order": false,
+    "trader_execution_enabled": false,
+    "writes_exchange_orders": false,
+    "writes_legacy_redis": false
+  },
+  "milestone": "v2_zero_exception_parity_implementation_burndown_20260531",
+  "missing_evidence": "Full legacy CoinAnk endpoint/cursor family is not reproduced one-for-one in this task.",
+  "raw_evidence": "v2:coinank:global:* has 12 fresh keys and v2:features:global_coinank:* has 11 fresh keys; ai-bot-v2-coinank-global-bridge-loop.service is active from prior runtime evidence.",
+  "schema_version": "zero_exception_task_status_v1",
+  "status": "DONE_VERIFIED",
+  "task_slug": "missing_impl_live_coinank",
+  "verification_command": "redis-cli --scan --pattern \"v2:coinank:global:*\" | wc -l"
+}

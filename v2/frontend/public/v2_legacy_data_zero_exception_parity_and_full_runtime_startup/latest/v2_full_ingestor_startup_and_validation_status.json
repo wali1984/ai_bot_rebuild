@@ -1,0 +1,311 @@
+{
+  "classification": "V2_FULL_INGESTOR_STARTUP_VALIDATED_NON_MUTATING",
+  "generated_est": "2026-06-03T22:40:39-04:00",
+  "generated_utc": "2026-06-04T02:40:39Z",
+  "ingestors": [
+    {
+      "evidence": {
+        "fresh": 27,
+        "no_ttl": 0,
+        "total": 27,
+        "ttl_positive": 27
+      },
+      "ingestor": "binance_public_market_data",
+      "status": "RUNNING_AND_VALIDATED",
+      "systemd_unit": "ai-bot-v2-native-ingestors-live-loop.service"
+    },
+    {
+      "evidence": {
+        "fresh": 17,
+        "no_ttl": 31,
+        "total": 48,
+        "ttl_positive": 17
+      },
+      "ingestor": "binance_ohlcv_bars",
+      "status": "RUNNING_AND_VALIDATED_PARTIAL_DEPTH",
+      "systemd_unit": "ai-bot-v2-native-ingestors-live-loop.service"
+    },
+    {
+      "evidence": {
+        "fresh": 25,
+        "no_ttl": 12,
+        "total": 37,
+        "ttl_positive": 25
+      },
+      "ingestor": "binance_orderbook",
+      "status": "RUNNING_AND_VALIDATED_PARTIAL_DEPTH",
+      "systemd_unit": "ai-bot-v2-native-ingestors-live-loop.service"
+    },
+    {
+      "evidence": {
+        "fresh": 12,
+        "no_ttl": 0,
+        "total": 12,
+        "ttl_positive": 12
+      },
+      "ingestor": "coinank_global_aggregator",
+      "status": "RUNNING_AND_VALIDATED_GLOBAL",
+      "systemd_unit": "ai-bot-v2-coinank-global-bridge-loop.service"
+    },
+    {
+      "evidence": {
+        "fresh": 109,
+        "no_ttl": 0,
+        "total": 109,
+        "ttl_positive": 109
+      },
+      "ingestor": "kucoin",
+      "status": "RUNNING_AND_VALIDATED",
+      "systemd_unit": "ai-bot-v2-kucoin-public-rest-loop.service"
+    },
+    {
+      "evidence": {
+        "fresh": 53,
+        "no_ttl": 0,
+        "total": 53,
+        "ttl_positive": 53
+      },
+      "ingestor": "coinapi_rest",
+      "status": "RUNNING_AND_VALIDATED",
+      "systemd_unit": "ai-bot-v2-coinapi-rest-fallback-loop.service"
+    },
+    {
+      "evidence": {
+        "fresh": 6,
+        "no_ttl": 0,
+        "total": 6,
+        "ttl_positive": 6
+      },
+      "ingestor": "coinapi_v1_rest",
+      "status": "RUNNING_AND_VALIDATED_V2_PROXY",
+      "systemd_unit": "ai-bot-v2-legacy-coinapi-v1-ingestor.service"
+    },
+    {
+      "evidence": {
+        "blockers": [
+          "coinapi_api_key_not_present_by_env_name",
+          "coinapi_wsds_paid_streaming_not_operator_approved"
+        ],
+        "classification": "V2_COINAPI_WSDS_OPERATOR_GATED",
+        "client_constructed": false,
+        "credential_env_name": "COINAPI_API_KEY",
+        "credential_value_read": false,
+        "live_safety": {
+          "exchange_action_taken": false,
+          "live_gate": "blocked_human_only",
+          "live_symbols": [],
+          "places_real_order": false,
+          "trader_execution_enabled": false,
+          "writes_exchange_orders": false,
+          "writes_legacy_redis": false
+        },
+        "operator_paid_streaming_approved": false,
+        "schema_version": "v2_coinapi_wsds_compat_status_v1",
+        "source": "v2.backend.app.services.native_ingestors.coinapi_wsds",
+        "target_redis_key_patterns": [
+          "v2:market:coinapi:wsds:{symbol}",
+          "v2:features:microfeat:{symbol}:{timeframe}"
+        ]
+      },
+      "ingestor": "coinapi_wsds_microstructure",
+      "status": "V2_COINAPI_WSDS_OPERATOR_GATED",
+      "systemd_unit": null
+    },
+    {
+      "evidence": {
+        "fresh": 72,
+        "no_ttl": 0,
+        "total": 72,
+        "ttl_positive": 72
+      },
+      "ingestor": "technical_analysis",
+      "status": "V2_FULL_TALIB_TA_LIVE_OK",
+      "systemd_unit": "ai-bot-v2-full-talib-ta-loop.service"
+    },
+    {
+      "evidence": {
+        "fresh": 27,
+        "no_ttl": 11,
+        "total": 38,
+        "ttl_positive": 27
+      },
+      "ingestor": "feature_pipeline",
+      "status": "RUNNING_AND_VALIDATED_COMPACT_PLUS_FULL_TA",
+      "systemd_unit": "ai-bot-v2-feature-pipeline-native-loop.service"
+    },
+    {
+      "evidence": {
+        "client_status": "FUTURE_PLACEHOLDER_AWAITING_CLIENT_ADAPTER",
+        "credential_env_name": "ARKHAM_API_KEY",
+        "credential_status_by_name": "KEY_PRESENT_BY_NAME",
+        "exchange_endpoints_called": [],
+        "http_request_made": false,
+        "live_gate": "blocked_human_only",
+        "live_symbols": [],
+        "notes": "Presence-only worker: confirms ARKHAM_API_KEY is present by name and publishes a public status payload. No external HTTP request is made and no raw value is read. Replace with a real client adapter in a future lane.",
+        "provider": "arkham",
+        "raw_credential_value_exposed": false,
+        "raw_credential_value_read": false,
+        "redis_available": true,
+        "redis_keys_written": [
+          "v2:alt_data:arkham:presence"
+        ],
+        "running_status": "PRESENCE_ONLY_PUBLISHED",
+        "ts_est": "2026-06-03T22:36:30-0400",
+        "worker": "v2_arkham_presence_only_worker",
+        "writes_exchange_orders": false
+      },
+      "ingestor": "arkham_altdata",
+      "status": "PRESENCE_ONLY_PUBLISHED",
+      "systemd_unit": null
+    },
+    {
+      "evidence": {
+        "provider_registry_contains": "alphavantage"
+      },
+      "ingestor": "alphavantage_news",
+      "status": "ADAPTER_REGISTERED_OPERATOR_DISABLED",
+      "systemd_unit": null
+    },
+    {
+      "evidence": {
+        "provider_registry_contains": "tokenmetrics"
+      },
+      "ingestor": "tokenmetrics",
+      "status": "ADAPTER_REGISTERED_OPERATOR_DISABLED",
+      "systemd_unit": null
+    }
+  ],
+  "live_safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "exchange_action_taken": false,
+    "live_gate": "blocked_human_only",
+    "live_gate_status": "blocked_human_only",
+    "live_symbols": [],
+    "places_real_order": false,
+    "trader_execution_enabled": false,
+    "writes_exchange_orders": false,
+    "writes_legacy_redis": false
+  },
+  "milestone": "v2_legacy_data_zero_exception_parity_and_full_runtime_startup",
+  "redis_counts": {
+    "v2:alt_data:arkham:*": {
+      "fresh": 1,
+      "no_ttl": 0,
+      "total": 1,
+      "ttl_positive": 1
+    },
+    "v2:coinank:global:*": {
+      "fresh": 12,
+      "no_ttl": 0,
+      "total": 12,
+      "ttl_positive": 12
+    },
+    "v2:features:coinapi_rest:*": {
+      "fresh": 25,
+      "no_ttl": 0,
+      "total": 25,
+      "ttl_positive": 25
+    },
+    "v2:features:global_coinank:*": {
+      "fresh": 11,
+      "no_ttl": 0,
+      "total": 11,
+      "ttl_positive": 11
+    },
+    "v2:features:kucoin:*": {
+      "fresh": 117,
+      "no_ttl": 0,
+      "total": 117,
+      "ttl_positive": 117
+    },
+    "v2:features:latest:*": {
+      "fresh": 27,
+      "no_ttl": 11,
+      "total": 38,
+      "ttl_positive": 27
+    },
+    "v2:features:ta:*": {
+      "fresh": 72,
+      "no_ttl": 0,
+      "total": 72,
+      "ttl_positive": 72
+    },
+    "v2:features:ta_full:*": {
+      "fresh": 71,
+      "no_ttl": 0,
+      "total": 71,
+      "ttl_positive": 71
+    },
+    "v2:market:coinapi:rest:*": {
+      "fresh": 53,
+      "no_ttl": 0,
+      "total": 53,
+      "ttl_positive": 53
+    },
+    "v2:market:kucoin:*": {
+      "fresh": 109,
+      "no_ttl": 0,
+      "total": 109,
+      "ttl_positive": 109
+    },
+    "v2:market:ohlcv:binance:*": {
+      "fresh": 17,
+      "no_ttl": 31,
+      "total": 48,
+      "ttl_positive": 17
+    },
+    "v2:market:orderbook:*": {
+      "fresh": 25,
+      "no_ttl": 12,
+      "total": 37,
+      "ttl_positive": 25
+    },
+    "v2:market:prices:*": {
+      "fresh": 27,
+      "no_ttl": 0,
+      "total": 27,
+      "ttl_positive": 27
+    },
+    "v2:opportunity:*": {
+      "fresh": 29,
+      "no_ttl": 0,
+      "total": 29,
+      "ttl_positive": 29
+    },
+    "v2:orchestrator:*": {
+      "fresh": 3,
+      "no_ttl": 0,
+      "total": 3,
+      "ttl_positive": 3
+    },
+    "v2:portfolio:*": {
+      "fresh": 1,
+      "no_ttl": 0,
+      "total": 1,
+      "ttl_positive": 1
+    },
+    "v2:prediction:*": {
+      "fresh": 27,
+      "no_ttl": 25,
+      "total": 52,
+      "ttl_positive": 27
+    },
+    "v2:risk:gateway:*": {
+      "fresh": 3,
+      "no_ttl": 0,
+      "total": 3,
+      "ttl_positive": 3
+    },
+    "v2:trainer:*": {
+      "fresh": 6,
+      "no_ttl": 2,
+      "total": 8,
+      "ttl_positive": 6
+    }
+  },
+  "schema_version": "v2_full_ingestor_startup_and_validation_status_v2"
+}

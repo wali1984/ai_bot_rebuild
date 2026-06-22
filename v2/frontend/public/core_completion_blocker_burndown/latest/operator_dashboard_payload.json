@@ -1,0 +1,65 @@
+{
+  "schema_version": "v2_core_completion_blocker_burndown_operator_dashboard_v2",
+  "generated_utc": "2026-05-16T23:05:00Z",
+  "git_head": "31a7fd70319f0d586c454b5ea2ea530ba9cb1541",
+  "burndown_go_no_go": "V2_CORE_COMPLETION_BLOCKER_BURNDOWN_TRUTH_REMEDIATION_READY",
+  "summary_for_operator": {
+    "can_old_system_be_shut_down": false,
+    "shutdown_reason_in_plain_english": "Truth model fixed: runtime ingestor classifications and burndown matrix now agree. Five blockers are IMPLEMENTED_AND_TESTED, two are CONVERTED_TO_OPERATOR_DECISION_REQUIRED (checkpoint weights, paper-edge no-trade acceptance), one is a LIVE_ONLY_BLOCKER (legacy Redis proposal bus is intentionally NOT ported). NO operator decision has been accepted yet, so paper-only shutdown is NOT ready.",
+    "is_live_trading_allowed": false,
+    "live_trading_reason_in_plain_english": "Live trading is blocked_human_only. No final approval token created."
+  },
+  "state_counts": {
+    "IMPLEMENTED_AND_TESTED": 5,
+    "CONVERTED_TO_OPERATOR_DECISION_REQUIRED": 2,
+    "OPERATOR_ACCEPTED": 0,
+    "STILL_BLOCKED": 0,
+    "NOT_APPLICABLE_FOR_PAPER_ONLY": 0,
+    "LIVE_ONLY_BLOCKER": 1
+  },
+  "all_blockers_addressed_by_code_or_decision_packet": true,
+  "all_required_operator_decisions_accepted": false,
+  "paper_only_shutdown_decision_ready": false,
+  "live_ready": false,
+  "blockers_state": [
+    {"id": "CHECKPOINT_WEIGHT_BLOB_OPERATOR_REQUIRED_NOT_ACCEPTED_FOR_PAPER_ONLY_SHUTDOWN", "state": "CONVERTED_TO_OPERATOR_DECISION_REQUIRED", "operator_accepted": false},
+    {"id": "LIVE_KUCOIN_MISSING_IN_V2", "state": "IMPLEMENTED_AND_TESTED", "operator_accepted": false},
+    {"id": "COINAPI_AND_COINANK_SECRET_OR_OPERATOR_DECISIONS_NOT_ACCEPTED", "state": "IMPLEMENTED_AND_TESTED", "operator_accepted": false},
+    {"id": "READONLY_BRIDGED_INGESTORS_NOT_ACCEPTED_FOR_SHUTDOWN", "state": "IMPLEMENTED_AND_TESTED", "operator_accepted": false},
+    {"id": "ADAPTIVE_HEDGE_FAIL_CLOSED_LIMITATION_NOT_ACCEPTED_FOR_PAPER_ONLY_SHUTDOWN", "state": "IMPLEMENTED_AND_TESTED", "operator_accepted": false},
+    {"id": "FULL_LEGACY_ORCHESTRATOR_WORKER_LOGIC_NOT_PORTED_OR_ACCEPTED", "state": "IMPLEMENTED_AND_TESTED", "operator_accepted": false},
+    {"id": "LIVE_REDIS_PROPOSAL_BUS_NOT_PORTED_OR_ACCEPTED", "state": "LIVE_ONLY_BLOCKER", "operator_accepted": false},
+    {"id": "PAPER_EDGE_CURRENT_SAMPLE_NEGATIVE_AND_NOT_OPERATOR_ACCEPTED_AS_NO_TRADE_ONLY", "state": "CONVERTED_TO_OPERATOR_DECISION_REQUIRED", "operator_accepted": false}
+  ],
+  "operator_decisions_pending_acceptance": [
+    "CHECKPOINT_WEIGHT_BLOB_OPERATOR_REQUIRED_NOT_ACCEPTED_FOR_PAPER_ONLY_SHUTDOWN",
+    "ADAPTIVE_HEDGE_PAPER_ENGINE_OPERATOR_APPROVAL_TO_ENABLE",
+    "PAPER_EDGE_NO_TRADE_OPERATOR_ACCEPTANCE",
+    "live_coinapi_wsds_paid_tier",
+    "live_coinank_global_aggregator_scope",
+    "ccxt_historical_vs_replay_store"
+  ],
+  "runtime_truth_check": {
+    "matrix_agrees_with_runtime": true,
+    "coinapi_v1_runtime_class": "NATIVE_V2_READONLY_PUBLIC_DATA",
+    "coinank_runtime_class": "NATIVE_V2_READONLY_PUBLIC_DATA",
+    "coinapi_wsds_runtime_class": "OPERATOR_DECISION_REQUIRED_FOR_PAPER_ONLY_SHUTDOWN",
+    "coinank_global_aggregator_runtime_class": "OPERATOR_DECISION_REQUIRED_FOR_PAPER_ONLY_SHUTDOWN"
+  },
+  "evidence_path_root": "claude_worklog/final_readiness/core_completion_blocker_burndown/latest/",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false,
+  "v2_payload_paths": [
+    "v2/frontend/public/core_completion_blocker_burndown/latest/checkpoint_weight_resolution.json",
+    "v2/frontend/public/core_completion_blocker_burndown/latest/coinapi_coinank_secret_decision_status.json",
+    "v2/frontend/public/core_completion_blocker_burndown/latest/v2_native_ingestors_shutdown_closure.json",
+    "v2/frontend/public/core_completion_blocker_burndown/latest/paper_edge_no_trade_acceptance_status.json",
+    "v2/frontend/public/operator_runtime/v2_kucoin_ingestor/latest/v2_kucoin_ingestor_status.json",
+    "v2/frontend/public/operator_runtime/v2_native_ingestors/latest/v2_native_ingestors_status.json",
+    "v2/frontend/public/operator_runtime/v2_rl_core/latest/v2_rl_core_status.json"
+  ]
+}

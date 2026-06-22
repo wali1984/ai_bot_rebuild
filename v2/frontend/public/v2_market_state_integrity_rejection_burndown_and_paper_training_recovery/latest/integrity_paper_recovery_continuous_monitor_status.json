@@ -1,0 +1,21 @@
+{
+  "alerts": [
+    "ACCEPTED_TRAINING_ROWS_DROPPED_TO_ZERO",
+    "ACCEPTED_FILLS_ZERO_WITH_BUG_OR_OVERSTRICT_ROWS_PRESENT"
+  ],
+  "generated_est": "2026-06-09T15:07:22-04:00",
+  "generated_utc": "2026-06-09T19:07:22Z",
+  "schema_version": "integrity_paper_recovery_continuous_monitor_status_v1",
+  "timers": {
+    "ai-bot-v2-market-state-integrity-monitor.timer": {
+      "active": true,
+      "enabled": true,
+      "unit_present": true
+    },
+    "ai-bot-v2-paper-equity-reconciliation-loop.timer": {
+      "active": true,
+      "enabled": true,
+      "unit_present": true
+    }
+  }
+}

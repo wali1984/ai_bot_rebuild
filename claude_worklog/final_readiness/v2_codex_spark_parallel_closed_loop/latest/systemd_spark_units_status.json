@@ -1,0 +1,47 @@
+{
+  "status": "done",
+  "units": [
+    "ai-bot-v2-closed-loop.target",
+    "ai-bot-v2-claude-lane@.service",
+    "ai-bot-v2-codex-lane@.service",
+    "ai-bot-v2-closed-loop-autoseed.timer",
+    "ai-bot-v2-closed-loop-burndown.timer",
+    "ai-bot-v2-closed-loop-metrics.service"
+  ],
+  "hardening": {
+    "Type": "notify",
+    "NotifyAccess": "main",
+    "WatchdogSec": "45s",
+    "Restart": "always",
+    "RestartSec": "5s",
+    "StateDirectory": "ai-bot-v2/closed-loop",
+    "RuntimeDirectory": "ai-bot-v2/closed-loop",
+    "NoNewPrivileges": true,
+    "PrivateTmp": true,
+    "NotifyAccess": "main"
+  },
+  "lane_template": {
+    "supports_dynamic_lane": true,
+    "durable_worker_daemon": true,
+    "max_iterations_limited": false,
+    "lane_token": "%i",
+    "default_worker_lanes": [
+      "runtime-claude",
+      "runtime-codex"
+    ]
+  },
+  "first_class_cli_services": {
+    "autoseed": "v2.backend.app.closed_loop.cli.autoseed",
+    "burndown": "v2.backend.app.closed_loop.cli.burndown",
+    "worklog_json_outputs_only": true
+  },
+  "safe_envelope": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false
+  },
+  "generated_utc": "2026-05-24T00:00:00Z"
+}

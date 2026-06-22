@@ -1,0 +1,17 @@
+## Status — paused on permission gate
+
+I've fully diagnosed `closed_loop_remediation_codex_review_autoseed_baseline_after_cost_calibration_r20`. The diagnosis:
+
+- The **Claude r20 implementation worker never landed any diff** — it was blocked by an interactive permission prompt on `v2/backend/app/services/native_trainer/baseline_model.py` and exited with the task marked completed but with zero source change and no `IMPLEMENTATION_REPORT.md`. Evidence: `claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/claude_autoseed_baseline_after_cost_calibration_r20.log` (11 lines, entirely a permission-approval request).
+- **Codex emitted FAIL** with no per-finding evidence — it just dumped `git status` and concluded FAIL because there was nothing to review. Evidence: `…/logs/codex_review_autoseed_baseline_after_cost_calibration_r20_codex.log` ending at line 3107.
+- **Burndown mapper agrees**: `no_safe_scope_remediation_targets` (you can't patch a missing implementation downstream).
+- **r19's constants did land already** (`baseline_model.py:50–56` + cost wedge at line 561), so I'm not blindly re-doing r19.
+
+The correct safe remediation is documentation-only: emit the missing per-task report at `expected_output_paths` and a closed-loop remediation report — both stating honestly that r20 produced no diff and that the calibration machinery (`CalibrationBin`/`CalibrationMap`/`fit_…`/`apply_…`/`compute_false_negative_separation_bps`/`LogisticModel.calibration_map`/`BaselineMetrics.false_negative_calibrated_emac_separation_bps`/tests/refreshed dashboard) belongs to r21+ and is `MISSING_SOURCE` until then.
+
+**Both Writes are pinned by an interactive permission gate** (`.claude/settings.local.json` has no `Write(./v2/**)` or `Write(./claude_worklog/**)` allow rule):
+
+1. `claude_worklog/final_readiness/v2_autonomous_mission_backlog/per_task/baseline_after_cost_calibration/IMPLEMENTATION_REPORT.md`
+2. `claude_worklog/final_readiness/v2_closed_loop_execution/latest/codex_review_outputs/codex_review_autoseed_baseline_after_cost_calibration_r20/REMEDIATION_REPORT.md`
+
+This is the same gate that has been stalling r18/r19/r20 workers. To proceed I need you to either approve those two specific Writes, or add `Write(./claude_worklog/**)` and `Write(./v2/**)` to the `allow` list in `.claude/settings.local.json`. After approval, I'll write both reports and flip the remediation task JSON to `status=completed` with a `remediation_result` summarizing the verdict above. Safety pins remain: `live_gate=blocked_human_only`, `live_symbols=[]`, no legacy edits, no exchange mutation.

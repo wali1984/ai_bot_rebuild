@@ -1,0 +1,109 @@
+{
+  "schema_version": "v2_feature_ta_trainer_runtime_impact_v1",
+  "phase": 4,
+  "generated_est": "2026-05-26T17:02:47-0400",
+  "generated_utc": "2026-05-26T21:02:47Z",
+
+  "feature_pipeline": {
+    "service_unit": "ai-bot-v2-feature-pipeline-native-loop.service",
+    "service_active": true,
+    "service_uptime_minutes": 220,
+    "service_n_restarts": 0,
+    "redis_output_family": "v2:features:*",
+    "redis_output_key_count": 64,
+    "redis_unified_output_family": "v2:unified_features:*",
+    "redis_unified_output_key_count": 170,
+    "redis_unified_symbol_coverage_count": 27,
+    "operator_runtime_payload_path": "v2/frontend/public/operator_runtime/v2_feature_pipeline_native/latest/v2_feature_pipeline_native_status.json",
+    "operator_runtime_payload_freshness_seconds": 932220,
+    "operator_runtime_payload_status": "STALE_PRE_REBOOT",
+    "interpretation": "Redis output is FRESH (keys present for 27 symbols), but the public operator dashboard JSON has not been refreshed since 2026-05-15. Remediation required: re-emit operator_runtime payload from the active feature-pipeline-native loop."
+  },
+
+  "ta_worker": {
+    "service_unit_candidate": "ai-bot-v2-feature-pipeline-native-loop.service (TA fused into native pipeline)",
+    "gnome_panel_referenced": "V2 TA Worker",
+    "redis_evidence": {
+      "v2:features_with_ta_keys_observed": true,
+      "ta_freshness_method": "indirect via v2:unified_features:<symbol>:<timeframe>:latest TTL; per-symbol TTL probe deferred"
+    }
+  },
+
+  "trainer_bridge": {
+    "service_unit": "ai-bot-v2-trainer-bridge.service",
+    "service_active": true,
+    "service_uptime_minutes": 220,
+    "service_n_restarts": 0,
+    "operator_runtime_payload_path": "v2/frontend/public/operator_runtime/v2_owned_trainer/latest/status.json",
+    "operator_runtime_payload_freshness_seconds": 932220,
+    "operator_runtime_payload_status": "STALE_PRE_REBOOT",
+    "trainer_role_label": "copied_parity_baseline_bridge",
+    "trainer_role_label_correct": true,
+    "trainer_native_readiness_claimed": false,
+    "model_checkpoint_loaded_into_v2_process": false,
+    "remediation_required": "re-emit v2_owned_trainer/latest/status.json from the active trainer-bridge to clear the stale freshness flag"
+  },
+
+  "trainer_source_distribution": {
+    "v2_native": 0,
+    "copied_baseline_bridge": 1,
+    "legacy_passthrough_paper_only": 0,
+    "summary": "single trainer_source = copied_baseline_bridge; V2-native trainer remains DEFERRED (no torch in V2 process, no checkpoint loaded)"
+  },
+
+  "model_source_distribution": {
+    "v2_native_cpu_deterministic_init_no_checkpoint": 1,
+    "v2_native_cpu_with_loaded_checkpoint": 0,
+    "torch_inference": 0,
+    "summary": "single model_source = v2_native_cpu_deterministic_init_no_checkpoint; that is the V2 paper-only policy from policy.py with deterministic seeded weights"
+  },
+
+  "prediction_coverage": {
+    "rl_core_inference_loop_service_active": true,
+    "rl_core_inference_loop_uptime_minutes": 220,
+    "rl_core_inference_loop_n_restarts": 0,
+    "operator_runtime_payload_freshness_method": "deferred — needs targeted stat probe on v2/frontend/public/operator_runtime/v2_rl_core*/latest/*.json",
+    "predictions_emit_to_redis_family_candidate": "v2:rl_core:predictions:*",
+    "per_symbol_prediction_coverage_method": "deferred to a follow-up status pass"
+  },
+
+  "missing_or_stale_feature_flags": [
+    {
+      "flag": "feature_pipeline_native_operator_runtime_payload_stale",
+      "evidence": "v2/frontend/public/operator_runtime/v2_feature_pipeline_native/latest/v2_feature_pipeline_native_status.json freshness_seconds=932220",
+      "severity": "needs_refresh"
+    },
+    {
+      "flag": "owned_trainer_operator_runtime_payload_stale",
+      "evidence": "v2/frontend/public/operator_runtime/v2_owned_trainer/latest/status.json freshness_seconds=932220",
+      "severity": "needs_refresh"
+    },
+    {
+      "flag": "v2_liquidation_ingestor_operator_runtime_payload_stale",
+      "evidence": "v2/frontend/public/operator_runtime/v2_liquidation_ingestor/latest/v2_liquidation_ingestor_status.json freshness_seconds=~800000",
+      "severity": "needs_refresh_after_newly_wrapped_levels_engine_writes_first_payload"
+    }
+  ],
+
+  "improved_coverage_after_copied_runtime_restart": {
+    "v2_unified_features_keys_before_copied_runtime_estimate": "indeterminate_pre_snapshot_baseline_not_captured",
+    "v2_unified_features_keys_after_observed": 170,
+    "v2_unified_features_symbol_coverage_after": 27,
+    "v2_market_keys_after_observed": 128,
+    "v2_features_keys_after_observed": 64,
+    "v2_paper_keys_after_observed": 89,
+    "claim": "Redis-level feature coverage matches the 27-symbol dynamic universe; no 3-symbol pin observed in active feature output",
+    "delta_vs_prior_snapshot": "not_computed_in_this_phase_pass (no prior snapshot artifact stored)"
+  },
+
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "loads_torch_in_v2_process": false,
+    "loads_checkpoint_weights": false,
+    "places_real_order": false,
+    "writes_old_redis": false,
+    "approves_live": false,
+    "approves_canary": false
+  }
+}

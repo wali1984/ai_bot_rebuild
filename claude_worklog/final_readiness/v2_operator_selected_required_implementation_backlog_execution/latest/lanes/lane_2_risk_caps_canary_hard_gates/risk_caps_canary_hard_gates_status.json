@@ -1,0 +1,180 @@
+{
+  "schema_version": "v2_risk_caps_canary_hard_gates_status_v1",
+  "generated_utc": "2026-05-25T06:15:00Z",
+  "git_head": "10513bbe0517fd81c9c87e4672bb15486a083c02",
+  "lane_id": "lane_2_risk_caps_canary_hard_gates",
+  "blocker_id": "risk_caps_canary_hard_gates_unset",
+  "operator_selected_option": "REQUIRE_IMPLEMENTATION_BEFORE_SHUTDOWN",
+  "operator_accepted": false,
+  "goal": "Define hard risk/capital gates without enabling canary/live.",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_canary": false,
+  "approves_live": false,
+  "schema": {
+    "version": "v2_risk_caps_canary_hard_gates_schema_v1",
+    "is_normative": true,
+    "is_enforceable_only_when_signed_by_operator": true,
+    "fields": [
+      {
+        "key": "max_daily_loss_pct_of_equity",
+        "type": "number",
+        "units": "percent_of_starting_day_equity",
+        "operator_decision_required": true,
+        "current_value": "OPERATOR_DECISION_REQUIRED",
+        "default_floor_when_unset": "ENGINE_FAILS_CLOSED"
+      },
+      {
+        "key": "max_daily_loss_quote_notional",
+        "type": "number",
+        "units": "USDT",
+        "operator_decision_required": true,
+        "current_value": "OPERATOR_DECISION_REQUIRED"
+      },
+      {
+        "key": "max_position_notional",
+        "type": "number",
+        "units": "USDT",
+        "operator_decision_required": true,
+        "current_value": "OPERATOR_DECISION_REQUIRED"
+      },
+      {
+        "key": "max_position_notional_pct_of_equity",
+        "type": "number",
+        "units": "percent_of_equity",
+        "operator_decision_required": true,
+        "current_value": "OPERATOR_DECISION_REQUIRED"
+      },
+      {
+        "key": "max_trade_count_per_day",
+        "type": "integer",
+        "operator_decision_required": true,
+        "current_value": "OPERATOR_DECISION_REQUIRED"
+      },
+      {
+        "key": "max_concurrent_open_positions",
+        "type": "integer",
+        "operator_decision_required": true,
+        "current_value": "OPERATOR_DECISION_REQUIRED"
+      },
+      {
+        "key": "max_drawdown_rolling_24h_pct",
+        "type": "number",
+        "units": "percent_of_equity",
+        "operator_decision_required": true,
+        "current_value": "OPERATOR_DECISION_REQUIRED"
+      },
+      {
+        "key": "max_drawdown_session_pct",
+        "type": "number",
+        "units": "percent_of_equity",
+        "operator_decision_required": true,
+        "current_value": "OPERATOR_DECISION_REQUIRED"
+      },
+      {
+        "key": "kill_switch_trigger_daily_loss_pct",
+        "type": "number",
+        "units": "percent_of_equity",
+        "operator_decision_required": true,
+        "current_value": "OPERATOR_DECISION_REQUIRED"
+      },
+      {
+        "key": "kill_switch_trigger_drawdown_pct",
+        "type": "number",
+        "units": "percent_of_equity",
+        "operator_decision_required": true,
+        "current_value": "OPERATOR_DECISION_REQUIRED"
+      },
+      {
+        "key": "kill_switch_trigger_consecutive_losses",
+        "type": "integer",
+        "operator_decision_required": true,
+        "current_value": "OPERATOR_DECISION_REQUIRED"
+      },
+      {
+        "key": "max_leverage_per_symbol",
+        "type": "number",
+        "operator_decision_required": true,
+        "current_value": "OPERATOR_DECISION_REQUIRED"
+      },
+      {
+        "key": "max_canary_capital_notional",
+        "type": "number",
+        "units": "USDT",
+        "operator_decision_required": true,
+        "current_value": "OPERATOR_DECISION_REQUIRED",
+        "approves_canary": false
+      },
+      {
+        "key": "max_canary_per_trade_notional",
+        "type": "number",
+        "units": "USDT",
+        "operator_decision_required": true,
+        "current_value": "OPERATOR_DECISION_REQUIRED",
+        "approves_canary": false
+      },
+      {
+        "key": "canary_symbol_allowlist",
+        "type": "list[string]",
+        "operator_decision_required": true,
+        "current_value": "OPERATOR_DECISION_REQUIRED",
+        "approves_canary": false
+      },
+      {
+        "key": "canary_max_daily_trade_count",
+        "type": "integer",
+        "operator_decision_required": true,
+        "current_value": "OPERATOR_DECISION_REQUIRED",
+        "approves_canary": false
+      },
+      {
+        "key": "mandatory_stop_loss_bps",
+        "type": "number",
+        "operator_decision_required": true,
+        "current_value": "OPERATOR_DECISION_REQUIRED"
+      },
+      {
+        "key": "mandatory_stop_loss_required",
+        "type": "boolean",
+        "operator_decision_required": false,
+        "current_value": true
+      }
+    ]
+  },
+  "engine_enforcement": {
+    "engine_fail_closed_when_unset": true,
+    "no_field_defaults_to_permissive": true,
+    "engine_treats_OPERATOR_DECISION_REQUIRED_as_block": true,
+    "no_canary_enable_path_in_this_lane": true,
+    "no_live_enable_path_in_this_lane": true
+  },
+  "tasks": [
+    {"id": "create_risk_cap_schema", "state": "DONE", "artifact": "schema field above"},
+    {"id": "create_max_daily_loss", "state": "OPERATOR_DECISION_REQUIRED"},
+    {"id": "create_max_position_notional", "state": "OPERATOR_DECISION_REQUIRED"},
+    {"id": "create_max_trade_count", "state": "OPERATOR_DECISION_REQUIRED"},
+    {"id": "create_max_drawdown", "state": "OPERATOR_DECISION_REQUIRED"},
+    {"id": "create_kill_switch_thresholds", "state": "OPERATOR_DECISION_REQUIRED"},
+    {"id": "values_default_to_OPERATOR_DECISION_REQUIRED_unless_configured", "state": "DONE"},
+    {"id": "do_not_approve_canary", "state": "ENFORCED"},
+    {"id": "do_not_approve_live", "state": "ENFORCED"}
+  ],
+  "blocks_paper_only_shutdown": true,
+  "blocks_live": true,
+  "blocks_canary": true,
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "writes_old_redis": false,
+    "calls_exchange_mutation": false,
+    "creates_approval_tokens": false,
+    "creates_approval_artifacts": false,
+    "modifies_legacy_repo": false,
+    "stops_legacy": false,
+    "stops_v2_runtime": false
+  }
+}

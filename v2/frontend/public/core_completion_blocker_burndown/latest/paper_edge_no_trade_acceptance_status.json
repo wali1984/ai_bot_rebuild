@@ -1,0 +1,51 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "current_no_trade_state": {
+    "no_exchange_mutation": true,
+    "no_old_redis_writes": true,
+    "no_unsafe_post_remediation_fills": true,
+    "open_positions": 0,
+    "paper_fill_allowed": false
+  },
+  "expected_move_after_cost_bps": -68.46487977617207,
+  "expected_move_after_cost_min_bps": 8.0,
+  "expected_move_bps": -56.46487977617206,
+  "generated_utc": "2026-05-16T22:36:16Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "no_trade_mode_classification": "PAPER_EDGE_NOT_PROVEN_SAFE_NO_TRADE_MODE",
+  "operator_acceptance_packet": {
+    "operator_accepts_no_trade_paper_only_for_legacy_shutdown": false,
+    "this_packet_does_not_approve_canary": true,
+    "this_packet_does_not_approve_live": true,
+    "this_packet_does_not_approve_trading": true,
+    "this_packet_does_not_loosen_paper_fill_gate": true,
+    "what_operator_must_do": "If the operator wishes to consider legacy shutdown while V2 has no positive paper edge yet, the operator must explicitly accept no-trade paper-only mode as a temporary state in the final burndown decision. This packet records the acceptance request; it does NOT auto-accept."
+  },
+  "paper_fill_allowed": false,
+  "paper_fill_gate_block_reasons": [
+    "NEGATIVE_EXPECTED_MOVE_AFTER_COST_BLOCK"
+  ],
+  "paper_fill_gate_status": "BLOCKED_BY_TRAINER_OUTPUT_MALFORMED",
+  "phase": "P7_PAPER_EDGE_NO_TRADE_ACCEPTANCE",
+  "schema_version": "v2_paper_edge_no_trade_acceptance_v1",
+  "trainer_output_invariants": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "attribution_method": "simple_sensitivity_finite_difference_on_selected_action_prob",
+    "confidence_derivation_source": "v2_native_policy_softmax_plus_temperature_scaling",
+    "expected_move_derivation_source": "v2_native_policy_expected_move_scalar_head",
+    "imports_torch": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "loads_legacy_log_lines_for_confidence": false,
+    "places_exchange_orders": false,
+    "round_trip_cost_bps_default": 12.0,
+    "trainer_source": "V2_NATIVE_RL_CORE",
+    "writes_legacy_redis": false
+  }
+}

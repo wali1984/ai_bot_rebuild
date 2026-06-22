@@ -1,0 +1,38 @@
+{
+  "subproject": "v2_native_rl_masa_ppo_p0_2a",
+  "schema_version": "1.0.0",
+  "generated_utc": "2026-05-16",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false,
+  "legacy_files": [
+    {"legacy_rel_path": "rl/environment.py", "sha256": "39866005417554c7f9552a64eddc14ec1024db7e22b432c844cfd1a8e7800b1d", "size_bytes": 66775, "v2_owned_path": "v2/legacy_owned_runtime/rl/environment.py", "behavior_categories": ["env_step_loop","position_accounting","reward_emission"], "port_status": "PARTIALLY_PORTED"},
+    {"legacy_rel_path": "rl/gymnasium_wrapper.py", "sha256": "61a086cb4a0a406ca67fe2035cf776b0c991bb9d7391572ce86e77aea0a16574", "size_bytes": 14062, "v2_owned_path": "v2/legacy_owned_runtime/rl/gymnasium_wrapper.py", "behavior_categories": ["env_factory","vec_env_wrapper"], "port_status": "MISSING_IN_V2"},
+    {"legacy_rel_path": "rl/obs_schema.py", "sha256": "9ec040fa1306ac28f4395aac103b104eb02644866ca8acec5577b155fd925f5f", "size_bytes": 17346, "v2_owned_path": "v2/legacy_owned_runtime/rl/obs_schema.py", "behavior_categories": ["observation_schema"], "port_status": "PARTIALLY_PORTED"},
+    {"legacy_rel_path": "rl/unified_feature_builder.py", "sha256": "2af5c68d812c0a0a5db2e037204f0b2165d9084dea983d1737e09034e8c739a5", "size_bytes": 29925, "v2_owned_path": "v2/legacy_owned_runtime/rl/unified_feature_builder.py", "behavior_categories": ["feature_tensor_assembly"], "port_status": "PARTIALLY_PORTED"},
+    {"legacy_rel_path": "rl/reward_functions.py", "sha256": "87ef4602012cbbd944bdf506fb8f1646375e7732c3a93e87b0946db7a1cca853", "size_bytes": 31805, "v2_owned_path": "v2/legacy_owned_runtime/rl/reward_functions.py", "behavior_categories": ["base_pnl_reward"], "port_status": "PARTIALLY_PORTED"},
+    {"legacy_rel_path": "rl/constrained_reward.py", "sha256": "69ff3c75b53d8d3d7844894954cf9d16f334e79e0c1bd39e9624a4482a459b2e", "size_bytes": 10861, "v2_owned_path": "v2/legacy_owned_runtime/rl/constrained_reward.py", "behavior_categories": ["constrained_safety_penalty"], "port_status": "PARTIALLY_PORTED"},
+    {"legacy_rel_path": "rl/fee_ratio_reward_shaping.py", "sha256": "e7edce3e29a6bf7236329245ba4a14436dc6f6b0a249ad0ad3d05760570bfc06", "size_bytes": 19427, "v2_owned_path": "v2/legacy_owned_runtime/rl/fee_ratio_reward_shaping.py", "behavior_categories": ["fee_aware_reward"], "port_status": "PARTIALLY_PORTED"},
+    {"legacy_rel_path": "rl/hedge_reward_functions.py", "sha256": "54c1a5748ca61da84d3e697cf5260251f15cc802281c951f18b902bf522b41c9", "size_bytes": 16526, "v2_owned_path": "v2/legacy_owned_runtime/rl/hedge_reward_functions.py", "behavior_categories": ["hedge_reward"], "port_status": "FAIL_CLOSED_PLACEHOLDER_UNTIL_PAPER_HEDGE_ENGINE"}
+  ],
+  "v2_modules": [
+    {"path": "v2/backend/app/services/rl_core/environment.py", "behaviors_implemented": ["PaperOnlyEnv.reset","PaperOnlyEnv.step","PaperOnlyEnv.close","env_invariants_snapshot","actions_hold_long_short_close","round_trip_cost_charged_on_close"]},
+    {"path": "v2/backend/app/services/rl_core/observation_builder.py", "behaviors_implemented": ["build_observation_from_snapshot","observation_metadata","load_snapshot_from_disk","OBSERVATION_FEATURE_ORDER_fixed","missing_value_maps_to_zero_with_flag"]},
+    {"path": "v2/backend/app/services/rl_core/rewards.py", "behaviors_implemented": ["base_pnl_reward","fee_aware_reward","constrained_safety_penalty","hedge_reward_placeholder_inert","compute_reward_suite_with_clamp"]},
+    {"path": "v2/backend/app/cli/v2_rl_core_worker.py", "behaviors_implemented": ["--p0-2a-rollout","status_payload_with_rollout_block"]}
+  ],
+  "missing_in_v2": [
+    "full_gymnasium_compatible_env_loop",
+    "masa_ppo_policy_network",
+    "checkpoint_weight_loading",
+    "gpu_training_loop",
+    "unified_feature_builder_2000_plus_dimensions",
+    "lagrangian_multiplier_state_persistence",
+    "continuous_learner_online_learning",
+    "hedge_reward_full_implementation"
+  ],
+  "migration_classification": "PARTIALLY_MIGRATED_P0_2A"
+}

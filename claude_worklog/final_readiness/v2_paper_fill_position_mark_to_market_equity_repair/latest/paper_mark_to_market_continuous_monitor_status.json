@@ -1,0 +1,22 @@
+{
+  "alert": null,
+  "cadence_seconds": "15-30 target if paper-mark-to-market timer installed; existing equity reconciliation timer remains active",
+  "generated_est": "2026-06-09T23:01:25-04:00",
+  "paper_equity_reconciliation_loop_timer": {
+    "ActiveState": "active",
+    "LoadState": "loaded",
+    "Result": "success",
+    "SubState": "waiting",
+    "UnitFileState": "enabled",
+    "unit": "ai-bot-v2-paper-equity-reconciliation-loop.timer"
+  },
+  "paper_mark_to_market_loop_timer": {
+    "ActiveState": "inactive",
+    "LoadState": "not-found",
+    "Result": "success",
+    "SubState": "dead",
+    "UnitFileState": "UNKNOWN",
+    "unit": "ai-bot-v2-paper-mark-to-market-loop.timer"
+  },
+  "schema_version": "paper_mark_to_market_continuous_monitor_status_v1"
+}

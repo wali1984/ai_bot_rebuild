@@ -1,0 +1,75 @@
+{
+  "generated_est": "2026-06-21T19:31:44-0400",
+  "generated_utc": "2026-06-21T23:31:44Z",
+  "git_head": "d36df906b7e57e4d5515416af79f68af18af3bcf",
+  "go_no_go": "V2_COPIED_RUNTIME_BURN_IN_AND_PAPER_EDGE_IMPROVEMENT_BLOCKED",
+  "live_safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "exchange_action_taken": false,
+    "legacy_root_runtime_active": false,
+    "leverage_change": false,
+    "live_binance_liquidations_active": false,
+    "live_gate": "blocked_human_only",
+    "live_gate_status": "blocked_human_only",
+    "live_symbols": [],
+    "margin_mode_change": false,
+    "old_redis_writes_detected": false,
+    "places_real_order": false,
+    "v2_canary": 0,
+    "v2_live": 0
+  },
+  "milestone": "v2_copied_runtime_burn_in_and_paper_edge_improvement",
+  "phase": 7,
+  "safe_scoped_fixes_applied_by_collector": [
+    "refreshed stale burn-in evidence artifacts",
+    "published repeatable non-mutating observer outputs"
+  ],
+  "schema_version": "v2_copied_runtime_burn_in_remediation_status_v3",
+  "summary": {
+    "tasks_block": 2,
+    "tasks_info": 1,
+    "tasks_operator_required": 1,
+    "tasks_total": 5,
+    "tasks_warn": 1
+  },
+  "tasks": [
+    {
+      "operator_gate_required": false,
+      "reason": "prior rendered screenshot crawl is older than 24h",
+      "severity": "info",
+      "status": "queued",
+      "task_id": "r_rendered_route_crawl_refresh"
+    },
+    {
+      "operator_gate_required": false,
+      "reason": "v2:market:liquidation_levels:* key count is zero",
+      "severity": "warn",
+      "status": "queued",
+      "task_id": "r_liquidation_levels_output_namespace_diagnostic"
+    },
+    {
+      "operator_gate_required": false,
+      "reason": "paper edge remains unproven",
+      "severity": "block",
+      "status": "queued",
+      "task_id": "r_paper_edge_improvement_and_replay"
+    },
+    {
+      "operator_gate_required": true,
+      "reason": "post-hoc replay thresholds are still OPERATOR_DECISION_REQUIRED",
+      "severity": "operator_required",
+      "status": "blocked_operator_required",
+      "task_id": "operator_edge_thresholds_required"
+    },
+    {
+      "operator_gate_required": false,
+      "reason": "required V2 paper/shadow runtime unit missing or inactive",
+      "severity": "block",
+      "status": "queued",
+      "task_id": "r_runtime_service_recovery"
+    }
+  ]
+}

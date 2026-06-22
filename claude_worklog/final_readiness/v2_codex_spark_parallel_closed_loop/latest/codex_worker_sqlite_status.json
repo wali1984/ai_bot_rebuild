@@ -1,0 +1,11 @@
+{
+  "status": "done",
+  "depends_on": "parent_task_completed",
+  "review_command": "codex exec review <scoped prompt>",
+  "result_mapping": {
+    "PASS": "completed",
+    "FAIL": "remediation_or_operator_required_or_unsafe"
+  },
+  "watchdog_heartbeat": true,
+  "generated_utc": "2026-05-24T00:00:00Z"
+}

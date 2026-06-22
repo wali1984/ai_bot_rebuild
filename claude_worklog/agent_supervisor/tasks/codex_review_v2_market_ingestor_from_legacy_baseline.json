@@ -1,26 +1,11 @@
 {
-  "task_id": "codex_review_v2_market_ingestor_from_legacy_baseline",
   "agent": "codex",
-  "lane": "runtime_migration_audit",
-  "risk_level": "L1",
-  "status": "pending",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "live_gate": "blocked_human_only",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/"
   ],
-  "required_input_files": [
-    "v2/backend/app/cli/v2_market_ingestor.py",
-    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_market_ingestor_from_legacy_baseline_LEGACY_BASELINE_ANALYSIS.md",
-    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_market_ingestor_from_legacy_baseline_legacy_behavior_mapping.json",
-    "claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/latest/copied_baseline_manifest.json",
-    "v2/backend/app/services/symbol_universe/service.py"
-  ],
-  "required_output_files": [
-    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_market_ingestor_from_legacy_baseline_review.md",
-    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_market_ingestor_from_legacy_baseline_go_no_go.md"
-  ],
+  "completed_at": "2026-05-14T01:18:56.219053+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
   "fail_conditions": [
     "legacy_baseline_analysis_md_missing",
     "legacy_behavior_mapping_json_missing",
@@ -40,17 +25,41 @@
     "coinank_symbols_tradable_without_binance_usdm_confirmation",
     "missing_symbol_universe_public_payload_hidden_or_mocked"
   ],
-  "go_no_go_file_contents": [
-    "V2_MARKET_INGESTOR_FROM_LEGACY_BASELINE_CODEX_PASS",
-    "V2_MARKET_INGESTOR_FROM_LEGACY_BASELINE_CODEX_FAIL"
-  ],
-  "prompt": "EMIT-FILE MODE - DO NOT USE INTERACTIVE WRITE/EDIT TOOLS. The supervisor will materialize files from stdout. Output exactly these two BEGIN_FILE blocks: BEGIN_FILE: claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_market_ingestor_from_legacy_baseline_review.md and BEGIN_FILE: claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_market_ingestor_from_legacy_baseline_go_no_go.md. The GO/NO-GO file must contain exactly one line: V2_MARKET_INGESTOR_FROM_LEGACY_BASELINE_CODEX_PASS or V2_MARKET_INGESTOR_FROM_LEGACY_BASELINE_CODEX_FAIL. Audit the V2 market ingestor baseline port. CRITICAL: verify (1) every baseline source path cited in the LEGACY_BASELINE_ANALYSIS.md has a matching sha256 in copied_baseline_manifest.json, (2) the worker writes only v2:* namespaced data plane (no old Redis keys), (3) no exchange mutating endpoint is reachable, (4) the data-source priority matches the startup-script table (CoinAPI V1 primary, Binance REST fallback for OHLCV; etc.), (5) tests cover the legacy-equivalent rate-limit backoff and reconnect behavior. Fail if any required input/output artifact is missing, if old Redis writes exist, if live gate is not blocked_human_only, if exchange mutation/leverage/margin controls are reachable, or if tests are absent.\n\nSYMBOL_UNIVERSE_CONTRACT_REQUIRED REVIEW GATE. Fail this review if the worker does not read symbol scope from the V2 Symbol Universe service or a V2 public symbol-universe payload, if it fails to distinguish `legacy_active_symbols`, `discovered_symbols`, `observed_symbols`, `training_symbols`, `paper_symbols`, and `live_blocked_symbols`, if it hardcodes the current 25 symbols as the full universe, if it trains/trades all discovered symbols automatically, or if it treats CoinAnk symbols as directly tradable without Binance USD-M confirmation. Missing public symbol-universe payload must be reported as an evidence gap, not replaced by hardcoded truth.\n\nSYMBOL_UNIVERSE_SELECTION_REVIEW_REQUIRED. Fail if the worker does not preserve `legacy_active_symbols` as the current 25-symbol legacy active subset, does not expose `dynamic_discovered_symbols` separately from selected `training_symbols` and `paper_symbols`, does not keep `live_symbols` as an empty list while live is `blocked_human_only`, treats all discovered symbols as training/paper/live scope by default, omits symbol-selection scoring factors (liquidity, volume, volatility, funding, open interest, spread, freshness, feature completeness, exchange availability, risk profile, model confidence, replay performance, operator overrides), or treats CoinAnk-only symbols as tradable without Binance USD-M confirmation.",
-  "max_attempts": 5,
-  "task_timeout_seconds": 2400,
-  "symbol_universe_contract": "SYMBOL_UNIVERSE_CONTRACT_REQUIRED",
   "forbidden": [
     "hardcoded_current_25_symbols_as_full_universe",
     "train_or_trade_all_discovered_symbols_automatically",
     "coinank_symbols_treated_as_tradable_without_binance_usdm_confirmation"
-  ]
+  ],
+  "go_no_go_file_contents": [
+    "V2_MARKET_INGESTOR_FROM_LEGACY_BASELINE_CODEX_PASS",
+    "V2_MARKET_INGESTOR_FROM_LEGACY_BASELINE_CODEX_FAIL"
+  ],
+  "lane": "runtime_migration_audit",
+  "live_gate": "blocked_human_only",
+  "max_attempts": 5,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "prompt": "EMIT-FILE MODE - DO NOT USE INTERACTIVE WRITE/EDIT TOOLS. The supervisor will materialize files from stdout. Output exactly these two BEGIN_FILE blocks: BEGIN_FILE: claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_market_ingestor_from_legacy_baseline_review.md and BEGIN_FILE: claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_market_ingestor_from_legacy_baseline_go_no_go.md. The GO/NO-GO file must contain exactly one line: V2_MARKET_INGESTOR_FROM_LEGACY_BASELINE_CODEX_PASS or V2_MARKET_INGESTOR_FROM_LEGACY_BASELINE_CODEX_FAIL. Audit the V2 market ingestor baseline port. CRITICAL: verify (1) every baseline source path cited in the LEGACY_BASELINE_ANALYSIS.md has a matching sha256 in copied_baseline_manifest.json, (2) the worker writes only v2:* namespaced data plane (no old Redis keys), (3) no exchange mutating endpoint is reachable, (4) the data-source priority matches the startup-script table (CoinAPI V1 primary, Binance REST fallback for OHLCV; etc.), (5) tests cover the legacy-equivalent rate-limit backoff and reconnect behavior. Fail if any required input/output artifact is missing, if old Redis writes exist, if live gate is not blocked_human_only, if exchange mutation/leverage/margin controls are reachable, or if tests are absent.\n\nSYMBOL_UNIVERSE_CONTRACT_REQUIRED REVIEW GATE. Fail this review if the worker does not read symbol scope from the V2 Symbol Universe service or a V2 public symbol-universe payload, if it fails to distinguish `legacy_active_symbols`, `discovered_symbols`, `observed_symbols`, `training_symbols`, `paper_symbols`, and `live_blocked_symbols`, if it hardcodes the current 25 symbols as the full universe, if it trains/trades all discovered symbols automatically, or if it treats CoinAnk symbols as directly tradable without Binance USD-M confirmation. Missing public symbol-universe payload must be reported as an evidence gap, not replaced by hardcoded truth.\n\nSYMBOL_UNIVERSE_SELECTION_REVIEW_REQUIRED. Fail if the worker does not preserve `legacy_active_symbols` as the current 25-symbol legacy active subset, does not expose `dynamic_discovered_symbols` separately from selected `training_symbols` and `paper_symbols`, does not keep `live_symbols` as an empty list while live is `blocked_human_only`, treats all discovered symbols as training/paper/live scope by default, omits symbol-selection scoring factors (liquidity, volume, volatility, funding, open interest, spread, freshness, feature completeness, exchange availability, risk profile, model confidence, replay performance, operator overrides), or treats CoinAnk-only symbols as tradable without Binance USD-M confirmation.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
+  "required_input_files": [
+    "v2/backend/app/cli/v2_market_ingestor.py",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_market_ingestor_from_legacy_baseline_LEGACY_BASELINE_ANALYSIS.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_market_ingestor_from_legacy_baseline_legacy_behavior_mapping.json",
+    "claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/latest/copied_baseline_manifest.json",
+    "v2/backend/app/services/symbol_universe/service.py"
+  ],
+  "required_output_files": [
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_market_ingestor_from_legacy_baseline_review.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_market_ingestor_from_legacy_baseline_go_no_go.md"
+  ],
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-05-14T01:18:56.219053+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/codex_review_v2_market_ingestor_from_legacy_baseline.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "symbol_universe_contract": "SYMBOL_UNIVERSE_CONTRACT_REQUIRED",
+  "task_id": "codex_review_v2_market_ingestor_from_legacy_baseline",
+  "task_timeout_seconds": 2400,
+  "updated_at": "2026-06-15T19:54:42Z"
 }

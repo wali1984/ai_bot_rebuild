@@ -1,0 +1,171 @@
+{
+  "freshness_seconds": 3099.1085517406464,
+  "go_no_go": "V2_DYNAMIC_93_EDGE_RECOVERY_AND_SIGNAL_QUALITY_BURNDOWN_BLOCKED",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "owner": "CODEX",
+  "redaction_applied": true,
+  "report_id": "v2_dynamic_93_edge_recovery_and_signal_quality_burndown",
+  "sanitized_summary": {
+    "go_no_go": "V2_DYNAMIC_93_EDGE_RECOVERY_AND_SIGNAL_QUALITY_BURNDOWN_BLOCKED",
+    "pruned": {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "blockers": [
+        {
+          "detail": "symbol_count=86",
+          "id": "SYMBOL_COUNT_NOT_93"
+        },
+        {
+          "detail": "BLOCK_LIVE_MODEL_SIGNAL_QUALITY_NOT_READY",
+          "id": "PAPER_BACKTEST_EDGE_NOT_PROVEN_AFTER_QUALITY_FIXES"
+        },
+        {
+          "detail": "one or more requested pages are not wired",
+          "id": "WEBSITE_SYNC_BLOCKED"
+        }
+      ],
+      "calls_exchange_mutation": false,
+      "execution_live_symbols": [],
+      "generated_at": "2026-06-21T19:36:10-04:00",
+      "generated_est": "2026-06-21T19:36:10-04:00",
+      "generated_utc": "2026-06-21T23:36:10Z",
+      "go_no_go": "V2_DYNAMIC_93_EDGE_RECOVERY_AND_SIGNAL_QUALITY_BURNDOWN_BLOCKED",
+      "leverage_changed": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "margin_mode_changed": false,
+      "places_real_order": false,
+      "schema_version": "v2_dynamic_93_edge_recovery_signal_quality_burndown_dashboard_v1",
+      "status": "BLOCKED",
+      "summary": {
+        "after_quality_fixes_candidate_count": 0,
+        "after_quality_fixes_ci_lower_bps": null,
+        "after_quality_fixes_expectancy_bps": null,
+        "best_diagnostic_strategy": {
+          "after_cost_expectancy_bps": 30.986704653372406,
+          "strategy": "breakout"
+        },
+        "calibration_error_bps": 46.650950905222665,
+        "classification_counts": {},
+        "high_confidence_loser_count": 50,
+        "next_automatic_action": "Continue paper/shadow outcome mining with quality overlay; do not enable execution.",
+        "pre_filter_after_cost_ci_lower_bps": -10.546501713933516,
+        "pre_filter_after_cost_expectancy_bps": -7.9849593590174015,
+        "primary_live_recommendation": "BLOCK_LIVE_MODEL_SIGNAL_QUALITY_NOT_READY",
+        "public_intel_modes": [
+          {
+            "after_cost_expectancy_bps": -6.335172823019174,
+            "after_cost_proof_state": "PAPER_EDGE_NOT_PROVEN_AFTER_COST",
+            "mode": "with_public_intel"
+          },
+          {
+            "after_cost_expectancy_bps": 0.4614858179605189,
+            "after_cost_proof_state": "PAPER_EDGE_NOT_PROVEN_AFTER_COST",
+            "mode": "without_public_intel"
+          },
+          {
+            "after_cost_expectancy_bps": -7.4992479016518825,
+            "after_cost_proof_state": "PAPER_EDGE_NOT_PROVEN_AFTER_COST",
+            "mode": "defillama_only"
+          },
+          {
+            "after_cost_expectancy_bps": -4.122944099738475,
+            "after_cost_proof_state": "PAPER_EDGE_NOT_PROVEN_AFTER_COST",
+            "mode": "news_only"
+          },
+          {
+            "after_cost_expectancy_bps": -1.4226500243395974,
+            "after_cost_proof_state": "PAPER_EDGE_NOT_PROVEN_AFTER_COST",
+            "mode": "fear_greed_only"
+          },
+          {
+            "after_cost_expectancy_bps": -9.241791949338594,
+            "after_cost_proof_state": "INSUFFICIENT_OUTCOME_SAMPLE",
+            "mode": "mempool_only"
+          }
+        ],
+        "risk_block_category_counts": {},
+        "symbol_count": 86,
+        "top_negative_symbols": [
+          {
+            "after_cost_expectancy_bps": -188.20351588911382,
+            "symbol": "ASTERUSDT"
+          },
+          {
+            "after_cost_expectancy_bps": -51.616855008070615,
+            "symbol": "EIGENUSDT"
+          },
+          {
+            "after_cost_expectancy_bps": -50.84483823876071,
+            "symbol": "FETUSDT"
+          },
+          {
+            "after_cost_expectancy_bps": -42.27336860670172,
+            "symbol": "AVNTUSDT"
+          },
+          {
+            "after_cost_expectancy_bps": -29.43482926336398,
+            "symbol": "FILUSDT"
+          },
+          {
+            "after_cost_expectancy_bps": -27.528874545089458,
+            "symbol": "XPLUSDT"
+          },
+          {
+            "after_cost_expectancy_bps": -23.18709681316106,
+            "symbol": "CRVUSDT"
+          },
+          {
+            "after_cost_expectancy_bps": -22.185641376918674,
+            "symbol": "HBARUSDT"
+          }
+        ],
+        "top_positive_symbols": [
+          {
+            "after_cost_expectancy_bps": 95.38083736521867,
+            "symbol": "UNIUSDT"
+          },
+          {
+            "after_cost_expectancy_bps": 73.40935672514748,
+            "symbol": "RAVEUSDT"
+          },
+          {
+            "after_cost_expectancy_bps": 52.040590405905746,
+            "symbol": "FARTCOINUSDT"
+          },
+          {
+            "after_cost_expectancy_bps": 43.41774704696097,
+            "symbol": "PENGUUSDT"
+          },
+          {
+            "after_cost_expectancy_bps": 33.485829959514525,
+            "symbol": "PIPPINUSDT"
+          },
+          {
+            "after_cost_expectancy_bps": 30.986704653372406,
+            "symbol": "ALICEUSDT"
+          },
+          {
+            "after_cost_expectancy_bps": 26.450880177069692,
+            "symbol": "AEROUSDT"
+          },
+          {
+            "after_cost_expectancy_bps": 24.210986267166067,
+            "symbol": "BARDUSDT"
+          }
+        ],
+        "website_sync_status": "WEBSITE_SYNC_BLOCKED"
+      },
+      "writes_old_redis": false
+    },
+    "redaction_applied": true,
+    "redaction_token": "***REDACTED***",
+    "status": "BLOCKED"
+  },
+  "stale": true,
+  "status": "BLOCKED",
+  "title": "V2 Dynamic 93 Edge Recovery And Signal Quality Burndown"
+}

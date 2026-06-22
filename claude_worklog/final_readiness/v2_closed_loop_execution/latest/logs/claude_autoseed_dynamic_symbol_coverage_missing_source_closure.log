@@ -1,0 +1,9 @@
+Both write attempts are awaiting your permission grant. The task requires writes to three explicitly-allowed paths under `CLAUDE.md`:
+
+1. `v2/backend/app/services/native_dynamic_runtime/missing_source_closure.py` — pure-function module that builds the closure payload
+2. `claude_worklog/final_readiness/v2_autonomous_mission_backlog/per_task/dynamic_symbol_coverage_missing_source_closure/IMPLEMENTATION_REPORT.md` — the per-task report (autoseed expected output)
+3. `claude_worklog/final_readiness/v2_native_dynamic_runtime_and_trainer_bridge_exit_execution/latest/dynamic_symbol_coverage_missing_source_closure_liquidations.json` + the frontend public mirror under `v2/frontend/public/...` — the sidecar closure JSON with per-symbol envelopes
+
+All three sit inside the CLAUDE.md write boundaries (`./v2/**`, `./claude_worklog/**`). No live network, no Redis writes, no credentials, no mutation of paper/training symbol policy — pure pin-preserving artifacts marking `liquidations` as `MISSING_SOURCE` for all 25 symbols with `classify_liquidation_source()` evidence.
+
+Please approve the pending Write prompts (or re-run with `--dangerously-skip-permissions` / your usual permission mode) and I'll materialize the three files. If you'd prefer a different family (e.g. `funding`, `open_interest`, or `mark_price`), or to write the closure directly into `execution.py` as a 6th tracked family instead of a sidecar, say which and I'll adjust before the writes.

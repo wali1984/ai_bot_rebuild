@@ -1,0 +1,45 @@
+{
+  "agent": "codex",
+  "depends_on_task_id": "no_manual_full_observation_builder_20260525065353_implementation",
+  "descriptor_only_progress_forbidden": true,
+  "file_lock_group": "no_manual_policy_next_automatable_actions_full_observation_builder_blocked_full_observation_builder_status",
+  "lane_group": "proof-codex",
+  "lane_type": "CODEX_REVIEW",
+  "mission_category": "observation_completeness",
+  "owner": "CODEX",
+  "paired_task_id": "no_manual_full_observation_builder_20260525065353_implementation",
+  "policy_source": "v2_autonomous_no_manual_next_task_policy",
+  "policy_source_key": "next_automatable_actions_full_observation_builder_blocked_full_observation_builder_status",
+  "prompt": "Review implementation task no_manual_full_observation_builder_20260525065353_implementation. Verify it resolves or honestly classifies the blocker without report-only drift, old Redis writes, exchange mutation, live/canary/shutdown approvals, or fake readiness. GO/NO-GO must be PASS or FAIL, and FAIL must map to remediation/operator/unsafe.",
+  "report_only_work_forbidden": true,
+  "safe_envelope": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "scope_paths": [
+    "v2/backend/app",
+    "claude_worklog/tools",
+    "claude_worklog/final_readiness"
+  ],
+  "source_classification": {
+    "allowed_classification": true,
+    "classification": "AUTOMATABLE_NOW",
+    "classification_reason": "CURRENT_BLOCKING_WORK_IS_SAFE_TO_AUTOMATE",
+    "current_blockers": [],
+    "mission_category": "observation_completeness",
+    "next_action": null,
+    "owner": "CLAUDE",
+    "report_id": "full_observation_builder",
+    "source": "next_automatable_actions",
+    "source_key": "next_automatable_actions_full_observation_builder_blocked_full_observation_builder_status",
+    "status": "BLOCKED",
+    "title": "Full Observation Builder Status"
+  },
+  "status": "pending",
+  "task_id": "codex_review_no_manual_full_observation_builder_20260525065353",
+  "task_type": "CODEX_REVIEW"
+}

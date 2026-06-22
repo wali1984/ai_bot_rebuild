@@ -296,6 +296,11 @@ import marketBrainMeta from './market-brain/meta';
 import marketBrainRbac from './market-brain/rbac';
 import marketBrainRoute from './market-brain/route';
 
+import ConfigAliasPage from './config';
+import configAliasMeta from './config/meta';
+import configAliasRbac from './config/rbac';
+import configAliasRoute from './config/route';
+
 const RAW_PAGES: ReadonlyArray<PageModule> = [
   { meta: dashboardMeta, rbac: dashboardRbac, route: dashboardRoute, Component: DashboardPage },
   { meta: permanentMigrationMeta, rbac: permanentMigrationRbac, route: permanentMigrationRoute, Component: PermanentMigrationPage },
@@ -356,6 +361,7 @@ const RAW_PAGES: ReadonlyArray<PageModule> = [
   { meta: traderLegacyAliasMeta, rbac: traderLegacyAliasRbac, route: traderLegacyAliasRoute, Component: TraderLegacyAliasPage },
   { meta: userStatusMeta, rbac: userStatusRbac, route: userStatusRoute, Component: UserStatusPage },
   { meta: marketBrainMeta, rbac: marketBrainRbac, route: marketBrainRoute, Component: MarketBrainPage },
+  { meta: configAliasMeta, rbac: configAliasRbac, route: configAliasRoute, Component: ConfigAliasPage },
 ];
 
 export const PAGES: ReadonlyArray<PageModule> = RAW_PAGES.map(resolvePageModule);

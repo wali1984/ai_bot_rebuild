@@ -1,0 +1,94 @@
+{
+  "goal_id": "V2_CLAUDE_CONTINUOUS_ADVERSARIAL_VALIDATION_AND_CAPITAL_PRODUCTIVITY_GUARDIAN",
+  "last_heartbeat_utc": "2026-06-20T17:52:00Z",
+  "state": "ACTIVE",
+  "open_findings": 18,
+  "critical_findings": 5,
+  "high_findings": 8,
+  "medium_findings": 5,
+  "completion_gates_passed": 6,
+  "completion_gates_total": 18,
+  "completion_gates_passing": [
+    "G02",
+    "G09",
+    "G10",
+    "G12",
+    "G13",
+    "G14"
+  ],
+  "completion_allowed": false,
+  "session_work_summary": {
+    "infrastructure_complete": {
+      "guardian_stop_hook": ".claude/hooks/guardian-stop.sh \u2014 exits 2 when incomplete",
+      "checkpoint_hook": ".claude/hooks/guardian_stop_hook.sh \u2014 writes STOP_CHECKPOINT.json",
+      "verifier": "scripts/verify_claude_guardian_completion.py \u2014 deterministic gate",
+      "runner": "scripts/claude_guardian_runner.sh \u2014 loops until verifier exits 0",
+      "systemd": "ai-bot-claude-guardian.service \u2014 RUNNING",
+      "goal_text": ".claude/guardian-goal.txt \u2014 2271 chars",
+      "settings_json": "Stop hooks merged \u2014 guardian-stop.sh (enforcer) + guardian_stop_hook.sh (checkpoint)"
+    },
+    "phase10_rare_event_tests": "17 scenarios run. 7 PASS, 5 FAIL, 5 WARNING. S05/S07/S08/S09/S15 FAIL.",
+    "work_queue_items_completed": [
+      "WQ-001",
+      "WQ-002",
+      "WQ-003",
+      "WQ-004",
+      "WQ-005",
+      "WQ-006",
+      "WQ-007",
+      "WQ-009",
+      "WQ-010",
+      "WQ-011"
+    ],
+    "new_escalations": [
+      "Trainer V2 safe mode \u2014 weights not loaded, 628 feedback rows cannot update model",
+      "Website /api/v2/portfolio still static_payload",
+      "Strategy flip: first 500 trades 89% trend, last 500 trades 84% mean_reversion"
+    ],
+    "gate_improvements": "G02+G09+G10 now PASSING (was 3/18, now 6/18)"
+  },
+  "runtime_portfolio_snapshot": {
+    "timestamp_utc": "2026-06-20T17:52:00Z",
+    "total_closed_trades": 1545,
+    "long_trades": 278,
+    "short_trades": 1264,
+    "long_wr_pct": 28.8,
+    "short_wr_pct": 32.5,
+    "total_net_pnl_usd": 102.13,
+    "trailing_stop_pct": 44.0,
+    "atr_stop_pct": 26.5,
+    "equity_usd": 12093.05,
+    "places_real_order": false,
+    "outcome_memory_blocked_tfs": [
+      "1h",
+      "15m",
+      "4h",
+      "1m",
+      "5m"
+    ],
+    "trainer_state": "V2_NATIVE_RL_CORE_WITH_LEGACY_CHECKPOINT_EVIDENCE \u2014 weights NOT loaded"
+  },
+  "validation_matrix_summary": {
+    "total_rows": 24,
+    "pass": 2,
+    "non_pass": 22,
+    "recently_updated": [
+      "trainer_persistence",
+      "checkpoint_save_load",
+      "feedback_consumption",
+      "website_runtime_truth",
+      "point_in_time_integrity",
+      "rare_event_handling",
+      "stop_take_profit_trailing_behavior"
+    ]
+  },
+  "next_work": "1. CG-F015 trailing activation deep-dive (verify if trailing stop price now correctly set vs previous bug). 2. Counterfactual capital sweep (WQ-012). 3. partial_fills / closed_candle_finality checks. 4. Monitor for Codex commits. 5. CG-F003 leverage tracking independent test.",
+  "codex_priority_order": [
+    "CG-F014 CRITICAL: Wire outcome_memory.degraded into audit_entry_gate (S08 FAIL confirms)",
+    "CG-F017 HIGH: Fix label inversion + unblock trainer weights loading (103/350 labels wrong, 0 weight updates occurring)",
+    "CG-F005 HIGH: Persist real orderbook spread to closed trade records (S05 FAIL)",
+    "CG-F016 HIGH: Fix exposure cap to portfolio-level (S07 FAIL: 88 positions > 32 cap)",
+    "CG-F013 CRITICAL: Mean-reversion now 84% of new trades again \u2014 strategy adaptation concern"
+  ],
+  "safety_status": "TRADING_BLOCKED \u2014 places_real_order=False, writes_legacy_redis=False, exchange_action_taken=False, live_gate=blocked_human_only. All confirmed via v2:trainer:checkpoint:evidence and /health API."
+}

@@ -1,0 +1,12 @@
+[Unit]
+Description=AI BOT V2 live transport balance-aware hold monitor timer (every 60s; no-submit)
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=60s
+AccuracySec=5s
+Persistent=true
+Unit=ai-bot-v2-live-transport-balance-hold-monitor.service
+
+[Install]
+WantedBy=timers.target

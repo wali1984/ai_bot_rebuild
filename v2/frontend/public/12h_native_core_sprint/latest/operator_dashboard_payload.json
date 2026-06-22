@@ -1,0 +1,210 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "can_shutdown_legacy_for_v2_paper_only": false,
+  "current_blockers": [
+    "CHECKPOINT_WEIGHT_BLOB_OPERATOR_REQUIRED_NOT_ACCEPTED_FOR_PAPER_ONLY_SHUTDOWN",
+    "LIVE_KUCOIN_MISSING_IN_V2",
+    "COINAPI_AND_COINANK_SECRET_OR_OPERATOR_DECISIONS_NOT_ACCEPTED",
+    "READONLY_BRIDGED_INGESTORS_NOT_ACCEPTED_FOR_SHUTDOWN",
+    "ADAPTIVE_HEDGE_FAIL_CLOSED_LIMITATION_NOT_ACCEPTED_FOR_PAPER_ONLY_SHUTDOWN",
+    "FULL_LEGACY_ORCHESTRATOR_WORKER_LOGIC_NOT_PORTED_OR_ACCEPTED",
+    "LIVE_REDIS_PROPOSAL_BUS_NOT_PORTED_OR_ACCEPTED",
+    "PAPER_EDGE_CURRENT_SAMPLE_NEGATIVE_AND_NOT_OPERATOR_ACCEPTED_AS_NO_TRADE_ONLY"
+  ],
+  "evidence_paths": {
+    "codex_go_no_go": "claude_worklog/final_readiness/12h_native_core_sprint/latest/codex_governor/CODEX_GO_NO_GO.md",
+    "codex_sweep_matrix": "claude_worklog/final_readiness/12h_native_core_sprint/latest/codex_governor/current_phase_sweep_matrix.json",
+    "codex_sweep_review": "claude_worklog/final_readiness/12h_native_core_sprint/latest/codex_governor/CODEX_CURRENT_PHASE_SWEEP_REVIEW.md",
+    "p0_2g_codex_review": "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2g/latest/codex_review/CODEX_REVIEW.md"
+  },
+  "final_go_no_go_current": "TWELVE_HOUR_NATIVE_CORE_MIGRATION_CODEX_FAIL_CORE_INCOMPLETE",
+  "generated_utc": "2026-05-16T22:17:20Z",
+  "governor_status": "CURRENT_PHASE_SWEEP_REVIEW_COMPLETE_AFTER_P0_2G",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "phase_summary": [
+    {
+      "codex_go_no_go": "V2_NATIVE_FEATURE_PIPELINE_P0_CODEX_PASS",
+      "codex_status": "PASS_PARTIALLY_MIGRATED_FEATURE_COMPUTE",
+      "evidence_paths": [
+        "claude_worklog/final_readiness/v2_native_feature_pipeline_p0/latest/codex_review/CODEX_REVIEW.md",
+        "v2/frontend/public/operator_runtime/v2_feature_pipeline_native/latest/v2_feature_pipeline_native_status.json"
+      ],
+      "name": "Native feature pipeline",
+      "phase_id": "P0.1",
+      "shutdown_blockers": [],
+      "shutdown_ready": true
+    },
+    {
+      "codex_go_no_go": "V2_NATIVE_FEATURE_PIPELINE_P0_1_TRAINER_CONSUMABLE_SNAPSHOT_CODEX_PASS",
+      "codex_status": "PASS_TRAINER_CONSUMABLE_SNAPSHOT",
+      "evidence_paths": [
+        "v2/runtime/v2_feature_pipeline_native/latest/latest_feature_snapshot.json",
+        "v2/frontend/public/operator_runtime/v2_feature_pipeline_native/latest/latest_feature_snapshot.json"
+      ],
+      "name": "Trainer-consumable feature snapshot",
+      "phase_id": "P0.1-snapshot",
+      "shutdown_blockers": [],
+      "shutdown_ready": true
+    },
+    {
+      "codex_go_no_go": "V2_NATIVE_RL_MASA_PPO_P0_2A_CODEX_PASS",
+      "codex_status": "PASS_PARTIALLY_MIGRATED_ENV_OBS_REWARD",
+      "evidence_paths": [
+        "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2a/latest/codex_review/CODEX_REVIEW.md"
+      ],
+      "name": "Env/observation/reward",
+      "phase_id": "P0.2A",
+      "shutdown_blockers": [],
+      "shutdown_ready": true
+    },
+    {
+      "codex_go_no_go": "V2_NATIVE_RL_MASA_PPO_P0_2B_CODEX_PASS",
+      "codex_status": "PASS_SCOPE_LIMITED_POLICY_FORWARD",
+      "evidence_paths": [
+        "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2b/latest/codex_review/CODEX_REVIEW.md"
+      ],
+      "name": "CPU policy forward",
+      "phase_id": "P0.2B",
+      "shutdown_blockers": [],
+      "shutdown_ready": true
+    },
+    {
+      "codex_go_no_go": "V2_NATIVE_RL_MASA_PPO_P0_2C_CODEX_PASS_SCOPE_LIMITED",
+      "codex_status": "PASS_METADATA_ONLY_OPERATOR_WEIGHT_BLOCKER",
+      "evidence_paths": [
+        "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2c/latest/checkpoint_inventory.json",
+        "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2c/latest/checkpoint_loading_status.json"
+      ],
+      "name": "Checkpoint metadata/loading",
+      "phase_id": "P0.2C",
+      "shutdown_blockers": [
+        "CHECKPOINT_WEIGHT_BLOB_OPERATOR_REQUIRED_NOT_ACCEPTED_FOR_PAPER_ONLY_SHUTDOWN"
+      ],
+      "shutdown_ready": false
+    },
+    {
+      "codex_go_no_go": "V2_NATIVE_RL_MASA_PPO_P0_2D_CODEX_PASS_SCOPE_LIMITED",
+      "codex_status": "PASS_TINY_CPU_UPDATE",
+      "evidence_paths": [
+        "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2d/latest/training_loop_status.json"
+      ],
+      "name": "Tiny CPU update",
+      "phase_id": "P0.2D",
+      "shutdown_blockers": [],
+      "shutdown_ready": true
+    },
+    {
+      "codex_go_no_go": "V2_NATIVE_RL_MASA_PPO_P0_2E_CODEX_PASS_SCOPE_LIMITED",
+      "codex_status": "PASS_TINY_GPU_STEP",
+      "evidence_paths": [
+        "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2e/latest/gpu_training_status.json"
+      ],
+      "name": "GPU step",
+      "phase_id": "P0.2E",
+      "shutdown_blockers": [],
+      "shutdown_ready": true
+    },
+    {
+      "codex_go_no_go": "V2_NATIVE_RL_MASA_PPO_P0_2F_REMEDIATION_CODEX_PASS",
+      "codex_status": "PASS_STRICT_GATE_REMEDIATED",
+      "evidence_paths": [
+        "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2f/latest/codex_review/CODEX_REVIEW.md",
+        "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2f/latest/V2_NATIVE_RL_MASA_PPO_P0_2F_REPORT.md",
+        "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2f/latest/STALE_PROSE_CLEANUP_REPORT.md"
+      ],
+      "name": "Trainer output strict paper fill gate",
+      "phase_id": "P0.2F",
+      "shutdown_blockers": [],
+      "shutdown_ready": true
+    },
+    {
+      "codex_go_no_go": "V2_NATIVE_RL_MASA_PPO_P0_2G_CODEX_PASS",
+      "codex_status": "PASS_PAPER_ONLY_ALGO_COMPLETION",
+      "evidence_paths": [
+        "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2g/latest/codex_review/CODEX_REVIEW.md",
+        "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2g/latest/trainer_algo_completion_status.json"
+      ],
+      "name": "PPO/GAE/AdamW trainer algorithm completion",
+      "phase_id": "P0.2G",
+      "shutdown_blockers": [],
+      "shutdown_ready": true
+    },
+    {
+      "codex_go_no_go": "V2_ORCHESTRATOR_ARBITRATION_P0_3_CODEX_PASS_SCOPE_LIMITED",
+      "codex_status": "PASS_SCOPE_LIMITED_PAPER_ARBITRATION",
+      "evidence_paths": [
+        "v2/backend/app/services/orchestrator_arbitration/service.py",
+        "v2/frontend/public/operator_runtime/v2_orchestrator_arbitration/latest/v2_orchestrator_arbitration_status.json"
+      ],
+      "name": "Orchestrator arbitration",
+      "phase_id": "P0.3",
+      "shutdown_blockers": [
+        "FULL_LEGACY_ORCHESTRATOR_WORKER_LOGIC_NOT_PORTED_OR_ACCEPTED",
+        "LIVE_REDIS_PROPOSAL_BUS_NOT_PORTED_OR_ACCEPTED"
+      ],
+      "shutdown_ready": false
+    },
+    {
+      "codex_go_no_go": "V2_TRADE_MANAGEMENT_PAPER_P0_4_CODEX_PASS_SCOPE_LIMITED",
+      "codex_status": "PASS_SCOPE_LIMITED_PAPER_ENGINE",
+      "evidence_paths": [
+        "v2/backend/app/services/trade_management_paper/service.py",
+        "v2/frontend/public/operator_runtime/v2_trade_management_paper/latest/v2_trade_management_paper_status.json"
+      ],
+      "name": "Trade management paper engine",
+      "phase_id": "P0.4",
+      "shutdown_blockers": [
+        "ADAPTIVE_HEDGE_FAIL_CLOSED_LIMITATION_NOT_ACCEPTED_FOR_PAPER_ONLY_SHUTDOWN"
+      ],
+      "shutdown_ready": false
+    },
+    {
+      "codex_go_no_go": "V2_NATIVE_INGESTORS_P0_5_CODEX_PASS_CLASSIFICATION_ONLY",
+      "codex_status": "PASS_CLASSIFICATION_ONLY_INGESTORS_BLOCK_SHUTDOWN",
+      "evidence_paths": [
+        "v2/backend/app/services/native_ingestors/registry.py",
+        "v2/frontend/public/operator_runtime/v2_native_ingestors/latest/v2_native_ingestors_status.json"
+      ],
+      "name": "Native ingestors",
+      "phase_id": "P0.5",
+      "shutdown_blockers": [
+        "LIVE_KUCOIN_MISSING_IN_V2",
+        "COINAPI_AND_COINANK_SECRET_OR_OPERATOR_DECISIONS_NOT_ACCEPTED",
+        "READONLY_BRIDGED_INGESTORS_NOT_ACCEPTED_FOR_SHUTDOWN"
+      ],
+      "shutdown_ready": false
+    },
+    {
+      "codex_go_no_go": "V2_OWNED_NON_LIVE_STARTUP_CODEX_PASS",
+      "codex_status": "PASS_PAPER_ONLY_STARTUP_WITH_UPSTREAM_LIMITATIONS",
+      "evidence_paths": [
+        "v2/backend/app/cli/v2_owned_non_live_startup.py",
+        "v2/frontend/public/operator_runtime/v2_owned_non_live_startup/latest/v2_owned_non_live_startup_status.json"
+      ],
+      "name": "V2-owned non-live startup",
+      "phase_id": "P9",
+      "shutdown_blockers": [
+        "UPSTREAM_CHECKPOINT_INGESTOR_HEDGE_ORCHESTRATOR_LIMITATIONS_NOT_ACCEPTED"
+      ],
+      "shutdown_ready": false
+    }
+  ],
+  "plain_english_status": "The bot is watching only. Live trading is blocked. P0.2F and P0.2G passed, but legacy shutdown is still blocked because checkpoint weights, ingestor limitations, hedge fail-closed behavior, and full orchestrator scope are not implemented or explicitly accepted for paper-only shutdown.",
+  "primary_blocker": "CORE_LIMITATIONS_NOT_ACCEPTED_FOR_PAPER_ONLY_LEGACY_SHUTDOWN",
+  "schema": "codex_12h_native_core_current_phase_sweep_operator_payload_v2",
+  "shutdown_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",
+  "validation": {
+    "approval_token_scan": "PASS_NO_ACTIVE_TOKEN_FOUND",
+    "exchange_mutation_scan_active_phase_sources": "PASS_NO_MATCHES",
+    "high_confidence_secret_scan_12h_outputs": "PASS_NO_MATCHES",
+    "old_redis_write_scan_active_phase_sources": "PASS_NO_MATCHES",
+    "p0_2g_focused_pytest": "PASS: 19 passed",
+    "p9_non_live_startup_dry_run_require_paper_only": "PASS",
+    "py_compile_active_phase_sources": "PASS",
+    "targeted_pytest": "PASS: 146 passed across P0.1/P0.1 snapshot/P0.2A-G/P0.3/P0.4/P0.5/P9"
+  }
+}

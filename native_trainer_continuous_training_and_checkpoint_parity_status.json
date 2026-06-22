@@ -1,0 +1,1764 @@
+{
+  "schema_version": "native_trainer_continuous_training_and_checkpoint_parity_status.v1",
+  "generated_at_utc": "2026-06-14T04:41:51.933044+00:00",
+  "scope": "Phase 10 continuous trainer/checkpoint parity. Read-only probes only; no restart or trainer mutation.",
+  "source_evidence": {
+    "native_trainer": [
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/persistent_cuda_trainer_runtime.py",
+        "sha256": "9e460e69ae370ec5ac77b97c3c394761f3d1dc7445f5bc3f4c2b43ffadcf3f0f",
+        "matched_terms": [
+          "checkpoint",
+          "training_steps",
+          "samples_seen",
+          "gpu",
+          "vram",
+          "cuda",
+          "batch",
+          "worker",
+          "rollover",
+          "manifest"
+        ],
+        "score": 10
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/runtime.py",
+        "sha256": "4aec9d6b75ae6c6927c00da7d097677be9203721a1de26731f9c1433fbe81bf6",
+        "matched_terms": [
+          "checkpoint",
+          "training_steps",
+          "gpu",
+          "vram",
+          "cuda",
+          "batch",
+          "worker",
+          "manifest"
+        ],
+        "score": 8
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/runtime_truth.py",
+        "sha256": "fef2e485c0347f410f0a6dca831be37da202e94bc715ec0bd30fe3f22ea68471",
+        "matched_terms": [
+          "checkpoint",
+          "training_steps",
+          "gpu",
+          "vram",
+          "cuda",
+          "batch",
+          "worker",
+          "rollover"
+        ],
+        "score": 8
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/cuda_trainer_live_gate.py",
+        "sha256": "b6adceb48b327602018b452aa6261ee5dc0b86aa49e16df49cbeaa77177e309e",
+        "matched_terms": [
+          "checkpoint",
+          "training_steps",
+          "outcome_label",
+          "gpu",
+          "vram",
+          "cuda"
+        ],
+        "score": 6
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/ppo_trainer.py",
+        "sha256": "2b8753c59195d387ce0b56caec9021bd2c0f4cabebaee64b48e9ffe77026eabb",
+        "matched_terms": [
+          "training_steps",
+          "gpu",
+          "vram",
+          "cuda",
+          "batch",
+          "worker"
+        ],
+        "score": 6
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/config.py",
+        "sha256": "f225f3fbc552a6385ec016d92bf988f3d8ca71fa65cc934b53af3e131709934e",
+        "matched_terms": [
+          "checkpoint",
+          "gpu",
+          "cuda",
+          "batch",
+          "worker"
+        ],
+        "score": 5
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/publisher.py",
+        "sha256": "da323b1febe0a5d92c8d365578043c9ea3abd8f76bdbb44a0652c183931f805c",
+        "matched_terms": [
+          "checkpoint",
+          "cuda",
+          "worker",
+          "manifest"
+        ],
+        "score": 4
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/cuda_trainer_edge_burn_in.py",
+        "sha256": "b65116fd942d369a766c3bc6e9d78a4009d8a4df19b5c4bafadf8428914d8f8b",
+        "matched_terms": [
+          "training_steps",
+          "gpu",
+          "cuda"
+        ],
+        "score": 3
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/checkpoint.py",
+        "sha256": "71d4d659fe731045c715e0062f3fe547bed8010c9b948c999bc5364f1e36da3a",
+        "matched_terms": [
+          "checkpoint",
+          "cuda",
+          "manifest"
+        ],
+        "score": 3
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/data_loader.py",
+        "sha256": "a878cec714442c2b2d3cb56c64e6d8ee874a7bcd7c30622189e42b2a093e7c8c",
+        "matched_terms": [
+          "trainer_feedback",
+          "outcome_label",
+          "cuda"
+        ],
+        "score": 3
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/safety.py",
+        "sha256": "f2d4ddd806c59989da79725a6858231f625915ea0e7b4e6ba2844151977dcabf",
+        "matched_terms": [
+          "checkpoint",
+          "cuda",
+          "manifest"
+        ],
+        "score": 3
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/dataset_builder.py",
+        "sha256": "168248ef87871528ef97476e2024cf7d40c266f589678fd9cd7bd1e5d60ac41a",
+        "matched_terms": [
+          "checkpoint",
+          "manifest"
+        ],
+        "score": 2
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/parallel_env.py",
+        "sha256": "14a11ff519262b96969e6ed0f9cea9dbc4c2771616fa52a4ee31d184bf97da17",
+        "matched_terms": [
+          "batch",
+          "worker"
+        ],
+        "score": 2
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/__init__.py",
+        "sha256": "7cf4123619e25f613411cfd1be68ee896b52683fcce956940bd6f48dd9ace291",
+        "matched_terms": [
+          "checkpoint"
+        ],
+        "score": 1
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/baseline_model.py",
+        "sha256": "6aef7daafc74b83ee45b0eb9e97cf482f357ac061ae79f866fb7f0f403f9443e",
+        "matched_terms": [
+          "checkpoint"
+        ],
+        "score": 1
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/confidence_actionability_calibration.py",
+        "sha256": "58e7138cb5bba149af77942629b0fdbf13f826bfd94a4a529223633d437cf2ab",
+        "matched_terms": [
+          "cuda"
+        ],
+        "score": 1
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/cuda_false_negative_actionability.py",
+        "sha256": "158bbccc40d4b70cfb47481a9aaa54acf1ba48526cdbeaed87d9b4994cd3e10a",
+        "matched_terms": [
+          "cuda"
+        ],
+        "score": 1
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/__init__.py",
+        "sha256": "718661325657893fd832f39d407a38c6f3a0b5b223a50113bfe52f131a8c89b6",
+        "matched_terms": [
+          "cuda"
+        ],
+        "score": 1
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/model.py",
+        "sha256": "332c907640310dc4fe2cf88f62524909c8eaff0089c5f7823d5310e58cd31abc",
+        "matched_terms": [
+          "cuda"
+        ],
+        "score": 1
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/packet.py",
+        "sha256": "fcb627de56f0cf9e8fefab98021645b5cb31c167d6a51c356a79e542225d7704",
+        "matched_terms": [
+          "checkpoint"
+        ],
+        "score": 1
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/paper_confidence_threshold_trial.py",
+        "sha256": "f3a91366884163f66db25d75ef5a656ef7b4a06c666f1e07e2731a5c07785d12",
+        "matched_terms": [
+          "cuda"
+        ],
+        "score": 1
+      }
+    ],
+    "cli": [
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/run_real_inference_paper_batch.py",
+        "sha256": "ccbeb53d2c0b590f140773a31ad99ed42cbfdb718e560630676fa32a6157b81c",
+        "matched_terms": [
+          "checkpoint",
+          "cuda",
+          "batch",
+          "worker",
+          "manifest"
+        ],
+        "score": 5
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/v2_native_hybrid_trainer_full_function_parity_and_paper_reverify.py",
+        "sha256": "fd03b18dfe84785699e446edde053ad8dbeb55b67789a87ced708bbf7238228f",
+        "matched_terms": [
+          "checkpoint",
+          "gpu",
+          "cuda",
+          "batch",
+          "worker"
+        ],
+        "score": 5
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/live_observer_bridge.py",
+        "sha256": "242c4c9a1eee90851020d25cab7a252bb2227ad50e737a9153364bd766983717",
+        "matched_terms": [
+          "checkpoint",
+          "gpu",
+          "cuda",
+          "worker"
+        ],
+        "score": 4
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/v2_native_ppo_masa_continuous_training_guard.py",
+        "sha256": "9e655ff336f2ab0b7b4af22e9258a2c356398f9468039df26bf35d8322377340",
+        "matched_terms": [
+          "checkpoint",
+          "training_steps",
+          "cuda",
+          "batch"
+        ],
+        "score": 4
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/v2_trainer_bridge.py",
+        "sha256": "9a93f5c93d31e040bf31db27c7da3c6e92d8ca3b4113711dda84dedd6a1defda",
+        "matched_terms": [
+          "checkpoint",
+          "gpu",
+          "worker",
+          "manifest"
+        ],
+        "score": 4
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/verify_pipeline_trust.py",
+        "sha256": "3ed03856e5150789e3629e87935ac4c441d4e0b4435a55f5b6c483a74046974d",
+        "matched_terms": [
+          "cuda",
+          "batch",
+          "worker",
+          "manifest"
+        ],
+        "score": 4
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/frontend_truth_payload_builder.py",
+        "sha256": "03b206c124424913a4742e868a8c18bac44710afca467160f8ee2c83148794e6",
+        "matched_terms": [
+          "checkpoint",
+          "cuda",
+          "worker"
+        ],
+        "score": 3
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/paper_online_runtime.py",
+        "sha256": "9cc30130e9f56c676bf87ec2128f13d5013a28d84228ea77cc3c4e3114873fe1",
+        "matched_terms": [
+          "checkpoint",
+          "outcome_label",
+          "cuda"
+        ],
+        "score": 3
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/run_paper_shadow_edge_report.py",
+        "sha256": "414b3f8123e85afd7c79bd5bf6ad1a27ff52acf0d8b18d08d45a0ae858025b13",
+        "matched_terms": [
+          "checkpoint",
+          "cuda",
+          "batch"
+        ],
+        "score": 3
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/v2_orchestrator_adapter.py",
+        "sha256": "ff18c26072f6e29dc6858ca5ad7fc958027c18e09424228750cb0533617ae221",
+        "matched_terms": [
+          "checkpoint",
+          "cuda",
+          "worker"
+        ],
+        "score": 3
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/v2_realtime_signal_visibility.py",
+        "sha256": "efd00b286b3cf773823efdce4b056f05d1c4b80905cf14c46c51a09a93e8ca09",
+        "matched_terms": [
+          "checkpoint",
+          "cuda",
+          "worker"
+        ],
+        "score": 3
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/v2_rl_core_inference_loop.py",
+        "sha256": "e5e3696c3830008c034623686f1e62eba3bc016aeb8e1b02f641b5121f2e524e",
+        "matched_terms": [
+          "checkpoint",
+          "cuda",
+          "worker"
+        ],
+        "score": 3
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/v2_trade_management_paper_loop.py",
+        "sha256": "af6aad320908a6e1197239e2d7a7ce88a5889765b9f10f1723f0cfc6a4ff51ce",
+        "matched_terms": [
+          "checkpoint",
+          "outcome_label",
+          "worker"
+        ],
+        "score": 3
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/zero_miss_atlas_builder.py",
+        "sha256": "cd4a60b71a5defed7943c166a4ea92df95127ccb9e69e31a601346060bcee403",
+        "matched_terms": [
+          "checkpoint",
+          "gpu",
+          "cuda"
+        ],
+        "score": 3
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/export_pipeline_trust_evidence.py",
+        "sha256": "714ec2528214c08a84188860ca87ba37e4e6357e63af5fceec2f13e2c2b61568",
+        "matched_terms": [
+          "cuda",
+          "manifest"
+        ],
+        "score": 2
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/run_trusted_prediction_publisher_once.py",
+        "sha256": "40485e58761d0c8ddae47878429808457e3c970bbd5f056b57ec57660eee4e21",
+        "matched_terms": [
+          "checkpoint",
+          "cuda"
+        ],
+        "score": 2
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/tonight_live_like_paper_shadow.py",
+        "sha256": "a684eedca89d733d3f05a4d3acb764b39730b62da232aa8853c700c5cb7503fd",
+        "matched_terms": [
+          "gpu",
+          "worker"
+        ],
+        "score": 2
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/v2_adaptive_allocation_trade_lifecycle_24h_paper_soak.py",
+        "sha256": "aab6e98bda6b43c9d23524920485c02ab90c24d132fc5c1391a22b3c3ce473c4",
+        "matched_terms": [
+          "trainer_feedback",
+          "outcome_label"
+        ],
+        "score": 2
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/v2_alternative_data_status.py",
+        "sha256": "92a48da3b68b85fc1d36ebc7bd4e94baa79d833836b64497ef2a15cfa01a1c07",
+        "matched_terms": [
+          "checkpoint",
+          "worker"
+        ],
+        "score": 2
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/v2_coinank_and_liquidation_bridge.py",
+        "sha256": "1893c7034cf3ab89f2b47659f5edb23e1c7d28f877b5173e8b7f00e055b3ef26",
+        "matched_terms": [
+          "worker",
+          "manifest"
+        ],
+        "score": 2
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/v2_cuda_trainer_gpu_trader_binance_live_gate_single_pass.py",
+        "sha256": "3bde6dbe86d94a1ebdde3c837e389359ab4fd0029ae4d27436cb65fcb5b7d7ce",
+        "matched_terms": [
+          "gpu",
+          "cuda"
+        ],
+        "score": 2
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/v2_feature_pipeline_and_ta_worker.py",
+        "sha256": "6705074252b99c2b2f62df5fec63510ad5abc3f0725c891e47fdedb506863d37",
+        "matched_terms": [
+          "worker",
+          "manifest"
+        ],
+        "score": 2
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/v2_final_live_gate_blocker_burndown_and_operator_enable_packet.py",
+        "sha256": "8b9cf473227e8156df9b21aa7490198b7f4515635fb70d1c3c0c09c96e99dc2f",
+        "matched_terms": [
+          "gpu",
+          "cuda"
+        ],
+        "score": 2
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/v2_legacy_production_service_parity_repair.py",
+        "sha256": "0acfaf7cea79e8aa60b052851747ac103ca9d991bb0e82f67db6c717d5cb9d43",
+        "matched_terms": [
+          "cuda",
+          "worker"
+        ],
+        "score": 2
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/v2_liquidation_levels_engine.py",
+        "sha256": "0e1e8552ba2651ca7a2c2fa81ce01745525bb532b1b8ab14095d16c1db1c8753",
+        "matched_terms": [
+          "batch",
+          "worker"
+        ],
+        "score": 2
+      }
+    ],
+    "tests": [
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_native_cuda_trainer_runtime_signal_burn_in_live_gate.py",
+        "sha256": "0341f3cdd9c1fca1d336a9ee28915d58fb933bf16c99d305741453a163f359d7",
+        "matched_terms": [
+          "checkpoint",
+          "training_steps",
+          "gpu",
+          "vram",
+          "cuda",
+          "manifest"
+        ],
+        "score": 6
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/domain/trainer_liveness/conftest.py",
+        "sha256": "63edae0d157e53fb80ddd9ae313e50d3d79bd22914ec1f4aeddb7b8851d4c339",
+        "matched_terms": [
+          "gpu",
+          "batch",
+          "worker",
+          "liveness",
+          "prediction_worker"
+        ],
+        "score": 5
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/domain/trainer_liveness/test_evaluator_multi_reason.py",
+        "sha256": "eae6ee7c9c9c80c27e11b4f32375d417ae9e2b13f5fc11988fd608a2ea2414ec",
+        "matched_terms": [
+          "gpu",
+          "batch",
+          "worker",
+          "liveness",
+          "prediction_worker"
+        ],
+        "score": 5
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/domain/trainer_liveness/test_public_surface.py",
+        "sha256": "e62979471464ca2f37a8b22710935553853c58db6308d2c544395ac14d58111e",
+        "matched_terms": [
+          "gpu",
+          "batch",
+          "worker",
+          "liveness",
+          "prediction_worker"
+        ],
+        "score": 5
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/domain/trainer_liveness/test_signal_snapshot_invariants.py",
+        "sha256": "d664a395148570f6b8f0c3063c7fe78fe7cc899a9228f11da3487c05f87e4ed9",
+        "matched_terms": [
+          "gpu",
+          "batch",
+          "worker",
+          "liveness",
+          "prediction_worker"
+        ],
+        "score": 5
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/domain/trainer_liveness_composition/test_compose_input_type_checks.py",
+        "sha256": "af0b2f334f20bdd67aadb6a45f0144f006bcc1ae94f01914140f2811addd9f6b",
+        "matched_terms": [
+          "gpu",
+          "batch",
+          "worker",
+          "liveness",
+          "prediction_worker"
+        ],
+        "score": 5
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/domain/trainer_liveness_composition/test_compose_now_ms_validation.py",
+        "sha256": "79a6b8298592bc43d277ff29f2d30df0fd1762b34721f8d67e1712ae8417d774",
+        "matched_terms": [
+          "gpu",
+          "batch",
+          "worker",
+          "liveness",
+          "prediction_worker"
+        ],
+        "score": 5
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/domain/trainer_liveness_composition/test_compose_propagates_alpha_validation_errors.py",
+        "sha256": "86ae0aa0bbf2fe6585f4a0367ea5251d4d27f6239b30e3c0123aaab0595c4170",
+        "matched_terms": [
+          "gpu",
+          "batch",
+          "worker",
+          "liveness",
+          "prediction_worker"
+        ],
+        "score": 5
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/domain/trainer_liveness_composition/test_compose_stream_name_validation.py",
+        "sha256": "634d5cb3f9c7b263e441d293e08ab7344c3711d67d45c594df04d248ad3462b2",
+        "matched_terms": [
+          "gpu",
+          "batch",
+          "worker",
+          "liveness",
+          "prediction_worker"
+        ],
+        "score": 5
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/domain/trainer_liveness_composition/test_compose_stream_names_must_differ.py",
+        "sha256": "2c06e07ef5d09e257fafa967b4e563cb307271c594be48e23a3985c0d41ab215",
+        "matched_terms": [
+          "gpu",
+          "batch",
+          "worker",
+          "liveness",
+          "prediction_worker"
+        ],
+        "score": 5
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/domain/trainer_liveness_composition/test_composition_inputs_validation.py",
+        "sha256": "2238935117d6994fb48ff5e352dce89f4e8791205003cf4f62dc125304c8fd02",
+        "matched_terms": [
+          "gpu",
+          "batch",
+          "worker",
+          "liveness",
+          "prediction_worker"
+        ],
+        "score": 5
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/services/native_trainer/test_persistent_cuda_trainer_runtime.py",
+        "sha256": "a568e768804012d10e54428a1ec4cd4fdad7efb67978f64478c430f630484802",
+        "matched_terms": [
+          "checkpoint",
+          "cuda",
+          "rollover",
+          "300gb",
+          "manifest"
+        ],
+        "score": 5
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/services/trainer_worker_health/test_evaluate_does_not_mutate_supplied_snapshot.py",
+        "sha256": "bd30dedf8c7536f82012068062244f365942092164301419963359e9eef8b43a",
+        "matched_terms": [
+          "gpu",
+          "batch",
+          "worker",
+          "liveness",
+          "prediction_worker"
+        ],
+        "score": 5
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/test_pipeline_trust_runtime_enforcement.py",
+        "sha256": "98bcc1eb046e829ab2a5d693c7309c51f282be45d8ecb5f645e342af4f720eae",
+        "matched_terms": [
+          "checkpoint",
+          "training_steps",
+          "cuda",
+          "batch",
+          "manifest"
+        ],
+        "score": 5
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_trainer_bridge.py",
+        "sha256": "113bd01039f8cd0ef0c1ec711e5ed34e1bff4837711598bae0345570c48f85df",
+        "matched_terms": [
+          "checkpoint",
+          "gpu",
+          "worker",
+          "manifest"
+        ],
+        "score": 4
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/domain/trainer_worker_health/test_evaluator_critical_gpu_batch_age.py",
+        "sha256": "a582f2bf2688dc4a4733cf344532e4c569ccdb7a10b249d60fe23f0097cf51ca",
+        "matched_terms": [
+          "gpu",
+          "batch",
+          "worker",
+          "liveness"
+        ],
+        "score": 4
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/domain/trainer_worker_health/test_evaluator_degraded_gpu_batch_age.py",
+        "sha256": "4ea2398db2dd0be800d75591505ab81eef6a395e6d5171c8fb15643e5fa4feaf",
+        "matched_terms": [
+          "gpu",
+          "batch",
+          "worker",
+          "liveness"
+        ],
+        "score": 4
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/domain/trainer_worker_health/test_evaluator_status_precedence_critical_over_degraded.py",
+        "sha256": "b2bb3b6f88525735e97e3331a31880575ba1cf52068c6e96a5727a3f9232b29f",
+        "matched_terms": [
+          "gpu",
+          "batch",
+          "worker",
+          "liveness"
+        ],
+        "score": 4
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/domain/trainer_worker_health/test_health_status_constants.py",
+        "sha256": "47060dbccdbfd68995b2b90376361c7cef8c92bcafa23f8fddac349acdc5bfd0",
+        "matched_terms": [
+          "gpu",
+          "batch",
+          "worker",
+          "prediction_worker"
+        ],
+        "score": 4
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/domain/trainer_worker_health/test_public_surface.py",
+        "sha256": "6912f9eaf0f63aec2066ea739650bc8b24a613ad5330119f4123a61d20303f32",
+        "matched_terms": [
+          "gpu",
+          "batch",
+          "worker",
+          "prediction_worker"
+        ],
+        "score": 4
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/services/profit_target_monitor/test_service.py",
+        "sha256": "15f4f35e03dc3173c68bf60e37643d322157a717318caddb416ab3074c7ae24a",
+        "matched_terms": [
+          "checkpoint",
+          "training_steps",
+          "trainer_feedback",
+          "cuda"
+        ],
+        "score": 4
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/services/report_center/test_report_center.py",
+        "sha256": "784420a872cc3f1dcb91ae0e011df52fef846b5cf2cb61a7ac8c1a1a32299df2",
+        "matched_terms": [
+          "checkpoint",
+          "batch",
+          "worker",
+          "manifest"
+        ],
+        "score": 4
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/services/trainer_worker_health/test_evaluate_does_not_mutate_supplied_thresholds.py",
+        "sha256": "798f5bce71762d56a0429fe997222e8b7823e80c577330ae6457e1b3672822c0",
+        "matched_terms": [
+          "gpu",
+          "batch",
+          "worker",
+          "liveness"
+        ],
+        "score": 4
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/tools/test_codex_shutdown_takeover_refinement.py",
+        "sha256": "1bd59721d0df04d6ab5bc092831b3bd1077f3e5a2702297ac9f83fadbc58908f",
+        "matched_terms": [
+          "checkpoint",
+          "worker",
+          "liveness",
+          "manifest"
+        ],
+        "score": 4
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_native_cuda_trainer_edge_calibration_outcome_burn_in.py",
+        "sha256": "2fa4b6637d003476aa758a8c70cab2d936220b8c208d4f4326cb41fa598dcb3c",
+        "matched_terms": [
+          "training_steps",
+          "gpu",
+          "cuda"
+        ],
+        "score": 3
+      }
+    ],
+    "public_payloads": [
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_native_cuda_trainer_runtime_signal_burn_in_and_website_live_gate/latest/operator_dashboard_payload.json",
+        "sha256": "32f2ecd9cd0a23a5e21bb3283bb803246c0439cc8b5d5a044a5fa4d7ad3510a9",
+        "matched_terms": [
+          "checkpoint",
+          "training_steps",
+          "outcome_label",
+          "gpu",
+          "vram",
+          "cuda",
+          "batch",
+          "worker",
+          "manifest"
+        ],
+        "score": 9
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_persistent_cuda_trainer_resource_utilization_and_paper_drawdown_guard/latest/operator_dashboard_payload.json",
+        "sha256": "60492876ea88636730e2da3584f1c981ffdebffdac6fe312be6da1024bd23f7b",
+        "matched_terms": [
+          "checkpoint",
+          "training_steps",
+          "gpu",
+          "vram",
+          "cuda",
+          "batch",
+          "worker",
+          "rollover",
+          "manifest"
+        ],
+        "score": 9
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_native_trainer/latest/native_trainer_runtime_status.json",
+        "sha256": "5689ae0336c44a51839b98332ea4c924bd2536768fb6e6527a4545c5d3e41e2a",
+        "matched_terms": [
+          "checkpoint",
+          "training_steps",
+          "gpu",
+          "vram",
+          "cuda",
+          "batch",
+          "worker",
+          "rollover"
+        ],
+        "score": 8
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_truth/latest/operator_truth_payload.json",
+        "sha256": "18266ff4dc01ae0644c5a8f6dc6962d8a9ca7bca43e33a1d6f384c1943f23026",
+        "matched_terms": [
+          "checkpoint",
+          "outcome_label",
+          "gpu",
+          "cuda",
+          "batch",
+          "worker",
+          "liveness",
+          "prediction_worker"
+        ],
+        "score": 8
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_truth_recovery/latest/operator_truth_payload.json",
+        "sha256": "18266ff4dc01ae0644c5a8f6dc6962d8a9ca7bca43e33a1d6f384c1943f23026",
+        "matched_terms": [
+          "checkpoint",
+          "outcome_label",
+          "gpu",
+          "cuda",
+          "batch",
+          "worker",
+          "liveness",
+          "prediction_worker"
+        ],
+        "score": 8
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/paper_online_canonical_truth_bridge/latest/operator_truth_payload.json",
+        "sha256": "76c99e223c1e1fa76ed6522bc95f43af0f6f8856e3479c98f559c791cb3830b9",
+        "matched_terms": [
+          "checkpoint",
+          "outcome_label",
+          "gpu",
+          "cuda",
+          "batch",
+          "worker",
+          "liveness",
+          "prediction_worker"
+        ],
+        "score": 8
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/realtime_control_plane_recovery/latest/operator_truth_payload.json",
+        "sha256": "18266ff4dc01ae0644c5a8f6dc6962d8a9ca7bca43e33a1d6f384c1943f23026",
+        "matched_terms": [
+          "checkpoint",
+          "outcome_label",
+          "gpu",
+          "cuda",
+          "batch",
+          "worker",
+          "liveness",
+          "prediction_worker"
+        ],
+        "score": 8
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/realtime_control_plane_trainer_monitor_recovery/latest/operator_truth_payload.json",
+        "sha256": "18266ff4dc01ae0644c5a8f6dc6962d8a9ca7bca43e33a1d6f384c1943f23026",
+        "matched_terms": [
+          "checkpoint",
+          "outcome_label",
+          "gpu",
+          "cuda",
+          "batch",
+          "worker",
+          "liveness",
+          "prediction_worker"
+        ],
+        "score": 8
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_model_state_ai_predictions_signals_and_runtime_truth_semantic_repair/latest/native_trainer_runtime_status.json",
+        "sha256": "b8ae9b7a7f5197a01477cec40a8bc43244ceb3f4b911480a77f7dadce8138af8",
+        "matched_terms": [
+          "checkpoint",
+          "training_steps",
+          "gpu",
+          "vram",
+          "cuda",
+          "batch",
+          "worker",
+          "rollover"
+        ],
+        "score": 8
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_native_cuda_trainer_edge_calibration_and_outcome_burn_in/latest/operator_dashboard_payload.json",
+        "sha256": "9ee5558544d6842be2568957fff7b81fee6f5c64b32c630496484b6ed5188c1d",
+        "matched_terms": [
+          "checkpoint",
+          "training_steps",
+          "gpu",
+          "vram",
+          "cuda",
+          "batch",
+          "worker",
+          "manifest"
+        ],
+        "score": 8
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/legacy_runtime_gap_closure_20260603/latest/STATUS.json",
+        "sha256": "3710809e7b9e66790e0ecbcb5af590b22f526367726cfc2a1b97508fca94ae1b",
+        "matched_terms": [
+          "checkpoint",
+          "gpu",
+          "vram",
+          "cuda",
+          "batch",
+          "worker",
+          "manifest"
+        ],
+        "score": 7
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/v2_trainer_bridge_status.json",
+        "sha256": "b379e8cf1b461098a5f4e498613ccabad91edb4cd62efef9fbe01fb50c7aaef7",
+        "matched_terms": [
+          "checkpoint",
+          "gpu",
+          "vram",
+          "cuda",
+          "batch",
+          "worker",
+          "manifest"
+        ],
+        "score": 7
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_cuda_trainer_gpu_trader_binance_live_gate_single_pass/latest/operator_dashboard_payload.json",
+        "sha256": "6f3f6f8ac0cbefb66af2ae009cf1d15ece2125b1a8b26c75b11a69ae94a68c94",
+        "matched_terms": [
+          "checkpoint",
+          "training_steps",
+          "gpu",
+          "vram",
+          "cuda",
+          "batch",
+          "worker"
+        ],
+        "score": 7
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_native_trainer_hybrid_legacy_parity_and_liquidation_level_validation/latest/operator_dashboard_payload.json",
+        "sha256": "8d6cbbbf57e62114ab56af61a5c0bc6144f4b3af78f80c4edc812ec2c6458474",
+        "matched_terms": [
+          "checkpoint",
+          "training_steps",
+          "gpu",
+          "cuda",
+          "batch",
+          "worker",
+          "manifest"
+        ],
+        "score": 7
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/codex_shutdown_readiness_takeover/latest/codex_shutdown_takeover_status.json",
+        "sha256": "39a88ce567e194d9938e438003391fb0b1febb50a489aefef3bad95e5f8a244e",
+        "matched_terms": [
+          "checkpoint",
+          "gpu",
+          "cuda",
+          "worker",
+          "liveness",
+          "manifest"
+        ],
+        "score": 6
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/local_secret_vault/latest/operator_dashboard_payload.json",
+        "sha256": "b3ef0df518fc51093a80e5b366456147454909ef001bd946aac7b3ae1e875577",
+        "matched_terms": [
+          "checkpoint",
+          "gpu",
+          "batch",
+          "worker",
+          "liveness",
+          "manifest"
+        ],
+        "score": 6
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_monthly_10k_profit_target_monitor/latest/trainer_profit_goal_capability_status.json",
+        "sha256": "2f980844491c22d2d3e3f8d2768cfa915a7440b6cd470e9e4111c3940f42dde1",
+        "matched_terms": [
+          "checkpoint",
+          "training_steps",
+          "samples_seen",
+          "trainer_feedback",
+          "outcome_label",
+          "cuda"
+        ],
+        "score": 6
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_native_trainer/latest/native_cuda_trainer_resource_utilization_status.json",
+        "sha256": "98fd13be2aa81df0f4fdb5ff4874bdcc89d54c42da61577ec256f1a1425f86a9",
+        "matched_terms": [
+          "training_steps",
+          "gpu",
+          "vram",
+          "cuda",
+          "batch",
+          "worker"
+        ],
+        "score": 6
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_native_trainer/latest/native_trainer_gpu_status.json",
+        "sha256": "98fd13be2aa81df0f4fdb5ff4874bdcc89d54c42da61577ec256f1a1425f86a9",
+        "matched_terms": [
+          "training_steps",
+          "gpu",
+          "vram",
+          "cuda",
+          "batch",
+          "worker"
+        ],
+        "score": 6
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_script_monitor/latest/v2_script_monitor_status.json",
+        "sha256": "504f8aa2e96eadafb8a54b3b15b0b7236d49352241388606557ed05202b1de58",
+        "matched_terms": [
+          "checkpoint",
+          "gpu",
+          "cuda",
+          "batch",
+          "worker",
+          "manifest"
+        ],
+        "score": 6
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_signals/latest/cuda_cpu_resource_utilization_upgrade_status.json",
+        "sha256": "8498f67b08d0e8a20642263656af07db2e01139df361f2af538a18100d0f547e",
+        "matched_terms": [
+          "training_steps",
+          "gpu",
+          "vram",
+          "cuda",
+          "batch",
+          "worker"
+        ],
+        "score": 6
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_signals/latest/signals_payload.json",
+        "sha256": "88bf8e68de3c1ae6295a2cfcbbfb4a36bb9dea83dafd4dc5b943ef05b0694d2c",
+        "matched_terms": [
+          "training_steps",
+          "gpu",
+          "vram",
+          "cuda",
+          "batch",
+          "worker"
+        ],
+        "score": 6
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_truth_recovery/latest/realtime_legacy_monitor_status.json",
+        "sha256": "d1ab3be013e6744be7f56aef2e09336c1905cd2b7e6a2f923cf67ade7fb64bac",
+        "matched_terms": [
+          "checkpoint",
+          "outcome_label",
+          "gpu",
+          "cuda",
+          "batch",
+          "worker"
+        ],
+        "score": 6
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_all_timeframe_prediction_signal_price_target_publisher/latest/cuda_cpu_resource_utilization_upgrade_status.json",
+        "sha256": "8498f67b08d0e8a20642263656af07db2e01139df361f2af538a18100d0f547e",
+        "matched_terms": [
+          "training_steps",
+          "gpu",
+          "vram",
+          "cuda",
+          "batch",
+          "worker"
+        ],
+        "score": 6
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_cuda_trainer_gpu_trader_binance_live_gate_single_pass/latest/cuda_trainer_resource_utilization_status.json",
+        "sha256": "69e62393a0a21a94b0e4238fb30b9195bb9cb25a6aef1b421df2374a4f288a80",
+        "matched_terms": [
+          "training_steps",
+          "gpu",
+          "vram",
+          "cuda",
+          "batch",
+          "worker"
+        ],
+        "score": 6
+      }
+    ]
+  },
+  "runtime_readonly_probe": {
+    "trainer_process_probe": {
+      "returncode": 0,
+      "matches": [
+        "3312 /home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_trainer_checkpoint_evidence_publisher --loop --interval-seconds 300 --write-v2-redis --v2-redis-ttl-seconds 900",
+        "1026210 /home/wali/Desktop/AI BOT REBUILD/.venv/bin/python -m v2.backend.app.cli.v2_native_cuda_trainer_persistent_loop --repo-root /home/wali/Desktop/AI BOT REBUILD --interval-seconds 30 --max-rows 8192",
+        "1457082 tail -n 120 -F claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-native-cuda-trainer-persistent.log",
+        "1457089 tail -n 120 -F claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-native-cuda-trainer-persistent.err",
+        "1457093 tail -n 80 -F claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-trainer-training-live-loop.log claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-trainer-training-live-loop.err",
+        "1457592 bash -lc cd \"/home/wali/Desktop/AI BOT REBUILD\"; tmux attach -t v2_trainer_verbose; exec bash",
+        "1457597 tmux attach -t v2_trainer_verbose",
+        "1519476 watch -n 10 printf \"V2 structured prediction detail: current replacement for legacy hybrid_trainer feature-key debug\\n\\n\"; jq '{generated_est,prediction_rows_count,blocked_prediction_rows_count,sample:(.prediction_rows[0] | {symbol,timeframe,selected_action,confidence_raw,confidence_calibrated,expected_move_after_cost_bps,prediction_redis_key,feature_snapshot_id,missing_feature_count,missing_feature_names:(.missing_feature_names[:8]),source_lineage:{prediction_generated_est:.source_lineage.prediction_generated_est,price_redis_key:.source_lineage.price_redis_key,calibration_source:.source_lineage.calibration_source,required_trainer_source:.source_lineage.required_trainer_source,source_event_time_est:.source_lineage.market_state_integrity.source_event_time_est,source_received_time_est:.source_lineage.market_state_integrity.source_received_time_est}})}' v2/frontend/public/operator_runtime/v2_signals/latest/all_symbol_all_timeframe_cuda_prediction_status.json",
+        "1522991 bash -lc while true; do clear; date; echo; jq '{generated_est,prediction_rows_count,unique_symbols:([.prediction_rows[]?.symbol] | unique | length),timeframes:([.prediction_rows[]?.timeframe] | unique)}' v2/frontend/public/operator_runtime/v2_signals/latest/all_symbol_all_timeframe_cuda_prediction_status.json; echo; printf \"%-16s %-4s %-7s %-7s %-10s %s\\n\" SYMBOL TF ACTION CONF% EDGE_BPS REDIS_KEY; jq -r '.prediction_rows[]? | [.symbol,.timeframe,.selected_action,(((.confidence_calibrated//0)*1000|floor)/10),(((.expected_move_after_cost_bps//0)*100|floor)/100),(.prediction_redis_key//\"\")] | @tsv' v2/frontend/public/operator_runtime/v2_signals/latest/all_symbol_all_timeframe_cuda_prediction_status.json | head -n 90; sleep 10; done",
+        "3195176 /home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_trainer_training_live_loop --loop --interval-seconds 300 --minimum-train-rows 64 --v2-redis-ttl-seconds 900"
+      ]
+    },
+    "redis_readonly_first_scan": {
+      "v2:trainer:*": {
+        "returncode": 0,
+        "first_scan_non_cursor_items": 6,
+        "sample": [
+          "152704",
+          "v2:trainer:hybrid_cuda:signals:paper:SEIUSDT:15m",
+          "v2:trainer:hybrid_cuda:signals:paper:JTOUSDT:15m",
+          "v2:trainer:hybrid_cuda:signals:paper:FIDAUSDT:15m",
+          "v2:trainer:hybrid_cuda:signals:paper:PIPPINUSDT:1m",
+          "v2:trainer:hybrid_cuda:signals:paper:AVNTUSDT:5m"
+        ]
+      },
+      "v2:native_trainer:*": {
+        "returncode": 0,
+        "first_scan_non_cursor_items": 1,
+        "sample": [
+          "152704"
+        ]
+      },
+      "v2:prediction:*": {
+        "returncode": 0,
+        "first_scan_non_cursor_items": 3,
+        "sample": [
+          "152704",
+          "v2:prediction:NIGHTUSDT:1h",
+          "v2:prediction:IPUSDT:15m"
+        ]
+      },
+      "v2:training:*": {
+        "returncode": 0,
+        "first_scan_non_cursor_items": 1,
+        "sample": [
+          "152704"
+        ]
+      },
+      "v2:trainer_feedback:*": {
+        "returncode": 0,
+        "first_scan_non_cursor_items": 1,
+        "sample": [
+          "152704"
+        ]
+      },
+      "v2:paper:*training*": {
+        "returncode": 0,
+        "first_scan_non_cursor_items": 1,
+        "sample": [
+          "152704"
+        ]
+      },
+      "v2:*checkpoint*": {
+        "returncode": 0,
+        "first_scan_non_cursor_items": 1,
+        "sample": [
+          "152704"
+        ]
+      }
+    },
+    "checkpoint_candidates_sample": [
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/restart_hybrid_trainer_checkpoints.py",
+        "is_dir": false,
+        "size_bytes": 6842,
+        "mtime": "2025-10-06T21:31:07.206046+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/merge_checkpoints.py",
+        "is_dir": false,
+        "size_bytes": 13301,
+        "mtime": "2025-10-06T05:36:02.670690+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/runtime/v2_trainer_checkpoint_evidence",
+        "is_dir": true,
+        "size_bytes": 4096,
+        "mtime": "2026-06-03T23:34:40.325550+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/claude_worklog/final_readiness/v2_model_parity_sprint/latest/checkpoint_candidate_inventory.json",
+        "is_dir": false,
+        "size_bytes": 1259,
+        "mtime": "2026-06-11T03:31:44.542396+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/scripts/run_p1_checkpoint_resolution.py",
+        "is_dir": false,
+        "size_bytes": 3164,
+        "mtime": "2026-05-16T22:24:08.675935+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/v2_checkpoint_promotion_status.py",
+        "is_dir": false,
+        "size_bytes": 2894,
+        "mtime": "2026-05-17T17:24:08.187774+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/v2_trainer_checkpoint_evidence_publisher.py",
+        "is_dir": false,
+        "size_bytes": 4680,
+        "mtime": "2026-06-03T23:34:29.154461+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/__pycache__/v2_trainer_checkpoint_evidence_publisher.cpython-312.pyc",
+        "is_dir": false,
+        "size_bytes": 6761,
+        "mtime": "2026-06-05T04:58:21.771034+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/__pycache__/v2_checkpoint_promotion_status.cpython-312.pyc",
+        "is_dir": false,
+        "size_bytes": 4201,
+        "mtime": "2026-06-05T04:58:21.746009+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/rl_core/checkpoint_metadata.py",
+        "is_dir": false,
+        "size_bytes": 3818,
+        "mtime": "2026-06-03T23:34:29.154461+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/rl_core/checkpoint_promotion.py",
+        "is_dir": false,
+        "size_bytes": 16393,
+        "mtime": "2026-05-26T17:48:10.564804+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/rl_core/checkpoints.py",
+        "is_dir": false,
+        "size_bytes": 8248,
+        "mtime": "2026-06-03T23:34:29.154461+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/rl_core/trainer_checkpoint_evidence.py",
+        "is_dir": false,
+        "size_bytes": 5593,
+        "mtime": "2026-06-03T23:34:52.852799+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/rl_core/checkpoint_inventory.py",
+        "is_dir": false,
+        "size_bytes": 8230,
+        "mtime": "2026-05-17T17:45:19.340456+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/checkpoint.py",
+        "is_dir": false,
+        "size_bytes": 2624,
+        "mtime": "2026-06-04T18:55:48.207842+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/__pycache__/checkpoint.cpython-312.pyc",
+        "is_dir": false,
+        "size_bytes": 4039,
+        "mtime": "2026-06-05T04:58:22.044393+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/rl_core/__pycache__/checkpoints.cpython-312.pyc",
+        "is_dir": false,
+        "size_bytes": 10140,
+        "mtime": "2026-06-05T04:58:22.096458+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/rl_core/__pycache__/checkpoint_promotion.cpython-312.pyc",
+        "is_dir": false,
+        "size_bytes": 15665,
+        "mtime": "2026-06-05T04:58:22.084924+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/rl_core/__pycache__/trainer_checkpoint_evidence.cpython-312.pyc",
+        "is_dir": false,
+        "size_bytes": 7447,
+        "mtime": "2026-06-05T04:58:22.121857+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/rl_core/__pycache__/checkpoint_metadata.cpython-312.pyc",
+        "is_dir": false,
+        "size_bytes": 4647,
+        "mtime": "2026-06-05T04:58:22.081583+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/rl_core/__pycache__/checkpoint_inventory.cpython-312.pyc",
+        "is_dir": false,
+        "size_bytes": 9751,
+        "mtime": "2026-06-05T04:58:22.125496+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_trainer_checkpoint_evidence.py",
+        "is_dir": false,
+        "size_bytes": 1469,
+        "mtime": "2026-06-03T23:34:29.154461+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_rl_core_p0_2c_checkpoint.py",
+        "is_dir": false,
+        "size_bytes": 4623,
+        "mtime": "2026-06-03T23:34:29.154461+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_checkpoint_weight_burndown.py",
+        "is_dir": false,
+        "size_bytes": 4260,
+        "mtime": "2026-05-17T02:31:35.108636+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_checkpoint_promotion_status.py",
+        "is_dir": false,
+        "size_bytes": 15927,
+        "mtime": "2026-05-26T17:51:17.219870+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/__pycache__/test_v2_checkpoint_weight_burndown.cpython-312-pytest-9.0.3.pyc",
+        "is_dir": false,
+        "size_bytes": 17176,
+        "mtime": "2026-06-11T03:18:28.330568+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/__pycache__/test_v2_rl_core_p0_2c_checkpoint.cpython-312-pytest-8.3.3.pyc",
+        "is_dir": false,
+        "size_bytes": 17930,
+        "mtime": "2026-06-03T23:34:38.463863+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/__pycache__/test_v2_checkpoint_promotion_status.cpython-312-pytest-9.0.3.pyc",
+        "is_dir": false,
+        "size_bytes": 55536,
+        "mtime": "2026-06-11T03:18:28.325165+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/__pycache__/test_v2_rl_core_p0_2c_checkpoint.cpython-312-pytest-9.0.3.pyc",
+        "is_dir": false,
+        "size_bytes": 18860,
+        "mtime": "2026-06-11T03:18:29.710389+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/__pycache__/test_v2_checkpoint_promotion_status.cpython-312-pytest-8.3.3.pyc",
+        "is_dir": false,
+        "size_bytes": 52581,
+        "mtime": "2026-05-26T17:51:37.707384+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/__pycache__/test_v2_trainer_checkpoint_evidence.cpython-312-pytest-9.0.3.pyc",
+        "is_dir": false,
+        "size_bytes": 5965,
+        "mtime": "2026-06-11T03:18:29.926368+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/__pycache__/test_v2_checkpoint_promotion_status.cpython-312.pyc",
+        "is_dir": false,
+        "size_bytes": 9609,
+        "mtime": "2026-05-24T11:27:57.562366+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/__pycache__/test_v2_rl_core_p0_2c_checkpoint.cpython-312.pyc",
+        "is_dir": false,
+        "size_bytes": 5338,
+        "mtime": "2026-05-24T11:27:57.561659+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/__pycache__/test_v2_trainer_checkpoint_evidence.cpython-312-pytest-8.3.3.pyc",
+        "is_dir": false,
+        "size_bytes": 5545,
+        "mtime": "2026-06-03T23:34:38.466925+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/__pycache__/test_v2_checkpoint_weight_burndown.cpython-312-pytest-8.3.3.pyc",
+        "is_dir": false,
+        "size_bytes": 16248,
+        "mtime": "2026-05-17T02:31:47.935882+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/domain/trainer_prediction_output/test_record_invariants_checkpoint_id.py",
+        "is_dir": false,
+        "size_bytes": 1324,
+        "mtime": "2026-05-05T06:51:02.322119+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/domain/trainer_prediction_output/__pycache__/test_record_invariants_checkpoint_id.cpython-312.pyc",
+        "is_dir": false,
+        "size_bytes": 2416,
+        "mtime": "2026-05-05T22:11:59.414449+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/domain/trainer_prediction_output/__pycache__/test_record_invariants_checkpoint_id.cpython-312-pytest-9.0.3.pyc",
+        "is_dir": false,
+        "size_bytes": 4584,
+        "mtime": "2026-05-05T06:56:12.558806+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/domain/trainer_prediction_output/__pycache__/test_record_invariants_checkpoint_id.cpython-312-pytest-8.3.3.pyc",
+        "is_dir": false,
+        "size_bytes": 4415,
+        "mtime": "2026-05-21T03:39:32.282351+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_preserved/full_runtime_closure/rl/checkpoint_manager.py",
+        "is_dir": false,
+        "size_bytes": 12300,
+        "mtime": "2026-05-14T18:31:31.619760+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/v2/frontend/public/v2_model_parity_sprint/latest/checkpoint_candidate_inventory.json",
+        "is_dir": false,
+        "size_bytes": 1259,
+        "mtime": "2026-06-11T03:31:44.542431+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_checkpoint_weight_burndown",
+        "is_dir": true,
+        "size_bytes": 4096,
+        "mtime": "2026-05-17T02:30:12.080653+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_checkpoint_promotion_shape_contract_torch_native_remediation",
+        "is_dir": true,
+        "size_bytes": 4096,
+        "mtime": "2026-05-26T18:10:42.598919+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_checkpoint_promotion",
+        "is_dir": true,
+        "size_bytes": 4096,
+        "mtime": "2026-05-17T17:22:37.756774+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/dist/v2_checkpoint_weight_burndown",
+        "is_dir": true,
+        "size_bytes": 4096,
+        "mtime": "2026-06-14T04:34:45.557060+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/dist/v2_checkpoint_promotion_shape_contract_torch_native_remediation",
+        "is_dir": true,
+        "size_bytes": 4096,
+        "mtime": "2026-06-14T04:34:45.556890+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/dist/v2_checkpoint_promotion",
+        "is_dir": true,
+        "size_bytes": 4096,
+        "mtime": "2026-06-14T04:34:45.556657+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_trainer_checkpoint_evidence",
+        "is_dir": true,
+        "size_bytes": 4096,
+        "mtime": "2026-06-03T23:34:40.324480+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_checkpoint_promotion_shape_contract_torch_native_remediation/latest/checkpoint_promotion_shape_contract_status.json",
+        "is_dir": false,
+        "size_bytes": 7244,
+        "mtime": "2026-05-26T18:14:15.370853+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_persistent_cuda_trainer_resource_utilization_and_paper_drawdown_guard/latest/native_cuda_trainer_checkpoint_retention_status.json",
+        "is_dir": false,
+        "size_bytes": 970,
+        "mtime": "2026-06-14T04:39:44.546464+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_report_center/latest/safe_summaries/checkpoint_promotion.json",
+        "is_dir": false,
+        "size_bytes": 997,
+        "mtime": "2026-06-14T04:41:23.748023+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_model_parity_sprint/latest/checkpoint_candidate_inventory.json",
+        "is_dir": false,
+        "size_bytes": 102748,
+        "mtime": "2026-06-13T22:17:35.729627+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/core_completion_blocker_burndown/latest/checkpoint_weight_resolution.json",
+        "is_dir": false,
+        "size_bytes": 1998,
+        "mtime": "2026-05-16T22:24:18.650022+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_model_state_ai_predictions_signals_and_runtime_truth_semantic_repair/latest/native_trainer_checkpoint_retention_status.json",
+        "is_dir": false,
+        "size_bytes": 970,
+        "mtime": "2026-06-13T20:52:21.182403+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_native_trainer/latest/native_cuda_trainer_checkpoint_retention_status.json",
+        "is_dir": false,
+        "size_bytes": 970,
+        "mtime": "2026-06-14T04:39:44.548351+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_native_trainer/latest/native_trainer_checkpoint_status.json",
+        "is_dir": false,
+        "size_bytes": 970,
+        "mtime": "2026-06-14T04:39:44.550319+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_trainer_checkpoint_evidence/latest/v2_trainer_checkpoint_evidence_status.json",
+        "is_dir": false,
+        "size_bytes": 6610,
+        "mtime": "2026-06-14T04:37:37.673348+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/dist/operator_runtime/v2_trainer_checkpoint_evidence",
+        "is_dir": true,
+        "size_bytes": 4096,
+        "mtime": "2026-06-14T04:34:44.666258+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/dist/v2_checkpoint_promotion_shape_contract_torch_native_remediation/latest/checkpoint_promotion_shape_contract_status.json",
+        "is_dir": false,
+        "size_bytes": 7244,
+        "mtime": "2026-06-14T04:34:45.556963+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/dist/v2_persistent_cuda_trainer_resource_utilization_and_paper_drawdown_guard/latest/native_cuda_trainer_checkpoint_retention_status.json",
+        "is_dir": false,
+        "size_bytes": 970,
+        "mtime": "2026-06-14T04:34:45.787984+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/dist/v2_report_center/latest/safe_summaries/checkpoint_promotion.json",
+        "is_dir": false,
+        "size_bytes": 998,
+        "mtime": "2026-06-14T04:34:50.900042+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/dist/v2_model_parity_sprint/latest/checkpoint_candidate_inventory.json",
+        "is_dir": false,
+        "size_bytes": 102748,
+        "mtime": "2026-06-14T04:34:45.647455+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/dist/core_completion_blocker_burndown/latest/checkpoint_weight_resolution.json",
+        "is_dir": false,
+        "size_bytes": 1998,
+        "mtime": "2026-06-14T04:34:44.092909+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/dist/v2_model_state_ai_predictions_signals_and_runtime_truth_semantic_repair/latest/native_trainer_checkpoint_retention_status.json",
+        "is_dir": false,
+        "size_bytes": 970,
+        "mtime": "2026-06-14T04:34:45.647770+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/dist/operator_runtime/v2_native_trainer/latest/native_cuda_trainer_checkpoint_retention_status.json",
+        "is_dir": false,
+        "size_bytes": 970,
+        "mtime": "2026-06-14T04:34:44.570323+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/dist/operator_runtime/v2_native_trainer/latest/native_trainer_checkpoint_status.json",
+        "is_dir": false,
+        "size_bytes": 970,
+        "mtime": "2026-06-14T04:34:44.570363+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/dist/operator_runtime/v2_trainer_checkpoint_evidence/latest/v2_trainer_checkpoint_evidence_status.json",
+        "is_dir": false,
+        "size_bytes": 6610,
+        "mtime": "2026-06-14T04:34:44.666320+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/checkpoint_manager.py",
+        "is_dir": false,
+        "size_bytes": 12300,
+        "mtime": "2025-12-27T04:08:31.342679+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/models/checkpoints",
+        "is_dir": true,
+        "size_bytes": 4096,
+        "mtime": "2026-05-16T02:07:11.224361+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/__pycache__/restart_hybrid_trainer_checkpoints.cpython-312.pyc",
+        "is_dir": false,
+        "size_bytes": 8838,
+        "mtime": "2026-05-16T02:09:39.832528+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/__pycache__/merge_checkpoints.cpython-312.pyc",
+        "is_dir": false,
+        "size_bytes": 16060,
+        "mtime": "2026-05-16T02:09:39.966223+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/full_runtime_closure/rl/checkpoint_manager.py",
+        "is_dir": false,
+        "size_bytes": 12300,
+        "mtime": "2026-05-14T18:31:31.619760+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/full_runtime_closure/models/checkpoints",
+        "is_dir": true,
+        "size_bytes": 4096,
+        "mtime": "2026-05-15T23:31:52.930172+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/full_runtime_closure/rl/__pycache__/checkpoint_manager.cpython-312.pyc",
+        "is_dir": false,
+        "size_bytes": 14916,
+        "mtime": "2026-05-16T02:09:36.305787+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/__pycache__/checkpoint_manager.cpython-312.pyc",
+        "is_dir": false,
+        "size_bytes": 14895,
+        "mtime": "2026-05-16T02:09:37.679026+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/runtime/v2_trainer_checkpoint_evidence/latest/v2_trainer_checkpoint_evidence_status.json",
+        "is_dir": false,
+        "size_bytes": 6610,
+        "mtime": "2026-06-14T04:37:37.673687+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/scripts/run_p1_checkpoint_resolution.py",
+        "is_dir": false,
+        "size_bytes": 3164,
+        "mtime": "2026-05-16T22:24:08.675935+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/v2_checkpoint_promotion_status.py",
+        "is_dir": false,
+        "size_bytes": 2894,
+        "mtime": "2026-05-17T17:24:08.187774+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/v2_trainer_checkpoint_evidence_publisher.py",
+        "is_dir": false,
+        "size_bytes": 4680,
+        "mtime": "2026-06-03T23:34:29.154461+00:00"
+      },
+      {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/__pycache__/v2_trainer_checkpoint_evidence_publisher.cpython-312.pyc",
+        "is_dir": false,
+        "size_bytes": 6761,
+        "mtime": "2026-06-05T04:58:21.771034+00:00"
+      }
+    ]
+  },
+  "checks": [
+    {
+      "check": "persistent_trainer_process_active",
+      "status": "EVIDENCE_FOUND_NEEDS_SEMANTIC_REVIEW",
+      "value": "PROBE_MATCHES_FOUND"
+    },
+    {
+      "check": "training_steps_last_hour_increasing",
+      "status": "V2_PARTIAL_REQUIRED",
+      "value": "NOT_PROVEN_FROM_CURRENT_READONLY_PROBE"
+    },
+    {
+      "check": "samples_seen_last_hour",
+      "status": "V2_PARTIAL_REQUIRED",
+      "value": "NOT_PROVEN_FROM_CURRENT_READONLY_PROBE"
+    },
+    {
+      "check": "outcome_labels_last_hour",
+      "status": "V2_PARTIAL_REQUIRED",
+      "value": "NOT_PROVEN_FROM_CURRENT_READONLY_PROBE"
+    },
+    {
+      "check": "trainer_feedback_last_hour",
+      "status": "V2_PARTIAL_REQUIRED",
+      "value": "NOT_PROVEN_FROM_CURRENT_READONLY_PROBE"
+    },
+    {
+      "check": "checkpoint_count",
+      "status": "EVIDENCE_FOUND_NEEDS_SEMANTIC_REVIEW",
+      "value": 80
+    },
+    {
+      "check": "checkpoint_latest",
+      "status": "EVIDENCE_FOUND_NEEDS_SEMANTIC_REVIEW",
+      "value": {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/restart_hybrid_trainer_checkpoints.py",
+        "is_dir": false,
+        "size_bytes": 6842,
+        "mtime": "2025-10-06T21:31:07.206046+00:00"
+      }
+    },
+    {
+      "check": "checkpoint_best",
+      "status": "V2_PARTIAL_REQUIRED",
+      "value": "NOT_PROVEN"
+    },
+    {
+      "check": "checkpoint_manifest",
+      "status": "EVIDENCE_FOUND_NEEDS_SEMANTIC_REVIEW",
+      "value": "SOURCE_EVIDENCE_OR_FILE_SAMPLE_ONLY"
+    },
+    {
+      "check": "checkpoint_rollover_limit",
+      "status": "V2_PARTIAL_REQUIRED",
+      "value": "300GB_REQUIRED_BY_SPEC_NOT_PROVEN_AS_ENFORCED"
+    },
+    {
+      "check": "gpu_utilization",
+      "status": "V2_PARTIAL_REQUIRED",
+      "value": "NOT_PROVEN_FROM_CURRENT_READONLY_PROBE"
+    },
+    {
+      "check": "vram_utilization",
+      "status": "V2_PARTIAL_REQUIRED",
+      "value": "NOT_PROVEN_FROM_CURRENT_READONLY_PROBE"
+    },
+    {
+      "check": "cpu_utilization",
+      "status": "V2_PARTIAL_REQUIRED",
+      "value": "NOT_PROVEN_FROM_CURRENT_READONLY_PROBE"
+    },
+    {
+      "check": "ram_utilization",
+      "status": "V2_PARTIAL_REQUIRED",
+      "value": "NOT_PROVEN_FROM_CURRENT_READONLY_PROBE"
+    },
+    {
+      "check": "bottleneck_reason",
+      "status": "V2_PARTIAL_REQUIRED",
+      "value": "INSUFFICIENT_RUNTIME_METRICS"
+    }
+  ],
+  "status_counts": {
+    "EVIDENCE_FOUND_NEEDS_SEMANTIC_REVIEW": 4,
+    "V2_PARTIAL_REQUIRED": 11
+  },
+  "overall_status": "V2_PARTIAL_REQUIRED_RUNTIME_TRAINING_METRICS_NOT_PROVEN"
+}

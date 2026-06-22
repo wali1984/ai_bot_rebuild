@@ -1,0 +1,22 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "codex_takeover": true,
+  "exchange_action_taken": false,
+  "generated_at": "2026-05-15T21:39:00Z",
+  "leverage_or_margin_mutation_reachable": false,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "remaining_explicit_gaps": [
+    "fee_ratio_gate_executor_layer_not_v2_risk_gateway_entrypoint",
+    "churn_veto_lifecycle_layer_not_v2_risk_gateway_entrypoint",
+    "minimum_hold_time_not_v2_risk_gateway_entrypoint"
+  ],
+  "status": "RISK_TRADER_PARITY_TESTS_BLOCKED_EXPLICIT_GAPS",
+  "test_result": {
+    "failed": 0,
+    "passed": 101,
+    "skipped": 3
+  }
+}

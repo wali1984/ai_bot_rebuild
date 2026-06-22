@@ -157,6 +157,11 @@ def _risk_decision_dict(
         "feature_freshness_state": "CURRENT",
         "stale_feature_flags": [],
         "missing_feature_flags": [],
+        "cooldown_clear": True,
+        "flip_churn_clear": True,
+        "reduce_only_clear": True,
+        "intelligent_close_guard_clear": True,
+        "microstructure_toxicity_clear": True,
         "recent_paper_events": [],
     }
 
@@ -843,6 +848,11 @@ def test_bridge_format_from_risk_gateway_status_accepted(
         "feature_freshness_state": "CURRENT",
         "stale_feature_flags": [],
         "missing_feature_flags": [],
+        "cooldown_clear": True,
+        "flip_churn_clear": True,
+        "reduce_only_clear": True,
+        "intelligent_close_guard_clear": True,
+        "microstructure_toxicity_clear": True,
     }
     decision_path = _write_decision_file(tmp_path, bridge, name="bridge.json")
     args = parse_args(["--once", "--decision-file", str(decision_path)])

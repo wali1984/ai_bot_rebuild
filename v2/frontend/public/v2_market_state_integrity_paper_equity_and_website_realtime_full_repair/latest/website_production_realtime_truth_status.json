@@ -1,0 +1,140 @@
+{
+  "generated_est": "2026-06-08T23:21:50-04:00",
+  "generated_utc": "2026-06-09T03:21:50Z",
+  "local": [
+    {
+      "bytes": 710,
+      "duration_seconds": 0.013,
+      "fetch_status": "OK",
+      "http_status": 200,
+      "stale_text_present": false,
+      "url": "http://127.0.0.1:5180/dashboard"
+    },
+    {
+      "bytes": 710,
+      "duration_seconds": 0.001,
+      "fetch_status": "OK",
+      "http_status": 200,
+      "stale_text_present": false,
+      "url": "http://127.0.0.1:5180/landing"
+    },
+    {
+      "bytes": 710,
+      "duration_seconds": 0.001,
+      "fetch_status": "OK",
+      "http_status": 200,
+      "stale_text_present": false,
+      "url": "http://127.0.0.1:5180/markets"
+    },
+    {
+      "bytes": 710,
+      "duration_seconds": 0.001,
+      "fetch_status": "OK",
+      "http_status": 200,
+      "stale_text_present": false,
+      "url": "http://127.0.0.1:5180/signals"
+    },
+    {
+      "bytes": 710,
+      "duration_seconds": 0.001,
+      "fetch_status": "OK",
+      "http_status": 200,
+      "stale_text_present": false,
+      "url": "http://127.0.0.1:5180/ai-predictions"
+    },
+    {
+      "bytes": 710,
+      "duration_seconds": 0.001,
+      "fetch_status": "OK",
+      "http_status": 200,
+      "stale_text_present": false,
+      "url": "http://127.0.0.1:5180/trade/paper"
+    },
+    {
+      "bytes": 710,
+      "duration_seconds": 0.001,
+      "fetch_status": "OK",
+      "http_status": 200,
+      "stale_text_present": false,
+      "url": "http://127.0.0.1:5180/portfolio"
+    },
+    {
+      "bytes": 710,
+      "duration_seconds": 0.001,
+      "fetch_status": "OK",
+      "http_status": 200,
+      "stale_text_present": false,
+      "url": "http://127.0.0.1:5180/system/execution"
+    },
+    {
+      "bytes": 710,
+      "duration_seconds": 0.001,
+      "fetch_status": "OK",
+      "http_status": 200,
+      "stale_text_present": false,
+      "url": "http://127.0.0.1:5180/system/readiness"
+    }
+  ],
+  "production": [
+    {
+      "bytes": 537,
+      "duration_seconds": 0.058,
+      "fetch_status": "OK",
+      "http_status": 200,
+      "stale_text_present": false,
+      "url": "https://dashboard.wajidali.us/landing"
+    },
+    {
+      "bytes": 537,
+      "duration_seconds": 0.049,
+      "fetch_status": "OK",
+      "http_status": 200,
+      "stale_text_present": false,
+      "url": "https://dashboard.wajidali.us/trade/paper"
+    },
+    {
+      "bytes": 537,
+      "duration_seconds": 0.048,
+      "fetch_status": "OK",
+      "http_status": 200,
+      "stale_text_present": false,
+      "url": "https://dashboard.wajidali.us/dashboard"
+    },
+    {
+      "bytes": 537,
+      "duration_seconds": 0.043,
+      "fetch_status": "OK",
+      "http_status": 200,
+      "stale_text_present": false,
+      "url": "https://dashboard.wajidali.us/markets"
+    },
+    {
+      "bytes": 537,
+      "duration_seconds": 0.045,
+      "fetch_status": "OK",
+      "http_status": 200,
+      "stale_text_present": false,
+      "url": "https://dashboard.wajidali.us/signals"
+    },
+    {
+      "bytes": 537,
+      "duration_seconds": 0.046,
+      "fetch_status": "OK",
+      "http_status": 200,
+      "stale_text_present": false,
+      "url": "https://dashboard.wajidali.us/ai-predictions"
+    },
+    {
+      "bytes": 537,
+      "duration_seconds": 0.055,
+      "fetch_status": "OK",
+      "http_status": 200,
+      "stale_text_present": false,
+      "url": "https://dashboard.wajidali.us/system/readiness"
+    }
+  ],
+  "production_checked_count": 7,
+  "production_fetch_unavailable": false,
+  "production_ok_count": 7,
+  "schema_version": "website_production_realtime_truth_status_v1"
+}

@@ -1,15 +1,15 @@
 # Observatory To Action Controller Patch
 
-Generated: `2026-05-15T16:49:55Z`
+Generated: `2026-06-22T00:28:25Z`
 
 This patch makes observatory findings actionable. It does not approve live trading, canary trading, or legacy shutdown.
 
 ## Current Findings
 
 - observatory: `CODEX_LEGACY_V2_REALTIME_DECISION_OBSERVATORY_READY`
-- legacy trainer: `RUNNING_READONLY_OBSERVED`
-- legacy signals: `STALE`
-- signal comparison classification: `MISSING_EVIDENCE_CANNOT_COMPARE`
+- legacy trainer: `NOT_OBSERVED`
+- legacy signals: `MISSING_EVIDENCE`
+- signal comparison classification: `LEGACY_SIGNAL_MISSING_V2_PRESENT`
 - V2 decision quality: `EDGE_PENDING_INSUFFICIENT_SAMPLE`
 - paper edge: `EDGE_PENDING_MODEL_REVIEW_REQUIRED`
 - post-filter interpretation: `EDGE_PENDING_MODEL_REVIEW_REQUIRED`

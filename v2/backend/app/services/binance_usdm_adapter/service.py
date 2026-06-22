@@ -9,9 +9,9 @@ methods are ``place_order``, ``change_initial_leverage``,
 The two read-only methods (``account_info_v3``, ``position_risk``) are
 callable but never make a real exchange call: they return only a
 structural presence-of-credentials observation. They never read the
-credential *value* into a stored variable; they only check the *presence*
-of the env keys ``BINANCE_LIVE_API_KEY`` and ``BINANCE_LIVE_API_SECRET``
-as a boolean. They never return, log, echo, or persist the secret value.
+credential *value* into a stored variable; they only check whether any
+approved Binance credential pair is present as a boolean. They never
+return, log, echo, or persist the secret value.
 
 The live gate is permanently ``blocked_human_only``. Read-only access
 does NOT unlock the gate; no codepath in this module can change the gate.
@@ -52,9 +52,18 @@ READ_ONLY_METHODS: Tuple[str, ...] = (
     "position_risk",
 )
 
-CREDENTIAL_ENV_KEYS: Tuple[str, ...] = (
-    "BINANCE_LIVE_API_KEY",
-    "BINANCE_LIVE_API_SECRET",
+CREDENTIAL_ENV_KEY_PAIRS: Tuple[Tuple[str, str], ...] = (
+    (
+        "ALPHAFORGE_BINANCE_WAJIDALI1984_READONLY_API_KEY",
+        "ALPHAFORGE_BINANCE_WAJIDALI1984_READONLY_API_SECRET",
+    ),
+    ("BINANCE_API_KEY", "BINANCE_API_SECRET"),
+    ("BINANCE_FUT_API_KEY", "BINANCE_FUT_API_SECRET"),
+    ("BINANCE_API_KEY", "BINANCE_SECRET_KEY"),
+    ("BINANCE_LIVE_API_KEY", "BINANCE_LIVE_API_SECRET"),
+)
+CREDENTIAL_ENV_KEYS: Tuple[str, ...] = tuple(
+    dict.fromkeys(name for pair in CREDENTIAL_ENV_KEY_PAIRS for name in pair)
 )
 
 # Documented audit-only legacy REST paths. The stub never opens a
@@ -85,17 +94,18 @@ class BlockedGateNotApprovedError(RuntimeError):
 
 
 def credentials_present_in_env() -> bool:
-    """Return True iff every credential env key has a non-empty value.
+    """Return True iff any approved credential env pair has non-empty values.
 
     This function reads the env keys only long enough to compute a
     boolean. The secret value is never assigned to a module-level or
     class-level variable, never returned, and never logged.
     """
-    for env_key in CREDENTIAL_ENV_KEYS:
-        value = os.environ.get(env_key, "")
-        if not value or not value.strip():
-            return False
-    return True
+    for api_key_name, api_secret_name in CREDENTIAL_ENV_KEY_PAIRS:
+        api_key = os.environ.get(api_key_name, "")
+        api_secret = os.environ.get(api_secret_name, "")
+        if api_key.strip() and api_secret.strip():
+            return True
+    return False
 
 
 class BinanceUsdmAdapter:
@@ -228,6 +238,7 @@ class BinanceUsdmAdapter:
             ),
             "credentials_present_in_env": credentials_present_in_env(),
             "credential_env_keys_checked": list(CREDENTIAL_ENV_KEYS),
+            "credential_env_pair_count": len(CREDENTIAL_ENV_KEY_PAIRS),
             "credentials_returned_by_any_method": False,
             "credentials_logged_by_any_method": False,
             "live_gate": self.live_gate,

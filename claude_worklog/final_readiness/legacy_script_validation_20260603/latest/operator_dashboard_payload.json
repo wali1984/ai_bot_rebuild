@@ -1,0 +1,59 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "generated_utc": "2026-06-03T22:55:42Z",
+  "legacy_root": "v2/legacy_owned_runtime",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "notes": [
+    "Static validator does not import or execute legacy Python modules.",
+    "Direct blanket execution remains unsafe because operator-gated scripts are present."
+  ],
+  "schema_version": "legacy_script_validation_static_v1",
+  "script_count": 708,
+  "summary": {
+    "category_counts": {
+      "api_server_or_route": 13,
+      "cli_like": 88,
+      "covered_by_v2_native_ingestors_live_loop": 2,
+      "destructive_or_maintenance_path": 100,
+      "exchange_mutation_path": 13,
+      "has_main_guard": 352,
+      "keyed_or_paid_provider_path": 166,
+      "legacy_ingestor": 39,
+      "network_or_exchange_read_path": 286,
+      "redis_write_path": 240,
+      "risk_runtime": 44,
+      "shell_or_powershell_script": 15,
+      "trading_runtime": 82,
+      "trainer_or_rl_path": 476,
+      "validated_by_v2_coinank_and_liquidation_bridge": 2,
+      "validated_by_v2_legacy_ingestor_adapter": 2
+    },
+    "execution_class_counts": {
+      "api_static_validated_runtime_not_started": 5,
+      "covered_by_v2_native_ingestors_live_loop": 1,
+      "legacy_ingestor_static_validated_runtime_not_started": 5,
+      "operator_gated_destructive_or_maintenance_not_executed": 91,
+      "operator_gated_exchange_mutation_not_executed": 13,
+      "operator_gated_keyed_or_paid_ingestor_not_executed": 15,
+      "operator_gated_trading_runtime_not_executed": 65,
+      "static_validated_not_runtime_started": 133,
+      "trainer_or_rl_static_validated_runtime_gated": 376,
+      "validated_by_v2_coinank_and_liquidation_bridge": 2,
+      "validated_by_v2_legacy_ingestor_adapter": 2
+    },
+    "missing_dependency_counts": {},
+    "script_count": 708,
+    "suffix_counts": {
+      ".ps1": 2,
+      ".py": 693,
+      ".sh": 13
+    },
+    "syntax_counts": {
+      "not_checked_pwsh_missing": 2,
+      "ok": 706
+    }
+  }
+}

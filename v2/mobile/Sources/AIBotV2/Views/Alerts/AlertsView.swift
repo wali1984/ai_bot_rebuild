@@ -18,7 +18,7 @@ struct AlertsView: View {
                     alertList
                 }
             }
-            .navigationTitle("Alerts")
+            .navigationTitle("NERVYX OBSERVE")
             .toolbar { refreshButton }
             .refreshable { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) }
         }
@@ -30,11 +30,11 @@ struct AlertsView: View {
     private var alertList: some View {
         List {
             if !vm.criticalAlerts.isEmpty {
-                Section("Critical (\(vm.criticalAlerts.count))") {
+                Section("NERVYX OBSERVE · Critical (\(vm.criticalAlerts.count))") {
                     ForEach(vm.criticalAlerts) { alert in AlertRowView(alert: alert) }
                 }
             }
-            Section("All Alerts (\(vm.alerts.count))") {
+            Section("NERVYX OBSERVE · All Alerts (\(vm.alerts.count))") {
                 if vm.alerts.isEmpty {
                     ContentUnavailableView(
                         "No Alerts",

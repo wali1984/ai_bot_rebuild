@@ -1,6 +1,6 @@
 import Foundation
 
-/// Real-time WebSocket client for market data and paper activity streams.
+/// Real-time WebSocket client for market data and execution activity streams.
 /// Sends the auth token as a query parameter (WebSocket headers are not supported on all platforms).
 @Observable
 public final class WebSocketClient: NSObject {

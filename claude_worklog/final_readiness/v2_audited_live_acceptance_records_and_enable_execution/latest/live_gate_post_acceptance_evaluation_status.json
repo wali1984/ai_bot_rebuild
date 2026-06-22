@@ -1,0 +1,688 @@
+{
+  "accepted_live_symbols": [
+    "BNBUSDT",
+    "BTCUSDT",
+    "ETHUSDT",
+    "PAXGUSDT",
+    "XAUTUSDT",
+    "ZECUSDT"
+  ],
+  "backend_live_enable_callable": true,
+  "endpoint": "POST /api/v1/live-gate/evaluate",
+  "evaluation_result": "LIVE_OPERATOR_ENABLE_AVAILABLE",
+  "exact_blockers": [],
+  "exchange_mutation_frozen": true,
+  "generated_est": "2026-06-05T16:26:51-04:00",
+  "http_status": 200,
+  "live_symbol_operator_accepted": true,
+  "operator_final_live_approval_present": true,
+  "response": {
+    "acceptance_requirements": {
+      "binance_trader_connected": true,
+      "codex_final_live_pass_exists": true,
+      "exchange_mutation_safety_passed": true,
+      "live_symbol_operator_accepted": true,
+      "live_symbol_proposal_present": true,
+      "live_symbols_remain_empty_until_operator_acceptance": true,
+      "no_unresolved_critical_data_blocker": true,
+      "operator_final_live_approval_present": true,
+      "paper_edge_backtest_not_critically_negative": true,
+      "paper_fill_gate_accepts_fills": true,
+      "risk_profile_operator_accepted": true,
+      "risk_profile_proposed": true,
+      "website_enable_flow_writes_audit_record": true
+    },
+    "audit_record_status": {
+      "latest_audit_id": "live_gate_final_badf7f3cf3874dd9b347e7c3266d2573",
+      "record_count": 4,
+      "records": [
+        {
+          "action": "enable",
+          "actor": "unknown",
+          "after_gate_state": {
+            "backend_live_enable_callable": false,
+            "exact_blockers": [
+              "accepted_live_symbols_empty",
+              "accepted_risk_profile_not_in_current_proposal",
+              "final_operator_approval_audit_id_missing",
+              "live_symbol_acceptance_audit_id_missing",
+              "live_symbol_operator_accepted",
+              "operator_final_live_approval_present",
+              "risk_profile_acceptance_audit_id_missing",
+              "risk_profile_operator_accepted",
+              "website_enable_flow_writes_audit_record"
+            ],
+            "execution_live_symbols": [],
+            "live_gate": "blocked_human_only",
+            "live_symbols": [],
+            "verdict": "LIVE_GATE_BLOCKED_AUDITED_ACCEPTANCE_REQUIRED"
+          },
+          "audit_id": "live_gate_enable_blocked_5ae37c3cf770473d9d57d1b07fabf2d9",
+          "before_gate_state": {
+            "backend_live_enable_callable": false,
+            "exact_blockers": [
+              "accepted_live_symbols_empty",
+              "accepted_risk_profile_not_in_current_proposal",
+              "final_operator_approval_audit_id_missing",
+              "live_symbol_acceptance_audit_id_missing",
+              "live_symbol_operator_accepted",
+              "operator_final_live_approval_present",
+              "risk_profile_acceptance_audit_id_missing",
+              "risk_profile_operator_accepted",
+              "website_enable_flow_writes_audit_record"
+            ],
+            "execution_live_symbols": [],
+            "live_gate": "blocked_human_only",
+            "live_symbols": [],
+            "verdict": "LIVE_GATE_BLOCKED_AUDITED_ACCEPTANCE_REQUIRED"
+          },
+          "confirmation_text_hash": "0d68bcb219fe906c42eec80d6d9710ac2f0c881f839d9c193e023bc89b220e76",
+          "details": {
+            "exact_blockers": [
+              "accepted_live_symbols_empty",
+              "accepted_risk_profile_not_in_current_proposal",
+              "final_operator_approval_audit_id_missing",
+              "live_symbol_acceptance_audit_id_missing",
+              "live_symbol_operator_accepted",
+              "operator_final_live_approval_present",
+              "risk_profile_acceptance_audit_id_missing",
+              "risk_profile_operator_accepted",
+              "website_enable_flow_writes_audit_record"
+            ]
+          },
+          "operator_reason": "smoke blocked check",
+          "result": "LIVE_GATE_BLOCKED",
+          "role": "operator",
+          "selected_risk_profile": null,
+          "selected_symbols": [],
+          "source_payload_ids": [],
+          "timestamp_est": "2026-06-05T16:02:20-04:00"
+        },
+        {
+          "action": "accept-risk-profile",
+          "actor": "wali",
+          "after_gate_state": {
+            "backend_live_enable_callable": false,
+            "exact_blockers": [
+              "accepted_live_symbols_empty",
+              "final_approval_risk_audit_id_mismatch",
+              "final_operator_approval_audit_id_missing",
+              "live_symbol_acceptance_audit_id_missing",
+              "live_symbol_operator_accepted",
+              "operator_final_live_approval_present",
+              "website_enable_flow_writes_audit_record"
+            ],
+            "execution_live_symbols": [],
+            "live_gate": "blocked_human_only",
+            "live_symbols": [],
+            "verdict": "LIVE_GATE_BLOCKED_AUDITED_ACCEPTANCE_REQUIRED"
+          },
+          "audit_id": "live_gate_risk_bf7f2431a82a41d0997dad5f668e7996",
+          "before_gate_state": {
+            "backend_live_enable_callable": false,
+            "exact_blockers": [
+              "accepted_live_symbols_empty",
+              "accepted_risk_profile_not_in_current_proposal",
+              "final_operator_approval_audit_id_missing",
+              "live_symbol_acceptance_audit_id_missing",
+              "live_symbol_operator_accepted",
+              "operator_final_live_approval_present",
+              "risk_profile_acceptance_audit_id_missing",
+              "risk_profile_operator_accepted",
+              "website_enable_flow_writes_audit_record"
+            ],
+            "execution_live_symbols": [],
+            "live_gate": "blocked_human_only",
+            "live_symbols": [],
+            "verdict": "LIVE_GATE_BLOCKED_AUDITED_ACCEPTANCE_REQUIRED"
+          },
+          "confirmation_text_hash": "3a59fcc374390b84177b992ba2c418869bd0ea7e737a81fb9190fd48d3139446",
+          "details": {
+            "accepted_profile_fields": {
+              "cooldown_seconds": 1200,
+              "kill_switch_conditions": [
+                "any_mutation_before_final_gate",
+                "daily_loss_cap_breach",
+                "drawdown_cap_breach"
+              ],
+              "max_daily_loss": 15.0,
+              "max_drawdown": 75.0,
+              "max_leverage": 1.0,
+              "max_notional_per_trade": 25.0,
+              "max_open_positions": 1,
+              "max_slippage_bps": 2.0,
+              "max_spread_bps": 3.5,
+              "max_symbol_exposure": 45.0,
+              "max_total_exposure": 100.0,
+              "min_confidence_calibrated": 0.66,
+              "min_expected_move_after_cost_bps": 12.0
+            },
+            "accepted_profile_name": "conservative"
+          },
+          "operator_reason": "Operator requested audited live-gate acceptance flow after V2 paper-fill and trader-readiness repairs.",
+          "result": "ACCEPTED",
+          "role": "operator",
+          "selected_risk_profile": "conservative",
+          "selected_symbols": [],
+          "source_payload_ids": [
+            "sha256:0d3b17f4470fd3e6c53b71c5141c96eb72ff2c7e1e7103aeb5bd55c47da26af5"
+          ],
+          "timestamp_est": "2026-06-05T16:26:51-04:00"
+        },
+        {
+          "action": "accept-live-symbols",
+          "actor": "wali",
+          "after_gate_state": {
+            "backend_live_enable_callable": false,
+            "exact_blockers": [
+              "final_approval_risk_audit_id_mismatch",
+              "final_approval_symbol_audit_id_mismatch",
+              "final_operator_approval_audit_id_missing",
+              "operator_final_live_approval_present",
+              "website_enable_flow_writes_audit_record"
+            ],
+            "execution_live_symbols": [],
+            "live_gate": "blocked_human_only",
+            "live_symbols": [],
+            "verdict": "LIVE_GATE_BLOCKED_AUDITED_ACCEPTANCE_REQUIRED"
+          },
+          "audit_id": "live_gate_symbols_aca7a192fba941b8873df0cf864f5c52",
+          "before_gate_state": {
+            "backend_live_enable_callable": false,
+            "exact_blockers": [
+              "accepted_live_symbols_empty",
+              "final_approval_risk_audit_id_mismatch",
+              "final_operator_approval_audit_id_missing",
+              "live_symbol_acceptance_audit_id_missing",
+              "live_symbol_operator_accepted",
+              "operator_final_live_approval_present",
+              "website_enable_flow_writes_audit_record"
+            ],
+            "execution_live_symbols": [],
+            "live_gate": "blocked_human_only",
+            "live_symbols": [],
+            "verdict": "LIVE_GATE_BLOCKED_AUDITED_ACCEPTANCE_REQUIRED"
+          },
+          "confirmation_text_hash": "99d954372584bd747b0322042a080588fcb58522a83f3b8f3597447984928106",
+          "details": {
+            "accepted_live_symbols": [
+              "BNBUSDT",
+              "BTCUSDT",
+              "ETHUSDT",
+              "PAXGUSDT",
+              "XAUTUSDT",
+              "ZECUSDT"
+            ]
+          },
+          "operator_reason": "Operator selected audited live symbols from current backend proposal.",
+          "result": "ACCEPTED",
+          "role": "operator",
+          "selected_risk_profile": null,
+          "selected_symbols": [
+            "BNBUSDT",
+            "BTCUSDT",
+            "ETHUSDT",
+            "PAXGUSDT",
+            "XAUTUSDT",
+            "ZECUSDT"
+          ],
+          "source_payload_ids": [
+            "sha256:988731ca7889bb51f7cf0b8e8a46b20723d61eaa15781bd80537c5525cd6e1f5"
+          ],
+          "timestamp_est": "2026-06-05T16:26:51-04:00"
+        },
+        {
+          "action": "final-approval",
+          "actor": "wali",
+          "after_gate_state": {
+            "backend_live_enable_callable": false,
+            "exact_blockers": [
+              "website_enable_flow_writes_audit_record"
+            ],
+            "execution_live_symbols": [],
+            "live_gate": "blocked_human_only",
+            "live_symbols": [],
+            "verdict": "LIVE_GATE_BLOCKED_AUDITED_ACCEPTANCE_REQUIRED"
+          },
+          "audit_id": "live_gate_final_badf7f3cf3874dd9b347e7c3266d2573",
+          "before_gate_state": {
+            "backend_live_enable_callable": false,
+            "exact_blockers": [
+              "final_approval_risk_audit_id_mismatch",
+              "final_approval_symbol_audit_id_mismatch",
+              "final_operator_approval_audit_id_missing",
+              "operator_final_live_approval_present",
+              "website_enable_flow_writes_audit_record"
+            ],
+            "execution_live_symbols": [],
+            "live_gate": "blocked_human_only",
+            "live_symbols": [],
+            "verdict": "LIVE_GATE_BLOCKED_AUDITED_ACCEPTANCE_REQUIRED"
+          },
+          "confirmation_text_hash": "e22f82844723d3ade7da49281d5b1b769f85efb0967bbd37cc99fd172592ea2c",
+          "details": {
+            "accepted_risk_audit_id": "live_gate_risk_bf7f2431a82a41d0997dad5f668e7996",
+            "accepted_symbols_audit_id": "live_gate_symbols_aca7a192fba941b8873df0cf864f5c52"
+          },
+          "operator_reason": "Operator approves final gated live execution only after audited risk and live symbol records are written.",
+          "result": "APPROVED",
+          "role": "operator",
+          "selected_risk_profile": null,
+          "selected_symbols": [],
+          "source_payload_ids": [
+            "sha256:0d3b17f4470fd3e6c53b71c5141c96eb72ff2c7e1e7103aeb5bd55c47da26af5+sha256:988731ca7889bb51f7cf0b8e8a46b20723d61eaa15781bd80537c5525cd6e1f5"
+          ],
+          "timestamp_est": "2026-06-05T16:26:51-04:00"
+        }
+      ],
+      "schema_version": "live_gate_audit_record_status_v1",
+      "service_id": "v2_audited_operator_live_acceptance_and_enable_flow",
+      "website_enable_flow_writes_audit_record": true
+    },
+    "backend_live_enable_callable": true,
+    "current_proposals": {
+      "accepted_paper_fills": 6,
+      "held_by_paper_fill_gate": 106,
+      "live_symbols": [
+        "BNBUSDT",
+        "BTCUSDT",
+        "ETHUSDT",
+        "PAXGUSDT",
+        "XAUTUSDT",
+        "ZECUSDT"
+      ],
+      "paper_signal_count": 6,
+      "risk_profiles": {
+        "aggressive": {
+          "cooldown_seconds": 300,
+          "kill_switch_conditions": [
+            "any_mutation_before_final_gate",
+            "daily_loss_cap_breach",
+            "drawdown_cap_breach"
+          ],
+          "max_daily_loss": 75.0,
+          "max_drawdown": 300.0,
+          "max_leverage": 3.0,
+          "max_notional_per_trade": 150.0,
+          "max_open_positions": 5,
+          "max_slippage_bps": 4.5,
+          "max_spread_bps": 8.0,
+          "max_symbol_exposure": 250.0,
+          "max_total_exposure": 550.0,
+          "min_confidence_calibrated": 0.55,
+          "min_expected_move_after_cost_bps": 5.0
+        },
+        "balanced": {
+          "cooldown_seconds": 600,
+          "kill_switch_conditions": [
+            "any_mutation_before_final_gate",
+            "daily_loss_cap_breach",
+            "drawdown_cap_breach"
+          ],
+          "max_daily_loss": 35.0,
+          "max_drawdown": 150.0,
+          "max_leverage": 2.0,
+          "max_notional_per_trade": 75.0,
+          "max_open_positions": 3,
+          "max_slippage_bps": 3.0,
+          "max_spread_bps": 5.0,
+          "max_symbol_exposure": 120.0,
+          "max_total_exposure": 275.0,
+          "min_confidence_calibrated": 0.6,
+          "min_expected_move_after_cost_bps": 8.0
+        },
+        "conservative": {
+          "cooldown_seconds": 1200,
+          "kill_switch_conditions": [
+            "any_mutation_before_final_gate",
+            "daily_loss_cap_breach",
+            "drawdown_cap_breach"
+          ],
+          "max_daily_loss": 15.0,
+          "max_drawdown": 75.0,
+          "max_leverage": 1.0,
+          "max_notional_per_trade": 25.0,
+          "max_open_positions": 1,
+          "max_slippage_bps": 2.0,
+          "max_spread_bps": 3.5,
+          "max_symbol_exposure": 45.0,
+          "max_total_exposure": 100.0,
+          "min_confidence_calibrated": 0.66,
+          "min_expected_move_after_cost_bps": 12.0
+        }
+      }
+    },
+    "endpoint_contracts": {
+      "accept_live_symbols": {
+        "method": "POST",
+        "operator_confirmation_text_required": "ACCEPT V2 LIVE SYMBOLS",
+        "path": "/api/v1/live-gate/accept-live-symbols"
+      },
+      "accept_risk_profile": {
+        "method": "POST",
+        "operator_confirmation_text_required": "ACCEPT V2 LIVE RISK PROFILE",
+        "path": "/api/v1/live-gate/accept-risk-profile"
+      },
+      "enable": {
+        "method": "POST",
+        "path": "/api/v1/live-gate/enable",
+        "typed_confirmation_required": "ENABLE V2 LIVE EXECUTION"
+      },
+      "final_approval": {
+        "method": "POST",
+        "operator_confirmation_text_required": "APPROVE V2 LIVE EXECUTION FINAL GATE",
+        "path": "/api/v1/live-gate/final-approval"
+      }
+    },
+    "evaluation": {
+      "backend_live_enable_path_available": true,
+      "execution_live_symbols": [],
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "performed": true,
+      "result": "LIVE_OPERATOR_ENABLE_AVAILABLE"
+    },
+    "exact_blockers": [],
+    "execution_live_symbols": [],
+    "final_live_gate": {
+      "exact_remaining_blockers": [],
+      "live_enable_available_through_backend_gate": true,
+      "requirements": {
+        "binance_trader_connected": true,
+        "codex_final_live_pass_exists": true,
+        "exchange_mutation_safety_passed": true,
+        "live_symbol_operator_accepted": true,
+        "live_symbol_proposal_present": true,
+        "live_symbols_remain_empty_until_operator_acceptance": true,
+        "no_unresolved_critical_data_blocker": true,
+        "operator_final_live_approval_present": true,
+        "paper_edge_backtest_not_critically_negative": true,
+        "paper_fill_gate_accepts_fills": true,
+        "risk_profile_operator_accepted": true,
+        "risk_profile_proposed": true,
+        "website_enable_flow_writes_audit_record": true
+      },
+      "verdict": "LIVE_OPERATOR_ENABLE_AVAILABLE"
+    },
+    "final_operator_approval": {
+      "accepted_record_present": true,
+      "accepted_risk_audit_id": "live_gate_risk_bf7f2431a82a41d0997dad5f668e7996",
+      "accepted_symbols_audit_id": "live_gate_symbols_aca7a192fba941b8873df0cf864f5c52",
+      "audit_id": "live_gate_final_badf7f3cf3874dd9b347e7c3266d2573",
+      "current_validation_blockers": [],
+      "execution_live_symbols": [],
+      "final_approval_at_est": "2026-06-05T16:26:51-04:00",
+      "generated_est": "2026-06-05T16:26:51-04:00",
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "operator_acceptance_required": true,
+      "operator_final_live_approval_present": true,
+      "schema_version": "final_operator_live_approval_status_v1",
+      "service_id": "v2_audited_operator_live_acceptance_and_enable_flow",
+      "source_payload_id": "sha256:0d3b17f4470fd3e6c53b71c5141c96eb72ff2c7e1e7103aeb5bd55c47da26af5+sha256:988731ca7889bb51f7cf0b8e8a46b20723d61eaa15781bd80537c5525cd6e1f5"
+    },
+    "generated_est": "2026-06-05T16:26:51-04:00",
+    "go_no_go": "V2_AUDITED_OPERATOR_LIVE_ACCEPTANCE_AND_ENABLE_FLOW_READY",
+    "live_enable_blockers": [],
+    "live_enable_re_evaluation": {
+      "accepted_live_symbols_for_final_enable": [
+        "BNBUSDT",
+        "BTCUSDT",
+        "ETHUSDT",
+        "PAXGUSDT",
+        "XAUTUSDT",
+        "ZECUSDT"
+      ],
+      "backend_live_enable_callable": true,
+      "enabled": false,
+      "exact_blockers": [],
+      "execution_live_symbols": [],
+      "generated_est": "2026-06-05T16:26:51-04:00",
+      "go_no_go": "V2_AUDITED_OPERATOR_LIVE_ACCEPTANCE_AND_ENABLE_FLOW_READY",
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "requirements": {
+        "binance_trader_connected": true,
+        "codex_final_live_pass_exists": true,
+        "exchange_mutation_safety_passed": true,
+        "live_symbol_operator_accepted": true,
+        "live_symbol_proposal_present": true,
+        "live_symbols_remain_empty_until_operator_acceptance": true,
+        "no_unresolved_critical_data_blocker": true,
+        "operator_final_live_approval_present": true,
+        "paper_edge_backtest_not_critically_negative": true,
+        "paper_fill_gate_accepts_fills": true,
+        "risk_profile_operator_accepted": true,
+        "risk_profile_proposed": true,
+        "website_enable_flow_writes_audit_record": true
+      },
+      "runtime_mutation_executed": false,
+      "schema_version": "live_enable_re_evaluation_status_v1",
+      "service_id": "v2_audited_operator_live_acceptance_and_enable_flow",
+      "verdict": "LIVE_OPERATOR_ENABLE_AVAILABLE"
+    },
+    "live_gate": "blocked_human_only",
+    "live_symbol_acceptance": {
+      "accepted_at_est": "2026-06-05T16:26:51-04:00",
+      "accepted_live_symbols": [
+        "BNBUSDT",
+        "BTCUSDT",
+        "ETHUSDT",
+        "PAXGUSDT",
+        "XAUTUSDT",
+        "ZECUSDT"
+      ],
+      "accepted_record_present": true,
+      "audit_id": "live_gate_symbols_aca7a192fba941b8873df0cf864f5c52",
+      "current_validation_blockers": [],
+      "execution_live_symbols_written": [],
+      "generated_est": "2026-06-05T16:26:51-04:00",
+      "live_gate": "blocked_human_only",
+      "live_symbol_operator_accepted": true,
+      "live_symbols_written": [],
+      "operator_acceptance_required": true,
+      "per_symbol_evidence": {
+        "BNBUSDT": {
+          "blockers": [],
+          "evidence": {
+            "confidence_calibrated": 0.6748849985271537,
+            "expected_move_after_cost_bps": 102.92661815051028,
+            "feature_freshness_state": "CURRENT",
+            "live_gate": "blocked_human_only",
+            "model_version": "ppo_checkpoint_1777264095",
+            "orchestrator_decision_id": "v2_native_pred_e21dd05e9e2479d1424cdea2736ed558_219a2190e2b0ebb8",
+            "paper_fill_allowed": true,
+            "paper_fill_gate_status": "PAPER_FILL_ALLOWED_BY_ORCHESTRATOR_GATE",
+            "places_real_order": false,
+            "prediction_id": "v2_native_pred_e21dd05e9e2479d1424cdea2736ed558_219a2190e2b0ebb8",
+            "symbol": "BNBUSDT"
+          },
+          "valid": true
+        },
+        "BTCUSDT": {
+          "blockers": [],
+          "evidence": {
+            "confidence_calibrated": 0.6809434355382293,
+            "expected_move_after_cost_bps": 108.56573370692621,
+            "feature_freshness_state": "CURRENT",
+            "live_gate": "blocked_human_only",
+            "model_version": "ppo_checkpoint_1777264095",
+            "orchestrator_decision_id": "v2_native_pred_f2a97282e3ec1e8f927e6148d2d13780_219a2190e2b0ebb8",
+            "paper_fill_allowed": true,
+            "paper_fill_gate_status": "PAPER_FILL_ALLOWED_BY_ORCHESTRATOR_GATE",
+            "places_real_order": false,
+            "prediction_id": "v2_native_pred_f2a97282e3ec1e8f927e6148d2d13780_219a2190e2b0ebb8",
+            "symbol": "BTCUSDT"
+          },
+          "valid": true
+        },
+        "ETHUSDT": {
+          "blockers": [],
+          "evidence": {
+            "confidence_calibrated": 0.6809434355382293,
+            "expected_move_after_cost_bps": 108.56573370692621,
+            "feature_freshness_state": "CURRENT",
+            "live_gate": "blocked_human_only",
+            "model_version": "ppo_checkpoint_1777264095",
+            "orchestrator_decision_id": "v2_native_pred_eaf43facea7386bfc87923da72e08c94_219a2190e2b0ebb8",
+            "paper_fill_allowed": true,
+            "paper_fill_gate_status": "PAPER_FILL_ALLOWED_BY_ORCHESTRATOR_GATE",
+            "places_real_order": false,
+            "prediction_id": "v2_native_pred_eaf43facea7386bfc87923da72e08c94_219a2190e2b0ebb8",
+            "symbol": "ETHUSDT"
+          },
+          "valid": true
+        },
+        "PAXGUSDT": {
+          "blockers": [],
+          "evidence": {
+            "confidence_calibrated": 0.6809434355382293,
+            "expected_move_after_cost_bps": 108.56573370692621,
+            "feature_freshness_state": "CURRENT",
+            "live_gate": "blocked_human_only",
+            "model_version": "ppo_checkpoint_1777264095",
+            "orchestrator_decision_id": "v2_native_pred_96bcb8bdb7b44329830d73877ee4221e_219a2190e2b0ebb8",
+            "paper_fill_allowed": true,
+            "paper_fill_gate_status": "PAPER_FILL_ALLOWED_BY_ORCHESTRATOR_GATE",
+            "places_real_order": false,
+            "prediction_id": "v2_native_pred_96bcb8bdb7b44329830d73877ee4221e_219a2190e2b0ebb8",
+            "symbol": "PAXGUSDT"
+          },
+          "valid": true
+        },
+        "XAUTUSDT": {
+          "blockers": [],
+          "evidence": {
+            "confidence_calibrated": 0.6809434355382293,
+            "expected_move_after_cost_bps": 108.56573370692621,
+            "feature_freshness_state": "CURRENT",
+            "live_gate": "blocked_human_only",
+            "model_version": "ppo_checkpoint_1777264095",
+            "orchestrator_decision_id": "v2_native_pred_bc80052b0ac6039428d5fab0cb361b6e_219a2190e2b0ebb8",
+            "paper_fill_allowed": true,
+            "paper_fill_gate_status": "PAPER_FILL_ALLOWED_BY_ORCHESTRATOR_GATE",
+            "places_real_order": false,
+            "prediction_id": "v2_native_pred_bc80052b0ac6039428d5fab0cb361b6e_219a2190e2b0ebb8",
+            "symbol": "XAUTUSDT"
+          },
+          "valid": true
+        },
+        "ZECUSDT": {
+          "blockers": [],
+          "evidence": {
+            "confidence_calibrated": 0.6809383587449186,
+            "expected_move_after_cost_bps": 108.56109814934194,
+            "feature_freshness_state": "CURRENT",
+            "live_gate": "blocked_human_only",
+            "model_version": "ppo_checkpoint_1777264095",
+            "orchestrator_decision_id": "v2_native_pred_9da0b2e2793ccb2278139cf0a1a02d49_219a2190e2b0ebb8",
+            "paper_fill_allowed": true,
+            "paper_fill_gate_status": "PAPER_FILL_ALLOWED_BY_ORCHESTRATOR_GATE",
+            "places_real_order": false,
+            "prediction_id": "v2_native_pred_9da0b2e2793ccb2278139cf0a1a02d49_219a2190e2b0ebb8",
+            "symbol": "ZECUSDT"
+          },
+          "valid": true
+        }
+      },
+      "schema_version": "live_symbol_acceptance_status_v1",
+      "service_id": "v2_audited_operator_live_acceptance_and_enable_flow",
+      "source_payload_id": "sha256:988731ca7889bb51f7cf0b8e8a46b20723d61eaa15781bd80537c5525cd6e1f5"
+    },
+    "live_symbols": [],
+    "places_real_order": false,
+    "risk_profile_acceptance": {
+      "accepted_at_est": "2026-06-05T16:26:51-04:00",
+      "accepted_profile_fields": {
+        "cooldown_seconds": 1200,
+        "kill_switch_conditions": [
+          "any_mutation_before_final_gate",
+          "daily_loss_cap_breach",
+          "drawdown_cap_breach"
+        ],
+        "max_daily_loss": 15.0,
+        "max_drawdown": 75.0,
+        "max_leverage": 1.0,
+        "max_notional_per_trade": 25.0,
+        "max_open_positions": 1,
+        "max_slippage_bps": 2.0,
+        "max_spread_bps": 3.5,
+        "max_symbol_exposure": 45.0,
+        "max_total_exposure": 100.0,
+        "min_confidence_calibrated": 0.66,
+        "min_expected_move_after_cost_bps": 12.0
+      },
+      "accepted_profile_id": "conservative",
+      "accepted_profile_name": "conservative",
+      "accepted_record_present": true,
+      "audit_id": "live_gate_risk_bf7f2431a82a41d0997dad5f668e7996",
+      "current_validation_blockers": [],
+      "execution_live_symbols": [],
+      "generated_est": "2026-06-05T16:26:51-04:00",
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "operator_acceptance_required": true,
+      "risk_profile_operator_accepted": true,
+      "schema_version": "risk_profile_acceptance_status_v1",
+      "service_id": "v2_audited_operator_live_acceptance_and_enable_flow",
+      "source_payload_id": "sha256:0d3b17f4470fd3e6c53b71c5141c96eb72ff2c7e1e7103aeb5bd55c47da26af5"
+    },
+    "schema_version": "audited_operator_live_acceptance_operator_dashboard_v1",
+    "service_id": "v2_audited_operator_live_acceptance_and_enable_flow",
+    "source_reconciliation": {
+      "authoritative_source": "v2/frontend/public/v2_paper_fill_gate_live_blocker_burndown_and_controlled_live_enable_ready/latest/operator_dashboard_payload.json",
+      "binance_read_only_state": {
+        "exchange_mutation_safety_passed": true,
+        "trader_connected": true
+      },
+      "current_backend_live_enable_callable": false,
+      "current_execution_live_symbols": [],
+      "current_go_no_go": "V2_PAPER_FILL_GATE_LIVE_BLOCKER_BURNDOWN_AND_CONTROLLED_LIVE_ENABLE_BLOCKED",
+      "current_live_gate": "blocked_human_only",
+      "current_live_symbols": [],
+      "current_source_payload_id": "v2_paper_fill_gate_live_blocker_burndown_and_controlled_live_enable_ready:2026-06-05T14:16:19-04:00",
+      "current_verdict": "LIVE_GATE_BLOCKED_RISK_CAPS_OPERATOR_REQUIRED",
+      "generated_est": "2026-06-05T16:26:51-04:00",
+      "missing_acceptance_fields": [],
+      "proposed_live_symbols": [
+        "BNBUSDT",
+        "BTCUSDT",
+        "ETHUSDT",
+        "PAXGUSDT",
+        "XAUTUSDT",
+        "ZECUSDT"
+      ],
+      "proposed_risk_profiles": [
+        "aggressive",
+        "balanced",
+        "conservative"
+      ],
+      "schema_version": "live_gate_source_reconciliation_status_v1",
+      "service_id": "v2_audited_operator_live_acceptance_and_enable_flow",
+      "stale_callable_true_payload_marked": false,
+      "trader_runtime_state": {
+        "account_mode_read": true,
+        "balances_redacted": true,
+        "binance_private_read_only_probe_ok": true,
+        "exchange_mutation_frozen": true,
+        "filters_loaded": true,
+        "generated_est": "2026-06-05T14:16:19-04:00",
+        "live_enable_endpoint_locked_unless_final_gate_passes": true,
+        "no_leverage_margin_mutation": true,
+        "no_order_test_order_cancel_modify": true,
+        "open_orders_read": true,
+        "positions_read": true,
+        "schema_version": "trader_runtime_live_gate_readiness_status_v1",
+        "service_id": "v2_paper_fill_gate_live_blocker_burndown_and_controlled_live_enable_ready",
+        "trader_runtime_active": true
+      }
+    },
+    "trader_execution_enabled": false,
+    "verdict": "LIVE_OPERATOR_ENABLE_AVAILABLE"
+  },
+  "risk_profile_operator_accepted": true,
+  "schema_version": "live_gate_post_acceptance_evaluation_status_v1",
+  "service_id": "v2_audited_live_acceptance_records_and_enable_execution",
+  "trader_connected": true,
+  "website_enable_flow_writes_audit_record": true
+}

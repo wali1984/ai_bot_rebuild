@@ -1,0 +1,216 @@
+{
+  "approves_live": false,
+  "current_removed_symbols": [
+    "CLOUSDT",
+    "EVAAUSDT",
+    "JUPUSDT"
+  ],
+  "current_stale_prediction_rows": 0,
+  "exchange_leverage_mutation": false,
+  "exchange_margin_mode_mutation": false,
+  "fixed_runtime_sizing": false,
+  "generated_utc": "2026-06-15T23:53:17Z",
+  "guaranteed_10k_claimed": false,
+  "guaranteed_profit_claimed": false,
+  "old_redis_write": false,
+  "paper_only": true,
+  "places_real_order": false,
+  "pre_remediation_stale_prediction_rows": 22,
+  "raw_credentials_exposed": false,
+  "removal_reason_by_symbol": {
+    "CLOUSDT": {
+      "classifications": {
+        "15m": "MARKET_STATE_REJECTED",
+        "1h": "MARKET_STATE_REJECTED",
+        "1m": "MARKET_STATE_REJECTED",
+        "4h": "MARKET_STATE_REJECTED",
+        "5m": "MARKET_STATE_REJECTED"
+      },
+      "exclude_from_expected_grid": true,
+      "reasons_by_timeframe": {
+        "15m": [
+          "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+          "MISSING_CRITICAL_FEATURE_FAMILY",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_15m",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_1h",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_1m",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_4h",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_5m",
+          "MTF_SNAPSHOT_INVALID",
+          "UNCLOSED_CANDLE"
+        ],
+        "1h": [
+          "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+          "MISSING_CRITICAL_FEATURE_FAMILY",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_15m",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_1h",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_1m",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_4h",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_5m",
+          "MTF_SNAPSHOT_INVALID",
+          "UNCLOSED_CANDLE"
+        ],
+        "1m": [
+          "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+          "MISSING_CRITICAL_FEATURE_FAMILY",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_15m",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_1h",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_1m",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_4h",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_5m",
+          "MTF_SNAPSHOT_INVALID",
+          "UNCLOSED_CANDLE"
+        ],
+        "4h": [
+          "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+          "MISSING_CRITICAL_FEATURE_FAMILY",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_15m",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_1h",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_1m",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_4h",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_5m",
+          "MTF_SNAPSHOT_INVALID",
+          "UNCLOSED_CANDLE"
+        ],
+        "5m": [
+          "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+          "MISSING_CRITICAL_FEATURE_FAMILY",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_15m",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_1h",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_1m",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_4h",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_5m",
+          "MTF_SNAPSHOT_INVALID",
+          "UNCLOSED_CANDLE"
+        ]
+      },
+      "removal_reason": "symbol has all required timeframe predictions missing/stale and trainer trust rows reject every timeframe",
+      "status": "TRAINER_TRUST_REJECTED_ALL_TIMEFRAMES",
+      "symbol": "CLOUSDT",
+      "timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ]
+    },
+    "EVAAUSDT": {
+      "classifications": {
+        "15m": "MARKET_STATE_REJECTED",
+        "1h": "MARKET_STATE_REJECTED",
+        "1m": "MARKET_STATE_REJECTED",
+        "4h": "MARKET_STATE_REJECTED",
+        "5m": "MARKET_STATE_REJECTED"
+      },
+      "exclude_from_expected_grid": true,
+      "reasons_by_timeframe": {
+        "15m": [
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_1h",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_4h",
+          "MTF_SNAPSHOT_INVALID"
+        ],
+        "1h": [
+          "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+          "MISSING_CRITICAL_FEATURE_FAMILY",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_1h",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_4h",
+          "MTF_SNAPSHOT_INVALID",
+          "UNCLOSED_CANDLE"
+        ],
+        "1m": [
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_1h",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_4h",
+          "MTF_SNAPSHOT_INVALID"
+        ],
+        "4h": [
+          "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+          "MISSING_CRITICAL_FEATURE_FAMILY",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_1h",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_4h",
+          "MTF_SNAPSHOT_INVALID",
+          "UNCLOSED_CANDLE"
+        ],
+        "5m": [
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_1h",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_4h",
+          "MTF_SNAPSHOT_INVALID"
+        ]
+      },
+      "removal_reason": "symbol has all required timeframe predictions missing/stale and trainer trust rows reject every timeframe",
+      "status": "TRAINER_TRUST_REJECTED_ALL_TIMEFRAMES",
+      "symbol": "EVAAUSDT",
+      "timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ]
+    },
+    "JUPUSDT": {
+      "classifications": {
+        "15m": "MARKET_STATE_REJECTED",
+        "1h": "MARKET_STATE_REJECTED",
+        "1m": "MARKET_STATE_REJECTED",
+        "4h": "MARKET_STATE_REJECTED",
+        "5m": "MARKET_STATE_REJECTED"
+      },
+      "exclude_from_expected_grid": true,
+      "reasons_by_timeframe": {
+        "15m": [
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_1h",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_4h",
+          "MTF_SNAPSHOT_INVALID"
+        ],
+        "1h": [
+          "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+          "MISSING_CRITICAL_FEATURE_FAMILY",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_1h",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_4h",
+          "MTF_SNAPSHOT_INVALID",
+          "UNCLOSED_CANDLE"
+        ],
+        "1m": [
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_1h",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_4h",
+          "MTF_SNAPSHOT_INVALID"
+        ],
+        "4h": [
+          "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+          "MISSING_CRITICAL_FEATURE_FAMILY",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_1h",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_4h",
+          "MTF_SNAPSHOT_INVALID",
+          "UNCLOSED_CANDLE"
+        ],
+        "5m": [
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_1h",
+          "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_4h",
+          "MTF_SNAPSHOT_INVALID"
+        ]
+      },
+      "removal_reason": "symbol has all required timeframe predictions missing/stale and trainer trust rows reject every timeframe",
+      "status": "TRAINER_TRUST_REJECTED_ALL_TIMEFRAMES",
+      "symbol": "JUPUSDT",
+      "timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ]
+    }
+  },
+  "rl_core_primary_overwrite": false,
+  "root_cause": "stale/untrusted symbols are excluded from current paper actionability; current primary CUDA grid has zero stale prediction rows.",
+  "stale_symbols_pre_remediation": [
+    "1INCHUSDT",
+    "BANKUSDT",
+    "ENJUSDT",
+    "ESPORTSUSDT",
+    "HMSTRUSDT",
+    "ORCAUSDT"
+  ],
+  "test_order_called": false
+}

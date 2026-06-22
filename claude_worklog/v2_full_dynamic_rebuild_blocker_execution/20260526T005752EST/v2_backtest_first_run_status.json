@@ -1,0 +1,151 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "artifacts": [
+    {
+      "path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/historical_30d_replay_and_paper_proof/20260526T005752EST/GO_NO_GO.md",
+      "size": 44
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/historical_30d_replay_and_paper_proof/20260526T005752EST/HISTORICAL_30D_REPLAY_AND_PAPER_PROOF.md",
+      "size": 1070
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/historical_30d_replay_and_paper_proof/20260526T005752EST/evidence_manifest.json",
+      "size": 1198
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/historical_30d_replay_and_paper_proof/20260526T005752EST/historical_30d_summary.json",
+      "size": 606
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/historical_30d_replay_and_paper_proof/20260526T005752EST/legacy_vs_v2_decision_comparison.json",
+      "size": 5956
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/historical_30d_replay_and_paper_proof/20260526T005752EST/limitations_and_data_gaps.md",
+      "size": 368
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/historical_30d_replay_and_paper_proof/20260526T005752EST/operator_dashboard_payload.json",
+      "size": 16955
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/historical_30d_replay_and_paper_proof/20260526T005752EST/paper_ledger_30d.json",
+      "size": 2501
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/historical_30d_replay_and_paper_proof/20260526T005752EST/shadow_comparison_30d.json",
+      "size": 6527
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/historical_30d_replay_and_paper_proof/20260526T005752EST/v2_preserved_winners.json",
+      "size": 2391
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/historical_30d_replay_and_paper_proof/20260526T005752EST/v2_reduced_or_rejected_trades.json",
+      "size": 3612
+    },
+    {
+      "path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/historical_30d_replay_and_paper_proof/20260526T005752EST/v2_risk_blocks.json",
+      "size": 3597
+    }
+  ],
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "engine_module": "v2/backend/app/cli/historical_30d_replay_and_paper_proof.py",
+  "go_no_go": "V2_BACKTEST_FIRST_RUN_READY",
+  "live_symbols": [],
+  "paper_ledger_snapshot": {
+    "events": [
+      {
+        "execution_intent_id": "hist_intent_day03_btc_winner_preserved",
+        "ledger_event_type": "close",
+        "live_gate_status": "blocked_human_only",
+        "non_live_only": true,
+        "paper_pnl": "+84.25",
+        "paper_trade_id": "hist_paper_day03_btc_winner_preserved",
+        "reason": "fresh_features_and_positive_regime",
+        "risk_decision_id": "hist_risk_day03_btc_winner_preserved",
+        "symbol": "BTCUSDT"
+      },
+      {
+        "execution_intent_id": "hist_intent_day08_eth_stale_blocked",
+        "ledger_event_type": "block",
+        "live_gate_status": "blocked_human_only",
+        "non_live_only": true,
+        "paper_pnl": "0.00",
+        "paper_trade_id": "hist_paper_day08_eth_stale_blocked",
+        "reason": "stale_feature_snapshot",
+        "risk_decision_id": "hist_risk_day08_eth_stale_blocked",
+        "symbol": "ETHUSDT"
+      },
+      {
+        "execution_intent_id": "hist_intent_day14_sol_duplicate_rejected",
+        "ledger_event_type": "block",
+        "live_gate_status": "blocked_human_only",
+        "non_live_only": true,
+        "paper_pnl": "0.00",
+        "paper_trade_id": "hist_paper_day14_sol_duplicate_rejected",
+        "reason": "duplicate_signal",
+        "risk_decision_id": "hist_risk_day14_sol_duplicate_rejected",
+        "symbol": "SOLUSDT"
+      },
+      {
+        "execution_intent_id": "hist_intent_day21_lab_hedge_unwind_blocked",
+        "ledger_event_type": "reduce",
+        "live_gate_status": "blocked_human_only",
+        "non_live_only": true,
+        "paper_pnl": "0.00",
+        "paper_trade_id": "hist_paper_day21_lab_hedge_unwind_blocked",
+        "reason": "short_squeeze_and_hedge_unwind_residual_exposure",
+        "risk_decision_id": "hist_risk_day21_lab_hedge_unwind_blocked",
+        "symbol": "LABUSDT"
+      },
+      {
+        "execution_intent_id": "hist_intent_day26_bnb_winner_preserved",
+        "ledger_event_type": "reduce",
+        "live_gate_status": "blocked_human_only",
+        "non_live_only": true,
+        "paper_pnl": "+41.35",
+        "paper_trade_id": "hist_paper_day26_bnb_winner_preserved",
+        "reason": "fresh_features_and_risk_within_limits",
+        "risk_decision_id": "hist_risk_day26_bnb_winner_preserved",
+        "symbol": "BNBUSDT"
+      }
+    ],
+    "generated_at": "2026-05-09T00:00:00Z",
+    "ledger_id": "historical_30d_paper_ledger_fixture",
+    "live_gate_status": "blocked_human_only",
+    "period_days": 30,
+    "summary": {
+      "allowed_events": 2,
+      "blocked_or_reduced_events": 3,
+      "event_count": 5,
+      "paper_pnl_fixture_sum": "+125.60"
+    }
+  },
+  "public_dir": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/historical_30d_replay_and_paper_proof/20260526T005752EST",
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "summary_snapshot": {
+    "estimated_loss_avoided_by_v2": "+538.90",
+    "generated_at": "2026-05-09T00:00:00Z",
+    "historical_audit_status": "HISTORICAL_PNL_TRADE_TRAINER_AUDIT_PARTIAL_LOCAL_ONLY",
+    "lab_hedge_unwind_represented": true,
+    "legacy_audit_status": "LEGACY_READONLY_AUDIT_SENTINEL_READY",
+    "legacy_realized_pnl_fixture_sum": "-413.30",
+    "live_gate_status": "blocked_human_only",
+    "mode": "offline_deterministic_historical_fixture",
+    "period_days": 30,
+    "scenario_count": 5,
+    "v2_block_count": 3,
+    "v2_paper_pnl_fixture_sum": "+125.60",
+    "v2_preserved_winner_count": 2,
+    "v2_reduced_or_rejected_count": 3
+  },
+  "ts_est": "20260526T005752EST",
+  "ts_iso_est": "2026-05-26T01:03:25-0400",
+  "worklog_dir": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/historical_30d_replay_and_paper_proof/20260526T005752EST",
+  "writes_exchange_orders": false
+}

@@ -1,0 +1,42 @@
+{
+  "agent": "codex",
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/8h_trade_readiness/latest/codex_reviews/trainer/"
+  ],
+  "allowed_paths": [
+    "v2/**",
+    "claude_worklog/**"
+  ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "forbidden": [
+    "legacy_mutation",
+    "old_redis_write",
+    "exchange_action",
+    "leverage_change",
+    "margin_mode_change",
+    "live_gate_unlock",
+    "approval_token_creation",
+    "redis_trim_approval_creation",
+    "derived_evidence_mislabeled_native",
+    "feature_attribution_fabricated",
+    "wrapper_marked_full_trainer_parity"
+  ],
+  "lane": "8h_trade_readiness_review",
+  "live_gate": "blocked_human_only",
+  "managed_by": "codex_8h_trade_readiness_war_room",
+  "max_attempts": 1,
+  "predecessor_task_ids": [
+    "claude_8h_trainer_native_edge_evidence_or_acceptance"
+  ],
+  "priority": 899,
+  "prompt": "Review the 8-hour trainer native evidence or acceptance packet. Fail if derived evidence is mislabeled native, feature attribution is fabricated, wrapper parity is treated as full trainer parity, checkpoint evidence is hidden, old Redis mutation appears, exchange mutation appears, or live gate changes. Emit CODEX_REVIEW.md and CODEX_GO_NO_GO.md.",
+  "required_output_files": [
+    "claude_worklog/final_readiness/8h_trade_readiness/latest/codex_reviews/trainer/CODEX_REVIEW.md",
+    "claude_worklog/final_readiness/8h_trade_readiness/latest/codex_reviews/trainer/CODEX_GO_NO_GO.md"
+  ],
+  "risk_level": "L1",
+  "status": "completed",
+  "task_id": "codex_review_8h_trainer_native_edge_evidence_or_acceptance",
+  "task_timeout_seconds": 1200
+}

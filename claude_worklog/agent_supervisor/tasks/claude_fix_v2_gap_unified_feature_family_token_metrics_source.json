@@ -1,0 +1,33 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "auto_apply_allowed_by_this_loop": false,
+  "created_utc": "2026-05-17T19:42:48Z",
+  "family_id": "unified_feature_family.token_metrics",
+  "forbidden_actions": [
+    "modify /home/wali/Desktop/AI BOT",
+    "stop or restart legacy",
+    "write old Redis keys",
+    "place or cancel exchange orders",
+    "change leverage or margin",
+    "enable live",
+    "create approval token",
+    "execute legacy monitor scripts",
+    "load torch weights into V2 process",
+    "commit checkpoint blobs to Git",
+    "fabricate missing observation dimensions"
+  ],
+  "gap_id": "full_observation_source_unified_feature_family.token_metrics",
+  "kind": "claude_narrow_remediation",
+  "legacy_size_per_source": 18,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "paired_codex_review_task_id": "codex_review_fix_v2_gap_unified_feature_family_token_metrics_source",
+  "rationale": "On-chain/sentiment metrics. V2 has no native source today; requires new external ingestor and operator approval.",
+  "severity": "OPERATOR_DECISION_REQUIRED",
+  "task_id": "claude_fix_v2_gap_unified_feature_family_token_metrics_source",
+  "updated_utc": "2026-05-17T19:42:56Z",
+  "v2_source_status": "EXTERNAL_SOURCE_REQUIRED"
+}

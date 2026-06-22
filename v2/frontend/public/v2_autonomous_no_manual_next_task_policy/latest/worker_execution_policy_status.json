@@ -1,0 +1,38 @@
+{
+  "Codex_FAIL_count_last_hour": 0,
+  "Codex_PASS_count_last_hour": 0,
+  "Codex_reviews_completed_last_hour": 0,
+  "active_lease_rows": [],
+  "active_leases": 0,
+  "automation_executing": false,
+  "busy_workers": 0,
+  "idle_workers": 6,
+  "implementation_tasks_completed_last_hour": 0,
+  "metrics": {
+    "v2_closed_loop_active_leases": 0.0,
+    "v2_closed_loop_burndown_blockers": 0.0,
+    "v2_closed_loop_busy_workers": 28.0,
+    "v2_closed_loop_codex_fail_map_total": 27.0,
+    "v2_closed_loop_duplicate_lease_conflicts_total": 15.0,
+    "v2_closed_loop_executor_unavailable": 0.0,
+    "v2_closed_loop_idle_workers": 0.0,
+    "v2_closed_loop_lease_heartbeat_age_seconds": 551498.6024448872,
+    "v2_closed_loop_payload_age_seconds": 551498.6024448872,
+    "v2_closed_loop_queue_eligible_tasks": 2.0,
+    "v2_closed_loop_queue_oldest_task_age_seconds": 551743.852011919,
+    "v2_closed_loop_task_completions_total": 44.0,
+    "v2_closed_loop_worker_heartbeat_age_seconds": 0.10421299934387207
+  },
+  "queued_automatable_tasks": 2,
+  "reconcile": {
+    "duplicate_active_task_leases": 0,
+    "duplicate_active_task_leases_detail": [],
+    "duplicate_file_lock_active_leases": 0,
+    "duplicate_file_lock_active_leases_detail": [],
+    "tasks_missing_safe_envelope": 0,
+    "tasks_missing_safe_envelope_detail": []
+  },
+  "remediations_created_last_hour": 0,
+  "tasks_completed_last_hour": 0,
+  "unmapped_codex_fail_count": 0
+}

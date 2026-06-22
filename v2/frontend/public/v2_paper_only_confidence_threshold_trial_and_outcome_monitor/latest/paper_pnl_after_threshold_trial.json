@@ -1,0 +1,28 @@
+{
+  "after_trial_portfolio": {
+    "accepted_fill_total": 757,
+    "current_session_equity": 10030.41842727,
+    "current_session_pnl": 30.41842727,
+    "economic_fill_total": 756,
+    "last_equity_update_est": "2026-06-10T21:02:51-04:00",
+    "open_positions_count": 37,
+    "realized_pnl_usd": 5.44795386,
+    "unrealized_pnl_usd": 24.97047341
+  },
+  "before_trial_portfolio": {
+    "accepted_fill_total": 757,
+    "current_session_equity": 10035.51817949,
+    "current_session_pnl": 35.51817949,
+    "economic_fill_total": 756,
+    "last_equity_update_est": "2026-06-10T21:02:24-04:00",
+    "open_positions_count": 37,
+    "realized_pnl_usd": 5.44795386,
+    "unrealized_pnl_usd": 30.07022563
+  },
+  "generated_est": "2026-06-10T21:02:51-04:00",
+  "live_unchanged": true,
+  "paper_loop_run": true,
+  "schema_version": "v2_paper_only_confidence_threshold_trial_v1_pnl_monitor",
+  "status": "PAPER_PNL_MONITOR_AFTER_THRESHOLD_TRIAL_ARMED",
+  "trial_promoted_signal_count": 15
+}

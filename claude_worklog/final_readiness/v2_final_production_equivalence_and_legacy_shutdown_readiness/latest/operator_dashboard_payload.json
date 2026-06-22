@@ -1,0 +1,29 @@
+{
+  "schema_version": "v2_final_production_equivalence_operator_dashboard_v2",
+  "generated_utc": "2026-05-25T01:24:29Z",
+  "go_no_go": "V2_FINAL_PRODUCTION_EQUIVALENCE_AND_LEGACY_SHUTDOWN_READINESS_BLOCKED",
+  "headline": "MIGRATION_COMPLETE=NO, LEGACY_SHUTDOWN_READY=NO, LIVE_READY=NO, PAPER_EDGE_PROVEN=NO",
+  "plain_english": "All currently visible non-operator P0 implementation blockers have been burned down or reclassified. V2 still is not production-equivalent and legacy shutdown remains blocked by operator/external/event/evidence gates.",
+  "non_operator_p0_implementation_blocker_count": 0,
+  "remaining_operator_or_event_blockers": [
+    "full_observation_builder: external token/onchain sources, ccxt_ohlcv operator decision, liquidation event dependency, TA undefined-ratio handling",
+    "checkpoint_promotion: operator-approved checkpoint required",
+    "paper_edge_not_proven: operator thresholds plus statistically defensible after-cost paper evidence required",
+    "legacy_shutdown: operator-only legacy stop and Redis trim decisions required"
+  ],
+  "automation_state": {
+    "workers_active": true,
+    "active_lane_count": 6,
+    "note": "active leases do not prove production equivalence or edge"
+  },
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false,
+  "blocks_live": true,
+  "blocks_shutdown": true,
+  "blocks_production_equivalence": true,
+  "no_fake_readiness": true
+}

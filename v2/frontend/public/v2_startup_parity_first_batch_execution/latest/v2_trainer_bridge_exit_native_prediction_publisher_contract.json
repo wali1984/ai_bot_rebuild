@@ -1,0 +1,38 @@
+{
+  "blocked_reason": "v2:prediction:* comes from v2_trainer_bridge today; native publisher is a separate operator-gated lane.",
+  "broad_audit": false,
+  "codex_review_required": true,
+  "does_not_fake_data": true,
+  "envelope_summary": {
+    "freshness_state_counts": {
+      "BRIDGE_ONLY": 3
+    },
+    "gap_or_bridge": 3,
+    "publishable": 0,
+    "source_label_counts": {
+      "V2_BRIDGE_FROM_LEGACY_REDIS": 3
+    },
+    "total": 3
+  },
+  "file_lock_group": "v2_trainer_bridge_publisher",
+  "forbidden_actions": [
+    "no_trainer_native_readiness_claim_before_implementation_and_codex_pass",
+    "no_checkpoint_deserialization_in_control_plane",
+    "no_v2_native_label_for_bridge_prediction",
+    "no_old_redis_writes"
+  ],
+  "go_no_go_marker": "V2_TRAINER_BRIDGE_EXIT_NATIVE_PREDICTION_PUBLISHER_CONTRACT_SCAFFOLDED",
+  "implementation_artifact": "v2/backend/app/services/native_runtime_migration/first_batch_executor.py::task_h_trainer_prediction_publisher_contract",
+  "implementation_status": "CONTRACT_DEFINED_NATIVE_PUBLISHER_NOT_IMPLEMENTED",
+  "missing_source_policy": "Emit explicit MISSING_SOURCE, NO_CLIENT_PRESENT, BRIDGE_ONLY, or OPERATOR_DECISION_REQUIRED envelopes instead of fabricating V2-native payloads.",
+  "status": "CONTRACT_DEFINED_NATIVE_PUBLISHER_NOT_IMPLEMENTED",
+  "target_redis_key_patterns": [
+    "v2:prediction:{symbol}:{timeframe}",
+    "v2:trainer:heartbeat"
+  ],
+  "target_v2_keys": [
+    "v2:prediction:{symbol}:{timeframe}",
+    "v2:trainer:heartbeat"
+  ],
+  "task_id": "v2_trainer_bridge_exit_native_prediction_publisher_contract"
+}

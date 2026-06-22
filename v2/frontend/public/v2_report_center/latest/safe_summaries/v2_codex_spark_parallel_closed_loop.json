@@ -1,0 +1,28 @@
+{
+  "freshness_seconds": 2411234.4364008904,
+  "go_no_go": null,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "owner": "SYSTEM",
+  "redaction_applied": false,
+  "report_id": "v2_codex_spark_parallel_closed_loop",
+  "sanitized_summary": {
+    "go_no_go": null,
+    "pruned": {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "generated_utc": "2026-05-25T02:36:57.552548Z",
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "next_action": "Review blockers and unmapped Codex fails before production-equivalence claim."
+    },
+    "redaction_applied": false,
+    "redaction_token": null,
+    "status": "INFO"
+  },
+  "stale": true,
+  "status": "INFO",
+  "title": "V2 Codex Spark Parallel Closed-Loop Runtime"
+}

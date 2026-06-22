@@ -1,0 +1,1264 @@
+{
+  "accepted_training_rows": 0,
+  "by_symbol_rejections": {
+    "1000BONKUSDT": 6,
+    "1000LUNCUSDT": 6,
+    "1000PEPEUSDT": 6,
+    "1000SHIBUSDT": 6,
+    "ADAUSDT": 6,
+    "ALICEUSDT": 6,
+    "ARUSDT": 6,
+    "ASRUSDT": 6,
+    "ASTERUSDT": 6,
+    "AVAXUSDT": 6,
+    "AVNTUSDT": 6,
+    "BABYUSDT": 6,
+    "BANKUSDT": 6,
+    "BARDUSDT": 6,
+    "BCHUSDT": 6,
+    "BEATUSDT": 6,
+    "BILLUSDT": 6,
+    "BSBUSDT": 6,
+    "EPICUSDT": 6,
+    "ETCUSDT": 6,
+    "FARTCOINUSDT": 6,
+    "GALAUSDT": 6,
+    "HEIUSDT": 6,
+    "HOTUSDT": 6,
+    "IRYSUSDT": 6,
+    "JSTUSDT": 6,
+    "LABUSDT": 6,
+    "LINKUSDT": 6,
+    "LITUSDT": 6,
+    "MEMEUSDT": 6,
+    "NEOUSDT": 6,
+    "NIGHTUSDT": 6,
+    "ONDOUSDT": 6,
+    "PARTIUSDT": 6,
+    "PIPPINUSDT": 6,
+    "POLUSDT": 6,
+    "SEIUSDT": 6,
+    "SLXUSDT": 6,
+    "SOLUSDT": 6,
+    "SSVUSDT": 6,
+    "SUIUSDT": 6,
+    "TAUSDT": 6,
+    "TONUSDT": 6,
+    "TRUMPUSDT": 6,
+    "WIFUSDT": 6,
+    "WLDUSDT": 6,
+    "XAUTUSDT": 6,
+    "XLMUSDT": 6,
+    "ZECUSDT": 6,
+    "ZROUSDT": 6
+  },
+  "by_timeframe_rejections": {
+    "15m": 122,
+    "1h": 122,
+    "1m": 244,
+    "4h": 122,
+    "5m": 122
+  },
+  "generated_est": "2026-06-08T23:21:50-04:00",
+  "generated_utc": "2026-06-09T03:21:50Z",
+  "rejected_training_rows": 732,
+  "rejection_reason_counts": {
+    "FEATURE_FRESHNESS_MISSING_OR_EXPIRED": 610,
+    "LATENCY_OR_PAYLOAD_AGE_MISSING": 610,
+    "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN": 732,
+    "MISSING_CRITICAL_FEATURE_FAMILY": 610,
+    "candle_closed_confirmed_missing": 732,
+    "candle_open_or_close_time_missing": 732,
+    "source_event_time_missing": 732
+  },
+  "sample_rejections": [
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_d861f68a3e8ef7dff6ae8ebd38073636657883d793b19928ab67d90900adc1a0",
+      "market_state_id": "mstate_dc5fc8f77c7d8e460094",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_6526ad24f02a3699f8bb1531ac8d9a73",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_d861f68a3e8ef7dff6ae8ebd38073636657883d793b19928ab67d90900adc1a0",
+        "prediction_id": "v2h_6526ad24f02a3699f8bb1531ac8d9a73",
+        "redis_key": "v2:prediction:NIGHTUSDT:1h",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_d1d851b878195e75003dd1ce44c3c9df292ede3dfb25b9b77f6b3ae3687814ee",
+      "market_state_id": "mstate_f63481f211f79e653676",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_92940eefaae9c18cbb0077607a96de77",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_d1d851b878195e75003dd1ce44c3c9df292ede3dfb25b9b77f6b3ae3687814ee",
+        "prediction_id": "v2h_92940eefaae9c18cbb0077607a96de77",
+        "redis_key": "v2:prediction:SLXUSDT:15m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_8a99e191515a6ba96defcc07ed64f16f003b90e6aeb67d9117372cfdf53a60b7",
+      "market_state_id": "mstate_b5ead35e001cd65ca8d5",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_a7ee0a20024156bd01cc3bf0fd1beb62",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_8a99e191515a6ba96defcc07ed64f16f003b90e6aeb67d9117372cfdf53a60b7",
+        "prediction_id": "v2h_a7ee0a20024156bd01cc3bf0fd1beb62",
+        "redis_key": "v2:prediction:ZROUSDT:4h",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_d1ded2461acdab814730a4fccf5c0da0674c7d941bd61dce6b171c43de5374df",
+      "market_state_id": "mstate_240d24b904969eb9dce9",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_6b4ec7c22781e56ee3c160afb33a2a67",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_d1ded2461acdab814730a4fccf5c0da0674c7d941bd61dce6b171c43de5374df",
+        "prediction_id": "v2h_6b4ec7c22781e56ee3c160afb33a2a67",
+        "redis_key": "v2:prediction:FARTCOINUSDT:5m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_da835668d66806983af0fbfd6e3a37d721959f446f35947a6e72ca1b5f8a61d7",
+      "market_state_id": "mstate_4ab780608defd586fec9",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_d101cf21a2ad21faa912d3961de78ef4",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_da835668d66806983af0fbfd6e3a37d721959f446f35947a6e72ca1b5f8a61d7",
+        "prediction_id": "v2h_d101cf21a2ad21faa912d3961de78ef4",
+        "redis_key": "v2:prediction:TAUSDT:5m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_b758a7db611adccd348a398ecc8313fc2e08f65f4b5f6707c3f39b926b9137f8",
+      "market_state_id": "mstate_f75c9d634d02e59a6ca2",
+      "market_state_integrity_score": 75.0,
+      "prediction_id": "v2_native_pred_2e08f65f4b5f6707c3f39b926b9137f8_219a2190e2b0ebb8",
+      "reject_reasons": [
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_b758a7db611adccd348a398ecc8313fc2e08f65f4b5f6707c3f39b926b9137f8",
+        "prediction_id": "v2_native_pred_2e08f65f4b5f6707c3f39b926b9137f8_219a2190e2b0ebb8",
+        "redis_key": "v2:prediction:rl_core:JSTUSDT:1m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_93d93e55adc88d97df527668cd9aa8a8af7673a51ebcb29e83bd02d4a324e3ec",
+      "market_state_id": "mstate_9913730b2b0e1c93c726",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_344897ee0532097fcf05b0ad13e58ba7",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_93d93e55adc88d97df527668cd9aa8a8af7673a51ebcb29e83bd02d4a324e3ec",
+        "prediction_id": "v2h_344897ee0532097fcf05b0ad13e58ba7",
+        "redis_key": "v2:prediction:LITUSDT:1m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_79bf83d14400e0b882b947be4f8aaf55fcd018f7b953830955f941ee5ad986ae",
+      "market_state_id": "mstate_ea23960f03b4f109087d",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_91bc2ec3b818d58b428e177771b4b9eb",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_79bf83d14400e0b882b947be4f8aaf55fcd018f7b953830955f941ee5ad986ae",
+        "prediction_id": "v2h_91bc2ec3b818d58b428e177771b4b9eb",
+        "redis_key": "v2:prediction:WLDUSDT:4h",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_bf8fd3e7af5de958acf12913c62d9de9e9f89207914a317244754df0d48045a5",
+      "market_state_id": "mstate_a7c601464cbdea290aa5",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_fc52c30b6955222d7c9616e5d958c1e0",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_bf8fd3e7af5de958acf12913c62d9de9e9f89207914a317244754df0d48045a5",
+        "prediction_id": "v2h_fc52c30b6955222d7c9616e5d958c1e0",
+        "redis_key": "v2:prediction:LINKUSDT:4h",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_443d405fc810fa3436358fac7089df01d9ac2109f97d8d38d0a976baeb757455",
+      "market_state_id": "mstate_9233c115b9ad0dbcdae9",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_632f7b7c3f8e8ca6cdd85d5643b06782",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_443d405fc810fa3436358fac7089df01d9ac2109f97d8d38d0a976baeb757455",
+        "prediction_id": "v2h_632f7b7c3f8e8ca6cdd85d5643b06782",
+        "redis_key": "v2:prediction:PARTIUSDT:1m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_b5f245ffc4e2d4cc09a889b1bda34714224ac1d3353ae4199dd0c6585047b7d3",
+      "market_state_id": "mstate_23fbc2d6b7f655b3b13b",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_372390cad95f412c331303d18b482908",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_b5f245ffc4e2d4cc09a889b1bda34714224ac1d3353ae4199dd0c6585047b7d3",
+        "prediction_id": "v2h_372390cad95f412c331303d18b482908",
+        "redis_key": "v2:prediction:BANKUSDT:1m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_0f17a02afb29e0afe7ddd8f27bc61e38b8fc8abd22d04b646df329823baf0a6a",
+      "market_state_id": "mstate_edbda0ad7d312349de8b",
+      "market_state_integrity_score": 75.0,
+      "prediction_id": "v2_native_pred_b8fc8abd22d04b646df329823baf0a6a_219a2190e2b0ebb8",
+      "reject_reasons": [
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_0f17a02afb29e0afe7ddd8f27bc61e38b8fc8abd22d04b646df329823baf0a6a",
+        "prediction_id": "v2_native_pred_b8fc8abd22d04b646df329823baf0a6a_219a2190e2b0ebb8",
+        "redis_key": "v2:prediction:rl_core:TONUSDT:1m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_998159da6472384b3475f9cb3d9fbe4604ef0db72aff837ace0d3294e9db100a",
+      "market_state_id": "mstate_dd22f0d9857c4b112698",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_e75fdba44e2f733b645d8fd4842e24d8",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_998159da6472384b3475f9cb3d9fbe4604ef0db72aff837ace0d3294e9db100a",
+        "prediction_id": "v2h_e75fdba44e2f733b645d8fd4842e24d8",
+        "redis_key": "v2:prediction:NIGHTUSDT:4h",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_38c311e1005b7ffe825a2edba2e6d6ab0b99d817eff6e796382405886c495d1d",
+      "market_state_id": "mstate_f508ba83f35cc0ed2151",
+      "market_state_integrity_score": 75.0,
+      "prediction_id": "v2_native_pred_0b99d817eff6e796382405886c495d1d_219a2190e2b0ebb8",
+      "reject_reasons": [
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_38c311e1005b7ffe825a2edba2e6d6ab0b99d817eff6e796382405886c495d1d",
+        "prediction_id": "v2_native_pred_0b99d817eff6e796382405886c495d1d_219a2190e2b0ebb8",
+        "redis_key": "v2:prediction:rl_core:ASTERUSDT:1m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_887f9c81c7f6252208ddf529471d0427c28a5f7197aba55a0daa4e2242d0be3f",
+      "market_state_id": "mstate_77390244832aa1e2cbbf",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_92ced47ff2c26f05c15d11897682f47f",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_887f9c81c7f6252208ddf529471d0427c28a5f7197aba55a0daa4e2242d0be3f",
+        "prediction_id": "v2h_92ced47ff2c26f05c15d11897682f47f",
+        "redis_key": "v2:prediction:BABYUSDT:4h",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_13ae9aed049b69f95ae5ea9d30abac422ed5e176a7150f836e7a4353b996c1d4",
+      "market_state_id": "mstate_54bc9c4f47bbd93bcdb7",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_03fc87fc2af26194fe6e11197520e2e3",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_13ae9aed049b69f95ae5ea9d30abac422ed5e176a7150f836e7a4353b996c1d4",
+        "prediction_id": "v2h_03fc87fc2af26194fe6e11197520e2e3",
+        "redis_key": "v2:prediction:ETCUSDT:15m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_32f28388ab084bff0f560e3c7d3945a05d6e52fd8fce50dd398a6a2769b1a527",
+      "market_state_id": "mstate_17d50ede818bee5724a1",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_c402c2e169ab80a82936182c0b19dad1",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_32f28388ab084bff0f560e3c7d3945a05d6e52fd8fce50dd398a6a2769b1a527",
+        "prediction_id": "v2h_c402c2e169ab80a82936182c0b19dad1",
+        "redis_key": "v2:prediction:LABUSDT:1h",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_b71ac17ca4b91874ae3c858417ae90709e2c106e4b44a7608b5e13d4084ce8aa",
+      "market_state_id": "mstate_4202fa3d9876169abd30",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_e733fd87450c2fb86fa4c2787ec633be",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_b71ac17ca4b91874ae3c858417ae90709e2c106e4b44a7608b5e13d4084ce8aa",
+        "prediction_id": "v2h_e733fd87450c2fb86fa4c2787ec633be",
+        "redis_key": "v2:prediction:HOTUSDT:15m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_c5f0181e0c17f923aae3db8e450daae387cd1cec48a5d67a8609c43a4fef6bbf",
+      "market_state_id": "mstate_c75df0bc4413d0ef7373",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_960ba45bf3076db0fb8c8395ef16b723",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_c5f0181e0c17f923aae3db8e450daae387cd1cec48a5d67a8609c43a4fef6bbf",
+        "prediction_id": "v2h_960ba45bf3076db0fb8c8395ef16b723",
+        "redis_key": "v2:prediction:ASRUSDT:5m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_38b8700ed3cdc26669c580ad1655654a59667daf44ee5c852a3e0dc799eaf549",
+      "market_state_id": "mstate_14b346935699c7e63686",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_1920f8dbd86d48fd828ba2f1bda129b2",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_38b8700ed3cdc26669c580ad1655654a59667daf44ee5c852a3e0dc799eaf549",
+        "prediction_id": "v2h_1920f8dbd86d48fd828ba2f1bda129b2",
+        "redis_key": "v2:prediction:POLUSDT:1m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_56a3b2f6f8aa95d89dcc85f7993af79516707139b3efb16918580415cc306cd4",
+      "market_state_id": "mstate_75e592568c0246e6f91b",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_4c4d5d56210043edbdd75b3acbcec614",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_56a3b2f6f8aa95d89dcc85f7993af79516707139b3efb16918580415cc306cd4",
+        "prediction_id": "v2h_4c4d5d56210043edbdd75b3acbcec614",
+        "redis_key": "v2:prediction:TRUMPUSDT:1h",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_c7417b5e983a60e41811859d8cad4e782be4274ed7cd1a3d72aa3d981b2b4507",
+      "market_state_id": "mstate_b11cac2a9cb223ddb66d",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_80740cfe03fc6b0844a5db5a32601f87",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_c7417b5e983a60e41811859d8cad4e782be4274ed7cd1a3d72aa3d981b2b4507",
+        "prediction_id": "v2h_80740cfe03fc6b0844a5db5a32601f87",
+        "redis_key": "v2:prediction:AVNTUSDT:15m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_f6f5b8500cbe7e3c348f0a584b1069fe87652b960fac283ff7efb630ca44c317",
+      "market_state_id": "mstate_cb24b75c2401719f7f7d",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_03d98e3928c0fabfd757a3d96b10f952",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_f6f5b8500cbe7e3c348f0a584b1069fe87652b960fac283ff7efb630ca44c317",
+        "prediction_id": "v2h_03d98e3928c0fabfd757a3d96b10f952",
+        "redis_key": "v2:prediction:MEMEUSDT:1h",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_ec6e00597dbd1fca4d5eef3564447d8eb9e290672b19090563e30d047331b6b2",
+      "market_state_id": "mstate_f63abd4fd44aac8d8bc6",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_0e0b6dda71dc2389e6e5082f9628754d",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_ec6e00597dbd1fca4d5eef3564447d8eb9e290672b19090563e30d047331b6b2",
+        "prediction_id": "v2h_0e0b6dda71dc2389e6e5082f9628754d",
+        "redis_key": "v2:prediction:BILLUSDT:5m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_7d18fe7a3d1c666a70319ed1e039386e0db8891d1144a94b82f4f59e26ea77a3",
+      "market_state_id": "mstate_910ab18237ca2af2c07b",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_017eb3c001c1759b71c9eae9b95af4ce",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_7d18fe7a3d1c666a70319ed1e039386e0db8891d1144a94b82f4f59e26ea77a3",
+        "prediction_id": "v2h_017eb3c001c1759b71c9eae9b95af4ce",
+        "redis_key": "v2:prediction:XLMUSDT:1m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_70c77c5773c82609d20a18d62858e72b5678f77efe763e640bb1b26ac95e861c",
+      "market_state_id": "mstate_9bd544ffd8338c4d4795",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_ba6c181b5915756f7ed89ce2779beb1d",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_70c77c5773c82609d20a18d62858e72b5678f77efe763e640bb1b26ac95e861c",
+        "prediction_id": "v2h_ba6c181b5915756f7ed89ce2779beb1d",
+        "redis_key": "v2:prediction:1000LUNCUSDT:1h",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_822acee0158065e9e526c9a63de6000ac0536e78ae769ec6c502ca3090b3a74d",
+      "market_state_id": "mstate_5671cd01f78759bad1df",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_1424d979e3205d41573e73462de173bf",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_822acee0158065e9e526c9a63de6000ac0536e78ae769ec6c502ca3090b3a74d",
+        "prediction_id": "v2h_1424d979e3205d41573e73462de173bf",
+        "redis_key": "v2:prediction:1000PEPEUSDT:4h",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_2b8d9f2e462643a253f4d28e5daa17fc67853bc103d68bcb2abbbee26979004c",
+      "market_state_id": "mstate_2259b284fd4a2c01b556",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_0d031d48b438248f2d0752bde32e89fa",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_2b8d9f2e462643a253f4d28e5daa17fc67853bc103d68bcb2abbbee26979004c",
+        "prediction_id": "v2h_0d031d48b438248f2d0752bde32e89fa",
+        "redis_key": "v2:prediction:AVAXUSDT:5m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_52cd31fc0576efd51ce2ad3a0ef630d2e7a57466196caf63f137f37734a1f7e5",
+      "market_state_id": "mstate_5fa8a8410803ba3ddc29",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_a1473fdad2396773346f7ae63819ad7f",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_52cd31fc0576efd51ce2ad3a0ef630d2e7a57466196caf63f137f37734a1f7e5",
+        "prediction_id": "v2h_a1473fdad2396773346f7ae63819ad7f",
+        "redis_key": "v2:prediction:ONDOUSDT:15m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_45908de4226a2992af0cfb53b288b0ae8918d331f3bf1240d59b3d7568777ac7",
+      "market_state_id": "mstate_82340c0df2a3636cf747",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_3e767bf3720866b3331858248a1a04a9",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_45908de4226a2992af0cfb53b288b0ae8918d331f3bf1240d59b3d7568777ac7",
+        "prediction_id": "v2h_3e767bf3720866b3331858248a1a04a9",
+        "redis_key": "v2:prediction:BARDUSDT:1h",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_6d6f91347d9165e41b5c16002bc84bec320130e87f5237046011392781e79f34",
+      "market_state_id": "mstate_7daa31c198c6e11d4b0a",
+      "market_state_integrity_score": 75.0,
+      "prediction_id": "v2_native_pred_320130e87f5237046011392781e79f34_219a2190e2b0ebb8",
+      "reject_reasons": [
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_6d6f91347d9165e41b5c16002bc84bec320130e87f5237046011392781e79f34",
+        "prediction_id": "v2_native_pred_320130e87f5237046011392781e79f34_219a2190e2b0ebb8",
+        "redis_key": "v2:prediction:rl_core:EPICUSDT:1m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_ac4be294c74a65dbb74387e8c61454071ec513a78054b68f6508da79a59e05f5",
+      "market_state_id": "mstate_f0b2433b084064e50d85",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_6ca0554268ec2ca34a9fc300e1ffd1d8",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_ac4be294c74a65dbb74387e8c61454071ec513a78054b68f6508da79a59e05f5",
+        "prediction_id": "v2h_6ca0554268ec2ca34a9fc300e1ffd1d8",
+        "redis_key": "v2:prediction:BEATUSDT:5m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_24151c3db8aa05723afe5a77b6298f043fa2089443d716930df29be3c374e2a2",
+      "market_state_id": "mstate_35296a1226cea0d7af73",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_1bb811dcd12af31c223175f9ac4f8dc7",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_24151c3db8aa05723afe5a77b6298f043fa2089443d716930df29be3c374e2a2",
+        "prediction_id": "v2h_1bb811dcd12af31c223175f9ac4f8dc7",
+        "redis_key": "v2:prediction:PIPPINUSDT:1h",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_4a598e430f4d3f9873732b236e33f1bae53ece8962f1da0bc745f7ec57d00b43",
+      "market_state_id": "mstate_3d75ac04d457ef030394",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_aa8439adb0e648331a7fe673dec2a3ac",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_4a598e430f4d3f9873732b236e33f1bae53ece8962f1da0bc745f7ec57d00b43",
+        "prediction_id": "v2h_aa8439adb0e648331a7fe673dec2a3ac",
+        "redis_key": "v2:prediction:SSVUSDT:1h",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_6520027fb8a9068c7742c4b377d85ae3df6ced9dd82c5ed8265aa08549d37112",
+      "market_state_id": "mstate_6b9902995837e8aac34d",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_c336aa419accf3f83bc3e2c079e65b37",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_6520027fb8a9068c7742c4b377d85ae3df6ced9dd82c5ed8265aa08549d37112",
+        "prediction_id": "v2h_c336aa419accf3f83bc3e2c079e65b37",
+        "redis_key": "v2:prediction:BILLUSDT:4h",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_889c2ff59ac16177aba6cec36a544200d040fdb870429d919fe787dc2c73c557",
+      "market_state_id": "mstate_94598b70e120bb6bfe6a",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_13326000f6446396f50d0f1ebcaa0bf2",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_889c2ff59ac16177aba6cec36a544200d040fdb870429d919fe787dc2c73c557",
+        "prediction_id": "v2h_13326000f6446396f50d0f1ebcaa0bf2",
+        "redis_key": "v2:prediction:XAUTUSDT:15m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_6822b3c55b20caf6d3b7d8996770f6a023adb52b29fe0f1b6a36b998900bf0c1",
+      "market_state_id": "mstate_6fcac212d140044d532f",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_39f76e1c15c17a988b60ca72543c3932",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_6822b3c55b20caf6d3b7d8996770f6a023adb52b29fe0f1b6a36b998900bf0c1",
+        "prediction_id": "v2h_39f76e1c15c17a988b60ca72543c3932",
+        "redis_key": "v2:prediction:1000SHIBUSDT:4h",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_d171784dcffd5d2804c984c252af17f65165c997d58baadad83ce43ca297c4a3",
+      "market_state_id": "mstate_304f9be04a26d3841d47",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_2a2e5ac884da295cc66eff06cd1d0c96",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_d171784dcffd5d2804c984c252af17f65165c997d58baadad83ce43ca297c4a3",
+        "prediction_id": "v2h_2a2e5ac884da295cc66eff06cd1d0c96",
+        "redis_key": "v2:prediction:ALICEUSDT:5m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_65a8ef7dbf549d05955154803ecbfec3b3b02025d6bf8dd360385a1e7a493683",
+      "market_state_id": "mstate_069e46846ed14632758e",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_26290c8c851bed233c2aa399d7d0a580",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_65a8ef7dbf549d05955154803ecbfec3b3b02025d6bf8dd360385a1e7a493683",
+        "prediction_id": "v2h_26290c8c851bed233c2aa399d7d0a580",
+        "redis_key": "v2:prediction:BSBUSDT:1h",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_67f2646e3826445b04498a3edcb78674cc30ec488a9bd7ef7fdb79b72a170de6",
+      "market_state_id": "mstate_36b74d2e79c65d5a07f7",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_9e240b95a140b4143843c9fcd9722acb",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_67f2646e3826445b04498a3edcb78674cc30ec488a9bd7ef7fdb79b72a170de6",
+        "prediction_id": "v2h_9e240b95a140b4143843c9fcd9722acb",
+        "redis_key": "v2:prediction:XAUTUSDT:1m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_52a78b813b09aa1d49d7260746dd7edb57ff4fa083463c9feed83b358e6bc497",
+      "market_state_id": "mstate_f8681341cdb64bbeee05",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_078b4c3086d192c33d46f0f56c7e638c",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_52a78b813b09aa1d49d7260746dd7edb57ff4fa083463c9feed83b358e6bc497",
+        "prediction_id": "v2h_078b4c3086d192c33d46f0f56c7e638c",
+        "redis_key": "v2:prediction:ADAUSDT:1h",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_edca262cd6de1b10746bea9b327b4183c63a364f09c72d66108bc507c2ecf9c0",
+      "market_state_id": "mstate_b427c239441544b4dd48",
+      "market_state_integrity_score": 75.0,
+      "prediction_id": "v2_native_pred_c63a364f09c72d66108bc507c2ecf9c0_219a2190e2b0ebb8",
+      "reject_reasons": [
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_edca262cd6de1b10746bea9b327b4183c63a364f09c72d66108bc507c2ecf9c0",
+        "prediction_id": "v2_native_pred_c63a364f09c72d66108bc507c2ecf9c0_219a2190e2b0ebb8",
+        "redis_key": "v2:prediction:rl_core:BCHUSDT:1m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_53cf90c130d0c34a3182cc0787b61953a44c1ff037fed0f30ed7441092fc6396",
+      "market_state_id": "mstate_1dc944c20e7730b8a22f",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_3bdf25217bb01d22cf2919f50097867e",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_53cf90c130d0c34a3182cc0787b61953a44c1ff037fed0f30ed7441092fc6396",
+        "prediction_id": "v2h_3bdf25217bb01d22cf2919f50097867e",
+        "redis_key": "v2:prediction:GALAUSDT:4h",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_836b2d70b4ef6178e8fb0b793f6ab78bf202e6d450281be2509eb560981725b8",
+      "market_state_id": "mstate_8a44dc1bdbbf4ed7666d",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_394ac9be3e923a8eb8af5f47ee79f720",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_836b2d70b4ef6178e8fb0b793f6ab78bf202e6d450281be2509eb560981725b8",
+        "prediction_id": "v2h_394ac9be3e923a8eb8af5f47ee79f720",
+        "redis_key": "v2:prediction:BILLUSDT:1h",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_cbc9a733f2fd3a09a7410c989f24a40aceabf38d14b1b39aa8983e0d5d87c64d",
+      "market_state_id": "mstate_78b3bbe433e525274b87",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_3838ebbe984fb36f64d2c2426ad4806d",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_cbc9a733f2fd3a09a7410c989f24a40aceabf38d14b1b39aa8983e0d5d87c64d",
+        "prediction_id": "v2h_3838ebbe984fb36f64d2c2426ad4806d",
+        "redis_key": "v2:prediction:ARUSDT:1m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_e86a11c0310290757582ce34fdcf6287ec30c8ee5cc7e7bee7c2ce97e8287d66",
+      "market_state_id": "mstate_f803c30451a87eba95cc",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_0cedb88cbea7ea3821b659885e299423",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_e86a11c0310290757582ce34fdcf6287ec30c8ee5cc7e7bee7c2ce97e8287d66",
+        "prediction_id": "v2h_0cedb88cbea7ea3821b659885e299423",
+        "redis_key": "v2:prediction:SUIUSDT:4h",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_c8d585c2dfecf947c65589a44e0af97d591c2b6f82327c69cbf013822e0d18b3",
+      "market_state_id": "mstate_e1baf5c38edd6e702f2f",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_b040d8c1fff216ab06d6b016b04d5581",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_c8d585c2dfecf947c65589a44e0af97d591c2b6f82327c69cbf013822e0d18b3",
+        "prediction_id": "v2h_b040d8c1fff216ab06d6b016b04d5581",
+        "redis_key": "v2:prediction:IRYSUSDT:5m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_a60ea76eddb51a824104b0bcd49222cd521b5a02a81975caa652c561b8a6a3ac",
+      "market_state_id": "mstate_cd6c9f25a6edd6839eeb",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_17cbcd18934f14c15786b1e144fba2d7",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_a60ea76eddb51a824104b0bcd49222cd521b5a02a81975caa652c561b8a6a3ac",
+        "prediction_id": "v2h_17cbcd18934f14c15786b1e144fba2d7",
+        "redis_key": "v2:prediction:HEIUSDT:5m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_ad3a30570e0764efa58682cc2b81a9c4c0a6cb19c10a5a0f6e9ceba93dfae188",
+      "market_state_id": "mstate_43b959e63e526baa5cda",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_0ee58ff70f9382de149d41112412f58b",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_ad3a30570e0764efa58682cc2b81a9c4c0a6cb19c10a5a0f6e9ceba93dfae188",
+        "prediction_id": "v2h_0ee58ff70f9382de149d41112412f58b",
+        "redis_key": "v2:prediction:SOLUSDT:5m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    },
+    {
+      "accepted_for_training": false,
+      "feature_snapshot_id": "v2_fsnap_92516c65c3e31820241e62d0a412b1f93245b663c8b39e529793e0ff8abfab5a",
+      "market_state_id": "mstate_7deecdfc307798d835b1",
+      "market_state_integrity_score": 45.0,
+      "prediction_id": "v2h_bcf19646655d0fac149ef44f3fc26a13",
+      "reject_reasons": [
+        "FEATURE_FRESHNESS_MISSING_OR_EXPIRED",
+        "LATENCY_OR_PAYLOAD_AGE_MISSING",
+        "MARKET_STATE_INTEGRITY_SCORE_BELOW_TRAINING_MIN",
+        "MISSING_CRITICAL_FEATURE_FAMILY",
+        "candle_closed_confirmed_missing",
+        "candle_open_or_close_time_missing",
+        "source_event_time_missing"
+      ],
+      "source_lineage": {
+        "feature_snapshot_id": "v2_fsnap_92516c65c3e31820241e62d0a412b1f93245b663c8b39e529793e0ff8abfab5a",
+        "prediction_id": "v2h_bcf19646655d0fac149ef44f3fc26a13",
+        "redis_key": "v2:prediction:ZECUSDT:15m",
+        "source_event_time_est": null,
+        "source_received_time_est": null
+      },
+      "valid_for_training": false
+    }
+  ],
+  "schema_version": "training_sample_rejection_status_v1",
+  "trainer_row_count_after": 0,
+  "trainer_row_count_before": 732
+}

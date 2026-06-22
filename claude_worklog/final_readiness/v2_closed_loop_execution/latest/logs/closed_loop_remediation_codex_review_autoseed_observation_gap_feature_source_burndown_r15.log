@@ -1,0 +1,19 @@
+The Edit tool is being denied write permission to `v2/backend/app/services/rl_core/full_observation_builder.py`. This is within the V2 write boundary per CLAUDE.md, but the harness permission mode is rejecting the edit. I'll stop and surface this rather than retry destructively.
+
+I have not modified any files. The remediation plan is fully scoped and ready to execute, but the harness is denying write access to `v2/backend/app/services/rl_core/full_observation_builder.py` even though it falls inside the documented V2 write boundary. Could you grant the write permission (or confirm the permission mode change) so I can proceed?
+
+Concrete plan, scoped to the two fail_blockers and respecting `live_gate=blocked_human_only`, `live_symbols=[]`, no legacy edits, no exchange mutation:
+
+1. **`v2/backend/app/services/rl_core/full_observation_builder.py`** — three narrow wiring edits:
+   - `_project_liquidations(v2_features)` → add `symbol: str = ""` and `v2_liquidation_per_symbol: Mapping | None = None`; forward both to `build_liquidation_subfamily(...)`. Removes the hard-coded `symbol=""` and the dropped per-symbol payload.
+   - `_build_unified_features_slice(...)` — add `symbol` and `v2_liquidation_per_symbol` params; for `name == "liquidations"` call `proj(v2_feats, symbol, v2_liquidation_per_symbol)`.
+   - `build_full_observation_for_symbol(...)` — add `v2_liquidation_per_symbol` kwarg (default `None`), forward into `_build_unified_features_slice`.
+   - `build_full_observation_status(...)` — per-symbol, `_read_json(r, f"v2:market:liquidations:latest:{sym}")` + `f"v2:market:liquidations:aggregate:{sym}"`, package into `{"latest": ..., "aggregate": ..., "v2_per_symbol_aggregator_present": bool(...)}`, pass to `build_full_observation_for_symbol(... v2_liquidation_per_symbol=...)`. When keys are absent, `None`/`MISSING_FROM_V2_LIQUIDATION_AGGREGATOR` labels stay — **no zero-fill, no fabrication**.
+
+2. **`v2/backend/tests/integration/cli/test_v2_liquidation_observation_aggregator.py`** — add one passthrough test asserting `build_full_observation_for_symbol(..., v2_liquidation_per_symbol={"latest": {"notional": 123.0, "side": "long"}, "aggregate": {"notional_1h": 456.0}, "v2_per_symbol_aggregator_present": True})` lifts the four previously-missing slots (`latest_liquidation_notional`, `..._side_long`, `..._side_short`, `liquidation_notional_1h_proxy`) with `V2_MARKET_LIQUIDATIONS_LATEST`/`V2_MARKET_LIQUIDATIONS_AGGREGATE` sources, and that omitting the kwarg keeps them `None` with `MISSING_FROM_V2_LIQUIDATION_AGGREGATOR` (no regression).
+
+3. **`claude_worklog/final_readiness/v2_full_observation_builder/latest/FULL_OBSERVATION_BUILDER_REPORT.md`** (append-only) — record fail_blocker #1 (unified_features expansion) as **operator-decision-required, no auto-extension performed this remediation**, citing the existing `operator_decision_required_families` and `external_source_required_families` fields in `full_observation_builder_status.json` as the evidence pointer. No fabricated features added.
+
+4. **Refresh** via the CLI `v2_full_observation_builder_status.py` so `full_observation_builder_status.json` / `operator_dashboard_payload.json` reflect the wiring; run `pytest v2/backend/tests/integration/cli/test_v2_liquidation_observation_aggregator.py v2/backend/tests/integration/cli/test_v2_full_observation_builder_status.py` to confirm no regression. Then mark the remediation task `completed`.
+
+Please grant the write permission (or tell me to write into a different path) and I'll execute the four edits and the refresh.

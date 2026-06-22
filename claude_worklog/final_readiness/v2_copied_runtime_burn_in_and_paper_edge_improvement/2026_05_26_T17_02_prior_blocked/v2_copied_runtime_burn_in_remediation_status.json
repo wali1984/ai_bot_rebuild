@@ -1,0 +1,148 @@
+{
+  "schema_version": "v2_copied_runtime_burn_in_remediation_status_v1",
+  "phase": 7,
+  "generated_est": "2026-05-26T17:02:47-0400",
+  "generated_utc": "2026-05-26T21:02:47Z",
+
+  "auto_remediation_policy": {
+    "create_claude_implementation_task": true,
+    "create_paired_codex_review_task": true,
+    "enqueue_through_spark": true,
+    "wait_for_operator_unless_true_operator_gate": false,
+    "true_operator_gates_preserved": [
+      "enable_live_trading",
+      "enable_canary",
+      "increase_leverage",
+      "enable_cross_margin",
+      "increase_max_position_size",
+      "increase_daily_loss_limit",
+      "disable_kill_switch",
+      "disable_mandatory_stop",
+      "enable_hedge_or_dca",
+      "enable_adjust_leverage",
+      "switch_paper_to_live",
+      "approve_legacy_shutdown",
+      "approve_redis_trim",
+      "load_torch_checkpoint_into_v2_process"
+    ]
+  },
+
+  "remediation_tasks_to_enqueue": [
+    {
+      "task_id": "refresh_v2_feature_pipeline_native_operator_runtime_payload",
+      "kind": "claude_narrow_remediation",
+      "trigger_evidence": "v2/frontend/public/operator_runtime/v2_feature_pipeline_native/latest/v2_feature_pipeline_native_status.json freshness_seconds=932220 (stale since 2026-05-15) despite ai-bot-v2-feature-pipeline-native-loop.service running 220 min",
+      "required_v2_files_to_modify": [
+        "v2/backend/app/cli/v2_feature_pipeline_native.py (--write-evidence path must emit operator_runtime mirror, not just public path)"
+      ],
+      "tests_required": ["existing v2_feature_pipeline_native test suite + new freshness regression"],
+      "paired_codex_review_required": true,
+      "operator_approval_required": false,
+      "live_gate_unchanged": "blocked_human_only"
+    },
+    {
+      "task_id": "refresh_v2_owned_trainer_operator_runtime_payload",
+      "kind": "claude_narrow_remediation",
+      "trigger_evidence": "v2/frontend/public/operator_runtime/v2_owned_trainer/latest/status.json freshness_seconds=932220 (stale since 2026-05-15) despite ai-bot-v2-trainer-bridge.service running 220 min",
+      "required_v2_files_to_modify": [
+        "v2/backend/app/cli/v2_trainer_bridge.py (heartbeat write path must include operator_runtime mirror)"
+      ],
+      "tests_required": ["existing trainer-bridge test suite + new freshness regression"],
+      "paired_codex_review_required": true,
+      "operator_approval_required": false,
+      "live_gate_unchanged": "blocked_human_only"
+    },
+    {
+      "task_id": "refresh_v2_liquidation_ingestor_operator_runtime_payload_via_newly_wrapped_levels_engine",
+      "kind": "claude_narrow_remediation",
+      "trigger_evidence": "v2/frontend/public/operator_runtime/v2_liquidation_ingestor/latest/v2_liquidation_ingestor_status.json freshness_seconds=~800000 despite ai-bot-v2-liquidation-levels-engine.service running 53 min",
+      "required_v2_files_to_modify": [
+        "the wrapper CLI for liquidation_levels_engine (must emit operator_runtime/v2_liquidation_ingestor/latest payload on each cycle)"
+      ],
+      "tests_required": ["new liquidation-levels-engine freshness test"],
+      "paired_codex_review_required": true,
+      "operator_approval_required": false,
+      "live_gate_unchanged": "blocked_human_only"
+    },
+    {
+      "task_id": "investigate_v2_liquidations_events_xlen_zero_after_53min",
+      "kind": "claude_observation_diagnostic",
+      "trigger_evidence": "v2:liquidations:events XLEN=0 despite liquidation-bridge.service running 53 min",
+      "required_v2_files_to_inspect_only": [
+        "the wrapper CLI for liquidation_bridge (WSS subscription health, retry counts, last connection event)"
+      ],
+      "tests_required": ["WSS-connect smoke probe with fixture stream"],
+      "paired_codex_review_required": true,
+      "operator_approval_required": false,
+      "expected_resolution_window_minutes": "60 to 240 of additional burn-in to confirm Binance force-order quiet period vs bridge bug",
+      "live_gate_unchanged": "blocked_human_only"
+    },
+    {
+      "task_id": "investigate_v2_market_liquidation_levels_key_prefix_or_warmup",
+      "kind": "claude_observation_diagnostic",
+      "trigger_evidence": "v2:market:liquidation_levels:* family has 0 keys despite levels engine running 53 min; possible prefix-mismatch or warmup",
+      "required_v2_files_to_inspect_only": [
+        "the wrapper CLI for liquidation_levels_engine (output key prefix)"
+      ],
+      "paired_codex_review_required": true,
+      "operator_approval_required": false,
+      "live_gate_unchanged": "blocked_human_only"
+    },
+    {
+      "task_id": "rerun_v2_24h_parallel_recovery_war_room_after_27_symbol_coverage",
+      "kind": "scheduled_recomputation",
+      "trigger_evidence": "War-room artifact dataset has 76 rows / 16 validation rows; this turn confirmed 27-symbol dynamic coverage now writing v2:unified_features:* across all 25 baseline + 2 intelligence-only symbols",
+      "required_action": "Schedule next v2_24h_parallel_recovery_war_room.py executor run via existing ai-bot-v2-8h-war-room.timer; let it accumulate >300 validation rows over multi-day burn-in before edge claim is even possible",
+      "paired_codex_review_required": false,
+      "operator_approval_required": false,
+      "live_gate_unchanged": "blocked_human_only"
+    },
+    {
+      "task_id": "rendered_trading_platform_ui_evidence_packet",
+      "kind": "operator_or_visual_regression",
+      "trigger_evidence": "Codex 5.5 previously asked for rendered proof of trading-platform UI coverage; phase 6 confirms 31 frontend pages + correct routes but rendered evidence remains deferred",
+      "required_action": "Screenshot pass across the 15 capability rows in ui_coverage_matrix from phase 6 OR automated Playwright/Chromium walkthrough",
+      "operator_approval_required": false,
+      "scope_note": "headless evidence capture is a separate visual-regression lane; this remediation status flags it but does not produce screenshots from a Claude turn"
+    }
+  ],
+
+  "remediation_task_count_total": 7,
+  "remediation_task_count_requires_operator_gate": 0,
+  "remediation_task_count_paper_only_auto_enqueue": 6,
+  "remediation_task_count_operator_or_visual_lane": 1,
+
+  "spark_enqueue_status": {
+    "enqueue_via_spark_automation_runner_already_active": true,
+    "spark_automation_runner_unit": "ai-bot-v2-parallel-spark-automation.service",
+    "spark_automation_runner_uptime_minutes": 220,
+    "spark_will_pick_up_tasks_from": "claude_worklog/agent_supervisor/tasks/*.json + agent_supervisor/state/tasks/*.json",
+    "tasks_must_be_materialized_by": "operator-approved task spec generation pass; this turn surfaces task definitions but does NOT materialize spec descriptors into agent_supervisor/tasks/ to avoid bypassing the no-manual-next-task policy"
+  },
+
+  "did_not_happen": {
+    "did_not_enable_live_or_canary": true,
+    "did_not_place_or_cancel_or_modify_orders": true,
+    "did_not_call_test_order_endpoint": true,
+    "did_not_change_leverage": true,
+    "did_not_change_margin_mode": true,
+    "did_not_write_old_redis": true,
+    "did_not_restart_legacy": true,
+    "did_not_trim_redis": true,
+    "did_not_let_checkpoint_tasks_distract": true,
+    "did_not_redispatch_completed_tasks": true,
+    "did_not_call_checkpoint_shape_pass_model_ready": true,
+    "did_not_emit_live_ready_or_canary_ready": true
+  },
+
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "places_real_order": false,
+    "writes_old_redis": false
+  }
+}

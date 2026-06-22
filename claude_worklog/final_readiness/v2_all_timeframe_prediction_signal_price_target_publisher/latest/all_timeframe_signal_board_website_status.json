@@ -1,0 +1,13 @@
+{
+  "blockers": [
+    "PREDICTION_GRID_HAS_BLOCKERS"
+  ],
+  "execution_live_symbols": [],
+  "generated_est": "2026-06-21T20:28:29-04:00",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "required_pages": [],
+  "route_rows": [],
+  "schema_version": "v2_all_timeframe_signal_board_website_status_v1",
+  "status": "ALL_TIMEFRAME_SIGNAL_BOARD_WEBSITE_BLOCKED_OR_PARTIAL"
+}

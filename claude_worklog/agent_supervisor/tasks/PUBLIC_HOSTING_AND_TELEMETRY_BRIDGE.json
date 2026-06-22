@@ -3,16 +3,25 @@
   "allowed_output_prefixes": [
     "claude_worklog/final_readiness/public_hosting_and_telemetry_bridge/latest/"
   ],
+  "completed_at": "2026-05-13T03:13:57.827715+00:00",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "emit_files": true,
   "lane": "primary_claude_lane",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
   "next_gate": "PUBLIC_HOSTING_AND_TELEMETRY_BRIDGE",
   "prompt": "Build or validate `PUBLIC_HOSTING_AND_TELEMETRY_BRIDGE` as the next primary V2 live-like paper/shadow objective. Website work is support-only. Keep live blocked_human_only. Work only in AI BOT REBUILD. Legacy is read-only observed unless a separate explicit operator patch authorizes one file. Do not write old Redis, place/cancel orders, change leverage/margin, or enable live trading.\n\nEmit exactly two BEGIN_FILE blocks:\nBEGIN_FILE: claude_worklog/final_readiness/public_hosting_and_telemetry_bridge/latest/PUBLIC_HOSTING_AND_TELEMETRY_BRIDGE_REPORT.md\n...report...\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/public_hosting_and_telemetry_bridge/latest/PUBLIC_HOSTING_AND_TELEMETRY_BRIDGE_GO_NO_GO.md\nPUBLIC_HOSTING_AND_TELEMETRY_BRIDGE_READY\nEND_FILE\n",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/final_readiness/public_hosting_and_telemetry_bridge/latest/PUBLIC_HOSTING_AND_TELEMETRY_BRIDGE_REPORT.md",
     "claude_worklog/final_readiness/public_hosting_and_telemetry_bridge/latest/PUBLIC_HOSTING_AND_TELEMETRY_BRIDGE_GO_NO_GO.md"
   ],
+  "resolved_from_source_truth": true,
   "risk_level": "L2",
-  "status": "pending",
-  "task_id": "PUBLIC_HOSTING_AND_TELEMETRY_BRIDGE"
+  "source_truth_completed_at": "2026-05-13T03:13:57.827715+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/PUBLIC_HOSTING_AND_TELEMETRY_BRIDGE.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "PUBLIC_HOSTING_AND_TELEMETRY_BRIDGE",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

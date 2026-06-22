@@ -1,0 +1,32 @@
+{
+  "blocked_reason": null,
+  "broad_audit": false,
+  "codex_review_required": true,
+  "does_not_fake_data": true,
+  "envelope_summary": {
+    "freshness_state_counts": {},
+    "gap_or_bridge": 0,
+    "publishable": 0,
+    "source_label_counts": {},
+    "total": 0
+  },
+  "file_lock_group": "v2_trainer_dataset_builder",
+  "forbidden_actions": [
+    "no_raw_legacy_current_truth_consumption",
+    "no_live_or_canary_approval",
+    "no_checkpoint_compatibility_claim",
+    "no_old_redis_writes"
+  ],
+  "go_no_go_marker": "V2_TRAINER_DATASET_BUILDER_FROM_V2_REPLAY_FEATURES_SCAFFOLDED",
+  "implementation_artifact": "v2/backend/app/services/native_runtime_migration/first_batch_executor.py::task_i_trainer_dataset_builder",
+  "implementation_status": "MANIFEST_FROM_V2_REPLAY_DATASET",
+  "missing_source_policy": "Emit explicit MISSING_SOURCE, NO_CLIENT_PRESENT, BRIDGE_ONLY, or OPERATOR_DECISION_REQUIRED envelopes instead of fabricating V2-native payloads.",
+  "status": "MANIFEST_FROM_V2_REPLAY_DATASET",
+  "target_redis_key_patterns": [
+    "v2:trainer:dataset:manifest"
+  ],
+  "target_v2_keys": [
+    "v2:trainer:dataset:manifest"
+  ],
+  "task_id": "v2_trainer_dataset_builder_from_v2_replay_features"
+}

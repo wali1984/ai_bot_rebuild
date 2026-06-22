@@ -1,20 +1,24 @@
 {
-  "task_id": "084_codex_recover_planner_gamma_materialization_blocker",
   "agent": "codex",
-  "risk_level": "L1",
-  "status": "pending",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/",
     "claude_worklog/agent_supervisor/tasks/",
     "claude_worklog/agent_supervisor_reliability/",
     "claude_worklog/security/"
   ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/084_codex_recover_planner_gamma_materialization_blocker_codex.log",
+  "next_recommended_action": "If ready, commit gamma planning artifacts and restart planner. If blocked, leave explicit blocker.",
+  "pid_or_job_id": 245928,
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Recover the current non-live master planner human_attention_required state caused by planner materialization refusing the safe file claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/89_PHASE_2E1C_GAMMA_TEST_PLAN.md. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Inspect generated gamma task/docs: 082, 083, 88, 90, 91 and determine whether 89 is a safe expected test-plan doc. If safe, create or recover 89 under the same folder and document the recovery. Validate task JSON for 082/083. Remove standalone END_FILE marker leakage if present. Do not run implementation tasks. Output exactly two BEGIN_FILE blocks for the recovery report and GO/NO-GO. GO/NO-GO must contain one line: CODEX_GAMMA_MATERIALIZATION_RECOVERY_READY or CODEX_GAMMA_MATERIALIZATION_RECOVERY_BLOCKED.",
   "required_output_files": [
     "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/84_CODEX_GAMMA_MATERIALIZATION_RECOVERY_REPORT.md",
     "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/84_CODEX_GAMMA_MATERIALIZATION_RECOVERY_GO_NO_GO.md"
   ],
-  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Recover the current non-live master planner human_attention_required state caused by planner materialization refusing the safe file claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/89_PHASE_2E1C_GAMMA_TEST_PLAN.md. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Inspect generated gamma task/docs: 082, 083, 88, 90, 91 and determine whether 89 is a safe expected test-plan doc. If safe, create or recover 89 under the same folder and document the recovery. Validate task JSON for 082/083. Remove standalone END_FILE marker leakage if present. Do not run implementation tasks. Output exactly two BEGIN_FILE blocks for the recovery report and GO/NO-GO. GO/NO-GO must contain one line: CODEX_GAMMA_MATERIALIZATION_RECOVERY_READY or CODEX_GAMMA_MATERIALIZATION_RECOVERY_BLOCKED.",
-  "next_recommended_action": "If ready, commit gamma planning artifacts and restart planner. If blocked, leave explicit blocker."
+  "risk_level": "L1",
+  "started_at": "2026-06-15T20:06:43Z",
+  "status": "running",
+  "task_id": "084_codex_recover_planner_gamma_materialization_blocker",
+  "updated_at": "2026-06-15T20:06:43Z"
 }

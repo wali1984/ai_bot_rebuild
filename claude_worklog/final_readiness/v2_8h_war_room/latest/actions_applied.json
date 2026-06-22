@@ -1,0 +1,15 @@
+{
+  "actions": [],
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_real": false,
+  "approves_redis_trim": false,
+  "cycle_id": "wr_a962e39e68db",
+  "gate": "blocked_human_only",
+  "generated_utc": "2026-06-21T23:37:26Z",
+  "no_action_required_with_evidence": null,
+  "schema_version": "v2_8h_war_room_actions_applied_v2",
+  "symbols_real": [],
+  "writes_exchange_orders": false,
+  "writes_legacy_redis": false
+}

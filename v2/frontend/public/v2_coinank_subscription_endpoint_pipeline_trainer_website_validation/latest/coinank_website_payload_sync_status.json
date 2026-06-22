@@ -1,0 +1,97 @@
+{
+  "generated_est": "2026-06-09T20:41:03-04:00",
+  "local_derivatives": {
+    "coinank_long_short_rows": [
+      {
+        "age_seconds": null,
+        "data_status": "CURRENT_OR_RECENT",
+        "long_short_ratio": 2.2531,
+        "source_key": "latest:coinank:long_short:BTCUSDT:15m",
+        "symbol": "BTCUSDT"
+      },
+      {
+        "age_seconds": null,
+        "data_status": "CURRENT_OR_RECENT",
+        "long_short_ratio": 1.2818,
+        "source_key": "latest:coinank:long_short:ETHUSDT:15m",
+        "symbol": "ETHUSDT"
+      }
+    ],
+    "generated_est": "2026-06-09T20:30:43-04:00",
+    "module_status": {
+      "basis": "CURRENT_OR_RECENT",
+      "funding": "CURRENT_OR_RECENT",
+      "liquidations": "CURRENT_OR_RECENT",
+      "long_short": "CURRENT_OR_RECENT",
+      "open_interest": "CURRENT_OR_RECENT"
+    }
+  },
+  "local_trade": {
+    "balance_hold_reason": "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER",
+    "funding_rate": -4.2e-06,
+    "funding_source": "v2:market:funding:BTCUSDT",
+    "generated_est": "2026-06-09T20:30:43-04:00",
+    "live_gate": "enabled_operator_approved",
+    "long_short_ratio": 2.2531,
+    "long_short_source": "latest:coinank:long_short:BTCUSDT:15m",
+    "oi_source": "v2:market:open_interest:BTCUSDT",
+    "open_interest": 99393.077,
+    "symbol": "BTCUSDT",
+    "trader_state": "LIVE_ARMED_BALANCE_HOLD"
+  },
+  "production_coinank_payload": {
+    "classification": "DIRECT_COINANK_RUNTIME_OK",
+    "fetch_ok": true,
+    "generated_est": null,
+    "http_status": 200,
+    "missing_api_blockers": []
+  },
+  "production_derivatives_payload": {
+    "coinank_long_short_rows": [
+      {
+        "age_seconds": null,
+        "data_status": "CURRENT_OR_RECENT",
+        "long_short_ratio": 2.2531,
+        "source_key": "latest:coinank:long_short:BTCUSDT:15m",
+        "symbol": "BTCUSDT"
+      },
+      {
+        "age_seconds": null,
+        "data_status": "CURRENT_OR_RECENT",
+        "long_short_ratio": 1.2818,
+        "source_key": "latest:coinank:long_short:ETHUSDT:15m",
+        "symbol": "ETHUSDT"
+      }
+    ],
+    "fetch_ok": true,
+    "generated_est": "2026-06-09T20:30:43-04:00",
+    "http_status": 200,
+    "module_status": {
+      "basis": "CURRENT_OR_RECENT",
+      "funding": "CURRENT_OR_RECENT",
+      "liquidations": "CURRENT_OR_RECENT",
+      "long_short": "CURRENT_OR_RECENT",
+      "open_interest": "CURRENT_OR_RECENT"
+    }
+  },
+  "production_route_crawl": {
+    "failed_count": 1,
+    "failed_routes": [
+      "/admin/monitor-center?role=admin"
+    ],
+    "note": "The only production crawler repair marker is /admin/monitor-center redirecting to /system/health as proof-dump-primary; CoinAnk trade/derivatives payloads are current.",
+    "passed_count": 33,
+    "route_count": 34
+  },
+  "production_trade_payload": {
+    "fetch_ok": true,
+    "generated_est": "2026-06-09T20:30:43-04:00",
+    "http_status": 200,
+    "live_gate": "enabled_operator_approved",
+    "long_short_ratio": 2.2531,
+    "long_short_source": "latest:coinank:long_short:BTCUSDT:15m",
+    "symbol": "BTCUSDT",
+    "trader_state": "LIVE_ARMED_BALANCE_HOLD"
+  },
+  "status": "TRADE_AND_DERIVATIVES_COINANK_PAYLOADS_CURRENT"
+}

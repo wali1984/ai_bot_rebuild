@@ -1,0 +1,26 @@
+{
+  "gate": "V2_PAPER_TRADE_MANAGEMENT_EXIT_NETTING_RISK_AND_TRAINER_FEEDBACK_READY",
+  "status": "PASS",
+  "generated_utc": "2026-06-11T20:27:36Z",
+  "service_file": "v2/backend/app/services/risk_gateway/service.py",
+  "evaluators_called_before_allow": [
+    "kill_switch",
+    "halt_manager",
+    "reduce_only_latch",
+    "intelligent_close_guard",
+    "auto_deleverager",
+    "shared_risk_gate",
+    "margin_governor",
+    "phase_controller",
+    "microstructure_toxicity"
+  ],
+  "verified_blocks": [
+    "deny_kill_switch_active",
+    "deny_halt_manager_active",
+    "deny_reduce_only_latch",
+    "deny_shared_risk_budget_exhausted",
+    "deny_margin_governor_leverage_increase_blocked"
+  ],
+  "live_blocked_flag": true
+}
+

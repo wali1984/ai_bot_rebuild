@@ -1,0 +1,259 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "codex_fail_blocker_remediated": "PHASE_1_CONTRACT_ROUTE_TO_FRONTEND_ROUTE_RECONCILIATION_FAIL",
+  "generated_at": "2026-05-23T04:13:58Z",
+  "go_no_go": "V2_WEBSITE_REBUILD_PHASE_1_ROUTE_RECONCILIATION_REMEDIATION_READY",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "page_count": 12,
+  "pages": [
+    {
+      "aliases": [
+        "/"
+      ],
+      "canonical_route": "/landing",
+      "component_status": "IMPLEMENTED",
+      "effective_placeholder_state": "OK",
+      "frontend_registered": true,
+      "page_id": "public-landing",
+      "source_labels": [
+        "V2_NATIVE_PUBLIC_PAYLOAD"
+      ]
+    },
+    {
+      "aliases": [
+        "/markets"
+      ],
+      "canonical_route": "/market",
+      "component_status": "IMPLEMENTED",
+      "effective_placeholder_state": "MISSING_PAYLOAD",
+      "frontend_registered": true,
+      "page_id": "markets",
+      "source_labels": [
+        "V2_NATIVE_PUBLIC_PAYLOAD",
+        "V2_BRIDGE_FROM_LEGACY_REDIS"
+      ]
+    },
+    {
+      "aliases": [],
+      "canonical_route": "/status",
+      "component_status": "IMPLEMENTED",
+      "effective_placeholder_state": "OK",
+      "frontend_registered": true,
+      "page_id": "public-status",
+      "source_labels": [
+        "V2_NATIVE_PUBLIC_PAYLOAD"
+      ]
+    },
+    {
+      "aliases": [],
+      "canonical_route": "/ai-brain",
+      "component_status": "PLACEHOLDER_WITH_CONTRACT",
+      "effective_placeholder_state": "STALE",
+      "frontend_registered": true,
+      "page_id": "ai-brain",
+      "source_labels": [
+        "V2_BRIDGE_FROM_LEGACY_REDIS",
+        "V2_NATIVE_PUBLIC_PAYLOAD",
+        "LEGACY_REFERENCE_ONLY"
+      ]
+    },
+    {
+      "aliases": [],
+      "canonical_route": "/trader",
+      "component_status": "PLACEHOLDER_WITH_CONTRACT",
+      "effective_placeholder_state": "MISSING_PAYLOAD",
+      "frontend_registered": true,
+      "page_id": "trader",
+      "source_labels": [
+        "V2_NATIVE_PUBLIC_PAYLOAD"
+      ]
+    },
+    {
+      "aliases": [],
+      "canonical_route": "/history",
+      "component_status": "PLACEHOLDER_WITH_CONTRACT",
+      "effective_placeholder_state": "MISSING_PAYLOAD",
+      "frontend_registered": true,
+      "page_id": "history",
+      "source_labels": [
+        "V2_BRIDGE_FROM_LEGACY_REDIS",
+        "V2_NATIVE_PUBLIC_PAYLOAD",
+        "LEGACY_REFERENCE_ONLY"
+      ]
+    },
+    {
+      "aliases": [],
+      "canonical_route": "/admin/mission-control",
+      "component_status": "IMPLEMENTED",
+      "effective_placeholder_state": "OK",
+      "frontend_registered": true,
+      "page_id": "mission-control",
+      "source_labels": [
+        "V2_NATIVE_PUBLIC_PAYLOAD"
+      ]
+    },
+    {
+      "aliases": [],
+      "canonical_route": "/admin/report-center",
+      "component_status": "IMPLEMENTED",
+      "effective_placeholder_state": "OK",
+      "frontend_registered": true,
+      "page_id": "report-center",
+      "source_labels": [
+        "V2_NATIVE_PUBLIC_PAYLOAD"
+      ]
+    },
+    {
+      "aliases": [],
+      "canonical_route": "/admin/risk-control",
+      "component_status": "IMPLEMENTED",
+      "effective_placeholder_state": "OPERATOR_DECISION_REQUIRED",
+      "frontend_registered": true,
+      "page_id": "risk-control",
+      "source_labels": [
+        "V2_NATIVE_PUBLIC_PAYLOAD"
+      ]
+    },
+    {
+      "aliases": [
+        "/admin/config"
+      ],
+      "canonical_route": "/admin/config-admin",
+      "component_status": "IMPLEMENTED",
+      "effective_placeholder_state": "DISPLAY_ONLY",
+      "frontend_registered": true,
+      "page_id": "config-admin",
+      "source_labels": [
+        "V2_NATIVE_PUBLIC_PAYLOAD"
+      ]
+    },
+    {
+      "aliases": [],
+      "canonical_route": "/admin/paper-trading",
+      "component_status": "IMPLEMENTED",
+      "effective_placeholder_state": "MISSING_PAYLOAD",
+      "frontend_registered": true,
+      "page_id": "paper-trading",
+      "source_labels": [
+        "V2_NATIVE_PUBLIC_PAYLOAD"
+      ]
+    },
+    {
+      "aliases": [],
+      "canonical_route": "/admin/exchange-manager",
+      "component_status": "IMPLEMENTED",
+      "effective_placeholder_state": "DISPLAY_ONLY",
+      "frontend_registered": true,
+      "page_id": "exchange-manager",
+      "source_labels": [
+        "PLACEHOLDER_NOT_READY"
+      ]
+    }
+  ],
+  "route_count": 15,
+  "route_reconciliation": {
+    "declared_route_count": 15,
+    "declared_routes": [
+      "/landing",
+      "/",
+      "/market",
+      "/markets",
+      "/status",
+      "/ai-brain",
+      "/trader",
+      "/history",
+      "/admin/mission-control",
+      "/admin/report-center",
+      "/admin/risk-control",
+      "/admin/config-admin",
+      "/admin/config",
+      "/admin/paper-trading",
+      "/admin/exchange-manager"
+    ],
+    "frontend_registered": true,
+    "frontend_registered_route_count": 45,
+    "frontend_routes": {
+      "/": "router-root-redirect",
+      "/admin/audit-ledger": "audit-ledger",
+      "/admin/build-validation-status": "build-validation-status",
+      "/admin/claude-admin-ai": "claude-admin-ai",
+      "/admin/codex-review-center": "codex-review-center",
+      "/admin/config": "config",
+      "/admin/config-admin": "config-admin",
+      "/admin/coverage-system-atlas": "coverage-system-atlas",
+      "/admin/exchange-manager": "exchange-manager",
+      "/admin/execution-admin": "execution-admin",
+      "/admin/executions": "executions",
+      "/admin/external-manual-position-quarantine": "external-manual-position-quarantine",
+      "/admin/live-readiness": "live-readiness",
+      "/admin/market-intelligence": "market-intelligence",
+      "/admin/mission-control": "mission-control",
+      "/admin/mobile-iphone-readiness": "mobile-iphone-readiness",
+      "/admin/monitor-center": "monitor-center",
+      "/admin/ollama-local-assistant": "ollama-local-assistant",
+      "/admin/operator-proof-dashboard": "operator-proof-dashboard",
+      "/admin/orchestrator-admin": "orchestrator-admin",
+      "/admin/paper-trading": "paper-trading",
+      "/admin/permanent-migration": "permanent-migration",
+      "/admin/positions": "positions",
+      "/admin/replay": "replay",
+      "/admin/report-center": "report-center",
+      "/admin/risk-control": "risk-control",
+      "/admin/script-registry": "script-registry",
+      "/admin/signal-explainability": "signal-explainability",
+      "/admin/signals": "signals",
+      "/admin/strategy-admin": "strategy-admin",
+      "/admin/symbols": "symbols",
+      "/admin/system-health": "system-health",
+      "/admin/trainer-admin": "trainer-admin",
+      "/admin/trainer-prediction-monitor": "trainer-prediction-monitor",
+      "/admin/war-room": "admin-war-room",
+      "/ai-brain": "ai-brain",
+      "/history": "history",
+      "/landing": "public-landing-v2",
+      "/landing-legacy": "public-landing",
+      "/login": "login",
+      "/market": "market",
+      "/markets": "markets",
+      "/status": "public-status",
+      "/status-simple": "user-status",
+      "/trader": "trader"
+    },
+    "missing_frontend_routes": []
+  },
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "did_not_call_exchange": true,
+    "did_not_create_approvals": true,
+    "did_not_enable_live": true,
+    "did_not_expose_raw_api_keys": true,
+    "did_not_modify_legacy_bot": true,
+    "did_not_stop_continuous_remediation": true,
+    "did_not_stop_legacy": true,
+    "did_not_stop_report_center_timer": true,
+    "did_not_stop_v2_runtime": true,
+    "did_not_write_old_redis": true,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "schema_version": "v2_website_rebuild_phase_1_route_reconciliation_remediation_v1",
+  "validation": {
+    "approval_token_scan": "PASS",
+    "exchange_mutation_scan": "PASS",
+    "frontend_build": "PASS",
+    "frontend_typecheck": "PASS",
+    "json_validation": "PASS",
+    "new_alias_placeholder_control_scan": "PASS",
+    "old_redis_write_scan": "PASS",
+    "route_reconciliation_tests": "PASS",
+    "secret_scan": "PASS",
+    "website_contract_tests": "PASS_27"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "alive": true,
+  "file_lock_group": "fix_v2_gap_trainer_missing_checkpoint_weight_shape_contract",
+  "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/codex_review_fix_v2_gap_trainer_missing_checkpoint_weight_shape_contract_codex.log",
+  "pid": 3338744,
+  "task_id": "codex_review_fix_v2_gap_trainer_missing_checkpoint_weight_shape_contract",
+  "task_type": "CODEX_REVIEW",
+  "updated_at": "2026-05-26T01:03:48Z"
+}

@@ -1,0 +1,31 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "go_no_go": "V2_EXTERNAL_DATA_RUNTIME_STATUS_READY",
+  "live_symbols": [],
+  "providers_blocked_no_credentials": [
+    "kucoin",
+    "nansen",
+    "lunarcrush",
+    "alphavantage"
+  ],
+  "providers_deferred": [
+    "tokenmetrics"
+  ],
+  "providers_operator_required": [
+    "ccxt"
+  ],
+  "providers_running": [
+    "binance_public_market",
+    "binance_futures_metadata",
+    "binance_liquidation_stream",
+    "coinank"
+  ],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "ts_est": "20260526T003358EST",
+  "ts_iso_est": "2026-05-26T00:49:13-0400",
+  "writes_exchange_orders": false
+}

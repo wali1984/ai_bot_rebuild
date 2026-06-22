@@ -1,0 +1,16 @@
+The Write tool needs explicit user approval to create the per-task report file. I'll surface this clearly.
+
+The narrow implementation for `altdata_snapshot_attached_to_replay_bundle` is already wired in `v2/backend/app/services/edge_proof/replay_miner.py`:
+
+- `build_altdata_snapshot(symbol)` (replay_miner.py:202) reads only `v2:altdata:symbol_score:{symbol}` via the `v2:*`-restricted reader. Real payload → `status="ATTACHED"`, `source_label="V2_NATIVE_PUBLIC_PAYLOAD"`. Missing payload → `status="MISSING_SOURCE"`, `source_label="MISSING_SOURCE"`, `missing_reason="v2_altdata_symbol_score_key_missing"`, `payload=null`.
+- `_new_bundle_from_row` (replay_miner.py:540) attaches the snapshot on new bundles for the bundle's own symbol only — no symbol-universe adoption.
+- `backfill_bundle_replay_context` (replay_miner.py:942) backfills missing snapshots on legacy rows.
+- `validate_bundle_row` (replay_miner.py:1004) enforces presence + `v2:*` source key + valid source label.
+- Persisted bundles in `v2/frontend/public/v2_post_hoc_replay_outcome_miner/latest/replay_outcome_bundles.jsonl` already carry the explicit `MISSING_SOURCE` snapshot for every row (no fabrication).
+- Tests at `v2/backend/tests/integration/cli/test_v2_post_hoc_replay_outcome_miner.py:457` and `:478` cover the attached/missing paths.
+
+The r1 attempt produced this wiring but was sandbox-blocked from writing the per-task `IMPLEMENTATION_REPORT.md`; the paired Codex reviewer therefore FAILed (empty per-task directory). I prepared the report text and attempted to write it to:
+
+`claude_worklog/final_readiness/v2_autonomous_mission_backlog/per_task/altdata_replay_bundle_snapshot_attachment/IMPLEMENTATION_REPORT.md`
+
+…but the Write tool returned “haven’t granted it yet.” Please approve that single write so the report lands at the expected path; once approved I’ll retry Write with the prepared content and the task’s expected output artifact will exist for Codex review.

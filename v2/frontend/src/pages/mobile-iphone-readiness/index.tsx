@@ -12,11 +12,11 @@ export default function MobileIphoneReadinessPage(): JSX.Element {
     <DesignPageShell meta={meta} rbac={rbac} route={route} eyebrow="Mobile / iPhone Readiness" source="V2_PROOF_ARTIFACT / mobile readiness checklist" status="NO BACKGROUND TRADE ACTIONS">
       <SourceRibbon labels={['responsive cockpit', 'future PWA path', 'future iPhone bridge', 'live gate still human-only']} />
       {truthPayload ? <RouteTruthSummary payload={truthPayload} title="Mobile / iPhone Readiness" /> : <OperatorTruthLoading error={truthError} />}
-      <Panel id="mobile-iphone-readiness-checklist" title="Mobile Readiness Contract" right={<span className="chip solid-paper">Non-live path</span>}>
+      <Panel id="mobile-iphone-readiness-checklist" title="Mobile Readiness Contract" right={<span className="chip solid-paper">Runtime path</span>}>
         <div className="cockpit-card-grid">
           <div className="cockpit-exchange-card">
             <h3>Responsive cockpit</h3>
-            <p>Mission Control and secondary admin pages use responsive grid collapse and stable panel dimensions.</p>
+            <p>NERVYX OBSERVE and secondary admin pages use responsive grid collapse and stable panel dimensions.</p>
             <strong>READY_FOR_BROWSER_CHECK</strong>
           </div>
           <div className="cockpit-exchange-card">

@@ -1,0 +1,12 @@
+{
+  "status": "ready",
+  "default_path": "drop_in_override",
+  "rollback_steps": [
+    "disable_spark_target",
+    "stop_canary_units",
+    "restore_previous_wrapper_cli_flags",
+    "keep_legacy_filebacked_path_unmodified",
+    "preserve_lease_db",
+    "re-enable_legacy_read_mode_reading"
+  ]
+}

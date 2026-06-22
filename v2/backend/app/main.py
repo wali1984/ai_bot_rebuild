@@ -1,4 +1,4 @@
-"""FastAPI application factory for AI BOT V2.
+"""FastAPI application factory for the V2 backend.
 
 This module performs no I/O at import. The factory `create_app()`:
 
@@ -19,7 +19,7 @@ import os
 from datetime import UTC, datetime
 
 from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.middleware import MIDDLEWARE_ORDER
@@ -210,14 +210,33 @@ def _register_spa(app: FastAPI) -> None:
 
     if os.path.isfile(index_html):
         @app.get("/{full_path:path}", include_in_schema=False)
-        async def serve_spa(full_path: str) -> FileResponse:
+        async def serve_spa(full_path: str):
+            requested_file = _safe_dist_file_path(full_path)
+            if requested_file:
+                return FileResponse(requested_file)
+            if not os.path.isfile(index_html):
+                return PlainTextResponse("Frontend build is temporarily unavailable.", status_code=503)
             return FileResponse(index_html, media_type="text/html")
+
+
+def _safe_dist_file_path(full_path: str) -> str | None:
+    """Return an existing file under dist for static Vite public assets."""
+    dist_root = os.path.abspath(_DIST_DIR)
+    candidate = os.path.abspath(os.path.join(dist_root, full_path.lstrip("/")))
+    try:
+        if os.path.commonpath([dist_root, candidate]) != dist_root:
+            return None
+    except ValueError:
+        return None
+    if os.path.isfile(candidate):
+        return candidate
+    return None
 
 
 def create_app() -> FastAPI:
     """Construct the FastAPI app. No startup side effects beyond router/middleware
     registration and the middleware-order assertion."""
-    app = FastAPI(title="AI BOT V2", version="0.0.0", docs_url="/api/docs")
+    app = FastAPI(title="NERVYX ONE", version="0.0.0", docs_url="/api/docs")
     _register_middleware(app)
     _register_routers(app)
     _register_health_aliases(app)

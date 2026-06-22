@@ -1,0 +1,133 @@
+{
+  "accepted_symbols": [
+    "BNBUSDT",
+    "BTCUSDT",
+    "ETHUSDT",
+    "PAXGUSDT",
+    "XAUTUSDT",
+    "ZECUSDT"
+  ],
+  "auto_accept": false,
+  "generated_est": "2026-06-07T22:40:57-04:00",
+  "minimum_amended_cap_required": 63.67628161239602,
+  "operator_acceptance_required": true,
+  "profile": {
+    "filter_buffer_usdt": 1.0,
+    "profile_id": "conservative_min_executable",
+    "profile_name": "conservative_min_executable",
+    "risk_fields": {
+      "cooldown_seconds": 1200,
+      "kill_switch_conditions": [
+        "any_mutation_before_final_gate",
+        "daily_loss_cap_breach",
+        "drawdown_cap_breach"
+      ],
+      "max_daily_loss": 15.0,
+      "max_drawdown": 75.0,
+      "max_leverage": 1.0,
+      "max_notional_per_trade": 64.68,
+      "max_open_positions": 1,
+      "max_slippage_bps": 2.0,
+      "max_spread_bps": 3.5,
+      "max_symbol_exposure": 64.86,
+      "max_total_exposure": 100.0,
+      "min_confidence_calibrated": 0.66,
+      "min_expected_move_after_cost_bps": 12.0
+    },
+    "selected_filter_row": {
+      "blocker_if_false": [],
+      "current_risk_max_notional": 64.86,
+      "executable_under_current_profile": true,
+      "filter_status": {
+        "endpoint": "GET /fapi/v1/exchangeInfo",
+        "error_type": null,
+        "max_price": "4529764",
+        "max_qty": "120",
+        "min_notional": "50",
+        "min_price": "556.80",
+        "min_qty": "0.001",
+        "ok": true,
+        "price_precision": 2,
+        "quantity_precision": 3,
+        "status": "TRADING",
+        "step_size": "0.001",
+        "symbol": "BTCUSDT",
+        "tick_size": "0.10"
+      },
+      "mark_price": 63676.28161239602,
+      "min_executable_notional": 63.67628161239602,
+      "min_executable_quantity": 0.001,
+      "min_notional": 50.0,
+      "min_qty": 0.001,
+      "price_payload_source_type": "signal_payload",
+      "price_precision": 2,
+      "price_source": "signal.price_target_after_cost",
+      "quantity_precision": 3,
+      "signal": {
+        "confidence": 0.6809434355382293,
+        "expected_move_after_cost_bps": 108.56573370692621,
+        "generated_est": "2026-06-07T22:40:33-04:00",
+        "live_gate": "enabled_operator_approved",
+        "orchestrator_decision_id": "v2_native_pred_bbc22136a9074a1824fa4be08875dd88_219a2190e2b0ebb8",
+        "paper_state": "ACCEPTED_PAPER_FILL",
+        "prediction_id": "v2_native_pred_bbc22136a9074a1824fa4be08875dd88_219a2190e2b0ebb8",
+        "risk_decision_id": "rd_dec_v2_native_pred_bbc22136a9074a1824fa4be08875dd88_219a2190e2b0ebb8",
+        "signal_id": "v2_native_pred_bbc22136a9074a1824fa4be08875dd88_219a2190e2b0ebb8"
+      },
+      "step_size": "0.001",
+      "symbol": "BTCUSDT",
+      "tick_size": "0.10"
+    },
+    "selected_first_order_symbol": "BTCUSDT",
+    "source_profile": "conservative_min_executable"
+  },
+  "profiles": {
+    "conservative_min_executable": {
+      "cooldown_seconds": 1200,
+      "kill_switch_conditions": [
+        "any_mutation_before_final_gate",
+        "daily_loss_cap_breach",
+        "drawdown_cap_breach"
+      ],
+      "max_daily_loss": 15.0,
+      "max_drawdown": 75.0,
+      "max_leverage": 1.0,
+      "max_notional_per_trade": 64.68,
+      "max_open_positions": 1,
+      "max_slippage_bps": 2.0,
+      "max_spread_bps": 3.5,
+      "max_symbol_exposure": 64.86,
+      "max_total_exposure": 100.0,
+      "min_confidence_calibrated": 0.66,
+      "min_expected_move_after_cost_bps": 12.0
+    }
+  },
+  "proposal_only_not_enablement": true,
+  "risk_profile_amendment_reason": "EXCHANGE_FILTER_RISK_PROFILE_MISMATCH",
+  "schema_version": "executable_minimum_conservative_risk_profile_proposal_v1",
+  "service_id": "v2_exchange_filter_risk_profile_alignment_and_min_order_execution",
+  "source_payload_id": "sha256:a5ea886fb58b30227d8dad3d3097a364a75b78b160b3d57a183cbe6801753a74",
+  "source_runtime_risk_profile": {
+    "fields": {
+      "cooldown_seconds": 1200,
+      "kill_switch_conditions": [
+        "any_mutation_before_final_gate",
+        "daily_loss_cap_breach",
+        "drawdown_cap_breach"
+      ],
+      "max_daily_loss": 15.0,
+      "max_drawdown": 75.0,
+      "max_leverage": 1.0,
+      "max_notional_per_trade": 64.86,
+      "max_open_positions": 1,
+      "max_slippage_bps": 2.0,
+      "max_spread_bps": 3.5,
+      "max_symbol_exposure": 64.86,
+      "max_total_exposure": 100.0,
+      "min_confidence_calibrated": 0.66,
+      "min_expected_move_after_cost_bps": 12.0
+    },
+    "profile_id": "conservative_min_executable",
+    "profile_name": "conservative_min_executable"
+  }
+}

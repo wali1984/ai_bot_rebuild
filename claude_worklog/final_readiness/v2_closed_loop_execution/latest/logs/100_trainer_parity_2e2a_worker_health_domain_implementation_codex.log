@@ -1,0 +1,1075 @@
+OpenAI Codex v0.128.0 (research preview)
+--------
+workdir: /home/wali/Desktop/AI BOT REBUILD
+model: gpt-5.5
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, /home/wali/.codex/memories]
+reasoning effort: xhigh
+reasoning summaries: none
+session id: 019e5844-b8f4-7873-92ea-3770a7d67641
+--------
+user
+You are Codex acting as primary builder for Phase 2E2.A of REQ_0006 (trainer worker health domain). You do NOT modify legacy. You do NOT modify /home/wali/Desktop/AI BOT. You do NOT read or write Redis at import time, build time, or unit-test time. You do NOT run the live trainer. You do NOT place exchange orders. You do NOT change leverage or margin. You do NOT enable live trading. You do NOT deploy. You do NOT expose or commit secrets.
+
+Predecessor gate: 139_2E1E_CODEX_REREVIEW_AFTER_AUTOFIX_GO_NO_GO.md MUST contain exactly PHASE2E1E_TRAINER_PARITY_COMPOSITION_ROOT_CODEX_PASS. If absent or different, do NOT emit any source or test file. Emit 146 with PHASE2E2A_TRAINER_WORKER_HEALTH_DOMAIN_IMPL_AND_VALIDATION_FAIL, capture the missing-marker reason in 145, and stop.
+
+Read exactly these files as authoritative:
+- claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/140_PHASE_2E2_SUB_PHASE_BREAKDOWN.md
+- claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/141_PHASE_2E2A_WORKER_HEALTH_DOMAIN_SPEC.md
+- claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/142_PHASE_2E2A_WORKER_HEALTH_DOMAIN_TEST_PLAN.md
+- claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/143_PHASE_2E2A_WORKER_HEALTH_DOMAIN_SAFETY_BOUNDARIES.md
+- v2/backend/app/domain/trainer_liveness/__init__.py and signal_snapshot.py and errors.py
+
+Deliverables (exact file set per required_output_files; nothing else):
+
+A. v2/backend/app/domain/trainer_worker_health/__init__.py — re-exports the 18 names from 141 'Public surface' in that exact order; the __all__ tuple is exactly those 18 names in that order. The module performs no side effects beyond imports.
+
+B. v2/backend/app/domain/trainer_worker_health/errors.py — defines TrainerWorkerHealthDomainError(ValueError) with __init__(self, reason: str, *, field: str | None = None) per spec 141. Imports only the standard library. Imports nothing from v2/.
+
+C. v2/backend/app/domain/trainer_worker_health/health_status.py — defines the four status string constants and the ten reason string constants with the exact string values listed in 141. Defines two module-private frozenset constants _ALLOWED_HEALTH_STATUSES and _ALLOWED_HEALTH_REASONS. Imports only the standard library.
+
+D. v2/backend/app/domain/trainer_worker_health/health_thresholds.py — defines TrainerWorkerHealthThresholds as @dataclass(frozen=True, slots=True) with the six int fields and the __post_init__ invariant checks per spec 141. Imports only the standard library and the in-package errors module.
+
+E. v2/backend/app/domain/trainer_worker_health/health_snapshot.py — defines TrainerWorkerHealthSnapshot as @dataclass(frozen=True, slots=True) with the four fields and the __post_init__ invariant checks per spec 141. Imports the standard library, the in-package errors and health_status modules, and v2.backend.app.domain.trainer_liveness.LivenessSignalSnapshot. Imports nothing else.
+
+F. v2/backend/app/domain/trainer_worker_health/health_evaluator.py — defines evaluate_trainer_worker_health with the exact signature in spec 141. Implements behavior steps 1-11 in that exact order. Imports the standard library, the in-package errors / health_status / health_thresholds / health_snapshot modules, and v2.backend.app.domain.trainer_liveness.LivenessSignalSnapshot. Imports nothing else.
+
+G. v2/backend/tests/unit/domain/trainer_worker_health/__init__.py — empty package marker (single newline).
+
+H. The 24 test files listed in required_output_files. Each file contains exactly one test function whose name starts with test_, mirrors the file basename, and exercises exactly the case described in 142. Hand-written LivenessSignalSnapshot and TrainerWorkerHealthThresholds objects are constructed inline; no shared conftest is created or modified. Tests do not import redis directly. Tests do not open sockets, run subprocesses, or read os.environ. The two guard tests (test_worker_health_domain_does_not_import_redis.py and test_worker_health_domain_does_not_import_url_env.py) construct every forbidden literal at runtime via string concatenation and scan only the six authored source files under v2/backend/app/domain/trainer_worker_health/.
+
+I. claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/145_2E2A_WORKER_HEALTH_DOMAIN_IMPLEMENTATION_REPORT.md — sections: 'Files authored' (list), 'Public surface' (the 18 names in order), 'Behavior contract steps satisfied' (the 11 steps from 141 with one-line evidence each citing function and line range in health_evaluator.py), 'Validation commands run' (each command from 142 'Validation commands' with its exit code and a one-line summary), 'Forbidden-token self-grep results' (one count per scanned source file; every file shows zero), 'Cross-isolation git status' (verbatim output, must be empty over the cross-isolation paths in 143), 'Final 24 test file names plus package marker' (the exact list emitted), 'py_compile result' (verbatim), 'Cross-isolation regression suites' (each prior suite from 142 with pytest summary line). The file MUST NOT contain any trailing END_FILE marker line in its body.
+
+J. claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/146_2E2A_WORKER_HEALTH_DOMAIN_GO_NO_GO.md — exactly one of:
+  PHASE2E2A_TRAINER_WORKER_HEALTH_DOMAIN_IMPL_AND_VALIDATION_PASSED
+  PHASE2E2A_TRAINER_WORKER_HEALTH_DOMAIN_IMPL_AND_VALIDATION_FAIL
+No other content. The file MUST NOT contain any trailing END_FILE marker line.
+
+Validation commands you MUST run (in this order; abort on first non-zero exit and emit the FAIL marker):
+- python -m py_compile v2/backend/app/domain/trainer_worker_health/__init__.py v2/backend/app/domain/trainer_worker_health/errors.py v2/backend/app/domain/trainer_worker_health/health_status.py v2/backend/app/domain/trainer_worker_health/health_thresholds.py v2/backend/app/domain/trainer_worker_health/health_snapshot.py v2/backend/app/domain/trainer_worker_health/health_evaluator.py
+- .venv/bin/python -m pytest v2/backend/tests/unit/domain/trainer_worker_health/ -q
+- .venv/bin/python -m pytest v2/backend/tests/unit/domain/trainer_liveness/ -q
+- .venv/bin/python -m pytest v2/backend/tests/unit/composition/trainer_parity/ -q
+- .venv/bin/python -m pytest v2/backend/tests/unit/services/trainer_parity/ -q
+- git status -s v2/backend/app/services/ v2/backend/app/adapters/ v2/backend/app/composition/ v2/backend/app/api/ v2/backend/app/cli/ v2/backend/app/jobs/ v2/backend/app/main.py v2/frontend/ v2/backend/tests/unit/services/ v2/backend/tests/unit/adapters/ v2/backend/tests/unit/composition/ v2/backend/tests/unit/feature_snapshots/ v2/backend/tests/unit/symbol_universe/ v2/backend/app/domain/trainer_liveness/ v2/backend/app/domain/trainer_liveness_composition/ v2/backend/app/domain/trainer_liveness_observation_collector/ v2/backend/app/domain/liveness_stream_growth/ v2/backend/tests/unit/domain/trainer_liveness/
+
+The last command MUST return zero lines. Any line is a hard fail.
+
+Stop conditions: any modification to /home/wali/Desktop/AI BOT, any Redis read or write at any layer, any live service restart, any exchange order action, any leverage / margin change, any deploy intent, any secret-shaped string in the diff, any modification of a prior-milestone file under v2/backend/app/services/trainer_parity/, v2/backend/app/adapters/redis_v2/, v2/backend/app/composition/trainer_parity/, v2/backend/app/domain/trainer_liveness/, v2/backend/app/domain/trainer_liveness_composition/, v2/backend/app/domain/trainer_liveness_observation_collector/, or v2/backend/app/domain/liveness_stream_growth/, any modification of an existing test file under v2/backend/tests/unit/services/, v2/backend/tests/unit/adapters/, v2/backend/tests/unit/composition/, v2/backend/tests/unit/domain/trainer_liveness/, v2/backend/tests/unit/domain/trainer_liveness_composition/, v2/backend/tests/unit/domain/trainer_liveness_observation_collector/, or v2/backend/tests/unit/domain/liveness_stream_growth/, or any other v2/backend/app/ file outside the v2/backend/app/domain/trainer_worker_health/ subpackage is an unconditional FAIL with no autofix path; emit FAIL, capture in 145, surface to human attention.
+exec
+/bin/bash -lc "set -euo pipefail
+printf '---139---\\n'
+cat claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/139_2E1E_CODEX_REREVIEW_AFTER_AUTOFIX_GO_NO_GO.md
+printf '\\n---140---\\n'
+cat claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/140_PHASE_2E2_SUB_PHASE_BREAKDOWN.md
+printf '\\n---141---\\n'
+cat claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/141_PHASE_2E2A_WORKER_HEALTH_DOMAIN_SPEC.md
+printf '\\n---142---\\n'
+cat claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/142_PHASE_2E2A_WORKER_HEALTH_DOMAIN_TEST_PLAN.md
+printf '\\n---143---\\n'
+cat claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/143_PHASE_2E2A_WORKER_HEALTH_DOMAIN_SAFETY_BOUNDARIES.md
+printf '\\n---liveness init---\\n'
+cat v2/backend/app/domain/trainer_liveness/__init__.py
+printf '\\n---liveness signal_snapshot---\\n'
+cat v2/backend/app/domain/trainer_liveness/signal_snapshot.py
+printf '\\n---liveness errors---\\n'
+cat v2/backend/app/domain/trainer_liveness/errors.py
+" in /home/wali/Desktop/AI BOT REBUILD
+ exited 2 in 0ms:
+/bin/bash: line 2: printf: --: invalid option
+printf: usage: printf [-v var] format [arguments]
+
+exec
+/bin/bash -lc "set -euo pipefail
+printf '%s\\n' '---139---'
+cat claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/139_2E1E_CODEX_REREVIEW_AFTER_AUTOFIX_GO_NO_GO.md
+printf '%s\\n' '---140---'
+cat claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/140_PHASE_2E2_SUB_PHASE_BREAKDOWN.md
+printf '%s\\n' '---141---'
+cat claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/141_PHASE_2E2A_WORKER_HEALTH_DOMAIN_SPEC.md
+printf '%s\\n' '---142---'
+cat claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/142_PHASE_2E2A_WORKER_HEALTH_DOMAIN_TEST_PLAN.md
+printf '%s\\n' '---143---'
+cat claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/143_PHASE_2E2A_WORKER_HEALTH_DOMAIN_SAFETY_BOUNDARIES.md
+printf '%s\\n' '---liveness init---'
+cat v2/backend/app/domain/trainer_liveness/__init__.py
+printf '%s\\n' '---liveness signal_snapshot---'
+cat v2/backend/app/domain/trainer_liveness/signal_snapshot.py
+printf '%s\\n' '---liveness errors---'
+cat v2/backend/app/domain/trainer_liveness/errors.py
+" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+---139---
+PHASE2E1E_TRAINER_PARITY_COMPOSITION_ROOT_CODEX_FAIL---140---
+# Phase 2E2 Sub-Phase Breakdown — Trainer Prediction Worker Health
+
+This document is the canonical sub-phase plan for Phase 2E2 of
+REQ_0006. Phase 2E2 builds the richer prediction-worker health model
+that REQ_0006 calls for in addition to the binary liveness alert
+produced by Phase 2E1. Each sub-phase is dispatched only after its
+predecessor's Codex review PASS marker is materialized. Sub-phases
+land sequentially. No sub-phase opens until its predecessor is
+Codex-passed.
+
+## 2E2.A — Worker health domain (this turn)
+
+- Surface: `v2/backend/app/domain/trainer_worker_health/`.
+- Files written: `__init__.py`, `errors.py`, `health_status.py`,
+  `health_thresholds.py`, `health_snapshot.py`, `health_evaluator.py`.
+- Tests written: `v2/backend/tests/unit/domain/trainer_worker_health/`
+  package marker plus 24 test files (see `142`).
+- Inputs consumed (read-only, no modification): the
+  `LivenessSignalSnapshot` value object from
+  `v2.backend.app.domain.trainer_liveness`.
+- Public surface: `TrainerWorkerHealthDomainError`,
+  `TrainerWorkerHealthThresholds`, `TrainerWorkerHealthSnapshot`,
+  `evaluate_trainer_worker_health`, plus the status-constant tuple
+  `(HEALTH_STATUS_HEALTHY, HEALTH_STATUS_DEGRADED,
+  HEALTH_STATUS_CRITICAL, HEALTH_STATUS_UNKNOWN)`, plus the reason
+  constants enumerated in `141`.
+- Codex gate: `101` reviews `100` outputs.
+
+## 2E2.B — Worker health service (next milestone)
+
+- Surface (planned): `v2/backend/app/services/trainer_worker_health/`.
+- Files (planned): `service.py`, `errors.py`, `__init__.py`.
+- Responsibility: orchestrate the evaluator over a sequence of
+  `LivenessSignalSnapshot` instances, optionally delegating to the
+  observation collector for snapshot construction; return a
+  `TrainerWorkerHealthSnapshot` per call.
+- Redis-clean import invariant identical to 2E1.D.
+- Codex gate: future task pair.
+
+## 2E2.C — Worker health composition root (later milestone)
+
+- Surface (planned): `v2/backend/app/composition/trainer_worker_health/`.
+- Files (planned): `__init__.py`, `errors.py`, `runtime.py`.
+- Responsibility: build a callable that returns a
+  `TrainerWorkerHealthSnapshot` from base inputs plus thresholds,
+  using the gamma.real factory chain for any Redis-backed dependency
+  it inherits from the 2E2.B service.
+- Composition-root pattern identical to 2E1.E (separate top-level
+  package to preserve the service's redis-clean invariant).
+- Codex gate: future task pair.
+
+## Sequencing rule
+
+If `101` (Codex review of 2E2.A) returns FAIL with concrete blockers,
+planner enqueues a narrow REQ_0007 / REQ_0014 autofix task scoped to
+the six authored source files and the 24 new test files only and
+does not advance to 2E2.B. If `101` returns PASS, planner opens a new
+cycle to author the 2E2.B scope.
+
+## Hard-stop reminders for every 2E2 sub-phase
+
+- No legacy mutation under `/home/wali/Desktop/AI BOT`.
+- No Redis read or write at the domain layer.
+- No live service restart.
+- No exchange action.
+- No leverage or margin change.
+- No live trading enabled.
+- No deploy intent.
+- No production migration.
+- No secret exposure.
+
+PHASE2E2_TRAINER_WORKER_HEALTH_SUB_PHASE_BREAKDOWN_READY
+---141---
+# Phase 2E2.A — Trainer Worker Health Domain Spec
+
+This document is the authoring spec for Phase 2E2.A of REQ_0006. It
+is the first sub-phase of the trainer-prediction-worker-health
+milestone group. It builds a NEW domain package
+`v2/backend/app/domain/trainer_worker_health/` that consumes the
+existing 2E1
+`v2.backend.app.domain.trainer_liveness.LivenessSignalSnapshot`
+value object as a fixed external contract and produces a richer
+per-snapshot health status with three severity bands plus a distinct
+"no signals observed" bucket.
+
+## Predecessor gates
+
+- 2E1.E composition root (post-autofix Codex re-review):
+  `PHASE2E1E_TRAINER_PARITY_COMPOSITION_ROOT_CODEX_PASS`
+  (`trainer_gpu_parity_impl/139_2E1E_CODEX_REREVIEW_AFTER_AUTOFIX_GO_NO_GO.md`).
+
+If the predecessor marker is absent, the supervisor MUST NOT dispatch
+2E2.A. The implementation task `100` encodes the 2E1.E Codex pass as
+its primary additional marker.
+
+## Module location decision
+
+Worker health domain files land under a NEW package:
+
+- `v2/backend/app/domain/trainer_worker_health/__init__.py`
+- `v2/backend/app/domain/trainer_worker_health/errors.py`
+- `v2/backend/app/domain/trainer_worker_health/health_status.py`
+- `v2/backend/app/domain/trainer_worker_health/health_thresholds.py`
+- `v2/backend/app/domain/trainer_worker_health/health_snapshot.py`
+- `v2/backend/app/domain/trainer_worker_health/health_evaluator.py`
+
+The new package is a sibling of the existing
+`v2/backend/app/domain/trainer_liveness/` package. It does NOT live
+inside `trainer_liveness/` because the worker-health model is a
+distinct contract with its own status enumeration, threshold dataclass,
+snapshot dataclass, and evaluator entry point. The new package
+imports the existing `LivenessSignalSnapshot` symbol but does not
+import any other 2E1 trainer-liveness symbol (no `LivenessAlert`, no
+`LIVENESS_REASON_*` constants, no `evaluate_liveness`, no
+`LivenessSLAConfig`).
+
+No 2E1 file is modified by this milestone.
+
+## Scope (additive only — no edits to existing surface)
+
+Files to create (exact set, no extras):
+
+- `v2/backend/app/domain/trainer_worker_health/__init__.py`
+- `v2/backend/app/domain/trainer_worker_health/errors.py`
+- `v2/backend/app/domain/trainer_worker_health/health_status.py`
+- `v2/backend/app/domain/trainer_worker_health/health_thresholds.py`
+- `v2/backend/app/domain/trainer_worker_health/health_snapshot.py`
+- `v2/backend/app/domain/trainer_worker_health/health_evaluator.py`
+- `v2/backend/tests/unit/domain/trainer_worker_health/__init__.py`
+- `v2/backend/tests/unit/domain/trainer_worker_health/` 24 test files
+  enumerated in `142_PHASE_2E2A_WORKER_HEALTH_DOMAIN_TEST_PLAN.md`.
+
+## Public surface (exact `__all__`)
+
+`v2/backend/app/domain/trainer_worker_health/__init__.py` exposes
+exactly the following names, in this order, in `__all__`:
+
+1. `TrainerWorkerHealthDomainError`
+2. `TrainerWorkerHealthThresholds`
+3. `TrainerWorkerHealthSnapshot`
+4. `evaluate_trainer_worker_health`
+5. `HEALTH_STATUS_HEALTHY`
+6. `HEALTH_STATUS_DEGRADED`
+7. `HEALTH_STATUS_CRITICAL`
+8. `HEALTH_STATUS_UNKNOWN`
+9. `HEALTH_REASON_PREDICTION_AGE_DEGRADED`
+10. `HEALTH_REASON_GPU_BATCH_AGE_DEGRADED`
+11. `HEALTH_REASON_PROPOSAL_AGE_DEGRADED`
+12. `HEALTH_REASON_PREDICTION_AGE_CRITICAL`
+13. `HEALTH_REASON_GPU_BATCH_AGE_CRITICAL`
+14. `HEALTH_REASON_PROPOSAL_AGE_CRITICAL`
+15. `HEALTH_REASON_PREDICTION_STREAM_ZERO_GROWTH`
+16. `HEALTH_REASON_PREDICTION_WORKER_DEAD`
+17. `HEALTH_REASON_FATAL_LOG_SIGNATURE_OBSERVED`
+18. `HEALTH_REASON_NO_SIGNALS_OBSERVED`
+
+## TrainerWorkerHealthDomainError
+
+`errors.py` defines:
+
+```
+class TrainerWorkerHealthDomainError(ValueError):
+    def __init__(self, reason: str, *, field: str | None = None) -> None:
+        self.reason = reason
+        self.field = field
+        message = reason if field is None else f"{field}: {reason}"
+        super().__init__(message)
+```
+
+Imports only the standard library. Imports nothing from `v2/`.
+Imports nothing from `redis`, `aioredis`, `hiredis`, or
+`redis.asyncio`.
+
+## Status constants
+
+`health_status.py` defines exactly four status string constants with
+exact string values:
+
+- `HEALTH_STATUS_HEALTHY = "HEALTHY"`
+- `HEALTH_STATUS_DEGRADED = "DEGRADED"`
+- `HEALTH_STATUS_CRITICAL = "CRITICAL"`
+- `HEALTH_STATUS_UNKNOWN = "UNKNOWN"`
+
+Plus the reason constants with exact string values:
+
+- `HEALTH_REASON_PREDICTION_AGE_DEGRADED = "prediction_age_degraded"`
+- `HEALTH_REASON_GPU_BATCH_AGE_DEGRADED = "gpu_batch_age_degraded"`
+- `HEALTH_REASON_PROPOSAL_AGE_DEGRADED = "proposal_age_degraded"`
+- `HEALTH_REASON_PREDICTION_AGE_CRITICAL = "prediction_age_critical"`
+- `HEALTH_REASON_GPU_BATCH_AGE_CRITICAL = "gpu_batch_age_critical"`
+- `HEALTH_REASON_PROPOSAL_AGE_CRITICAL = "proposal_age_critical"`
+- `HEALTH_REASON_PREDICTION_STREAM_ZERO_GROWTH = "prediction_stream_zero_growth"`
+- `HEALTH_REASON_PREDICTION_WORKER_DEAD = "prediction_worker_dead"`
+- `HEALTH_REASON_FATAL_LOG_SIGNATURE_OBSERVED = "fatal_log_signature_observed"`
+- `HEALTH_REASON_NO_SIGNALS_OBSERVED = "no_signals_observed"`
+
+The module also defines two frozenset module-level constants used by
+the snapshot invariant check:
+
+- `_ALLOWED_HEALTH_STATUSES = frozenset({HEALTH_STATUS_HEALTHY, HEALTH_STATUS_DEGRADED, HEALTH_STATUS_CRITICAL, HEALTH_STATUS_UNKNOWN})`
+- `_ALLOWED_HEALTH_REASONS = frozenset({...all 10 reason constants above...})`
+
+These two frozensets are module-private (leading underscore). They
+are imported by `health_snapshot.py`.
+
+`health_status.py` imports only the standard library. Imports nothing
+from `v2/`. Imports nothing from `redis`, `aioredis`, `hiredis`, or
+`redis.asyncio`.
+
+## TrainerWorkerHealthThresholds
+
+`health_thresholds.py` defines:
+
+```
+@dataclass(frozen=True, slots=True)
+class TrainerWorkerHealthThresholds:
+    prediction_age_degraded_ms: int
+    prediction_age_critical_ms: int
+    gpu_batch_age_degraded_ms: int
+    gpu_batch_age_critical_ms: int
+    proposal_age_degraded_ms: int
+    proposal_age_critical_ms: int
+
+    def __post_init__(self) -> None:
+        # All six fields must be int and >= 1.
+        # For each (degraded, critical) pair, degraded must be < critical.
+```
+
+Invariants enforced via `TrainerWorkerHealthDomainError`:
+
+- Each of the six fields must be `int` (not `bool`); failing this
+  raises with `field=<field_name>` and `reason="must_be_int"`.
+- Each of the six fields must be `>= 1`; failing this raises with
+  `field=<field_name>` and `reason="must_be_at_least_one"`.
+- For each (degraded, critical) pair, `degraded_ms < critical_ms`;
+  failing this raises with `field="<critical_field_name>"` and
+  `reason="critical_must_be_greater_than_degraded"`.
+
+Imports only the standard library and `errors.py`. Imports nothing
+from `v2/` outside this package.
+
+## TrainerWorkerHealthSnapshot
+
+`health_snapshot.py` defines:
+
+```
+@dataclass(frozen=True, slots=True)
+class TrainerWorkerHealthSnapshot:
+    status: str
+    reasons: tuple[str, ...]
+    signal_snapshot: LivenessSignalSnapshot
+    observation_ts_ms: int
+```
+
+Invariants enforced in `__post_init__` via
+`TrainerWorkerHealthDomainError`:
+
+- `status` MUST be in `_ALLOWED_HEALTH_STATUSES`. Otherwise
+  `field="status"`, `reason="invalid_status"`.
+- `reasons` MUST be a `tuple` (not list, not frozenset). Otherwise
+  `field="reasons"`, `reason="must_be_tuple"`.
+- Every element of `reasons` MUST be a `str` and MUST be in
+  `_ALLOWED_HEALTH_REASONS`. Otherwise `field="reasons"`,
+  `reason="unknown_reason"`.
+- `reasons` MUST not contain duplicates. Otherwise `field="reasons"`,
+  `reason="duplicate_reasons"`.
+- `signal_snapshot` MUST be an instance of `LivenessSignalSnapshot`.
+  Otherwise `field="signal_snapshot"`,
+  `reason="must_be_liveness_signal_snapshot"`.
+- `observation_ts_ms` MUST equal `signal_snapshot.observation_ts_ms`.
+  Otherwise `field="observation_ts_ms"`,
+  `reason="must_match_snapshot"`.
+- If `status == HEALTH_STATUS_HEALTHY`, `reasons` MUST equal `()`.
+  Otherwise `field="reasons"`, `reason="healthy_requires_empty_reasons"`.
+- If `status == HEALTH_STATUS_UNKNOWN`, `reasons` MUST equal
+  `(HEALTH_REASON_NO_SIGNALS_OBSERVED,)`. Otherwise
+  `field="reasons"`, `reason="unknown_requires_no_signals_reason"`.
+- If `status == HEALTH_STATUS_DEGRADED`, every reason in `reasons`
+  MUST be a degraded-band reason (one of
+  `HEALTH_REASON_PREDICTION_AGE_DEGRADED`,
+  `HEALTH_REASON_GPU_BATCH_AGE_DEGRADED`,
+  `HEALTH_REASON_PROPOSAL_AGE_DEGRADED`) AND `reasons` MUST NOT be
+  empty. Otherwise `field="reasons"`,
+  `reason="degraded_reasons_must_be_degraded_band"` or
+  `reason="degraded_requires_at_least_one_reason"`.
+- If `status == HEALTH_STATUS_CRITICAL`, `reasons` MUST contain at
+  least one critical-band reason (one of
+  `HEALTH_REASON_PREDICTION_AGE_CRITICAL`,
+  `HEALTH_REASON_GPU_BATCH_AGE_CRITICAL`,
+  `HEALTH_REASON_PROPOSAL_AGE_CRITICAL`,
+  `HEALTH_REASON_PREDICTION_STREAM_ZERO_GROWTH`,
+  `HEALTH_REASON_PREDICTION_WORKER_DEAD`,
+  `HEALTH_REASON_FATAL_LOG_SIGNATURE_OBSERVED`). Otherwise
+  `field="reasons"`,
+  `reason="critical_requires_at_least_one_critical_reason"`.
+
+Imports: standard library; `errors.py`; `health_status.py` (the
+status and reason constants and the two frozenset module-private
+constants); the existing
+`v2.backend.app.domain.trainer_liveness.LivenessSignalSnapshot`
+symbol via the absolute path. Imports nothing else.
+
+## evaluate_trainer_worker_health
+
+`health_evaluator.py` defines:
+
+```
+def evaluate_trainer_worker_health(
+    snapshot: LivenessSignalSnapshot,
+    thresholds: TrainerWorkerHealthThresholds,
+    now_ms: int,
+) -> TrainerWorkerHealthSnapshot:
+    ...
+```
+
+Behavior contract — implement in this exact order:
+
+1. Validate `snapshot` is a `LivenessSignalSnapshot` instance.
+   Otherwise raise `TrainerWorkerHealthDomainError("must_be_liveness_signal_snapshot", field="snapshot")`.
+2. Validate `thresholds` is a `TrainerWorkerHealthThresholds`
+   instance. Otherwise raise
+   `TrainerWorkerHealthDomainError("must_be_worker_health_thresholds", field="thresholds")`.
+3. Validate `type(now_ms) is int` (reject `bool`). Otherwise raise
+   `TrainerWorkerHealthDomainError("must_be_int", field="now_ms")`.
+4. Validate `now_ms >= 0`. Otherwise raise
+   `TrainerWorkerHealthDomainError("must_be_nonnegative", field="now_ms")`.
+5. Validate `now_ms >= snapshot.observation_ts_ms`. Otherwise raise
+   `TrainerWorkerHealthDomainError("now_before_observation", field="now_ms")`.
+6. Compute the `no_signals` predicate. It is `True` exactly when ALL
+   of the following hold on the snapshot:
+   - `trainer_pid is None`
+   - `trainer_rss_bytes is None`
+   - `trainer_heartbeat_ts_ms is None`
+   - `prediction_worker_pid is None`
+   - `prediction_worker_alive is False`
+   - `last_prediction_ts_ms is None`
+   - `last_gpu_batch_ts_ms is None`
+   - `last_deconflict_ts_ms is None`
+   - `last_proposal_ts_ms is None`
+   - `prediction_stream_id_growth == 0`
+   - `proposal_stream_id_growth == 0`
+   - `fatal_log_signature_observed is False`
+   If `no_signals` is `True`, return
+   `TrainerWorkerHealthSnapshot(status=HEALTH_STATUS_UNKNOWN,
+   reasons=(HEALTH_REASON_NO_SIGNALS_OBSERVED,),
+   signal_snapshot=snapshot,
+   observation_ts_ms=snapshot.observation_ts_ms)` and stop.
+7. Compute the critical reasons list, in this exact order:
+   - If `snapshot.last_prediction_ts_ms is not None` and
+     `now_ms - snapshot.last_prediction_ts_ms > thresholds.prediction_age_critical_ms`,
+     append `HEALTH_REASON_PREDICTION_AGE_CRITICAL`.
+   - If `snapshot.last_gpu_batch_ts_ms is not None` and
+     `now_ms - snapshot.last_gpu_batch_ts_ms > thresholds.gpu_batch_age_critical_ms`,
+     append `HEALTH_REASON_GPU_BATCH_AGE_CRITICAL`.
+   - If `snapshot.last_proposal_ts_ms is not None` and
+     `now_ms - snapshot.last_proposal_ts_ms > thresholds.proposal_age_critical_ms`,
+     append `HEALTH_REASON_PROPOSAL_AGE_CRITICAL`.
+   - If `snapshot.prediction_stream_id_growth == 0` AND
+     `snapshot.trainer_pid is not None` AND
+     `snapshot.trainer_rss_bytes is not None` AND
+     `snapshot.trainer_rss_bytes > 0`, append
+     `HEALTH_REASON_PREDICTION_STREAM_ZERO_GROWTH`.
+   - If `snapshot.prediction_worker_alive is False` AND
+     `snapshot.prediction_worker_pid is not None`, append
+     `HEALTH_REASON_PREDICTION_WORKER_DEAD`.
+   - If `snapshot.fatal_log_signature_observed is True`, append
+     `HEALTH_REASON_FATAL_LOG_SIGNATURE_OBSERVED`.
+8. Compute the degraded reasons list. A degraded reason for a given
+   age signal fires if and only if the age is strictly greater than
+   the degraded threshold AND less than or equal to the critical
+   threshold. Per the precedence rule, an age signal contributes
+   AT MOST one reason: the critical reason if it fired in step 7,
+   otherwise the degraded reason if the degraded condition holds.
+   In this exact order:
+   - If `snapshot.last_prediction_ts_ms is not None` AND
+     `HEALTH_REASON_PREDICTION_AGE_CRITICAL` is NOT in the critical
+     reasons list AND
+     `now_ms - snapshot.last_prediction_ts_ms > thresholds.prediction_age_degraded_ms`,
+     append `HEALTH_REASON_PREDICTION_AGE_DEGRADED`.
+   - Same pattern for GPU batch.
+   - Same pattern for proposal.
+9. If the critical reasons list is non-empty, return
+   `TrainerWorkerHealthSnapshot(status=HEALTH_STATUS_CRITICAL,
+   reasons=tuple(critical_reasons + degraded_reasons),
+   signal_snapshot=snapshot,
+   observation_ts_ms=snapshot.observation_ts_ms)`. The reasons
+   tuple includes both critical and degraded reasons in the order
+   they were appended (critical first, then degraded), with no
+   sorting.
+10. If the critical reasons list is empty AND the degraded reasons
+    list is non-empty, return
+    `TrainerWorkerHealthSnapshot(status=HEALTH_STATUS_DEGRADED,
+    reasons=tuple(degraded_reasons),
+    signal_snapshot=snapshot,
+    observation_ts_ms=snapshot.observation_ts_ms)`.
+11. Otherwise return
+    `TrainerWorkerHealthSnapshot(status=HEALTH_STATUS_HEALTHY,
+    reasons=(),
+    signal_snapshot=snapshot,
+    observation_ts_ms=snapshot.observation_ts_ms)`.
+
+Imports: standard library; `errors.py`; `health_status.py`
+(constants); `health_thresholds.py` (the dataclass);
+`health_snapshot.py` (the dataclass); the existing
+`v2.backend.app.domain.trainer_liveness.LivenessSignalSnapshot`
+symbol via the absolute path. Imports nothing else.
+
+The evaluator does NOT log, print, mutate inputs, install singletons,
+register lifespan hooks, call wall-clock helpers, open sockets, run
+subprocesses, read `os.environ`, or import the redis adapter, the
+url_env, or any other adapter / service / composition module.
+
+## Forbidden tokens
+
+The forbidden-token guard tests
+(`test_worker_health_domain_does_not_import_redis.py` and
+`test_worker_health_domain_does_not_import_url_env.py`) MUST scan
+the six authored source files. The following literals are forbidden
+absolutely (zero matches in any source file in this milestone):
+
+- `import redis`
+- `from redis`
+- `redis.asyncio`
+- `hiredis`
+- `aioredis`
+- `xrevrange`
+- `xadd`
+- `xread`
+- `xlen`
+- `pipeline`
+- `from v2.backend.app.adapters`
+- `url_env`
+- `os.environ`
+- `subprocess`
+- `socket.socket`
+- `time.time(`
+- `time.monotonic(`
+- `datetime.now(`
+- `datetime.utcnow(`
+- `print(`
+- `logging.`
+- `httpx`
+- `requests`
+- `from v2.backend.app.services`
+- `from v2.backend.app.composition`
+- `from v2.backend.app.adapters.redis_v2`
+
+The literals are constructed at runtime in the guard tests via string
+concatenation to avoid the forbidden-token guard scanning its own
+source.
+
+## Deferred items (NOT in 2E2.A)
+
+- Service composition (deferred to 2E2.B).
+- Composition root and Redis-backed factory wiring (deferred to
+  2E2.C).
+- Streaming aggregation across multiple snapshots (future).
+- Per-worker history (future).
+- Public API exposure / REST endpoints (deferred to a later phase).
+- Frontend rendering of HEALTHY / DEGRADED / CRITICAL / UNKNOWN
+  (deferred to REQ_0008 frontend milestone).
+
+PHASE2E2A_TRAINER_WORKER_HEALTH_DOMAIN_SPEC_READY
+---142---
+# Phase 2E2.A — Trainer Worker Health Domain Test Plan
+
+The test plan enumerates the canonical 24 test files plus the
+package marker under
+`v2/backend/tests/unit/domain/trainer_worker_health/`. Each test
+file contains exactly one test function whose name starts with
+`test_` and mirrors the file basename. Tests use inline hand-written
+`LivenessSignalSnapshot` and `TrainerWorkerHealthThresholds` objects
+constructed directly via their dataclass constructors. No shared
+`conftest.py` is created. No fixture is shared.
+
+## Required test files (24 plus package marker)
+
+0. `__init__.py` — empty package marker (single newline).
+
+1. `test_public_surface.py` — imports `__all__` from
+   `v2.backend.app.domain.trainer_worker_health`; asserts it equals
+   the 18-name tuple in `141 §"Public surface"` in that exact order;
+   asserts each name resolves to the same object as the corresponding
+   direct module attribute.
+
+2. `test_errors_invariants.py` — constructs
+   `TrainerWorkerHealthDomainError("foo")` and
+   `TrainerWorkerHealthDomainError("foo", field="bar")`; asserts
+   `.reason == "foo"`, `.field is None` and `.field == "bar"`,
+   `str(err) == "foo"` and `str(err) == "bar: foo"`; asserts the
+   class is a subclass of `ValueError`.
+
+3. `test_health_status_constants.py` — asserts each status constant
+   equals the exact string value listed in `141 §"Status constants"`;
+   asserts each reason constant equals the exact string value listed
+   in `141 §"Status constants"`; asserts the four status values are
+   distinct; asserts the ten reason values are distinct; asserts the
+   ten reason values are disjoint from the four status values.
+
+4. `test_health_thresholds_invariants_must_be_int.py` — for each of
+   the six fields, constructs a thresholds dataclass with that field
+   set to `1.0` (float); asserts `TrainerWorkerHealthDomainError`
+   with `reason == "must_be_int"` and `field == <field_name>`.
+   Repeats with `True` (bool) for one field to confirm `bool` is
+   rejected as not-`int`.
+
+5. `test_health_thresholds_invariants_must_be_at_least_one.py` —
+   for each of the six fields, constructs a thresholds dataclass
+   with that field set to `0`, then `-1`; asserts
+   `TrainerWorkerHealthDomainError` with
+   `reason == "must_be_at_least_one"` and
+   `field == <field_name>`.
+
+6. `test_health_thresholds_invariants_critical_must_be_greater_than_degraded.py`
+   — for each of the three pairs (prediction, gpu_batch, proposal),
+   constructs a thresholds dataclass with `degraded_ms == critical_ms`
+   then with `degraded_ms > critical_ms`; asserts
+   `TrainerWorkerHealthDomainError` with
+   `reason == "critical_must_be_greater_than_degraded"` and
+   `field == <critical_field_name>`.
+
+7. `test_health_snapshot_invariants_status_in_allowed.py` —
+   constructs a snapshot with `status = "INVALID"`; asserts
+   `TrainerWorkerHealthDomainError` with
+   `reason == "invalid_status"` and `field == "status"`.
+
+8. `test_health_snapshot_invariants_observation_ts_must_match.py` —
+   constructs a snapshot with `observation_ts_ms = 999` against a
+   `signal_snapshot.observation_ts_ms = 1000`; asserts
+   `TrainerWorkerHealthDomainError` with
+   `reason == "must_match_snapshot"` and
+   `field == "observation_ts_ms"`.
+
+9. `test_health_snapshot_invariants_reasons_unique.py` — constructs
+   a CRITICAL snapshot whose `reasons` tuple contains the same
+   reason twice; asserts `TrainerWorkerHealthDomainError` with
+   `reason == "duplicate_reasons"` and `field == "reasons"`.
+
+10. `test_health_snapshot_invariants_healthy_requires_empty.py` —
+    constructs a snapshot with `status = HEALTH_STATUS_HEALTHY` and
+    a non-empty reasons tuple; asserts
+    `TrainerWorkerHealthDomainError` with
+    `reason == "healthy_requires_empty_reasons"` and
+    `field == "reasons"`.
+
+11. `test_health_snapshot_invariants_unknown_requires_no_signals_reason.py`
+    — constructs a snapshot with
+    `status = HEALTH_STATUS_UNKNOWN` and a reasons tuple equal to
+    `(HEALTH_REASON_PREDICTION_WORKER_DEAD,)`; asserts
+    `TrainerWorkerHealthDomainError` with
+    `reason == "unknown_requires_no_signals_reason"` and
+    `field == "reasons"`.
+
+12. `test_evaluator_healthy_when_all_fresh.py` — builds a
+    `LivenessSignalSnapshot` with a present trainer pid (123),
+    `trainer_rss_bytes=4096`, `prediction_worker_pid=456`,
+    `prediction_worker_alive=True`, all three age timestamps within
+    the degraded thresholds, `prediction_stream_id_growth=5`,
+    `proposal_stream_id_growth=5`, `fatal_log_signature_observed=False`.
+    Calls the evaluator with `now_ms = observation_ts_ms`. Asserts
+    `status == HEALTH_STATUS_HEALTHY` and `reasons == ()`.
+
+13. `test_evaluator_unknown_when_no_signals.py` — builds a snapshot
+    with all None timestamps, `prediction_worker_alive=False` and
+    `prediction_worker_pid=None`, growth values both 0, fatal log
+    False, trainer pid/rss/heartbeat None. Calls the evaluator with
+    `now_ms == observation_ts_ms == 0`. Asserts
+    `status == HEALTH_STATUS_UNKNOWN` and
+    `reasons == (HEALTH_REASON_NO_SIGNALS_OBSERVED,)`.
+
+14. `test_evaluator_degraded_prediction_age.py` — builds a fresh
+    snapshot but sets `last_prediction_ts_ms = now_ms - (degraded_ms + 1)`
+    (i.e., age strictly greater than degraded threshold) and below
+    the critical threshold. Asserts `status == HEALTH_STATUS_DEGRADED`
+    and `reasons == (HEALTH_REASON_PREDICTION_AGE_DEGRADED,)`.
+
+15. `test_evaluator_degraded_gpu_batch_age.py` — same pattern for the
+    gpu_batch age signal in isolation.
+
+16. `test_evaluator_degraded_proposal_age.py` — same pattern for the
+    proposal age signal in isolation.
+
+17. `test_evaluator_critical_prediction_age.py` — sets
+    `last_prediction_ts_ms = now_ms - (critical_ms + 1)`. Asserts
+    `status == HEALTH_STATUS_CRITICAL` and
+    `reasons == (HEALTH_REASON_PREDICTION_AGE_CRITICAL,)`.
+
+18. `test_evaluator_critical_gpu_batch_age.py` — same pattern for
+    gpu_batch in isolation.
+
+19. `test_evaluator_critical_proposal_age.py` — same pattern for
+    proposal in isolation.
+
+20. `test_evaluator_critical_when_worker_dead.py` — fresh snapshot
+    but `prediction_worker_alive = False` and
+    `prediction_worker_pid = 456`. Asserts
+    `status == HEALTH_STATUS_CRITICAL` and
+    `reasons == (HEALTH_REASON_PREDICTION_WORKER_DEAD,)`.
+
+21. `test_evaluator_critical_when_fatal_log_signature.py` — fresh
+    snapshot but `fatal_log_signature_observed = True`. Asserts
+    `status == HEALTH_STATUS_CRITICAL` and
+    `reasons == (HEALTH_REASON_FATAL_LOG_SIGNATURE_OBSERVED,)`.
+
+22. `test_evaluator_critical_when_zero_stream_growth_with_alive_parent.py`
+    — fresh snapshot but `prediction_stream_id_growth = 0` while
+    `trainer_pid = 123` and `trainer_rss_bytes = 4096`. Asserts
+    `status == HEALTH_STATUS_CRITICAL` and
+    `reasons == (HEALTH_REASON_PREDICTION_STREAM_ZERO_GROWTH,)`.
+
+23. `test_evaluator_status_precedence_critical_over_degraded.py` —
+    sets BOTH the prediction age into the critical band AND the
+    gpu_batch age into the degraded band. Asserts
+    `status == HEALTH_STATUS_CRITICAL`. Asserts the reasons tuple
+    equals
+    `(HEALTH_REASON_PREDICTION_AGE_CRITICAL, HEALTH_REASON_GPU_BATCH_AGE_DEGRADED)`
+    (critical first, then degraded). Asserts the prediction age
+    contributes the critical reason and NOT the degraded reason
+    (i.e., `HEALTH_REASON_PREDICTION_AGE_DEGRADED` is NOT in the
+    reasons tuple).
+
+24. `test_evaluator_threshold_boundary_strict.py` — single test that
+    asserts the strict comparison at every boundary by exercising
+    four sub-cases inline:
+    - prediction age `== degraded_ms` exactly: HEALTHY.
+    - prediction age `== degraded_ms + 1`: DEGRADED.
+    - prediction age `== critical_ms` exactly: DEGRADED (not yet
+      critical).
+    - prediction age `== critical_ms + 1`: CRITICAL.
+
+25. `test_evaluator_now_before_observation_rejected.py` — calls the
+    evaluator with `now_ms = snapshot.observation_ts_ms - 1`;
+    asserts `TrainerWorkerHealthDomainError` with
+    `reason == "now_before_observation"` and `field == "now_ms"`.
+
+26. `test_evaluator_does_not_mutate_inputs.py` — captures
+    `id(snapshot)` and `id(thresholds)` before the call; asserts
+    both ids and the underlying field values are unchanged after
+    the call (snapshot is a frozen dataclass; this confirms no
+    aliasing or replacement).
+
+27. `test_worker_health_domain_does_not_import_redis.py` — opens
+    each of the six authored source files and reads the source via
+    `inspect.getsource` after importing the module; asserts the
+    forbidden literals (constructed at runtime via string
+    concatenation) `import redis`, `from redis`, `redis.asyncio`,
+    `hiredis`, `aioredis`, `xrevrange`, `xadd`, `xread`, `xlen`,
+    `pipeline`, `httpx`, `requests` do NOT appear in any of the six
+    source files. Also asserts after `popping
+    'v2.backend.app.domain.trainer_worker_health'` and re-importing,
+    `redis` is NOT in `sys.modules` (the package import does not
+    transitively load redis).
+
+28. `test_worker_health_domain_does_not_import_url_env.py` — opens
+    each of the six authored source files via `inspect.getsource`;
+    asserts the forbidden literals
+    `from v2.backend.app.adapters`, `url_env`, `os.environ`,
+    `subprocess`, `socket.socket`, `time.time(`, `time.monotonic(`,
+    `datetime.now(`, `datetime.utcnow(`, `print(`, `logging.`,
+    `from v2.backend.app.services`,
+    `from v2.backend.app.composition`,
+    `from v2.backend.app.adapters.redis_v2` do NOT appear in any
+    of the six source files. Asserts after re-importing the
+    package, `v2.backend.app.adapters.redis_v2.url_env` is NOT in
+    `sys.modules`.
+
+The 24-test count above is enumerated as items 1-28 in this
+document. Five of those numbers are not test files (item 0 is the
+package marker; items 25-28 are listed in sequence). The total
+authored test file count is 24 distinct test files plus one
+`__init__.py` package marker.
+
+## Validation commands the implementation task MUST run
+
+In order, abort on first non-zero exit:
+
+- `python -m py_compile v2/backend/app/domain/trainer_worker_health/__init__.py v2/backend/app/domain/trainer_worker_health/errors.py v2/backend/app/domain/trainer_worker_health/health_status.py v2/backend/app/domain/trainer_worker_health/health_thresholds.py v2/backend/app/domain/trainer_worker_health/health_snapshot.py v2/backend/app/domain/trainer_worker_health/health_evaluator.py`
+- `.venv/bin/python -m pytest v2/backend/tests/unit/domain/trainer_worker_health/ -q`
+- `.venv/bin/python -m pytest v2/backend/tests/unit/domain/trainer_liveness/ -q`
+  (cross-isolation regression check; existing 2E1 alpha tests must
+  remain green)
+- `.venv/bin/python -m pytest v2/backend/tests/unit/composition/trainer_parity/ -q`
+  (cross-isolation regression check; existing 2E1.E composition
+  tests must remain green)
+- `.venv/bin/python -m pytest v2/backend/tests/unit/services/trainer_parity/ -q`
+  (cross-isolation regression check; existing 2E1.D service tests
+  must remain green)
+- `git status -s v2/backend/app/services/ v2/backend/app/adapters/ v2/backend/app/composition/ v2/backend/app/api/ v2/backend/app/cli/ v2/backend/app/jobs/ v2/backend/app/main.py v2/frontend/ v2/backend/tests/unit/services/ v2/backend/tests/unit/adapters/ v2/backend/tests/unit/composition/ v2/backend/tests/unit/feature_snapshots/ v2/backend/tests/unit/symbol_universe/ v2/backend/app/domain/trainer_liveness/ v2/backend/app/domain/trainer_liveness_composition/ v2/backend/app/domain/trainer_liveness_observation_collector/ v2/backend/app/domain/liveness_stream_growth/ v2/backend/tests/unit/domain/trainer_liveness/`
+
+The last command MUST return zero lines. Any line is a hard fail.
+
+PHASE2E2A_TRAINER_WORKER_HEALTH_DOMAIN_TEST_PLAN_READY
+---143---
+# Phase 2E2.A — Trainer Worker Health Domain Safety Boundaries
+
+This document is the canonical safety surface for Phase 2E2.A. The
+implementation task (`100`) and the Codex review task (`101`) MUST
+treat every clause below as a hard contract. Any violation is an
+unconditional FAIL with no autofix path; surface to human attention.
+
+## Hard-stop list (no autofix, surface to human)
+
+- any modification to `/home/wali/Desktop/AI BOT`
+- any read or write of any Redis key, anywhere in the milestone diff
+  (no `redis` import is permitted in any authored file; the entire
+  worker-health domain layer is Redis-clean)
+- any restart of the live trainer / trader / orchestrator / Redis /
+  VPN service
+- any exchange action (placement, cancellation)
+- any change of leverage or margin
+- any enabling of live trading
+- any deploy intent
+- any production migration
+- any secret-shaped string committed to the diff
+- any modification of any prior-milestone source file under
+  `v2/backend/app/services/trainer_parity/`,
+  `v2/backend/app/adapters/redis_v2/`,
+  `v2/backend/app/composition/trainer_parity/`, or
+  `v2/backend/app/domain/trainer_liveness/`,
+  `v2/backend/app/domain/trainer_liveness_composition/`,
+  `v2/backend/app/domain/trainer_liveness_observation_collector/`,
+  `v2/backend/app/domain/liveness_stream_growth/`
+- any modification of any existing test file under
+  `v2/backend/tests/unit/services/`,
+  `v2/backend/tests/unit/adapters/`,
+  `v2/backend/tests/unit/composition/`,
+  `v2/backend/tests/unit/domain/trainer_liveness/`,
+  `v2/backend/tests/unit/domain/trainer_liveness_composition/`,
+  `v2/backend/tests/unit/domain/trainer_liveness_observation_collector/`,
+  `v2/backend/tests/unit/domain/liveness_stream_growth/`,
+  `v2/backend/tests/unit/feature_snapshots/`, or
+  `v2/backend/tests/unit/symbol_universe/`
+
+## Forbidden tokens (canonical list)
+
+Per spec `141 §"Forbidden tokens"`. The forbidden-token guard tests
+MUST construct every literal at runtime via string concatenation.
+The guard tests scan the six authored source files only. The guard
+tests skip themselves and the other 22 test files when scanning, by
+limiting the scan to files under
+`v2/backend/app/domain/trainer_worker_health/`.
+
+For every (source file, token) pair, the guard MUST assert zero
+occurrences. There is no exemption. The worker-health domain layer
+is fully Redis-clean and adapter-clean.
+
+## Time and I/O exclusions
+
+Source files MUST NOT:
+
+- read `os.environ` or any environment variable
+- call `time.time(`, `time.monotonic(`, `datetime.now(`,
+  `datetime.utcnow(`, or any other wall-clock helper
+- open any socket
+- run any subprocess
+- import `redis`, `redis.asyncio`, `aioredis`, `hiredis`, `httpx`,
+  `requests`, `pickle`, `json` at module top-level (json may be
+  imported only if a JSON serialization helper is added; this
+  milestone does not add such a helper, so json is forbidden too)
+- log via `logging.*`
+- call `print(`
+- import any module under `v2.backend.app.adapters`,
+  `v2.backend.app.services`, or `v2.backend.app.composition`
+
+## Redis-command exclusions
+
+Source files MUST NOT contain any of the following Redis literals,
+regardless of whether they are wrapped in a try/except or guarded by
+a feature flag:
+
+- `xrevrange`, `xadd`, `xread`, `xlen`, `xinfo`, `xgroup`, `xack`,
+  `xpending`, `xrange`, `xtrim`, `xautoclaim`
+- `pipeline`
+- `execute_command`
+- `pubsub`, `publish`, `subscribe`
+- `client.set`, `client.get`, `client.hset`, `client.hget`,
+  `client.delete`, `client.expire`
+
+## Import boundaries
+
+The six authored source files import:
+
+- `errors.py`: only the Python standard library.
+- `health_status.py`: only the Python standard library.
+- `health_thresholds.py`: only the Python standard library and the
+  in-package `errors.py`.
+- `health_snapshot.py`: the Python standard library; the in-package
+  `errors.py`; the in-package `health_status.py` (constants and the
+  two module-private frozensets); and the absolute path
+  `v2.backend.app.domain.trainer_liveness.LivenessSignalSnapshot`.
+- `health_evaluator.py`: the Python standard library; the in-package
+  `errors.py`; the in-package `health_status.py`; the in-package
+  `health_thresholds.py`; the in-package `health_snapshot.py`; and
+  the absolute path
+  `v2.backend.app.domain.trainer_liveness.LivenessSignalSnapshot`.
+- `__init__.py`: only the in-package modules listed above. No
+  external imports beyond what `health_evaluator.py` transitively
+  pulls.
+
+The package import MUST NOT transitively load `redis`,
+`v2.backend.app.adapters.redis_v2`, or
+`v2.backend.app.adapters.redis_v2.url_env`. This invariant is
+asserted in `test_worker_health_domain_does_not_import_redis.py` and
+`test_worker_health_domain_does_not_import_url_env.py`.
+
+## Determinism and frozen-dataclass discipline
+
+- All public dataclasses (`TrainerWorkerHealthThresholds`,
+  `TrainerWorkerHealthSnapshot`) MUST be `@dataclass(frozen=True,
+  slots=True)`.
+- The evaluator MUST be a pure function: same inputs → same outputs,
+  no module-level state, no global counters, no class-level mutable
+  default arguments.
+- The evaluator MUST NOT mutate any field of `snapshot` or
+  `thresholds`. It MUST NOT mutate any tuple it receives.
+
+## Stop conditions for the implementation task
+
+The implementation task `100` MUST emit `146` with marker
+`PHASE2E2A_TRAINER_WORKER_HEALTH_DOMAIN_IMPL_AND_VALIDATION_FAIL` and
+stop on any of:
+
+- predecessor marker missing or wrong
+- any source file fails py_compile
+- any test in the new suite fails
+- any cross-isolation test suite (2E1.A through 2E1.E) regresses
+- any cross-isolation `git status -s` returns at least one line
+- any forbidden-token guard test fails
+- any redis-import or url_env-import guard test fails
+- any of the hard-stop list violations above is observed during
+  authoring
+
+## Stop conditions for the Codex review task
+
+The Codex review task `101` MUST emit `148` with marker
+`PHASE2E2A_TRAINER_WORKER_HEALTH_DOMAIN_CODEX_FAIL` and stop on any
+hard-stop list violation, any forbidden-token violation, any
+prior-milestone modification, or any safety-review row that is not
+"none observed". Concrete non-safety blockers from `101` route to a
+narrow REQ_0007 / REQ_0014 autofix task scoped to the six authored
+source files plus the 24 new test files only; no autofix is
+permitted on prior-milestone files.
+
+PHASE2E2A_TRAINER_WORKER_HEALTH_DOMAIN_SAFETY_BOUNDARIES_READY
+---liveness init---
+from .alert import (
+    LIVENESS_REASON_FATAL_LOG_SIGNATURE_OBSERVED,
+    LIVENESS_REASON_GPU_BATCH_AGE_EXCEEDS_SLA,
+    LIVENESS_REASON_PREDICTION_AGE_EXCEEDS_SLA,
+    LIVENESS_REASON_PREDICTION_STREAM_ZERO_GROWTH,
+    LIVENESS_REASON_PREDICTION_WORKER_DEAD,
+    LIVENESS_REASON_PROPOSAL_AGE_EXCEEDS_SLA,
+    LivenessAlert,
+)
+from .errors import LivenessDomainError
+from .evaluator import evaluate_liveness
+from .signal_snapshot import LivenessSignalSnapshot
+from .sla_config import LivenessSLAConfig
+
+
+__all__ = [
+    "LivenessSignalSnapshot",
+    "LivenessSLAConfig",
+    "LivenessAlert",
+    "evaluate_liveness",
+    "LivenessDomainError",
+    "LIVENESS_REASON_PREDICTION_AGE_EXCEEDS_SLA",
+    "LIVENESS_REASON_GPU_BATCH_AGE_EXCEEDS_SLA",
+    "LIVENESS_REASON_PROPOSAL_AGE_EXCEEDS_SLA",
+    "LIVENESS_REASON_PREDICTION_STREAM_ZERO_GROWTH",
+    "LIVENESS_REASON_PREDICTION_WORKER_DEAD",
+    "LIVENESS_REASON_FATAL_LOG_SIGNATURE_OBSERVED",
+]
+---liveness signal_snapshot---
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from .errors import LivenessDomainError
+
+
+def _ensure_optional_nonnegative(value: int | None, field: str) -> None:
+    if value is not None and value < 0:
+        raise LivenessDomainError("must_be_nonnegative", field=field)
+
+
+def _ensure_optional_positive(value: int | None, field: str) -> None:
+    if value is not None and value <= 0:
+        raise LivenessDomainError("must_be_positive", field=field)
+
+
+@dataclass(frozen=True, slots=True)
+class LivenessSignalSnapshot:
+    trainer_pid: int | None
+    trainer_rss_bytes: int | None
+    trainer_heartbeat_ts_ms: int | None
+    prediction_worker_pid: int | None
+    prediction_worker_alive: bool
+    last_prediction_ts_ms: int | None
+    last_gpu_batch_ts_ms: int | None
+    # Captured for lineage/explainability; alpha liveness does not alert on deconflict freshness.
+    last_deconflict_ts_ms: int | None
+    last_proposal_ts_ms: int | None
+    prediction_stream_id_growth: int
+    proposal_stream_id_growth: int
+    fatal_log_signature_observed: bool
+    observation_ts_ms: int
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.prediction_worker_alive, bool):
+            raise LivenessDomainError("must_be_bool", field="prediction_worker_alive")
+        if not isinstance(self.fatal_log_signature_observed, bool):
+            raise LivenessDomainError("must_be_bool", field="fatal_log_signature_observed")
+        if self.observation_ts_ms < 0:
+            raise LivenessDomainError("must_be_nonnegative", field="observation_ts_ms")
+        if self.prediction_stream_id_growth < 0:
+            raise LivenessDomainError("must_be_nonnegative", field="prediction_stream_id_growth")
+        if self.proposal_stream_id_growth < 0:
+            raise LivenessDomainError("must_be_nonnegative", field="proposal_stream_id_growth")
+
+        _ensure_optional_positive(self.trainer_pid, "trainer_pid")
+        _ensure_optional_positive(self.prediction_worker_pid, "prediction_worker_pid")
+        _ensure_optional_nonnegative(self.trainer_rss_bytes, "trainer_rss_bytes")
+        _ensure_optional_nonnegative(self.trainer_heartbeat_ts_ms, "trainer_heartbeat_ts_ms")
+        _ensure_optional_nonnegative(self.last_prediction_ts_ms, "last_prediction_ts_ms")
+        _ensure_optional_nonnegative(self.last_gpu_batch_ts_ms, "last_gpu_batch_ts_ms")
+        _ensure_optional_nonnegative(self.last_deconflict_ts_ms, "last_deconflict_ts_ms")
+        _ensure_optional_nonnegative(self.last_proposal_ts_ms, "last_proposal_ts_ms")
+
+        if self.trainer_pid is None and self.trainer_rss_bytes is not None:
+            raise LivenessDomainError("rss_requires_trainer_pid", field="trainer_rss_bytes")
+        if self.prediction_worker_pid is None and self.prediction_worker_alive is True:
+            raise LivenessDomainError("alive_requires_worker_pid", field="prediction_worker_alive")
+---liveness errors---
+class LivenessDomainError(ValueError):
+    def __init__(self, reason: str, *, field: str | None = None) -> None:
+        self.reason = reason
+        self.field = field
+        message = reason if field is None else f"{field}: {reason}"
+        super().__init__(message)
+
+exec
+/bin/bash -lc "cat > claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/145_2E2A_WORKER_HEALTH_DOMAIN_IMPLEMENTATION_REPORT.md <<'EOF'
+# Phase 2E2.A Worker Health Domain Implementation Report
+
+## Predecessor gate result
+
+FAIL: "'`claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/139_2E1E_CODEX_REREVIEW_AFTER_AUTOFIX_GO_NO_GO.md` did not contain exactly `PHASE2E1E_TRAINER_PARITY_COMPOSITION_ROOT_CODEX_PASS`.
+
+Observed content: `PHASE2E1E_TRAINER_PARITY_COMPOSITION_ROOT_CODEX_FAIL`
+
+Per the Phase 2E2.A dispatch rule, no source files or test files were authored and validation commands were not run.
+EOF
+printf '"'%s\\n' 'PHASE2E2A_TRAINER_WORKER_HEALTH_DOMAIN_IMPL_AND_VALIDATION_FAIL' > claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/146_2E2A_WORKER_HEALTH_DOMAIN_GO_NO_GO.md
+" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+codex
+Predecessor gate failed: observed `PHASE2E1E_TRAINER_PARITY_COMPOSITION_ROOT_CODEX_FAIL`, expected `PHASE2E1E_TRAINER_PARITY_COMPOSITION_ROOT_CODEX_PASS`.
+
+Emitted only:
+- `145_2E2A_WORKER_HEALTH_DOMAIN_IMPLEMENTATION_REPORT.md`
+- `146_2E2A_WORKER_HEALTH_DOMAIN_GO_NO_GO.md`
+
+No source/test files authored; validation commands not run.
+Predecessor gate failed: observed `PHASE2E1E_TRAINER_PARITY_COMPOSITION_ROOT_CODEX_FAIL`, expected `PHASE2E1E_TRAINER_PARITY_COMPOSITION_ROOT_CODEX_PASS`.
+
+Emitted only:
+- `145_2E2A_WORKER_HEALTH_DOMAIN_IMPLEMENTATION_REPORT.md`
+- `146_2E2A_WORKER_HEALTH_DOMAIN_GO_NO_GO.md`
+
+No source/test files authored; validation commands not run.

@@ -1,0 +1,26 @@
+{
+  "freshness_seconds": 2515703.8199772835,
+  "go_no_go": "V2_LEGACY_STARTUP_MANIFEST_PARITY_AND_BRIDGE_EXIT_READY",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "owner": "CLAUDE",
+  "redaction_applied": false,
+  "report_id": "v2_legacy_startup_manifest_parity_and_bridge_exit",
+  "sanitized_summary": {
+    "go_no_go": "V2_LEGACY_STARTUP_MANIFEST_PARITY_AND_BRIDGE_EXIT_READY",
+    "pruned": {
+      "generated_utc": "2026-05-23T21:40:06Z",
+      "go_no_go": "V2_LEGACY_STARTUP_MANIFEST_PARITY_AND_BRIDGE_EXIT_READY",
+      "live_blocked": true,
+      "schema_version": "v2_legacy_startup_manifest_parity_and_bridge_exit_v1_operator_dashboard_payload",
+      "shutdown_blocked": true,
+      "summary": {}
+    },
+    "redaction_applied": false,
+    "redaction_token": null,
+    "status": "READY"
+  },
+  "stale": true,
+  "status": "READY",
+  "title": "Legacy Startup Manifest Parity + Bridge Exit"
+}

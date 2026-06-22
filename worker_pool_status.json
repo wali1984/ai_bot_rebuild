@@ -1,0 +1,82 @@
+{
+  "lane_groups": [
+    "runtime-claude",
+    "model-claude",
+    "proof-claude",
+    "runtime-codex",
+    "model-codex",
+    "proof-codex"
+  ],
+  "mode": "worker_pool_once",
+  "results": [
+    {
+      "lane_group": "runtime-claude",
+      "summary": {
+        "completed": 0,
+        "failed": 0,
+        "idle_cycles": 1,
+        "iterations": 1,
+        "refused": 0,
+        "worker_id": "runtime-claude-canary"
+      }
+    },
+    {
+      "lane_group": "model-claude",
+      "summary": {
+        "completed": 0,
+        "failed": 0,
+        "idle_cycles": 1,
+        "iterations": 1,
+        "refused": 0,
+        "worker_id": "model-claude-canary"
+      }
+    },
+    {
+      "lane_group": "proof-claude",
+      "summary": {
+        "completed": 0,
+        "failed": 0,
+        "idle_cycles": 1,
+        "iterations": 1,
+        "refused": 0,
+        "worker_id": "proof-claude-canary"
+      }
+    },
+    {
+      "lane_group": "runtime-codex",
+      "summary": {
+        "completed": 0,
+        "failed": 0,
+        "idle_cycles": 1,
+        "iterations": 1,
+        "operator_required": 0,
+        "refused": 0,
+        "worker_id": "runtime-codex-canary"
+      }
+    },
+    {
+      "lane_group": "model-codex",
+      "summary": {
+        "completed": 0,
+        "failed": 0,
+        "idle_cycles": 1,
+        "iterations": 1,
+        "operator_required": 0,
+        "refused": 0,
+        "worker_id": "model-codex-canary"
+      }
+    },
+    {
+      "lane_group": "proof-codex",
+      "summary": {
+        "completed": 0,
+        "failed": 0,
+        "idle_cycles": 1,
+        "iterations": 1,
+        "operator_required": 0,
+        "refused": 0,
+        "worker_id": "proof-codex-canary"
+      }
+    }
+  ]
+}

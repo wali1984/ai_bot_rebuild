@@ -1,0 +1,68 @@
+{
+  "schema_version": "v2_live_canary_one_order_codex_marker_enforcement_remediation_dashboard_v1",
+  "generated_utc": "2026-05-20T21:36:12Z",
+  "go_no_go": "V2_LIVE_CANARY_ONE_ORDER_CODEX_MARKER_ENFORCEMENT_REMEDIATION_READY",
+  "headline": "One-order preflight now enforces Codex PASS markers exactly; implementation READY tokens cannot satisfy Codex prerequisites.",
+  "live_state": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "live_enabled": false,
+    "real_order_attempted": false,
+    "real_order_submitted": false,
+    "writes_exchange_orders": false,
+    "writes_legacy_redis": false,
+    "leverage_changed": false,
+    "margin_mode_changed": false,
+    "raw_credential_in_payload": "NEVER"
+  },
+  "remediation_summary": {
+    "fail_blocker_addressed": "PREREQUISITE_CODEX_PASS_MARKERS_NOT_ENFORCED_FOR_ONE_ORDER_PREFLIGHT",
+    "rebound_prerequisites": [
+      {
+        "name": "private_signed_post_bypass",
+        "from_path_token_pair": [
+          "claude_worklog/final_readiness/v2_live_canary_execution_adapter_private_signed_post_bypass_remediation/latest/GO_NO_GO.md",
+          "V2_LIVE_CANARY_EXECUTION_ADAPTER_PRIVATE_SIGNED_POST_BYPASS_REMEDIATION_READY"
+        ],
+        "to_path_token_pair": [
+          "claude_worklog/final_readiness/v2_live_canary_execution_adapter_private_signed_post_bypass_remediation/latest/codex_review/CODEX_GO_NO_GO.md",
+          "V2_LIVE_CANARY_EXECUTION_ADAPTER_PRIVATE_SIGNED_POST_BYPASS_REMEDIATION_CODEX_PASS"
+        ]
+      },
+      {
+        "name": "dry_run_approval_binding",
+        "from_path_token_pair": [
+          "claude_worklog/final_readiness/v2_live_canary_dry_run_approval_binding_remediation/latest/GO_NO_GO.md",
+          "V2_LIVE_CANARY_DRY_RUN_APPROVAL_BINDING_REMEDIATION_READY"
+        ],
+        "to_path_token_pair": [
+          "claude_worklog/final_readiness/v2_live_canary_dry_run_approval_binding_remediation/latest/codex_review/CODEX_GO_NO_GO.md",
+          "V2_LIVE_CANARY_DRY_RUN_APPROVAL_BINDING_REMEDIATION_CODEX_PASS"
+        ]
+      },
+      {
+        "name": "one_order_enablement",
+        "unchanged_path_token_pair": [
+          "claude_worklog/final_readiness/v2_live_canary_one_order_enablement/latest/codex_review/CODEX_GO_NO_GO.md",
+          "V2_LIVE_CANARY_ONE_ORDER_ENABLEMENT_CODEX_PASS"
+        ]
+      }
+    ],
+    "exact_match_helper_added": "read_exact_codex_pass_marker",
+    "hard_audit_field": "implementation_ready_markers_accepted_for_codex_prerequisites=false",
+    "regression_tests_added_count": 8
+  },
+  "current_prerequisite_state": {
+    "private_signed_post_codex_passed": true,
+    "dry_run_binding_codex_passed": true,
+    "one_order_codex_passed": false,
+    "one_order_codex_actual_token": "V2_LIVE_CANARY_ONE_ORDER_ENABLEMENT_CODEX_FAIL"
+  },
+  "next_action_required": "Codex must re-review the one-order packet and emit V2_LIVE_CANARY_ONE_ORDER_ENABLEMENT_CODEX_PASS into the codex_review CODEX_GO_NO_GO.md to clear the remaining preflight blocker.",
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false,
+  "leverage_change_approved": false,
+  "margin_mode_change_approved": false
+}

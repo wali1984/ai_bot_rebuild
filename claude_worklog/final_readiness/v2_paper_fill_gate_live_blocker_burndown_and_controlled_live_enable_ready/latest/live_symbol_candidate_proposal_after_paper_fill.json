@@ -1,0 +1,21 @@
+{
+  "excluded_symbols": [],
+  "exclusion_reasons": {},
+  "execution_live_symbols_written": [],
+  "generated_est": "2026-06-05T14:16:19-04:00",
+  "live_symbols_written": [],
+  "operator_acceptance_audit_id": null,
+  "operator_acceptance_present": false,
+  "operator_acceptance_required": true,
+  "proposal_only_not_enablement": true,
+  "proposed_live_symbols": [
+    "BNBUSDT",
+    "BTCUSDT",
+    "ETHUSDT",
+    "PAXGUSDT",
+    "XAUTUSDT",
+    "ZECUSDT"
+  ],
+  "schema_version": "live_symbol_candidate_proposal_after_paper_fill_v1",
+  "service_id": "v2_paper_fill_gate_live_blocker_burndown_and_controlled_live_enable_ready"
+}

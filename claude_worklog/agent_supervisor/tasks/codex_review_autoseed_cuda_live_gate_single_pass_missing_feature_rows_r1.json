@@ -1,0 +1,58 @@
+{
+  "agent": "codex",
+  "autoseed_metadata": {
+    "fail_marker": "V2_CUDA_SINGLE_PASS_FEATURE_ROWS_CODEX_FAIL",
+    "generated_at": "2026-06-05T00:00:00+00:00",
+    "pass_marker": "V2_CUDA_SINGLE_PASS_FEATURE_ROWS_CODEX_PASS",
+    "source": "v2_autonomous_mission_backlog_autoseed",
+    "task_role": "codex_review",
+    "title": "CUDA live-gate single-pass: missing feature rows"
+  },
+  "codex_cli_form": "codex_exec_review",
+  "codex_pair_task_id": "claude_autoseed_cuda_live_gate_single_pass_missing_feature_rows_r1",
+  "completed_at": "2026-06-05T04:49:52.935042+00:00",
+  "created_at": "2026-06-05T00:00:00+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": [
+    "claude_autoseed_cuda_live_gate_single_pass_missing_feature_rows_r1"
+  ],
+  "file_lock_group": "cuda_live_gate_single_pass_missing_feature_rows",
+  "goal": "V2_CUDA_TRAINER_GPU_TRADER_BINANCE_LIVE_GATE_SINGLE_PASS_READY",
+  "lane": "non_drift_codex_audit",
+  "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/codex_review_autoseed_cuda_live_gate_single_pass_missing_feature_rows_r1_codex.log",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "owner": "CODEX",
+  "predecessor_task_ids": [
+    "claude_autoseed_cuda_live_gate_single_pass_missing_feature_rows_r1"
+  ],
+  "priority": 9051,
+  "prompt": "Review the paired implementation for missing feature rows in CUDA single-pass readiness. Confirm that missing rows are explicit evidence, no fabricated feature values are introduced, and runtime contracts remain non-trading and non-live. Validate that remediation stays scoped to evidence collection and proof-first controls.",
+  "reconciled_from_source_truth_at": "2026-06-05T04:51:50Z",
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "scope_paths": [
+    "v2/backend/app",
+    "v2/backend/tests/unit"
+  ],
+  "source_truth_completed_at": "2026-06-05T04:49:52.935042+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/codex_review_autoseed_cuda_live_gate_single_pass_missing_feature_rows_r1.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "started_at": "2026-06-05T04:49:48Z",
+  "status": "completed",
+  "task_id": "codex_review_autoseed_cuda_live_gate_single_pass_missing_feature_rows_r1",
+  "task_type": "CODEX_REVIEW",
+  "title": "Codex review for CUDA live-gate single-pass: missing feature rows",
+  "updated_at": "2026-06-05T04:51:50Z"
+}

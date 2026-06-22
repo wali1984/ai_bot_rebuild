@@ -1,0 +1,29 @@
+{
+  "codex_pair_task_id": "closed_loop_takeover_claude_priority_feature_ta_missing_fields_20260531",
+  "created_at": "2026-05-31T05:34:06Z",
+  "fail_blockers": [
+    "1. `live_gate.state == \"ready\"` (computed from monitor completeness, risk-policy signoff, audit ledger health, evidence packet freshness).",
+    "1. Status payload (always when --write-evidence or --emit-latest-snapshot):",
+    "1. If the caller passed an explicit non-empty symbol list, use it.",
+    "1. Status payload (always when --write-evidence or --emit-latest-snapshot):",
+    "1. If the caller passed an explicit non-empty symbol list, use it."
+  ],
+  "file_lock_group": "claude_priority_feature_ta_missing_fields_20260531",
+  "next_action": "Remediate the safe V2-side fail blockers listed in fail_blockers. Do not touch legacy. Do not call exchange mutation. Keep live_gate=blocked_human_only and live_symbols=[].",
+  "owner": "CLAUDE",
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "status": "pending",
+  "task_id": "closed_loop_remediation_closed_loop_takeover_claude_priority_feature_ta_missing_fields_20260531",
+  "task_type": "REMEDIATION",
+  "updated_at": "2026-05-31T05:34:06Z"
+}

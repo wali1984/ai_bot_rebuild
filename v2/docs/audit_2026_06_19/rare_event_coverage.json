@@ -1,0 +1,49 @@
+{
+  "audit_utc": "2026-06-19T00:15:00Z",
+  "note": "Rare event coverage review. Based on closed trade records and symbol analysis.",
+  "rare_events_observed": [
+    {
+      "event": "PORTALUSDT fat tail loss",
+      "description": "Single trade: -$7.36 loss on PORTALUSDT (low-liquidity token). Represents 33% of total net $22.23 realized PnL.",
+      "trades": 2,
+      "wins": 0,
+      "total_pnl": -7.36,
+      "system_response": "No circuit breaker activated \u2014 symbol continues to receive trades",
+      "remediation": "Add to symbol exclusion list; activate per-symbol loss circuit breaker"
+    },
+    {
+      "event": "NIGHTUSDT zero-win cluster",
+      "description": "5 consecutive losses on NIGHTUSDT, -$5.64 total. No system-level pause triggered.",
+      "trades": 5,
+      "wins": 0,
+      "total_pnl": -5.64,
+      "system_response": "No circuit breaker \u2014 symbol received all 5 trades",
+      "remediation": "2-consecutive-loss circuit breaker per symbol"
+    },
+    {
+      "event": "TIER_4_MAX_HOLD_TIME exits",
+      "description": "3 trades held to max hold time limit, all profitable (avg +$3.47). Shows some long-duration bearish moves exist.",
+      "trades": 3,
+      "wins": 3,
+      "total_pnl": 10.39,
+      "system_response": "System correctly held to max time and exited profitably",
+      "remediation": "Consider extending max_hold_time for more symbols"
+    },
+    {
+      "event": "Liquidation cascade / squeeze events",
+      "description": "squeeze_evidence_score is null for all trades \u2014 system blind to liquidation cascades",
+      "trades": "unknown \u2014 no filtering applied",
+      "system_response": "No response \u2014 squeeze not detected",
+      "remediation": "Populate squeeze_evidence_score from OI, funding, liq data"
+    }
+  ],
+  "rare_events_not_observed": [
+    "Flash crash recovery",
+    "Exchange outage / API timeout handling",
+    "Extreme slippage event (>50 bps)",
+    "Overnight gap risk (all trades short-duration per paper mode)",
+    "Funding rate inversion event",
+    "Cross-margin liquidation cascade"
+  ],
+  "confidence": "MEDIUM \u2014 based on closed trade records only"
+}

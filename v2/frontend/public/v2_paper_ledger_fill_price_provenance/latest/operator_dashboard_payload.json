@@ -1,0 +1,116 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "checkpoint_compatibility_claimed": false,
+  "full_observation_per_symbol_delta_vs_prior_156_147": {
+    "BTCUSDT": 3,
+    "ETHUSDT": 3,
+    "SOLUSDT": 0
+  },
+  "full_observation_per_symbol_generated_dim": {
+    "BTCUSDT": 159,
+    "ETHUSDT": 159,
+    "SOLUSDT": 147
+  },
+  "full_observation_state": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+  "full_observation_target_dim": 1911,
+  "generated_utc": "2026-05-18T18:20:43Z",
+  "go_no_go": "V2_PAPER_LEDGER_FILL_PRICE_PROVENANCE_READY",
+  "held_by_gate_intents_remain_held": true,
+  "ledger_close_schema_present": true,
+  "ledger_closes": [],
+  "ledger_realized_exit_blocker": "REALIZED_EXIT_NOT_RECORDED_IN_V2_INPUTS",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "never_fabricates": true,
+  "never_uses_legacy_redis_as_truth": true,
+  "never_uses_static_sample_price": true,
+  "new_fields_on_accepted_positions": [
+    "entry_price",
+    "entry_price_source",
+    "entry_price_utc",
+    "entry_price_source_generated_utc",
+    "fill_price",
+    "fill_price_source",
+    "fill_price_utc",
+    "latest_price",
+    "latest_price_source",
+    "latest_price_utc",
+    "entry_price_provenance_present",
+    "entry_price_blocker",
+    "source_intent_id",
+    "source_prediction_id",
+    "paper_fill_allowed",
+    "quantity",
+    "notional",
+    "places_real_order",
+    "live_gate",
+    "live_symbols"
+  ],
+  "new_fields_on_ledger_close_schema": [
+    "closes",
+    "close_event_count",
+    "realized_exit_blocker",
+    "exit_price_field_contract"
+  ],
+  "no_legacy_filesystem_modified": true,
+  "no_pickle_loaded": true,
+  "no_torch_imported": true,
+  "orphan_kill_rationale": "pre-patch shell-launched paper loop was overwriting v2:paper:positions with rows that had no entry_price provenance; killing it lets the systemd-managed (patched) process own the writer path",
+  "orphan_pid_killed": 2779873,
+  "orphan_pre_patch_paper_loop_process_killed": true,
+  "paper_fill_gate_loosened": false,
+  "paper_positions_observed_after_patch": [
+    {
+      "entry_price": 76349.4,
+      "entry_price_blocker": null,
+      "entry_price_provenance_present": true,
+      "entry_price_source": "V2_MARKET_PRICES_TICKER_24HR_LAST_PRICE",
+      "fill_price": 76349.4,
+      "latest_price": 76349.4,
+      "paper_fill_allowed": false,
+      "places_real_order": false,
+      "side": "long",
+      "symbol": "BTCUSDT"
+    },
+    {
+      "entry_price": 2096.18,
+      "entry_price_blocker": null,
+      "entry_price_provenance_present": true,
+      "entry_price_source": "V2_MARKET_PRICES_TICKER_24HR_LAST_PRICE",
+      "fill_price": 2096.18,
+      "latest_price": 2096.18,
+      "paper_fill_allowed": false,
+      "places_real_order": false,
+      "side": "long",
+      "symbol": "ETHUSDT"
+    }
+  ],
+  "policy_architecture_parity_claimed": false,
+  "price_source_search_order": [
+    "1. v2:market:prices:{symbol}.ticker_24hr.lastPrice",
+    "2. v2:features:latest:{symbol}:1m.features.close_price (only when feature_freshness_state=CURRENT)",
+    "3. otherwise emit MISSING_V2_MARKET_PRICE_FOR_FILL with explicit blocker"
+  ],
+  "recorder_go_no_go": "V2_POSITION_PRICE_TRACKING_RECORDER_READY",
+  "recorder_state_counts": {
+    "FLAT": 1,
+    "OPEN_TRACKING": 2
+  },
+  "recorder_symbols_still_blocked": null,
+  "recorder_symbols_with_entry_recovered": null,
+  "recorder_symbols_with_realized_exit_recovered": null,
+  "schema_version": "v2_paper_ledger_fill_price_provenance_status_v1",
+  "systemd_unit_quoted_for_paths_with_spaces": "claude_worklog/systemd/user/ai-bot-v2-trade-management-paper-loop.service",
+  "tests": {
+    "failed": 0,
+    "passed": 13,
+    "test_file": "v2/backend/tests/integration/cli/test_v2_paper_ledger_fill_price_provenance.py"
+  },
+  "unsafe_fills_introduced": false,
+  "writer_patched": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+  "writes_exchange_orders": false,
+  "writes_legacy_redis": false
+}

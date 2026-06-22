@@ -1,0 +1,2282 @@
+{
+  "after_cost_ci_lower_bps": -8.458940335446197,
+  "after_cost_ci_upper_bps": -0.7559392787988563,
+  "after_cost_expectancy_bps": -4.879330541891545,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "bundles_total": 113917,
+  "by_symbol_pnl": [
+    {
+      "after_cost_5m_sample_count": 1,
+      "bundle_count": 115,
+      "label_counts": {
+        "false_positive": 1,
+        "insufficient_evidence": 114
+      },
+      "mean_after_cost_5m_bps": -7.0,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 1,
+        "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED": 10,
+        "FEE_GATE_BLOCKED": 24,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 11,
+        "MISSING_ENTRY_FEATURE_AVAILABLE_AT": 10,
+        "MISSING_ENTRY_FEATURE_CUTOFF": 10,
+        "MISSING_ENTRY_FEATURE_GENERATED_AT": 10,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 21,
+        "PRE_TRADE_GATE_BLOCKED": 24,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 1,
+        "action_not_directional": 13,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 3,
+        "data_coverage_below_threshold": 37,
+        "expected_move_after_cost_below_threshold": 15,
+        "expected_move_after_cost_direction_mismatch": 8,
+        "feature_timestamp_after_decision_cutoff": 1,
+        "source_available_after_decision_cutoff": 1
+      },
+      "symbol": "1000BONKUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 2,
+      "bundle_count": 121,
+      "label_counts": {
+        "correct_trade": 1,
+        "false_positive": 1,
+        "insufficient_evidence": 119
+      },
+      "mean_after_cost_5m_bps": -16.809038204579675,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 3,
+        "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED": 10,
+        "FEE_GATE_BLOCKED": 26,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 11,
+        "MISSING_ENTRY_FEATURE_AVAILABLE_AT": 10,
+        "MISSING_ENTRY_FEATURE_CUTOFF": 10,
+        "MISSING_ENTRY_FEATURE_GENERATED_AT": 10,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 17,
+        "PRE_TRADE_GATE_BLOCKED": 26,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 1,
+        "action_not_directional": 17,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 6,
+        "data_coverage_below_threshold": 2,
+        "expected_move_after_cost_below_threshold": 19
+      },
+      "symbol": "1000FLOKIUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 2,
+      "bundle_count": 130,
+      "label_counts": {
+        "false_positive": 2,
+        "insufficient_evidence": 128
+      },
+      "mean_after_cost_5m_bps": -7.0,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 2,
+        "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED": 11,
+        "FEE_GATE_BLOCKED": 29,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 11,
+        "MISSING_ENTRY_FEATURE_AVAILABLE_AT": 11,
+        "MISSING_ENTRY_FEATURE_CUTOFF": 11,
+        "MISSING_ENTRY_FEATURE_GENERATED_AT": 11,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 28,
+        "PRE_TRADE_GATE_BLOCKED": 29,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 1,
+        "action_not_directional": 27,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 7,
+        "expected_move_after_cost_below_threshold": 28,
+        "expected_move_after_cost_direction_mismatch": 1,
+        "feature_timestamp_after_decision_cutoff": 1,
+        "source_available_after_decision_cutoff": 1
+      },
+      "symbol": "1000PEPEUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 1,
+      "bundle_count": 122,
+      "label_counts": {
+        "false_positive": 1,
+        "insufficient_evidence": 121
+      },
+      "mean_after_cost_5m_bps": -11.045307443366234,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 3,
+        "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED": 10,
+        "FEE_GATE_BLOCKED": 37,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 11,
+        "MISSING_ENTRY_FEATURE_AVAILABLE_AT": 10,
+        "MISSING_ENTRY_FEATURE_CUTOFF": 10,
+        "MISSING_ENTRY_FEATURE_GENERATED_AT": 10,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 29,
+        "PRE_TRADE_GATE_BLOCKED": 37,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 1,
+        "action_not_directional": 26,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 5,
+        "expected_move_after_cost_below_threshold": 28,
+        "expected_move_after_cost_direction_mismatch": 3
+      },
+      "symbol": "1000SHIBUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 19,
+      "bundle_count": 2047,
+      "label_counts": {
+        "correct_no_trade": 5,
+        "correct_trade": 2,
+        "false_block": 7,
+        "false_positive": 5,
+        "insufficient_evidence": 2028
+      },
+      "mean_after_cost_5m_bps": -6.595027727007428,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 988,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 30,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 844,
+        "PRE_TRADE_GATE_BLOCKED": 988,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 11,
+        "action_not_directional": 821,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 55,
+        "expected_move_after_cost_below_threshold": 847,
+        "expected_move_after_cost_direction_mismatch": 23,
+        "feature_timestamp_after_decision_cutoff": 1,
+        "source_available_after_decision_cutoff": 1
+      },
+      "symbol": "AAVEUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 13,
+      "bundle_count": 1870,
+      "label_counts": {
+        "correct_no_trade": 4,
+        "correct_trade": 3,
+        "false_positive": 6,
+        "insufficient_evidence": 1857
+      },
+      "mean_after_cost_5m_bps": -3.686800261014744,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 971,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 33,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 892,
+        "PRE_TRADE_GATE_BLOCKED": 971,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 10,
+        "action_not_directional": 795,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 94,
+        "expected_move_after_cost_below_threshold": 886,
+        "expected_move_after_cost_direction_mismatch": 97
+      },
+      "symbol": "ADAUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 15,
+      "bundle_count": 2135,
+      "label_counts": {
+        "correct_no_trade": 1,
+        "correct_trade": 4,
+        "false_block": 3,
+        "false_positive": 7,
+        "insufficient_evidence": 2120
+      },
+      "mean_after_cost_5m_bps": 26.450880177069692,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 11,
+        "FEE_GATE_BLOCKED": 797,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 37,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 754,
+        "PRE_TRADE_GATE_BLOCKED": 797,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 11,
+        "action_not_directional": 721,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 67,
+        "data_coverage_below_threshold": 1,
+        "expected_move_after_cost_below_threshold": 748,
+        "expected_move_after_cost_direction_mismatch": 33
+      },
+      "symbol": "AEROUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 0,
+      "bundle_count": 0,
+      "label_counts": {},
+      "mean_after_cost_5m_bps": null,
+      "risk_block_reason_counts": {},
+      "symbol": "AGTUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 1,
+      "bundle_count": 118,
+      "label_counts": {
+        "correct_trade": 1,
+        "insufficient_evidence": 117
+      },
+      "mean_after_cost_5m_bps": 30.986704653372406,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 5,
+        "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED": 11,
+        "FEE_GATE_BLOCKED": 33,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 12,
+        "MISSING_ENTRY_FEATURE_AVAILABLE_AT": 11,
+        "MISSING_ENTRY_FEATURE_CUTOFF": 11,
+        "MISSING_ENTRY_FEATURE_GENERATED_AT": 11,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 30,
+        "PRE_TRADE_GATE_BLOCKED": 33,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 1,
+        "action_not_directional": 30,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 5,
+        "data_coverage_below_threshold": 2,
+        "expected_move_after_cost_below_threshold": 31
+      },
+      "symbol": "ALICEUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 4,
+      "bundle_count": 510,
+      "label_counts": {
+        "correct_trade": 3,
+        "false_positive": 1,
+        "insufficient_evidence": 506
+      },
+      "mean_after_cost_5m_bps": -3.4814545461191884,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 214,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 37,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 204,
+        "PRE_TRADE_GATE_BLOCKED": 214,
+        "action_not_directional": 186,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 44,
+        "data_coverage_below_threshold": 50,
+        "expected_move_after_cost_below_threshold": 197,
+        "expected_move_after_cost_direction_mismatch": 18,
+        "feature_timestamp_after_decision_cutoff": 1,
+        "source_available_after_decision_cutoff": 1
+      },
+      "symbol": "ALLOUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 10,
+      "bundle_count": 1886,
+      "label_counts": {
+        "correct_trade": 4,
+        "false_block": 2,
+        "false_positive": 4,
+        "insufficient_evidence": 1876
+      },
+      "mean_after_cost_5m_bps": -4.818208051025868,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 1027,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 35,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 1009,
+        "PRE_TRADE_GATE_BLOCKED": 1027,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 8,
+        "action_not_directional": 999,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 34,
+        "expected_move_after_cost_below_threshold": 1008,
+        "expected_move_after_cost_direction_mismatch": 10
+      },
+      "symbol": "APTUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 13,
+      "bundle_count": 1659,
+      "label_counts": {
+        "correct_trade": 6,
+        "false_positive": 7,
+        "insufficient_evidence": 1646
+      },
+      "mean_after_cost_5m_bps": -5.568047086991493,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 2,
+        "FEE_GATE_BLOCKED": 673,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 40,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 600,
+        "PRE_TRADE_GATE_BLOCKED": 673,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 8,
+        "action_not_directional": 525,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 153,
+        "data_coverage_below_threshold": 38,
+        "expected_move_after_cost_below_threshold": 603,
+        "expected_move_after_cost_direction_mismatch": 75
+      },
+      "symbol": "ARBUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 1,
+      "bundle_count": 129,
+      "label_counts": {
+        "false_positive": 1,
+        "insufficient_evidence": 128
+      },
+      "mean_after_cost_5m_bps": -188.20351588911382,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 4,
+        "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED": 11,
+        "FEE_GATE_BLOCKED": 36,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 17,
+        "MISSING_ENTRY_FEATURE_AVAILABLE_AT": 11,
+        "MISSING_ENTRY_FEATURE_CUTOFF": 11,
+        "MISSING_ENTRY_FEATURE_GENERATED_AT": 11,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 28,
+        "PRE_TRADE_GATE_BLOCKED": 36,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 1,
+        "action_not_directional": 26,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 9,
+        "expected_move_after_cost_below_threshold": 29,
+        "expected_move_after_cost_direction_mismatch": 2,
+        "feature_timestamp_after_decision_cutoff": 1,
+        "source_available_after_decision_cutoff": 1
+      },
+      "symbol": "ASTERUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 1,
+      "bundle_count": 124,
+      "label_counts": {
+        "correct_trade": 1,
+        "insufficient_evidence": 123
+      },
+      "mean_after_cost_5m_bps": 11.416206261510439,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 3,
+        "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED": 10,
+        "FEE_GATE_BLOCKED": 26,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 15,
+        "MISSING_ENTRY_FEATURE_AVAILABLE_AT": 10,
+        "MISSING_ENTRY_FEATURE_CUTOFF": 10,
+        "MISSING_ENTRY_FEATURE_GENERATED_AT": 10,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 21,
+        "PRE_TRADE_GATE_BLOCKED": 26,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 1,
+        "action_not_directional": 16,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 5,
+        "data_coverage_below_threshold": 2,
+        "expected_move_after_cost_below_threshold": 19,
+        "expected_move_after_cost_direction_mismatch": 5
+      },
+      "symbol": "AUCTIONUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 18,
+      "bundle_count": 1944,
+      "label_counts": {
+        "correct_no_trade": 2,
+        "correct_trade": 3,
+        "false_block": 7,
+        "false_positive": 6,
+        "insufficient_evidence": 1926
+      },
+      "mean_after_cost_5m_bps": -0.2932759488730416,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 1012,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 37,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 891,
+        "PRE_TRADE_GATE_BLOCKED": 1012,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 7,
+        "action_not_directional": 815,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 76,
+        "expected_move_after_cost_below_threshold": 882,
+        "expected_move_after_cost_direction_mismatch": 76
+      },
+      "symbol": "AVAXUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 1,
+      "bundle_count": 126,
+      "label_counts": {
+        "false_positive": 1,
+        "insufficient_evidence": 125
+      },
+      "mean_after_cost_5m_bps": -42.27336860670172,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 3,
+        "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED": 11,
+        "FEE_GATE_BLOCKED": 14,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 16,
+        "MISSING_ENTRY_FEATURE_AVAILABLE_AT": 11,
+        "MISSING_ENTRY_FEATURE_CUTOFF": 11,
+        "MISSING_ENTRY_FEATURE_GENERATED_AT": 11,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 10,
+        "PRE_TRADE_GATE_BLOCKED": 14,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 1,
+        "action_not_directional": 9,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 4,
+        "data_coverage_below_threshold": 8,
+        "expected_move_after_cost_below_threshold": 12,
+        "expected_move_after_cost_direction_mismatch": 1
+      },
+      "symbol": "AVNTUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 0,
+      "bundle_count": 0,
+      "label_counts": {},
+      "mean_after_cost_5m_bps": null,
+      "risk_block_reason_counts": {},
+      "symbol": "AXSUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 1,
+      "bundle_count": 129,
+      "label_counts": {
+        "false_positive": 1,
+        "insufficient_evidence": 128
+      },
+      "mean_after_cost_5m_bps": -9.47647350173429,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 4,
+        "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED": 12,
+        "FEE_GATE_BLOCKED": 22,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 19,
+        "MISSING_ENTRY_FEATURE_AVAILABLE_AT": 12,
+        "MISSING_ENTRY_FEATURE_CUTOFF": 12,
+        "MISSING_ENTRY_FEATURE_GENERATED_AT": 12,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 18,
+        "PRE_TRADE_GATE_BLOCKED": 22,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 1,
+        "action_not_directional": 16,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 5,
+        "expected_move_after_cost_below_threshold": 20,
+        "expected_move_after_cost_direction_mismatch": 2
+      },
+      "symbol": "BANKUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 1,
+      "bundle_count": 129,
+      "label_counts": {
+        "correct_trade": 1,
+        "insufficient_evidence": 128
+      },
+      "mean_after_cost_5m_bps": 24.210986267166067,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 4,
+        "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED": 11,
+        "FEE_GATE_BLOCKED": 15,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 18,
+        "MISSING_ENTRY_FEATURE_AVAILABLE_AT": 11,
+        "MISSING_ENTRY_FEATURE_CUTOFF": 11,
+        "MISSING_ENTRY_FEATURE_GENERATED_AT": 11,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 12,
+        "PRE_TRADE_GATE_BLOCKED": 15,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 1,
+        "action_not_directional": 11,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 3,
+        "data_coverage_below_threshold": 3,
+        "expected_move_after_cost_below_threshold": 14,
+        "expected_move_after_cost_direction_mismatch": 1
+      },
+      "symbol": "BARDUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 15,
+      "bundle_count": 1988,
+      "label_counts": {
+        "correct_trade": 3,
+        "false_block": 4,
+        "false_positive": 8,
+        "insufficient_evidence": 1973
+      },
+      "mean_after_cost_5m_bps": -0.9366868515172391,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 843,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 35,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 838,
+        "PRE_TRADE_GATE_BLOCKED": 843,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 11,
+        "action_not_directional": 837,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 16,
+        "expected_move_after_cost_below_threshold": 838,
+        "expected_move_after_cost_direction_mismatch": 1,
+        "feature_timestamp_after_decision_cutoff": 1,
+        "source_available_after_decision_cutoff": 1
+      },
+      "symbol": "BCHUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 0,
+      "bundle_count": 0,
+      "label_counts": {},
+      "mean_after_cost_5m_bps": null,
+      "risk_block_reason_counts": {},
+      "symbol": "BELUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 0,
+      "bundle_count": 0,
+      "label_counts": {},
+      "mean_after_cost_5m_bps": null,
+      "risk_block_reason_counts": {},
+      "symbol": "BICOUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 26,
+      "bundle_count": 1954,
+      "label_counts": {
+        "correct_no_trade": 7,
+        "correct_trade": 5,
+        "false_block": 4,
+        "false_positive": 10,
+        "insufficient_evidence": 1928
+      },
+      "mean_after_cost_5m_bps": -4.360175501297147,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 931,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 40,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 910,
+        "PRE_TRADE_GATE_BLOCKED": 931,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 8,
+        "action_not_directional": 901,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 57,
+        "expected_move_after_cost_below_threshold": 907,
+        "expected_move_after_cost_direction_mismatch": 9,
+        "feature_timestamp_after_decision_cutoff": 1,
+        "source_available_after_decision_cutoff": 1
+      },
+      "symbol": "BNBUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 1,
+      "bundle_count": 128,
+      "label_counts": {
+        "false_positive": 1,
+        "insufficient_evidence": 127
+      },
+      "mean_after_cost_5m_bps": -9.241791949338594,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 5,
+        "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED": 12,
+        "FEE_GATE_BLOCKED": 38,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 22,
+        "MISSING_ENTRY_FEATURE_AVAILABLE_AT": 12,
+        "MISSING_ENTRY_FEATURE_CUTOFF": 12,
+        "MISSING_ENTRY_FEATURE_GENERATED_AT": 12,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 34,
+        "PRE_TRADE_GATE_BLOCKED": 38,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 1,
+        "action_not_directional": 31,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 4,
+        "expected_move_after_cost_below_threshold": 33,
+        "expected_move_after_cost_direction_mismatch": 3
+      },
+      "symbol": "BTCUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 0,
+      "bundle_count": 0,
+      "label_counts": {},
+      "mean_after_cost_5m_bps": null,
+      "risk_block_reason_counts": {},
+      "symbol": "BTWUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 20,
+      "bundle_count": 1933,
+      "label_counts": {
+        "correct_no_trade": 1,
+        "correct_trade": 4,
+        "false_block": 6,
+        "false_positive": 9,
+        "insufficient_evidence": 1913
+      },
+      "mean_after_cost_5m_bps": -6.7453789832486635,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 1079,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 39,
+        "MISSING_OBSERVED_OR_MODELED_SLIPPAGE_AT_DECISION_TIME": 3,
+        "MISSING_OBSERVED_SPREAD_AT_DECISION_TIME": 3,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 921,
+        "PRE_TRADE_GATE_BLOCKED": 1079,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 8,
+        "action_not_directional": 857,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 125,
+        "data_coverage_below_threshold": 54,
+        "expected_move_after_cost_below_threshold": 927,
+        "expected_move_after_cost_direction_mismatch": 64
+      },
+      "symbol": "CHZUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 18,
+      "bundle_count": 1689,
+      "label_counts": {
+        "correct_trade": 7,
+        "false_block": 2,
+        "false_positive": 9,
+        "insufficient_evidence": 1671
+      },
+      "mean_after_cost_5m_bps": -23.18709681316106,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 756,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 43,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 687,
+        "PRE_TRADE_GATE_BLOCKED": 756,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 8,
+        "action_not_directional": 638,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 83,
+        "data_coverage_below_threshold": 15,
+        "expected_move_after_cost_below_threshold": 673,
+        "expected_move_after_cost_direction_mismatch": 49
+      },
+      "symbol": "CRVUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 25,
+      "bundle_count": 2184,
+      "label_counts": {
+        "correct_no_trade": 3,
+        "correct_trade": 8,
+        "false_block": 5,
+        "false_positive": 9,
+        "insufficient_evidence": 2159
+      },
+      "mean_after_cost_5m_bps": -3.902325081679554,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 1,
+        "FEE_GATE_BLOCKED": 921,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 44,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 909,
+        "PRE_TRADE_GATE_BLOCKED": 921,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 12,
+        "action_not_directional": 893,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 33,
+        "expected_move_after_cost_below_threshold": 900,
+        "expected_move_after_cost_direction_mismatch": 16,
+        "feature_timestamp_after_decision_cutoff": 1,
+        "source_available_after_decision_cutoff": 1
+      },
+      "symbol": "DASHUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 1,
+      "bundle_count": 139,
+      "label_counts": {
+        "false_positive": 1,
+        "insufficient_evidence": 138
+      },
+      "mean_after_cost_5m_bps": -1.1677359150828766,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 1,
+        "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED": 12,
+        "FEE_GATE_BLOCKED": 39,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 23,
+        "MISSING_ENTRY_FEATURE_AVAILABLE_AT": 12,
+        "MISSING_ENTRY_FEATURE_CUTOFF": 12,
+        "MISSING_ENTRY_FEATURE_GENERATED_AT": 12,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 31,
+        "PRE_TRADE_GATE_BLOCKED": 39,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 2,
+        "action_not_directional": 28,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 11,
+        "expected_move_after_cost_below_threshold": 34,
+        "expected_move_after_cost_direction_mismatch": 3
+      },
+      "symbol": "DOGEUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 25,
+      "bundle_count": 2023,
+      "label_counts": {
+        "correct_no_trade": 8,
+        "correct_trade": 6,
+        "false_block": 1,
+        "false_positive": 10,
+        "insufficient_evidence": 1998
+      },
+      "mean_after_cost_5m_bps": -7.357857918690825,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 1101,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 48,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 1092,
+        "PRE_TRADE_GATE_BLOCKED": 1101,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 8,
+        "action_not_directional": 1039,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 68,
+        "expected_move_after_cost_below_threshold": 1062,
+        "expected_move_after_cost_direction_mismatch": 53
+      },
+      "symbol": "DOTUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 3,
+      "bundle_count": 1202,
+      "label_counts": {
+        "correct_no_trade": 1,
+        "false_positive": 2,
+        "insufficient_evidence": 1199
+      },
+      "mean_after_cost_5m_bps": -51.616855008070615,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 1087,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 46,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 1045,
+        "PRE_TRADE_GATE_BLOCKED": 1087,
+        "action_not_directional": 1010,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 71,
+        "expected_move_after_cost_below_threshold": 1040,
+        "expected_move_after_cost_direction_mismatch": 35
+      },
+      "symbol": "EIGENUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 26,
+      "bundle_count": 2152,
+      "label_counts": {
+        "correct_no_trade": 3,
+        "correct_trade": 9,
+        "false_positive": 14,
+        "insufficient_evidence": 2126
+      },
+      "mean_after_cost_5m_bps": -18.28119715405304,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 2,
+        "FEE_GATE_BLOCKED": 996,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 47,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 854,
+        "PRE_TRADE_GATE_BLOCKED": 996,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 10,
+        "action_not_directional": 774,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 131,
+        "expected_move_after_cost_below_threshold": 855,
+        "expected_move_after_cost_direction_mismatch": 80,
+        "feature_timestamp_after_decision_cutoff": 1,
+        "source_available_after_decision_cutoff": 1
+      },
+      "symbol": "ENAUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 0,
+      "bundle_count": 0,
+      "label_counts": {},
+      "mean_after_cost_5m_bps": null,
+      "risk_block_reason_counts": {},
+      "symbol": "ENSUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 0,
+      "bundle_count": 547,
+      "label_counts": {
+        "insufficient_evidence": 547
+      },
+      "mean_after_cost_5m_bps": null,
+      "risk_block_reason_counts": {
+        "FEE_GATE_BLOCKED": 515,
+        "MISSING_OBSERVED_OR_MODELED_SLIPPAGE_AT_DECISION_TIME": 5,
+        "MISSING_OBSERVED_SPREAD_AT_DECISION_TIME": 5,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 497,
+        "PRE_TRADE_GATE_BLOCKED": 515,
+        "action_not_directional": 484,
+        "confidence_below_threshold": 64,
+        "data_coverage_below_threshold": 177,
+        "expected_move_after_cost_below_threshold": 497,
+        "expected_move_after_cost_direction_mismatch": 13
+      },
+      "symbol": "EPICUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 18,
+      "bundle_count": 1811,
+      "label_counts": {
+        "correct_trade": 5,
+        "false_block": 5,
+        "false_positive": 8,
+        "insufficient_evidence": 1793
+      },
+      "mean_after_cost_5m_bps": -6.507361925676783,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 1,
+        "FEE_GATE_BLOCKED": 967,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 49,
+        "MISSING_OBSERVED_OR_MODELED_SLIPPAGE_AT_DECISION_TIME": 5,
+        "MISSING_OBSERVED_SPREAD_AT_DECISION_TIME": 5,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 953,
+        "PRE_TRADE_GATE_BLOCKED": 967,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 8,
+        "action_not_directional": 938,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 77,
+        "data_coverage_below_threshold": 13,
+        "expected_move_after_cost_below_threshold": 950,
+        "expected_move_after_cost_direction_mismatch": 15,
+        "feature_timestamp_after_decision_cutoff": 1,
+        "source_available_after_decision_cutoff": 1
+      },
+      "symbol": "ETCUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 1,
+      "bundle_count": 143,
+      "label_counts": {
+        "false_positive": 1,
+        "insufficient_evidence": 142
+      },
+      "mean_after_cost_5m_bps": -21.238014941540133,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 2,
+        "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED": 11,
+        "FEE_GATE_BLOCKED": 28,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 26,
+        "MISSING_ENTRY_FEATURE_AVAILABLE_AT": 11,
+        "MISSING_ENTRY_FEATURE_CUTOFF": 11,
+        "MISSING_ENTRY_FEATURE_GENERATED_AT": 11,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 26,
+        "PRE_TRADE_GATE_BLOCKED": 28,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 2,
+        "action_not_directional": 25,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 4,
+        "expected_move_after_cost_below_threshold": 28,
+        "expected_move_after_cost_direction_mismatch": 1
+      },
+      "symbol": "ETHUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 1,
+      "bundle_count": 128,
+      "label_counts": {
+        "correct_trade": 1,
+        "insufficient_evidence": 127
+      },
+      "mean_after_cost_5m_bps": 52.040590405905746,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED": 12,
+        "FEE_GATE_BLOCKED": 36,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 23,
+        "MISSING_ENTRY_FEATURE_AVAILABLE_AT": 12,
+        "MISSING_ENTRY_FEATURE_CUTOFF": 12,
+        "MISSING_ENTRY_FEATURE_GENERATED_AT": 12,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 29,
+        "PRE_TRADE_GATE_BLOCKED": 36,
+        "action_not_directional": 26,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 7,
+        "data_coverage_below_threshold": 44,
+        "expected_move_after_cost_below_threshold": 28,
+        "expected_move_after_cost_direction_mismatch": 3
+      },
+      "symbol": "FARTCOINUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 22,
+      "bundle_count": 2046,
+      "label_counts": {
+        "correct_no_trade": 5,
+        "correct_trade": 5,
+        "false_positive": 12,
+        "insufficient_evidence": 2024
+      },
+      "mean_after_cost_5m_bps": -50.84483823876071,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 1063,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 49,
+        "MISSING_OBSERVED_OR_MODELED_SLIPPAGE_AT_DECISION_TIME": 5,
+        "MISSING_OBSERVED_SPREAD_AT_DECISION_TIME": 5,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 933,
+        "PRE_TRADE_GATE_BLOCKED": 1063,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 11,
+        "action_not_directional": 905,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 60,
+        "data_coverage_below_threshold": 4,
+        "expected_move_after_cost_below_threshold": 943,
+        "expected_move_after_cost_direction_mismatch": 28
+      },
+      "symbol": "FETUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 17,
+      "bundle_count": 2029,
+      "label_counts": {
+        "correct_no_trade": 4,
+        "correct_trade": 6,
+        "false_positive": 7,
+        "insufficient_evidence": 2012
+      },
+      "mean_after_cost_5m_bps": -29.43482926336398,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 1089,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 53,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 947,
+        "PRE_TRADE_GATE_BLOCKED": 1089,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 9,
+        "action_not_directional": 861,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 110,
+        "data_coverage_below_threshold": 1,
+        "expected_move_after_cost_below_threshold": 952,
+        "expected_move_after_cost_direction_mismatch": 86
+      },
+      "symbol": "FILUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 16,
+      "bundle_count": 2060,
+      "label_counts": {
+        "correct_no_trade": 3,
+        "correct_trade": 3,
+        "false_positive": 10,
+        "insufficient_evidence": 2044
+      },
+      "mean_after_cost_5m_bps": -22.185641376918674,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 1064,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 54,
+        "MISSING_OBSERVED_OR_MODELED_SLIPPAGE_AT_DECISION_TIME": 3,
+        "MISSING_OBSERVED_SPREAD_AT_DECISION_TIME": 3,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 992,
+        "PRE_TRADE_GATE_BLOCKED": 1064,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 8,
+        "action_not_directional": 952,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 70,
+        "data_coverage_below_threshold": 13,
+        "expected_move_after_cost_below_threshold": 994,
+        "expected_move_after_cost_direction_mismatch": 40,
+        "feature_timestamp_after_decision_cutoff": 1,
+        "source_available_after_decision_cutoff": 1
+      },
+      "symbol": "HBARUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 15,
+      "bundle_count": 2066,
+      "label_counts": {
+        "correct_no_trade": 4,
+        "correct_trade": 5,
+        "false_block": 1,
+        "false_positive": 5,
+        "insufficient_evidence": 2051
+      },
+      "mean_after_cost_5m_bps": -2.420653613560066,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 1173,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 59,
+        "MISSING_OBSERVED_OR_MODELED_SLIPPAGE_AT_DECISION_TIME": 5,
+        "MISSING_OBSERVED_SPREAD_AT_DECISION_TIME": 5,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 1130,
+        "PRE_TRADE_GATE_BLOCKED": 1173,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 10,
+        "action_not_directional": 1094,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 69,
+        "data_coverage_below_threshold": 9,
+        "expected_move_after_cost_below_threshold": 1120,
+        "expected_move_after_cost_direction_mismatch": 36,
+        "feature_timestamp_after_decision_cutoff": 1,
+        "source_available_after_decision_cutoff": 1
+      },
+      "symbol": "HYPEUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 14,
+      "bundle_count": 2045,
+      "label_counts": {
+        "correct_no_trade": 4,
+        "correct_trade": 6,
+        "false_positive": 4,
+        "insufficient_evidence": 2031
+      },
+      "mean_after_cost_5m_bps": -1.4073241195430928,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 915,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 59,
+        "MISSING_OBSERVED_OR_MODELED_SLIPPAGE_AT_DECISION_TIME": 5,
+        "MISSING_OBSERVED_SPREAD_AT_DECISION_TIME": 5,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 893,
+        "PRE_TRADE_GATE_BLOCKED": 915,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 8,
+        "action_not_directional": 876,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 61,
+        "data_coverage_below_threshold": 17,
+        "expected_move_after_cost_below_threshold": 897,
+        "expected_move_after_cost_direction_mismatch": 17,
+        "feature_timestamp_after_decision_cutoff": 1,
+        "source_available_after_decision_cutoff": 1
+      },
+      "symbol": "ICPUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 23,
+      "bundle_count": 2167,
+      "label_counts": {
+        "correct_no_trade": 4,
+        "correct_trade": 7,
+        "false_block": 1,
+        "false_positive": 11,
+        "insufficient_evidence": 2144
+      },
+      "mean_after_cost_5m_bps": -9.169078558481,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 1145,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 64,
+        "MISSING_OBSERVED_OR_MODELED_SLIPPAGE_AT_DECISION_TIME": 5,
+        "MISSING_OBSERVED_SPREAD_AT_DECISION_TIME": 5,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 1002,
+        "PRE_TRADE_GATE_BLOCKED": 1145,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 8,
+        "action_not_directional": 912,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 112,
+        "data_coverage_below_threshold": 9,
+        "expected_move_after_cost_below_threshold": 1003,
+        "expected_move_after_cost_direction_mismatch": 90
+      },
+      "symbol": "INJUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 20,
+      "bundle_count": 1494,
+      "label_counts": {
+        "correct_no_trade": 4,
+        "correct_trade": 5,
+        "false_block": 1,
+        "false_positive": 10,
+        "insufficient_evidence": 1474
+      },
+      "mean_after_cost_5m_bps": -15.07187580679054,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 754,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 59,
+        "MISSING_OBSERVED_OR_MODELED_SLIPPAGE_AT_DECISION_TIME": 5,
+        "MISSING_OBSERVED_SPREAD_AT_DECISION_TIME": 5,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 655,
+        "PRE_TRADE_GATE_BLOCKED": 754,
+        "action_not_directional": 622,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 96,
+        "data_coverage_below_threshold": 35,
+        "expected_move_after_cost_below_threshold": 676,
+        "expected_move_after_cost_direction_mismatch": 33
+      },
+      "symbol": "IPUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 25,
+      "bundle_count": 2219,
+      "label_counts": {
+        "correct_no_trade": 3,
+        "correct_trade": 10,
+        "false_positive": 12,
+        "insufficient_evidence": 2194
+      },
+      "mean_after_cost_5m_bps": -8.265578773473587,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 1,
+        "FEE_GATE_BLOCKED": 997,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 62,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 909,
+        "PRE_TRADE_GATE_BLOCKED": 997,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 10,
+        "action_not_directional": 854,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 114,
+        "data_coverage_below_threshold": 5,
+        "expected_move_after_cost_below_threshold": 905,
+        "expected_move_after_cost_direction_mismatch": 55,
+        "feature_timestamp_after_decision_cutoff": 1,
+        "source_available_after_decision_cutoff": 1
+      },
+      "symbol": "JTOUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 0,
+      "bundle_count": 35,
+      "label_counts": {
+        "insufficient_evidence": 35
+      },
+      "mean_after_cost_5m_bps": null,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED": 3,
+        "FEE_GATE_BLOCKED": 22,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 5,
+        "MISSING_ENTRY_FEATURE_AVAILABLE_AT": 3,
+        "MISSING_ENTRY_FEATURE_CUTOFF": 3,
+        "MISSING_ENTRY_FEATURE_GENERATED_AT": 3,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 19,
+        "PRE_TRADE_GATE_BLOCKED": 22,
+        "action_not_directional": 18,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 5,
+        "expected_move_after_cost_below_threshold": 21,
+        "expected_move_after_cost_direction_mismatch": 1,
+        "feature_timestamp_after_decision_cutoff": 1,
+        "source_available_after_decision_cutoff": 1
+      },
+      "symbol": "JUPUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 0,
+      "bundle_count": 6,
+      "label_counts": {
+        "insufficient_evidence": 6
+      },
+      "mean_after_cost_5m_bps": null,
+      "risk_block_reason_counts": {
+        "FEE_GATE_BLOCKED": 5,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 5,
+        "PRE_TRADE_GATE_BLOCKED": 5,
+        "action_not_directional": 5,
+        "confidence_below_threshold": 6,
+        "data_coverage_below_threshold": 2,
+        "expected_move_after_cost_below_threshold": 5
+      },
+      "symbol": "KITEUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 4,
+      "bundle_count": 145,
+      "label_counts": {
+        "correct_trade": 2,
+        "false_positive": 2,
+        "insufficient_evidence": 141
+      },
+      "mean_after_cost_5m_bps": -3.5293594326536355,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 3,
+        "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED": 11,
+        "FEE_GATE_BLOCKED": 47,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 23,
+        "MISSING_ENTRY_FEATURE_AVAILABLE_AT": 11,
+        "MISSING_ENTRY_FEATURE_CUTOFF": 11,
+        "MISSING_ENTRY_FEATURE_GENERATED_AT": 11,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 38,
+        "PRE_TRADE_GATE_BLOCKED": 47,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 2,
+        "action_not_directional": 32,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 8,
+        "expected_move_after_cost_below_threshold": 41,
+        "expected_move_after_cost_direction_mismatch": 6
+      },
+      "symbol": "LINKUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 3,
+      "bundle_count": 143,
+      "label_counts": {
+        "correct_trade": 1,
+        "false_positive": 2,
+        "insufficient_evidence": 140
+      },
+      "mean_after_cost_5m_bps": -5.432757115142152,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED": 10,
+        "FEE_GATE_BLOCKED": 36,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 27,
+        "MISSING_ENTRY_FEATURE_AVAILABLE_AT": 10,
+        "MISSING_ENTRY_FEATURE_CUTOFF": 10,
+        "MISSING_ENTRY_FEATURE_GENERATED_AT": 10,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 29,
+        "PRE_TRADE_GATE_BLOCKED": 36,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 2,
+        "action_not_directional": 26,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 3,
+        "expected_move_after_cost_below_threshold": 29,
+        "expected_move_after_cost_direction_mismatch": 3
+      },
+      "symbol": "LTCUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 0,
+      "bundle_count": 0,
+      "label_counts": {},
+      "mean_after_cost_5m_bps": null,
+      "risk_block_reason_counts": {},
+      "symbol": "MANAUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 22,
+      "bundle_count": 1952,
+      "label_counts": {
+        "correct_no_trade": 5,
+        "correct_trade": 6,
+        "false_positive": 11,
+        "insufficient_evidence": 1930
+      },
+      "mean_after_cost_5m_bps": -18.394681833317513,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 4,
+        "FEE_GATE_BLOCKED": 1027,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 61,
+        "MISSING_OBSERVED_OR_MODELED_SLIPPAGE_AT_DECISION_TIME": 2,
+        "MISSING_OBSERVED_SPREAD_AT_DECISION_TIME": 2,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 933,
+        "PRE_TRADE_GATE_BLOCKED": 1027,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 11,
+        "action_not_directional": 883,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 138,
+        "data_coverage_below_threshold": 15,
+        "expected_move_after_cost_below_threshold": 925,
+        "expected_move_after_cost_direction_mismatch": 50,
+        "feature_timestamp_after_decision_cutoff": 1,
+        "source_available_after_decision_cutoff": 1
+      },
+      "symbol": "MEGAUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 0,
+      "bundle_count": 0,
+      "label_counts": {},
+      "mean_after_cost_5m_bps": null,
+      "risk_block_reason_counts": {},
+      "symbol": "METUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 26,
+      "bundle_count": 2116,
+      "label_counts": {
+        "correct_no_trade": 6,
+        "correct_trade": 9,
+        "false_block": 1,
+        "false_positive": 10,
+        "insufficient_evidence": 2090
+      },
+      "mean_after_cost_5m_bps": -1.1191985669563573,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 1,
+        "FEE_GATE_BLOCKED": 1081,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 62,
+        "MISSING_OBSERVED_OR_MODELED_SLIPPAGE_AT_DECISION_TIME": 2,
+        "MISSING_OBSERVED_SPREAD_AT_DECISION_TIME": 2,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 954,
+        "PRE_TRADE_GATE_BLOCKED": 1081,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 11,
+        "action_not_directional": 917,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 87,
+        "expected_move_after_cost_below_threshold": 965,
+        "expected_move_after_cost_direction_mismatch": 37
+      },
+      "symbol": "NEARUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 20,
+      "bundle_count": 2026,
+      "label_counts": {
+        "correct_trade": 11,
+        "false_block": 4,
+        "false_positive": 5,
+        "insufficient_evidence": 2006
+      },
+      "mean_after_cost_5m_bps": 6.706465561499859,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 1120,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 67,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 1028,
+        "PRE_TRADE_GATE_BLOCKED": 1120,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 12,
+        "action_not_directional": 963,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 134,
+        "data_coverage_below_threshold": 10,
+        "expected_move_after_cost_below_threshold": 1035,
+        "expected_move_after_cost_direction_mismatch": 65
+      },
+      "symbol": "ONDOUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 19,
+      "bundle_count": 2014,
+      "label_counts": {
+        "correct_no_trade": 8,
+        "correct_trade": 3,
+        "false_positive": 8,
+        "insufficient_evidence": 1995
+      },
+      "mean_after_cost_5m_bps": -16.039034392528087,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 1,
+        "FEE_GATE_BLOCKED": 1131,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 64,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 1033,
+        "PRE_TRADE_GATE_BLOCKED": 1131,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 11,
+        "action_not_directional": 990,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 76,
+        "expected_move_after_cost_below_threshold": 1038,
+        "expected_move_after_cost_direction_mismatch": 43
+      },
+      "symbol": "OPUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 0,
+      "bundle_count": 0,
+      "label_counts": {},
+      "mean_after_cost_5m_bps": null,
+      "risk_block_reason_counts": {},
+      "symbol": "ORDIUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 17,
+      "bundle_count": 1917,
+      "label_counts": {
+        "correct_no_trade": 7,
+        "correct_trade": 1,
+        "false_positive": 9,
+        "insufficient_evidence": 1900
+      },
+      "mean_after_cost_5m_bps": -5.616345979036953,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 1167,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 65,
+        "MISSING_OBSERVED_OR_MODELED_SLIPPAGE_AT_DECISION_TIME": 5,
+        "MISSING_OBSERVED_SPREAD_AT_DECISION_TIME": 5,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 1160,
+        "PRE_TRADE_GATE_BLOCKED": 1167,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 7,
+        "action_not_directional": 1160,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 26,
+        "data_coverage_below_threshold": 5,
+        "expected_move_after_cost_below_threshold": 1161,
+        "feature_timestamp_after_decision_cutoff": 1,
+        "source_available_after_decision_cutoff": 1
+      },
+      "symbol": "PAXGUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 18,
+      "bundle_count": 1188,
+      "label_counts": {
+        "correct_no_trade": 7,
+        "correct_trade": 3,
+        "false_positive": 8,
+        "insufficient_evidence": 1170
+      },
+      "mean_after_cost_5m_bps": -22.06836871054348,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 425,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 1,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 410,
+        "PRE_TRADE_GATE_BLOCKED": 425,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 10,
+        "action_not_directional": 401,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 40,
+        "data_coverage_below_threshold": 26,
+        "expected_move_after_cost_below_threshold": 405,
+        "expected_move_after_cost_direction_mismatch": 9,
+        "feature_timestamp_after_decision_cutoff": 1,
+        "source_available_after_decision_cutoff": 1
+      },
+      "symbol": "PENDLEUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 1,
+      "bundle_count": 135,
+      "label_counts": {
+        "correct_trade": 1,
+        "insufficient_evidence": 134
+      },
+      "mean_after_cost_5m_bps": 43.41774704696097,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 2,
+        "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED": 10,
+        "FEE_GATE_BLOCKED": 41,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 24,
+        "MISSING_ENTRY_FEATURE_AVAILABLE_AT": 10,
+        "MISSING_ENTRY_FEATURE_CUTOFF": 10,
+        "MISSING_ENTRY_FEATURE_GENERATED_AT": 10,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 35,
+        "PRE_TRADE_GATE_BLOCKED": 41,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 2,
+        "action_not_directional": 33,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 14,
+        "expected_move_after_cost_below_threshold": 35,
+        "expected_move_after_cost_direction_mismatch": 2,
+        "feature_timestamp_after_decision_cutoff": 1,
+        "source_available_after_decision_cutoff": 1
+      },
+      "symbol": "PENGUUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 1,
+      "bundle_count": 125,
+      "label_counts": {
+        "correct_trade": 1,
+        "insufficient_evidence": 124
+      },
+      "mean_after_cost_5m_bps": 33.485829959514525,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 1,
+        "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED": 11,
+        "FEE_GATE_BLOCKED": 25,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 22,
+        "MISSING_ENTRY_FEATURE_AVAILABLE_AT": 11,
+        "MISSING_ENTRY_FEATURE_CUTOFF": 11,
+        "MISSING_ENTRY_FEATURE_GENERATED_AT": 11,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 23,
+        "PRE_TRADE_GATE_BLOCKED": 25,
+        "action_not_directional": 20,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 7,
+        "data_coverage_below_threshold": 44,
+        "expected_move_after_cost_below_threshold": 22,
+        "expected_move_after_cost_direction_mismatch": 3
+      },
+      "symbol": "PIPPINUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 13,
+      "bundle_count": 1327,
+      "label_counts": {
+        "correct_no_trade": 6,
+        "correct_trade": 1,
+        "false_block": 2,
+        "false_positive": 4,
+        "insufficient_evidence": 1314
+      },
+      "mean_after_cost_5m_bps": -8.74646750746606,
+      "risk_block_reason_counts": {
+        "FEE_GATE_BLOCKED": 1106,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 958,
+        "PRE_TRADE_GATE_BLOCKED": 1106,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 13,
+        "action_not_directional": 889,
+        "confidence_below_threshold": 152,
+        "data_coverage_below_threshold": 11,
+        "expected_move_after_cost_below_threshold": 969,
+        "expected_move_after_cost_direction_mismatch": 69
+      },
+      "symbol": "POLUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 18,
+      "bundle_count": 1846,
+      "label_counts": {
+        "correct_trade": 5,
+        "false_positive": 13,
+        "insufficient_evidence": 1828
+      },
+      "mean_after_cost_5m_bps": -11.451744296092063,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 950,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 69,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 928,
+        "PRE_TRADE_GATE_BLOCKED": 950,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 10,
+        "action_not_directional": 912,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 59,
+        "data_coverage_below_threshold": 16,
+        "expected_move_after_cost_below_threshold": 927,
+        "expected_move_after_cost_direction_mismatch": 16
+      },
+      "symbol": "PUMPUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 0,
+      "bundle_count": 0,
+      "label_counts": {},
+      "mean_after_cost_5m_bps": null,
+      "risk_block_reason_counts": {},
+      "symbol": "RAREUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 1,
+      "bundle_count": 133,
+      "label_counts": {
+        "correct_trade": 1,
+        "insufficient_evidence": 132
+      },
+      "mean_after_cost_5m_bps": 73.40935672514748,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 1,
+        "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED": 11,
+        "FEE_GATE_BLOCKED": 12,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 23,
+        "MISSING_ENTRY_FEATURE_AVAILABLE_AT": 11,
+        "MISSING_ENTRY_FEATURE_CUTOFF": 11,
+        "MISSING_ENTRY_FEATURE_GENERATED_AT": 11,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 9,
+        "PRE_TRADE_GATE_BLOCKED": 12,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 1,
+        "action_not_directional": 9,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 6,
+        "data_coverage_below_threshold": 44,
+        "expected_move_after_cost_below_threshold": 9
+      },
+      "symbol": "RAVEUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 11,
+      "bundle_count": 1929,
+      "label_counts": {
+        "correct_trade": 2,
+        "false_positive": 9,
+        "insufficient_evidence": 1918
+      },
+      "mean_after_cost_5m_bps": -13.745388763927009,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 1155,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 69,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 1136,
+        "PRE_TRADE_GATE_BLOCKED": 1155,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 12,
+        "action_not_directional": 1124,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 52,
+        "data_coverage_below_threshold": 10,
+        "expected_move_after_cost_below_threshold": 1141,
+        "expected_move_after_cost_direction_mismatch": 12
+      },
+      "symbol": "RENDERUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 0,
+      "bundle_count": 0,
+      "label_counts": {},
+      "mean_after_cost_5m_bps": null,
+      "risk_block_reason_counts": {},
+      "symbol": "REUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 1,
+      "bundle_count": 138,
+      "label_counts": {
+        "false_positive": 1,
+        "insufficient_evidence": 137
+      },
+      "mean_after_cost_5m_bps": -17.332713370530882,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 4,
+        "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED": 10,
+        "FEE_GATE_BLOCKED": 24,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 26,
+        "MISSING_ENTRY_FEATURE_AVAILABLE_AT": 10,
+        "MISSING_ENTRY_FEATURE_CUTOFF": 10,
+        "MISSING_ENTRY_FEATURE_GENERATED_AT": 10,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 20,
+        "PRE_TRADE_GATE_BLOCKED": 24,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 2,
+        "action_not_directional": 16,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 9,
+        "data_coverage_below_threshold": 2,
+        "expected_move_after_cost_below_threshold": 18,
+        "expected_move_after_cost_direction_mismatch": 4,
+        "feature_timestamp_after_decision_cutoff": 1,
+        "source_available_after_decision_cutoff": 1
+      },
+      "symbol": "RIVERUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 0,
+      "bundle_count": 0,
+      "label_counts": {},
+      "mean_after_cost_5m_bps": null,
+      "risk_block_reason_counts": {},
+      "symbol": "SANDUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 0,
+      "bundle_count": 1,
+      "label_counts": {
+        "insufficient_evidence": 1
+      },
+      "mean_after_cost_5m_bps": null,
+      "risk_block_reason_counts": {
+        "confidence_below_threshold": 1,
+        "data_coverage_below_threshold": 1
+      },
+      "symbol": "SLXUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 1,
+      "bundle_count": 147,
+      "label_counts": {
+        "correct_trade": 1,
+        "insufficient_evidence": 146
+      },
+      "mean_after_cost_5m_bps": 19.418242491657082,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED": 8,
+        "FEE_GATE_BLOCKED": 47,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 31,
+        "MISSING_ENTRY_FEATURE_AVAILABLE_AT": 8,
+        "MISSING_ENTRY_FEATURE_CUTOFF": 8,
+        "MISSING_ENTRY_FEATURE_GENERATED_AT": 8,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 40,
+        "PRE_TRADE_GATE_BLOCKED": 47,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 2,
+        "action_not_directional": 39,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 6,
+        "expected_move_after_cost_below_threshold": 40,
+        "expected_move_after_cost_direction_mismatch": 1
+      },
+      "symbol": "SOLUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 17,
+      "bundle_count": 2058,
+      "label_counts": {
+        "correct_no_trade": 1,
+        "correct_trade": 5,
+        "false_block": 1,
+        "false_positive": 10,
+        "insufficient_evidence": 2041
+      },
+      "mean_after_cost_5m_bps": 1.5263727458101632,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 16,
+        "FEE_GATE_BLOCKED": 1098,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 79,
+        "MISSING_OBSERVED_OR_MODELED_SLIPPAGE_AT_DECISION_TIME": 1,
+        "MISSING_OBSERVED_SPREAD_AT_DECISION_TIME": 1,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 944,
+        "PRE_TRADE_GATE_BLOCKED": 1098,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 11,
+        "action_not_directional": 842,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 88,
+        "data_coverage_below_threshold": 16,
+        "expected_move_after_cost_below_threshold": 946,
+        "expected_move_after_cost_direction_mismatch": 102
+      },
+      "symbol": "SUIUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 23,
+      "bundle_count": 1962,
+      "label_counts": {
+        "correct_trade": 3,
+        "false_block": 2,
+        "false_positive": 18,
+        "insufficient_evidence": 1939
+      },
+      "mean_after_cost_5m_bps": -4.431880031660777,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 1186,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 88,
+        "MISSING_OBSERVED_OR_MODELED_SLIPPAGE_AT_DECISION_TIME": 10,
+        "MISSING_OBSERVED_SPREAD_AT_DECISION_TIME": 10,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 1159,
+        "PRE_TRADE_GATE_BLOCKED": 1186,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 11,
+        "action_not_directional": 1156,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 45,
+        "data_coverage_below_threshold": 4,
+        "expected_move_after_cost_below_threshold": 1161,
+        "expected_move_after_cost_direction_mismatch": 3
+      },
+      "symbol": "SUNUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 0,
+      "bundle_count": 0,
+      "label_counts": {},
+      "mean_after_cost_5m_bps": null,
+      "risk_block_reason_counts": {},
+      "symbol": "SYNUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 28,
+      "bundle_count": 2074,
+      "label_counts": {
+        "correct_no_trade": 2,
+        "correct_trade": 13,
+        "false_block": 4,
+        "false_positive": 9,
+        "insufficient_evidence": 2046
+      },
+      "mean_after_cost_5m_bps": 6.193073795699193,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 1259,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 84,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 1025,
+        "PRE_TRADE_GATE_BLOCKED": 1259,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 11,
+        "action_not_directional": 1011,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 35,
+        "data_coverage_below_threshold": 10,
+        "expected_move_after_cost_below_threshold": 1045,
+        "expected_move_after_cost_direction_mismatch": 14,
+        "feature_timestamp_after_decision_cutoff": 1,
+        "source_available_after_decision_cutoff": 1
+      },
+      "symbol": "TAOUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 37,
+      "bundle_count": 1995,
+      "label_counts": {
+        "correct_no_trade": 3,
+        "correct_trade": 9,
+        "false_block": 9,
+        "false_positive": 16,
+        "insufficient_evidence": 1958
+      },
+      "mean_after_cost_5m_bps": 0.5138082975572908,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 1165,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 88,
+        "MISSING_OBSERVED_OR_MODELED_SLIPPAGE_AT_DECISION_TIME": 5,
+        "MISSING_OBSERVED_SPREAD_AT_DECISION_TIME": 5,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 1067,
+        "PRE_TRADE_GATE_BLOCKED": 1165,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 10,
+        "action_not_directional": 1002,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 96,
+        "data_coverage_below_threshold": 15,
+        "expected_move_after_cost_below_threshold": 1084,
+        "expected_move_after_cost_direction_mismatch": 65,
+        "feature_timestamp_after_decision_cutoff": 1,
+        "source_available_after_decision_cutoff": 1
+      },
+      "symbol": "TRUMPUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 34,
+      "bundle_count": 1991,
+      "label_counts": {
+        "correct_no_trade": 6,
+        "correct_trade": 2,
+        "false_block": 5,
+        "false_positive": 21,
+        "insufficient_evidence": 1957
+      },
+      "mean_after_cost_5m_bps": -3.4310163123644117,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 3,
+        "FEE_GATE_BLOCKED": 1123,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 94,
+        "MISSING_OBSERVED_OR_MODELED_SLIPPAGE_AT_DECISION_TIME": 5,
+        "MISSING_OBSERVED_SPREAD_AT_DECISION_TIME": 5,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 1093,
+        "PRE_TRADE_GATE_BLOCKED": 1123,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 10,
+        "action_not_directional": 1075,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 56,
+        "data_coverage_below_threshold": 10,
+        "expected_move_after_cost_below_threshold": 1094,
+        "expected_move_after_cost_direction_mismatch": 18
+      },
+      "symbol": "TRXUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 3,
+      "bundle_count": 142,
+      "label_counts": {
+        "correct_trade": 3,
+        "insufficient_evidence": 139
+      },
+      "mean_after_cost_5m_bps": 95.38083736521867,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 3,
+        "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED": 9,
+        "FEE_GATE_BLOCKED": 43,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 29,
+        "MISSING_ENTRY_FEATURE_AVAILABLE_AT": 9,
+        "MISSING_ENTRY_FEATURE_CUTOFF": 9,
+        "MISSING_ENTRY_FEATURE_GENERATED_AT": 9,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 39,
+        "PRE_TRADE_GATE_BLOCKED": 43,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 2,
+        "action_not_directional": 37,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 4,
+        "expected_move_after_cost_below_threshold": 38,
+        "expected_move_after_cost_direction_mismatch": 2
+      },
+      "symbol": "UNIUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 39,
+      "bundle_count": 2033,
+      "label_counts": {
+        "correct_no_trade": 13,
+        "correct_trade": 10,
+        "false_block": 4,
+        "false_positive": 12,
+        "insufficient_evidence": 1994
+      },
+      "mean_after_cost_5m_bps": -7.458246836229873,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 1180,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 101,
+        "MISSING_OBSERVED_OR_MODELED_SLIPPAGE_AT_DECISION_TIME": 5,
+        "MISSING_OBSERVED_SPREAD_AT_DECISION_TIME": 5,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 1159,
+        "PRE_TRADE_GATE_BLOCKED": 1180,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 11,
+        "action_not_directional": 1151,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 36,
+        "data_coverage_below_threshold": 5,
+        "expected_move_after_cost_below_threshold": 1152,
+        "expected_move_after_cost_direction_mismatch": 8
+      },
+      "symbol": "VIRTUALUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 0,
+      "bundle_count": 128,
+      "label_counts": {
+        "insufficient_evidence": 128
+      },
+      "mean_after_cost_5m_bps": null,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 1,
+        "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED": 9,
+        "FEE_GATE_BLOCKED": 29,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 26,
+        "MISSING_ENTRY_FEATURE_AVAILABLE_AT": 9,
+        "MISSING_ENTRY_FEATURE_CUTOFF": 9,
+        "MISSING_ENTRY_FEATURE_GENERATED_AT": 9,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 23,
+        "PRE_TRADE_GATE_BLOCKED": 29,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 1,
+        "action_not_directional": 21,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 6,
+        "data_coverage_below_threshold": 42,
+        "expected_move_after_cost_below_threshold": 24,
+        "expected_move_after_cost_direction_mismatch": 2,
+        "feature_timestamp_after_decision_cutoff": 1,
+        "source_available_after_decision_cutoff": 1
+      },
+      "symbol": "WIFUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 29,
+      "bundle_count": 1943,
+      "label_counts": {
+        "correct_no_trade": 12,
+        "correct_trade": 7,
+        "false_positive": 10,
+        "insufficient_evidence": 1914
+      },
+      "mean_after_cost_5m_bps": -17.94840926523593,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 2,
+        "FEE_GATE_BLOCKED": 1162,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 98,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 1145,
+        "PRE_TRADE_GATE_BLOCKED": 1162,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 13,
+        "action_not_directional": 1116,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 90,
+        "data_coverage_below_threshold": 10,
+        "expected_move_after_cost_below_threshold": 1133,
+        "expected_move_after_cost_direction_mismatch": 29,
+        "feature_timestamp_after_decision_cutoff": 1,
+        "source_available_after_decision_cutoff": 1
+      },
+      "symbol": "WLDUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 32,
+      "bundle_count": 1948,
+      "label_counts": {
+        "correct_no_trade": 14,
+        "correct_trade": 1,
+        "false_positive": 17,
+        "insufficient_evidence": 1916
+      },
+      "mean_after_cost_5m_bps": -8.200010099146189,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 1167,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 100,
+        "MISSING_OBSERVED_OR_MODELED_SLIPPAGE_AT_DECISION_TIME": 5,
+        "MISSING_OBSERVED_SPREAD_AT_DECISION_TIME": 5,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 1161,
+        "PRE_TRADE_GATE_BLOCKED": 1167,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 10,
+        "action_not_directional": 1159,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 29,
+        "data_coverage_below_threshold": 5,
+        "expected_move_after_cost_below_threshold": 1161,
+        "expected_move_after_cost_direction_mismatch": 2,
+        "feature_timestamp_after_decision_cutoff": 1,
+        "source_available_after_decision_cutoff": 1
+      },
+      "symbol": "XAUTUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 25,
+      "bundle_count": 2020,
+      "label_counts": {
+        "correct_no_trade": 6,
+        "correct_trade": 7,
+        "false_block": 4,
+        "false_positive": 8,
+        "insufficient_evidence": 1995
+      },
+      "mean_after_cost_5m_bps": -3.824327756891501,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 2,
+        "FEE_GATE_BLOCKED": 1127,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 100,
+        "MISSING_OBSERVED_OR_MODELED_SLIPPAGE_AT_DECISION_TIME": 5,
+        "MISSING_OBSERVED_SPREAD_AT_DECISION_TIME": 5,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 1040,
+        "PRE_TRADE_GATE_BLOCKED": 1127,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 11,
+        "action_not_directional": 964,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 145,
+        "data_coverage_below_threshold": 10,
+        "expected_move_after_cost_below_threshold": 1036,
+        "expected_move_after_cost_direction_mismatch": 76
+      },
+      "symbol": "XLMUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 39,
+      "bundle_count": 2178,
+      "label_counts": {
+        "correct_no_trade": 9,
+        "correct_trade": 6,
+        "false_block": 13,
+        "false_positive": 11,
+        "insufficient_evidence": 2139
+      },
+      "mean_after_cost_5m_bps": -1.0229000380537232,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 1163,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 121,
+        "MISSING_OBSERVED_OR_MODELED_SLIPPAGE_AT_DECISION_TIME": 5,
+        "MISSING_OBSERVED_SPREAD_AT_DECISION_TIME": 5,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 1159,
+        "PRE_TRADE_GATE_BLOCKED": 1163,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 11,
+        "action_not_directional": 1156,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 41,
+        "data_coverage_below_threshold": 20,
+        "expected_move_after_cost_below_threshold": 1158,
+        "expected_move_after_cost_direction_mismatch": 3,
+        "feature_timestamp_after_decision_cutoff": 1,
+        "source_available_after_decision_cutoff": 1
+      },
+      "symbol": "XMRUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 25,
+      "bundle_count": 2005,
+      "label_counts": {
+        "correct_no_trade": 7,
+        "correct_trade": 5,
+        "false_block": 5,
+        "false_positive": 8,
+        "insufficient_evidence": 1980
+      },
+      "mean_after_cost_5m_bps": -27.528874545089458,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 1135,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 105,
+        "MISSING_OBSERVED_OR_MODELED_SLIPPAGE_AT_DECISION_TIME": 5,
+        "MISSING_OBSERVED_SPREAD_AT_DECISION_TIME": 5,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 1098,
+        "PRE_TRADE_GATE_BLOCKED": 1135,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 10,
+        "action_not_directional": 1069,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 80,
+        "data_coverage_below_threshold": 20,
+        "expected_move_after_cost_below_threshold": 1093,
+        "expected_move_after_cost_direction_mismatch": 29
+      },
+      "symbol": "XPLUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 1,
+      "bundle_count": 135,
+      "label_counts": {
+        "correct_trade": 1,
+        "insufficient_evidence": 134
+      },
+      "mean_after_cost_5m_bps": 0.622596764632191,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 1,
+        "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED": 9,
+        "FEE_GATE_BLOCKED": 50,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 27,
+        "MISSING_ENTRY_FEATURE_AVAILABLE_AT": 9,
+        "MISSING_ENTRY_FEATURE_CUTOFF": 9,
+        "MISSING_ENTRY_FEATURE_GENERATED_AT": 9,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 45,
+        "PRE_TRADE_GATE_BLOCKED": 50,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 2,
+        "action_not_directional": 41,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 8,
+        "expected_move_after_cost_below_threshold": 45,
+        "expected_move_after_cost_direction_mismatch": 4
+      },
+      "symbol": "XRPUSDT"
+    },
+    {
+      "after_cost_5m_sample_count": 21,
+      "bundle_count": 1953,
+      "label_counts": {
+        "correct_no_trade": 7,
+        "correct_trade": 3,
+        "false_block": 5,
+        "false_positive": 6,
+        "insufficient_evidence": 1932
+      },
+      "mean_after_cost_5m_bps": -2.671738087781805,
+      "risk_block_reason_counts": {
+        "CANDLE_COMPLETION_UNKNOWN": 1,
+        "FEE_GATE_BLOCKED": 1163,
+        "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 1,
+        "MISSING_CRITICAL_FEATURE_FAMILY": 105,
+        "MISSING_OBSERVED_OR_MODELED_SLIPPAGE_AT_DECISION_TIME": 5,
+        "MISSING_OBSERVED_SPREAD_AT_DECISION_TIME": 5,
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 1151,
+        "PRE_TRADE_GATE_BLOCKED": 1163,
+        "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 16,
+        "action_not_directional": 1143,
+        "candle_closed_confirmed_missing": 1,
+        "confidence_below_threshold": 55,
+        "data_coverage_below_threshold": 10,
+        "expected_move_after_cost_below_threshold": 1149,
+        "expected_move_after_cost_direction_mismatch": 8
+      },
+      "symbol": "ZECUSDT"
+    }
+  ],
+  "calls_exchange_mutation": false,
+  "calls_test_order_endpoint": false,
+  "dynamic_symbols_in_post_hoc_status": 86,
+  "edge_proven": false,
+  "edge_recompute_status": "EDGE_NOT_PROVEN",
+  "execution_live_symbols": [],
+  "false_negative_count": null,
+  "false_negative_rate": 0.0,
+  "false_positive_count": 572,
+  "false_positive_rate": 0.6143931256713212,
+  "generated_at": "2026-06-21T19:36:10-04:00",
+  "generated_est": "2026-06-21T19:36:10-04:00",
+  "generated_utc": "2026-06-21T23:36:10Z",
+  "label_counts": {
+    "correct_no_trade": 203,
+    "correct_trade": 359,
+    "false_block": 114,
+    "false_positive": 572,
+    "insufficient_evidence": 112669
+  },
+  "leverage_changed": false,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "margin_mode_changed": false,
+  "native_edge_dashboard_freshness": {
+    "age_seconds": 1532347,
+    "limit_seconds": 1800,
+    "state": "STALE"
+  },
+  "native_edge_dashboard_sample_count": 93,
+  "opportunity_concentration": {
+    "bundle_count_total": 89329,
+    "top5_symbol_bundle_count": 10900,
+    "top5_symbol_bundle_share": 0.122021
+  },
+  "places_exchange_orders": false,
+  "places_real_order": false,
+  "post_hoc_replay_freshness": {
+    "age_seconds": 71,
+    "limit_seconds": 1800,
+    "state": "FRESH"
+  },
+  "primary_blocker": "BLOCK_LIVE_PAPER_EDGE_NOT_PROVEN",
+  "raw_credential_value_exposed": false,
+  "replay_bundle_file_status": {
+    "json_error_count": 0,
+    "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_post_hoc_replay_outcome_miner/latest/replay_outcome_bundles.jsonl",
+    "status": "OK"
+  },
+  "schema_version": "v2_dynamic_93_edge_recompute_status_v1",
+  "symbols_evaluated": 86,
+  "timezone": "America/New_York",
+  "trade_all_discovered_symbols": false,
+  "trainer_vs_strategy_comparison": {
+    "v2_hold_due_checkpoint_count": 0,
+    "v2_hold_due_strict_gate_count": 55497,
+    "v2_vs_legacy_action_match_rate": null
+  },
+  "verdict": "EDGE_NOT_CLAIMED_OPERATOR_THRESHOLDS_REQUIRED",
+  "verdict_reason": "one or more required thresholds are still OPERATOR_DECISION_REQUIRED; no edge claim is permitted until the operator sets concrete numerics",
+  "windows_filled": {
+    "15m": 1163,
+    "1h": 1090,
+    "1m": 660,
+    "5m": 1248
+  },
+  "writes_exchange_orders": false,
+  "writes_legacy_redis": false,
+  "writes_old_redis": false
+}

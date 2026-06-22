@@ -1,0 +1,8 @@
+{
+  "data_coverage_avg": 66.8669508434609,
+  "missing_mask_present": true,
+  "source_availability_present": true,
+  "stale_mask_present": true,
+  "status": "READY",
+  "values_masked": true
+}

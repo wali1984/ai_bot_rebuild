@@ -1,0 +1,92 @@
+{
+  "schema_version": "v2_production_shutdown_audit_reconciliation_dashboard_v1",
+  "generated_utc": "2026-05-17T01:05:00Z",
+  "git_head": "31a7fd70319f0d586c454b5ea2ea530ba9cb1541",
+  "reconciliation_go_no_go": "PRODUCTION_SHUTDOWN_AUDIT_HARD_NO_GO",
+  "summary_for_operator": {
+    "can_old_system_be_shut_down": false,
+    "do_not_shut_down_legacy": true,
+    "v2_is_paper_shadow_only": true,
+    "v2_namespace_redis_key_count": 0,
+    "acceptance_file_missing": true,
+    "acceptance_file_alone_is_not_sufficient": true,
+    "is_live_trading_allowed": false,
+    "live_trading_reason_in_plain_english": "Live trading is blocked_human_only. No final approval token created.",
+    "shutdown_reason_in_plain_english": "Legacy is actively running production ingestion, trainer, orchestrator, feature pipeline, and portfolio monitor. V2 is paper/shadow/observer only and writes zero v2:* Redis keys. Multiple V2 files self-declare MISSING_IN_V2 / FAIL_CLOSED_STUB / PAPER_ONLY. The PRODUCTION_EQUIVALENCE_GATE is not met. The PAPER_ONLY_ACCEPTANCE_GATE acceptance file is also absent. Do NOT shut down legacy."
+  },
+  "production_functions_legacy_still_owns": [
+    "Binance public market data ingestion (live_binance.py)",
+    "Binance liquidation feed (live_binance_liquidations.py)",
+    "CoinAnk REST + heartbeat (live_coinank.py)",
+    "KuCoin public market data + heartbeat (live_kucoin.py)",
+    "CoinAPI v1 REST (live_coinapi_v1.py)",
+    "CoinAPI WSDS streaming (live_coinapi_wsds.py)",
+    "Feature pipeline (feature_pipeline.py)",
+    "Hybrid trainer producing prediction:* Redis keys (rl.hybrid_trainer)",
+    "Orchestrator worker producing signals:* Redis keys (rl.orchestrator_worker)",
+    "Portfolio monitor (monitor_portfolio_primary.py)"
+  ],
+  "v2_processes_paper_or_observer_only": [
+    "v2.backend.app.cli.v2_feature_snapshot_builder --loop --read-from-paper-runtime --interval 60",
+    "v2.backend.app.cli.v2_trainer_bridge --once --readonly-only (in loop)",
+    "claude_worklog/tools/v2_worker_porting_orchestrator.py --daemon",
+    "claude_worklog/tools/codex_legacy_v2_realtime_decision_observatory.py --daemon",
+    "claude_worklog/tools/codex_non_live_watchdog.py --daemon",
+    "vite frontend dev server"
+  ],
+  "gates": {
+    "PAPER_ONLY_ACCEPTANCE_GATE": {"state": "OPERATOR_ACCEPTANCE_FILE_ABSENT", "blocks_shutdown": true},
+    "PRODUCTION_EQUIVALENCE_GATE": {"state": "NOT_MET", "blocks_shutdown": true},
+    "LIVE_TRADING_GATE": {"state": "BLOCKED_HUMAN_ONLY", "blocks_shutdown": true}
+  },
+  "redis_evidence": {
+    "v2_namespace_count": 0,
+    "legacy_prediction_keys_examples": [
+      "prediction:BTCUSDT:5m",
+      "prediction:ETHUSDT:1h",
+      "prediction:1000PEPEUSDT:1h",
+      "prediction:PENGUUSDT:1h",
+      "prediction:FARTCOINUSDT:5m"
+    ],
+    "legacy_signal_keys_examples": [
+      "signals:trading:asjad",
+      "signals:ensemble:diagnostic",
+      "signals:overlay:intents",
+      "signals:execution:skips",
+      "signals:proactive:alerts"
+    ],
+    "legacy_kucoin_keys_examples": [
+      "kc:kline:SOLUSDT:15m",
+      "kc:funding:SOLUSDT",
+      "kc:orderbook20:LTCUSDT",
+      "kc:orderbook20:LINKUSDT"
+    ],
+    "legacy_heartbeat_examples": [
+      "heartbeat:writer:coinank",
+      "heartbeat:CoinAnkIngest",
+      "heartbeat:writer:tokenmetrics",
+      "heartbeat:OrderBook:SOLUSDT"
+    ],
+    "legacy_rl_telemetry_examples": [
+      "rl:metrics:1m",
+      "rl:metrics:5m",
+      "rl:obs_length",
+      "rl:episodes:total"
+    ],
+    "redis_dbsize_total": 12742
+  },
+  "safety_state": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "final_live_approval_token_created": false,
+    "operator_paper_only_acceptance_file_created": false,
+    "legacy_was_stopped_by_this_packet": false,
+    "old_redis_writes_attempted_by_this_packet": false,
+    "exchange_orders_placed_or_modified": false
+  },
+  "evidence_path_root": "claude_worklog/final_readiness/production_shutdown_audit_reconciliation/latest/"
+}

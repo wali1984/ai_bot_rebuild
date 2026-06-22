@@ -1,0 +1,231 @@
+{
+  "active_lanes": [
+    {
+      "command_executor": "claude",
+      "expected_output_paths": [],
+      "file_lock_group": "claude_continuous_remediation_review_governor_blocker_fix",
+      "heartbeat_timestamp": "2026-05-24T04:52:38Z",
+      "last_log_bytes": 0,
+      "log_path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/claude_continuous_remediation_review_governor_blocker_fix.log",
+      "pid_alive": true,
+      "pid_or_job_id": 903546,
+      "started_at": "2026-05-24T04:52:38Z",
+      "status": "running",
+      "task_id": "claude_continuous_remediation_review_governor_blocker_fix",
+      "task_type": "REMEDIATION"
+    }
+  ],
+  "blockers": [
+    "ACTIVE_LANES_BELOW_MINIMUM"
+  ],
+  "codex_probe_result": {
+    "dispatched": false,
+    "no_current_codex_work": true,
+    "reason": "no pending current Codex review work; active_codex_jobs may stay 0"
+  },
+  "current_work_queue": {
+    "allowlist_size": 0,
+    "current_automatable_count": 7,
+    "historical_excluded_count": 706,
+    "recent_codex_fail_refs_size": 3,
+    "report_center_blocker_refs_size": 0
+  },
+  "executors": {
+    "claude": {
+      "available": true,
+      "command_probe": [
+        "/home/wali/.local/bin/claude",
+        "--version"
+      ],
+      "executor": "claude_cli",
+      "version": [
+        "2.1.126 (Claude Code)"
+      ]
+    },
+    "codex": {
+      "available": true,
+      "binary": "/home/wali/.local/bin/codex",
+      "executor": "codex_cli",
+      "version": [
+        "codex-cli 0.128.0"
+      ]
+    }
+  },
+  "generated_utc": "2026-05-24T04:54:37Z",
+  "marker": "V2_CLOSED_LOOP_ACTIVE_LANE_MINIMUM_REMEDIATION_BLOCKED",
+  "ready": false,
+  "root_cause": {
+    "code": "CLAUDE_RUNNER_DISPATCH_LIMIT_BUG",
+    "detail": "7 current automatable items and 1 pending-safe items exist, but the runner has only 1 real lane(s). The runner is not topping up to the minimum. 3 zombie running descriptor(s) (dead pid) are not being reset.",
+    "evidence": {
+      "active_count": 1,
+      "automatable_count": 7,
+      "pending_safe_count": 1,
+      "zombie_count": 3,
+      "zombie_ids": [
+        "003_reconcile_actual_codex_architecture_review",
+        "005_fix_risk_gateway_architecture",
+        "claude_fix_v2_gap_trainer_missing_checkpoint_weight_shape_contract"
+      ]
+    },
+    "findings": [
+      "CLAUDE_RUNNER_DISPATCH_LIMIT_BUG"
+    ]
+  },
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "schema_version": "v2_closed_loop_active_lane_minimum_remediation_status_v1",
+  "third_lane_result": {
+    "candidate": "003_reconcile_actual_codex_architecture_review",
+    "dispatched": false,
+    "reason": "allow_real_dispatch_false"
+  },
+  "timer_status": {
+    "ai-bot-v2-claude-task-runner.timer": {
+      "is_active": {
+        "cmd": [
+          "systemctl",
+          "--user",
+          "is-active",
+          "ai-bot-v2-claude-task-runner.timer"
+        ],
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "active"
+      },
+      "is_enabled": {
+        "cmd": [
+          "systemctl",
+          "--user",
+          "is-enabled",
+          "ai-bot-v2-claude-task-runner.timer"
+        ],
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "enabled"
+      },
+      "show_next": {
+        "cmd": [
+          "systemctl",
+          "--user",
+          "show",
+          "ai-bot-v2-claude-task-runner.timer",
+          "--property=NextElapseUSecRealtime"
+        ],
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "NextElapseUSecRealtime="
+      }
+    },
+    "ai-bot-v2-closed-loop-executor.timer": {
+      "is_active": {
+        "cmd": [
+          "systemctl",
+          "--user",
+          "is-active",
+          "ai-bot-v2-closed-loop-executor.timer"
+        ],
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "active"
+      },
+      "is_enabled": {
+        "cmd": [
+          "systemctl",
+          "--user",
+          "is-enabled",
+          "ai-bot-v2-closed-loop-executor.timer"
+        ],
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "enabled"
+      },
+      "show_next": {
+        "cmd": [
+          "systemctl",
+          "--user",
+          "show",
+          "ai-bot-v2-closed-loop-executor.timer",
+          "--property=NextElapseUSecRealtime"
+        ],
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "NextElapseUSecRealtime="
+      }
+    },
+    "ai-bot-v2-codex-review-runner.timer": {
+      "is_active": {
+        "cmd": [
+          "systemctl",
+          "--user",
+          "is-active",
+          "ai-bot-v2-codex-review-runner.timer"
+        ],
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "active"
+      },
+      "is_enabled": {
+        "cmd": [
+          "systemctl",
+          "--user",
+          "is-enabled",
+          "ai-bot-v2-codex-review-runner.timer"
+        ],
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "enabled"
+      },
+      "show_next": {
+        "cmd": [
+          "systemctl",
+          "--user",
+          "show",
+          "ai-bot-v2-codex-review-runner.timer",
+          "--property=NextElapseUSecRealtime"
+        ],
+        "returncode": 0,
+        "stderr": "",
+        "stdout": "NextElapseUSecRealtime="
+      }
+    }
+  },
+  "utilization": {
+    "active_claude_jobs": 1,
+    "active_codex_jobs": 0,
+    "active_lane_count": 1,
+    "automatable_work_count_current": 7,
+    "automatable_work_count_historical_excluded": 706,
+    "blocker": "ACTIVE_LANES_BELOW_MINIMUM",
+    "dry_run": false,
+    "real_dispatch_count": 0,
+    "target_active_lanes": 3,
+    "utilization_percent": 33.3
+  },
+  "zombies_reset": [
+    {
+      "from": "running_zombie",
+      "task_id": "003_reconcile_actual_codex_architecture_review",
+      "to": "pending"
+    },
+    {
+      "from": "running_zombie",
+      "task_id": "005_fix_risk_gateway_architecture",
+      "to": "pending"
+    },
+    {
+      "from": "running_zombie",
+      "task_id": "claude_fix_v2_gap_trainer_missing_checkpoint_weight_shape_contract",
+      "to": "pending"
+    }
+  ]
+}

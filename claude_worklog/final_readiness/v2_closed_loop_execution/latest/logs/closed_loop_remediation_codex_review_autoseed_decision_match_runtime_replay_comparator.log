@@ -1,0 +1,16 @@
+The Write tool needs approval for the V2 file paths below. Same as the prior session, the harness blocked the original Claude implementation on these exact paths.
+
+Wali — can you approve write access to:
+- `v2/backend/app/services/decision_comparator/service.py`
+- `v2/backend/app/cli/legacy_v2_decision_comparator.py`
+- `v2/backend/tests/integration/cli/test_legacy_v2_decision_comparator.py`
+- `claude_worklog/final_readiness/v2_autonomous_mission_backlog/per_task/decision_match_runtime_replay_comparator/IMPLEMENTATION_REPORT.md`
+- `claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_decision_match_runtime_replay_comparator.json`
+
+Once you approve I'll re-attempt the writes. Planned changes are narrow, additive, backward-compatible, and stay inside V2 + claude_worklog scopes — no legacy edits, no exchange mutations, live_gate stays `blocked_human_only` and live_symbols stays `[]`:
+
+1. **`decision_comparator/service.py`** — add optional kwargs `replay_status` and `legacy_reference_metadata`, emit `replay_evidence_match` and `legacy_reference_metadata_match` sub-blocks with exact `evidence_pointer` + dotted `evidence_keys`, tag legacy-reference data `data_role: "reference_only"` with a "not current truth" note, aggregate top-level `mismatches[]` with `{kind, observed, expected, evidence_pointer, severity, note}`, and add disagreement reasons `replay_window_empty`, `replay_runtime_evidence_missing`, `replay_symbol_outside_v2_paper`, `legacy_reference_symbol_not_tracked`, `legacy_reference_metadata_missing`.
+2. **CLI** — add `--replay-status-file` and `--legacy-reference-metadata-file`, defaulting to `v2_replay_worker_status.json` and `legacy_log_intelligence_status.json` from `v2/frontend/public/operator_runtime/...`.
+3. **Integration test** — new test asserting the two sub-blocks surface with exact pointers + the new disagreement reasons; existing test stays passing.
+4. **`IMPLEMENTATION_REPORT.md`** — per-task report at the expected backlog path with raw-evidence pointers and verification commands.
+5. **Remediation task JSON** — flip status to `completed` after writes succeed and tests pass.

@@ -1,11 +1,13 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { useRoles, canSeePage, type RoleLike } from '../../auth/rbac';
 import { PAGES } from '../../pages/registry';
+import { moduleForCategory } from '../../brand/nervyxBrand';
+import { NervyxModuleBadge } from './NervyxModuleBadge';
 
 const CATEGORY_LABELS: Record<string, string> = {
   overview: 'Overview',
   observability: 'Monitoring',
-  trainer: 'AI & Models',
+  trainer: 'Models',
   risk: 'Risk',
   execution: 'Execution',
   market: 'Markets',
@@ -60,6 +62,7 @@ export function Nav({ role: confirmedRole }: { role?: RoleLike } = {}): JSX.Elem
           <details className="nav__group" key={cat} open>
             <summary className="nav__group-head">
               <span>{CATEGORY_LABELS[cat] ?? cat}</span>
+              <NervyxModuleBadge moduleId={moduleForCategory(cat)} compact />
             </summary>
             <ul>
               {pages.map((p) => {

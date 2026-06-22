@@ -1,0 +1,169 @@
+{
+  "controller_guard": {
+    "active_task": null,
+    "controller_marker": "V2_AUTONOMOUS_PRODUCTION_EQUIVALENCE_BURNDOWN_CONTROLLER_READY",
+    "controller_status_exists": true,
+    "duplicate_suppression_count": 0,
+    "expected_selected_field_group": null,
+    "selected_field_group": null,
+    "selected_task_id": null,
+    "skipped_duplicate_field_groups": [],
+    "skipped_tasks_with_reasons": [],
+    "suppressed_field_groups": {},
+    "top_valid_task_id": null,
+    "valid_task_field_groups": []
+  },
+  "fail_blockers": [],
+  "generated_utc": "2026-05-23T01:07:18Z",
+  "go_no_go": "CODEX_AUTONOMOUS_PRODUCTION_EQUIVALENCE_REVIEW_GOVERNOR_READY",
+  "next_action": "Codex governor can review the selected exact-source task and continue the cycle.",
+  "queue_guard": {
+    "aggregate_category_counts": {
+      "EXTERNAL_SOURCE_REQUIRED_ONCHAIN_BTC": 45,
+      "EXTERNAL_SOURCE_REQUIRED_ONCHAIN_ETH": 45,
+      "EXTERNAL_SOURCE_REQUIRED_TOKEN_METRICS": 54,
+      "LEGACY_V3_EXTRA_NO_V2_SOURCE": 3879,
+      "NOT_REQUIRED_FOR_CURRENT_V2_MODEL_PATH": 915,
+      "OPERATOR_DECISION_REQUIRED_CCXT_OHLCV": 30,
+      "V2_EVENT_DEPENDENT_LIQUIDATION_WSS": 12,
+      "V2_LANE_EXISTS_PAYLOAD_ABSENT": 30,
+      "V2_POSITION_DEPENDENT_OPEN_POSITION_REQUIRED": 60
+    },
+    "aggregate_reconciles": true,
+    "aggregate_target": 5733,
+    "broad_buildable_groups": [],
+    "buildable_groups_missing_exact_source": [],
+    "buildable_groups_missing_metadata": [],
+    "buildable_task_checks": [],
+    "field_metadata_by_group_count": 0,
+    "generic_source_hint_hits": 0,
+    "missing_classified": 5070,
+    "next_tasks_exists": true,
+    "portfolio_state_broad_bucket_emitted": false,
+    "public_mirror_exists": true,
+    "queue_codex_marker": "V2_FULL_OBSERVATION_REMAINING_DIM_EXECUTION_QUEUE_CODEX_PASS",
+    "queue_exists": true,
+    "queue_go_no_go": "V2_FULL_OBSERVATION_REMAINING_DIM_EXECUTION_QUEUE_REMEDIATED_READY",
+    "queue_remediated_ready": true,
+    "sourced_today": 663,
+    "strict_source_contract_pass": true,
+    "top_valid_task_id": null,
+    "valid_task_field_groups": []
+  },
+  "runtime_health": {
+    "comparator_age_seconds": 77,
+    "continuous_fail_blockers": [],
+    "continuous_go_no_go": "CODEX_CONTINUOUS_REMEDIATION_REVIEW_GOVERNOR_READY",
+    "full_observation_age_seconds": 124,
+    "full_observation_state": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+    "legacy_log_age_seconds": 57,
+    "liquidation_heartbeat": {
+      "age_seconds": 20,
+      "fresh": true,
+      "generated_utc": "2026-05-23T01:06:58Z",
+      "key": "v2:market:liquidations:heartbeat",
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "present": true,
+      "process_mode": "persistent_daemon",
+      "service_active": true,
+      "ttl_seconds": 160
+    },
+    "live_gate_values": {
+      "full_observation": "blocked_human_only",
+      "liquidation": "blocked_human_only",
+      "position_history": "blocked_human_only",
+      "soak": "blocked_human_only"
+    },
+    "live_symbols_values": {
+      "full_observation": [],
+      "liquidation": [],
+      "position_history": [],
+      "soak": []
+    },
+    "position_history_heartbeat": {
+      "age_seconds": 44,
+      "fresh": true,
+      "generated_utc": "2026-05-23T01:06:34Z",
+      "key": "v2:paper:position_history:heartbeat",
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "present": true,
+      "process_mode": "persistent_daemon",
+      "service_active": true,
+      "ttl_seconds": 857
+    },
+    "process_counts": {
+      "comparator": 1,
+      "continuous_remediation_loop": 2,
+      "legacy_log_observer": 1,
+      "liquidation_wss": 1,
+      "position_history": 1
+    },
+    "soak_6h_ready": true,
+    "soak_minutes_observed": null,
+    "v2_redis_key_count_sample": 56
+  },
+  "safety": {
+    "approval_hits": [],
+    "checkpoint_claim_hits": [],
+    "exchange_mutation_hits": [],
+    "live_gate_values": [
+      "blocked_human_only",
+      "blocked_human_only",
+      "blocked_human_only"
+    ],
+    "live_symbols_values": [
+      [],
+      [],
+      []
+    ],
+    "old_redis_write_hits": [],
+    "policy_architecture_hits": [],
+    "reviewed_paths": [
+      "claude_worklog/final_readiness/v2_full_observation_remaining_dim_execution_queue/latest/remaining_dim_execution_queue.json",
+      "claude_worklog/final_readiness/v2_full_observation_remaining_dim_execution_queue/latest/next_10_feature_tasks.json",
+      "claude_worklog/final_readiness/v2_autonomous_production_equivalence_burndown/latest/autonomous_burndown_status.json",
+      "v2/frontend/public/operator_runtime/v2_rl_core/latest/full_observation_builder_status.json",
+      "claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/soak_status.json",
+      "claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/continuous_remediation/codex_review/codex_5m_status.json"
+    ]
+  },
+  "schema_version": 1,
+  "task_hygiene": {
+    "approval_hits": [],
+    "broad_audit_hits": [],
+    "checkpoint_claim_hits": [],
+    "duplicate_task_groups": {},
+    "exchange_mutation_hits": [],
+    "policy_architecture_hits": [],
+    "reviewed_task_files": [
+      "claude_worklog/agent_supervisor/tasks/198_claude_fix_v2_full_observation_portfolio_state_v2_orchestrator_keys_written_count.json",
+      "claude_worklog/agent_supervisor/tasks/199_codex_review_v2_full_observation_portfolio_state_v2_orchestrator_keys_written_count.json",
+      "claude_worklog/agent_supervisor/tasks/200_claude_fix_v2_full_observation_portfolio_state_portfolio_trainer_heartbeat_age_seconds.json",
+      "claude_worklog/agent_supervisor/tasks/201_codex_review_v2_full_observation_portfolio_state_portfolio_trainer_heartbeat_age_seconds.json",
+      "claude_worklog/agent_supervisor/tasks/202_claude_fix_v2_full_observation_portfolio_state_portfolio_symbol_risk_decision_present.json",
+      "claude_worklog/agent_supervisor/tasks/203_codex_review_v2_full_observation_portfolio_state_portfolio_symbol_risk_decision_present.json",
+      "claude_worklog/agent_supervisor/tasks/204_claude_fix_v2_full_observation_portfolio_state_portfolio_symbol_pre_trade_allowed.json",
+      "claude_worklog/agent_supervisor/tasks/205_codex_review_v2_full_observation_portfolio_state_portfolio_symbol_pre_trade_allowed.json",
+      "claude_worklog/agent_supervisor/tasks/206_claude_fix_v2_full_observation_portfolio_state_portfolio_symbol_fee_gate_allowed.json",
+      "claude_worklog/agent_supervisor/tasks/207_codex_review_v2_full_observation_portfolio_state_portfolio_symbol_fee_gate_allowed.json",
+      "claude_worklog/agent_supervisor/tasks/208_claude_fix_v2_full_observation_portfolio_state_portfolio_symbol_churn_blocked.json",
+      "claude_worklog/agent_supervisor/tasks/209_codex_review_v2_full_observation_portfolio_state_portfolio_symbol_churn_blocked.json",
+      "claude_worklog/agent_supervisor/tasks/210_claude_fix_v2_full_observation_position_context_pre_trade_allowed.json",
+      "claude_worklog/agent_supervisor/tasks/211_codex_review_v2_full_observation_position_context_pre_trade_allowed.json",
+      "claude_worklog/agent_supervisor/tasks/212_claude_fix_v2_full_observation_position_context_fee_gate_allowed.json",
+      "claude_worklog/agent_supervisor/tasks/213_codex_review_v2_full_observation_position_context_fee_gate_allowed.json",
+      "claude_worklog/agent_supervisor/tasks/214_claude_fix_v2_full_observation_position_context_churn_blocked.json",
+      "claude_worklog/agent_supervisor/tasks/215_codex_review_v2_full_observation_position_context_churn_blocked.json",
+      "claude_worklog/agent_supervisor/tasks/216_claude_fix_v2_full_observation_position_context_v2_pre_trade_allowed_rate.json",
+      "claude_worklog/agent_supervisor/tasks/217_codex_review_v2_full_observation_position_context_v2_pre_trade_allowed_rate.json",
+      "claude_worklog/agent_supervisor/tasks/218_claude_fix_v2_full_observation_position_context_v2_fee_gate_allowed_rate.json",
+      "claude_worklog/agent_supervisor/tasks/219_codex_review_v2_full_observation_position_context_v2_fee_gate_allowed_rate.json",
+      "claude_worklog/agent_supervisor/tasks/220_claude_fix_v2_full_observation_position_context_v2_churn_blocked_rate.json",
+      "claude_worklog/agent_supervisor/tasks/221_codex_review_v2_full_observation_position_context_v2_churn_blocked_rate.json",
+      "claude_worklog/agent_supervisor/tasks/claude_fix_v2_gap_full_observation_vector_builder.json",
+      "claude_worklog/agent_supervisor/tasks/codex_review_fix_v2_gap_full_observation_vector_builder.json"
+    ]
+  }
+}

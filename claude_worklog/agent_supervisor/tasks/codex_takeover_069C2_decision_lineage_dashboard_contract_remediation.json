@@ -10,6 +10,7 @@
     "PHASE2HA0_069D_VALIDATION_PACKET_BLOCKED"
   ],
   "commit_message": "Codex takeover outputs for 069C2_decision_lineage_dashboard_contract_remediation",
+  "completed_at": "2026-05-11T04:39:37.869688+00:00",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "description": "Codex acting-governor takeover for 069C2_decision_lineage_dashboard_contract_remediation while Claude is rate-limited.",
   "emit_files": true,
@@ -24,6 +25,7 @@
     "queue drift past fresh validation blocker"
   ],
   "mvp_relevance": "Autonomous remediation for 069D blocked validation: materialize 069C dashboard lineage contract payload before unrelated reviews.",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
   "next_gate": "069C2_GO_NO_GO.md",
   "next_recommended_action": "After READY, run Codex review for 069C2 and rerun 069D validation; if BLOCKED, keep blocker local and continue unrelated safe work only if higher-priority remediation is impossible.",
   "predecessor_task_ids": [
@@ -31,13 +33,20 @@
   ],
   "priority": 1601,
   "prompt": "You are Codex acting-governor because Claude Code is rate-limited. Complete the safe non-live source task 069C2_decision_lineage_dashboard_contract_remediation through the supervisor. Respect the source task output contract exactly. Do not modify legacy. Do not write Redis. Do not restart services. Do not place/cancel exchange orders. Do not change leverage or margin. Do not enable live trading. Do not expose secrets. Human input is required only for final live/capital gate.\n\nStrict BEGIN_FILE emit-only mode. Build the safe non-live remediation selected by the autonomous governor. Do not modify /home/wali/Desktop/AI BOT. Do not write/delete/trim Redis. Do not restart services. Do not place/cancel exchange orders. Do not change leverage, margin, or position mode. Do not enable live trading. Do not expose secrets. Human input is required only for final live/capital gate.\n\nRoot cause: 069D validation blocked because 069C is a dashboard payload specification, but the concrete final-readiness/public dashboard payload does not satisfy the lineage authority and missing-evidence warning contract.\n\nRead these source artifacts as evidence: claude_worklog/phase2_core_rebuild/decision_explainability/069A_LINEAGE_SOURCE_SCAN.md, claude_worklog/phase2_core_rebuild/decision_explainability/069B_LINEAGE_EVIDENCE_PACKET.md, claude_worklog/phase2_core_rebuild/decision_explainability/069C_DASHBOARD_PAYLOAD_INTEGRATION_SPEC.md, claude_worklog/phase2_core_rebuild/decision_explainability/069D_VALIDATION_AND_CODEX_REVIEW_PACKET.md, claude_worklog/phase2_core_rebuild/decision_explainability/parallel_capacity_readonly_review_phase2ha0_069c_dashboard_integration_ready_REPORT.md.\n\nEmit a concrete operator_dashboard_payload.json under both final_readiness and v2/frontend/public paths with: lineage_contract_version, payload_status, warning_count, payload_warnings, lineage_rows, lineage_authority per row, missing_evidence_warnings, scaffold_only/fixture_only/null treatment for signal_id/execution_intent_id/shadow_decision_id, live_gate_status blocked_human_only, and human_input_required false. Also emit 069C2_DASHBOARD_CONTRACT_REMEDIATION_REPORT.md and 069C2_GO_NO_GO.md. GO file exactly 069C2_DECISION_LINEAGE_DASHBOARD_CONTRACT_REMEDIATION_READY or 069C2_DECISION_LINEAGE_DASHBOARD_CONTRACT_REMEDIATION_BLOCKED.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/final_readiness/decision_explainability_lineage/latest/069C2_DASHBOARD_CONTRACT_REMEDIATION_REPORT.md",
     "claude_worklog/final_readiness/decision_explainability_lineage/latest/069C2_GO_NO_GO.md",
     "claude_worklog/final_readiness/decision_explainability_lineage/latest/operator_dashboard_payload.json",
     "v2/frontend/public/decision_explainability_lineage/latest/operator_dashboard_payload.json"
   ],
+  "resolved_from_source_truth": true,
   "risk_level": "L2",
-  "status": "pending",
-  "task_id": "codex_takeover_069C2_decision_lineage_dashboard_contract_remediation"
+  "source_truth_completed_at": "2026-05-11T04:39:37.869688+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/codex_takeover_069C2_decision_lineage_dashboard_contract_remediation.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "codex_takeover_069C2_decision_lineage_dashboard_contract_remediation",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

@@ -1,0 +1,2748 @@
+OpenAI Codex v0.128.0 (research preview)
+--------
+workdir: /home/wali/Desktop/AI BOT REBUILD
+model: gpt-5.5
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, /home/wali/.codex/memories]
+reasoning effort: xhigh
+reasoning summaries: none
+session id: 019e5bcd-f988-7683-b65e-9f3da1b8c390
+--------
+user
+Review the paired V2 implementation task `claude_autoseed_decision_match_runtime_replay_comparator` for `Decision-match runtime replay comparator`.
+
+Verify that the work is a narrow implementation, not a broad audit or UI-only change; bridge data is labelled honestly; missing data is marked MISSING_SOURCE rather than fabricated; V2 writes stay in V2/public surfaces; no operator approval drift appears; live_gate remains blocked_human_only and live_symbols remains [].
+
+PASS exactly: `V2_AUTONOMOUS_DECISION_MATCH_RUNTIME_REPLAY_COMPARATOR_CODEX_PASS`
+FAIL exactly: `V2_AUTONOMOUS_DECISION_MATCH_RUNTIME_REPLAY_COMPARATOR_CODEX_FAIL`
+
+
+Scope paths (embedded in prompt, not CLI flags):
+- v2/backend/app/services/edge_proof
+- v2/backend/app/services/legacy_log_intelligence
+- claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest
+
+Paired Claude task id: claude_autoseed_decision_match_runtime_replay_comparator
+exec
+/bin/bash -lc 'git status --short && git diff --stat && git diff -- v2/backend/app/services/edge_proof v2/backend/app/services/legacy_log_intelligence claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest' in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 291ms:
+ .claude/settings.local.json                        |     8 +
+ .gitignore                                         |    32 +
+ .../agent_supervisor/CLAUDE_QUOTA_CHECK_OUTPUT.txt |     2 +-
+ .../002_codex_adversarial_architecture_review.json |    12 +-
+ ...reconcile_actual_codex_architecture_review.json |    24 +-
+ .../tasks/004_fix_api_contract_architecture.json   |    24 +-
+ .../tasks/005_fix_risk_gateway_architecture.json   |    24 +-
+ ..._codex_review_remediated_v2_scaffold_queue.json |    22 +-
+ .../tasks/020_codex_review_015a_scaffold.json      |    22 +-
+ .../021_codex_review_015b_database_skeleton.json   |    22 +-
+ ...eview_after_019_scaffold_queue_remediation.json |    22 +-
+ .../022_codex_review_015c_api_route_skeleton.json  |    22 +-
+ .../023_codex_review_015d_frontend_shell.json      |    22 +-
+ .../024_codex_review_015e_test_ci_skeleton.json    |    22 +-
+ ...ex_review_015f_agent_dashboard_integration.json |    22 +-
+ .../031_codex_review_phase2_symbol_universe.json   |    22 +-
+ ...dex_review_symbol_universe_usdm_correction.json |    22 +-
+ .../033_codex_review_phase2_feature_snapshots.json |    22 +-
+ ...041_codex_review_phase2_legacy_service_map.json |    22 +-
+ ...codex_review_phase2_coinank_discovery_list.json |    34 +-
+ ..._phase2_coinank_discovery_list_post_pass21.json |    29 +-
+ .../tasks/050_trainer_gpu_parity_rebuild_plan.json |    29 +-
+ .../051_trainer_gpu_parity_plan_codex_rerun.json   |    31 +-
+ .../052_trainer_gpu_parity_plan_codex_rerun2.json  |    31 +-
+ .../054_trainer_parity_2e1a_codex_review.json      |    29 +-
+ .../055_trainer_parity_2e1a_codex_rereview.json    |    17 +-
+ ...062_trainer_parity_2e1c_alpha_codex_review.json |    31 +-
+ .../066_trainer_parity_2e1c_beta_codex_review.json |    25 +-
+ .../068_frontend_design_2fa1_codex_review.json     |    25 +-
+ ...lineage_validation_and_codex_review_packet.json |    43 +-
+ ...dex_parallel_review_trainer_liveness_stack.json |    17 +-
+ ..._decision_explainability_2ha0_codex_review.json |    25 +-
+ ...parallel_rereview_trainer_liveness_autofix.json |    17 +-
+ ...odex_readonly_planner_halt_loop_diagnostic.json |    17 +-
+ .../076_codex_recover_064_human_attention.json     |    17 +-
+ ...iner_parity_2e1c_beta_final_codex_rereview.json |    21 +-
+ ...080_trainer_parity_2e1c_delta_codex_review.json |    27 +-
+ .../081_codex_recover_079_human_attention.json     |    35 +-
+ ...083_trainer_parity_2e1c_gamma_codex_review.json |    27 +-
+ ...over_planner_gamma_materialization_blocker.json |    17 +-
+ ...x_recover_planner_dirty_tree_dispatch_hold.json |    61 +-
+ ..._trainer_parity_2e1c_gamma_reader_protocol.json |    21 +-
+ ...er_parity_2e1c_gamma_observation_collector.json |    25 +-
+ ...iner_parity_2e1c_gamma_observation_history.json |    25 +-
+ ...x_recover_082_gamma_implementation_blocker.json |   167 +-
+ ...iner_parity_2e1c_gamma_real_implementation.json |    35 +-
+ ...rainer_parity_2e1c_gamma_real_codex_review.json |    33 +-
+ ...ity_2e1c_gamma_real_factory_implementation.json |    35 +-
+ ...arity_2e1c_gamma_real_factory_codex_review.json |    33 +-
+ ...ty_2e1d_service_composition_implementation.json |    35 +-
+ ...rity_2e1d_service_composition_codex_review.json |    33 +-
+ ...overy_2e1d_end_file_marker_leakage_cleanup.json |    27 +-
+ .../094_trainer_parity_2e1d_codex_autofix.json     |    35 +-
+ ...r_parity_2e1d_codex_rereview_after_autofix.json |    33 +-
+ ...arity_2e1e_composition_root_implementation.json |    35 +-
+ ..._parity_2e1e_composition_root_codex_review.json |    33 +-
+ .../098_trainer_parity_2e1e_codex_autofix.json     |    43 +-
+ ...r_parity_2e1e_codex_rereview_after_autofix.json |    35 +-
+ ...y_2e2a_worker_health_domain_implementation.json |    37 +-
+ ...ex_review_after_planning_artifact_emission.json |   105 +-
+ ...82_codex_review_non_live_operational_proof.json |    36 +-
+ ...dex_review_non_live_operator_proof_harness.json |    36 +-
+ ...ter_cost_coverage_from_shadow_false_blocks.json |     2 +-
+ ...hot_builder_full_closure_baseline_analysis.json |    11 +-
+ ...ter_cost_coverage_from_shadow_false_blocks.json |     2 +-
+ ...e_account_position_monitor_shutdown_parity.json |    11 +-
+ ...per_edge_repair_from_legacy_trainer_output.json |    11 +-
+ ...ew_legacy_protective_behaviors_to_v2_paper.json |    11 +-
+ ...view_legacy_rl_risk_trainer_trader_closure.json |    61 +-
+ ...eview_legacy_startup_baseline_v2_migration.json |    56 +-
+ .../codex_review_online_readiness_aggregator.json  |    35 +-
+ ...e_readiness_aggregator_freshness_extension.json |    27 +-
+ ...ex_review_online_readiness_banner_frontend.json |    31 +-
+ ..._paper_edge_post_filter_observation_window.json |    11 +-
+ ...view_parallel_trading_platform_consumer_ui.json |    27 +-
+ ...ublic_payload_freshness_shutdown_readiness.json |    11 +-
+ .../tasks/codex_review_resolved_local_imports.json |    11 +-
+ ...hadow_outcome_learning_for_blocked_intents.json |    15 +-
+ .../codex_review_v2_account_position_monitor.json  |    45 +-
+ ...nd_liquidation_bridge_from_legacy_baseline.json |    59 +-
+ ...codex_review_v2_coinank_liquidation_bridge.json |    45 +-
+ .../codex_review_v2_config_admin_manager.json      |    45 +-
+ .../codex_review_v2_execution_ledger_worker.json   |    45 +-
+ ...ipeline_and_ta_worker_from_legacy_baseline.json |    59 +-
+ .../codex_review_v2_feature_snapshot_builder.json  |    45 +-
+ ...2_feature_snapshot_builder_legacy_backfill.json |    55 +-
+ .../tasks/codex_review_v2_market_ingestor.json     |    45 +-
+ ...ew_v2_market_ingestor_from_legacy_baseline.json |    59 +-
+ .../codex_review_v2_orchestrator_adapter.json      |    45 +-
+ ...dex_review_v2_p2_binance_usdm_adapter_stub.json |    45 +-
+ ..._p2_default_blocked_execution_adapter_stub.json |    45 +-
+ .../codex_review_v2_p2_deployment_helpers.json     |    45 +-
+ ...ge_recovery_and_cost_aware_trade_selection.json |    11 +-
+ .../codex_review_v2_paper_execution_worker.json    |    47 +-
+ ...iew_v2_persistent_automation_service_layer.json |    49 +-
+ .../tasks/codex_review_v2_replay_worker.json       |    45 +-
+ ...v2_risk_gateway_legacy_action_parity_tests.json |    11 +-
+ ...2_risk_gateway_legacy_gate_implementations.json |    11 +-
+ ...odex_review_v2_risk_gateway_runtime_worker.json |    65 +-
+ .../tasks/codex_review_v2_script_monitor.json      |    45 +-
+ .../codex_review_v2_signal_lineage_worker.json     |    45 +-
+ .../tasks/codex_review_v2_signal_publisher.json    |    45 +-
+ ...w_v2_signal_publisher_legacy_schema_parity.json |    11 +-
+ .../tasks/codex_review_v2_trainer_bridge.json      |    45 +-
+ ...vidence_acceptance_or_native_parity_packet.json |    11 +-
+ ...codex_review_v2_trainer_full_legacy_parity.json |    11 +-
+ ...view_v2_trainer_lineage_attribution_parity.json |    11 +-
+ ...odex_review_v2_worker_porting_orchestrator.json |    63 +-
+ ...B_decision_lineage_evidence_packet_builder.json |    17 +-
+ ...ion_lineage_dashboard_contract_remediation.json |    17 +-
+ ...sion_lineage_dashboard_payload_integration.json |    17 +-
+ ...ision_lineage_validation_rerun_after_069C2.json |    17 +-
+ ...lineage_validation_and_codex_review_packet.json |    11 +-
+ .../latest/NEXT_TASK_SELECTION.json                |    37 +-
+ .../latest/NEXT_TASK_SELECTION.md                  |    11 +-
+ .../latest/NON_DRIFT_GOVERNOR_LOCK.json            |    23 +-
+ claude_worklog/coverage/CONFIG_ENV_MAP.json        |     8 +-
+ .../CANARY_READINESS_AFTER_ACCOUNT_EVIDENCE.md     |    10 +-
+ .../CODEX_ACCOUNT_PERMISSION_AND_SOAK_REVIEW.json  |     2 +-
+ .../CODEX_ACCOUNT_PERMISSION_AND_SOAK_REVIEW.md    |     2 +-
+ .../latest/MARGIN_LEVERAGE_EVIDENCE_REPORT.md      |     4 +-
+ .../P0_P1_MIGRATION_ACCOUNT_EVIDENCE_PROGRESS.md   |     4 +-
+ .../latest/PAPER_SHADOW_MONITOR_CONTINUATION.md    |     6 +-
+ .../latest/PAPER_SHADOW_SOAK_RECONCILIATION.md     |    36 +-
+ .../latest/READONLY_ACCOUNT_EVIDENCE_REPORT.md     |     6 +-
+ ...E_PERMISSION_AND_6H_PAPER_SHADOW_SOAK_REPORT.md |    12 +-
+ .../latest/TRADE_PERMISSION_EVIDENCE_REPORT.md     |     4 +-
+ .../TRAINER_TRADER_MONITOR_CONTINUATION_REPORT.md  |    10 +-
+ .../latest/WEEKLY_LOSS_GATE_RUNTIME_PROOF.md       |     6 +-
+ .../canary_readiness_after_account_evidence.json   |     8 +-
+ .../latest/margin_leverage_evidence.json           |     2 +-
+ .../latest/operator_dashboard_payload.json         |   126 +-
+ .../p0_p1_migration_account_evidence_progress.json |     2 +-
+ .../latest/paper_shadow_monitor_continuation.json  |     6 +-
+ .../latest/paper_shadow_soak_reconciliation.json   |    38 +-
+ .../latest/readonly_account_evidence.json          |     4 +-
+ .../latest/trade_permission_evidence.json          |     2 +-
+ ...trainer_trader_monitor_continuation_status.json |    60 +-
+ .../latest/weekly_loss_gate_runtime_proof.json     |     4 +-
+ ...Y_DISPATCH_AND_SCRIPT_MIGRATION_PROOF_REPORT.md |     5 +-
+ .../latest/CLAUDE_IDLE_AND_DISPATCH_DIAGNOSTIC.md  |     3 +-
+ .../latest/CODEX_PARALLEL_DISPATCH_PROOF.md        |     5 +
+ .../latest/PRIMARY_DISPATCH_PROOF.md               |     2 +
+ .../claude_idle_and_dispatch_diagnostic.json       |   188 +-
+ .../latest/codex_parallel_dispatch_state.json      |     9 +-
+ .../latest/operator_dashboard_payload.json         |    24 +-
+ .../latest/primary_dispatch_state.json             |     6 +-
+ .../latest/always_on_runtime_state.json            |  1829 +-
+ .../latest/automation_utilization_status.json      |    26 +-
+ .../latest/git_dirty_state.json                    |  1777 +-
+ .../latest/operator_dashboard_payload.json         |  1877 +-
+ .../latest/recurring_monitor_audit_tasks.json      |     2 +-
+ .../PUBLIC_PAYLOAD_FRESHNESS_GUARD_REPORT.md       |    21 +-
+ .../latest/public_payload_freshness_guard.json     |   398 +-
+ .../latest/CODEX_SHUTDOWN_TAKEOVER_STATUS.md       |     5 +-
+ .../latest/blocker_matrix.json                     |    10 +-
+ .../latest/codex_shutdown_takeover_status.json     |   365 +-
+ .../latest/current_recommendation.json             |     4 +-
+ .../latest/operator_dashboard_payload.json         |   133 +-
+ .../latest/shutdown_readiness_state.json           |   365 +-
+ .../CODEX_COINANK_RUNTIME_REMEDIATION_REVIEW.md    |     4 +-
+ .../latest/CODEX_GO_NO_GO.md                       |     2 +-
+ ...E_CONTRACT_REMEDIATION_AND_V2_REAUDIT_REPORT.md |     4 +-
+ .../latest/GO_NO_GO.md                             |     2 +-
+ .../latest/LASTPRICE_FORENSICS.md                  |     2 +-
+ .../latest/V2_COINANK_REAUDIT_REPORT.md            |     4 +-
+ .../latest/coinank_market_intelligence_status.json |  1682 +-
+ .../latest/coinank_reference_hashes.json           |     4 +-
+ .../latest/coinank_runtime_cycle_validation.json   |    15 +-
+ .../latest/lastprice_forensics.json                |     8 +-
+ .../latest/operator_dashboard_payload.json         |  1688 +-
+ .../latest/doc_update_policy.json                  |     2 +-
+ .../v2_account_position_monitor_status.json        |     4 +-
+ ...idation_bridge_from_legacy_baseline_status.json |    12 +-
+ .../workers/v2_execution_ledger_worker_status.json |   105 +-
+ ..._and_ta_worker_from_legacy_baseline_status.json |    28 +-
+ .../v2_feature_snapshot_builder_status.json        |    24 +-
+ ...arket_ingestor_from_legacy_baseline_status.json |   223 +-
+ .../workers/v2_paper_execution_worker_status.json  |    16 +-
+ .../v2_risk_gateway_runtime_worker_status.json     |   105 +-
+ .../workers/v2_signal_lineage_worker_status.json   |   367 +-
+ .../latest/workers/v2_trainer_bridge_status.json   |   247 +-
+ .../latest/EXPECTED_MOVE_MODEL_REVIEW_REPORT.md    |    88 +-
+ .../latest/codex_review/CODEX_REVIEW.md            |    34 +-
+ .../latest/codex_review/codex_review_status.json   |    30 +-
+ .../latest/false_block_audit.json                  |   181 +-
+ .../latest/operator_dashboard_payload.json         |    46 +-
+ .../latest/recommended_paper_gate_changes.json     |    16 +-
+ .../latest/threshold_replay_results.json           |  2595 +-
+ .../latest/CODEX_COINANK_PLAN3_BRIDGE_REVIEW.md    |     4 +-
+ .../latest/CODEX_GO_NO_GO.md                       |     2 +-
+ .../latest/COINANK_RUNTIME_CONTRACT_CHECK.md       |    42 +-
+ .../legacy_coinank_plan3_bridge/latest/GO_NO_GO.md |     2 +-
+ .../latest/LEGACY_COINANK_DELTA_AUDIT.md           |    29 +-
+ ...YNC_AND_V2_MARKET_INTELLIGENCE_BRIDGE_REPORT.md |    18 +-
+ ...V2_COINANK_MARKET_INTELLIGENCE_BRIDGE_REPORT.md |     8 +-
+ .../latest/coinank_delta_hashes.json               |    16 +-
+ .../latest/coinank_market_intelligence_status.json |     8 +-
+ .../latest/coinank_runtime_contract_status.json    |   600 +-
+ .../latest/operator_dashboard_payload.json         |    61 +-
+ ...GACY_V2_REALTIME_DECISION_OBSERVATORY_REPORT.md |     2 +-
+ .../latest/NEXT_DECISION_IMPROVEMENT_TASKS.md      |    10 +-
+ ...cy_v2_realtime_decision_observatory_status.json |    12 +-
+ .../latest/decision_quality_scoreboard_status.json |     6 +-
+ .../latest/legacy_runtime_observer_status.json     |    37 +-
+ .../legacy_signal_outcome_observer_status.json     |    34 +-
+ .../legacy_v2_decision_comparator_status.json      |    32 +-
+ .../latest/next_decision_improvement_tasks.json    |    30 +-
+ .../latest/operator_dashboard_payload.json         |    12 +-
+ ...DE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_REPORT.md |     6 +-
+ .../latest/GOVERNOR_PRIORITY_POLICY.md             |     2 +-
+ .../latest/NEXT_TASKS_BY_LANE.md                   |     6 +-
+ .../latest/PRIMARY_OBJECTIVE_LOCK.md               |     2 +-
+ .../latest/next_tasks_by_lane.json                 |     6 +-
+ .../latest/objective_drift_status.json             |    67 +-
+ .../latest/operator_dashboard_payload.json         |    10 +-
+ ...BSERVATORY_TO_ACTION_CONTROLLER_PATCH_REPORT.md |     2 +-
+ .../latest/operator_dashboard_payload.json         |     2 +-
+ .../latest/CURRENT_WEBSITE_TRUTH_AUDIT.md          |    22 +-
+ .../latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md   |    32 +-
+ .../latest/MISSING_EVIDENCE_REGISTER.md            |     2 +-
+ ...ASHBOARD_AND_REALTIME_TRAINER_MONITOR_REPORT.md |    10 +-
+ .../latest/REALTIME_TRAINER_MONITOR_REPORT.md      |    10 +-
+ .../latest/SUPERVISOR_STATE_TRUTH_REPORT.md        |    40 +-
+ .../latest/operator_dashboard_payload.json         |     4 +-
+ .../latest/operator_truth_payload.json             |  1348 +-
+ .../latest/realtime_legacy_monitor_status.json     |  1072 +-
+ .../latest/realtime_trainer_monitor_status.json    |    23 +-
+ .../latest/runtime_signal_lineage_status.json      |    20 +-
+ .../latest/trainer_prediction_stream_status.json   |    23 +-
+ ...TED_MOVE_AFTER_COST_FALSE_BLOCK_MODEL_REVIEW.md |    25 +-
+ ...d_move_after_cost_false_block_model_review.json |   150 +-
+ .../latest/operator_dashboard_payload.json         |   160 +-
+ .../latest/CONTROL_PLANE_FRESHNESS_RECOVERY.md     |     4 +-
+ .../latest/LEGACY_TRADER_CONTAINMENT.md            |     6 +-
+ .../PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE_REPORT.md  |     2 +-
+ .../latest/operator_dashboard_payload.json         |    12 +-
+ .../latest/operator_truth_payload.json             |  1348 +-
+ .../latest/PAPER_SHADOW_OUTCOME_OBSERVER_REPORT.md |    24 +-
+ .../latest/operator_dashboard_payload.json         |    74 +-
+ .../paper_shadow_outcome_observer_status.json      | 27488 ++++++++++++++++---
+ ...ADINESS_AFTER_NEGATIVE_PNL_AND_ACCOUNT_CHECK.md |     8 +-
+ ...CODEX_NEGATIVE_PNL_ACCOUNT_EVIDENCE_REVIEW.json |     2 +-
+ .../CODEX_NEGATIVE_PNL_ACCOUNT_EVIDENCE_REVIEW.md  |     2 +-
+ .../latest/MARGIN_LEVERAGE_EVIDENCE_PROVIDER.md    |     4 +-
+ .../latest/NEGATIVE_PAPER_PNL_DIAGNOSIS.md         |    38 +-
+ .../latest/P0_P1_MIGRATION_CONTINUATION.md         |     4 +-
+ .../PAPER_FILL_QUALITY_AND_OVERTRADING_AUDIT.md    |    26 +-
+ .../latest/PAPER_SHADOW_6H_24H_CONTINUATION.md     |    34 +-
+ ...AGNOSIS_AND_ACCOUNT_EVIDENCE_PROVIDER_REPORT.md |     5 +-
+ .../latest/READONLY_ACCOUNT_EVIDENCE_PROVIDER.md   |     6 +-
+ .../latest/TRADE_PERMISSION_EVIDENCE_PROVIDER.md   |     4 +-
+ .../latest/TRAINER_TRADER_MONITOR_CONTINUATION.md  |    10 +-
+ ...iness_after_negative_pnl_and_account_check.json |     5 +-
+ .../latest/margin_leverage_evidence_provider.json  |     2 +-
+ .../latest/negative_paper_pnl_diagnosis.json       |    54 +-
+ .../latest/operator_dashboard_payload.json         |   212 +-
+ .../latest/p0_p1_migration_continuation.json       |     2 +-
+ .../paper_fill_quality_and_overtrading_audit.json  |    34 +-
+ .../latest/paper_shadow_6h_24h_continuation.json   |    34 +-
+ .../latest/readonly_account_evidence_provider.json |     4 +-
+ .../latest/trade_permission_evidence_provider.json |     2 +-
+ .../trainer_trader_monitor_continuation.json       |    72 +-
+ ...ARY_PROFILE_TIGHTENING_IMPLEMENTATION_REPORT.md |     4 +-
+ .../latest/CANARY_PROFILE_TIGHTENING_PROPOSAL.md   |     4 +-
+ .../latest/CANARY_READINESS_AFTER_TIGHTENING.md    |    10 +-
+ .../CODEX_STRATEGY_EDGE_TIGHTENING_REVIEW.json     |     2 +-
+ .../CODEX_STRATEGY_EDGE_TIGHTENING_REVIEW.md       |     2 +-
+ .../latest/NEGATIVE_6H_PNL_ROOT_CAUSE.md           |    52 +-
+ .../latest/PAPER_SHADOW_24H_CONTINUATION.md        |    24 +-
+ ...AGNOSIS_AND_CANARY_PROFILE_TIGHTENING_REPORT.md |    13 +-
+ .../latest/TIGHTENED_PROFILE_EVALUATION.md         |    22 +-
+ .../TRAINER_TRADER_MONITOR_DURING_NEGATIVE_PNL.md  |    10 +-
+ .../latest/canary_profile_tightening_proposal.json |     2 +-
+ .../canary_profile_tightening_test_results.json    |     2 +-
+ .../latest/canary_readiness_after_tightening.json  |     9 +-
+ .../latest/negative_6h_pnl_root_cause.json         |    63 +-
+ .../latest/operator_dashboard_payload.json         |   213 +-
+ .../latest/paper_shadow_24h_continuation.json      |    28 +-
+ .../latest/tightened_profile_evaluation.json       |    36 +-
+ ...trainer_trader_monitor_during_negative_pnl.json |    64 +-
+ .../latest/ROUTER_STATUS.md                        |    16 +-
+ .../latest/operator_dashboard_payload.json         |    10 +-
+ .../latest/router_status.json                      |    35 +-
+ .../latest/ADMIN_SHELL_REBUILD_REPORT.md           |     2 +-
+ .../latest/ALL_ROUTES_PRODUCTION_CONTENT_REPORT.md |     2 +-
+ .../latest/BROWSER_PRODUCTION_ACCEPTANCE_REPORT.md |     2 +-
+ .../MISSION_CONTROL_PRODUCTION_REBUILD_REPORT.md   |     2 +-
+ .../MONITOR_CENTER_PRODUCTION_REPAIR_REPORT.md     |     2 +-
+ .../OPERATOR_TRUTH_GENERATOR_REPAIR_REPORT.md      |     2 +-
+ .../latest/PRODUCTION_OPERATOR_WEBAPP_REPORT.md    |     2 +-
+ .../latest/ROUTE_ACCEPTANCE_MATRIX.md              |     2 +-
+ ...GNAL_EXPLAINABILITY_PRODUCTION_REPAIR_REPORT.md |     2 +-
+ .../latest/SUPERVISOR_FRESHNESS_REPAIR_REPORT.md   |     6 +-
+ .../latest/TRADINGVIEW_PRODUCTION_REPAIR_REPORT.md |     2 +-
+ .../TRAINER_MONITOR_PRODUCTION_REPAIR_REPORT.md    |     2 +-
+ .../latest/UI_ACCEPTANCE_FAILURE.md                |     2 +-
+ .../latest/operator_dashboard_payload.json         |     2 +-
+ .../latest/BROWSER_OPERATOR_ACCEPTANCE_REPORT.md   |     2 +-
+ .../MISSION_CONTROL_SIMPLIFICATION_REPORT.md       |     2 +-
+ .../latest/MONITOR_CENTER_REALITY_REPAIR_REPORT.md |     2 +-
+ .../latest/PAYLOAD_FRESHNESS_DAEMON_REPORT.md      |     2 +-
+ ...OL_PLANE_AND_TRAINER_MONITOR_RECOVERY_REPORT.md |    12 +-
+ .../SIGNAL_EXPLAINABILITY_REALITY_REPAIR_REPORT.md |     2 +-
+ .../SUPERVISOR_RUNTIME_TRUTH_REPAIR_REPORT.md      |     8 +-
+ .../latest/TRAINER_MONITOR_UI_REPAIR_REPORT.md     |     2 +-
+ .../TRAINER_RUNTIME_EVIDENCE_RECOVERY_REPORT.md    |     8 +-
+ .../latest/operator_dashboard_payload.json         |     8 +-
+ .../latest/operator_truth_payload.json             |  1348 +-
+ .../latest/trainer_missing_evidence.md             |     2 +-
+ .../trainer_prediction_current_evidence.json       |    18 +-
+ .../latest/trainer_runtime_status.json             |    23 +-
+ .../latest/BROWSER_VISUAL_ACCEPTANCE_REPORT.md     |     2 +-
+ .../MISSION_CONTROL_SIMPLIFICATION_REPORT.md       |     2 +-
+ ...OL_PLANE_AND_TRAINER_MONITOR_RECOVERY_REPORT.md |    12 +-
+ .../latest/RUNTIME_TRUTH_FRESHNESS_FIX.md          |     2 +-
+ .../latest/SUPERVISOR_STATE_RECONCILIATION.md      |     8 +-
+ .../latest/TRAINER_MONITOR_EVIDENCE_REVIEW.md      |     6 +-
+ .../latest/operator_dashboard_payload.json         |     8 +-
+ .../latest/operator_truth_payload.json             |  1348 +-
+ .../latest/SCRIPT_MIGRATION_BACKLOG_REPORT.md      |     8 +-
+ .../latest/script_migration_backlog.json           |    65 +-
+ .../latest/symbol_universe_status.json             |    57 +-
+ .../latest/ADMIN_AI_OPERATIONAL_REPORT.md          |     2 +-
+ .../latest/ALL_ROUTES_OPERATIONAL_ACCEPTANCE.md    |     2 +-
+ .../latest/BROWSER_PUBLIC_URL_ACCEPTANCE_REPORT.md |     2 +-
+ .../latest/CODEX_PARALLEL_AUDIT_REPORT.md          |     2 +-
+ .../latest/HARD_RESET_TO_REAL_GOAL.md              |     2 +-
+ .../latest/HOSTING_AND_TELEMETRY_BRIDGE_PLAN.md    |     2 +-
+ .../latest/MARKET_FEED_ONLINE_REPORT.md            |     6 +-
+ .../latest/NO_LIVE_MUTATION_SAFETY_REPORT.md       |     2 +-
+ .../latest/PAPER_RUNTIME_ONLINE_REPORT.md          |     4 +-
+ .../latest/PAPER_RUNTIME_WIRING_REPORT.md          |     2 +-
+ .../latest/RISK_GATEWAY_CURRENT_RUNTIME_REPORT.md  |    10 +-
+ .../latest/RUNTIME_DATA_VISIBILITY_REPORT.md       |     2 +-
+ .../latest/SIGNAL_LINEAGE_ONLINE_REPORT.md         |    14 +-
+ .../SUPERVISOR_CONTROL_PLANE_REPAIR_REPORT.md      |     2 +-
+ .../latest/TRAINER_MONITOR_ONLINE_REPORT.md        |    10 +-
+ .../latest/V2_DATA_PLANE_ONLINE_REPORT.md          |     2 +-
+ ...APER_ONLINE_FULL_OPERATIONAL_RECOVERY_REPORT.md |     8 +-
+ .../latest/VALIDATION_COMMANDS.md                  |   434 +-
+ .../latest/admin_ai_status.json                    |    10 +-
+ .../latest/current_risk_decisions.json             |   113 +-
+ .../latest/current_signal_lineage.json             |   250 +-
+ .../latest/market_feed_status.json                 |     6 +-
+ .../latest/operator_dashboard_payload.json         |    14 +-
+ .../latest/paper_ledger_tail.json                  |    23 +-
+ .../latest/paper_positions.json                    |    19 +-
+ .../latest/paper_runtime_status.json               |   894 +-
+ .../latest/supervisor_current_truth.json           |     2 +-
+ .../latest/trainer_prediction_current_record.json  |    33 +-
+ .../latest/trainer_runtime_current_status.json     |     8 +-
+ .../latest/v2_data_plane_status.json               |     2 +-
+ .../automation_liveness_watchdog_status.json       |    62 +-
+ .../latest/WORKER_PORTING_STATUS.md                |    48 +-
+ .../latest/next_selected_task.json                 |     8 +-
+ .../latest/operator_dashboard_payload.json         |    90 +-
+ .../latest/worker_porting_state.json               |   623 +-
+ .../historical_pnl_audit/01_DATA_SOURCE_STATUS.md  |    33 +-
+ .../legacy_readonly_audit/01_PROCESS_SNAPSHOT.md   |     7 +-
+ .../03_LEGACY_CODE_FUNCTION_INVENTORY.md           |    23 +-
+ .../07_ORCHESTRATOR_TRADER_RUNTIME_EVIDENCE.md     |     5 +-
+ .../136_2E1E_AUTOFIX_REPORT.md                     |    51 +-
+ .../137_2E1E_AUTOFIX_GO_NO_GO.md                   |     2 +-
+ .../138_2E1E_CODEX_REREVIEW_AFTER_AUTOFIX.md       |   107 +-
+ ...9_2E1E_CODEX_REREVIEW_AFTER_AUTOFIX_GO_NO_GO.md |     2 +-
+ ...A_WORKER_HEALTH_DOMAIN_IMPLEMENTATION_REPORT.md |   141 +-
+ .../146_2E2A_WORKER_HEALTH_DOMAIN_GO_NO_GO.md      |     2 +-
+ .../build_active_autonomous_dispatch_packet.py     |    92 +-
+ .../tools/v2_permanent_objective_router.py         |    54 +-
+ .../app/cli/frontend_truth_payload_builder.py      |   149 +-
+ v2/backend/app/domain/risk_gateway/__init__.py     |    18 +
+ v2/backend/app/domain/risk_gateway/record.py       |    26 +
+ v2/backend/app/main.py                             |   110 +-
+ .../domain/risk_gateway/test_public_surface.py     |    24 +
+ v2/frontend/node_modules/.vite/deps/_metadata.json |    10 +-
+ .../CANARY_READINESS_AFTER_ACCOUNT_EVIDENCE.md     |    10 +-
+ .../CODEX_ACCOUNT_PERMISSION_AND_SOAK_REVIEW.json  |     2 +-
+ .../CODEX_ACCOUNT_PERMISSION_AND_SOAK_REVIEW.md    |     2 +-
+ .../latest/MARGIN_LEVERAGE_EVIDENCE_REPORT.md      |     4 +-
+ .../P0_P1_MIGRATION_ACCOUNT_EVIDENCE_PROGRESS.md   |     4 +-
+ .../latest/PAPER_SHADOW_MONITOR_CONTINUATION.md    |     6 +-
+ .../latest/PAPER_SHADOW_SOAK_RECONCILIATION.md     |    36 +-
+ .../latest/READONLY_ACCOUNT_EVIDENCE_REPORT.md     |     6 +-
+ ...E_PERMISSION_AND_6H_PAPER_SHADOW_SOAK_REPORT.md |    12 +-
+ .../latest/TRADE_PERMISSION_EVIDENCE_REPORT.md     |     4 +-
+ .../TRAINER_TRADER_MONITOR_CONTINUATION_REPORT.md  |    10 +-
+ .../latest/WEEKLY_LOSS_GATE_RUNTIME_PROOF.md       |     6 +-
+ .../canary_readiness_after_account_evidence.json   |     8 +-
+ .../latest/margin_leverage_evidence.json           |     2 +-
+ .../latest/operator_dashboard_payload.json         |   126 +-
+ .../p0_p1_migration_account_evidence_progress.json |     2 +-
+ .../latest/paper_shadow_monitor_continuation.json  |     6 +-
+ .../latest/paper_shadow_soak_reconciliation.json   |    38 +-
+ .../latest/readonly_account_evidence.json          |     4 +-
+ .../latest/trade_permission_evidence.json          |     2 +-
+ ...trainer_trader_monitor_continuation_status.json |    60 +-
+ .../latest/weekly_loss_gate_runtime_proof.json     |     4 +-
+ ...Y_DISPATCH_AND_SCRIPT_MIGRATION_PROOF_REPORT.md |     5 +-
+ .../latest/CLAUDE_IDLE_AND_DISPATCH_DIAGNOSTIC.md  |     3 +-
+ .../latest/CODEX_PARALLEL_DISPATCH_PROOF.md        |     5 +
+ .../latest/PRIMARY_DISPATCH_PROOF.md               |     2 +
+ .../claude_idle_and_dispatch_diagnostic.json       |   188 +-
+ .../latest/codex_parallel_dispatch_state.json      |     9 +-
+ .../latest/operator_dashboard_payload.json         |    24 +-
+ .../latest/primary_dispatch_state.json             |     6 +-
+ .../latest/always_on_runtime_state.json            |  1829 +-
+ .../latest/automation_utilization_status.json      |    26 +-
+ .../latest/git_dirty_state.json                    |  1777 +-
+ .../latest/operator_dashboard_payload.json         |  1877 +-
+ .../latest/recurring_monitor_audit_tasks.json      |     2 +-
+ .../latest/public_payload_freshness_guard.json     |   384 +-
+ .../latest/CODEX_SHUTDOWN_TAKEOVER_STATUS.md       |     5 +-
+ .../latest/blocker_matrix.json                     |    10 +-
+ .../latest/codex_shutdown_takeover_status.json     |   365 +-
+ .../latest/operator_dashboard_payload.json         |   133 +-
+ .../CODEX_COINANK_RUNTIME_REMEDIATION_REVIEW.md    |     4 +-
+ .../latest/CODEX_GO_NO_GO.md                       |     2 +-
+ ...E_CONTRACT_REMEDIATION_AND_V2_REAUDIT_REPORT.md |     4 +-
+ .../latest/GO_NO_GO.md                             |     2 +-
+ .../latest/LASTPRICE_FORENSICS.md                  |     2 +-
+ .../latest/V2_COINANK_REAUDIT_REPORT.md            |     4 +-
+ .../latest/coinank_market_intelligence_status.json |  1682 +-
+ .../latest/coinank_reference_hashes.json           |     4 +-
+ .../latest/coinank_runtime_cycle_validation.json   |    15 +-
+ .../latest/lastprice_forensics.json                |     8 +-
+ .../latest/operator_dashboard_payload.json         |  1688 +-
+ .../latest/doc_update_policy.json                  |     2 +-
+ .../latest/operator_dashboard_payload.json         |    46 +-
+ .../latest/CODEX_COINANK_PLAN3_BRIDGE_REVIEW.md    |     4 +-
+ .../latest/CODEX_GO_NO_GO.md                       |     2 +-
+ .../latest/COINANK_RUNTIME_CONTRACT_CHECK.md       |    42 +-
+ .../legacy_coinank_plan3_bridge/latest/GO_NO_GO.md |     2 +-
+ .../latest/LEGACY_COINANK_DELTA_AUDIT.md           |    29 +-
+ ...YNC_AND_V2_MARKET_INTELLIGENCE_BRIDGE_REPORT.md |    18 +-
+ ...V2_COINANK_MARKET_INTELLIGENCE_BRIDGE_REPORT.md |     8 +-
+ .../latest/coinank_delta_hashes.json               |    16 +-
+ .../latest/coinank_market_intelligence_status.json |   173 +-
+ .../latest/coinank_runtime_contract_status.json    |   600 +-
+ .../latest/operator_dashboard_payload.json         |    61 +-
+ .../latest/operator_dashboard_payload.json         |    12 +-
+ .../latest/LIVE_READINESS_PREFLIGHT_REPORT.md      |     2 +-
+ ...DE_AUTOMATION_NON_DRIFT_GOVERNOR_LOCK_REPORT.md |     6 +-
+ .../latest/GOVERNOR_PRIORITY_POLICY.md             |     2 +-
+ .../latest/NEXT_TASKS_BY_LANE.md                   |     6 +-
+ .../latest/PRIMARY_OBJECTIVE_LOCK.md               |     2 +-
+ .../latest/next_tasks_by_lane.json                 |     6 +-
+ .../latest/objective_drift_status.json             |    67 +-
+ .../latest/operator_dashboard_payload.json         |    10 +-
+ .../latest/operator_dashboard_payload.json         |     2 +-
+ .../latest/coinank_market_intelligence_status.json |    18 +-
+ .../paper_shadow_outcome_observer_status.json      | 27488 ++++++++++++++++---
+ .../latest/symbol_universe_status.json             |    57 +-
+ .../latest/v2_account_position_monitor_status.json |     4 +-
+ .../latest/v2_execution_ledger_worker_status.json  |   105 +-
+ .../v2_feature_pipeline_and_ta_worker_status.json  |    28 +-
+ .../latest/v2_market_ingestor_status.json          |   182 +-
+ .../latest/v2_paper_execution_worker_status.json   |    16 +-
+ .../v2_risk_gateway_runtime_worker_status.json     |   105 +-
+ .../latest/v2_signal_lineage_worker_status.json    |   367 +-
+ .../latest/v2_trainer_bridge_status.json           |   247 +-
+ .../latest/operator_truth_bridge_payload.json      |     6 +-
+ .../latest/operator_truth_payload.json             |   981 +-
+ .../latest/CURRENT_WEBSITE_TRUTH_AUDIT.md          |    22 +-
+ .../latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md   |    32 +-
+ .../latest/MISSING_EVIDENCE_REGISTER.md            |     2 +-
+ ...ASHBOARD_AND_REALTIME_TRAINER_MONITOR_REPORT.md |    10 +-
+ .../latest/REALTIME_TRAINER_MONITOR_REPORT.md      |    10 +-
+ .../latest/SUPERVISOR_STATE_TRUTH_REPORT.md        |    40 +-
+ .../latest/operator_dashboard_payload.json         |     4 +-
+ .../latest/operator_truth_payload.json             |  1348 +-
+ .../latest/realtime_legacy_monitor_status.json     |  1072 +-
+ .../latest/realtime_trainer_monitor_status.json    |    23 +-
+ .../latest/runtime_signal_lineage_status.json      |    20 +-
+ .../latest/trainer_prediction_stream_status.json   |    23 +-
+ .../latest/operator_dashboard_payload.json         |     2 +-
+ .../latest/operator_dashboard_payload.json         |   160 +-
+ .../latest/operator_dashboard_payload.json         |   138 +-
+ .../latest/CONTROL_PLANE_FRESHNESS_RECOVERY.md     |     4 +-
+ .../latest/LEGACY_TRADER_CONTAINMENT.md            |     6 +-
+ .../PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE_REPORT.md  |     2 +-
+ .../latest/operator_dashboard_payload.json         |    15 +-
+ .../latest/operator_truth_payload.json             |  1373 +-
+ .../latest/operator_dashboard_payload.json         |    74 +-
+ ...ADINESS_AFTER_NEGATIVE_PNL_AND_ACCOUNT_CHECK.md |     8 +-
+ ...CODEX_NEGATIVE_PNL_ACCOUNT_EVIDENCE_REVIEW.json |     2 +-
+ .../CODEX_NEGATIVE_PNL_ACCOUNT_EVIDENCE_REVIEW.md  |     2 +-
+ .../latest/MARGIN_LEVERAGE_EVIDENCE_PROVIDER.md    |     4 +-
+ .../latest/NEGATIVE_PAPER_PNL_DIAGNOSIS.md         |    38 +-
+ .../latest/P0_P1_MIGRATION_CONTINUATION.md         |     4 +-
+ .../PAPER_FILL_QUALITY_AND_OVERTRADING_AUDIT.md    |    26 +-
+ .../latest/PAPER_SHADOW_6H_24H_CONTINUATION.md     |    34 +-
+ ...AGNOSIS_AND_ACCOUNT_EVIDENCE_PROVIDER_REPORT.md |     5 +-
+ .../latest/READONLY_ACCOUNT_EVIDENCE_PROVIDER.md   |     6 +-
+ .../latest/TRADE_PERMISSION_EVIDENCE_PROVIDER.md   |     4 +-
+ .../latest/TRAINER_TRADER_MONITOR_CONTINUATION.md  |    10 +-
+ ...iness_after_negative_pnl_and_account_check.json |     5 +-
+ .../latest/margin_leverage_evidence_provider.json  |     2 +-
+ .../latest/negative_paper_pnl_diagnosis.json       |    54 +-
+ .../latest/operator_dashboard_payload.json         |   212 +-
+ .../latest/p0_p1_migration_continuation.json       |     2 +-
+ .../paper_fill_quality_and_overtrading_audit.json  |    34 +-
+ .../latest/paper_shadow_6h_24h_continuation.json   |    34 +-
+ .../latest/readonly_account_evidence_provider.json |     4 +-
+ .../latest/trade_permission_evidence_provider.json |     2 +-
+ .../trainer_trader_monitor_continuation.json       |    72 +-
+ ...ARY_PROFILE_TIGHTENING_IMPLEMENTATION_REPORT.md |     4 +-
+ .../latest/CANARY_PROFILE_TIGHTENING_PROPOSAL.md   |     4 +-
+ .../latest/CANARY_READINESS_AFTER_TIGHTENING.md    |    10 +-
+ .../CODEX_STRATEGY_EDGE_TIGHTENING_REVIEW.json     |     2 +-
+ .../CODEX_STRATEGY_EDGE_TIGHTENING_REVIEW.md       |     2 +-
+ .../latest/NEGATIVE_6H_PNL_ROOT_CAUSE.md           |    52 +-
+ .../latest/PAPER_SHADOW_24H_CONTINUATION.md        |    24 +-
+ ...AGNOSIS_AND_CANARY_PROFILE_TIGHTENING_REPORT.md |    13 +-
+ .../latest/TIGHTENED_PROFILE_EVALUATION.md         |    22 +-
+ .../TRAINER_TRADER_MONITOR_DURING_NEGATIVE_PNL.md  |    10 +-
+ .../latest/canary_profile_tightening_proposal.json |     2 +-
+ .../canary_profile_tightening_test_results.json    |     2 +-
+ .../latest/canary_readiness_after_tightening.json  |     9 +-
+ .../latest/negative_6h_pnl_root_cause.json         |    63 +-
+ .../latest/operator_dashboard_payload.json         |   213 +-
+ .../latest/paper_shadow_24h_continuation.json      |    28 +-
+ .../latest/tightened_profile_evaluation.json       |    36 +-
+ ...trainer_trader_monitor_during_negative_pnl.json |    64 +-
+ .../latest/operator_dashboard_payload.json         |    10 +-
+ .../latest/router_status.json                      |    35 +-
+ .../latest/ADMIN_SHELL_REBUILD_REPORT.md           |     2 +-
+ .../latest/ALL_ROUTES_PRODUCTION_CONTENT_REPORT.md |     2 +-
+ .../latest/BROWSER_PRODUCTION_ACCEPTANCE_REPORT.md |     2 +-
+ .../MISSION_CONTROL_PRODUCTION_REBUILD_REPORT.md   |     2 +-
+ .../MONITOR_CENTER_PRODUCTION_REPAIR_REPORT.md     |     2 +-
+ .../OPERATOR_TRUTH_GENERATOR_REPAIR_REPORT.md      |     2 +-
+ .../latest/PRODUCTION_OPERATOR_WEBAPP_REPORT.md    |     2 +-
+ .../latest/ROUTE_ACCEPTANCE_MATRIX.md              |     2 +-
+ ...GNAL_EXPLAINABILITY_PRODUCTION_REPAIR_REPORT.md |     2 +-
+ .../latest/SUPERVISOR_FRESHNESS_REPAIR_REPORT.md   |     6 +-
+ .../latest/TRADINGVIEW_PRODUCTION_REPAIR_REPORT.md |     2 +-
+ .../TRAINER_MONITOR_PRODUCTION_REPAIR_REPORT.md    |     2 +-
+ .../latest/UI_ACCEPTANCE_FAILURE.md                |     2 +-
+ .../latest/operator_dashboard_payload.json         |     2 +-
+ .../latest/BROWSER_OPERATOR_ACCEPTANCE_REPORT.md   |     2 +-
+ .../MISSION_CONTROL_SIMPLIFICATION_REPORT.md       |     2 +-
+ .../latest/MONITOR_CENTER_REALITY_REPAIR_REPORT.md |     2 +-
+ .../latest/PAYLOAD_FRESHNESS_DAEMON_REPORT.md      |     2 +-
+ ...OL_PLANE_AND_TRAINER_MONITOR_RECOVERY_REPORT.md |    12 +-
+ .../SIGNAL_EXPLAINABILITY_REALITY_REPAIR_REPORT.md |     2 +-
+ .../SUPERVISOR_RUNTIME_TRUTH_REPAIR_REPORT.md      |     8 +-
+ .../latest/TRAINER_MONITOR_UI_REPAIR_REPORT.md     |     2 +-
+ .../TRAINER_RUNTIME_EVIDENCE_RECOVERY_REPORT.md    |     8 +-
+ .../latest/operator_dashboard_payload.json         |     8 +-
+ .../latest/operator_truth_payload.json             |  1348 +-
+ .../latest/trainer_missing_evidence.md             |     2 +-
+ .../trainer_prediction_current_evidence.json       |    18 +-
+ .../latest/trainer_runtime_status.json             |    23 +-
+ .../latest/BROWSER_VISUAL_ACCEPTANCE_REPORT.md     |     2 +-
+ .../MISSION_CONTROL_SIMPLIFICATION_REPORT.md       |     2 +-
+ ...OL_PLANE_AND_TRAINER_MONITOR_RECOVERY_REPORT.md |    12 +-
+ .../latest/RUNTIME_TRUTH_FRESHNESS_FIX.md          |     2 +-
+ .../latest/SUPERVISOR_STATE_RECONCILIATION.md      |     8 +-
+ .../latest/TRAINER_MONITOR_EVIDENCE_REVIEW.md      |     6 +-
+ .../latest/operator_dashboard_payload.json         |     8 +-
+ .../latest/operator_truth_payload.json             |  1348 +-
+ .../latest/SCRIPT_MIGRATION_BACKLOG_REPORT.md      |     8 +-
+ .../latest/script_migration_backlog.json           |    65 +-
+ .../latest/ADMIN_AI_OPERATIONAL_REPORT.md          |     2 +-
+ .../latest/ALL_ROUTES_OPERATIONAL_ACCEPTANCE.md    |     2 +-
+ .../latest/BROWSER_PUBLIC_URL_ACCEPTANCE_REPORT.md |     2 +-
+ .../latest/CODEX_PARALLEL_AUDIT_REPORT.md          |     2 +-
+ .../latest/HARD_RESET_TO_REAL_GOAL.md              |     2 +-
+ .../latest/HOSTING_AND_TELEMETRY_BRIDGE_PLAN.md    |     2 +-
+ .../latest/MARKET_FEED_ONLINE_REPORT.md            |     6 +-
+ .../latest/NO_LIVE_MUTATION_SAFETY_REPORT.md       |     2 +-
+ .../latest/PAPER_RUNTIME_ONLINE_REPORT.md          |     4 +-
+ .../latest/PAPER_RUNTIME_WIRING_REPORT.md          |     2 +-
+ .../latest/RISK_GATEWAY_CURRENT_RUNTIME_REPORT.md  |    10 +-
+ .../latest/RUNTIME_DATA_VISIBILITY_REPORT.md       |     2 +-
+ .../latest/SIGNAL_LINEAGE_ONLINE_REPORT.md         |    14 +-
+ .../SUPERVISOR_CONTROL_PLANE_REPAIR_REPORT.md      |     2 +-
+ .../latest/TRAINER_MONITOR_ONLINE_REPORT.md        |    10 +-
+ .../latest/V2_DATA_PLANE_ONLINE_REPORT.md          |     2 +-
+ ...APER_ONLINE_FULL_OPERATIONAL_RECOVERY_REPORT.md |     8 +-
+ .../latest/VALIDATION_COMMANDS.md                  |   434 +-
+ .../latest/admin_ai_status.json                    |    10 +-
+ .../latest/current_risk_decisions.json             |   113 +-
+ .../latest/current_signal_lineage.json             |   250 +-
+ .../latest/market_feed_status.json                 |     6 +-
+ .../latest/operator_dashboard_payload.json         |    14 +-
+ .../latest/paper_ledger_tail.json                  |    23 +-
+ .../latest/paper_positions.json                    |    19 +-
+ .../latest/paper_runtime_status.json               |   894 +-
+ .../latest/supervisor_current_truth.json           |     2 +-
+ .../latest/trainer_prediction_current_record.json  |    33 +-
+ .../latest/trainer_runtime_current_status.json     |     8 +-
+ .../latest/v2_data_plane_status.json               |     2 +-
+ .../automation_liveness_watchdog_status.json       |    62 +-
+ .../latest/operator_dashboard_payload.json         |    90 +-
+ v2/frontend/src/hooks/usePollingQuery.ts           |    21 +-
+ v2/frontend/src/pages/cockpitData.ts               |    11 +-
+ .../src/pages/market-intelligence/index.tsx        |   238 +-
+ v2/frontend/src/pages/monitor-center/index.tsx     |  1016 +-
+ v2/frontend/src/pages/operatorTruthData.ts         |    11 +-
+ v2/frontend/src/pages/positions/index.tsx          |   213 +-
+ v2/frontend/src/pages/public-landing/index.tsx     |   286 +-
+ v2/frontend/src/pages/public-landing/route.ts      |     2 +-
+ v2/frontend/src/pages/registry.ts                  |    66 +
+ v2/frontend/src/pages/signals/index.tsx            |   174 +-
+ v2/frontend/src/pages/system-health/index.tsx      |   215 +-
+ .../src/pages/trainer-prediction-monitor/index.tsx |   301 +-
+ v2/frontend/src/router.tsx                         |     4 +-
+ v2/frontend/src/styles.css                         |   992 +
+ v2/frontend/tests/e2e/_shared.ts                   |     2 +-
+ v2/legacy_preserved/full_runtime_closure/config.py |     2 +-
+ v2/legacy_preserved/startup_baseline/config.py     |     2 +-
+ 613 files changed, 86122 insertions(+), 28337 deletions(-)
+
+exec
+/bin/bash -lc "grep -R \"claude_autoseed_decision_match_runtime_replay_comparator\\|Decision-match runtime replay comparator\\|decision_match\\|runtime replay comparator\\|replay comparator\" -n v2/backend/app/services/edge_proof v2/backend/app/services/legacy_log_intelligence claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest 2>/dev/null | head -200" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+exec
+/bin/bash -lc "find v2/backend/app/services/edge_proof v2/backend/app/services/legacy_log_intelligence claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest -maxdepth 2 -type f | sort | sed -n '1,240p'" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/GO_NO_GO.md
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/POST_6H_PRODUCTION_EQUIVALENCE_DECISION_REPORT.md
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/V2_RUNTIME_SOAK_1H_REPORT.md
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/V2_RUNTIME_SOAK_6H_REPORT.md
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/V2_RUNTIME_SOAK_AND_PRODUCTION_EQUIVALENCE_REPORT.md
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/codex_governor/CODEX_15M_STATUS.md
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/codex_governor/CODEX_GO_NO_GO.md
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/codex_governor/codex_15m_status.json
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/codex_review/CODEX_6H_SOAK_REVIEW.md
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/codex_review/CODEX_GO_NO_GO.md
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/continuous_remediation/ACTIVE_RUNTIME_REFRESH_AUDIT.json
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/continuous_remediation/GO_NO_GO.md
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/continuous_remediation/V2_CONTINUOUS_LEGACY_LOG_TO_REBUILD_REMEDIATION_REPORT.md
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/continuous_remediation/V2_CONTINUOUS_REMEDIATION_STATE_BINDING_FIX_REPORT.md
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/continuous_remediation/V2_PAPER_FILL_GATE_BLOCK_REASON_PASSTHROUGH_ACTIVE_RUNTIME_REFRESH_REPORT.md
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/continuous_remediation/continuous_remediation_status.json
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/continuous_remediation/legacy_log_v2_gap_matrix.json
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/legacy_log_enriched_comparison.json
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/operator_dashboard_payload.json
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/post_6h_production_equivalence_decision.json
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/production_equivalence_blocker_burndown.json
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/production_equivalence_comparison.json
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/runtime_soak_and_equivalence_status.json
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/soak_observation.jsonl
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/soak_status.json
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/v2_replacement_readiness_scoreboard.json
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/v2_runtime_soak_1h_status.json
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/v2_runtime_soak_6h_status.json
+claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/v2_vs_legacy_mismatch_classification.json
+v2/backend/app/services/edge_proof/__init__.py
+v2/backend/app/services/edge_proof/__pycache__/__init__.cpython-312.pyc
+v2/backend/app/services/edge_proof/__pycache__/evaluator.cpython-312.pyc
+v2/backend/app/services/edge_proof/__pycache__/replay_miner.cpython-312.pyc
+v2/backend/app/services/edge_proof/__pycache__/replay_schema.cpython-312.pyc
+v2/backend/app/services/edge_proof/evaluator.py
+v2/backend/app/services/edge_proof/replay_miner.py
+v2/backend/app/services/edge_proof/replay_schema.py
+v2/backend/app/services/legacy_log_intelligence/__init__.py
+v2/backend/app/services/legacy_log_intelligence/__pycache__/__init__.cpython-312.pyc
+v2/backend/app/services/legacy_log_intelligence/__pycache__/service.cpython-312.pyc
+v2/backend/app/services/legacy_log_intelligence/service.py
+
+exec
+/bin/bash -lc 'git diff --name-status -- v2/backend/app/services/edge_proof v2/backend/app/services/legacy_log_intelligence claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest' in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+exec
+/bin/bash -lc "git log --oneline --decorate -20 --all -- v2/backend/app/services/edge_proof v2/backend/app/services/legacy_log_intelligence claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest | sed -n '1,80p'" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+exec
+/bin/bash -lc 'git rev-parse --is-inside-work-tree; git rev-parse --show-toplevel; git log --oneline -5' in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+true
+/home/wali/Desktop/AI BOT REBUILD
+10513bbe Add V2 AI throughput acceleration plan + Codex CLI command remediation
+5cc17ee3 Add V2 24h parallel recovery war-room executor
+abb964f9 SPA SW: bump cache to v4-20260523 and force-network the shell
+31a7fd70 Refresh shutdown freshness status
+e7aa6514 Surface expected move review drift
+
+exec
+/bin/bash -lc "git ls-files v2/backend/app/services/edge_proof v2/backend/app/services/legacy_log_intelligence claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest | sed -n '1,200p'; echo 'untracked'; git status --short --untracked-files=all -- v2/backend/app/services/edge_proof v2/backend/app/services/legacy_log_intelligence claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+untracked
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/GO_NO_GO.md
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/POST_6H_PRODUCTION_EQUIVALENCE_DECISION_REPORT.md
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/V2_RUNTIME_SOAK_1H_REPORT.md
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/V2_RUNTIME_SOAK_6H_REPORT.md
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/V2_RUNTIME_SOAK_AND_PRODUCTION_EQUIVALENCE_REPORT.md
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/codex_governor/CODEX_15M_STATUS.md
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/codex_governor/CODEX_GO_NO_GO.md
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/codex_governor/codex_15m_status.json
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/codex_review/CODEX_6H_SOAK_REVIEW.md
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/codex_review/CODEX_GO_NO_GO.md
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/continuous_remediation/ACTIVE_RUNTIME_REFRESH_AUDIT.json
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/continuous_remediation/GO_NO_GO.md
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/continuous_remediation/V2_CONTINUOUS_LEGACY_LOG_TO_REBUILD_REMEDIATION_REPORT.md
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/continuous_remediation/V2_CONTINUOUS_REMEDIATION_STATE_BINDING_FIX_REPORT.md
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/continuous_remediation/V2_PAPER_FILL_GATE_BLOCK_REASON_PASSTHROUGH_ACTIVE_RUNTIME_REFRESH_REPORT.md
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/continuous_remediation/codex_review/CODEX_5M_STATUS.md
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/continuous_remediation/codex_review/CODEX_GO_NO_GO.md
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/continuous_remediation/codex_review/CODEX_PAPER_FILL_GATE_BLOCK_REASON_PASSTHROUGH_REVIEW.md
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/continuous_remediation/codex_review/CODEX_PASSTHROUGH_GO_NO_GO.md
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/continuous_remediation/codex_review/CODEX_STATE_BINDING_FIX_REVIEW.md
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/continuous_remediation/codex_review/codex_5m_status.json
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/continuous_remediation/continuous_remediation_status.json
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/continuous_remediation/legacy_log_v2_gap_matrix.json
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/legacy_log_enriched_comparison.json
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/operator_dashboard_payload.json
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/post_6h_production_equivalence_decision.json
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/production_equivalence_blocker_burndown.json
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/production_equivalence_comparison.json
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/runtime_soak_and_equivalence_status.json
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/soak_observation.jsonl
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/soak_status.json
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/v2_replacement_readiness_scoreboard.json
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/v2_runtime_soak_1h_status.json
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/v2_runtime_soak_6h_status.json
+?? claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/v2_vs_legacy_mismatch_classification.json
+?? v2/backend/app/services/edge_proof/__init__.py
+?? v2/backend/app/services/edge_proof/evaluator.py
+?? v2/backend/app/services/edge_proof/replay_miner.py
+?? v2/backend/app/services/edge_proof/replay_schema.py
+?? v2/backend/app/services/legacy_log_intelligence/__init__.py
+?? v2/backend/app/services/legacy_log_intelligence/service.py
+
+exec
+/bin/bash -lc "sed -n '1,240p' v2/backend/app/services/edge_proof/replay_schema.py && printf '\\n--- evaluator ---\\n' && sed -n '1,320p' v2/backend/app/services/edge_proof/evaluator.py && printf '\\n--- replay_miner ---\\n' && sed -n '1,320p' v2/backend/app/services/edge_proof/replay_miner.py && printf '\\n--- legacy service ---\\n' && sed -n '1,360p' v2/backend/app/services/legacy_log_intelligence/service.py && printf '\\n--- inits ---\\n' && cat v2/backend/app/services/edge_proof/__init__.py v2/backend/app/services/legacy_log_intelligence/__init__.py" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+"""V2 Native Edge-Proof — replay bundle and label schema.
+
+A replay bundle freezes everything the evaluator needs to score a
+single V2 prediction against the future market outcome: feature
+snapshot, market context, alt-data, risk / paper-gate / orchestrator
+decisions, paper intent, the optional legacy-reference action from
+the V2-vs-legacy comparator, and the future outcome windows.
+
+This module is read-only with respect to filesystem, Redis, and the
+exchange. It defines pure dataclasses + enums + canonical schema
+emitters. No I/O happens here.
+"""
+from __future__ import annotations
+
+import enum
+import json
+from dataclasses import asdict, dataclass, field
+from typing import Any, Mapping
+
+
+REPLAY_BUNDLE_SCHEMA_VERSION = "v2_native_edge_proof_replay_bundle_v1"
+
+
+class ReplayLabel(str, enum.Enum):
+    """The objective label assigned to one replay bundle.
+
+    These labels are derived from the realized after-cost outcome and
+    the V2 paper gate's decision; they are NOT a live trading authority.
+    """
+
+    CORRECT_TRADE = "correct_trade"
+    CORRECT_NO_TRADE = "correct_no_trade"
+    FALSE_POSITIVE = "false_positive"
+    FALSE_NEGATIVE = "false_negative"
+    FALSE_BLOCK = "false_block"
+    INSUFFICIENT_EVIDENCE = "insufficient_evidence"
+
+
+# Outcome windows we measure on every bundle. Numeric values are in
+# seconds. Add new entries here and the evaluator will pick them up.
+OUTCOME_WINDOWS_SECONDS: tuple[tuple[str, int], ...] = (
+    ("1m", 60),
+    ("5m", 5 * 60),
+    ("15m", 15 * 60),
+    ("1h", 60 * 60),
+)
+
+
+@dataclass(frozen=True)
+class OutcomeWindow:
+    """Realized outcome over a single window after the prediction.
+
+    ``return_bps`` is the simple log/percent return in basis points
+    over the window, after subtracting the bundle's fee and slippage
+    estimates. ``stop_hit`` is True if a hard stop / liquidation level
+    was crossed inside the window. ``samples`` records how many ticks
+    backed the measurement.
+    """
+
+    window_id: str
+    window_seconds: int
+    return_bps: float | None
+    after_cost_return_bps: float | None
+    drawdown_bps: float | None
+    stop_hit: bool
+    samples: int
+
+
+@dataclass(frozen=True)
+class ReplayBundle:
+    """One frozen training/evaluation sample."""
+
+    feature_snapshot_id: str
+    prediction_id: str
+    symbol: str
+    timeframe: str
+    generated_at: str
+    features_hash: str | None
+    market_snapshot: Mapping[str, Any]
+    altdata_snapshot: Mapping[str, Any] | None
+    risk_decision: Mapping[str, Any] | None
+    trainer_output: Mapping[str, Any] | None
+    paper_gate_decision: Mapping[str, Any] | None
+    orchestrator_decision: Mapping[str, Any] | None
+    paper_intent: Mapping[str, Any] | None
+    legacy_reference_action: Mapping[str, Any] | None
+    future_outcomes: dict[str, OutcomeWindow]
+    outcome_after_cost: float | None
+    label: ReplayLabel
+
+    def to_dict(self) -> dict[str, Any]:
+        d = asdict(self)
+        d["label"] = self.label.value
+        d["future_outcomes"] = {k: asdict(v) for k, v in self.future_outcomes.items()}
+        return d
+
+
+# ---------------------------------------------------------------------------
+# Default thresholds. These are PRELIMINARY thresholds for analysis only;
+# they are NOT a live trading authority. Operator decision is required
+# before any of them can be considered a gate.
+# ---------------------------------------------------------------------------
+
+DEFAULT_THRESHOLDS: Mapping[str, Any] = {
+    "min_sample_count": "OPERATOR_DECISION_REQUIRED",
+    "min_after_cost_expectancy_bps": "OPERATOR_DECISION_REQUIRED",
+    "min_after_cost_lower_ci_bps": "OPERATOR_DECISION_REQUIRED",
+    "max_drawdown_bps_rolling": "OPERATOR_DECISION_REQUIRED",
+    "min_downside_pre_cascade_recall": "OPERATOR_DECISION_REQUIRED",
+    "max_false_positive_rate": "OPERATOR_DECISION_REQUIRED",
+    "max_false_negative_rate": "OPERATOR_DECISION_REQUIRED",
+    "min_v2_vs_legacy_action_match_rate": "OPERATOR_DECISION_REQUIRED_INFORMATIONAL_ONLY",
+    "preliminary_only_for_analysis": True,
+    "no_live_approval_implied": True,
+}
+
+
+CANONICAL_INPUT_KEYS: tuple[str, ...] = (
+    "v2:prediction:{symbol}:{timeframe}",
+    "v2:features:latest:{symbol}:{timeframe}",
+    "v2:market:prices:{symbol}",
+    "v2:market:liquidations:heartbeat",
+    "v2:market:liquidations:latest:{symbol}",
+    "v2:market:liquidations:aggregate:{symbol}",
+    "v2:altdata:symbol_score:{symbol}",
+    "v2:risk:decisions",
+    "v2:paper:intents",
+    "v2:paper:intents_held_by_paper_fill_gate",
+    "v2:paper:ledger",
+    "v2:paper:position_history:{symbol}",
+    "v2:paper:position_price_track:{symbol}",
+    "v2:orchestrator:decisions",
+    "v2_vs_legacy_comparator: read-only public payload mirror",
+    "legacy log observer: read-only summary mirror only (never raw Redis)",
+)
+
+
+def emit_canonical_schema() -> dict[str, Any]:
+    """Return the canonical replay-bundle schema as a JSON-safe dict.
+
+    The schema is intentionally explicit about the safety invariants
+    that the bundle must preserve.
+    """
+    return {
+        "schema_version": REPLAY_BUNDLE_SCHEMA_VERSION,
+        "bundle_fields": [
+            "feature_snapshot_id",
+            "prediction_id",
+            "symbol",
+            "timeframe",
+            "generated_at",
+            "features_hash",
+            "market_snapshot",
+            "altdata_snapshot",
+            "risk_decision",
+            "trainer_output",
+            "paper_gate_decision",
+            "orchestrator_decision",
+            "paper_intent",
+            "legacy_reference_action",
+            "future_outcomes",
+            "outcome_after_cost",
+            "label",
+        ],
+        "future_outcomes_windows": [
+            {"window_id": wid, "window_seconds": secs}
+            for wid, secs in OUTCOME_WINDOWS_SECONDS
+        ],
+        "labels": [label.value for label in ReplayLabel],
+        "canonical_input_keys": list(CANONICAL_INPUT_KEYS),
+        "default_thresholds": dict(DEFAULT_THRESHOLDS),
+        "required_thresholds_for_provisional_paper_pass": [
+            "min_sample_count",
+            "min_after_cost_expectancy_bps",
+            "min_after_cost_lower_ci_bps",
+            "max_drawdown_bps_rolling",
+            "min_downside_pre_cascade_recall",
+            "max_false_positive_rate",
+            "max_false_negative_rate",
+        ],
+        "default_cost_model": {
+            "fee_drag_bps": 5.0,
+            "slippage_estimate_bps": 2.0,
+            "cost_model_source": (
+                "DEFAULT_PAPER_COST_MODEL_PENDING_OPERATOR_OVERRIDE_"
+                "OPERATOR_DECISION_REQUIRED"
+            ),
+            "operator_override_required": True,
+            "operator_decision_required": True,
+        },
+        "live_gate": "blocked_human_only",
+        "live_symbols": [],
+        "approves_live": False,
+        "approves_canary": False,
+        "approves_legacy_shutdown": False,
+        "approves_redis_trim": False,
+        "did_not_read_old_redis_current_truth": True,
+        "did_not_modify_legacy_bot": True,
+        "did_not_call_exchange": True,
+        "did_not_expose_raw_api_keys": True,
+    }
+
+
+def replay_bundle_to_json(bundle: ReplayBundle) -> str:
+    """Serialize one replay bundle as a JSON string."""
+    return json.dumps(bundle.to_dict(), indent=2, sort_keys=True, default=str)
+
+--- evaluator ---
+"""V2 Native Edge-Proof — replay evaluator.
+
+Pure functions that consume a sequence of ``ReplayBundle`` objects
+and produce the canonical edge-proof metric summary required by
+``V2_NATIVE_EDGE_PROOF_SPEC_AND_REPLAY_EVALUATOR_READY``.
+
+The evaluator is deliberately conservative:
+
+- it never claims edge unless every operator-set threshold is satisfied;
+- when thresholds are still ``OPERATOR_DECISION_REQUIRED`` (the default
+  state of this packet), the verdict is always
+  ``EDGE_NOT_CLAIMED_OPERATOR_THRESHOLDS_REQUIRED``;
+- no live / canary / shutdown action is implied by any metric;
+- no Redis write, no exchange call, no approval marker.
+"""
+from __future__ import annotations
+
+import math
+import statistics
+from collections import Counter
+from dataclasses import dataclass, field
+from typing import Any, Iterable, Mapping, Sequence
+
+from .replay_schema import (
+    DEFAULT_THRESHOLDS,
+    OUTCOME_WINDOWS_SECONDS,
+    ReplayBundle,
+    ReplayLabel,
+)
+
+
+PRIMARY_OUTCOME_WINDOW_ID = "5m"
+
+
+@dataclass(frozen=True)
+class MetricSummary:
+    """Canonical metric summary the evaluator emits."""
+
+    sample_count: int
+    minimum_sample_satisfied: bool
+
+    # After-cost edge metrics
+    after_cost_pnl_delta: float | None
+    expected_move_after_cost_bps: float | None
+    after_cost_ci_lower_bps: float | None
+    after_cost_ci_upper_bps: float | None
+    fee_drag_bps: float | None
+    slippage_estimate_bps: float | None
+
+    # Classification metrics
+    false_positive_rate: float | None
+    false_negative_rate: float | None
+    no_trade_correct_count: int
+    false_block_count: int
+
+    # Downside / cascade
+    downside_pre_cascade_recall: float | None
+    downside_pre_cascade_precision: float | None
+
+    # Latency / gate behavior
+    average_latency_to_signal_seconds: float | None
+    gate_block_reason_distribution: dict[str, int]
+
+    # Comparator
+    v2_vs_legacy_action_match_rate: float | None
+    v2_hold_due_checkpoint_count: int
+    v2_hold_due_strict_gate_count: int
+
+    # Drawdown (worst observed across all bundles' all windows)
+    max_drawdown_bps_observed: float | None
+
+    # Verdict
+    verdict: str
+    verdict_reason: str
+    thresholds_used: Mapping[str, Any]
+    thresholds_satisfied: dict[str, bool | str]
+    threshold_evidence: list[dict[str, Any]]
+
+    # Safety
+    live_gate: str = "blocked_human_only"
+    live_symbols: tuple[str, ...] = field(default_factory=tuple)
+    approves_live: bool = False
+    approves_canary: bool = False
+    approves_legacy_shutdown: bool = False
+    approves_redis_trim: bool = False
+
+
+def _coerce_float(value: Any) -> float | None:
+    try:
+        if value is None:
+            return None
+        v = float(value)
+        if math.isnan(v) or math.isinf(v):
+            return None
+        return v
+    except (TypeError, ValueError):
+        return None
+
+
+def _bootstrap_mean_ci(
+    values: Sequence[float], iters: int = 2000, alpha: float = 0.05
+) -> tuple[float, float, float]:
+    """Return (mean, lower_ci, upper_ci) via percentile bootstrap.
+
+    Pure / deterministic-ish: uses ``statistics.fmean`` on bootstrap
+    resamples drawn from ``values`` with replacement. Falls back to
+    point estimates when ``values`` is too small.
+    """
+    if not values:
+        return (0.0, 0.0, 0.0)
+    if len(values) < 5:
+        m = statistics.fmean(values)
+        return (m, m, m)
+    # Deterministic seeded resampling to keep CI reproducible for tests.
+    import random
+    rng = random.Random(0xED6E_5EED)  # spelled out: "edge seed"
+    n = len(values)
+    means: list[float] = []
+    for _ in range(iters):
+        sample = [values[rng.randint(0, n - 1)] for _ in range(n)]
+        means.append(statistics.fmean(sample))
+    means.sort()
+    lo_idx = int(iters * (alpha / 2))
+    hi_idx = int(iters * (1 - alpha / 2))
+    return (
+        statistics.fmean(values),
+        means[max(0, min(lo_idx, iters - 1))],
+        means[max(0, min(hi_idx, iters - 1))],
+    )
+
+
+def _is_trade(bundle: ReplayBundle) -> bool:
+    """A bundle counts as a "would-be trade" if the paper gate or the
+    paper intent indicates the trade would have been taken.
+    """
+    intent = bundle.paper_intent or {}
+    decision = (intent.get("decision") or "").upper()
+    if decision in ("ACCEPTED_PAPER_FILL",):
+        return True
+    gate = bundle.paper_gate_decision or {}
+    return bool(gate.get("paper_fill_allowed"))
+
+
+def _is_blocked(bundle: ReplayBundle) -> bool:
+    """The bundle is "blocked" only with explicit block evidence:
+    paper-intent decision in (HELD_BY_PAPER_FILL_GATE, BLOCKED), OR
+    paper_fill_allowed is False with at least one block_reason.
+
+    ``paper_fill_allowed=False`` with no block reasons is treated as
+    "model held / no trade" (not a gate block) so the bundle is not
+    misclassified as FALSE_BLOCK when the truth is FALSE_NEGATIVE /
+    CORRECT_NO_TRADE.
+    """
+    intent = bundle.paper_intent or {}
+    decision = (intent.get("decision") or "").upper()
+    if decision in ("HELD_BY_PAPER_FILL_GATE", "BLOCKED"):
+        return True
+    gate = bundle.paper_gate_decision or {}
+    if gate.get("paper_fill_allowed") is False:
+        reasons = gate.get("paper_fill_gate_block_reasons") or []
+        if reasons:
+            return True
+    return False
+
+
+def _block_reasons(bundle: ReplayBundle) -> list[str]:
+    gate = bundle.paper_gate_decision or {}
+    intent = bundle.paper_intent or {}
+    reasons: list[str] = []
+    for source in (gate.get("paper_fill_gate_block_reasons"), intent.get("paper_fill_gate_block_reasons")):
+        if isinstance(source, list):
+            reasons.extend(str(r) for r in source)
+    return reasons
+
+
+def _legacy_action(bundle: ReplayBundle) -> str | None:
+    ref = bundle.legacy_reference_action or {}
+    action = ref.get("action") or ref.get("selected_action")
+    if isinstance(action, str):
+        return action.lower()
+    return None
+
+
+def _v2_action(bundle: ReplayBundle) -> str:
+    trainer = bundle.trainer_output or {}
+    selected = trainer.get("selected_action")
+    if isinstance(selected, str):
+        return selected.lower()
+    return "hold" if not _is_trade(bundle) else "long_or_short"
+
+
+def _v2_hold_reasons(bundle: ReplayBundle) -> tuple[bool, bool]:
+    """(checkpoint_hold, strict_gate_hold) — paper-fill block reasons."""
+    reasons = _block_reasons(bundle)
+    checkpoint = any("checkpoint" in r.lower() for r in reasons)
+    strict_gate = any(
+        any(token in r.lower() for token in (
+            "strict_gate", "fee_gate", "churn", "feature_freshness",
+            "edge_below_threshold", "negative_expected_move_after_cost",
+        ))
+        for r in reasons
+    )
+    return checkpoint, strict_gate
+
+
+def _classify(bundle: ReplayBundle, outcome_window: str) -> ReplayLabel:
+    """Recompute the objective label from the realized after-cost
+    outcome in ``outcome_window``. If the bundle already carries a
+    non-INSUFFICIENT_EVIDENCE label we trust that; otherwise we
+    classify against the realized after-cost return sign.
+    """
+    if bundle.label != ReplayLabel.INSUFFICIENT_EVIDENCE:
+        return bundle.label
+    outcome = bundle.future_outcomes.get(outcome_window)
+    after_cost = outcome.after_cost_return_bps if outcome else None
+    if after_cost is None:
+        return ReplayLabel.INSUFFICIENT_EVIDENCE
+    traded = _is_trade(bundle)
+    blocked = _is_blocked(bundle)
+    if traded and after_cost > 0:
+        return ReplayLabel.CORRECT_TRADE
+    if traded and after_cost <= 0:
+        return ReplayLabel.FALSE_POSITIVE
+    if not traded and not blocked and after_cost <= 0:
+        return ReplayLabel.CORRECT_NO_TRADE
+    if not traded and not blocked and after_cost > 0:
+        return ReplayLabel.FALSE_NEGATIVE
+    if blocked and after_cost > 0:
+        return ReplayLabel.FALSE_BLOCK
+    if blocked and after_cost <= 0:
+        return ReplayLabel.CORRECT_NO_TRADE
+    return ReplayLabel.INSUFFICIENT_EVIDENCE
+
+
+def _is_pre_cascade(bundle: ReplayBundle) -> bool:
+    """A bundle is a pre-cascade-shock instance if the future outcome
+    crosses a liquidation/stop level or drops more than 200 bps after
+    cost in the primary window.
+    """
+    outcome = bundle.future_outcomes.get(PRIMARY_OUTCOME_WINDOW_ID)
+    if outcome is None:
+        return False
+    if outcome.stop_hit:
+        return True
+    if outcome.after_cost_return_bps is not None and outcome.after_cost_return_bps <= -200:
+        return True
+    return False
+
+
+def _v2_warning(bundle: ReplayBundle) -> bool:
+    """V2 issued a downside warning if it blocked the trade or if
+    its trainer output's expected_move_after_cost_bps is negative.
+    """
+    if _is_blocked(bundle):
+        return True
+    trainer = bundle.trainer_output or {}
+    em_after = _coerce_float(trainer.get("expected_move_after_cost_bps"))
+    return em_after is not None and em_after < 0
+
+
+def evaluate(
+    bundles: Sequence[ReplayBundle],
+    *,
+    thresholds: Mapping[str, Any] | None = None,
+    outcome_window: str = PRIMARY_OUTCOME_WINDOW_ID,
+) -> MetricSummary:
+    """Compute the canonical metric summary over ``bundles``.
+
+    The verdict is always conservative: it can only become
+    ``EDGE_PROVISIONAL_PAPER_PASS`` when every threshold is a concrete
+    numeric and every check passes. While any threshold remains
+    ``OPERATOR_DECISION_REQUIRED`` the verdict is
+    ``EDGE_NOT_CLAIMED_OPERATOR_THRESHOLDS_REQUIRED``.
+    """
+    thr = dict(DEFAULT_THRESHOLDS)
+    if thresholds:
+        thr.update(thresholds)
+
+    sample_count = len(bundles)
+    min_sample = thr.get("min_sample_count")
+    min_sample_satisfied = isinstance(min_sample, int) and sample_count >= min_sample
+
+    after_cost_returns: list[float] = []
+    fee_estimates: list[float] = []
+    slippage_estimates: list[float] = []
+    latencies: list[float] = []
+    classified: list[ReplayLabel] = []
+    pre_cascade_total = 0
+    pre_cascade_v2_warned = 0
+    v2_warning_total = 0
+    pre_cascade_with_warning = 0
+    legacy_match = 0
+    legacy_compared = 0
+    hold_checkpoint = 0
+    hold_strict = 0
+    block_reasons_counter: Counter[str] = Counter()
+
+    for b in bundles:
+        # After-cost return on the primary window.
+        outcome = b.future_outcomes.get(outcome_window)
+        if outcome and outcome.after_cost_return_bps is not None:
+            after_cost_returns.append(float(outcome.after_cost_return_bps))
+
+        # Fee and slippage estimates from market snapshot if present.
+        m = b.market_snapshot or {}
+        fee = _coerce_float(m.get("fee_bps"))
+        if fee is not None:
+            fee_estimates.append(fee)
+        slip = _coerce_float(m.get("slippage_estimate_bps"))
+        if slip is not None:
+            slippage_estimates.append(slip)
+
+        # Latency from prediction generation to paper-fill-gate decision.
+        gate = b.paper_gate_decision or {}
+        latency = _coerce_float(gate.get("latency_seconds"))
+        if latency is not None:
+            latencies.append(latency)
+
+        # Classification + block reasons.
+        label = _classify(b, outcome_window)
+
+--- replay_miner ---
+"""V2 Native Edge-Proof — post-hoc replay outcome miner.
+
+Maintains an incremental price + bundle store on disk so the
+edge-proof evaluator has real future-outcome windows (1m / 5m / 15m /
+1h) to score against. Each invocation:
+
+1. Appends the current ``v2:market:prices:{symbol}`` snapshot to a
+   per-symbol price-timeline JSONL.
+2. Appends new shadow / paper-intent rows from ``v2:paper:ledger``
+   into a replay-bundles JSONL store (deduplicating by intent_id).
+3. For each existing bundle, attempts to fill any outcome window that
+   now has enough elapsed time and at least one timeline point on or
+   after the window endpoint. Windows that still cannot be filled stay
+   `INSUFFICIENT_EVIDENCE`.
+4. Computes after-cost return, max favorable, max adverse, fee drag,
+   slippage estimate per filled window.
+5. Assigns objective labels from realized after-cost outcome + paper
+   gate decision. The miner NEVER fabricates outcomes; missing windows
+   stay explicit.
+
+Safety:
+
+- Reads only ``v2:*`` Redis keys via the safe reader and the
+  V2-vs-legacy comparator public mirror.
+- Writes only under
+  ``claude_worklog/final_readiness/v2_post_hoc_replay_outcome_miner/`` and
+  ``v2/frontend/public/v2_post_hoc_replay_outcome_miner/``.
+- Never modifies legacy code, never calls the exchange, never enables
+  live trading, never adopts symbols, never creates approval markers.
+"""
+from __future__ import annotations
+
+import json
+import os
+import time
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Iterable, Mapping
+
+from .replay_schema import (
+    OUTCOME_WINDOWS_SECONDS,
+    OutcomeWindow,
+    REPLAY_BUNDLE_SCHEMA_VERSION,
+    ReplayBundle,
+    ReplayLabel,
+)
+
+REPO_ROOT = Path(__file__).resolve().parents[5]
+STATE_DIR = (
+    REPO_ROOT
+    / "claude_worklog"
+    / "final_readiness"
+    / "v2_post_hoc_replay_outcome_miner"
+    / "state"
+)
+WORKLOG_DIR = (
+    REPO_ROOT
+    / "claude_worklog"
+    / "final_readiness"
+    / "v2_post_hoc_replay_outcome_miner"
+    / "latest"
+)
+PUBLIC_DIR = (
+    REPO_ROOT
+    / "v2"
+    / "frontend"
+    / "public"
+    / "v2_post_hoc_replay_outcome_miner"
+    / "latest"
+)
+
+# Operator-decision-required defaults for the cost model. The miner
+# applies these as "preliminary defaults" only; the operator must set
+# concrete numerics before any canary or live ramp can be approved.
+# These are tagged inside every emitted bundle so the operator and
+# Codex can audit which cost-model was used during scoring.
+DEFAULT_FEE_BPS = 5.0
+DEFAULT_SLIPPAGE_BPS = 2.0
+# Cost-model marker MUST include the literal ``OPERATOR_DECISION_REQUIRED``
+# so every default cost model emitted in a bundle / metrics summary is
+# unambiguously flagged as not-yet-approved by the operator. Codex
+# review flagged the prior marker for not surfacing this literal;
+# do not regress.
+COST_MODEL_NOTE = (
+    "DEFAULT_PAPER_COST_MODEL_PENDING_OPERATOR_OVERRIDE_OPERATOR_DECISION_REQUIRED"
+)
+COST_MODEL_OPERATOR_OVERRIDE_REQUIRED = True
+
+
+def _utc_iso() -> str:
+    return (
+        datetime.now(timezone.utc)
+        .isoformat(timespec="seconds")
+        .replace("+00:00", "Z")
+    )
+
+
+def _parse_iso(ts: Any) -> float | None:
+    if not isinstance(ts, str):
+        return None
+    s = ts
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    try:
+        return datetime.fromisoformat(s).timestamp()
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _coerce_float(value: Any) -> float | None:
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe_redis_read(key: str) -> Any:
+    """v2:* only. Never writes. Returns parsed JSON or None."""
+    if not key.startswith("v2:"):
+        return None
+    try:
+        import redis  # type: ignore
+
+        r = redis.Redis(decode_responses=True, socket_connect_timeout=2)
+        r.ping()
+        raw = r.get(key)
+        if raw is None:
+            return None
+        try:
+            return json.loads(raw)
+        except Exception:  # noqa: BLE001
+            return raw
+    except Exception:  # noqa: BLE001
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Price timeline
+# ---------------------------------------------------------------------------
+
+def _price_timeline_path(symbol: str) -> Path:
+    return STATE_DIR / f"price_timeline_{symbol.upper()}.jsonl"
+
+
+def _read_market_price(symbol: str) -> tuple[float, float] | None:
+    """Return (utc_seconds, last_price_float) or None if unavailable."""
+    doc = _safe_redis_read(f"v2:market:prices:{symbol.upper()}")
+    if not isinstance(doc, dict):
+        return None
+    fetched_utc = doc.get("fetched_utc")
+    ticker = doc.get("ticker_24hr") or {}
+    price_str = ticker.get("lastPrice") or ticker.get("bidPrice")
+    ts = _parse_iso(fetched_utc)
+    price = _coerce_float(price_str)
+    if ts is None or price is None or price <= 0:
+        return None
+    return ts, price
+
+
+def append_price_snapshot(symbol: str) -> dict[str, Any]:
+    sym = symbol.upper()
+    point = _read_market_price(sym)
+    if point is None:
+        return {"symbol": sym, "appended": False, "reason": "no_market_price"}
+    ts, price = point
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    path = _price_timeline_path(sym)
+    # Avoid appending if the same ts has been recorded already.
+    last_ts = _last_recorded_ts(path)
+    if last_ts is not None and ts <= last_ts:
+        return {
+            "symbol": sym,
+            "appended": False,
+            "reason": "no_new_market_tick",
+            "last_recorded_ts": last_ts,
+            "candidate_ts": ts,
+        }
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps({"ts": ts, "price": price}) + "\n")
+    return {"symbol": sym, "appended": True, "ts": ts, "price": price}
+
+
+def _last_recorded_ts(path: Path) -> float | None:
+    if not path.exists():
+        return None
+    last = None
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            for line in f:
+                try:
+                    row = json.loads(line)
+                    last = row.get("ts")
+                except Exception:  # noqa: BLE001
+                    continue
+    except Exception:  # noqa: BLE001
+        return None
+    return last
+
+
+def load_price_timeline(symbol: str) -> list[tuple[float, float]]:
+    path = _price_timeline_path(symbol.upper())
+    if not path.exists():
+        return []
+    rows: list[tuple[float, float]] = []
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            try:
+                row = json.loads(line)
+                ts = float(row.get("ts"))
+                price = float(row.get("price"))
+                rows.append((ts, price))
+            except Exception:  # noqa: BLE001
+                continue
+    rows.sort(key=lambda x: x[0])
+    return rows
+
+
+def _find_window_slice(
+    timeline: list[tuple[float, float]],
+    anchor_ts: float,
+    window_seconds: int,
+) -> list[tuple[float, float]] | None:
+    """Return the timeline slice in [anchor_ts, anchor_ts + window_seconds]
+    if the slice contains at least one point on or after the window
+    endpoint, else None (window not yet sourceable).
+    """
+    if not timeline:
+        return None
+    window_end = anchor_ts + window_seconds
+    slice_: list[tuple[float, float]] = []
+    has_endpoint = False
+    for ts, price in timeline:
+        if ts < anchor_ts:
+            continue
+        if ts > window_end + 1:  # +1s tolerance
+            break
+        slice_.append((ts, price))
+        if ts >= window_end:
+            has_endpoint = True
+    if not slice_ or not has_endpoint:
+        return None
+    return slice_
+
+
+# ---------------------------------------------------------------------------
+# Bundle store
+# ---------------------------------------------------------------------------
+
+REPLAY_BUNDLES_PATH = STATE_DIR / "replay_bundles.jsonl"
+
+
+def _read_bundles() -> list[dict[str, Any]]:
+    if not REPLAY_BUNDLES_PATH.exists():
+        return []
+    out: list[dict[str, Any]] = []
+    with REPLAY_BUNDLES_PATH.open("r", encoding="utf-8") as f:
+        for line in f:
+            try:
+                out.append(json.loads(line))
+            except Exception:  # noqa: BLE001
+                continue
+    return out
+
+
+def _write_bundles(bundles: list[dict[str, Any]]) -> None:
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = REPLAY_BUNDLES_PATH.with_suffix(".jsonl.tmp")
+    with tmp.open("w", encoding="utf-8") as f:
+        for b in bundles:
+            f.write(json.dumps(b, sort_keys=True, default=str) + "\n")
+    os.replace(tmp, REPLAY_BUNDLES_PATH)
+
+
+def _legacy_reference_action_for(symbol: str) -> dict[str, Any] | None:
+    mirror = (
+        REPO_ROOT
+        / "v2"
+        / "frontend"
+        / "public"
+        / "v2_legacy_v2_production_comparator"
+        / "latest"
+        / "operator_dashboard_payload.json"
+    )
+    try:
+        doc = json.loads(mirror.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return None
+    rows = doc.get("symbol_rows") or doc.get("per_symbol") or []
+    if not isinstance(rows, list):
+        return None
+    for row in rows:
+        if isinstance(row, dict) and (row.get("symbol") or "").upper() == symbol.upper():
+            action = row.get("legacy_action") or row.get("action")
+            if isinstance(action, str):
+                return {
+                    "action": action,
+                    "source": "v2_legacy_v2_production_comparator_mirror",
+                }
+    return None
+
+
+def _harvest_paper_evidence() -> list[dict[str, Any]]:
+    """Extract paper evidence rows from v2:paper:ledger and v2:paper:intents.
+
+    Each row becomes one candidate replay bundle (deduplicated downstream
+    by intent_id). Only data that is already inside V2 keys is read;
+    legacy current truth is never consulted.
+    """
+    rows: list[dict[str, Any]] = []
+    ledger = _safe_redis_read("v2:paper:ledger") or {}
+    intents = _safe_redis_read("v2:paper:intents") or []
+    held = _safe_redis_read("v2:paper:intents_held_by_paper_fill_gate") or []
+    risk = _safe_redis_read("v2:risk:decisions") or []
+    orch = _safe_redis_read("v2:orchestrator:decisions") or {}
+
+    risk_by_symbol = {
+        (r.get("symbol") or "").upper(): r
+
+--- legacy service ---
+"""Legacy log intelligence read-only service (paper-only)."""
+from __future__ import annotations
+
+import json
+import os
+import re
+import subprocess
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from difflib import get_close_matches
+from pathlib import Path
+from typing import Any, Optional
+
+LEGACY_BOT_ROOT = Path("/home/wali/Desktop/AI BOT")
+LEGACY_LOGS_DIR = LEGACY_BOT_ROOT / "logs"
+LEGACY_SCRIPTS_DIR = LEGACY_BOT_ROOT / "scripts"
+OFFSET_DIR = Path("v2/runtime/legacy_log_intelligence/offsets")
+MAX_TAIL_BYTES = 256 * 1024
+
+REQUIRED_LOG_REQUESTS = (
+    "logs/hybrid_trainer.log",
+    "logs/orchestrator_worker.log",
+)
+REQUIRED_SCRIPT_REQUESTS = (
+    "scripts/monitor_trainer_prices.py",
+    "scripts/monitor_trainer_predictions.py",
+    "scripts/monitor_signals.py",
+)
+
+
+def _utc_iso() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _utc_from_ts(ts: float) -> str:
+    return (
+        datetime.fromtimestamp(ts, tz=timezone.utc)
+        .isoformat(timespec="seconds")
+        .replace("+00:00", "Z")
+    )
+
+
+def _resolve_with_typo_tolerance(requested: str) -> tuple[Optional[Path], str]:
+    req = requested.strip()
+    if not req:
+        return None, "MISSING_PATH"
+    head, _, tail = req.rpartition("/")
+    head_l = head.lower().replace(" ", "")
+    candidate_dirs: list[Path] = []
+    if "log" in head_l:
+        candidate_dirs.append(LEGACY_LOGS_DIR)
+    if "script" in head_l:
+        candidate_dirs.append(LEGACY_SCRIPTS_DIR)
+    candidate_dirs.append(LEGACY_LOGS_DIR)
+    candidate_dirs.append(LEGACY_SCRIPTS_DIR)
+    candidate_dirs.append(LEGACY_BOT_ROOT)
+    basename = tail or req
+    candidates = [basename]
+    if not basename.lower().endswith((".py", ".log", ".sh", ".json", ".toml", ".yaml", ".yml")):
+        candidates.append(basename + ".py")
+        candidates.append(basename + ".log")
+    for d in candidate_dirs:
+        if not d.is_dir():
+            continue
+        try:
+            listing = [p.name for p in d.iterdir() if p.is_file()]
+        except OSError:
+            continue
+        for cand in candidates:
+            if cand in listing:
+                return d / cand, "FOUND_READONLY"
+        for cand in candidates:
+            close = get_close_matches(cand, listing, n=2, cutoff=0.65)
+            if len(close) > 1:
+                return d / close[0], "AMBIGUOUS_MULTIPLE_MATCHES"
+            if len(close) == 1:
+                return d / close[0], "FOUND_READONLY"
+    return None, "MISSING_PATH"
+
+
+@dataclass
+class SourceDescriptor:
+    requested_name: str
+    resolved_path: Optional[str]
+    exists: bool
+    readable: bool
+    is_file: bool
+    file_size_bytes: int
+    mtime_utc: Optional[str]
+    last_read_offset: int
+    classification: str
+
+
+def _offset_path_for(p: Path) -> Path:
+    safe = str(p).replace("/", "_").replace(" ", "_").strip("_")
+    return OFFSET_DIR / f"{safe}.offset"
+
+
+def _load_offset(p: Path) -> int:
+    op = _offset_path_for(p)
+    if not op.exists():
+        return 0
+    try:
+        return int(op.read_text().strip() or "0")
+    except (OSError, ValueError):
+        return 0
+
+
+def _save_offset(p: Path, offset: int) -> None:
+    OFFSET_DIR.mkdir(parents=True, exist_ok=True)
+    op = _offset_path_for(p)
+    try:
+        op.write_text(str(int(offset)))
+    except OSError:
+        pass
+
+
+def _read_tail(p: Path, start_offset: int) -> tuple[bytes, int]:
+    try:
+        st = p.stat()
+    except OSError:
+        return b"", start_offset
+    size = int(st.st_size)
+    if size < start_offset:
+        start_offset = 0
+    if size <= start_offset:
+        return b"", size
+    read_from = start_offset
+    if size - start_offset > MAX_TAIL_BYTES:
+        read_from = size - MAX_TAIL_BYTES
+    try:
+        with p.open("rb") as fh:
+            fh.seek(read_from)
+            data = fh.read(size - read_from)
+    except OSError:
+        return b"", start_offset
+    return data, size
+
+
+def _stale_seconds(p: Path) -> int:
+    try:
+        return int(datetime.now(timezone.utc).timestamp() - p.stat().st_mtime)
+    except OSError:
+        return -1
+
+
+def _classify_source(requested: str, resolved: Optional[Path], cls_hint: str) -> SourceDescriptor:
+    if resolved is None:
+        return SourceDescriptor(
+            requested_name=requested, resolved_path=None, exists=False, readable=False,
+            is_file=False, file_size_bytes=0, mtime_utc=None, last_read_offset=0,
+            classification="MISSING_PATH",
+        )
+    try:
+        st = resolved.stat()
+    except OSError:
+        return SourceDescriptor(
+            requested_name=requested, resolved_path=str(resolved), exists=False, readable=False,
+            is_file=False, file_size_bytes=0, mtime_utc=None, last_read_offset=0,
+            classification="UNREADABLE",
+        )
+    if not resolved.is_file():
+        return SourceDescriptor(
+            requested_name=requested, resolved_path=str(resolved), exists=True, readable=False,
+            is_file=False, file_size_bytes=int(st.st_size), mtime_utc=_utc_from_ts(st.st_mtime),
+            last_read_offset=0, classification="NOT_A_FILE",
+        )
+    try:
+        with resolved.open("rb") as fh:
+            fh.read(1)
+        readable = True
+    except OSError:
+        readable = False
+    return SourceDescriptor(
+        requested_name=requested, resolved_path=str(resolved), exists=True, readable=readable,
+        is_file=True, file_size_bytes=int(st.st_size), mtime_utc=_utc_from_ts(st.st_mtime),
+        last_read_offset=_load_offset(resolved),
+        classification=cls_hint if readable else "UNREADABLE",
+    )
+
+
+def _descriptor_to_dict(d: SourceDescriptor) -> dict:
+    return {
+        "requested_name": d.requested_name,
+        "resolved_path": d.resolved_path,
+        "exists": d.exists,
+        "readable": d.readable,
+        "is_file": d.is_file,
+        "file_size_bytes": d.file_size_bytes,
+        "mtime_utc": d.mtime_utc,
+        "last_read_offset": d.last_read_offset,
+        "classification": d.classification,
+    }
+
+
+def discover_legacy_sources() -> dict:
+    logs: list[dict] = []
+    for req in REQUIRED_LOG_REQUESTS:
+        resolved, hint = _resolve_with_typo_tolerance(req)
+        logs.append(_descriptor_to_dict(_classify_source(req, resolved, hint)))
+    scripts: list[dict] = []
+    for req in REQUIRED_SCRIPT_REQUESTS:
+        resolved, hint = _resolve_with_typo_tolerance(req)
+        scripts.append(_descriptor_to_dict(_classify_source(req, resolved, hint)))
+    typo_probes = [
+        "scripts/monitor_trainer_prediction.py",
+        "scripts/monitor_trainer_oediction.py",
+        "scripts/monitor_trainer_prices",
+        "scripts/monitor_signals",
+    ]
+    typo_results: list[dict] = []
+    for req in typo_probes:
+        resolved, hint = _resolve_with_typo_tolerance(req)
+        typo_results.append(_descriptor_to_dict(_classify_source(req, resolved, hint)))
+    return {
+        "schema_version": "v2_legacy_log_source_discovery_v1",
+        "generated_utc": _utc_iso(),
+        "legacy_bot_root": str(LEGACY_BOT_ROOT),
+        "logs_dir": str(LEGACY_LOGS_DIR),
+        "scripts_dir": str(LEGACY_SCRIPTS_DIR),
+        "logs": logs,
+        "scripts": scripts,
+        "typo_tolerance_probes": typo_results,
+        "no_old_redis_writes": True,
+        "no_exchange_mutation": True,
+        "no_legacy_script_executed": True,
+        "live_gate": "blocked_human_only",
+        "live_symbols": [],
+    }
+
+
+_TRAINER_PATTERNS = {
+    "heartbeat": re.compile(r"\b(heartbeat|hybrid_trainer_alive|loop tick)\b", re.IGNORECASE),
+    "prediction_event": re.compile(r"\bprediction[:\s]+(?P<sym>[A-Z0-9]{3,12})[:\s]+(?P<tf>1m|5m|15m|1h|4h|1d)\b"),
+    "action_event": re.compile(r"\b(action|decision)\s*[:=]\s*(?P<action>hold|long|short|close|close_short_open_long|open_short|open_long|close_long_open_short)\b", re.IGNORECASE),
+    "confidence_event": re.compile(r"\b(confidence|conf)\s*[:=]\s*(?P<conf>[01](?:\.\d+)?)\b", re.IGNORECASE),
+    "ppo_confidence": re.compile(r"\bppo_confidence\s*[:=]\s*(?P<v>[01](?:\.\d+)?)\b", re.IGNORECASE),
+    "masa_confidence": re.compile(r"\bmasa_confidence\s*[:=]\s*(?P<v>[01](?:\.\d+)?)\b", re.IGNORECASE),
+    "expected_move": re.compile(r"\b(expected_move|expected_move_bps|expected_move_after_cost_bps)\s*[:=]\s*(?P<v>-?\d+(?:\.\d+)?)\b", re.IGNORECASE),
+    "checkpoint": re.compile(r"\b(checkpoint|model_version|ppo_masa_ckpt|hybrid_trainer_ckpt)[:=\s]+([A-Za-z0-9_\-./]+)", re.IGNORECASE),
+    "gpu_warning": re.compile(r"\b(cuda|gpu)\b.*\b(warn|error|out of memory|oom|fallback|cpu)\b", re.IGNORECASE),
+    "feature_warning": re.compile(r"\b(feature)\b.*\b(missing|stale|nan|inf|skip)\b", re.IGNORECASE),
+    "redis_publish": re.compile(r"\bpublish(ed)?\s+(prediction|signal)\b", re.IGNORECASE),
+    "error_or_exception": re.compile(r"\b(exception|traceback|error)\b", re.IGNORECASE),
+    "nan_inf": re.compile(r"\b(nan|inf|infinity)\b", re.IGNORECASE),
+    "paralysis": re.compile(r"\b(paralysis|no\s+prediction|stuck)\b", re.IGNORECASE),
+    "model_reload": re.compile(r"\b(checkpoint loaded|model reloaded|loaded weights)\b", re.IGNORECASE),
+    "loss": re.compile(r"\b(loss|policy_loss|value_loss|entropy)\s*[:=]\s*(?P<v>-?\d+(?:\.\d+)?)\b", re.IGNORECASE),
+    "signal_gate": re.compile(r"\b(signal\s+gated|gate\s+(open|close|block))\b", re.IGNORECASE),
+}
+
+_ORCH_PATTERNS = {
+    "heartbeat": re.compile(r"\b(orchestrator|tradeplan).*\b(heartbeat|tick|loop)\b", re.IGNORECASE),
+    "proposal": re.compile(r"\bproposal\s+(?P<id>[A-Za-z0-9_:.\-]+)\s+(consumed|received)\b", re.IGNORECASE),
+    "signal_emit": re.compile(r"\b(emit|publish(ed)?)\s+signal\s+(?P<id>[A-Za-z0-9_:.\-]+)\b", re.IGNORECASE),
+    "action_event": re.compile(r"\b(action|side)\s*[:=]\s*(?P<action>hold|long|short|close)\b", re.IGNORECASE),
+    "score": re.compile(r"\b(score|confidence|protection_demand)\s*[:=]\s*(?P<v>-?\d+(?:\.\d+)?)\b", re.IGNORECASE),
+    "deconflict": re.compile(r"\b(deconflict|ALL_SIGNALS_AGREE|MISSING_EVIDENCE|CONFLICT)\b", re.IGNORECASE),
+    "stale_reject": re.compile(r"\b(stale|expired)\s+(proposal|signal|reject(ed)?)\b", re.IGNORECASE),
+    "dup_reject": re.compile(r"\b(duplicate|already seen)\s+(proposal|signal|reject(ed)?)\b", re.IGNORECASE),
+    "hedge_overlay": re.compile(r"\b(hedge|protection)\s+(overlay|applied|needed)\b", re.IGNORECASE),
+    "consensus": re.compile(r"\b(htf|higher_timeframe)\s+(consensus|veto)\b", re.IGNORECASE),
+    "stream_publish": re.compile(r"\b(xadd|stream\s+publish|consumer\s+group)\b", re.IGNORECASE),
+    "stream_error": re.compile(r"\b(consumer\s+group|stream)\b.*\b(error|fail)\b", re.IGNORECASE),
+    "error_or_exception": re.compile(r"\b(exception|traceback|error)\b", re.IGNORECASE),
+    "no_trade_reason": re.compile(r"\b(no_trade|hold|block(ed)?|gate(d)?)\b", re.IGNORECASE),
+}
+
+
+def _scan_lines(lines: list[str], patterns: dict) -> dict:
+    out: dict[str, Any] = {k: [] for k in patterns}
+    error_count = 0
+    nan_inf_count = 0
+    for line in lines:
+        for k, pat in patterns.items():
+            m = pat.search(line)
+            if m:
+                out[k].append({"line": line.strip()[:240], "match": m.groupdict() or m.group(0)[:80]})
+                if k == "error_or_exception":
+                    error_count += 1
+                if k == "nan_inf":
+                    nan_inf_count += 1
+    return {"matches_by_kind": out, "error_count": error_count, "nan_inf_count": nan_inf_count}
+
+
+def parse_trainer_log_tail(p: Path, start_offset: int) -> dict:
+    data, new_offset = _read_tail(p, start_offset)
+    if not data:
+        return {
+            "source_path": str(p),
+            "new_bytes": 0,
+            "last_offset": new_offset,
+            "trainer_log_stale_seconds": _stale_seconds(p),
+            "matches": {},
+            "latest_trainer_action_by_symbol": {},
+            "latest_trainer_confidence_by_symbol": {},
+            "latest_trainer_errors": [],
+            "trainer_missing_fields": [],
+            "trainer_behavior_v2_equivalence_notes": [],
+        }
+    try:
+        text = data.decode("utf-8", errors="replace")
+    except Exception:
+        text = ""
+    lines = text.splitlines()
+    scanned = _scan_lines(lines, _TRAINER_PATTERNS)
+    matches = scanned["matches_by_kind"]
+    actions_by_symbol: dict[str, str] = {}
+    conf_by_symbol: dict[str, float] = {}
+    last_symbol: Optional[str] = None
+    for ev in matches.get("prediction_event", []):
+        sym = (ev.get("match") or {}).get("sym")
+        if sym:
+            last_symbol = sym
+    for ev in matches.get("action_event", []):
+        action = (ev.get("match") or {}).get("action")
+        if last_symbol and action:
+            actions_by_symbol[last_symbol] = action
+    for ev in matches.get("confidence_event", []):
+        v = (ev.get("match") or {}).get("conf")
+        try:
+            cval = float(v) if v else None
+        except (TypeError, ValueError):
+            cval = None
+        if last_symbol and cval is not None:
+            conf_by_symbol[last_symbol] = cval
+    errors = [e["line"] for e in matches.get("error_or_exception", [])[-5:]]
+    notes: list[str] = []
+    if matches.get("paralysis"):
+        notes.append("trainer_log_reports_paralysis_or_stuck")
+    if matches.get("nan_inf"):
+        notes.append("trainer_log_reports_nan_or_inf")
+    if matches.get("gpu_warning"):
+        notes.append("trainer_log_reports_gpu_warning")
+    if matches.get("feature_warning"):
+        notes.append("trainer_log_reports_feature_missing_or_stale")
+    return {
+        "source_path": str(p),
+        "new_bytes": len(data),
+        "last_offset": new_offset,
+        "trainer_log_stale_seconds": _stale_seconds(p),
+        "matches": {k: len(v) for k, v in matches.items()},
+        "latest_trainer_action_by_symbol": actions_by_symbol,
+        "latest_trainer_confidence_by_symbol": conf_by_symbol,
+        "latest_trainer_errors": errors,
+        "error_count": scanned["error_count"],
+        "nan_inf_count": scanned["nan_inf_count"],
+        "trainer_missing_fields": [
+            k for k in ("prediction_event", "action_event", "confidence_event") if not matches.get(k)
+        ],
+        "trainer_behavior_v2_equivalence_notes": notes,
+    }
+
+
+def parse_orchestrator_log_tail(p: Path, start_offset: int) -> dict:
+    data, new_offset = _read_tail(p, start_offset)
+    if not data:
+        return {
+            "source_path": str(p),
+            "new_bytes": 0,
+
+--- inits ---
+"""Legacy log intelligence read-only service."""
+from .service import (
+    LEGACY_BOT_ROOT,
+    LEGACY_SCRIPTS_DIR,
+    LEGACY_LOGS_DIR,
+    discover_legacy_sources,
+    observe_once,
+    parse_trainer_log_tail,
+    parse_orchestrator_log_tail,
+    inspect_monitor_script,
+    enrich_comparison,
+    remediation_hints_from_summary,
+)
+
+__all__ = [
+    "LEGACY_BOT_ROOT",
+    "LEGACY_SCRIPTS_DIR",
+    "LEGACY_LOGS_DIR",
+    "discover_legacy_sources",
+    "observe_once",
+    "parse_trainer_log_tail",
+    "parse_orchestrator_log_tail",
+    "inspect_monitor_script",
+    "enrich_comparison",
+    "remediation_hints_from_summary",
+]
+
+exec
+/bin/bash -lc "find . -path './v2/frontend/node_modules' -prune -o -type f -print | xargs -0 grep -I -n \"claude_autoseed_decision_match_runtime_replay_comparator\\|decision-match\\|Decision-match\\|runtime replay comparator\\|MISSING_SOURCE\\|decision_match\" 2>/dev/null | head -200" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+find: ‘standard output’: Broken pipe
+find: write error
+
+exec
+/bin/bash -lc "grep -R -I -n --exclude-dir=node_modules --exclude-dir=.git --exclude='*.pyc' -E \"claude_autoseed_decision_match_runtime_replay_comparator|decision-match|Decision-match|runtime replay comparator|MISSING_SOURCE|decision_match\" . | head -240" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 6505ms:
+./claude_worklog/tools/v2_autonomous_mission_backlog_autoseed.py:130:            "If the source does not exist, mark MISSING_SOURCE with evidence instead of "
+./claude_worklog/tools/v2_autonomous_mission_backlog_autoseed.py:184:            "mark MISSING_SOURCE rather than guessing. Preserve the strict paper gate "
+./claude_worklog/tools/v2_autonomous_mission_backlog_autoseed.py:191:        "slug": "decision_match_runtime_replay_comparator",
+./claude_worklog/tools/v2_autonomous_mission_backlog_autoseed.py:192:        "title": "Decision-match runtime replay comparator",
+./claude_worklog/tools/v2_autonomous_mission_backlog_autoseed.py:198:        "file_lock_group": "v2_decision_match_runtime_replay_comparator",
+./claude_worklog/tools/v2_autonomous_mission_backlog_autoseed.py:205:            "claude_worklog/final_readiness/v2_autonomous_mission_backlog/per_task/decision_match_runtime_replay_comparator/IMPLEMENTATION_REPORT.md"
+./claude_worklog/tools/v2_autonomous_mission_backlog_autoseed.py:208:            "Implement a narrow V2 decision-match comparator improvement. Compare "
+./claude_worklog/tools/v2_autonomous_mission_backlog_autoseed.py:236:            "wire the V2-native source or mark MISSING_SOURCE with evidence. Do not "
+./claude_worklog/tools/v2_autonomous_mission_backlog_autoseed.py:239:        "pass_marker": "V2_AUTONOMOUS_DYNAMIC_SYMBOL_COVERAGE_MISSING_SOURCE_CODEX_PASS",
+./claude_worklog/tools/v2_autonomous_mission_backlog_autoseed.py:240:        "fail_marker": "V2_AUTONOMOUS_DYNAMIC_SYMBOL_COVERAGE_MISSING_SOURCE_CODEX_FAIL",
+./claude_worklog/tools/v2_autonomous_mission_backlog_autoseed.py:415:        "bridge data is labelled honestly; missing data is marked MISSING_SOURCE rather than "
+./claude_worklog/tools/v2_executive_command_center.py:314:def _score_decision_match() -> dict[str, Any]:
+./claude_worklog/tools/v2_executive_command_center.py:318:        "blockers": ["decision-match rate not yet certified against operator threshold"],
+./claude_worklog/tools/v2_executive_command_center.py:391:        "decision_match_readiness": _score_decision_match(),
+./claude_worklog/agent_supervisor/runs/codex_review_v2_trainer_full_legacy_parity/stderr.txt:3959:   115	            "manifest_status": "MISSING_SOURCE",
+./claude_worklog/agent_supervisor/runs/claude_autoseed_decision_match_runtime_replay_comparator/summary.json:2:  "task_id": "claude_autoseed_decision_match_runtime_replay_comparator",
+./claude_worklog/agent_supervisor/runs/claude_autoseed_decision_match_runtime_replay_comparator/summary.json:8:  "stdout_path": "claude_worklog/agent_supervisor/runs/claude_autoseed_decision_match_runtime_replay_comparator/stdout.txt",
+./claude_worklog/agent_supervisor/runs/claude_autoseed_decision_match_runtime_replay_comparator/summary.json:9:  "stderr_path": "claude_worklog/agent_supervisor/runs/claude_autoseed_decision_match_runtime_replay_comparator/stderr.txt",
+./claude_worklog/agent_supervisor/runs/codex_review_autoseed_decision_match_runtime_replay_comparator/summary.json:2:  "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator",
+./claude_worklog/agent_supervisor/runs/codex_review_autoseed_decision_match_runtime_replay_comparator/summary.json:8:  "stdout_path": "claude_worklog/agent_supervisor/runs/codex_review_autoseed_decision_match_runtime_replay_comparator/stdout.txt",
+./claude_worklog/agent_supervisor/runs/codex_review_autoseed_decision_match_runtime_replay_comparator/summary.json:9:  "stderr_path": "claude_worklog/agent_supervisor/runs/codex_review_autoseed_decision_match_runtime_replay_comparator/stderr.txt",
+./claude_worklog/agent_supervisor/tasks/codex_review_autoseed_decision_match_runtime_replay_comparator.json:10:    "title": "Decision-match runtime replay comparator"
+./claude_worklog/agent_supervisor/tasks/codex_review_autoseed_decision_match_runtime_replay_comparator.json:13:  "codex_pair_task_id": "claude_autoseed_decision_match_runtime_replay_comparator",
+./claude_worklog/agent_supervisor/tasks/codex_review_autoseed_decision_match_runtime_replay_comparator.json:18:    "claude_autoseed_decision_match_runtime_replay_comparator"
+./claude_worklog/agent_supervisor/tasks/codex_review_autoseed_decision_match_runtime_replay_comparator.json:20:  "duplicate_suppression_key": "autoseed:decision_match_runtime_replay_comparator:codex_review",
+./claude_worklog/agent_supervisor/tasks/codex_review_autoseed_decision_match_runtime_replay_comparator.json:21:  "file_lock_group": "v2_decision_match_runtime_replay_comparator",
+./claude_worklog/agent_supervisor/tasks/codex_review_autoseed_decision_match_runtime_replay_comparator.json:22:  "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/codex_review_autoseed_decision_match_runtime_replay_comparator_codex.log",
+./claude_worklog/agent_supervisor/tasks/codex_review_autoseed_decision_match_runtime_replay_comparator.json:29:  "next_action": "Review paired V2 implementation task decision_match_runtime_replay_comparator",
+./claude_worklog/agent_supervisor/tasks/codex_review_autoseed_decision_match_runtime_replay_comparator.json:33:    "claude_autoseed_decision_match_runtime_replay_comparator"
+./claude_worklog/agent_supervisor/tasks/codex_review_autoseed_decision_match_runtime_replay_comparator.json:35:  "prompt": "Review the paired V2 implementation task `claude_autoseed_decision_match_runtime_replay_comparator` for `Decision-match runtime replay comparator`.\n\nVerify that the work is a narrow implementation, not a broad audit or UI-only change; bridge data is labelled honestly; missing data is marked MISSING_SOURCE rather than fabricated; V2 writes stay in V2/public surfaces; no operator approval drift appears; live_gate remains blocked_human_only and live_symbols remains [].\n\nPASS exactly: `V2_AUTONOMOUS_DECISION_MATCH_RUNTIME_REPLAY_COMPARATOR_CODEX_PASS`\nFAIL exactly: `V2_AUTONOMOUS_DECISION_MATCH_RUNTIME_REPLAY_COMPARATOR_CODEX_FAIL`\n",
+./claude_worklog/agent_supervisor/tasks/codex_review_autoseed_decision_match_runtime_replay_comparator.json:56:  "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator",
+./claude_worklog/agent_supervisor/tasks/codex_review_autoseed_baseline_after_cost_calibration.json:39:  "prompt": "Review the paired V2 implementation task `claude_autoseed_baseline_after_cost_calibration` for `Baseline after-cost calibration`.\n\nVerify that the work is a narrow implementation, not a broad audit or UI-only change; bridge data is labelled honestly; missing data is marked MISSING_SOURCE rather than fabricated; V2 writes stay in V2/public surfaces; no operator approval drift appears; live_gate remains blocked_human_only and live_symbols remains [].\n\nPASS exactly: `V2_AUTONOMOUS_BASELINE_AFTER_COST_CALIBRATION_CODEX_PASS`\nFAIL exactly: `V2_AUTONOMOUS_BASELINE_AFTER_COST_CALIBRATION_CODEX_FAIL`\n",
+./claude_worklog/agent_supervisor/tasks/claude_autoseed_dynamic_symbol_coverage_missing_source_closure.json:31:  "prompt": "Implement a narrow dynamic-symbol coverage closure. Use the 25-symbol V2 runtime status, identify one missing or stale source family, and either wire the V2-native source or mark MISSING_SOURCE with evidence. Do not mutate paper/training symbol adoption policy. Emit a per-task report.",
+./claude_worklog/agent_supervisor/tasks/codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment.json:39:  "prompt": "Review the paired V2 implementation task `claude_autoseed_paper_edge_false_negative_gate_reason_enrichment` for `Paper-edge false-negative gate-reason enrichment`.\n\nVerify that the work is a narrow implementation, not a broad audit or UI-only change; bridge data is labelled honestly; missing data is marked MISSING_SOURCE rather than fabricated; V2 writes stay in V2/public surfaces; no operator approval drift appears; live_gate remains blocked_human_only and live_symbols remains [].\n\nPASS exactly: `V2_AUTONOMOUS_FALSE_NEGATIVE_GATE_REASON_ENRICHMENT_CODEX_PASS`\nFAIL exactly: `V2_AUTONOMOUS_FALSE_NEGATIVE_GATE_REASON_ENRICHMENT_CODEX_FAIL`\n",
+./claude_worklog/agent_supervisor/tasks/claude_autoseed_observation_gap_feature_source_burndown.json:33:  "prompt": "Implement the next narrow V2 observation-completeness burndown. Use the current full-observation missing-source/status payloads, select one highest-impact missing feature family with a V2-owned source path, add or wire the exact source mapping, and emit a per-task implementation report. If the source does not exist, mark MISSING_SOURCE with evidence instead of inventing values. Keep all writes V2-scoped and public-payload scoped.",
+./claude_worklog/agent_supervisor/tasks/codex_review_autoseed_dynamic_symbol_coverage_missing_source_closure.json:4:    "fail_marker": "V2_AUTONOMOUS_DYNAMIC_SYMBOL_COVERAGE_MISSING_SOURCE_CODEX_FAIL",
+./claude_worklog/agent_supervisor/tasks/codex_review_autoseed_dynamic_symbol_coverage_missing_source_closure.json:6:    "pass_marker": "V2_AUTONOMOUS_DYNAMIC_SYMBOL_COVERAGE_MISSING_SOURCE_CODEX_PASS",
+./claude_worklog/agent_supervisor/tasks/codex_review_autoseed_dynamic_symbol_coverage_missing_source_closure.json:32:  "prompt": "Review the paired V2 implementation task `claude_autoseed_dynamic_symbol_coverage_missing_source_closure` for `Dynamic symbol coverage missing-source closure`.\n\nVerify that the work is a narrow implementation, not a broad audit or UI-only change; bridge data is labelled honestly; missing data is marked MISSING_SOURCE rather than fabricated; V2 writes stay in V2/public surfaces; no operator approval drift appears; live_gate remains blocked_human_only and live_symbols remains [].\n\nPASS exactly: `V2_AUTONOMOUS_DYNAMIC_SYMBOL_COVERAGE_MISSING_SOURCE_CODEX_PASS`\nFAIL exactly: `V2_AUTONOMOUS_DYNAMIC_SYMBOL_COVERAGE_MISSING_SOURCE_CODEX_FAIL`\n",
+./claude_worklog/agent_supervisor/tasks/codex_review_autoseed_observation_gap_feature_source_burndown.json:41:  "prompt": "Review the paired V2 implementation task `claude_autoseed_observation_gap_feature_source_burndown` for `Observation gap feature-source burndown`.\n\nVerify that the work is a narrow implementation, not a broad audit or UI-only change; bridge data is labelled honestly; missing data is marked MISSING_SOURCE rather than fabricated; V2 writes stay in V2/public surfaces; no operator approval drift appears; live_gate remains blocked_human_only and live_symbols remains [].\n\nPASS exactly: `V2_AUTONOMOUS_OBSERVATION_GAP_FEATURE_SOURCE_BURNDOWN_CODEX_PASS`\nFAIL exactly: `V2_AUTONOMOUS_OBSERVATION_GAP_FEATURE_SOURCE_BURNDOWN_CODEX_FAIL`\n",
+./claude_worklog/agent_supervisor/tasks/claude_autoseed_decision_match_runtime_replay_comparator.json:7:    "title": "Decision-match runtime replay comparator"
+./claude_worklog/agent_supervisor/tasks/claude_autoseed_decision_match_runtime_replay_comparator.json:13:  "duplicate_suppression_key": "autoseed:decision_match_runtime_replay_comparator:implementation",
+./claude_worklog/agent_supervisor/tasks/claude_autoseed_decision_match_runtime_replay_comparator.json:15:    "claude_worklog/final_readiness/v2_autonomous_mission_backlog/per_task/decision_match_runtime_replay_comparator/IMPLEMENTATION_REPORT.md"
+./claude_worklog/agent_supervisor/tasks/claude_autoseed_decision_match_runtime_replay_comparator.json:20:  "file_lock_group": "v2_decision_match_runtime_replay_comparator",
+./claude_worklog/agent_supervisor/tasks/claude_autoseed_decision_match_runtime_replay_comparator.json:22:  "log_path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/claude_autoseed_decision_match_runtime_replay_comparator.log",
+./claude_worklog/agent_supervisor/tasks/claude_autoseed_decision_match_runtime_replay_comparator.json:29:  "next_action": "Run narrow V2 implementation task decision_match_runtime_replay_comparator",
+./claude_worklog/agent_supervisor/tasks/claude_autoseed_decision_match_runtime_replay_comparator.json:31:  "paired_codex_review_task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator",
+./claude_worklog/agent_supervisor/tasks/claude_autoseed_decision_match_runtime_replay_comparator.json:33:  "prompt": "Implement a narrow V2 decision-match comparator improvement. Compare V2 paper/shadow decisions against replay evidence and legacy-reference metadata without treating legacy data as current truth. Surface mismatches with exact evidence and emit a per-task implementation report.",
+./claude_worklog/agent_supervisor/tasks/claude_autoseed_decision_match_runtime_replay_comparator.json:55:  "task_id": "claude_autoseed_decision_match_runtime_replay_comparator",
+./claude_worklog/agent_supervisor/tasks/claude_autoseed_paper_edge_false_negative_gate_reason_enrichment.json:33:  "prompt": "Implement a narrow V2 false-negative evidence-quality improvement. Join current replay false negatives to strict paper-fill gate state and record explicit block reasons when evidence exists. If a reason is unavailable, mark MISSING_SOURCE rather than guessing. Preserve the strict paper gate and emit a per-task implementation report.",
+./claude_worklog/agent_supervisor/state/tasks/codex_review_autoseed_decision_match_runtime_replay_comparator.json:2:  "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator",
+./claude_worklog/agent_supervisor/state/tasks/claude_autoseed_decision_match_runtime_replay_comparator.json:2:  "task_id": "claude_autoseed_decision_match_runtime_replay_comparator",
+./claude_worklog/agent_supervisor/status/parallel_capacity_scheduler_status.json:668:    "?? claude_worklog/agent_supervisor/tasks/claude_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/status/parallel_capacity_scheduler_status.json:729:    "?? claude_worklog/agent_supervisor/tasks/codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1363623:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1363804:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1363985:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1364167:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1364349:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1364531:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1364713:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1364895:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1365077:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1365259:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1365441:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1365623:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1365805:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1365987:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1366169:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1366351:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1366533:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1366716:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1366898:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1367080:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1367262:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1367444:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1367626:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1367808:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1367990:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1368172:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1368354:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1368536:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1368718:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1368900:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1369082:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1369264:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1369446:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/logs/control_plane/v2_automation_liveness_watchdog.log:1369628:    "codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+./claude_worklog/agent_supervisor/events.jsonl:6425081:{"event": "codex_watchdog_monitor_only_active_child", "processes": "1635561 1573232      22 node /home/wali/.local/bin/codex exec review Review the paired V2 implementation task `claude_autoseed_observation_gap_feature_source_burndown` for `Observation gap feature-source burndown`.  Verify that the work is a narrow implementation, not a broad audit or UI-only change; bridge data is labelled honestly; missing data is marked MISSING_SOURCE rather than fabricated; V2 writes stay in V2/public surfaces; no operator approval drift appears; live_gate remains blocked_human_only and live_symbols remains [].  PASS exactly: `V2_AUTONOMOUS_OBSERVATION_GAP_FEATURE_SOURCE_BURNDOWN_CODEX_PASS` FAIL exactly: `V2_AUTONOMOUS_OBSERVATION_GAP_FEATURE_SOURCE_BURNDOWN_CODEX_FAIL`   Scope paths (embedded in prompt, not CLI flags): - v2/backend/app/services/full_observation - claude_worklog/final_readiness/v2_full_observation_builder/latest - v2/frontend/public/operator_runtime/v2_rl_core/latest  Paired Claude task id: claude_autoseed_observation_gap_feature_source_burndown\n1635572 1635561      22 /home/wali/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex/codex exec review Review the paired V2 implementation task `claude_autoseed_observation_gap_feature_source_burndown` for `Observation gap feature-source burndown`.  Verify that the work is a narrow implementation, not a broad audit or UI-only change; bridge data is labelled honestly; missing data is marked MISSING_SOURCE rather than fabricated; V2 writes stay in V2/public surfaces; no operator approval drift appears; live_gate remains blocked_human_only and live_symbols remains [].  PASS exactly: `V2_AUTONOMOUS_OBSERVATION_GAP_FEATURE_SOURCE_BURNDOWN_CODEX_PASS` FAIL exactly: `V2_AUTONOMOUS_OBSERVATION_GAP_FEATURE_SOURCE_BURNDOWN_CODEX_FAIL`   Scope paths (embedded in prompt, not CLI flags): - v2/backend/app/services/full_observation - claude_worklog/final_readiness/v2_full_observation_builder/latest - v2/frontend/public/operator_runtime/v2", "ts": "2026-05-24T19:38:12.179632+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6432638:{"event": "codex_watchdog_monitor_only_active_child", "processes": "1657918 1657796      29 node /home/wali/.local/bin/codex exec review Review the paired V2 implementation task `claude_autoseed_observation_gap_feature_source_burndown` for `Observation gap feature-source burndown`.  Verify that the work is a narrow implementation, not a broad audit or UI-only change; bridge data is labelled honestly; missing data is marked MISSING_SOURCE rather than fabricated; V2 writes stay in V2/public surfaces; no operator approval drift appears; live_gate remains blocked_human_only and live_symbols remains [].  PASS exactly: `V2_AUTONOMOUS_OBSERVATION_GAP_FEATURE_SOURCE_BURNDOWN_CODEX_PASS` FAIL exactly: `V2_AUTONOMOUS_OBSERVATION_GAP_FEATURE_SOURCE_BURNDOWN_CODEX_FAIL`   Scope paths (embedded in prompt, not CLI flags): - v2/backend/app/services/full_observation - claude_worklog/final_readiness/v2_full_observation_builder/latest - v2/frontend/public/operator_runtime/v2_rl_core/latest  Paired Claude task id: claude_autoseed_observation_gap_feature_source_burndown\n1657931 1657918      29 /home/wali/.local/lib/node_modules/@openai/codex/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex/codex exec review Review the paired V2 implementation task `claude_autoseed_observation_gap_feature_source_burndown` for `Observation gap feature-source burndown`.  Verify that the work is a narrow implementation, not a broad audit or UI-only change; bridge data is labelled honestly; missing data is marked MISSING_SOURCE rather than fabricated; V2 writes stay in V2/public surfaces; no operator approval drift appears; live_gate remains blocked_human_only and live_symbols remains [].  PASS exactly: `V2_AUTONOMOUS_OBSERVATION_GAP_FEATURE_SOURCE_BURNDOWN_CODEX_PASS` FAIL exactly: `V2_AUTONOMOUS_OBSERVATION_GAP_FEATURE_SOURCE_BURNDOWN_CODEX_FAIL`   Scope paths (embedded in prompt, not CLI flags): - v2/backend/app/services/full_observation - claude_worklog/final_readiness/v2_full_observation_builder/latest - v2/frontend/public/operator_runtime/v2", "ts": "2026-05-24T19:51:02.064982+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6435572:{"event": "runtime_state_updated", "task_id": "claude_autoseed_decision_match_runtime_replay_comparator", "status": "completed", "state_path": "claude_worklog/agent_supervisor/state/tasks/claude_autoseed_decision_match_runtime_replay_comparator.json", "ts": "2026-05-24T19:56:35.052433+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6435573:{"event": "task_definition_untouched", "task_id": "claude_autoseed_decision_match_runtime_replay_comparator", "definition_dir": "claude_worklog/agent_supervisor/tasks", "ts": "2026-05-24T19:56:35.052471+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6435574:{"event": "stale_running_reconciled", "task_id": "claude_autoseed_decision_match_runtime_replay_comparator", "agent": "claude", "risk_level": "L1", "start_time": null, "end_time": "2026-05-24T19:56:34.995120+00:00", "status": "completed", "stdout_path": "claude_worklog/agent_supervisor/runs/claude_autoseed_decision_match_runtime_replay_comparator/stdout.txt", "stderr_path": "claude_worklog/agent_supervisor/runs/claude_autoseed_decision_match_runtime_replay_comparator/stderr.txt", "summary": "normalized stale-running task: required output files exist", "next_recommended_action": "continue queue if completed; Codex takeover while Claude is rate-limited; retry later if blocked_quota/retry_scheduled; human review only if final live gate", "materialized_files": [], "run_pid": null, "terminated_pids": [], "reason": "required_outputs_present_no_active_process", "alerts": ["stale_running_no_process"], "timeout_seconds": 1800, "output_idle_seconds": null, "event_idle_seconds": null, "active_process": false, "ts": "2026-05-24T19:56:35.052665+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6435675:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T19:56:35.175179+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6435822:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T19:56:35.319451+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6435971:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T19:57:05.497784+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6436118:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T19:57:05.644382+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6436266:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T19:57:35.828553+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6436413:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T19:57:35.989427+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6436561:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T19:58:06.163510+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6436708:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T19:58:06.307343+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6436859:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T19:58:36.467406+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6437006:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T19:58:36.597030+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6437155:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T19:59:06.767919+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6437302:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T19:59:06.924278+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6437450:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T19:59:37.067246+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6437597:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T19:59:37.212500+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6437745:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:00:07.349012+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6437892:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:00:07.490713+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6438044:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:00:37.658472+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6438192:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:00:37.794099+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6438344:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:01:07.921152+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6438492:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:01:08.055268+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6438641:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:01:38.185252+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6438789:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:01:38.316930+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6438938:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:02:08.459406+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6439086:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:02:08.609102+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6439236:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:02:38.758558+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6439384:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:02:38.900981+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6439534:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:03:09.042642+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6439682:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:03:09.186231+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6439833:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:03:39.319081+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6439981:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:03:39.474015+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6440130:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:04:09.611709+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6440278:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:04:09.758929+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6440428:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:04:39.903935+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6440576:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:04:40.058210+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6440726:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:05:10.196734+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6440874:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:05:10.331375+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6441023:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:05:40.471370+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6441171:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:05:40.613145+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6441323:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:06:10.746503+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6441471:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:06:10.883704+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6441621:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:06:41.017657+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6441769:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:06:41.152501+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6441919:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:07:11.296739+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6442067:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:07:11.451538+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6442216:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:07:41.601272+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6442364:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:07:41.751873+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6442513:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:08:11.894880+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6442661:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:08:12.037897+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6442813:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:08:42.171100+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6442961:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:08:42.308225+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6443111:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:09:12.451200+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6443259:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:09:12.601525+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6443408:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:09:42.742093+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6443556:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:09:42.889516+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6443705:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:10:13.021511+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6443853:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:10:13.156810+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6444003:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:10:43.289357+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6444151:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:10:43.421942+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6444303:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:11:13.551033+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6444451:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:11:13.689651+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6444600:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:11:43.825010+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6444748:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:11:43.963965+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6444897:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:12:14.103963+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6445045:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:12:14.249971+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6445195:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:12:44.382208+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6445343:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:12:44.515440+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6445495:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:13:14.657956+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6445643:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:13:14.804455+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6445792:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:13:44.944163+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6445940:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:13:45.093409+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6446089:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:14:15.235222+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6446237:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:14:15.381006+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6446387:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:14:45.526194+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6446535:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:14:45.674367+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6446685:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:15:15.818156+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6446833:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:15:15.951213+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6446982:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:15:46.092035+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6447130:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:15:46.228848+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6447282:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:16:16.361541+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6447430:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:16:16.498202+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6447580:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:16:46.637424+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6447728:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:16:46.778706+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6447878:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:17:16.931982+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6448026:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:17:17.079716+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6448175:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:17:47.219089+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6448323:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:17:47.350531+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6448474:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:18:17.493870+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6448622:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:18:17.640620+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6448773:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:18:47.787850+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6448921:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:18:47.934732+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6449070:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:19:18.074352+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6449218:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:19:18.216739+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6449367:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:19:48.361847+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6449515:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:19:48.507682+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6449664:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:20:18.648988+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6449812:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:20:18.787965+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6449963:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:20:48.919351+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6450111:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:20:49.057954+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6450262:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:21:19.193557+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6450410:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:21:19.329231+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6450559:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:21:49.462463+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6450707:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:21:49.603152+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6450856:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:22:19.745686+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6451004:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:22:19.894914+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6451155:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:22:50.024413+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6451303:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:22:50.148737+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6451454:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:23:20.286823+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6451602:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:23:20.432922+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6451751:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:23:50.571466+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6451899:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:23:50.718117+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6452048:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:24:20.863203+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6452196:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:24:21.012464+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6452347:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:24:51.157658+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6452495:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:24:51.300955+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6452644:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:25:21.438387+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6452792:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:25:21.569153+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6452941:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:25:51.702332+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6453089:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:25:51.844873+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6453241:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:26:21.984994+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6453389:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:26:22.116274+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6453540:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:26:52.261340+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6453688:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:26:52.405732+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6453837:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:27:22.545932+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6453985:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:27:22.693295+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6454134:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:27:52.845304+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6454282:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:27:52.992342+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6454433:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:28:23.135317+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6454581:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:28:23.277875+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6454732:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:28:53.424322+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6454880:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:28:53.573175+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6455029:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:29:23.714961+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6455177:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:29:23.855286+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6455326:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:29:53.987311+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6455474:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:29:54.124033+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6455623:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:30:24.255819+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6455771:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:30:24.390037+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6455922:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:30:54.528643+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6456070:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:30:54.668741+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6456221:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:31:24.805320+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6456369:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:31:24.943836+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6456518:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:31:55.082407+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6456666:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:31:55.229251+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6456815:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:32:25.385455+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6456963:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:32:25.538700+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6457114:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:32:55.684923+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6457262:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:32:55.833823+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6457413:{"event": "task_not_selected_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:33:25.976515+00:00"}
+./claude_worklog/agent_supervisor/events.jsonl:6457561:{"event": "task_skipped_by_non_drift_governor_lock", "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator", "reason": "blocked_by_non_drift_governor_lock_selected_task_only", "ts": "2026-05-24T20:33:26.124322+00:00"}
+grep: write error: Broken pipe
+
+exec
+/bin/bash -lc "cat claude_worklog/agent_supervisor/runs/claude_autoseed_decision_match_runtime_replay_comparator/summary.json; printf '\\n--- stdout ---\\n'; sed -n '1,260p' claude_worklog/agent_supervisor/runs/claude_autoseed_decision_match_runtime_replay_comparator/stdout.txt; printf '\\n--- stderr ---\\n'; sed -n '1,260p' claude_worklog/agent_supervisor/runs/claude_autoseed_decision_match_runtime_replay_comparator/stderr.txt; printf '\\n--- implementation report ---\\n'; sed -n '1,260p' claude_worklog/final_readiness/v2_autonomous_mission_backlog/per_task/decision_match_runtime_replay_comparator/IMPLEMENTATION_REPORT.md 2>/dev/null || true; printf '\\n--- files in per_task ---\\n'; find claude_worklog/final_readiness/v2_autonomous_mission_backlog/per_task/decision_match_runtime_replay_comparator -maxdepth 2 -type f -print 2>/dev/null | sort" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+{
+  "task_id": "claude_autoseed_decision_match_runtime_replay_comparator",
+  "agent": "claude",
+  "risk_level": "L1",
+  "start_time": null,
+  "end_time": "2026-05-24T19:56:34.995120+00:00",
+  "status": "completed",
+  "stdout_path": "claude_worklog/agent_supervisor/runs/claude_autoseed_decision_match_runtime_replay_comparator/stdout.txt",
+  "stderr_path": "claude_worklog/agent_supervisor/runs/claude_autoseed_decision_match_runtime_replay_comparator/stderr.txt",
+  "summary": "normalized stale-running task: required output files exist",
+  "next_recommended_action": "continue queue if completed; Codex takeover while Claude is rate-limited; retry later if blocked_quota/retry_scheduled; human review only if final live gate",
+  "materialized_files": [],
+  "run_pid": null,
+  "terminated_pids": []
+}
+
+--- stdout ---
+sed: can't read claude_worklog/agent_supervisor/runs/claude_autoseed_decision_match_runtime_replay_comparator/stdout.txt: No such file or directory
+
+--- stderr ---
+sed: can't read claude_worklog/agent_supervisor/runs/claude_autoseed_decision_match_runtime_replay_comparator/stderr.txt: No such file or directory
+
+--- implementation report ---
+
+--- files in per_task ---
+
+exec
+/bin/bash -lc "ls -la claude_worklog/agent_supervisor/runs/claude_autoseed_decision_match_runtime_replay_comparator; cat claude_worklog/agent_supervisor/state/tasks/claude_autoseed_decision_match_runtime_replay_comparator.json; printf '\\n--- task ---\\n'; cat claude_worklog/agent_supervisor/tasks/claude_autoseed_decision_match_runtime_replay_comparator.json" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+total 76
+drwxrwxr-x   2 wali wali  4096 May 24 15:56 .
+drwxrwxr-x 586 wali wali 65536 May 24 17:05 ..
+-rw-rw-r--   1 wali wali   802 May 24 15:56 summary.json
+{
+  "task_id": "claude_autoseed_decision_match_runtime_replay_comparator",
+  "status": "completed",
+  "retry_count": 0,
+  "run_pid": null,
+  "last_run": {
+    "start": null,
+    "end": "2026-05-24T19:56:34.995120+00:00",
+    "status": "completed"
+  },
+  "last_summary": "normalized stale-running task: required output files exist",
+  "resume_after_utc": null,
+  "last_status_change_ts": "2026-05-24T19:56:35.052234+00:00",
+  "last_retry_reason": null,
+  "attention_reason": null,
+  "history": [
+    {
+      "ts": "2026-05-24T19:56:35.052239+00:00",
+      "status": "completed",
+      "reason": "normalized stale-running task: required output files exist"
+    }
+  ],
+  "last_event_ts": "2026-05-24T19:56:35.052242+00:00"
+}
+
+--- task ---
+{
+  "agent": "claude",
+  "autoseed_metadata": {
+    "generated_at": "2026-05-24T19:56:33Z",
+    "source": "v2_autonomous_mission_backlog_autoseed",
+    "task_role": "implementation",
+    "title": "Decision-match runtime replay comparator"
+  },
+  "completed_at": "2026-05-24T21:04:30Z",
+  "created_at": "2026-05-24T19:56:33Z",
+  "current_active": true,
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "duplicate_suppression_key": "autoseed:decision_match_runtime_replay_comparator:implementation",
+  "expected_output_paths": [
+    "claude_worklog/final_readiness/v2_autonomous_mission_backlog/per_task/decision_match_runtime_replay_comparator/IMPLEMENTATION_REPORT.md"
+  ],
+  "fail_blockers": [
+    "running_descriptor_without_active_lease_reset"
+  ],
+  "file_lock_group": "v2_decision_match_runtime_replay_comparator",
+  "lease_id": "db55d70abf38447da6db6022b2253725",
+  "log_path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/claude_autoseed_decision_match_runtime_replay_comparator.log",
+  "mission_categories": [
+    "decision match",
+    "runtime stability",
+    "paper edge"
+  ],
+  "mission_progress_countable": true,
+  "next_action": "Run narrow V2 implementation task decision_match_runtime_replay_comparator",
+  "owner": "CLAUDE",
+  "paired_codex_review_task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator",
+  "pid_or_job_id": 1737857,
+  "prompt": "Implement a narrow V2 decision-match comparator improvement. Compare V2 paper/shadow decisions against replay evidence and legacy-reference metadata without treating legacy data as current truth. Surface mismatches with exact evidence and emit a per-task implementation report.",
+  "report_only_work": false,
+  "risk_level": "L1",
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "scope_paths": [
+    "v2/backend/app/services/edge_proof",
+    "v2/backend/app/services/legacy_log_intelligence",
+    "claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest"
+  ],
+  "stall_count": 1,
+  "started_at": "2026-05-24T21:02:45Z",
+  "status": "completed",
+  "task_id": "claude_autoseed_decision_match_runtime_replay_comparator",
+  "task_type": "CLAUDE_IMPLEMENTATION",
+  "ui_only_work": false,
+  "updated_at": "2026-05-24T21:04:30Z",
+  "worker_id": "claude-2"
+}
+
+exec
+/bin/bash -lc "sed -n '1,320p' claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/claude_autoseed_decision_match_runtime_replay_comparator.log 2>/dev/null || true; ls -la claude_worklog/final_readiness/v2_autonomous_mission_backlog/per_task/decision_match_runtime_replay_comparator 2>/dev/null || true" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+The edit tool is requesting write permission for `v2/backend/app/services/decision_comparator/service.py`. The user must grant permission before I can proceed.
+
+Wali — can you approve write access to:
+- `v2/backend/app/services/decision_comparator/service.py`
+- `v2/backend/app/cli/legacy_v2_decision_comparator.py`
+- `v2/backend/tests/integration/cli/test_legacy_v2_decision_comparator.py`
+- `claude_worklog/final_readiness/v2_autonomous_mission_backlog/per_task/decision_match_runtime_replay_comparator/IMPLEMENTATION_REPORT.md`
+
+Planned changes (narrow, additive, backward-compatible):
+
+1. **`decision_comparator/service.py`** — add two optional kwargs `replay_status` and `legacy_reference_metadata`, produce two new sub-blocks on each comparison (`replay_evidence_match`, `legacy_reference_metadata_match`) with exact evidence pointers (file paths + dotted keys), tag legacy-reference data with `data_role: "reference_only"` and a "not current truth" note, and aggregate a top-level `mismatches[]` array with `{kind, observed, expected, evidence_pointer, severity, note}`. Add disagreement reasons: `replay_window_empty`, `replay_runtime_evidence_missing`, `replay_symbol_outside_v2_paper`, `legacy_reference_symbol_not_tracked`, `legacy_reference_metadata_missing`.
+
+2. **CLI `legacy_v2_decision_comparator.py`** — add `--replay-status-file` and `--legacy-reference-metadata-file` (default candidates: `operator_runtime/v2_replay_worker/latest/v2_replay_worker_status.json`).
+
+3. **Integration test** — add a new test asserting the replay mismatch block + legacy-reference block surface with exact pointers, and that existing test still passes.
+
+4. **Per-task implementation report** — `IMPLEMENTATION_REPORT.md` at the expected path with raw-evidence pointers and verification commands.
+
+Shall I proceed (re-attempt the writes once you've approved)?
+
+exec
+/bin/bash -lc "git status --short -- v2/backend/app/services/decision_comparator v2/backend/app/cli/legacy_v2_decision_comparator.py v2/backend/tests/integration/cli/test_legacy_v2_decision_comparator.py claude_worklog/final_readiness/v2_autonomous_mission_backlog/per_task/decision_match_runtime_replay_comparator; find v2/backend/app/services/decision_comparator -maxdepth 2 -type f -print 2>/dev/null | sort; sed -n '1,260p' v2/backend/app/services/decision_comparator/service.py 2>/dev/null | head -260; sed -n '1,260p' v2/backend/app/cli/legacy_v2_decision_comparator.py 2>/dev/null | head -260" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+v2/backend/app/services/decision_comparator/__init__.py
+v2/backend/app/services/decision_comparator/__pycache__/__init__.cpython-312.pyc
+v2/backend/app/services/decision_comparator/__pycache__/service.cpython-312.pyc
+v2/backend/app/services/decision_comparator/service.py
+from __future__ import annotations
+
+import hashlib
+from typing import Any, Mapping
+
+from v2.backend.app.services.legacy_v2_observatory_common import (
+    LIVE_GATE_STATUS,
+    as_float,
+    as_list,
+    confidence_bucket,
+    nested_get,
+    safety_footer,
+    utc_now,
+)
+
+
+def _present(value: Any) -> bool:
+    return value not in (None, "", [], {})
+
+
+def _v2_allows(paper_status: Mapping[str, Any], risk_status: Mapping[str, Any]) -> bool:
+    action = (
+        nested_get(paper_status, "current_risk_decision.risk_action")
+        or risk_status.get("risk_action")
+        or risk_status.get("input_risk_action")
+    )
+    fill = (
+        nested_get(paper_status, "last_paper_event.fill_recorded")
+        or nested_get(paper_status, "last_paper_event.fill_allowed")
+        or risk_status.get("ledger_action") == "record_allow"
+    )
+    return str(action).lower() in {"allow", "approved"} and bool(fill)
+
+
+def _legacy_allows(legacy_status: Mapping[str, Any]) -> bool:
+    if not _present(legacy_status.get("latest_prediction_id")):
+        return False
+    reason = str(legacy_status.get("latest_signal_reason") or "").lower()
+    if "block" in reason or "deny" in reason:
+        return False
+    return True
+
+
+def _cost_breakdown(paper_status: Mapping[str, Any], paper_exec_status: Mapping[str, Any]) -> dict[str, Any]:
+    canary = nested_get(paper_status, "current_risk_decision.canary_profile_tightening", {})
+    return {
+        "fee_bps": nested_get(canary, "fee_bps"),
+        "spread_bps": nested_get(canary, "spread_bps"),
+        "slippage_bps": nested_get(canary, "slippage_bps")
+        or paper_exec_status.get("paper_filter_estimated_cost_bps"),
+        "funding_risk_bps": nested_get(canary, "funding_risk_bps"),
+        "estimated_cost_bps": nested_get(canary, "estimated_cost_bps")
+        or paper_exec_status.get("paper_filter_estimated_cost_bps"),
+    }
+
+
+def _comparison_result(legacy_allow: bool, v2_allow: bool, legacy_present: bool, v2_present: bool) -> str:
+    if not legacy_present and v2_present:
+        return "LEGACY_SIGNAL_MISSING_V2_PRESENT"
+    if legacy_present and not v2_present:
+        return "LEGACY_PRESENT_V2_MISSING"
+    if not legacy_present and not v2_present:
+        return "MISSING_EVIDENCE_CANNOT_COMPARE"
+    if legacy_allow and v2_allow:
+        return "BOTH_ALLOW"
+    if legacy_allow and not v2_allow:
+        return "LEGACY_ALLOW_V2_BLOCK"
+    if not legacy_allow and v2_allow:
+        return "LEGACY_BLOCK_V2_ALLOW"
+    return "BOTH_BLOCK"
+
+
+def _disagreement_reasons(
+    *,
+    paper_status: Mapping[str, Any],
+    trainer_status: Mapping[str, Any],
+    symbol_status: Mapping[str, Any],
+    risk_status: Mapping[str, Any],
+    paper_exec_status: Mapping[str, Any],
+) -> list[str]:
+    reasons: list[str] = []
+    trainer_source = (
+        nested_get(paper_status, "trainer_prediction.source_type")
+        or trainer_status.get("prediction_source_type")
+        or trainer_status.get("prediction_source")
+    )
+    feature_state = (
+        nested_get(paper_status, "feature_snapshot.freshness_state")
+        or nested_get(paper_status, "trainer_prediction.freshness_state")
+    )
+    canary = nested_get(paper_status, "current_risk_decision.canary_profile_tightening", {})
+    expected_move = (
+        nested_get(canary, "expected_move_bps")
+        or paper_exec_status.get("paper_filter_expected_move_bps")
+    )
+    cost = nested_get(canary, "estimated_cost_bps") or paper_exec_status.get(
+        "paper_filter_estimated_cost_bps"
+    )
+    symbol = nested_get(paper_status, "trainer_prediction.symbol") or paper_exec_status.get("symbol")
+    if not _present(trainer_source):
+        reasons.append("trainer_source_missing")
+    if not _present(nested_get(paper_status, "feature_snapshot.feature_snapshot_id")):
+        reasons.append("feature_snapshot_missing")
+    if not _present(feature_state):
+        reasons.append("feature_freshness_missing")
+    elif feature_state != "CURRENT":
+        reasons.append("stale_features")
+    if expected_move in (None, ""):
+        reasons.append("expected_edge_missing")
+    elif cost not in (None, "") and as_float(expected_move) is not None and as_float(cost) is not None:
+        if float(expected_move) <= float(cost):
+            reasons.append("edge_below_cost")
+    if symbol and symbol not in as_list(symbol_status.get("paper_symbols")):
+        reasons.append("symbol_not_paper_eligible")
+    risk_action = risk_status.get("risk_action") or nested_get(paper_status, "current_risk_decision.risk_action")
+    if risk_action and str(risk_action).lower() not in {"allow", "approved"}:
+        reasons.append("risk_gate_block")
+    blockers = as_list(nested_get(canary, "blockers")) + as_list(paper_exec_status.get("paper_filter_blockers"))
+    if any("cooldown" in str(item) for item in blockers):
+        reasons.append("cooldown_block")
+    if any("churn" in str(item) or "flip" in str(item) for item in blockers):
+        reasons.append("churn_block")
+    if cost in (None, ""):
+        reasons.append("missing_cost_model")
+    return sorted(set(reasons))
+
+
+def build_legacy_v2_decision_comparator_status(
+    *,
+    legacy_status: Mapping[str, Any],
+    paper_status: Mapping[str, Any],
+    trainer_status: Mapping[str, Any],
+    symbol_status: Mapping[str, Any],
+    risk_status: Mapping[str, Any],
+    paper_exec_status: Mapping[str, Any],
+) -> dict[str, Any]:
+    legacy_present = _present(legacy_status.get("latest_prediction_id")) or _present(
+        legacy_status.get("latest_signal_id")
+    )
+    v2_prediction_id = nested_get(paper_status, "trainer_prediction.prediction_id") or trainer_status.get(
+        "prediction_id"
+    )
+    v2_present = _present(v2_prediction_id)
+    legacy_allow = _legacy_allows(legacy_status)
+    v2_allow = _v2_allows(paper_status, risk_status)
+    canary = nested_get(paper_status, "current_risk_decision.canary_profile_tightening", {})
+    expected_move = nested_get(canary, "expected_move_bps") or paper_exec_status.get(
+        "paper_filter_expected_move_bps"
+    )
+    cost = nested_get(canary, "estimated_cost_bps") or paper_exec_status.get(
+        "paper_filter_estimated_cost_bps"
+    )
+    expected_after_cost = None
+    if as_float(expected_move) is not None and as_float(cost) is not None:
+        expected_after_cost = float(expected_move) - float(cost)
+    comparison_id_source = "|".join(
+        [
+            str(legacy_status.get("latest_prediction_id") or ""),
+            str(v2_prediction_id or ""),
+            str(utc_now()),
+        ]
+    )
+    comparison = {
+        "comparison_id": "cmp_" + hashlib.sha256(comparison_id_source.encode()).hexdigest()[:16],
+        "legacy_prediction_id": legacy_status.get("latest_prediction_id"),
+        "legacy_signal_id": legacy_status.get("latest_signal_id"),
+        "v2_feature_snapshot_id": nested_get(paper_status, "feature_snapshot.feature_snapshot_id")
+        or trainer_status.get("feature_snapshot_id"),
+        "v2_prediction_id": v2_prediction_id,
+        "symbol": legacy_status.get("latest_symbol")
+        or nested_get(paper_status, "trainer_prediction.symbol")
+        or paper_exec_status.get("symbol"),
+        "side": nested_get(paper_status, "trainer_prediction.raw_output.side")
+        or nested_get(paper_status, "current_signal_lineage.signal.side"),
+        "timeframe": legacy_status.get("latest_timeframe")
+        or nested_get(paper_status, "trainer_prediction.timeframe"),
+        "legacy_confidence": legacy_status.get("latest_confidence"),
+        "v2_confidence": nested_get(paper_status, "trainer_prediction.confidence_calibrated")
+        or trainer_status.get("confidence_calibrated"),
+        "v2_confidence_bucket": confidence_bucket(
+            nested_get(paper_status, "trainer_prediction.confidence_calibrated")
+            or trainer_status.get("confidence_calibrated")
+        ),
+        "legacy_reason": legacy_status.get("latest_signal_reason"),
+        "v2_reason": nested_get(paper_status, "current_risk_decision.risk_reason_code")
+        or risk_status.get("risk_reason_code"),
+        "v2_block_reason": nested_get(paper_status, "current_risk_decision.canary_profile_tightening.blockers")
+        or paper_exec_status.get("paper_filter_blockers")
+        or risk_status.get("risk_reason_code"),
+        "symbol_scope": {
+            "paper_symbols": as_list(symbol_status.get("paper_symbols")),
+            "live_symbols": as_list(symbol_status.get("live_symbols")),
+        },
+        "feature_freshness_state": nested_get(paper_status, "feature_snapshot.freshness_state")
+        or nested_get(paper_status, "trainer_prediction.freshness_state"),
+        "expected_move_after_cost_bps": expected_after_cost,
+        "cost_breakdown_bps": _cost_breakdown(paper_status, paper_exec_status),
+        "risk_decision": nested_get(paper_status, "current_risk_decision.risk_action")
+        or risk_status.get("risk_action"),
+        "comparator_result": _comparison_result(legacy_allow, v2_allow, legacy_present, v2_present),
+        "disagreement_reasons": _disagreement_reasons(
+            paper_status=paper_status,
+            trainer_status=trainer_status,
+            symbol_status=symbol_status,
+            risk_status=risk_status,
+            paper_exec_status=paper_exec_status,
+        ),
+    }
+    status = {
+        "worker_id": "legacy_v2_decision_comparator",
+        "generated_at": utc_now(),
+        "comparison_count": 1,
+        "comparisons": [comparison],
+        "latest_comparison": comparison,
+        "legacy_v2_agreement_status": comparison["comparator_result"],
+        "read_only_status": "READ_ONLY_REFERENCE_ONLY",
+        "live_gate": LIVE_GATE_STATUS,
+        "live_symbols": [],
+    }
+    status.update(safety_footer())
+    return status
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+from v2.backend.app.services.decision_comparator import build_legacy_v2_decision_comparator_status
+from v2.backend.app.services.legacy_v2_observatory_common import first_json, load_json, repo_root, write_json
+
+
+WORKER_ID = "legacy_v2_decision_comparator"
+REPO_ROOT = repo_root()
+V2_PUBLIC = REPO_ROOT / "v2" / "frontend" / "public"
+OBS_DIR = (
+    REPO_ROOT
+    / "claude_worklog"
+    / "final_readiness"
+    / "legacy_v2_realtime_decision_observatory"
+    / "latest"
+)
+PUBLIC_RUNTIME_DIR = V2_PUBLIC / "operator_runtime" / WORKER_ID / "latest"
+PUBLIC_STATUS_FILE = PUBLIC_RUNTIME_DIR / f"{WORKER_ID}_status.json"
+WORKLOG_STATUS_FILE = OBS_DIR / f"{WORKER_ID}_status.json"
+LEGACY_STATUS_CANDIDATES = [
+    OBS_DIR / "legacy_runtime_observer_status.json",
+    V2_PUBLIC / "operator_runtime" / "legacy_runtime_readonly_observer" / "latest" / "legacy_runtime_readonly_observer_status.json",
+]
+PAPER_STATUS_CANDIDATES = [
+    V2_PUBLIC / "operator_runtime" / "paper_online" / "latest" / "paper_runtime_status.json",
+]
+TRAINER_STATUS_CANDIDATES = [
+    V2_PUBLIC / "operator_runtime" / "v2_trainer_bridge" / "latest" / "v2_trainer_bridge_status.json",
+]
+SYMBOL_STATUS_CANDIDATES = [
+    V2_PUBLIC / "operator_runtime" / "symbol_universe" / "latest" / "symbol_universe_status.json",
+    V2_PUBLIC / "operator_runtime" / "v2_symbol_universe" / "latest" / "symbol_universe_status.json",
+]
+RISK_STATUS_CANDIDATES = [
+    V2_PUBLIC / "operator_runtime" / "v2_risk_gateway_runtime_worker" / "latest" / "v2_risk_gateway_runtime_worker_status.json",
+]
+PAPER_EXEC_STATUS_CANDIDATES = [
+    V2_PUBLIC / "operator_runtime" / "v2_paper_execution_worker" / "latest" / "v2_paper_execution_worker_status.json",
+]
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--once", action="store_true")
+    parser.add_argument("--write", action="store_true")
+    parser.add_argument("--legacy-status-file", type=Path)
+    parser.add_argument("--paper-status-file", type=Path)
+    parser.add_argument("--trainer-status-file", type=Path)
+    parser.add_argument("--symbol-status-file", type=Path)
+    parser.add_argument("--risk-status-file", type=Path)
+    parser.add_argument("--paper-exec-status-file", type=Path)
+    return parser.parse_args(argv)
+
+
+def _load(path: Path | None, candidates: list[Path]) -> dict[str, Any]:
+    if path is not None:
+        payload = load_json(path)
+        return payload if isinstance(payload, dict) else {}
+    payload, _ = first_json(candidates)
+    return payload if isinstance(payload, dict) else {}
+
+
+def run_once(args: argparse.Namespace | None = None) -> dict[str, Any]:
+    args = args or parse_args(["--once"])
+    status = build_legacy_v2_decision_comparator_status(
+        legacy_status=_load(args.legacy_status_file, LEGACY_STATUS_CANDIDATES),
+        paper_status=_load(args.paper_status_file, PAPER_STATUS_CANDIDATES),
+        trainer_status=_load(args.trainer_status_file, TRAINER_STATUS_CANDIDATES),
+        symbol_status=_load(args.symbol_status_file, SYMBOL_STATUS_CANDIDATES),
+        risk_status=_load(args.risk_status_file, RISK_STATUS_CANDIDATES),
+        paper_exec_status=_load(args.paper_exec_status_file, PAPER_EXEC_STATUS_CANDIDATES),
+    )
+    if args.write:
+        write_json(PUBLIC_STATUS_FILE, status)
+        write_json(WORKLOG_STATUS_FILE, status)
+    return status
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    status = run_once(args)
+    json.dump(status, sys.stdout, indent=2, sort_keys=True)
+    sys.stdout.write("\n")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
+exec
+/bin/bash -lc "find claude_worklog/final_readiness -path '*decision_match_runtime_replay_comparator*' -print; find . -path './v2/frontend/node_modules' -prune -o -type f -name '*decision*comparator*' -print | sed -n '1,120p'" in /home/wali/Desktop/AI BOT REBUILD
+ succeeded in 0ms:
+claude_worklog/final_readiness/v2_closed_loop_execution/latest/locks/v2_decision_match_runtime_replay_comparator.lock
+claude_worklog/final_readiness/v2_closed_loop_execution/latest/codex_review_outputs/codex_review_autoseed_decision_match_runtime_replay_comparator
+claude_worklog/final_readiness/v2_closed_loop_execution/latest/heartbeats/codex_review_autoseed_decision_match_runtime_replay_comparator.json
+claude_worklog/final_readiness/v2_closed_loop_execution/latest/heartbeats/claude_autoseed_decision_match_runtime_replay_comparator.json
+claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/codex_review_autoseed_decision_match_runtime_replay_comparator_codex.log
+claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/claude_autoseed_decision_match_runtime_replay_comparator.log
+./claude_worklog/agent_supervisor/tasks/codex_review_autoseed_decision_match_runtime_replay_comparator.json
+./claude_worklog/agent_supervisor/tasks/claude_autoseed_decision_match_runtime_replay_comparator.json
+./claude_worklog/agent_supervisor/state/tasks/codex_review_autoseed_decision_match_runtime_replay_comparator.json
+./claude_worklog/agent_supervisor/state/tasks/claude_autoseed_decision_match_runtime_replay_comparator.json
+./claude_worklog/final_readiness/v2_closed_loop_execution/latest/locks/v2_decision_match_runtime_replay_comparator.lock
+./claude_worklog/final_readiness/v2_closed_loop_execution/latest/heartbeats/codex_review_autoseed_decision_match_runtime_replay_comparator.json
+./claude_worklog/final_readiness/v2_closed_loop_execution/latest/heartbeats/claude_autoseed_decision_match_runtime_replay_comparator.json
+./claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/codex_review_autoseed_decision_match_runtime_replay_comparator_codex.log
+./claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/claude_autoseed_decision_match_runtime_replay_comparator.log
+./claude_worklog/final_readiness/legacy_v2_realtime_decision_observatory/latest/legacy_v2_decision_comparator_status.json
+./v2/backend/app/cli/legacy_v2_decision_comparator.py
+./v2/backend/app/cli/__pycache__/legacy_v2_decision_comparator.cpython-312.pyc
+./v2/backend/tests/integration/cli/test_legacy_v2_decision_comparator.py
+./v2/backend/tests/integration/cli/__pycache__/test_legacy_v2_decision_comparator.cpython-312-pytest-8.3.3.pyc
+./v2/frontend/public/operator_runtime/legacy_v2_decision_comparator/latest/legacy_v2_decision_comparator_status.json
+./v2/frontend/dist/operator_runtime/legacy_v2_decision_comparator/latest/legacy_v2_decision_comparator_status.json
+
+codex
+V2_AUTONOMOUS_DECISION_MATCH_RUNTIME_REPLAY_COMPARATOR_CODEX_FAIL
+V2_AUTONOMOUS_DECISION_MATCH_RUNTIME_REPLAY_COMPARATOR_CODEX_FAIL

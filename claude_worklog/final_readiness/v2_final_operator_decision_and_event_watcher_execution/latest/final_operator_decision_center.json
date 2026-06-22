@@ -1,0 +1,176 @@
+{
+  "creates_approval_tokens": false,
+  "decisions": [
+    {
+      "approval_artifact_present": false,
+      "blocker_id": "full_observation_builder.operator_decision_families",
+      "creates_approval_token": false,
+      "current_status": "PENDING_OPERATOR_DECISION",
+      "decision_label": "paper-edge threshold and unified-feature acceptance",
+      "operator_accepted": false,
+      "operator_selected_option": null,
+      "option_A_accept_for_paper_only_shutdown": {
+        "description": "Accept the documented limitation for paper-only shutdown evaluation only.",
+        "operator_accepted": false
+      },
+      "option_B_require_implementation_before_shutdown": {
+        "description": "Require implementation or stronger evidence before shutdown.",
+        "operator_accepted": false
+      },
+      "option_C_defer_and_keep_legacy_running": {
+        "description": "Defer this blocker and keep legacy running.",
+        "operator_accepted": false
+      },
+      "recommended_conservative_default": "option_C_defer_and_keep_legacy_running",
+      "risk_if_accepted": "Paper-only shutdown could proceed with an explicitly accepted limitation, but live/canary remain blocked.",
+      "risk_if_deferred": "Legacy remains running and V2 production-equivalence remains incomplete.",
+      "why_it_blocks_shutdown_live": "Production equivalence, shutdown, or live gate remains blocked until operator decision is explicit."
+    },
+    {
+      "approval_artifact_present": false,
+      "blocker_id": "checkpoint_promotion",
+      "creates_approval_token": false,
+      "current_status": "PENDING_OPERATOR_DECISION",
+      "decision_label": "checkpoint/model limitation",
+      "operator_accepted": false,
+      "operator_selected_option": null,
+      "option_A_accept_for_paper_only_shutdown": {
+        "description": "Accept the documented limitation for paper-only shutdown evaluation only.",
+        "operator_accepted": false
+      },
+      "option_B_require_implementation_before_shutdown": {
+        "description": "Require implementation or stronger evidence before shutdown.",
+        "operator_accepted": false
+      },
+      "option_C_defer_and_keep_legacy_running": {
+        "description": "Defer this blocker and keep legacy running.",
+        "operator_accepted": false
+      },
+      "recommended_conservative_default": "option_C_defer_and_keep_legacy_running",
+      "risk_if_accepted": "Paper-only shutdown could proceed with an explicitly accepted limitation, but live/canary remain blocked.",
+      "risk_if_deferred": "Legacy remains running and V2 production-equivalence remains incomplete.",
+      "why_it_blocks_shutdown_live": "Production equivalence, shutdown, or live gate remains blocked until operator decision is explicit."
+    },
+    {
+      "approval_artifact_present": false,
+      "blocker_id": "legacy_shutdown.legacy_runtime_owner",
+      "creates_approval_token": false,
+      "current_status": "PENDING_OPERATOR_DECISION",
+      "decision_label": "legacy runtime stop acceptance",
+      "operator_accepted": false,
+      "operator_selected_option": null,
+      "option_A_accept_for_paper_only_shutdown": {
+        "description": "Accept the documented limitation for paper-only shutdown evaluation only.",
+        "operator_accepted": false
+      },
+      "option_B_require_implementation_before_shutdown": {
+        "description": "Require implementation or stronger evidence before shutdown.",
+        "operator_accepted": false
+      },
+      "option_C_defer_and_keep_legacy_running": {
+        "description": "Defer this blocker and keep legacy running.",
+        "operator_accepted": false
+      },
+      "recommended_conservative_default": "option_C_defer_and_keep_legacy_running",
+      "risk_if_accepted": "Paper-only shutdown could proceed with an explicitly accepted limitation, but live/canary remain blocked.",
+      "risk_if_deferred": "Legacy remains running and V2 production-equivalence remains incomplete.",
+      "why_it_blocks_shutdown_live": "Production equivalence, shutdown, or live gate remains blocked until operator decision is explicit."
+    },
+    {
+      "approval_artifact_present": false,
+      "blocker_id": "legacy_shutdown.legacy_redis_keys_active",
+      "creates_approval_token": false,
+      "current_status": "PENDING_OPERATOR_DECISION",
+      "decision_label": "legacy Redis trim / retention decision",
+      "operator_accepted": false,
+      "operator_selected_option": null,
+      "option_A_accept_for_paper_only_shutdown": {
+        "description": "Accept the documented limitation for paper-only shutdown evaluation only.",
+        "operator_accepted": false
+      },
+      "option_B_require_implementation_before_shutdown": {
+        "description": "Require implementation or stronger evidence before shutdown.",
+        "operator_accepted": false
+      },
+      "option_C_defer_and_keep_legacy_running": {
+        "description": "Defer this blocker and keep legacy running.",
+        "operator_accepted": false
+      },
+      "recommended_conservative_default": "option_C_defer_and_keep_legacy_running",
+      "risk_if_accepted": "Paper-only shutdown could proceed with an explicitly accepted limitation, but live/canary remain blocked.",
+      "risk_if_deferred": "Legacy remains running and V2 production-equivalence remains incomplete.",
+      "why_it_blocks_shutdown_live": "Production equivalence, shutdown, or live gate remains blocked until operator decision is explicit."
+    },
+    {
+      "approval_artifact_present": false,
+      "blocker_id": "risk_caps_canary_hard_gates_unset",
+      "creates_approval_token": false,
+      "current_status": "PENDING_OPERATOR_DECISION",
+      "decision_label": "risk/capital caps",
+      "operator_accepted": false,
+      "operator_selected_option": null,
+      "option_A_accept_for_paper_only_shutdown": {
+        "description": "Accept the documented limitation for paper-only shutdown evaluation only.",
+        "operator_accepted": false
+      },
+      "option_B_require_implementation_before_shutdown": {
+        "description": "Require implementation or stronger evidence before shutdown.",
+        "operator_accepted": false
+      },
+      "option_C_defer_and_keep_legacy_running": {
+        "description": "Defer this blocker and keep legacy running.",
+        "operator_accepted": false
+      },
+      "recommended_conservative_default": "option_C_defer_and_keep_legacy_running",
+      "risk_if_accepted": "Paper-only shutdown could proceed with an explicitly accepted limitation, but live/canary remain blocked.",
+      "risk_if_deferred": "Legacy remains running and V2 production-equivalence remains incomplete.",
+      "why_it_blocks_shutdown_live": "Production equivalence, shutdown, or live gate remains blocked until operator decision is explicit."
+    },
+    {
+      "approval_artifact_present": false,
+      "blocker_id": "capital_recovery_gate_unset",
+      "creates_approval_token": false,
+      "current_status": "PENDING_OPERATOR_DECISION",
+      "decision_label": "capital recovery threshold / risk guard acceptance",
+      "operator_accepted": false,
+      "operator_selected_option": null,
+      "option_A_accept_for_paper_only_shutdown": {
+        "description": "Accept the documented limitation for paper-only shutdown evaluation only.",
+        "operator_accepted": false
+      },
+      "option_B_require_implementation_before_shutdown": {
+        "description": "Require implementation or stronger evidence before shutdown.",
+        "operator_accepted": false
+      },
+      "option_C_defer_and_keep_legacy_running": {
+        "description": "Defer this blocker and keep legacy running.",
+        "operator_accepted": false
+      },
+      "recommended_conservative_default": "option_C_defer_and_keep_legacy_running",
+      "risk_if_accepted": "Paper-only shutdown could proceed with an explicitly accepted limitation, but live/canary remain blocked.",
+      "risk_if_deferred": "Legacy remains running and V2 production-equivalence remains incomplete.",
+      "why_it_blocks_shutdown_live": "Production equivalence, shutdown, or live gate remains blocked until operator decision is explicit."
+    }
+  ],
+  "generated_utc": "2026-06-22T00:26:47Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "operator_accepted_count": 0,
+  "operator_decision_count": 6,
+  "operator_selected_count": 0,
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "creates_approval_tokens": false,
+    "fabricates_edge": false,
+    "fabricates_missing_observations": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "schema_version": "v2_final_operator_decision_center_v1"
+}

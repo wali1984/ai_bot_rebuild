@@ -1,0 +1,125 @@
+{
+  "schema_version": "v2_prediction_validation_status_v1",
+  "generated_at": "2026-06-17T00:00:00Z",
+  "audit_findings": {
+    "total_prediction_keys_in_redis": 755,
+    "fields_present_in_live_payload": [
+      "prediction_id", "symbol", "timeframe", "selected_action",
+      "expected_move_bps", "expected_move_after_cost_bps",
+      "confidence_raw", "confidence_calibrated",
+      "data_coverage_percent", "missing_feature_names",
+      "market_state_integrity_score", "feature_freshness_state",
+      "checkpoint_id", "checkpoint_source"
+    ],
+    "fields_absent_from_live_payload": [
+      "direction (mapped from selected_action — different name)",
+      "price_target_bps (mapped from expected_move_bps)",
+      "data_coverage_pct (mapped from data_coverage_percent)",
+      "top_positive_feature_codes (absent — SHAP not available yet)",
+      "top_negative_feature_codes (absent — SHAP not available yet)",
+      "reasoning_drivers (new structured summary)",
+      "strategy_family (new derived field)",
+      "regime (null until regime model available)",
+      "realized_outcome_direction (nullable back-fill)",
+      "realized_outcome_bps (nullable back-fill)",
+      "realized_at_ms (nullable back-fill)"
+    ],
+    "violations_in_sample_of_20": 0,
+    "verification_command": "redis-cli keys 'v2:prediction:*' | wc -l",
+    "btcusdt_1m_sample": {
+      "selected_action": "short",
+      "data_coverage_percent": 77.03,
+      "expected_move_bps": -120.0,
+      "expected_move_after_cost_bps": -132.0,
+      "confidence_calibrated": 0.689,
+      "missing_feature_count": 34,
+      "redis_key": "v2:prediction:BTCUSDT:1m"
+    }
+  },
+  "fixes_applied": [
+    {
+      "fix": "Created prediction_accuracy_tracker.py",
+      "file": "v2/backend/app/services/paper_trade_management/prediction_accuracy_tracker.py",
+      "exports": [
+        "REQUIRED_PHASE6_FIELDS (17 fields)",
+        "NULLABLE_PHASE6_FIELDS (5 fields)",
+        "enrich_prediction_for_phase6(payload) → adds all missing fields without overwriting",
+        "validate_phase6_schema(prediction) → returns list of violations",
+        "backfill_realized_outcome(symbol, timeframe, prediction_id, ..., redis_client) → back-fill",
+        "build_accuracy_report(predictions) → grouped by symbol/tf/direction/strategy_family/regime"
+      ]
+    },
+    {
+      "fix": "direction normalized from selected_action",
+      "detail": "Live payload uses selected_action; enrichment adds direction as canonical field"
+    },
+    {
+      "fix": "data_coverage_pct mapped from data_coverage_percent",
+      "detail": "Live payload uses data_coverage_percent; enrichment adds data_coverage_pct alias"
+    },
+    {
+      "fix": "realized_outcome back-fill fields added as nullable",
+      "detail": "realized_outcome_direction, realized_outcome_bps, realized_at_ms are null until back-fill wired. backfill_realized_outcome() writes only to v2:prediction: keys (v2: prefix enforced)."
+    },
+    {
+      "fix": "strategy_family derived from selected_action",
+      "values": {
+        "long": "trend_long",
+        "short": "trend_short",
+        "close_long/close_short/reduce": "exit",
+        "hedge_reserved": "hedge",
+        "hold/other": "neutral"
+      }
+    },
+    {
+      "fix": "reasoning_drivers structured summary built from existing fields",
+      "detail": "Contains direction, confidence, expected_move, market_integrity, feature coverage, top feature codes"
+    }
+  ],
+  "required_phase6_fields": [
+    "prediction_id", "symbol", "timeframe", "direction",
+    "price_target_bps", "expected_move_after_cost_bps", "confidence_calibrated",
+    "data_coverage_pct", "top_positive_feature_codes", "top_negative_feature_codes",
+    "reasoning_drivers", "missing_feature_names",
+    "realized_outcome_direction", "realized_outcome_bps", "realized_at_ms",
+    "strategy_family", "regime"
+  ],
+  "tests": {
+    "test_file": "v2/backend/tests/unit/services/paper_trade_management/test_phase6_prediction_validation.py",
+    "test_count": 25,
+    "tests": [
+      "test_all_required_phase6_fields_present_after_enrichment",
+      "test_non_nullable_fields_are_not_none_after_enrichment",
+      "test_nullable_fields_may_be_none",
+      "test_direction_derived_from_selected_action_short",
+      "test_direction_derived_from_selected_action_long",
+      "test_direction_derived_from_hold_is_flat",
+      "test_direction_not_overwritten_if_already_present",
+      "test_strategy_family_is_trend_short_for_short_action",
+      "test_strategy_family_is_exit_for_close_long",
+      "test_strategy_family_is_neutral_for_hold",
+      "test_price_target_bps_derived_from_expected_move_bps",
+      "test_data_coverage_pct_derived_from_data_coverage_percent",
+      "test_top_feature_codes_empty_when_no_source",
+      "test_top_feature_codes_used_from_existing_fields",
+      "test_realized_fields_are_null_before_backfill",
+      "test_backfill_realized_outcome_updates_existing_key",
+      "test_backfill_returns_false_when_key_missing",
+      "test_backfill_returns_false_when_prediction_id_mismatch",
+      "test_accuracy_report_groups_by_symbol_tf_direction",
+      "test_accuracy_report_win_rate_computed_from_realized",
+      "test_accuracy_report_win_rate_none_when_no_realized",
+      "test_accuracy_report_has_schema_version",
+      "test_validate_catches_missing_required_field",
+      "test_validate_catches_null_non_nullable_field",
+      "test_validate_passes_with_all_fields"
+    ],
+    "result": "PASS",
+    "run_command": "PYTHONPATH=v2/backend .venv/bin/pytest v2/backend/tests/unit/services/paper_trade_management/test_phase6_prediction_validation.py -v"
+  },
+  "accuracy_report_note": "realized_count=0 in all buckets — back-fill path not yet wired to paper execution outcome recorder. win_rate computation logic is correct and will populate when back-fill occurs.",
+  "shap_note": "top_positive_feature_codes and top_negative_feature_codes are empty lists in current payloads. SHAP/attribution values require native trainer to output feature importances — planned for Phase 3 native trainer extension.",
+  "phase_status": "PHASE_6_COMPLETE",
+  "live_gate": "blocked_human_only",
+  "places_real_order": false
+}

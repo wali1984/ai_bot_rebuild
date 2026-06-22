@@ -1,0 +1,71 @@
+{
+  "binance_kline_wss": {
+    "connection_count": 5,
+    "service": "ai-bot-v2-binance-kline-wss-loop.service",
+    "status": "V2_BINANCE_KLINE_WSS_CONNECTED",
+    "stream_count": 505,
+    "symbols_count": 101,
+    "timeframes": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ]
+  },
+  "canvas_checks": {
+    "routes_checked": [
+      "/market?role=admin",
+      "/trader?role=admin",
+      "/admin/symbols?role=admin",
+      "/admin/mission-control?role=admin"
+    ],
+    "status": "PASSED"
+  },
+  "execution_live_symbols": [],
+  "gate": "V2_FULL_UNIVERSE_PROFESSIONAL_CHART_PANEL_READY",
+  "generated_est": "2026-06-05T00:55:00-04:00",
+  "ingestors": {
+    "active_count": 16,
+    "classification": "INGESTORS_OK",
+    "total_count": 19
+  },
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "pipeline": {
+    "blocker_counts": {},
+    "chart_visible_symbol_count": 101,
+    "row_count": 505,
+    "status_path": "/operator_runtime/v2_pipeline_control/latest/operator_dashboard_payload.json"
+  },
+  "professional_chart": {
+    "all_timeframe_symbol_count": 101,
+    "current_payload_count": 505,
+    "manifest_path": "/operator_runtime/v2_professional_market_chart/latest/operator_dashboard_payload.json",
+    "source_type": "EXISTING_BINANCE_KLINE_WEBSOCKET_RUNTIME_FEED",
+    "status": "V2_PROFESSIONAL_MARKET_CHARTS_READY",
+    "total_payload_count": 505
+  },
+  "raw_coinapi_wsds_panel": {
+    "known_unavailable_symbols": [
+      "OPUSDT"
+    ],
+    "note": "Raw WSDS panel remains separate and does not fabricate missing CoinAPI WSDS snapshots.",
+    "status_path": "/operator_runtime/v2_market_chart/latest/operator_dashboard_payload.json"
+  },
+  "route_crawl": {
+    "base_url": "http://127.0.0.1:4173",
+    "exit_code": 0,
+    "phase": "local_professional_ohlcv_chart_final"
+  },
+  "safety": {
+    "approves_canary": false,
+    "approves_live": false,
+    "calls_test_order_endpoint": false,
+    "leverage_changed": false,
+    "margin_mode_changed": false,
+    "redis_trim_performed": false,
+    "writes_exchange_orders": false,
+    "writes_old_redis": false
+  }
+}

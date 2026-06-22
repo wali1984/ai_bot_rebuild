@@ -1,0 +1,25 @@
+{
+  "codex_pair_task_id": "claude_autoseed_observation_gap_feature_source_burndown_r19",
+  "created_at": "2026-05-25T01:14:43Z",
+  "file_lock_group": "v2_observation_gap_feature_source_burndown",
+  "owner": "CODEX",
+  "prompt": "Codex review for paired Claude task claude_autoseed_observation_gap_feature_source_burndown_r19. Scope: V2 changes only. Do not approve live, canary, legacy shutdown or Redis trim. End with <NAME>_CODEX_PASS or <NAME>_CODEX_FAIL.",
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "scope_paths": [
+    "claude_worklog/final_readiness/v2_autonomous_mission_backlog/per_task/observation_gap_feature_source_burndown/IMPLEMENTATION_REPORT.md"
+  ],
+  "status": "pending",
+  "task_id": "closed_loop_codex_review_claude_autoseed_observation_gap_feature_source_burndown_r19",
+  "task_type": "CODEX_REVIEW",
+  "updated_at": "2026-05-25T01:14:43Z"
+}

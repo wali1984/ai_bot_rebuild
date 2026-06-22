@@ -1,0 +1,8 @@
+{
+  "generated_est": "2026-06-09T21:56:25-04:00",
+  "liquidation_prevention_owner": "native liquidation levels engine + risk gateway",
+  "native_replacement": "publisher.py + risk_gateway + orchestrator_arbitration + trade_management_paper + liquidation level features",
+  "profit_taking_owner": "risk/orchestrator/trade-management runtime, not trainer",
+  "status": "NATIVE_SIGNAL_COORDINATOR_PARITY_READY_AS_V2_RUNTIME_COMPOSITION",
+  "trainer_direct_execution": false
+}

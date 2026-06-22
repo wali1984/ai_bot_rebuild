@@ -1,0 +1,3 @@
+The edit needs permission. Let me ask the user.
+
+This task requires editing `v2/backend/app/services/native_trainer/baseline_model.py` (and its companion tests). The path is within the V2 write-allowed scope per CLAUDE.md, but the harness is asking for explicit permission. Could you approve the file write so I can proceed with the calibration + FN-separation changes? I'll also need to write a new per-task report under `claude_worklog/agent_supervisor/tasks/`.

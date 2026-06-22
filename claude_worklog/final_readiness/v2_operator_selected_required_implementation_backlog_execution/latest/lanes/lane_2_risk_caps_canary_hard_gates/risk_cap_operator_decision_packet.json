@@ -1,0 +1,40 @@
+{
+  "schema_version": "v2_risk_cap_operator_decision_packet_v1",
+  "generated_utc": "2026-05-25T06:15:00Z",
+  "git_head": "10513bbe0517fd81c9c87e4672bb15486a083c02",
+  "lane_id": "lane_2_risk_caps_canary_hard_gates",
+  "purpose": "Operator-facing packet listing each risk cap and the operator-decision-required state. No values are auto-set.",
+  "operator_decision_count": 16,
+  "operator_accepted_count": 0,
+  "items": [
+    {"key": "max_daily_loss_pct_of_equity", "operator_decision_required": true, "current_value": "OPERATOR_DECISION_REQUIRED", "approves_canary": false, "approves_live": false},
+    {"key": "max_daily_loss_quote_notional", "operator_decision_required": true, "current_value": "OPERATOR_DECISION_REQUIRED", "approves_canary": false, "approves_live": false},
+    {"key": "max_position_notional", "operator_decision_required": true, "current_value": "OPERATOR_DECISION_REQUIRED", "approves_canary": false, "approves_live": false},
+    {"key": "max_position_notional_pct_of_equity", "operator_decision_required": true, "current_value": "OPERATOR_DECISION_REQUIRED", "approves_canary": false, "approves_live": false},
+    {"key": "max_trade_count_per_day", "operator_decision_required": true, "current_value": "OPERATOR_DECISION_REQUIRED", "approves_canary": false, "approves_live": false},
+    {"key": "max_concurrent_open_positions", "operator_decision_required": true, "current_value": "OPERATOR_DECISION_REQUIRED", "approves_canary": false, "approves_live": false},
+    {"key": "max_drawdown_rolling_24h_pct", "operator_decision_required": true, "current_value": "OPERATOR_DECISION_REQUIRED", "approves_canary": false, "approves_live": false},
+    {"key": "max_drawdown_session_pct", "operator_decision_required": true, "current_value": "OPERATOR_DECISION_REQUIRED", "approves_canary": false, "approves_live": false},
+    {"key": "kill_switch_trigger_daily_loss_pct", "operator_decision_required": true, "current_value": "OPERATOR_DECISION_REQUIRED", "approves_canary": false, "approves_live": false},
+    {"key": "kill_switch_trigger_drawdown_pct", "operator_decision_required": true, "current_value": "OPERATOR_DECISION_REQUIRED", "approves_canary": false, "approves_live": false},
+    {"key": "kill_switch_trigger_consecutive_losses", "operator_decision_required": true, "current_value": "OPERATOR_DECISION_REQUIRED", "approves_canary": false, "approves_live": false},
+    {"key": "max_leverage_per_symbol", "operator_decision_required": true, "current_value": "OPERATOR_DECISION_REQUIRED", "approves_canary": false, "approves_live": false},
+    {"key": "max_canary_capital_notional", "operator_decision_required": true, "current_value": "OPERATOR_DECISION_REQUIRED", "approves_canary": false, "approves_live": false},
+    {"key": "max_canary_per_trade_notional", "operator_decision_required": true, "current_value": "OPERATOR_DECISION_REQUIRED", "approves_canary": false, "approves_live": false},
+    {"key": "canary_symbol_allowlist", "operator_decision_required": true, "current_value": "OPERATOR_DECISION_REQUIRED", "approves_canary": false, "approves_live": false},
+    {"key": "canary_max_daily_trade_count", "operator_decision_required": true, "current_value": "OPERATOR_DECISION_REQUIRED", "approves_canary": false, "approves_live": false}
+  ],
+  "do_not_approve_canary": true,
+  "do_not_approve_live": true,
+  "no_value_persisted_by_this_packet": true,
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "creates_approval_tokens": false,
+    "fabricates_edge": false
+  }
+}

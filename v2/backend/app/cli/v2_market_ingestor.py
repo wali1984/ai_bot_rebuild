@@ -32,6 +32,7 @@ from v2.backend.app.services.market_ingest.service import (
     PriceSourcePriority,
     V2_KEY_PREFIX,
 )
+from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
 
 
 WORKER_ID = "v2_market_ingestor"
@@ -228,12 +229,13 @@ def verify_baseline_shas(manifest_path: Path = COPIED_BASELINE_MANIFEST) -> Dict
 
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog=WORKER_ID)
-    parser.add_argument("--symbol", default="BTCUSDT")
+    parser.add_argument("--symbol", default=None)
     parser.add_argument("--timeframe", default="1m")
     parser.add_argument("--limit", type=int, default=6)
     parser.add_argument("--interval", type=int, default=15)
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--loop", action="store_true")
+    parser.add_argument("--smoke-test", action="store_true")
     parser.add_argument("--no-write", action="store_true")
     parser.add_argument("--enable-kucoin", action="store_true")
     parser.add_argument("--depth-limit", type=int, default=20)
@@ -241,6 +243,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser.add_argument("--coinapi-v1-budget-pct", type=float, default=0.30)
     parser.add_argument("--verify-baseline-shas", action="store_true")
     args = parser.parse_args(argv)
+    args.symbol = (args.symbol or resolve_symbols(smoke_test=args.smoke_test)[0]).strip().upper()
     if not args.loop and not args.once:
         args.once = True
     return args

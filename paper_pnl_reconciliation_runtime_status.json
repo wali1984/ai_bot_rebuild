@@ -1,0 +1,16 @@
+{
+  "closed_positions_count": 1,
+  "fees": 0.0408,
+  "mark_price_sources": [
+    "BTCUSDT"
+  ],
+  "open_positions_count": 0,
+  "paper_equity": 1001.9388,
+  "paper_only": true,
+  "places_real_order": false,
+  "realized_pnl": 1.9388,
+  "reconciliation_status": "RECONCILED",
+  "slippage": 0.0204,
+  "unrealized_pnl": 0.0,
+  "unreconciled_rows": []
+}

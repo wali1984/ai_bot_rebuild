@@ -1,0 +1,8 @@
+{
+  "aggregate_dim_count": 0,
+  "category": "POLICY_ARCHITECTURE_BLOCKED",
+  "field_groups": [],
+  "generated_utc": "2026-05-23T02:22:09Z",
+  "note": "No field is currently classified POLICY_ARCHITECTURE_BLOCKED. Policy architecture is intentionally NOT started.",
+  "schema_version": "v2_full_observation_policy_architecture_blocked_v1"
+}

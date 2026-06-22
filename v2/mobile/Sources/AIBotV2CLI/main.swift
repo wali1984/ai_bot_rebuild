@@ -52,7 +52,7 @@ private func runStty(_ arg: String) {
 
 func printHelp() {
     print("""
-    \(b("AI BOT V2 — CLI"))  Swift 6 on Linux
+    \(b("NERVYX ONE — CLI"))  Swift 6 on Linux
     \(separator())
     Usage: aibot <command> [options]
 
@@ -94,7 +94,7 @@ func printHelp() {
 func printHeader(_ title: String) {
     print("")
     print(b(separator("═")))
-    print(b("  AI BOT V2  ·  \(title)"))
+    print(b("  NERVYX ONE  ·  \(title)"))
     print(b(separator("─")))
 }
 
@@ -502,7 +502,7 @@ Task {
         } catch { print(r("Error: \(error.localizedDescription)")) }
 
     case "watch":
-        print(b("  AI BOT V2  ·  LIVE WATCH  (Ctrl+C to stop, refresh: \(interval)s)"))
+        print(b("  NERVYX ONE  ·  LIVE WATCH  (Ctrl+C to stop, refresh: \(interval)s)"))
         // watch loops forever — semaphore never fires, Ctrl+C exits
         while true {
             print("\u{001B}[2J\u{001B}[H", terminator: "")

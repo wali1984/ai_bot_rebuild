@@ -1,0 +1,9 @@
+{
+  "status": "done",
+  "public_payloads": [
+    "executive_payload_spark_status.json",
+    "operator_payload_spark_status.json"
+  ],
+  "truth_plane": "sqlite-wal",
+  "generated_utc": "2026-05-24T00:00:00Z"
+}

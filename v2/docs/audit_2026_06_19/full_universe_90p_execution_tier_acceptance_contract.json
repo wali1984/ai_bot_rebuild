@@ -1,0 +1,85 @@
+{
+  "audit_utc": "2026-06-19T00:15:00Z",
+  "contract_id": "V2_90P_EXECUTION_TIER_ACCEPTANCE_CONTRACT",
+  "description": "Defines what constitutes A-grade (90th percentile) execution quality for the V2 paper trading system",
+  "definition": {
+    "A_grade_execution_criteria": {
+      "fill_quality": {
+        "criterion": "Fill at mark price \u00b1 2 bps",
+        "current_status": "MET \u2014 all paper fills at entry_price, slippage model ~2 bps",
+        "grade": "A"
+      },
+      "decision_latency": {
+        "criterion": "< 500ms from signal to paper fill",
+        "current_status": "UNVERIFIED \u2014 no decision_latency field in closed trade records",
+        "grade": "UNVERIFIABLE"
+      },
+      "signal_freshness": {
+        "criterion": "Prediction age < 900s at time of trade decision",
+        "current_status": "MET \u2014 stale predictions excluded from candidates (0 PIT violations)",
+        "grade": "A"
+      },
+      "pit_safety": {
+        "criterion": "0 PIT violations (no future data leakage)",
+        "current_status": "MET \u2014 0 PIT violations confirmed",
+        "grade": "A"
+      },
+      "feature_completeness": {
+        "criterion": "All core features populated (squeeze, spread, drawdown)",
+        "current_status": "FAIL \u2014 squeeze null 100%, spread constant, drawdown always zero",
+        "grade": "D"
+      },
+      "long_short_balance": {
+        "criterion": "Both LONG and SHORT paths exercised (min 20% each)",
+        "current_status": "FAIL \u2014 0% LONG trades",
+        "grade": "F"
+      },
+      "win_rate": {
+        "criterion": "\u2265 35% on 200+ trade window",
+        "current_status": "FAIL \u2014 30.39% on 645 trades",
+        "grade": "D"
+      },
+      "profit_factor": {
+        "criterion": "\u2265 1.25 stable",
+        "current_status": "MARGINAL \u2014 PF=1.11, was 1.24 at 446 trades (declining)",
+        "grade": "C"
+      },
+      "trailing_stop_wr": {
+        "criterion": "Trailing stop WR > 40% (stop activates and protects profit)",
+        "current_status": "FAIL \u2014 TS WR=10.1% (fires at loss 89.9% of the time)",
+        "grade": "F"
+      },
+      "timeframe_profitability": {
+        "criterion": "All active timeframes net-positive PnL",
+        "current_status": "FAIL \u2014 5m and 4h are net-negative",
+        "grade": "D"
+      }
+    }
+  },
+  "grade_summary": {
+    "A_count": 3,
+    "C_count": 1,
+    "D_count": 3,
+    "F_count": 2,
+    "UNVERIFIABLE_count": 1,
+    "overall_grade": "D",
+    "overall_pct_passing": 30.0,
+    "90p_execution_tier_reached": false
+  },
+  "what_90p_execution_tier_requires": [
+    "WR \u2265 35% on 200+ new trades",
+    "Trailing stop WR \u2265 40% after parameter tuning",
+    "All timeframes net-positive (disable 5m/4h first)",
+    "LONG path exercised with minimum 50 trades",
+    "squeeze_evidence_score populated on all future trades",
+    "Real bid-ask spread wired (not constant 2.0 bps)",
+    "Drawdown guard functional (non-zero drawdown_at_entry when account is down)",
+    "PF \u2265 1.25 stable for 200+ trade window",
+    "Zero new quarantine failures",
+    "Full Playwright suite green",
+    "Human operator explicit approval"
+  ],
+  "current_status": "NOT_REACHED",
+  "estimated_trades_to_retest": 200,
+  "confidence": "HIGH"
+}

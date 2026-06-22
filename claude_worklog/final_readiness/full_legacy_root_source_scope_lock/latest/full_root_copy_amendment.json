@@ -1,0 +1,100 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "enumeration_method": "AUDIT_MENTIONED_PATHS_ONLY",
+  "filesystem_enumeration_status": "BLOCKED_AUTO_MODE_CLASSIFIER_DENIES_LISTDIR",
+  "generated_utc": "2026-05-16",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "name": "full_root_copy_amendment",
+  "phase": "C",
+  "round_3_copied_count": 12,
+  "round_3_copy_actions": [
+    {
+      "classification": "SAFE_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/api/app.py",
+      "legacy_rel": "api/app.py",
+      "sha256": "42dfdbac6761573dbb7a656aa7670f99b0c60fd0125ff82129c0f3465834d13d",
+      "size_bytes": 10368
+    },
+    {
+      "classification": "SAFE_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/api/auth.py",
+      "legacy_rel": "api/auth.py",
+      "sha256": "cdfa902c5b7527a3d39b50ba886cc5d09094718153efbf22e2792aa9ab633392",
+      "size_bytes": 9651
+    },
+    {
+      "classification": "SAFE_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/api/grpc_server.py",
+      "legacy_rel": "api/grpc_server.py",
+      "sha256": "3245c914e5e8fc70d69fc9b6a5a0512146d5d90a67019ba60c040b508eba614c",
+      "size_bytes": 15859
+    },
+    {
+      "classification": "SAFE_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/circuit_breaker.py",
+      "legacy_rel": "circuit_breaker.py",
+      "sha256": "8e07cac504ae41ceda4fa097db6b384a1c62cb43a4a6389ab3d916c2835735a3",
+      "size_bytes": 14940
+    },
+    {
+      "classification": "SAFE_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/config/settings.py",
+      "legacy_rel": "config/settings.py",
+      "sha256": "6396450ce479ab96c118372d88ca6b35195e6078c630dc95f396d7eee34b7d1b",
+      "size_bytes": 1974
+    },
+    {
+      "classification": "SAFE_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/emergency_brake.py",
+      "legacy_rel": "emergency_brake.py",
+      "sha256": "fb33e7a5dcc7b0160227b0856e9714b500160dd8fbae0748e1a30923761ff898",
+      "size_bytes": 15193
+    },
+    {
+      "classification": "SAFE_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/ccxt_historical.py",
+      "legacy_rel": "ingest/ccxt_historical.py",
+      "sha256": "7d021ca95e57f10b5ac458753d921f77c2349569125e2e968772143c4baec1e3",
+      "size_bytes": 48458
+    },
+    {
+      "classification": "SAFE_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/live_alphavantage_news.py",
+      "legacy_rel": "ingest/live_alphavantage_news.py",
+      "sha256": "a69fca63f0bbe3e0cd694e040ff82443bc71906ef167c0fa627dcd281e3e478d",
+      "size_bytes": 8800
+    },
+    {
+      "classification": "SAFE_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/live_ccxt.py",
+      "legacy_rel": "ingest/live_ccxt.py",
+      "sha256": "c5a358664567e010aaa2bf2b7900218010982b484a99e4cc2f4826d32510120a",
+      "size_bytes": 16413
+    },
+    {
+      "classification": "SAFE_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/live_tokenmetrics.py",
+      "legacy_rel": "ingest/live_tokenmetrics.py",
+      "sha256": "1378d8961a961a8ac101392e444de23a4de8029a4ad81baf24490e01fd68ec20",
+      "size_bytes": 44485
+    },
+    {
+      "classification": "TOP_LEVEL_ALIAS_OF_INGEST_FALLBACK_IMPORT",
+      "destination": "v2/legacy_owned_runtime/tm_ids.py",
+      "legacy_rel": "tm_ids.py",
+      "sha256": "3c145fac5094e65baea6d5dfae65030db0a24390dd83747196bf0da8b55abcfb",
+      "size_bytes": 1221
+    },
+    {
+      "classification": "TOP_LEVEL_ALIAS_OF_INGEST_FALLBACK_IMPORT",
+      "destination": "v2/legacy_owned_runtime/tm_spec.py",
+      "legacy_rel": "tm_spec.py",
+      "sha256": "8fd36e94140fad1db63c1d2686874cbb8ef6fef955ce39c6367182270af79b17",
+      "size_bytes": 10338
+    }
+  ]
+}

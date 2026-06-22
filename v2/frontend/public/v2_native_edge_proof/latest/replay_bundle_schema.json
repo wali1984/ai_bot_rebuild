@@ -1,0 +1,104 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "bundle_fields": [
+    "feature_snapshot_id",
+    "prediction_id",
+    "symbol",
+    "timeframe",
+    "generated_at",
+    "features_hash",
+    "market_snapshot",
+    "altdata_snapshot",
+    "risk_decision",
+    "trainer_output",
+    "paper_gate_decision",
+    "orchestrator_decision",
+    "paper_intent",
+    "legacy_reference_action",
+    "future_outcomes",
+    "outcome_after_cost",
+    "label"
+  ],
+  "canonical_input_keys": [
+    "v2:prediction:{symbol}:{timeframe}",
+    "v2:features:latest:{symbol}:{timeframe}",
+    "v2:market:prices:{symbol}",
+    "v2:market:liquidations:heartbeat",
+    "v2:market:liquidations:latest:{symbol}",
+    "v2:market:liquidations:aggregate:{symbol}",
+    "v2:altdata:symbol_score:{symbol}",
+    "v2:risk:decisions",
+    "v2:paper:intents",
+    "v2:paper:intents_held_by_paper_fill_gate",
+    "v2:paper:ledger",
+    "v2:paper:position_history:{symbol}",
+    "v2:paper:position_price_track:{symbol}",
+    "v2:orchestrator:decisions",
+    "v2_vs_legacy_comparator: read-only public payload mirror",
+    "legacy log observer: read-only summary mirror only (never raw Redis)"
+  ],
+  "default_cost_model": {
+    "cost_model_source": "DEFAULT_PAPER_COST_MODEL_PENDING_OPERATOR_OVERRIDE_OPERATOR_DECISION_REQUIRED",
+    "fee_drag_bps": 5.0,
+    "operator_decision_required": true,
+    "operator_override_required": true,
+    "slippage_estimate_bps": 2.0
+  },
+  "default_thresholds": {
+    "max_drawdown_bps_rolling": "OPERATOR_DECISION_REQUIRED",
+    "max_false_negative_rate": "OPERATOR_DECISION_REQUIRED",
+    "max_false_positive_rate": "OPERATOR_DECISION_REQUIRED",
+    "min_after_cost_expectancy_bps": "OPERATOR_DECISION_REQUIRED",
+    "min_after_cost_lower_ci_bps": "OPERATOR_DECISION_REQUIRED",
+    "min_downside_pre_cascade_recall": "OPERATOR_DECISION_REQUIRED",
+    "min_sample_count": "OPERATOR_DECISION_REQUIRED",
+    "min_v2_vs_legacy_action_match_rate": "OPERATOR_DECISION_REQUIRED_INFORMATIONAL_ONLY",
+    "no_live_approval_implied": true,
+    "preliminary_only_for_analysis": true
+  },
+  "did_not_call_exchange": true,
+  "did_not_expose_raw_api_keys": true,
+  "did_not_modify_legacy_bot": true,
+  "did_not_read_old_redis_current_truth": true,
+  "future_outcomes_windows": [
+    {
+      "window_id": "1m",
+      "window_seconds": 60
+    },
+    {
+      "window_id": "5m",
+      "window_seconds": 300
+    },
+    {
+      "window_id": "15m",
+      "window_seconds": 900
+    },
+    {
+      "window_id": "1h",
+      "window_seconds": 3600
+    }
+  ],
+  "labels": [
+    "correct_trade",
+    "correct_no_trade",
+    "false_positive",
+    "false_negative",
+    "false_block",
+    "insufficient_evidence"
+  ],
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "required_thresholds_for_provisional_paper_pass": [
+    "min_sample_count",
+    "min_after_cost_expectancy_bps",
+    "min_after_cost_lower_ci_bps",
+    "max_drawdown_bps_rolling",
+    "min_downside_pre_cascade_recall",
+    "max_false_positive_rate",
+    "max_false_negative_rate"
+  ],
+  "schema_version": "v2_native_edge_proof_replay_bundle_v1"
+}

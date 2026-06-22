@@ -1,573 +1,586 @@
+import { Link } from 'react-router-dom';
 import meta from './meta';
 import rbac from './rbac';
 import route from './route';
+import { useRealtimeResource } from '../../hooks/useRealtimeResource';
+import { FreshnessBadge } from '../../components/data/FreshnessBadge';
+import { SourceBadge } from '../../components/data/SourceBadge';
+import { RealtimeStatusBar } from '../../components/data/RealtimeStatusBar';
+import { AdaptiveCapitalTelemetryPanel } from '../../components/trading/AdaptiveCapitalTelemetryPanel';
+import {
+  adaptiveStatusColor,
+  formatAdaptiveMoney,
+  formatAdaptivePercent,
+  missingAccuracyCellCount,
+  pnlWindow,
+  useAdaptiveCapitalDashboard,
+} from '../../data/adaptiveCapitalProductivity';
 import type { PageMeta } from '../../types/page';
-import { AutonomousGovernorPanel, ChartPanel, CockpitLoading, ConfigTable, DecisionDrawers, ExchangeManager, FreshnessBadge, MarketPulse, MonitorTable, Panel, Phase3cRuntimeMonitorPanel, QuarantinePanel, RedisExportCapacityPanel, RedisFullExportPanel, RedisHumanApprovalPanel, RedisMemoryPressurePanel, RedisSafeTrimPacketPanel, SafetyTopBar, SystemAtlasGapRemediationPanel, SystemAtlasPanel } from '../cockpitComponents';
-import type { AutonomousGovernorPayload, CockpitPayload } from '../cockpitData';
-import { statusClass, useCockpitPayload, valueText } from '../cockpitData';
-import { MissionControlReadinessBanner } from '../../components/banners/MissionControlReadinessBanner';
-import { useCoinankMarketIntelligencePayload, useOperatorTruthPayload, usePaperOnlineRuntimePayload, type CoinankMarketIntelligencePayload, type OperatorTruthPayload, type PaperOnlineRuntimePayload } from '../operatorTruthData';
-import { ActualRuntimeNowPanel, CoinankMarketIntelligencePanel, LegacyRuntimeMonitorPanel, LiveObserverShadowTwinPanel, MissingEvidencePanel, OperatorTruthCommandDeck, OperatorTruthLoading, PaperOnlineRuntimeStatusPanel, PayloadFreshnessPanel, RuntimeTruthMatrix, SignalLineageTruthPanel, TrainerPredictionTruthPanel, WhatIsWorkingPanel } from '../operatorTruthComponents';
-import { MissionTradingPlatformPanel } from '../tradingPlatformPanels';
 
-const EVIDENCE_MISSING = 'Evidence missing - cannot explain without guessing.';
-
-export default function MissionControlPage(): JSX.Element {
-  const { payload, quarantine, systemAtlas, systemAtlasGapRemediation, phase3cRuntimeMonitor, redisMemoryPressure, redisHumanApproval, redisExportCapacity, redisFullExport, redisSafeTrimPacket, autonomousGovernor, error } = useCockpitPayload();
-  const { payload: truthPayload, error: truthError } = useOperatorTruthPayload();
-  const { payload: paperRuntime } = usePaperOnlineRuntimePayload();
-  const { payload: coinankPayload, error: coinankError } = useCoinankMarketIntelligencePayload();
-
-  if (!payload) {
-    return (
-      <article className="enterprise-cockpit-page" data-testid="page-mission-control" data-page-id={(meta as PageMeta).id} data-page-path={route.path} data-page-min-role={rbac.minRole}>
-        <MissionControlReadinessBanner />
-        <CockpitLoading error={error} />
-      </article>
-    );
-  }
-  const marketFeedSource = payload.analytics_cards.find((card) => card.label === 'Market Feed')?.value;
-
-  return (
-    <article className="enterprise-cockpit-page mission-control-design-page grid-bg" data-testid="page-mission-control" data-page-id={meta.id} data-page-path={route.path} data-page-min-role={rbac.minRole}>
-      <MissionControlReadinessBanner />
-      <TradingCockpitFirstScreen
-        payload={payload}
-        marketFeedSource={marketFeedSource}
-        paperRuntime={paperRuntime}
-        coinankPayload={coinankPayload}
-        truthPayload={truthPayload}
-      />
-      {truthPayload ? <OperatorTruthCommandDeck payload={truthPayload} /> : <OperatorTruthLoading error={truthError} />}
-      {truthPayload ? <ActualRuntimeNowPanel payload={truthPayload} /> : null}
-      {truthPayload ? <RuntimeTruthMatrix payload={truthPayload} /> : null}
-      <MissionTradingPlatformPanel paperRuntime={paperRuntime} coinankPayload={coinankPayload} truthPayload={truthPayload} />
-      <PaperOnlineRuntimeStatusPanel payload={paperRuntime} />
-      <CoinankMarketIntelligencePanel payload={coinankPayload} error={coinankError} context="Mission Control" />
-      {truthPayload ? <LiveObserverShadowTwinPanel payload={truthPayload} /> : null}
-      {truthPayload ? <MissionCriticalSystemsGrid payload={payload} truthPayload={truthPayload} paperRuntime={paperRuntime} /> : null}
-      <OperatorDetailLinksPanel />
-      <div className="mission-command-layout">
-        <div className="mission-command-main">
-          <ChartPanel candles={payload.candles} decisions={payload.decisions} sourceType={marketFeedSource} />
-          {truthPayload ? <SignalRuntimeStatusPanel truthPayload={truthPayload} /> : null}
-        </div>
-        <aside className="mission-command-side">
-          {truthPayload ? <RiskGatewayRuntimePanel truthPayload={truthPayload} /> : null}
-          <MonitorTable rows={payload.monitors} />
-        </aside>
-      </div>
-      <Panel id="mission-control-proof-offload" title="Proof Archive Offloaded" right={<span className="chip solid-paper">Not primary workflow</span>}>
-        <p className="cockpit-evidence-note">
-          Historical proofs, Redis remediation packets, system atlas inventories, and static decision examples are no longer rendered on the Mission Control first screen. Use Operator Proof Dashboard, Build/Validation, System Atlas, Risk Control, and Signal Explainability for archive detail.
-        </p>
-      </Panel>
-      <footer className="modern-dashboard-marker" data-testid="modern-dashboard-loaded">
-        AI BOT V2 Modern Dashboard Loaded
-      </footer>
-    </article>
-  );
+// ---------- types ----------
+interface PortfolioData {
+  paper_balance?: number | null;
+  paper_equity?: number | null;
+  realized_pnl?: number | null;
+  unrealized_pnl?: number | null;
+  open_positions?: unknown[];
+  account_mode?: string | null;
 }
 
-function recordValue(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+interface SignalData {
+  active_signal?: {
+    direction?: string | null;
+    confidence?: number | null;
+    strategy?: string | null;
+    entry?: number | null;
+    target_1?: number | null;
+    stop?: number | null;
+    risk_decision?: string | null;
+    symbol?: string | null;
+  } | null;
+  signal_count?: number | null;
 }
 
-function firstString(values: unknown[]): unknown {
-  return values.find((value) => value !== undefined && value !== null && value !== '');
+interface MarketOverviewData {
+  tickers?: Array<{ symbol: string; last_price: number | null; change_24h: number | null }>;
+  symbols?: string[];
+  count?: number;
 }
 
-function shortText(value: unknown, fallback = 'MISSING_EVIDENCE'): string {
-  if (value === undefined || value === null || value === '') {
-    return fallback;
-  }
-  const text = typeof value === 'object' ? JSON.stringify(value) : String(value);
-  return text.length > 138 ? `${text.slice(0, 135)}...` : text;
+// ---------- formatting ----------
+function fmt(n: number | null | undefined, digits = 2): string {
+  if (n == null) return '—';
+  return n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+function fmtMoney(n: number | null | undefined): string {
+  if (n == null) return '—';
+  if (Math.abs(n) >= 1e6) return '$' + (n / 1e6).toFixed(2) + 'M';
+  if (Math.abs(n) >= 1e3) return '$' + (n / 1e3).toFixed(1) + 'K';
+  return '$' + n.toFixed(2);
+}
+function fmtPct(n: number | null | undefined): string {
+  if (n == null) return '—';
+  const pct = Math.abs(n) <= 1 ? n * 100 : n;
+  return `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
+}
+function directionColor(dir: string | null | undefined): string {
+  if (!dir) return 'var(--text-muted)';
+  const d = dir.toLowerCase();
+  if (d.includes('long') || d.includes('buy') || d === 'bullish') return 'var(--buy)';
+  if (d.includes('short') || d.includes('sell') || d === 'bearish') return 'var(--sell)';
+  return 'var(--ai)';
+}
+function confColor(c: number | null | undefined): string {
+  if (c == null) return 'var(--text-muted)';
+  const pct = c <= 1 ? c : c / 100;
+  if (pct >= 0.75) return 'var(--conf-high)';
+  if (pct >= 0.5) return 'var(--conf-mid)';
+  return 'var(--conf-low)';
+}
+function pnlColor(n: number | null | undefined): string {
+  if (n == null) return 'var(--text-secondary)';
+  return n >= 0 ? 'var(--buy)' : 'var(--sell)';
 }
 
-function blockerSummary(value: unknown): string {
-  const record = recordValue(value);
-  if (record.id || record.detail) {
-    return shortText([record.id, record.detail].filter(Boolean).join(': '));
-  }
-  return shortText(value, 'Continue live blocker burn-down');
-}
-
-function paperLineageIds(payload: PaperOnlineRuntimePayload | null): Record<string, unknown> {
-  return recordValue(recordValue(payload?.current_signal_lineage).lineage_ids);
-}
-
-function paperSignal(payload: PaperOnlineRuntimePayload | null): Record<string, unknown> {
-  return recordValue(recordValue(payload?.current_signal_lineage).signal);
-}
-
-function paperExecutionIntent(payload: PaperOnlineRuntimePayload | null): Record<string, unknown> {
-  return recordValue(recordValue(payload?.current_signal_lineage).execution_intent);
-}
-
-function latestLegacyExecutionFromTruth(payload: OperatorTruthPayload | null): Record<string, unknown> {
-  const bridge = recordValue(recordValue(payload?.live_observer_shadow_twin).legacy_read_only_bridge);
-  const streams = recordValue(bridge.streams);
-  const executed = recordValue(streams.executed_signals);
-  const latest = recordValue(executed.latest_entry);
-  return recordValue(recordValue(latest.fields).data);
-}
-
-function TradingCockpitFirstScreen({
-  payload,
-  marketFeedSource,
-  paperRuntime,
-  coinankPayload,
-  truthPayload,
-}: {
-  payload: CockpitPayload;
-  marketFeedSource?: string;
-  paperRuntime: PaperOnlineRuntimePayload | null;
-  coinankPayload: CoinankMarketIntelligencePayload | null;
-  truthPayload: OperatorTruthPayload | null;
+// ---------- sub-components ----------
+function KPICard({ label, value, meta: kMeta, valueColor, link }: {
+  label: string;
+  value: string;
+  meta?: string;
+  valueColor?: string;
+  link?: string;
 }): JSX.Element {
-  const ids = paperLineageIds(paperRuntime);
-  const signal = paperSignal(paperRuntime);
-  const executionIntent = paperExecutionIntent(paperRuntime);
-  const risk = recordValue(paperRuntime?.current_risk_decision);
-  const trainer = recordValue(paperRuntime?.trainer_prediction);
-  const paperEvent = recordValue(paperRuntime?.last_paper_event);
-  const availability = coinankPayload?.availability ?? {};
-  const endpointCounts = coinankPayload?.endpoint_key_counts ?? {};
-  const legacyExecution = latestLegacyExecutionFromTruth(truthPayload);
-  const observerTwin = recordValue(recordValue(truthPayload?.live_observer_shadow_twin).legacy_shadow_twin);
-  const observerRisk = recordValue(observerTwin.risk_decision);
-  const blocker = truthPayload?.current_blockers[0] ?? payload.blockers[0]?.id ?? payload.evidence_gaps[0] ?? 'Continue live blocker burn-down';
-  const activeTask = truthPayload?.supervisor_status.current_running_task ?? 'non-live monitor/audit loop';
-  const marketCards = [
-    ['Price', paperRuntime?.market_feed?.price ?? 'MISSING_EVIDENCE', paperRuntime?.market_feed?.source_type ?? marketFeedSource ?? 'READONLY_MARKET_FEED'],
-    ['Funding', endpointCounts.weighted_funding ? 'LIVE_COINANK_READONLY' : 'MISSING_EVIDENCE', 'CoinAnk weighted funding'],
-    ['Open interest', endpointCounts.open_interest ? 'LIVE_COINANK_READONLY' : 'MISSING_EVIDENCE', 'CoinAnk OI / OI change'],
-    ['Long / short', availability.long_short ? 'LIVE_COINANK_READONLY' : 'MISSING_EVIDENCE', 'CoinAnk ratios'],
-    ['Liquidations', availability.liquidation_orders || availability.liquidation_rank ? 'LIVE_COINANK_READONLY' : 'MISSING_EVIDENCE', 'CoinAnk liquidation rank/orders'],
-  ] satisfies Array<[string, unknown, string]>;
-  const riskCards = [
-    ['prediction_id', firstString([ids.prediction_id, trainer.prediction_id, 'MISSING_EVIDENCE'])],
-    ['signal_id', firstString([ids.signal_id, signal.signal_id, 'MISSING_EVIDENCE'])],
-    ['risk_decision_id', firstString([ids.risk_decision_id, risk.risk_decision_id, 'MISSING_EVIDENCE'])],
-    ['execution_intent_id', firstString([ids.execution_intent_id, paperEvent.execution_intent_id, executionIntent.execution_intent_id, 'MISSING_EVIDENCE'])],
-    ['paper PnL', firstString([paperEvent.pnl, paperEvent.realized_pnl, paperRuntime?.paper_account?.realized_pnl, 'MISSING_EVIDENCE'])],
-    ['shadow / risk blocks', `${paperRuntime?.paper_loop.last_shadow_decision_count ?? 0} / ${paperRuntime?.paper_loop.last_risk_block_count ?? 0}`],
-  ] satisfies Array<[string, unknown]>;
-  return (
-    <section className="trading-cockpit-shell" data-testid="mission-trading-cockpit-first-screen" aria-label="Mission Control trading cockpit">
-      <div className="trading-cockpit-top-rail">
-        <span className="chip solid-block">LIVE GATE: {paperRuntime?.live_gate_status ?? truthPayload?.live_gate_status ?? payload.live_gate_status}</span>
-        <span className="chip solid-paper">MODE: paper / shadow / live blocked</span>
-        <span className="chip">SYMBOL: {paperRuntime?.market_feed?.symbol ?? payload.selected_symbol ?? 'BTCUSDT'}</span>
-        <span className="chip">PAPER AGE: {valueText(paperRuntime?.freshness?.runtime_age_seconds ?? 'MISSING_EVIDENCE')}s</span>
-        <span className="chip">LEGACY BRIDGE: {truthPayload?.runtime_monitor_status.trader_status ?? 'MISSING_EVIDENCE'}</span>
-        <span className="chip">CLAUDE/CODEX: {valueText(activeTask)}</span>
-      </div>
-      <div className="trading-cockpit-main-grid">
-        <div className="trading-cockpit-chart-stack">
-          <div className="trading-cockpit-section-head">
-            <div>
-              <p className="eyebrow">Trade Cockpit / read-only market context</p>
-              <h2>{paperRuntime?.market_feed?.symbol ?? 'BTCUSDT'} paper-shadow command view</h2>
-            </div>
-            <span className="chip">{marketFeedSource === 'READONLY_MARKET_FEED' ? 'READONLY_MARKET_FEED_PRIMARY' : 'FALLBACK_READONLY_CHART'}</span>
-          </div>
-          <ChartPanel candles={payload.candles} decisions={payload.decisions} sourceType={marketFeedSource} />
-          <div className="trading-market-strip">
-            {marketCards.map(([label, value, source]) => (
-              <div className="trading-cockpit-card trading-cockpit-card--market" key={label}>
-                <span>{label}</span>
-                <strong className={statusClass(value)}>{valueText(value)}</strong>
-                <small>Source/freshness: {source}</small>
-              </div>
-            ))}
-          </div>
-        </div>
-        <aside className="trading-cockpit-side-stack">
-          <div className="trading-cockpit-card trading-cockpit-card--blocker">
-            <span>Next blocker</span>
-            <strong>{blockerSummary(blocker)}</strong>
-            <small>Primary lane remains migration, risk, trainer parity, and paper/shadow proof.</small>
-          </div>
-          {riskCards.map(([label, value]) => (
-            <div className="trading-cockpit-card" key={label}>
-              <span>{label}</span>
-              <strong className={statusClass(value)}>{valueText(value)}</strong>
-            </div>
-          ))}
-        </aside>
-      </div>
-      <div className="trading-legacy-v2-comparison">
-        <div>
-          <span>Legacy read-only import</span>
-          <strong>{valueText(legacyExecution.exchange_order_id ?? 'MISSING_EVIDENCE')}</strong>
-          <small>Imported only; V2 does not mutate legacy or exchange state.</small>
-        </div>
-        <div>
-          <span>V2 risk outcome</span>
-          <strong className={statusClass(observerRisk.risk_result ?? risk.risk_result)}>{valueText(observerRisk.risk_result ?? risk.risk_result ?? 'MISSING_EVIDENCE')}</strong>
-          <small>{valueText(observerRisk.risk_reason_code ?? risk.risk_reason_code ?? 'Risk Gateway remains final authority')}</small>
-        </div>
-        <div>
-          <span>Paper/execution state</span>
-          <strong>{valueText(paperEvent.paper_result ?? paperEvent.paper_action ?? 'MISSING_EVIDENCE')}</strong>
-          <small>No live order controls are exposed from Mission Control.</small>
-        </div>
-      </div>
-    </section>
+  const inner = (
+    <div className="kpi-card" style={{ cursor: link ? 'pointer' : 'default' }}>
+      <div className="kpi-card__label">{label}</div>
+      <div className="kpi-card__value" style={valueColor ? { color: valueColor } : undefined}>{value}</div>
+      {kMeta && <div className="kpi-card__meta">{kMeta}</div>}
+    </div>
   );
+  return link ? <Link to={link} style={{ textDecoration: 'none' }}>{inner}</Link> : inner;
 }
 
-function OperatorDetailLinksPanel(): JSX.Element {
-  const links = [
-    ['/admin/monitor-center?role=admin', 'Monitor Center', 'Scripts, monitors, process watchers, and freshness evidence.'],
-    ['/admin/trainer-prediction-monitor?role=admin', 'Trainer Monitor', 'Current trainer runtime evidence first; fixtures collapsed.'],
-    ['/admin/signal-explainability?role=admin', 'Signal Explainability', 'Current lineage, missing evidence, and no-guessing status.'],
-    ['/admin/build-validation-status?role=admin', 'Build Validation', 'GO/NO-GO markers, stale payloads, and proof freshness.'],
-    ['/admin/operator-proof-dashboard?role=admin', 'Proof Dashboard', 'Historical and static proof artifacts only.'],
-    ['/admin/risk-control?role=admin', 'Risk Control', 'Risk Gateway authority and fail-closed blockers.'],
-  ] satisfies Array<[string, string, string]>;
+function SectionHead({ title, action }: { title: string; action?: JSX.Element }): JSX.Element {
   return (
-    <Panel id="operator-detail-links" title="Detail Pages">
-      <div className="operator-detail-links">
-        {links.map(([href, label, detail]) => (
-          <a href={href} key={href} className="operator-detail-link">
-            <strong>{label}</strong>
-            <span>{detail}</span>
-          </a>
-        ))}
-      </div>
-    </Panel>
-  );
-}
-
-function MissionCriticalSystemsGrid({ payload, truthPayload, paperRuntime }: { payload: CockpitPayload; truthPayload: NonNullable<ReturnType<typeof useOperatorTruthPayload>['payload']>; paperRuntime: PaperOnlineRuntimePayload | null }): JSX.Element {
-  const decision = payload.decisions[0];
-  const observerTwin = truthPayload.live_observer_shadow_twin?.legacy_shadow_twin as Record<string, unknown> | undefined;
-  const observerRiskDecision = observerTwin?.risk_decision as Record<string, unknown> | undefined;
-  const observerRiskResult = observerRiskDecision?.risk_result;
-  const cards = [
-    {
-      label: 'Paper / shadow equity',
-      value: paperRuntime?.paper_account?.equity ?? payload.account_mode,
-      detail: paperRuntime
-        ? `Runtime ${paperRuntime.runtime_state}; last tick ${paperRuntime.paper_loop.last_tick_at}; no exchange execution.`
-        : 'No live exchange execution. Paper/shadow state is missing until V2 paper online runtime is started.',
-      source: paperRuntime ? 'REALTIME_RUNTIME_EVIDENCE / V2_PAPER_RUNTIME' : 'MISSING_EVIDENCE',
-    },
-    {
-      label: 'Trainer state',
-      value: truthPayload.trainer_monitor_status.status,
-      detail: 'Current trainer runtime evidence must exist before predictions are treated as current.',
-      source: 'REALTIME_RUNTIME_EVIDENCE',
-    },
-    {
-      label: 'Orchestrator',
-      value: truthPayload.live_observer_shadow_twin ? 'LEGACY_OBSERVER_ADAPTER_ACTIVE' : truthPayload.runtime_monitor_status.orchestrator_status,
-      detail: truthPayload.live_observer_shadow_twin
-        ? 'Legacy proposal/signal evidence is normalized through V2 observer adapter; Risk Gateway still approves/blocks.'
-        : 'Observed read-only process evidence only; orchestrator cannot approve execution.',
-      source: truthPayload.live_observer_shadow_twin ? 'LEGACY_READONLY_BRIDGE / V2_ADAPTER' : 'READONLY_PROCESS_LIST',
-    },
-    {
-      label: 'Risk Gateway',
-      value: truthPayload.live_observer_shadow_twin
-        ? observerRiskResult ?? 'MISSING_EVIDENCE'
-        : decision?.risk_reason ?? 'MISSING_EVIDENCE',
-      detail: truthPayload.live_observer_shadow_twin
-        ? 'Current legacy-observed shadow signal was processed by V2 Risk Gateway final authority.'
-        : `risk_decision_id: ${valueText(decision?.risk_decision_id)}`,
-      source: truthPayload.live_observer_shadow_twin ? 'REALTIME_RUNTIME_EVIDENCE' : 'V2_PROOF_ARTIFACT',
-    },
-    {
-      label: 'Execution / paper',
-      value: paperRuntime?.runtime_state ?? truthPayload.runtime_monitor_status.paper_online_runtime_status?.status ?? 'PAPER_ONLINE_RUNTIME_MISSING',
-      detail: paperRuntime
-        ? `${paperRuntime.last_paper_event.paper_action}; risk ${paperRuntime.last_paper_event.risk_gateway_result}`
-        : 'Current paper runtime must be fresh before this supports paper readiness.',
-      source: paperRuntime ? 'REALTIME_RUNTIME_EVIDENCE' : 'MISSING_EVIDENCE',
-    },
-    {
-      label: 'Redis / V2 data plane',
-      value: truthPayload.redis_trim_status,
-      detail: 'Legacy trim remains deferred; V2 bounded data plane remains the safer strategic path.',
-      source: 'RUNTIME_MONITOR_PAYLOAD',
-    },
-    {
-      label: 'Postgres / audit ledger',
-      value: payload.proof_freshness.some((row) => row.artifact.toLowerCase().includes('audit')) ? 'V2_PROOF_ARTIFACT' : 'MISSING_EVIDENCE',
-      detail: 'Audit durability must be proven before live readiness.',
-      source: 'V2_PROOF_ARTIFACT',
-    },
-    {
-      label: 'Kill switch / live block',
-      value: payload.live_gate_status,
-      detail: 'Final live/capital approval is human-only.',
-      source: 'LIVE_GATE_POLICY',
-    },
-  ];
-  return (
-    <section className="mission-critical-grid" aria-label="Primary cockpit system cards">
-      {cards.map((card) => (
-        <div className="mission-critical-card" key={card.label}>
-          <span>{card.label}</span>
-          <strong className={statusClass(card.value)}>{valueText(card.value)}</strong>
-          <p>{card.detail}</p>
-          <small>{card.source}</small>
-        </div>
-      ))}
-    </section>
-  );
-}
-
-function RiskGatewayRuntimePanel({ truthPayload }: { truthPayload: NonNullable<ReturnType<typeof useOperatorTruthPayload>['payload']> }): JSX.Element {
-  return (
-    <Panel id="risk-gateway-runtime" title="Risk Gateway Runtime Boundary" right={<span className="chip solid-block">Fail-closed</span>}>
-      <div className="cockpit-lineage-grid">
-        <div><span>Final authority</span><strong>Risk Gateway</strong></div>
-        <div><span>Live gate</span><strong>{truthPayload.live_gate_status}</strong></div>
-        <div><span>Current signal lineage</span><strong>{truthPayload.signal_lineage_status.status}</strong></div>
-        <div><span>Current task</span><strong>{truthPayload.supervisor_status.current_running_task ?? 'none'}</strong></div>
-        <div><span>Next task</span><strong>{truthPayload.current_next_task ?? 'MISSING_EVIDENCE'}</strong></div>
-        <div><span>Missing evidence</span><strong>{truthPayload.missing_evidence.length}</strong></div>
-      </div>
-      <p className="cockpit-evidence-note">
-        Orchestrator may propose, enrich, and deconflict. Risk Gateway remains final authority before any execution intent. No historical proof IDs are shown as current runtime decisions on Mission Control.
-      </p>
-    </Panel>
-  );
-}
-
-function SignalRuntimeStatusPanel({ truthPayload }: { truthPayload: NonNullable<ReturnType<typeof useOperatorTruthPayload>['payload']> }): JSX.Element {
-  const signal = truthPayload.signal_lineage_status;
-  const isRealtime = signal.status === 'REALTIME_RUNTIME_EVIDENCE';
-  const latest = isRealtime ? signal.latest_signal : null;
-  return (
-    <Panel
-      id="current-signal-runtime"
-      title="Current Signal Runtime"
-      right={<span className={isRealtime ? 'chip solid-ok' : 'chip solid-warn'}>{isRealtime ? 'REALTIME_RUNTIME_EVIDENCE' : 'CURRENT_SIGNAL_LINEAGE_MISSING'}</span>}
-    >
-      {latest ? (
-        <div className="cockpit-lineage-grid">
-          <div><span>signal_id</span><strong>{valueText(latest.signal_id)}</strong></div>
-          <div><span>prediction_id</span><strong>{valueText(latest.prediction_id)}</strong></div>
-          <div><span>feature_snapshot_id</span><strong>{valueText(latest.feature_snapshot_id)}</strong></div>
-          <div><span>orchestrator_decision_id</span><strong>{valueText(latest.orchestrator_decision_id)}</strong></div>
-          <div><span>risk_decision_id</span><strong>{valueText(latest.risk_decision_id)}</strong></div>
-          <div><span>execution_intent_id</span><strong>{valueText(latest.execution_intent_id)}</strong></div>
-        </div>
-      ) : (
-        <div className="cockpit-evidence-gap">
-          <strong>CURRENT_SIGNAL_LINEAGE_MISSING</strong>
-          <p>Evidence missing — cannot explain without guessing. Historical proof rows are kept in Signal Explainability and Operator Proof Dashboard, not as the current stream.</p>
-        </div>
-      )}
-    </Panel>
-  );
-}
-
-function SignalStreamCompactPanel({ payload }: { payload: CockpitPayload }): JSX.Element {
-  return (
-    <Panel id="signal-stream-current-proof" title="Signal Stream - Current Truth View" right={<span className="chip solid-warn">Fixture rows are not live runtime</span>}>
-      <div className="signal-stream-table" role="table" aria-label="Compact signal stream">
-        <div className="signal-stream-row signal-stream-row--head" role="row">
-          <span>Signal</span><span>Prediction</span><span>Symbol</span><span>Action</span><span>Confidence</span><span>Freshness</span><span>Risk</span><span>Flags</span>
-        </div>
-        {payload.decisions.slice(0, 5).map((row) => (
-          <div className="signal-stream-row" role="row" key={row.id}>
-            <span>{valueText(row.signal_id)}</span>
-            <span>{valueText(row.prediction_id)}</span>
-            <span>{row.symbol}</span>
-            <span>{row.result}</span>
-            <span>{row.confidence_raw} / {row.confidence_calibrated}</span>
-            <span>{valueText(row.source_freshness_by_ingestor)}</span>
-            <span className={statusClass(row.risk_reason)}>{row.risk_reason}</span>
-            <span>{[...row.stale_flags, ...row.missing_flags].join(', ') || 'none'}</span>
-          </div>
-        ))}
-      </div>
-      <p className="cockpit-evidence-note">Rows are V2 proof artifacts unless the operator truth payload marks current runtime lineage as realtime.</p>
-    </Panel>
-  );
-}
-
-function MissionCommandHero({ payload, marketFeedSource, truthPayloadReady }: { payload: CockpitPayload; marketFeedSource?: string; truthPayloadReady: boolean }): JSX.Element {
-  const marketFeed = payload.analytics_cards.find((card) => card.label === 'Market Feed');
-  const blockerCount = payload.blockers.length + payload.evidence_gaps.length;
-  return (
-    <header className="mission-command-hero panel bracketed hatch" data-testid="mission-command-hero">
-      <span className="br-bl" aria-hidden="true" />
-      <span className="br-br" aria-hidden="true" />
-      <div className="mission-command-hero__copy">
-        <p className="eyebrow">AI BOT V2 verified market context</p>
-        <h1>Market, Chart, And V2 Proof Context</h1>
-        <p>{meta.description} This section remains a proof and market context surface; the truth deck above is the current operator source of truth.</p>
-        <div className="mission-command-hero__chips" aria-label="Mission Control source and safety state">
-          <span className="chip solid-block">LIVE TRADING: {payload.live_gate_status}</span>
-          <span className="chip solid-paper">Operator route: /admin/mission-control</span>
-          <span className="chip">Chart source: {valueText(marketFeedSource ?? 'MISSING')}</span>
-          <span className={truthPayloadReady ? 'chip solid-ok' : 'chip solid-warn'}>Operator truth payload: {truthPayloadReady ? 'loaded' : 'missing'}</span>
-        </div>
-      </div>
-      <div className="mission-command-stats" aria-label="Mission Control live-readiness summary">
-        <HeroStat label="Account mode" value={payload.account_mode} />
-        <HeroStat label="Selected symbol" value={payload.selected_symbol} />
-        <HeroStat label="Market feed" value={marketFeed?.value ?? 'MISSING'} detail={marketFeed?.detail ?? EVIDENCE_MISSING} />
-        <HeroStat label="Blockers / gaps" value={blockerCount ? String(blockerCount) : '0'} detail={blockerCount ? 'Requires evidence remediation' : 'No listed readiness gaps'} />
-      </div>
-    </header>
-  );
-}
-
-function HeroStat({ label, value, detail }: { label: string; value: unknown; detail?: string }): JSX.Element {
-  return (
-    <div className="mission-command-stat">
-      <span className="label-mono">{label}</span>
-      <strong className={statusClass(value)}>{valueText(value)}</strong>
-      {detail ? <small>{detail}</small> : null}
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+      <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>{title}</h2>
+      {action}
     </div>
   );
 }
 
-function SubsystemStrip({ payload, autonomousGovernor, marketFeedSource }: { payload: CockpitPayload; autonomousGovernor: AutonomousGovernorPayload | null; marketFeedSource?: string }): JSX.Element {
-  const firstDecision = payload.decisions[0];
-  const marketFeed = payload.analytics_cards.find((card) => card.label === 'Market Feed');
-  const codexStatus = autonomousGovernor?.codex_auto_governor_working
-    ? 'CODEX_AUTO_GOVERNOR_WORKING'
-    : autonomousGovernor?.go_no_go ?? 'MISSING';
-  const items = [
-    {
-      label: 'Market feed',
-      value: marketFeedSource ?? marketFeed?.value ?? 'MISSING',
-      detail: marketFeed?.detail ?? EVIDENCE_MISSING,
-      tone: marketFeedSource === 'READONLY_MARKET_FEED' ? 'ok' : 'warn',
-    },
-    {
-      label: 'Orchestrator',
-      value: firstDecision?.orchestrator_decision_id ?? 'MISSING',
-      detail: firstDecision?.orchestrator_reason ?? EVIDENCE_MISSING,
-      tone: firstDecision?.orchestrator_decision_id ? 'paper' : 'warn',
-    },
-    {
-      label: 'Risk Gateway',
-      value: firstDecision?.risk_decision_id ?? payload.live_gate_status,
-      detail: 'Final authority before execution intent.',
-      tone: 'block',
-    },
-    {
-      label: 'Execution',
-      value: firstDecision?.execution_intent_id ?? 'LIVE BLOCKED',
-      detail: firstDecision?.result ?? 'Trader executes only approved non-live intents.',
-      tone: 'block',
-    },
-    {
-      label: 'Monitor Center',
-      value: `${payload.monitors.length} monitor rows`,
-      detail: 'Runtime evidence is read-only and surfaced below.',
-      tone: payload.monitors.length ? 'ok' : 'warn',
-    },
-    {
-      label: 'Codex review',
-      value: codexStatus,
-      detail: 'Parallel auditor; cannot approve live capital.',
-      tone: 'paper',
-    },
-  ];
-
+function DataPanel({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }): JSX.Element {
   return (
-    <section className="mission-subsystem-strip" aria-label="Primary V2 subsystem status">
-      {items.map((item) => (
-        <div className="mission-subsystem-card panel bracketed" key={item.label}>
-          <span className="br-bl" aria-hidden="true" />
-          <span className="br-br" aria-hidden="true" />
-          <span className="mission-subsystem-card__label">
-            <span className={`dot ${item.tone} ${item.tone === 'block' ? 'pulse' : ''}`} aria-hidden="true" />
-            {item.label}
-          </span>
-          <strong className={statusClass(item.value)}>{valueText(item.value)}</strong>
-          <small>{item.detail}</small>
-        </div>
-      ))}
-    </section>
-  );
-}
-
-function RiskBoundaryPanel({ payload }: { payload: CockpitPayload }): JSX.Element {
-  const firstDecision = payload.decisions[0];
-  return (
-    <Panel
-      id="orchestrator-risk-boundary"
-      title="Orchestrator -> Risk Gateway Boundary"
-      right={<span className="chip solid-block">Risk final authority</span>}
+    <div
+      style={{
+        background: 'var(--bg-panel)',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius)',
+        padding: '16px 20px',
+        ...style,
+      }}
     >
-      <div className="mission-boundary-flow" aria-label="Decision authority chain">
-        <span>Trainer/model proposal</span>
-        <span>Orchestrator enriches/ranks</span>
-        <span>Risk Gateway approves or blocks</span>
-        <span>Execution intent only after approval</span>
-        <span>Audit ledger records chain</span>
-      </div>
-      {firstDecision ? (
-        <div className="cockpit-lineage-grid">
-          {([
-            ['prediction_id', firstDecision.prediction_id],
-            ['signal_id', firstDecision.signal_id],
-            ['orchestrator_decision_id', firstDecision.orchestrator_decision_id],
-            ['risk_decision_id', firstDecision.risk_decision_id],
-            ['execution_intent_id', firstDecision.execution_intent_id],
-            ['risk result', firstDecision.risk_reason],
-          ] satisfies Array<[string, unknown]>).map(([label, value]) => (
-            <div key={label}>
-              <span>{label}</span>
-              <strong>{valueText(value)}</strong>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="cockpit-evidence-gap">Decision chain sample missing. {EVIDENCE_MISSING}</p>
-      )}
-      <p className="cockpit-evidence-note">
-        V2_PROOF_ARTIFACT / RUNTIME_MONITOR_PAYLOAD: the orchestrator can propose, coordinate, enrich, and deconflict. It cannot bypass Risk Gateway approval or enable live execution.
-      </p>
-    </Panel>
+      {children}
+    </div>
   );
 }
 
-function FreshnessAndBlockersPanel({ payload }: { payload: CockpitPayload }): JSX.Element {
+// ---------- Ticker pulse strip ----------
+function MarketPulseRow({ tickers }: { tickers: Array<{ symbol: string; last_price: number | null; change_24h: number | null }> }): JSX.Element {
+  const pinned = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT'];
+  const sorted = [...tickers].sort((a, b) => {
+    const ap = pinned.indexOf(a.symbol); const bp = pinned.indexOf(b.symbol);
+    if (ap !== -1 && bp !== -1) return ap - bp;
+    if (ap !== -1) return -1;
+    if (bp !== -1) return 1;
+    return 0;
+  }).slice(0, 10);
+
   return (
-    <Panel id="freshness-and-live-readiness-blockers" title="Freshness, Sync, And Live-Readiness Blockers">
-      <div className="cockpit-card-grid">
-        {payload.proof_freshness.map((row) => (
-          <div className="cockpit-exchange-card" key={row.artifact}>
-            <h3>{row.artifact}</h3>
-            <p>Source generated: {row.source_generated_at}</p>
-            <p>Public copied: {row.public_copied_at}</p>
-            <strong>{row.state}</strong>
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      {sorted.map((t) => {
+        const chg = t.change_24h;
+        const chgColor = chg == null ? 'var(--text-muted)' : chg >= 0 ? 'var(--buy)' : 'var(--sell)';
+        return (
+          <Link
+            key={t.symbol}
+            to={`/market/${t.symbol}`}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+              padding: '8px 12px',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--border)',
+              background: 'var(--bg-elevated)',
+              textDecoration: 'none',
+              minWidth: 90,
+              transition: 'border-color var(--ease-fast)',
+            }}
+          >
+            <span style={{ fontSize: 11, fontWeight: 600, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
+              {t.symbol.replace('USDT', '')}
+            </span>
+            <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
+              {t.last_price != null ? fmt(t.last_price) : '—'}
+            </span>
+            <span style={{ fontSize: 11, fontWeight: 500, fontFamily: 'var(--font-mono)', color: chgColor }}>
+              {fmtPct(chg)}
+            </span>
+          </Link>
+        );
+      })}
+      <Link
+        to="/markets"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          gap: 2,
+          padding: '8px 12px',
+          borderRadius: 'var(--radius-sm)',
+          border: '1px dashed var(--border)',
+          background: 'transparent',
+          textDecoration: 'none',
+          minWidth: 80,
+          alignItems: 'center',
+          color: 'var(--text-muted)',
+          fontSize: 12,
+        }}
+      >
+        View all markets →
+      </Link>
+    </div>
+  );
+}
+
+// ---------- Main page ----------
+export default function DashboardPage(): JSX.Element {
+  const adaptiveCapital = useAdaptiveCapitalDashboard(30_000);
+  const { envelope: portfolioEnv, loading: portfolioLoading } = useRealtimeResource<PortfolioData>({
+    url: '/api/v2/portfolio',
+    source: '/api/v2/portfolio',
+    source_type: 'repository',
+    pollIntervalMs: 30_000,
+    staleThresholdMs: 120_000,
+    mode: 'paper',
+  });
+
+  const { envelope: signalEnv, loading: signalLoading } = useRealtimeResource<SignalData>({
+    url: '/api/v2/signals',
+    source: '/api/v2/signals',
+    source_type: 'repository',
+    pollIntervalMs: 20_000,
+    staleThresholdMs: 90_000,
+    mode: 'paper',
+  });
+
+  const { envelope: aiEnv, loading: aiLoading } = useRealtimeResource<{ predictions: Array<{ action?: string | null; confidence?: number | null; model_version?: string | null }> }>({
+    url: '/api/v2/ai/predictions',
+    source: '/api/v2/ai/predictions',
+    source_type: 'api',
+    pollIntervalMs: 60_000,
+    staleThresholdMs: 300_000,
+    mode: 'read_only',
+  });
+  const { envelope: marketEnv } = useRealtimeResource<MarketOverviewData>({
+    url: '/api/v2/market/overview',
+    source: '/api/v2/market/overview',
+    source_type: 'api',
+    pollIntervalMs: 20_000,
+    staleThresholdMs: 60_000,
+    mode: 'read_only',
+  });
+  const marketTickers = marketEnv.data?.tickers ?? [];
+
+  const portfolio = portfolioEnv.data;
+  const equity = portfolio?.paper_equity ?? portfolio?.paper_balance;
+  const pnlToday = portfolio?.realized_pnl;
+  const unrealizedPnl = portfolio?.unrealized_pnl;
+  const openPositions = portfolio?.open_positions ?? [];
+  const capitalStatus = adaptiveCapital.data?.capital_productivity_runtime_status;
+  const pnlHistory = adaptiveCapital.data?.pnl_history_status ?? capitalStatus?.pnl_history ?? null;
+  const oneDay = pnlWindow(pnlHistory, '1d');
+  const sevenDay = pnlWindow(pnlHistory, '7d');
+  const thirtyDay = pnlWindow(pnlHistory, '30d');
+  const accuracyStatus = adaptiveCapital.data?.signal_prediction_accuracy_status ?? capitalStatus?.signal_prediction_accuracy_status ?? null;
+  const missingAccuracyCells = missingAccuracyCellCount(accuracyStatus);
+
+  const signal = signalEnv.data?.active_signal;
+  const signalCount = signalEnv.data?.signal_count ?? (signal ? 1 : 0);
+
+  const latestPred = aiEnv.data?.predictions?.[0];
+  const aiConf = latestPred?.confidence;
+  const aiAction = latestPred?.action;
+
+  const freshness = signalEnv.freshness_status;
+
+  return (
+    <div
+      data-testid="page-mission-control"
+      data-page-id={(meta as PageMeta).id}
+      data-page-path={route.path}
+      data-page-min-role={rbac.minRole}
+      style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}
+    >
+      <RealtimeStatusBar
+        streams={[
+          { name: 'Portfolio', status: portfolioEnv.freshness_status, lagMs: portfolioEnv.lag_ms },
+          { name: 'Signals', status: signalEnv.freshness_status, lagMs: signalEnv.lag_ms },
+          { name: 'AI', status: aiEnv.freshness_status, lagMs: aiEnv.lag_ms },
+          { name: 'Market', status: marketTickers.length > 0 ? 'fresh' : 'offline' },
+        ]}
+        compact
+      />
+
+      <div style={{ padding: '20px 24px', flex: 1, display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {/* Page header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>Dashboard</h1>
+            <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
+              Real-time platform · WebSocket telemetry · Risk-governed execution
+            </p>
           </div>
-        ))}
-        {payload.blockers.map((row) => (
-          <div className="cockpit-exchange-card" key={row.id}>
-            <h3>{row.id}</h3>
-            <strong>{row.status}</strong>
-            <p>{row.detail}</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <FreshnessBadge status={freshness} lagMs={signalEnv.lag_ms} />
+            <span
+              style={{
+                padding: '4px 12px',
+                borderRadius: 999,
+                background: 'var(--sell-bg)',
+                border: '1px solid var(--sell-border)',
+                color: 'var(--error)',
+                fontSize: 11,
+                fontWeight: 600,
+                fontFamily: 'var(--font-mono)',
+              }}
+            >
+              LIVE: DISABLED
+            </span>
           </div>
-        ))}
-        {payload.evidence_gaps.map((gap) => (
-          <div className="cockpit-evidence-gap" key={gap}>{gap}</div>
-        ))}
-        {payload.evidence_gaps.length === 0 ? (
-          <div className="cockpit-evidence-gap">No Mission Control evidence gaps listed in the cockpit payload.</div>
-        ) : null}
+        </div>
+
+        {/* 6 KPI grid */}
+        <div className="kpi-grid-6">
+          <KPICard
+            label="Portfolio Equity"
+            value={portfolioLoading ? '…' : equity != null ? fmtMoney(equity) : 'Paper mode'}
+            meta={portfolio?.account_mode ?? 'Paper account'}
+            link="/portfolio"
+          />
+          <KPICard
+            label="Today PnL"
+            value={portfolioLoading ? '…' : pnlToday != null ? fmtMoney(pnlToday) : '—'}
+            meta={unrealizedPnl != null ? `Unrealized: ${fmtMoney(unrealizedPnl)}` : 'Live platform'}
+            valueColor={pnlToday != null ? pnlColor(pnlToday) : undefined}
+            link="/portfolio"
+          />
+          <KPICard
+            label="1D PnL"
+            value={formatAdaptiveMoney(oneDay?.realized_pnl_usd)}
+            meta={`${oneDay?.closed_trade_count ?? 0} closes`}
+            valueColor={pnlColor(oneDay?.realized_pnl_usd)}
+            link="/portfolio"
+          />
+          <KPICard
+            label="1W PnL"
+            value={formatAdaptiveMoney(sevenDay?.realized_pnl_usd)}
+            meta={`${sevenDay?.closed_trade_count ?? 0} closes`}
+            valueColor={pnlColor(sevenDay?.realized_pnl_usd)}
+            link="/portfolio"
+          />
+          <KPICard
+            label="30D PnL"
+            value={formatAdaptiveMoney(thirtyDay?.realized_pnl_usd)}
+            meta={`${thirtyDay?.closed_trade_count ?? 0} closes`}
+            valueColor={pnlColor(thirtyDay?.realized_pnl_usd)}
+            link="/portfolio"
+          />
+          <KPICard
+            label="Capital Status"
+            value={capitalStatus?.status ?? '—'}
+            meta={capitalStatus?.capital_utilization_classification ?? 'Adaptive sizing'}
+            valueColor={adaptiveStatusColor(capitalStatus?.status)}
+            link="/portfolio"
+          />
+          <KPICard
+            label="Active Signals"
+            value={signalLoading ? '…' : signalCount != null ? String(signalCount) : '—'}
+            meta={signal?.strategy ?? 'Signal stream monitored'}
+            link="/signals"
+          />
+          <KPICard
+            label="AI Confidence"
+            value={aiLoading ? '…' : aiConf != null ? fmtPct(aiConf <= 1 ? aiConf : aiConf / 100) : '—'}
+            meta={aiAction ? `Action: ${aiAction.replaceAll('_', ' ')}` : 'AI prediction monitored'}
+            valueColor={aiConf != null ? confColor(aiConf) : undefined}
+            link="/ai-predictions"
+          />
+          <KPICard
+            label="Accuracy"
+            value={formatAdaptivePercent(accuracyStatus?.overall_accuracy)}
+            meta={`${accuracyStatus?.evaluated_row_count ?? 0} evaluated`}
+            valueColor={adaptiveStatusColor(accuracyStatus?.status)}
+            link="/signals"
+          />
+          <KPICard
+            label="Accuracy Cells"
+            value={`${accuracyStatus?.evaluated_symbol_timeframe_cell_count ?? 0}/${accuracyStatus?.symbol_timeframe_cell_count ?? accuracyStatus?.required_symbol_timeframe_cell_count ?? 0}`}
+            meta={`${missingAccuracyCells ?? 0} missing evaluated cells`}
+            valueColor={(missingAccuracyCells ?? 0) > 0 ? 'var(--sell,#ef4444)' : 'var(--buy,#10b981)'}
+            link="/signals"
+          />
+          <KPICard
+            label="Open Positions"
+            value={portfolioLoading ? '…' : String(openPositions.length)}
+            meta="Live positions"
+            link="/portfolio"
+          />
+          <KPICard
+            label="Data Status"
+            value={marketTickers.length > 0 ? 'Live' : 'Connecting'}
+            meta={`${marketTickers.length} symbols connected`}
+            link="/markets"
+          />
+        </div>
+
+        <AdaptiveCapitalTelemetryPanel
+          payload={adaptiveCapital.data}
+          title="Capital Productivity + PnL + Accuracy"
+          compact
+          showMatrix
+          maxMatrixHeight={220}
+        />
+
+        {/* Main content grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 16, minHeight: 0 }}>
+          {/* Left: Market pulse */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <DataPanel>
+              <SectionHead
+                title="Market Pulse"
+                action={
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <SourceBadge sourceType="api" source="/api/v2/market/overview" />
+                    <Link to="/markets" style={{ fontSize: 12, color: 'var(--accent)', textDecoration: 'none' }}>
+                      Full screener →
+                    </Link>
+                  </div>
+                }
+              />
+              {marketTickers.length > 0 ? (
+                <MarketPulseRow tickers={marketTickers} />
+              ) : (
+                <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                  Connecting to market feed…
+                </div>
+              )}
+            </DataPanel>
+
+            {/* Quick navigation */}
+            <DataPanel>
+              <SectionHead title="Quick Access" />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                {[
+                  { label: 'Trade Terminal', path: '/trade', desc: 'Chart + order ticket + book' },
+                  { label: 'Markets', path: '/markets', desc: 'Full screener · 77 symbols' },
+                  { label: 'Signals', path: '/signals', desc: 'Active · pending · history' },
+                  { label: 'Derivatives', path: '/derivatives', desc: 'Funding · OI · liquidations' },
+                  { label: 'AI Predictions', path: '/ai-predictions', desc: 'Forecast · confidence' },
+                  { label: 'Portfolio', path: '/portfolio', desc: 'Equity · PnL · positions' },
+                  { label: 'Backtests', path: '/backtests', desc: 'Equity curve · stats' },
+                  { label: 'Alerts', path: '/alerts', desc: 'Price · signal · risk events' },
+                ].map((item) => (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 4,
+                      padding: '12px 14px',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1px solid var(--border)',
+                      background: 'var(--bg-elevated)',
+                      textDecoration: 'none',
+                      transition: 'border-color var(--ease-fast)',
+                    }}
+                  >
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{item.label}</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.desc}</span>
+                  </Link>
+                ))}
+              </div>
+            </DataPanel>
+          </div>
+
+          {/* Right: Signal + account summary */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Current signal */}
+            <DataPanel>
+              <SectionHead
+                title="Current Signal"
+                action={
+                  <Link to="/signals" style={{ fontSize: 12, color: 'var(--accent)', textDecoration: 'none' }}>
+                    All signals →
+                  </Link>
+                }
+              />
+              {signal ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span
+                      style={{
+                        padding: '4px 12px',
+                        borderRadius: 999,
+                        border: '1px solid currentColor',
+                        color: directionColor(signal.direction),
+                        fontSize: 13,
+                        fontWeight: 700,
+                        fontFamily: 'var(--font-mono)',
+                      }}
+                    >
+                      {(signal.direction ?? '—').toUpperCase().replaceAll('_', ' ')}
+                    </span>
+                    {signal.symbol && (
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                        {signal.symbol}
+                      </span>
+                    )}
+                  </div>
+                  {[
+                    ['Confidence', signal.confidence != null ? fmtPct(signal.confidence <= 1 ? signal.confidence : signal.confidence / 100) : '—'],
+                    ['Entry', signal.entry != null ? fmt(signal.entry) : '—'],
+                    ['Target', signal.target_1 != null ? fmt(signal.target_1) : '—'],
+                    ['Stop', signal.stop != null ? fmt(signal.stop) : '—'],
+                    ['Risk decision', signal.risk_decision ?? '—'],
+                    ['Strategy', signal.strategy ?? '—'],
+                  ].map(([k, v]) => (
+                    <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12 }}>
+                      <span style={{ color: 'var(--text-muted)' }}>{k}</span>
+                      <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', fontWeight: 500 }}>{v}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ padding: '16px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                  {signalLoading ? 'Loading signal stream…' : 'No active signal'}
+                  <div style={{ marginTop: 8 }}>
+                    <Link to="/signals" style={{ fontSize: 12, color: 'var(--accent)', textDecoration: 'none' }}>
+                      View signal history
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </DataPanel>
+
+            {/* Portfolio summary */}
+            <DataPanel>
+              <SectionHead
+                title="Portfolio"
+                action={
+                  <Link to="/portfolio" style={{ fontSize: 12, color: 'var(--accent)', textDecoration: 'none' }}>
+                    Details →
+                  </Link>
+                }
+              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {[
+                  ['Equity', portfolioLoading ? '…' : equity != null ? fmtMoney(equity) : 'Paper mode'],
+                  ['Realized PnL', portfolioLoading ? '…' : pnlToday != null ? fmtMoney(pnlToday) : '—'],
+                  ['Unrealized PnL', portfolioLoading ? '…' : unrealizedPnl != null ? fmtMoney(unrealizedPnl) : '—'],
+                  ['1D PnL', formatAdaptiveMoney(oneDay?.realized_pnl_usd)],
+                  ['1W PnL', formatAdaptiveMoney(sevenDay?.realized_pnl_usd)],
+                  ['30D PnL', formatAdaptiveMoney(thirtyDay?.realized_pnl_usd)],
+                  ['Capital Productivity', capitalStatus?.status ?? '—'],
+                  ['Open Positions', portfolioLoading ? '…' : String(openPositions.length)],
+                  ['Mode', portfolio?.account_mode ?? 'Live platform'],
+                ].map(([k, v]) => (
+                  <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12 }}>
+                    <span style={{ color: 'var(--text-muted)' }}>{k}</span>
+                    <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', fontWeight: 500 }}>{v}</span>
+                  </div>
+                ))}
+              </div>
+            </DataPanel>
+
+            {/* AI prediction summary */}
+            <DataPanel>
+              <SectionHead
+                title="AI Prediction"
+                action={
+                  <Link to="/ai-predictions" style={{ fontSize: 12, color: 'var(--accent)', textDecoration: 'none' }}>
+                    Full matrix →
+                  </Link>
+                }
+              />
+              {latestPred ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: directionColor(latestPred.action), fontFamily: 'var(--font-mono)' }}>
+                      {(latestPred.action ?? '—').toUpperCase().replaceAll('_', ' ')}
+                    </span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: confColor(aiConf), fontFamily: 'var(--font-mono)' }}>
+                      {aiConf != null ? fmtPct(aiConf <= 1 ? aiConf : aiConf / 100) : '—'}
+                    </span>
+                  </div>
+                  {latestPred.model_version && (
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                      Model: {latestPred.model_version}
+                    </span>
+                  )}
+                  <SourceBadge sourceType={aiEnv.source_type} source="/api/v2/ai/predictions" />
+                </div>
+              ) : (
+                <div style={{ padding: '12px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                  {aiLoading ? 'Loading predictions…' : 'No prediction data'}
+                </div>
+              )}
+            </DataPanel>
+          </div>
+        </div>
       </div>
-      <div className="mission-source-contract">
-        {payload.analytics_cards.map((card) => (
-          <span key={card.label}>
-            {card.label}: <FreshnessBadge freshness={card.freshness} />
-          </span>
-        ))}
-      </div>
-    </Panel>
+    </div>
   );
 }

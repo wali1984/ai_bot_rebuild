@@ -1,0 +1,10 @@
+{
+  "alive": true,
+  "cmd": [
+    "/home/wali/.local/bin/claude",
+    "..."
+  ],
+  "pid": 1879594,
+  "task_id": "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r4",
+  "updated_at": "2026-05-24T23:21:11Z"
+}

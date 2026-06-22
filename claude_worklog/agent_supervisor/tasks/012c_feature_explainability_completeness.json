@@ -1,28 +1,38 @@
 {
-  "task_id": "012c_feature_explainability_completeness",
   "agent": "claude",
-  "risk_level": "L1",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "claude_worklog/v2_architecture/",
     "claude_worklog/v2_architecture_remediation/"
   ],
+  "auto_commit": true,
+  "commit_message": "Close feature explainability architecture gap",
+  "completed_at": "2026-06-15T19:54:42Z",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": [
+    "012b_api_lineage_enforcement"
+  ],
+  "emit_files": true,
+  "max_attempts": 3,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_tasks_on_failure": [],
+  "next_tasks_on_success": [
+    "012d_trainer_liveness_validation_evidence"
+  ],
+  "normalized_from_artifact": true,
+  "priority": 100,
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. Close only the feature snapshot and explainability completeness gap. Inputs: claude_worklog/v2_architecture/11_FEATURE_ATTRIBUTION_AND_SIGNAL_EXPLAINABILITY_ARCHITECTURE.md, claude_worklog/v2_requirements/02_FEATURE_SNAPSHOT_SCHEMA.md, claude_worklog/v2_requirements/04_CONFIDENCE_EXPLAINABILITY_SCHEMA.md, claude_worklog/post_monitor/06_FEATURE_DATA_FLOW_GAPS.md, claude_worklog/agent_supervisor/ollama_context/012c_feature_explainability_context.md (if present). Output full updated architecture file and summary claude_worklog/v2_architecture_remediation/12C_FEATURE_EXPLAINABILITY_CLOSURE.md using BEGIN_FILE blocks only. Requirements: define feature_snapshot completeness validation, minimum top positive/negative contributor cardinality, stale/missing/unused flags, source key/pattern/timestamp/freshness fields, and rejection rules for incomplete snapshots.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/v2_architecture/11_FEATURE_ATTRIBUTION_AND_SIGNAL_EXPLAINABILITY_ARCHITECTURE.md",
     "claude_worklog/v2_architecture_remediation/12C_FEATURE_EXPLAINABILITY_CLOSURE.md"
   ],
-  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. Close only the feature snapshot and explainability completeness gap. Inputs: claude_worklog/v2_architecture/11_FEATURE_ATTRIBUTION_AND_SIGNAL_EXPLAINABILITY_ARCHITECTURE.md, claude_worklog/v2_requirements/02_FEATURE_SNAPSHOT_SCHEMA.md, claude_worklog/v2_requirements/04_CONFIDENCE_EXPLAINABILITY_SCHEMA.md, claude_worklog/post_monitor/06_FEATURE_DATA_FLOW_GAPS.md, claude_worklog/agent_supervisor/ollama_context/012c_feature_explainability_context.md (if present). Output full updated architecture file and summary claude_worklog/v2_architecture_remediation/12C_FEATURE_EXPLAINABILITY_CLOSURE.md using BEGIN_FILE blocks only. Requirements: define feature_snapshot completeness validation, minimum top positive/negative contributor cardinality, stale/missing/unused flags, source key/pattern/timestamp/freshness fields, and rejection rules for incomplete snapshots.",
-  "depends_on": [
-    "012b_api_lineage_enforcement"
-  ],
-  "auto_commit": true,
-  "commit_message": "Close feature explainability architecture gap",
-  "max_attempts": 3,
-  "priority": 100,
-  "next_tasks_on_success": [
-    "012d_trainer_liveness_validation_evidence"
-  ],
-  "next_tasks_on_failure": [],
-  "normalized_from_artifact": true
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-06-15T19:54:42Z",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/012c_feature_explainability_completeness.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "012c_feature_explainability_completeness",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

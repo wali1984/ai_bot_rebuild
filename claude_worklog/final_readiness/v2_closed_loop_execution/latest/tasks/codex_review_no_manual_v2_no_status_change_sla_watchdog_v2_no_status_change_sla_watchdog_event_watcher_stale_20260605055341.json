@@ -1,0 +1,47 @@
+{
+  "agent": "codex",
+  "depends_on_task_id": "no_manual_v2_no_status_change_sla_watchdog_v2_no_status_change_sla_watchdog_event_watcher_stale_20260605055341_implementation",
+  "descriptor_only_progress_forbidden": true,
+  "file_lock_group": "no_manual_policy_v2_no_status_change_sla_watchdog_event_watcher_stale",
+  "lane_group": "runtime-codex",
+  "lane_type": "CODEX_REVIEW",
+  "mission_category": "runtime_stability",
+  "owner": "CODEX",
+  "paired_task_id": "no_manual_v2_no_status_change_sla_watchdog_v2_no_status_change_sla_watchdog_event_watcher_stale_20260605055341_implementation",
+  "policy_source": "v2_autonomous_no_manual_next_task_policy",
+  "policy_source_key": "v2_no_status_change_sla_watchdog_event_watcher_stale",
+  "prompt": "Review implementation task no_manual_v2_no_status_change_sla_watchdog_v2_no_status_change_sla_watchdog_event_watcher_stale_20260605055341_implementation. Verify it resolves or honestly classifies the blocker without report-only drift, old Redis writes, exchange mutation, live/canary/shutdown approvals, or fake readiness. GO/NO-GO must be PASS or FAIL, and FAIL must map to remediation/operator/unsafe.",
+  "report_only_work_forbidden": true,
+  "safe_envelope": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "scope_paths": [
+    "v2/backend/app",
+    "claude_worklog/tools",
+    "claude_worklog/final_readiness"
+  ],
+  "source_classification": {
+    "allowed_classification": true,
+    "classification": "AUTOMATABLE_NOW",
+    "classification_reason": "SLA_ROOT_CAUSE_EVENT_WATCHER_STALE",
+    "current_blockers": [
+      "EVENT_WATCHER_STALE"
+    ],
+    "mission_category": "runtime_stability",
+    "next_action": "remediate stale automation/reporting pipeline",
+    "owner": "SYSTEM",
+    "report_id": "v2_no_status_change_sla_watchdog",
+    "source": "v2_no_status_change_sla_watchdog",
+    "source_key": "v2_no_status_change_sla_watchdog_event_watcher_stale",
+    "status": "BLOCKED",
+    "title": "No Status Change SLA Watchdog Remediation"
+  },
+  "status": "pending",
+  "task_id": "codex_review_no_manual_v2_no_status_change_sla_watchdog_v2_no_status_change_sla_watchdog_event_watcher_stale_20260605055341",
+  "task_type": "CODEX_REVIEW"
+}

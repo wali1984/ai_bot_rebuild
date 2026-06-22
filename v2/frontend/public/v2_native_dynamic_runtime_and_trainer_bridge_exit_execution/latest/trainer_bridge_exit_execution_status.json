@@ -1,0 +1,971 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "checkpoint_blocker": "OPERATOR_DECISION_REQUIRED_NATIVE_TRAINER_CHECKPOINT",
+  "checkpoint_id": null,
+  "dataset_manifest_key": "v2:trainer:dataset:manifest",
+  "did_not_adopt_any_symbol_universe_candidate": true,
+  "did_not_call_exchange_mutation": true,
+  "did_not_change_leverage_or_margin_mode": true,
+  "did_not_claim_full_migration": true,
+  "did_not_claim_trainer_native_readiness": true,
+  "did_not_create_paper_only_shutdown_acceptance_file": true,
+  "did_not_deserialize_legacy_checkpoint": true,
+  "did_not_expose_raw_api_keys": true,
+  "did_not_install_systemd_units_or_scheduler_daemons": true,
+  "did_not_modify_legacy_tree": true,
+  "did_not_mutate_live_symbols_paper_symbols_or_training_symbols": true,
+  "did_not_start_live_network_feed": true,
+  "did_not_stop_codex_governors": true,
+  "did_not_stop_legacy_runtime": true,
+  "did_not_stop_replay_miner": true,
+  "did_not_stop_report_center": true,
+  "did_not_stop_v2_runtime": true,
+  "did_not_weaken_paper_fill_gate": true,
+  "did_not_write_old_redis_keys": true,
+  "generated_utc": "2026-05-24T00:27:22Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "no_edge_claim": true,
+  "no_live_claim": true,
+  "paper_fill_gate_block_reasons": [
+    "native_trainer_not_implemented",
+    "checkpoint_operator_decision_required",
+    "contract_only_prediction_not_tradeable",
+    "live_gate_blocked_human_only"
+  ],
+  "prediction_required_fields": [
+    "prediction_id",
+    "symbol",
+    "timeframe",
+    "feature_snapshot_id",
+    "trainer_source",
+    "model_source",
+    "expected_move_bps",
+    "expected_move_after_cost_bps",
+    "confidence_raw",
+    "confidence_calibrated",
+    "feature_freshness_state",
+    "missing_feature_flags",
+    "stale_feature_flags",
+    "checkpoint_id",
+    "checkpoint_blocker",
+    "paper_fill_gate_status",
+    "paper_fill_gate_block_reasons",
+    "live_gate",
+    "live_symbols"
+  ],
+  "prediction_rows": [
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "1000BONKUSDT",
+      "target_key": "v2:prediction:1000BONKUSDT:1m",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "1000BONKUSDT",
+      "target_key": "v2:prediction:1000BONKUSDT:5m",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "1000FLOKIUSDT",
+      "target_key": "v2:prediction:1000FLOKIUSDT:1m",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "1000FLOKIUSDT",
+      "target_key": "v2:prediction:1000FLOKIUSDT:5m",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "1000PEPEUSDT",
+      "target_key": "v2:prediction:1000PEPEUSDT:1m",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "1000PEPEUSDT",
+      "target_key": "v2:prediction:1000PEPEUSDT:5m",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "1000SHIBUSDT",
+      "target_key": "v2:prediction:1000SHIBUSDT:1m",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "1000SHIBUSDT",
+      "target_key": "v2:prediction:1000SHIBUSDT:5m",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "ALICEUSDT",
+      "target_key": "v2:prediction:ALICEUSDT:1m",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "ALICEUSDT",
+      "target_key": "v2:prediction:ALICEUSDT:5m",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "ASTERUSDT",
+      "target_key": "v2:prediction:ASTERUSDT:1m",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "ASTERUSDT",
+      "target_key": "v2:prediction:ASTERUSDT:5m",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "AUCTIONUSDT",
+      "target_key": "v2:prediction:AUCTIONUSDT:1m",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "AUCTIONUSDT",
+      "target_key": "v2:prediction:AUCTIONUSDT:5m",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "AVNTUSDT",
+      "target_key": "v2:prediction:AVNTUSDT:1m",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "AVNTUSDT",
+      "target_key": "v2:prediction:AVNTUSDT:5m",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "BANKUSDT",
+      "target_key": "v2:prediction:BANKUSDT:1m",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "BANKUSDT",
+      "target_key": "v2:prediction:BANKUSDT:5m",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "BARDUSDT",
+      "target_key": "v2:prediction:BARDUSDT:1m",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "BARDUSDT",
+      "target_key": "v2:prediction:BARDUSDT:5m",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": false,
+      "required_fields_present": true,
+      "status": "PRESERVED_EXISTING_RUNTIME_PREDICTION_NOT_OVERWRITTEN",
+      "symbol": "BTCUSDT",
+      "target_key": "v2:prediction:BTCUSDT:1m",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "BTCUSDT",
+      "target_key": "v2:prediction:BTCUSDT:5m",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "DOGEUSDT",
+      "target_key": "v2:prediction:DOGEUSDT:1m",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "DOGEUSDT",
+      "target_key": "v2:prediction:DOGEUSDT:5m",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": false,
+      "required_fields_present": true,
+      "status": "PRESERVED_EXISTING_RUNTIME_PREDICTION_NOT_OVERWRITTEN",
+      "symbol": "ETHUSDT",
+      "target_key": "v2:prediction:ETHUSDT:1m",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "ETHUSDT",
+      "target_key": "v2:prediction:ETHUSDT:5m",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "FARTCOINUSDT",
+      "target_key": "v2:prediction:FARTCOINUSDT:1m",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "FARTCOINUSDT",
+      "target_key": "v2:prediction:FARTCOINUSDT:5m",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "HIGHUSDT",
+      "target_key": "v2:prediction:HIGHUSDT:1m",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "HIGHUSDT",
+      "target_key": "v2:prediction:HIGHUSDT:5m",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "LINKUSDT",
+      "target_key": "v2:prediction:LINKUSDT:1m",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "LINKUSDT",
+      "target_key": "v2:prediction:LINKUSDT:5m",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "LTCUSDT",
+      "target_key": "v2:prediction:LTCUSDT:1m",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "LTCUSDT",
+      "target_key": "v2:prediction:LTCUSDT:5m",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "PENGUUSDT",
+      "target_key": "v2:prediction:PENGUUSDT:1m",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "PENGUUSDT",
+      "target_key": "v2:prediction:PENGUUSDT:5m",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "PIPPINUSDT",
+      "target_key": "v2:prediction:PIPPINUSDT:1m",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "PIPPINUSDT",
+      "target_key": "v2:prediction:PIPPINUSDT:5m",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "RAVEUSDT",
+      "target_key": "v2:prediction:RAVEUSDT:1m",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "RAVEUSDT",
+      "target_key": "v2:prediction:RAVEUSDT:5m",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "RIVERUSDT",
+      "target_key": "v2:prediction:RIVERUSDT:1m",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "RIVERUSDT",
+      "target_key": "v2:prediction:RIVERUSDT:5m",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": false,
+      "required_fields_present": true,
+      "status": "PRESERVED_EXISTING_RUNTIME_PREDICTION_NOT_OVERWRITTEN",
+      "symbol": "SOLUSDT",
+      "target_key": "v2:prediction:SOLUSDT:1m",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "SOLUSDT",
+      "target_key": "v2:prediction:SOLUSDT:5m",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "UNIUSDT",
+      "target_key": "v2:prediction:UNIUSDT:1m",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "UNIUSDT",
+      "target_key": "v2:prediction:UNIUSDT:5m",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "WIFUSDT",
+      "target_key": "v2:prediction:WIFUSDT:1m",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "WIFUSDT",
+      "target_key": "v2:prediction:WIFUSDT:5m",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "XRPUSDT",
+      "target_key": "v2:prediction:XRPUSDT:1m",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    },
+    {
+      "missing_required_fields": [],
+      "native_trainer_ready_claimed": false,
+      "paper_fill_gate_block_reasons": [
+        "native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+        "contract_only_prediction_not_tradeable",
+        "live_gate_blocked_human_only"
+      ],
+      "paper_fill_gate_status": "BLOCKED_CONTRACT_ONLY",
+      "redis_written": true,
+      "required_fields_present": true,
+      "status": "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN",
+      "symbol": "XRPUSDT",
+      "target_key": "v2:prediction:XRPUSDT:5m",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_CONTRACT_ONLY"
+    }
+  ],
+  "prediction_status_counts": {
+    "PRESERVED_EXISTING_RUNTIME_PREDICTION_NOT_OVERWRITTEN": 3,
+    "V2_NATIVE_CONTRACT_ONLY_BLOCKED_PREDICTION_WRITTEN": 47
+  },
+  "schema_version": "v2_native_dynamic_runtime_trainer_bridge_exit_execution_v1_trainer_bridge_exit_execution_status",
+  "trainer_heartbeat_key": "v2:trainer:heartbeat",
+  "trainer_native_readiness_claimed": false,
+  "trainer_source": "V2_NATIVE_CONTRACT_ONLY",
+  "v2_native_trainer_ready": false
+}

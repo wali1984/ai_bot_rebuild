@@ -1,0 +1,61 @@
+{
+  "artifact_paths": {
+    "GO_NO_GO.md": "v2/frontend/public/v2_unified_feature_parity_and_backtest_edge_completion/latest/GO_NO_GO.md",
+    "V2_UNIFIED_FEATURE_PARITY_AND_BACKTEST_EDGE_COMPLETION_REPORT.md": "v2/frontend/public/v2_unified_feature_parity_and_backtest_edge_completion/latest/V2_UNIFIED_FEATURE_PARITY_AND_BACKTEST_EDGE_COMPLETION_REPORT.md",
+    "operator_dashboard_payload.json": "v2/frontend/public/v2_unified_feature_parity_and_backtest_edge_completion/latest/operator_dashboard_payload.json",
+    "v2_backtest_edge_recompute_after_feature_parity_status.json": "v2/frontend/public/v2_unified_feature_parity_and_backtest_edge_completion/latest/v2_backtest_edge_recompute_after_feature_parity_status.json",
+    "v2_parallel_backtest_worker_metrics_status.json": "v2/frontend/public/v2_unified_feature_parity_and_backtest_edge_completion/latest/v2_parallel_backtest_worker_metrics_status.json",
+    "v2_trainer_tensor_feature_coverage_after_parity_status.json": "v2/frontend/public/v2_unified_feature_parity_and_backtest_edge_completion/latest/v2_trainer_tensor_feature_coverage_after_parity_status.json",
+    "v2_unified_feature_blocked_field_inventory.json": "v2/frontend/public/v2_unified_feature_parity_and_backtest_edge_completion/latest/v2_unified_feature_blocked_field_inventory.json",
+    "v2_unified_feature_parity_implementation_status.json": "v2/frontend/public/v2_unified_feature_parity_and_backtest_edge_completion/latest/v2_unified_feature_parity_implementation_status.json"
+  },
+  "blockers": [
+    "UNIFIED_FEATURE_PARITY_BLOCKED_OR_PARTIAL",
+    "BACKTEST_EDGE_BLOCKED_NO_EDGE_CLAIM",
+    "LIVE_RISK_CAPS_OPERATOR_REQUIRED"
+  ],
+  "generated_est": "2026-06-04T22:10:00-04:00",
+  "go_no_go": "V2_UNIFIED_FEATURE_PARITY_AND_BACKTEST_EDGE_COMPLETION_BLOCKED",
+  "recommendation": "BLOCK_LIVE_PAPER_EDGE_NOT_PROVEN",
+  "safety": {
+    "approves_canary": false,
+    "approves_live": false,
+    "calls_test_order_endpoint": false,
+    "execution_live_symbols": [],
+    "legacy_restart_performed": false,
+    "leverage_changed": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "margin_mode_changed": false,
+    "raw_credentials_exposed": false,
+    "redis_trim_performed": false,
+    "writes_exchange_orders": false,
+    "writes_legacy_redis": false,
+    "writes_old_redis": false
+  },
+  "schema_version": "v2_unified_feature_parity_and_backtest_edge_operator_dashboard_payload_v1",
+  "service_id": "v2_unified_feature_parity_and_backtest_edge_completion",
+  "summary": {
+    "available_prior_feature_blocked_rows": 6260,
+    "backtest_metrics_written": true,
+    "backtest_sample_count": 18426,
+    "backtest_worker_started": true,
+    "current_feature_blocked_rows": 5569,
+    "current_prediction_count": 505,
+    "data_coverage_avg": 71.07550449701459,
+    "edge_recommendation": "BLOCK_LIVE_PAPER_EDGE_NOT_PROVEN",
+    "edge_verdict": "EDGE_NOT_CLAIMED_OPERATOR_THRESHOLDS_REQUIRED",
+    "execution_live_symbols": [],
+    "feature_rows_resolved_from_available_prior": 691,
+    "feature_rows_resolved_from_operator_reported_prior": 8119,
+    "invalid_or_missing_price_targets": 0,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "missing_lineage_count": 0,
+    "missing_prediction_count": 0,
+    "operator_reported_prior_feature_blocked_rows": 13688,
+    "prediction_rows_count": 505,
+    "signal_count": 505,
+    "stale_prediction_count": 0
+  }
+}

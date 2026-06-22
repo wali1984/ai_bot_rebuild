@@ -20,19 +20,18 @@ Hard rules (all enforced by tests):
 from __future__ import annotations
 
 import argparse
-import datetime as dt
 import json
 import sys
 import time
-import urllib.error
-import urllib.parse
-import urllib.request
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any, Dict, Tuple
 
 from v2.backend.app.domain.features.groups import DEFAULT_FEATURE_GROUPS
+from v2.backend.app.services.binance_unified_websocket_transport import fetch_unified_market_snapshot
 from v2.backend.app.services.feature_snapshots import FeatureSnapshotService
+from v2.backend.app.services.runtime_clock import est_now_iso, parse_iso_to_epoch_seconds
+from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
 
 WORKER_ID = "v2_feature_snapshot_builder"
 LIVE_GATE_STATUS = "blocked_human_only"
@@ -66,63 +65,67 @@ WORKER_STATUS_FILE = WORKER_STATUS_DIR / f"{WORKER_ID}_status.json"
 LOCAL_STATUS_FILE = LOCAL_RUNTIME_DIR / f"{WORKER_ID}_status.json"
 
 
+def _resolve_runtime_symbol(symbol: str | None, *, smoke_test: bool = False) -> str:
+    explicit = str(symbol or "").strip().upper()
+    if explicit:
+        return explicit
+    resolved = resolve_symbols(smoke_test=smoke_test, include_baseline=True)
+    return str(resolved[0]).upper()
+
+
 def iso_now() -> str:
-    return dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def _http_json(url: str, timeout: int = 8) -> Any:
-    request = urllib.request.Request(
-        url,
-        method="GET",
-        headers={"User-Agent": f"ai-bot-v2-{WORKER_ID}-readonly"},
-    )
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        return json.loads(response.read().decode("utf-8"))
+    return est_now_iso()
 
 
 def fetch_live_payload(symbol: str) -> Dict[str, Any]:
-    """Build a minimal feature payload from Binance public REST.
+    """Build a minimal feature payload from unified Binance market data.
 
-    Read-only. No credentials. No mutating endpoint. Designed for independence
-    from paper_online_runtime: this worker can build a snapshot without it.
+    Read-only. No credentials. No mutating endpoint. WSS Redis cache is primary;
+    REST is only an explicit backup inside the unified Binance client.
     """
-    encoded = urllib.parse.urlencode({"symbol": symbol})
-    ticker = _http_json(f"https://fapi.binance.com/fapi/v1/ticker/price?{encoded}")
-    klines = _http_json(
-        "https://fapi.binance.com/fapi/v1/klines?"
-        + urllib.parse.urlencode({"symbol": symbol, "interval": "1m", "limit": "6"})
-    )
-    closes = [float(row[4]) for row in klines]
+    snapshot = fetch_unified_market_snapshot(symbol, timeframe="1m", limit=6)
+    if snapshot.price is None or not snapshot.candles:
+        raise ValueError(f"unified_binance_market_snapshot_missing:{','.join(snapshot.errors)}")
+    closes = [float(row["close"]) for row in snapshot.candles if row.get("close") is not None]
+    if not closes:
+        raise ValueError("unified_binance_market_snapshot_missing_close")
     return_1m = (closes[-1] / closes[-2] - 1.0) if len(closes) >= 2 else 0.0
     return_5m = (closes[-1] / closes[-6] - 1.0) if len(closes) >= 6 else 0.0
-    generated = iso_now()
-    last_kline_ts = dt.datetime.fromtimestamp(
-        int(klines[-1][6]) / 1000.0, tz=dt.timezone.utc
-    ).strftime("%Y-%m-%dT%H:%M:%SZ")
+    generated = snapshot.generated_at or iso_now()
+    last_kline_ts = snapshot.last_event_at or generated
     return {
         "canonical_symbol_id": f"BINANCE-USDM-{symbol.replace('USDT','')}-USDT-PERP",
         "legacy_symbol": symbol,
         "timeframe": "1m",
         "generated_ts": generated,
         "feature_values": {
-            "close": float(ticker["price"]),
+            "close": float(snapshot.price),
             "return_1m": float(return_1m),
             "return_5m": float(return_5m),
             "spread_bps": 0.0,
             "orderbook_depth_usd": 0.0,
         },
         "feature_to_source": {
-            "close": "binance_price",
-            "return_1m": "binance_price",
-            "return_5m": "binance_price",
-            "spread_bps": "binance_price",
-            "orderbook_depth_usd": "binance_price",
+            "close": "binance_unified_market_data",
+            "return_1m": "binance_unified_market_data",
+            "return_5m": "binance_unified_market_data",
+            "spread_bps": "binance_unified_market_data",
+            "orderbook_depth_usd": "binance_unified_market_data",
         },
         "sources": {
-            "binance_price": {"source_ts": last_kline_ts, "max_age_ms": 120_000},
+            "binance_unified_market_data": {
+                "source_ts": last_kline_ts,
+                "max_age_ms": 120_000,
+                "source": snapshot.source,
+                "source_pointer": snapshot.source_pointer,
+                "wss_cache_used": snapshot.wss_cache_used,
+                "wss_cache_reason": snapshot.wss_cache_reason,
+                "rest_backup_used": snapshot.rest_backup_used,
+                "rest_backup_reason": snapshot.rest_backup_reason,
+            },
         },
-        "source_snapshot_ids": [f"binance_kline_{int(time.time())}"],
-        "source_key_refs": [f"v2:binance:{symbol}:kline:1m"],
+        "source_snapshot_ids": [f"binance_unified_{symbol}_{int(time.time())}"],
+        "source_key_refs": [snapshot.source_pointer],
         "source_ingestor_refs": [WORKER_ID],
         "used_features": [
             "close",
@@ -144,7 +147,7 @@ def load_payload(args: argparse.Namespace) -> Tuple[Dict[str, Any], str]:
         snap = data.get("feature_snapshot")
         if isinstance(snap, dict) and snap.get("feature_values"):
             return snap, str(PAPER_ONLINE_PAYLOAD)
-    return fetch_live_payload(args.symbol), f"binance_public_rest:{args.symbol}"
+    return fetch_live_payload(args.symbol), f"binance_unified_wss_primary_rest_backup:{args.symbol}"
 
 
 def snapshot_to_dict(snapshot: Any) -> Dict[str, Any]:
@@ -160,12 +163,10 @@ def snapshot_to_dict(snapshot: Any) -> Dict[str, Any]:
 
 
 def compute_freshness_seconds(generated_ts: str) -> int:
-    try:
-        gen = dt.datetime.fromisoformat(generated_ts.replace("Z", "+00:00"))
-    except Exception:
+    gen = parse_iso_to_epoch_seconds(generated_ts)
+    if gen is None:
         return -1
-    now = dt.datetime.now(dt.timezone.utc)
-    return max(0, int((now - gen).total_seconds()))
+    return max(0, int(time.time() - gen))
 
 
 def build_status(
@@ -254,7 +255,7 @@ def run_once(args: argparse.Namespace) -> Dict[str, Any]:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog=WORKER_ID)
-    parser.add_argument("--symbol", default="BTCUSDT", help="exchange symbol (read-only public feed only)")
+    parser.add_argument("--symbol", default=None, help="exchange symbol (read-only public feed only)")
     parser.add_argument("--interval", type=int, default=30, help="seconds between loop iterations")
     parser.add_argument("--once", action="store_true", help="run a single iteration and exit")
     parser.add_argument("--loop", action="store_true", help="run continuously")
@@ -266,6 +267,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--no-write", action="store_true", help="dry-run; do not write any payload to disk")
     args = parser.parse_args(argv)
+    args.symbol = _resolve_runtime_symbol(args.symbol, smoke_test=False)
     if not args.loop and not args.once:
         args.once = True
     return args

@@ -1,0 +1,17 @@
+[Unit]
+Description=AI Bot V2 autonomous mission backlog autoseed
+After=default.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment=PYTHONUNBUFFERED=1
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools"
+Environment="LIVE_GATE=blocked_human_only"
+ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python" "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools/v2_autonomous_mission_backlog_autoseed.py" --wait-seconds 5 --json'
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=false

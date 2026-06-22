@@ -1,0 +1,18 @@
+{
+  "active_signal_count": 495,
+  "generated_est": "2026-06-09T18:18:15-04:00",
+  "required_fields": [
+    "risk_status_label",
+    "risk_decision_id",
+    "orchestrator_status_label",
+    "orchestrator_decision_id",
+    "paper_status_label",
+    "paper_intent_id",
+    "ledger_status_label",
+    "ledger_id",
+    "paper_fill_status"
+  ],
+  "schema_version": "signal_table_status_field_mapping_repair_status_v1",
+  "signals_with_explicit_display_fields": 495,
+  "status": "SIGNAL_TABLE_DISPLAY_FIELDS_READY"
+}

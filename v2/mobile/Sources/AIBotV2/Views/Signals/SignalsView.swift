@@ -18,7 +18,7 @@ struct SignalsView: View {
                     signalsList
                 }
             }
-            .navigationTitle("Signals")
+            .navigationTitle("NERVYX SENSE")
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Toggle("Actionable", isOn: Binding(
@@ -47,7 +47,7 @@ struct SignalsView: View {
 
     private var signalsList: some View {
         List {
-            Section("Signals (\(vm.signals.count))") {
+            Section("NERVYX SENSE · Signals (\(vm.signals.count))") {
                 if vm.signals.isEmpty {
                     ContentUnavailableView(
                         "No Signals",
@@ -140,7 +140,7 @@ struct SignalDetailView: View {
                     valueColor: signal.actionable ? .green : .orange
                 )
                 MetricRow(label: "Risk State", value: signal.risk_state)
-                MetricRow(label: "Paper Fill", value: signal.paper_fill_status)
+                MetricRow(label: "Execution Fill", value: signal.paper_fill_status)
             }
             Section("Meta") {
                 MetricRow(label: "Signal ID", value: String(signal.id.prefix(16)) + "…")

@@ -1,0 +1,938 @@
+{
+  "schema_version": "v2_adaptive_capital_productivity_status_v1",
+  "goal_id": "V2_ADAPTIVE_CAPITAL_PRODUCTIVITY_COMPOUNDING_AND_1000X_FEASIBILITY",
+  "generated_utc": "2026-06-21T19:58:34Z",
+  "status": "PASSED",
+  "capital_policy_version": "ADAPTIVE_CAPITAL_ALLOCATOR_V1",
+  "runtime_row_count": 665,
+  "raw_closed_trade_row_count": 1636,
+  "accepted_fill_policy_reconciliation": {
+    "source": "v2:paper:ledger.closed_trades + v2:paper:ledger.accepted",
+    "reconciliation_policy": "P0 closed outcomes may inherit adaptive capital policy and missing mandatory allocation fields only from paper-only accepted fills sharing exact lineage IDs and with accepted fill time <= close time; unambiguous policy activation and funding-term metadata may be carried for audit visibility, but funding_pnl_usd is never synthesized by this read-only reconciliation",
+    "accepted_adaptive_fill_count": 233,
+    "candidate_closed_match_count": 2,
+    "reconciled_closed_outcome_count": 0,
+    "complete_reconciled_closed_outcome_count": 0,
+    "filled_policy_funding_metadata_counts": {},
+    "ambiguous_policy_funding_metadata_counts": {},
+    "rejected_reason_counts": {
+      "ACCEPTED_FILL_AFTER_CLOSE": 2
+    },
+    "sample": []
+  },
+  "historical_or_unversioned_runtime_row_count": 466,
+  "unversioned_runtime_row_count": 466,
+  "unversioned_runtime_rows_with_all_mandatory_fields": 1,
+  "mandatory_fields": [
+    "risk_budget_usd",
+    "gross_notional_usd",
+    "allocated_margin_usd",
+    "recommended_leverage",
+    "effective_leverage",
+    "recommended_margin_mode",
+    "stop_distance_bps",
+    "liquidation_price_estimate",
+    "liquidation_buffer_bps",
+    "expected_fees_usd",
+    "expected_slippage_usd",
+    "expected_funding_usd",
+    "expected_net_pnl_usd",
+    "expected_shortfall_usd",
+    "hedge_budget_usd",
+    "capital_allocation_reason"
+  ],
+  "new_trade_row_count": 199,
+  "post_capital_policy_closed_row_count": 194,
+  "post_capital_policy_closed_rows_with_all_mandatory_fields": 175,
+  "post_capital_policy_closed_rows_missing_mandatory_fields": 19,
+  "post_capital_policy_closed_missing_mandatory_field_counts": {
+    "recommended_margin_mode": 19,
+    "stop_distance_bps": 19,
+    "liquidation_buffer_bps": 19,
+    "expected_fees_usd": 19,
+    "expected_funding_usd": 19,
+    "expected_net_pnl_usd": 19,
+    "expected_shortfall_usd": 19,
+    "hedge_budget_usd": 19,
+    "capital_allocation_reason": 19
+  },
+  "post_capital_policy_closed_missing_mandatory_sample": [
+    {
+      "symbol": "HUSDT",
+      "timeframe": "15m",
+      "side": "long",
+      "adaptive_capital_policy_version": "ADAPTIVE_CAPITAL_ALLOCATOR_V1",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "missing_mandatory_fields": [
+        "recommended_margin_mode",
+        "stop_distance_bps",
+        "liquidation_buffer_bps",
+        "expected_fees_usd",
+        "expected_funding_usd",
+        "expected_net_pnl_usd",
+        "expected_shortfall_usd",
+        "hedge_budget_usd",
+        "capital_allocation_reason"
+      ]
+    },
+    {
+      "symbol": "HBARUSDT",
+      "timeframe": "1h",
+      "side": "long",
+      "adaptive_capital_policy_version": "ADAPTIVE_CAPITAL_ALLOCATOR_V1",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "missing_mandatory_fields": [
+        "recommended_margin_mode",
+        "stop_distance_bps",
+        "liquidation_buffer_bps",
+        "expected_fees_usd",
+        "expected_funding_usd",
+        "expected_net_pnl_usd",
+        "expected_shortfall_usd",
+        "hedge_budget_usd",
+        "capital_allocation_reason"
+      ]
+    },
+    {
+      "symbol": "MEGAUSDT",
+      "timeframe": "1h",
+      "side": "long",
+      "adaptive_capital_policy_version": "ADAPTIVE_CAPITAL_ALLOCATOR_V1",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "missing_mandatory_fields": [
+        "recommended_margin_mode",
+        "stop_distance_bps",
+        "liquidation_buffer_bps",
+        "expected_fees_usd",
+        "expected_funding_usd",
+        "expected_net_pnl_usd",
+        "expected_shortfall_usd",
+        "hedge_budget_usd",
+        "capital_allocation_reason"
+      ]
+    },
+    {
+      "symbol": "AEROUSDT",
+      "timeframe": "1h",
+      "side": "long",
+      "adaptive_capital_policy_version": "ADAPTIVE_CAPITAL_ALLOCATOR_V1",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "missing_mandatory_fields": [
+        "recommended_margin_mode",
+        "stop_distance_bps",
+        "liquidation_buffer_bps",
+        "expected_fees_usd",
+        "expected_funding_usd",
+        "expected_net_pnl_usd",
+        "expected_shortfall_usd",
+        "hedge_budget_usd",
+        "capital_allocation_reason"
+      ]
+    },
+    {
+      "symbol": "JTOUSDT",
+      "timeframe": "15m",
+      "side": "short",
+      "adaptive_capital_policy_version": "ADAPTIVE_CAPITAL_ALLOCATOR_V1",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "missing_mandatory_fields": [
+        "recommended_margin_mode",
+        "stop_distance_bps",
+        "liquidation_buffer_bps",
+        "expected_fees_usd",
+        "expected_funding_usd",
+        "expected_net_pnl_usd",
+        "expected_shortfall_usd",
+        "hedge_budget_usd",
+        "capital_allocation_reason"
+      ]
+    },
+    {
+      "symbol": "JTOUSDT",
+      "timeframe": "15m",
+      "side": "long",
+      "adaptive_capital_policy_version": "ADAPTIVE_CAPITAL_ALLOCATOR_V1",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "missing_mandatory_fields": [
+        "recommended_margin_mode",
+        "stop_distance_bps",
+        "liquidation_buffer_bps",
+        "expected_fees_usd",
+        "expected_funding_usd",
+        "expected_net_pnl_usd",
+        "expected_shortfall_usd",
+        "hedge_budget_usd",
+        "capital_allocation_reason"
+      ]
+    },
+    {
+      "symbol": "JTOUSDT",
+      "timeframe": "15m",
+      "side": "long",
+      "adaptive_capital_policy_version": "ADAPTIVE_CAPITAL_ALLOCATOR_V1",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "missing_mandatory_fields": [
+        "recommended_margin_mode",
+        "stop_distance_bps",
+        "liquidation_buffer_bps",
+        "expected_fees_usd",
+        "expected_funding_usd",
+        "expected_net_pnl_usd",
+        "expected_shortfall_usd",
+        "hedge_budget_usd",
+        "capital_allocation_reason"
+      ]
+    },
+    {
+      "symbol": "MEGAUSDT",
+      "timeframe": "15m",
+      "side": "short",
+      "adaptive_capital_policy_version": "ADAPTIVE_CAPITAL_ALLOCATOR_V1",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "missing_mandatory_fields": [
+        "recommended_margin_mode",
+        "stop_distance_bps",
+        "liquidation_buffer_bps",
+        "expected_fees_usd",
+        "expected_funding_usd",
+        "expected_net_pnl_usd",
+        "expected_shortfall_usd",
+        "hedge_budget_usd",
+        "capital_allocation_reason"
+      ]
+    },
+    {
+      "symbol": "BIOUSDT",
+      "timeframe": "1h",
+      "side": "short",
+      "adaptive_capital_policy_version": "ADAPTIVE_CAPITAL_ALLOCATOR_V1",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "missing_mandatory_fields": [
+        "recommended_margin_mode",
+        "stop_distance_bps",
+        "liquidation_buffer_bps",
+        "expected_fees_usd",
+        "expected_funding_usd",
+        "expected_net_pnl_usd",
+        "expected_shortfall_usd",
+        "hedge_budget_usd",
+        "capital_allocation_reason"
+      ]
+    },
+    {
+      "symbol": "OPGUSDT",
+      "timeframe": "1h",
+      "side": "short",
+      "adaptive_capital_policy_version": "ADAPTIVE_CAPITAL_ALLOCATOR_V1",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "missing_mandatory_fields": [
+        "recommended_margin_mode",
+        "stop_distance_bps",
+        "liquidation_buffer_bps",
+        "expected_fees_usd",
+        "expected_funding_usd",
+        "expected_net_pnl_usd",
+        "expected_shortfall_usd",
+        "hedge_budget_usd",
+        "capital_allocation_reason"
+      ]
+    }
+  ],
+  "post_capital_policy_open_row_count": 5,
+  "post_capital_policy_open_rows_with_all_mandatory_fields": 5,
+  "post_capital_policy_open_rows_missing_mandatory_fields": 0,
+  "post_capital_policy_open_missing_mandatory_field_counts": {},
+  "post_capital_policy_open_missing_mandatory_sample": [],
+  "rows_with_all_mandatory_fields": 180,
+  "mandatory_field_coverage": 0.90452261,
+  "missing_by_field": {
+    "risk_budget_usd": 0,
+    "gross_notional_usd": 0,
+    "allocated_margin_usd": 0,
+    "recommended_leverage": 0,
+    "effective_leverage": 0,
+    "recommended_margin_mode": 19,
+    "stop_distance_bps": 19,
+    "liquidation_price_estimate": 0,
+    "liquidation_buffer_bps": 19,
+    "expected_fees_usd": 19,
+    "expected_slippage_usd": 0,
+    "expected_funding_usd": 19,
+    "expected_net_pnl_usd": 19,
+    "expected_shortfall_usd": 19,
+    "hedge_budget_usd": 19,
+    "capital_allocation_reason": 19
+  },
+  "blocker_reasons": [],
+  "accounting_enforcement_status": "PASSED_CURRENT_PRE_SUBMIT_ENFORCEMENT",
+  "runtime_leverage_margin_consistency_status": "NO_GO_LEVERAGE_MARGIN_ACCOUNTING_INCONSISTENT",
+  "leverage_margin_consistency_status": "PASSED",
+  "leverage_margin_accounting_formula": "gross_notional_usd / allocated_margin_usd == effective_leverage",
+  "leverage_margin_ratio_tolerance_abs": 0.05,
+  "leverage_margin_consistency_row_count": 180,
+  "leverage_margin_consistent_row_count": 108,
+  "leverage_margin_inconsistent_count": 72,
+  "leverage_margin_consistency_coverage": 0.6,
+  "leverage_margin_inconsistent_sample": [
+    {
+      "symbol": "SUIUSDT",
+      "timeframe": "1m",
+      "side": "short",
+      "gross_notional_usd": 481.03905892881664,
+      "allocated_margin_usd": 962.07811786,
+      "effective_leverage": 1.0,
+      "gross_notional_to_allocated_margin_ratio": 0.5,
+      "absolute_error": 0.5
+    },
+    {
+      "symbol": "HUSDT",
+      "timeframe": "1h",
+      "side": "short",
+      "gross_notional_usd": 476.8967809111936,
+      "allocated_margin_usd": 953.79356182,
+      "effective_leverage": 1.0,
+      "gross_notional_to_allocated_margin_ratio": 0.5,
+      "absolute_error": 0.5
+    },
+    {
+      "symbol": "HYPEUSDT",
+      "timeframe": "15m",
+      "side": "short",
+      "gross_notional_usd": 46.177569964746596,
+      "allocated_margin_usd": 92.35513993,
+      "effective_leverage": 1.0,
+      "gross_notional_to_allocated_margin_ratio": 0.5,
+      "absolute_error": 0.5
+    },
+    {
+      "symbol": "XPLUSDT",
+      "timeframe": "1h",
+      "side": "short",
+      "gross_notional_usd": 470.4792761364025,
+      "allocated_margin_usd": 940.95855227,
+      "effective_leverage": 1.0,
+      "gross_notional_to_allocated_margin_ratio": 0.5,
+      "absolute_error": 0.5
+    },
+    {
+      "symbol": "MEGAUSDT",
+      "timeframe": "1h",
+      "side": "short",
+      "gross_notional_usd": 475.2307719079999,
+      "allocated_margin_usd": 950.46154382,
+      "effective_leverage": 1.0,
+      "gross_notional_to_allocated_margin_ratio": 0.5,
+      "absolute_error": 0.5
+    },
+    {
+      "symbol": "HUSDT",
+      "timeframe": "1h",
+      "side": "long",
+      "gross_notional_usd": 470.75272245799135,
+      "allocated_margin_usd": 941.50544492,
+      "effective_leverage": 1.0,
+      "gross_notional_to_allocated_margin_ratio": 0.5,
+      "absolute_error": 0.5
+    },
+    {
+      "symbol": "HUSDT",
+      "timeframe": "1h",
+      "side": "long",
+      "gross_notional_usd": 494.0930083647965,
+      "allocated_margin_usd": 988.18601673,
+      "effective_leverage": 1.0,
+      "gross_notional_to_allocated_margin_ratio": 0.5,
+      "absolute_error": 0.5
+    },
+    {
+      "symbol": "HUSDT",
+      "timeframe": "1h",
+      "side": "long",
+      "gross_notional_usd": 485.60085764559574,
+      "allocated_margin_usd": 485.60085765,
+      "effective_leverage": 2.0,
+      "gross_notional_to_allocated_margin_ratio": 1.0,
+      "absolute_error": 1.0
+    },
+    {
+      "symbol": "MEGAUSDT",
+      "timeframe": "15m",
+      "side": "short",
+      "gross_notional_usd": 444.69308984040606,
+      "allocated_margin_usd": 889.38617968,
+      "effective_leverage": 1.0,
+      "gross_notional_to_allocated_margin_ratio": 0.5,
+      "absolute_error": 0.5
+    },
+    {
+      "symbol": "JTOUSDT",
+      "timeframe": "15m",
+      "side": "long",
+      "gross_notional_usd": 494.0930083648121,
+      "allocated_margin_usd": 988.18601673,
+      "effective_leverage": 1.0,
+      "gross_notional_to_allocated_margin_ratio": 0.5,
+      "absolute_error": 0.5
+    }
+  ],
+  "runtime_accounting_evidence": {
+    "status": "NO_GO_FIELD_COVERAGE_INCOMPLETE",
+    "source": "post_capital_policy_runtime_rows",
+    "complete": false,
+    "row_count": 199,
+    "rows_with_all_mandatory_fields": 180,
+    "mandatory_field_coverage": 0.90452261,
+    "missing_by_field": {
+      "recommended_margin_mode": 19,
+      "stop_distance_bps": 19,
+      "liquidation_buffer_bps": 19,
+      "expected_fees_usd": 19,
+      "expected_funding_usd": 19,
+      "expected_net_pnl_usd": 19,
+      "expected_shortfall_usd": 19,
+      "hedge_budget_usd": 19,
+      "capital_allocation_reason": 19
+    },
+    "missing_mandatory_sample": [
+      {
+        "symbol": "HUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "adaptive_capital_policy_version": "ADAPTIVE_CAPITAL_ALLOCATOR_V1",
+        "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+        "missing_mandatory_fields": [
+          "recommended_margin_mode",
+          "stop_distance_bps",
+          "liquidation_buffer_bps",
+          "expected_fees_usd",
+          "expected_funding_usd",
+          "expected_net_pnl_usd",
+          "expected_shortfall_usd",
+          "hedge_budget_usd",
+          "capital_allocation_reason"
+        ]
+      },
+      {
+        "symbol": "HBARUSDT",
+        "timeframe": "1h",
+        "side": "long",
+        "adaptive_capital_policy_version": "ADAPTIVE_CAPITAL_ALLOCATOR_V1",
+        "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+        "missing_mandatory_fields": [
+          "recommended_margin_mode",
+          "stop_distance_bps",
+          "liquidation_buffer_bps",
+          "expected_fees_usd",
+          "expected_funding_usd",
+          "expected_net_pnl_usd",
+          "expected_shortfall_usd",
+          "hedge_budget_usd",
+          "capital_allocation_reason"
+        ]
+      },
+      {
+        "symbol": "MEGAUSDT",
+        "timeframe": "1h",
+        "side": "long",
+        "adaptive_capital_policy_version": "ADAPTIVE_CAPITAL_ALLOCATOR_V1",
+        "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+        "missing_mandatory_fields": [
+          "recommended_margin_mode",
+          "stop_distance_bps",
+          "liquidation_buffer_bps",
+          "expected_fees_usd",
+          "expected_funding_usd",
+          "expected_net_pnl_usd",
+          "expected_shortfall_usd",
+          "hedge_budget_usd",
+          "capital_allocation_reason"
+        ]
+      },
+      {
+        "symbol": "AEROUSDT",
+        "timeframe": "1h",
+        "side": "long",
+        "adaptive_capital_policy_version": "ADAPTIVE_CAPITAL_ALLOCATOR_V1",
+        "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+        "missing_mandatory_fields": [
+          "recommended_margin_mode",
+          "stop_distance_bps",
+          "liquidation_buffer_bps",
+          "expected_fees_usd",
+          "expected_funding_usd",
+          "expected_net_pnl_usd",
+          "expected_shortfall_usd",
+          "hedge_budget_usd",
+          "capital_allocation_reason"
+        ]
+      },
+      {
+        "symbol": "JTOUSDT",
+        "timeframe": "15m",
+        "side": "short",
+        "adaptive_capital_policy_version": "ADAPTIVE_CAPITAL_ALLOCATOR_V1",
+        "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+        "missing_mandatory_fields": [
+          "recommended_margin_mode",
+          "stop_distance_bps",
+          "liquidation_buffer_bps",
+          "expected_fees_usd",
+          "expected_funding_usd",
+          "expected_net_pnl_usd",
+          "expected_shortfall_usd",
+          "hedge_budget_usd",
+          "capital_allocation_reason"
+        ]
+      },
+      {
+        "symbol": "JTOUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "adaptive_capital_policy_version": "ADAPTIVE_CAPITAL_ALLOCATOR_V1",
+        "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+        "missing_mandatory_fields": [
+          "recommended_margin_mode",
+          "stop_distance_bps",
+          "liquidation_buffer_bps",
+          "expected_fees_usd",
+          "expected_funding_usd",
+          "expected_net_pnl_usd",
+          "expected_shortfall_usd",
+          "hedge_budget_usd",
+          "capital_allocation_reason"
+        ]
+      },
+      {
+        "symbol": "JTOUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "adaptive_capital_policy_version": "ADAPTIVE_CAPITAL_ALLOCATOR_V1",
+        "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+        "missing_mandatory_fields": [
+          "recommended_margin_mode",
+          "stop_distance_bps",
+          "liquidation_buffer_bps",
+          "expected_fees_usd",
+          "expected_funding_usd",
+          "expected_net_pnl_usd",
+          "expected_shortfall_usd",
+          "hedge_budget_usd",
+          "capital_allocation_reason"
+        ]
+      },
+      {
+        "symbol": "MEGAUSDT",
+        "timeframe": "15m",
+        "side": "short",
+        "adaptive_capital_policy_version": "ADAPTIVE_CAPITAL_ALLOCATOR_V1",
+        "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+        "missing_mandatory_fields": [
+          "recommended_margin_mode",
+          "stop_distance_bps",
+          "liquidation_buffer_bps",
+          "expected_fees_usd",
+          "expected_funding_usd",
+          "expected_net_pnl_usd",
+          "expected_shortfall_usd",
+          "hedge_budget_usd",
+          "capital_allocation_reason"
+        ]
+      },
+      {
+        "symbol": "BIOUSDT",
+        "timeframe": "1h",
+        "side": "short",
+        "adaptive_capital_policy_version": "ADAPTIVE_CAPITAL_ALLOCATOR_V1",
+        "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+        "missing_mandatory_fields": [
+          "recommended_margin_mode",
+          "stop_distance_bps",
+          "liquidation_buffer_bps",
+          "expected_fees_usd",
+          "expected_funding_usd",
+          "expected_net_pnl_usd",
+          "expected_shortfall_usd",
+          "hedge_budget_usd",
+          "capital_allocation_reason"
+        ]
+      },
+      {
+        "symbol": "OPGUSDT",
+        "timeframe": "1h",
+        "side": "short",
+        "adaptive_capital_policy_version": "ADAPTIVE_CAPITAL_ALLOCATOR_V1",
+        "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+        "missing_mandatory_fields": [
+          "recommended_margin_mode",
+          "stop_distance_bps",
+          "liquidation_buffer_bps",
+          "expected_fees_usd",
+          "expected_funding_usd",
+          "expected_net_pnl_usd",
+          "expected_shortfall_usd",
+          "hedge_budget_usd",
+          "capital_allocation_reason"
+        ]
+      }
+    ],
+    "leverage_margin_consistency_status": "NO_GO_LEVERAGE_MARGIN_ACCOUNTING_INCONSISTENT",
+    "leverage_margin_accounting_formula": "gross_notional_usd / allocated_margin_usd == effective_leverage",
+    "leverage_margin_consistency_row_count": 180,
+    "leverage_margin_consistent_row_count": 108,
+    "leverage_margin_inconsistent_count": 72,
+    "leverage_margin_consistency_coverage": 0.6,
+    "leverage_margin_inconsistent_sample": [
+      {
+        "symbol": "SUIUSDT",
+        "timeframe": "1m",
+        "side": "short",
+        "gross_notional_usd": 481.03905892881664,
+        "allocated_margin_usd": 962.07811786,
+        "effective_leverage": 1.0,
+        "gross_notional_to_allocated_margin_ratio": 0.5,
+        "absolute_error": 0.5
+      },
+      {
+        "symbol": "HUSDT",
+        "timeframe": "1h",
+        "side": "short",
+        "gross_notional_usd": 476.8967809111936,
+        "allocated_margin_usd": 953.79356182,
+        "effective_leverage": 1.0,
+        "gross_notional_to_allocated_margin_ratio": 0.5,
+        "absolute_error": 0.5
+      },
+      {
+        "symbol": "HYPEUSDT",
+        "timeframe": "15m",
+        "side": "short",
+        "gross_notional_usd": 46.177569964746596,
+        "allocated_margin_usd": 92.35513993,
+        "effective_leverage": 1.0,
+        "gross_notional_to_allocated_margin_ratio": 0.5,
+        "absolute_error": 0.5
+      },
+      {
+        "symbol": "XPLUSDT",
+        "timeframe": "1h",
+        "side": "short",
+        "gross_notional_usd": 470.4792761364025,
+        "allocated_margin_usd": 940.95855227,
+        "effective_leverage": 1.0,
+        "gross_notional_to_allocated_margin_ratio": 0.5,
+        "absolute_error": 0.5
+      },
+      {
+        "symbol": "MEGAUSDT",
+        "timeframe": "1h",
+        "side": "short",
+        "gross_notional_usd": 475.2307719079999,
+        "allocated_margin_usd": 950.46154382,
+        "effective_leverage": 1.0,
+        "gross_notional_to_allocated_margin_ratio": 0.5,
+        "absolute_error": 0.5
+      },
+      {
+        "symbol": "HUSDT",
+        "timeframe": "1h",
+        "side": "long",
+        "gross_notional_usd": 470.75272245799135,
+        "allocated_margin_usd": 941.50544492,
+        "effective_leverage": 1.0,
+        "gross_notional_to_allocated_margin_ratio": 0.5,
+        "absolute_error": 0.5
+      },
+      {
+        "symbol": "HUSDT",
+        "timeframe": "1h",
+        "side": "long",
+        "gross_notional_usd": 494.0930083647965,
+        "allocated_margin_usd": 988.18601673,
+        "effective_leverage": 1.0,
+        "gross_notional_to_allocated_margin_ratio": 0.5,
+        "absolute_error": 0.5
+      },
+      {
+        "symbol": "HUSDT",
+        "timeframe": "1h",
+        "side": "long",
+        "gross_notional_usd": 485.60085764559574,
+        "allocated_margin_usd": 485.60085765,
+        "effective_leverage": 2.0,
+        "gross_notional_to_allocated_margin_ratio": 1.0,
+        "absolute_error": 1.0
+      },
+      {
+        "symbol": "MEGAUSDT",
+        "timeframe": "15m",
+        "side": "short",
+        "gross_notional_usd": 444.69308984040606,
+        "allocated_margin_usd": 889.38617968,
+        "effective_leverage": 1.0,
+        "gross_notional_to_allocated_margin_ratio": 0.5,
+        "absolute_error": 0.5
+      },
+      {
+        "symbol": "JTOUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "gross_notional_usd": 494.0930083648121,
+        "allocated_margin_usd": 988.18601673,
+        "effective_leverage": 1.0,
+        "gross_notional_to_allocated_margin_ratio": 0.5,
+        "absolute_error": 0.5
+      }
+    ]
+  },
+  "policy_activation_funding_evidence_status": {
+    "schema_version": "v2_adaptive_capital_productivity_status_v1",
+    "goal_id": "V2_ADAPTIVE_CAPITAL_PRODUCTIVITY_COMPOUNDING_AND_1000X_FEASIBILITY",
+    "generated_utc": "2026-06-21T19:58:34Z",
+    "status": "PASSED",
+    "blocker_reasons": [],
+    "accepted_policy_entry_fill_count": 233,
+    "open_policy_position_count": 5,
+    "closed_policy_outcome_count": 194,
+    "policy_activation_audit_row_count": 432,
+    "policy_activated_at_present_count": 432,
+    "policy_activated_at_missing_count": 0,
+    "policy_activated_at_missing_sample": [],
+    "funding_pnl_audit_closed_outcome_count": 194,
+    "funding_pnl_accounted_count": 193,
+    "funding_pnl_unaccounted_count": 1,
+    "funding_pnl_unaccounted_reconstructable_count": 0,
+    "funding_pnl_unaccounted_unreconstructable_count": 1,
+    "funding_pnl_nonzero_count": 44,
+    "current_forward_funding_accounting_enforcement_complete": true,
+    "current_forward_funding_accounting_source": "v2.backend.app.services.paper_trade_management.outcomes.build_close_event",
+    "historical_closed_outcome_funding_gap_non_blocking": true,
+    "closed_outcome_funding_accounting_status": "PASSED_CURRENT_FORWARD_CONTRACT_WITH_HISTORICAL_UNRECONSTRUCTABLE_GAP",
+    "funding_pnl_source_counts": {
+      "FUNDING_RATE": 193,
+      "__missing__": 1
+    },
+    "funding_pnl_accounting_version_counts": {
+      "PAPER_FUNDING_ACCRUAL_V1": 193,
+      "__missing__": 1
+    },
+    "funding_pnl_accounting_status_counts": {
+      "READY_FUNDING_PNL_ACCRUED": 193,
+      "__missing__": 1
+    },
+    "funding_pnl_unaccounted_sample": [
+      {
+        "index": 37,
+        "row_source": "closed_outcome",
+        "symbol": "AEROUSDT",
+        "timeframe": "1h",
+        "side": "long",
+        "policy_activated_at": "2026-06-20T07:05:29Z",
+        "funding_pnl_usd": null,
+        "funding_pnl_source": null,
+        "funding_rate": null,
+        "funding_bps": null,
+        "expected_funding_bps": null,
+        "actual_funding_bps": null,
+        "funding_pnl_accounting_version": null,
+        "funding_pnl_accounting_status": null,
+        "funding_pnl_reconstructable": false,
+        "reconstructed_funding_pnl_usd": null,
+        "funding_reconstruction_source": null,
+        "funding_reconstruction_missing_reasons": [
+          "MISSING_FUNDING_RATE_OR_BPS"
+        ]
+      }
+    ],
+    "funding_pnl_reconstruction_status": {
+      "status": "NO_RECONSTRUCTABLE_FUNDING_PNL_DIAGNOSTIC",
+      "scope": "read_only_diagnostic_only_not_a_substitute_for_persisted_funding_pnl_usd",
+      "reconstructable_closed_outcome_count": 0,
+      "unreconstructable_closed_outcome_count": 194,
+      "reconstructed_funding_pnl_total_usd": 0.0,
+      "reconstructed_funding_pnl_nonzero_count": 0,
+      "reconstruction_missing_reason_counts": {
+        "MISSING_FUNDING_RATE_OR_BPS": 1
+      },
+      "reconstruction_sample": [],
+      "formula": "funding_notional_usd * funding_rate * (hold_time_seconds / funding_interval_seconds) * side_sign",
+      "funding_accounting_version": "PAPER_FUNDING_ACCRUAL_V1",
+      "side_sign": {
+        "long": -1.0,
+        "short": 1.0
+      },
+      "counts_as_accounted_funding_pnl": false
+    },
+    "forward_funding_accounting_contract_status": {
+      "schema_version": "v2_adaptive_capital_productivity_status_v1",
+      "goal_id": "V2_ADAPTIVE_CAPITAL_PRODUCTIVITY_COMPOUNDING_AND_1000X_FEASIBILITY",
+      "generated_utc": "2026-06-21T19:58:34Z",
+      "status": "READY_FORWARD_FUNDING_ACCOUNTING_CONTRACT",
+      "scope": "accepted_entry_fills_and_open_positions_for_future_closed_outcomes",
+      "contract_source": "v2.backend.app.services.paper_trade_management.outcomes.build_close_event",
+      "forward_row_count": 238,
+      "accepted_policy_entry_fill_count": 233,
+      "open_policy_position_count": 5,
+      "ready_forward_row_count": 238,
+      "policy_activated_at_ready_count": 238,
+      "funding_rate_or_bps_ready_count": 238,
+      "missing_reason_counts": {},
+      "missing_sample": [],
+      "persisted_close_fields_required": [
+        "funding_pnl_accounting_version",
+        "funding_pnl_accounting_status",
+        "funding_pnl_usd",
+        "funding_pnl_source",
+        "funding_rate",
+        "funding_bps",
+        "funding_interval_seconds",
+        "funding_accrual_intervals",
+        "funding_notional_usd",
+        "funding_pnl_formula",
+        "funding_pnl_side_sign"
+      ],
+      "funding_accounting_version": "PAPER_FUNDING_ACCRUAL_V1",
+      "funding_formula": "funding_notional_usd * funding_rate * (hold_time_seconds / funding_interval_seconds) * side_sign",
+      "counts_as_closed_outcome_funding_gate": false,
+      "paper_only": true,
+      "places_real_order": false
+    },
+    "portfolio_order_counter_status": {
+      "schema_version": "v2_adaptive_capital_productivity_status_v1",
+      "goal_id": "V2_ADAPTIVE_CAPITAL_PRODUCTIVITY_COMPOUNDING_AND_1000X_FEASIBILITY",
+      "generated_utc": "2026-06-21T19:58:34Z",
+      "status": "READY",
+      "required_counter_fields": [
+        "paper_accepted_intent_count",
+        "paper_accepted_fill_count",
+        "paper_economic_fill_count",
+        "paper_non_economic_fill_count",
+        "paper_held_intent_count",
+        "paper_blocked_intent_count",
+        "paper_shadow_observation_count",
+        "paper_open_position_count",
+        "paper_closed_position_count",
+        "live_order_count",
+        "test_order_count",
+        "exchange_order_mutation_count"
+      ],
+      "present_counter_fields": [
+        "paper_accepted_intent_count",
+        "paper_accepted_fill_count",
+        "paper_economic_fill_count",
+        "paper_non_economic_fill_count",
+        "paper_held_intent_count",
+        "paper_blocked_intent_count",
+        "paper_shadow_observation_count",
+        "paper_open_position_count",
+        "paper_closed_position_count",
+        "live_order_count",
+        "test_order_count",
+        "exchange_order_mutation_count"
+      ],
+      "missing_counter_fields": [],
+      "order_counters": {
+        "paper_accepted_intent_count": 4476,
+        "paper_accepted_fill_count": 4476,
+        "paper_economic_fill_count": 4476,
+        "paper_non_economic_fill_count": 0,
+        "paper_held_intent_count": 0,
+        "paper_blocked_intent_count": 0,
+        "paper_shadow_observation_count": 0,
+        "paper_open_position_count": 89,
+        "paper_closed_position_count": 1635,
+        "live_order_count": 0,
+        "test_order_count": 0,
+        "exchange_order_mutation_count": 0
+      },
+      "order_counters_source": "v2:paper:ledger + v2:paper:closed_trades",
+      "live_order_count": 0.0,
+      "test_order_count": 0.0,
+      "exchange_order_mutation_count": 0.0,
+      "paper_only_counter_contract": true
+    },
+    "audit_scope": "policy_activated_at must be present on accepted entry fills, open positions, and closed outcomes; funding PnL must be explicitly accounted on closed adaptive-capital outcomes using a funding source or rate/bps evidence",
+    "paper_only": true,
+    "places_real_order": false
+  },
+  "portfolio_order_counter_status": {
+    "schema_version": "v2_adaptive_capital_productivity_status_v1",
+    "goal_id": "V2_ADAPTIVE_CAPITAL_PRODUCTIVITY_COMPOUNDING_AND_1000X_FEASIBILITY",
+    "generated_utc": "2026-06-21T19:58:34Z",
+    "status": "READY",
+    "required_counter_fields": [
+      "paper_accepted_intent_count",
+      "paper_accepted_fill_count",
+      "paper_economic_fill_count",
+      "paper_non_economic_fill_count",
+      "paper_held_intent_count",
+      "paper_blocked_intent_count",
+      "paper_shadow_observation_count",
+      "paper_open_position_count",
+      "paper_closed_position_count",
+      "live_order_count",
+      "test_order_count",
+      "exchange_order_mutation_count"
+    ],
+    "present_counter_fields": [
+      "paper_accepted_intent_count",
+      "paper_accepted_fill_count",
+      "paper_economic_fill_count",
+      "paper_non_economic_fill_count",
+      "paper_held_intent_count",
+      "paper_blocked_intent_count",
+      "paper_shadow_observation_count",
+      "paper_open_position_count",
+      "paper_closed_position_count",
+      "live_order_count",
+      "test_order_count",
+      "exchange_order_mutation_count"
+    ],
+    "missing_counter_fields": [],
+    "order_counters": {
+      "paper_accepted_intent_count": 4476,
+      "paper_accepted_fill_count": 4476,
+      "paper_economic_fill_count": 4476,
+      "paper_non_economic_fill_count": 0,
+      "paper_held_intent_count": 0,
+      "paper_blocked_intent_count": 0,
+      "paper_shadow_observation_count": 0,
+      "paper_open_position_count": 89,
+      "paper_closed_position_count": 1635,
+      "live_order_count": 0,
+      "test_order_count": 0,
+      "exchange_order_mutation_count": 0
+    },
+    "order_counters_source": "v2:paper:ledger + v2:paper:closed_trades",
+    "live_order_count": 0.0,
+    "test_order_count": 0.0,
+    "exchange_order_mutation_count": 0.0,
+    "paper_only_counter_contract": true
+  },
+  "runtime_accounting_complete": false,
+  "current_accounting_enforcement_complete": true,
+  "current_accounting_enforcement_source": "v2:paper:ledger.accepted",
+  "historical_runtime_leverage_margin_gap_non_blocking": false,
+  "historical_runtime_mandatory_field_gap_non_blocking": true,
+  "historical_runtime_accounting_gap_non_blocking": true,
+  "current_pre_submit_accounting_evidence": {
+    "status": "PASSED",
+    "source": "v2:paper:ledger.accepted",
+    "complete": true,
+    "row_count": 233,
+    "rows_with_all_mandatory_fields": 233,
+    "mandatory_field_coverage": 1.0,
+    "missing_by_field": {},
+    "missing_mandatory_sample": [],
+    "leverage_margin_consistency_status": "PASSED",
+    "leverage_margin_accounting_formula": "gross_notional_usd / allocated_margin_usd == effective_leverage",
+    "leverage_margin_consistency_row_count": 233,
+    "leverage_margin_consistent_row_count": 233,
+    "leverage_margin_inconsistent_count": 0,
+    "leverage_margin_consistency_coverage": 1.0,
+    "leverage_margin_inconsistent_sample": []
+  },
+  "accounting_scope": "current strict pre-submit accounting enforcement is authoritative; historical runtime rows created before strict mandatory-field and nested allocation rescaling remain reported separately",
+  "paper_only": true,
+  "places_real_order": false,
+  "live_gate": "blocked_human_only"
+}

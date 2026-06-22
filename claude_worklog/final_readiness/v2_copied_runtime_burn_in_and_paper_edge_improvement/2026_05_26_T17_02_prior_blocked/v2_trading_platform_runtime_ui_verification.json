@@ -1,0 +1,82 @@
+{
+  "schema_version": "v2_trading_platform_runtime_ui_verification_v1",
+  "phase": 6,
+  "generated_est": "2026-05-26T17:02:47-0400",
+  "generated_utc": "2026-05-26T21:02:47Z",
+
+  "frontend_router_path": "v2/frontend/src/router.tsx",
+  "frontend_pages_directory": "v2/frontend/src/pages",
+  "frontend_pages_count": 31,
+  "backend_service": "ai-bot-v2-public-website-backend.service",
+  "backend_service_active": true,
+  "backend_service_uptime_minutes": 220,
+  "backend_service_n_restarts": 0,
+
+  "ui_coverage_matrix": [
+    {"capability": "copied_runtime_status", "page_path": "/operator-proof-dashboard or /build-validation-status", "source_payload": "claude_worklog/final_readiness/v2_full_copied_runtime_and_trading_platform_restart/latest/*", "rendered_evidence": "deferred_to_screenshot_artifact_phase"},
+    {"capability": "service_status", "page_path": "/monitor-center", "source_payload": "v2/frontend/public/operator_runtime/v2_*/latest/*.json", "rendered_evidence": "deferred_to_screenshot_artifact_phase"},
+    {"capability": "dynamic_symbols", "page_path": "/symbols /markets /market", "source_payload": "v2/frontend/public/operator_runtime/symbol_universe/latest/symbol_universe_status.json", "rendered_evidence": "deferred_to_screenshot_artifact_phase"},
+    {"capability": "liquidation_bridge_levels", "page_path": "/market-intelligence", "source_payload": "v2/frontend/public/operator_runtime/v2_liquidation_wss_client/latest/*.json", "rendered_evidence": "deferred_to_screenshot_artifact_phase"},
+    {"capability": "trainer_mode", "page_path": "/trainer-admin or /ai-brain", "source_payload": "v2/frontend/public/operator_runtime/v2_owned_trainer/latest/status.json", "rendered_evidence": "deferred; payload itself is STALE per phase 4"},
+    {"capability": "risk_state", "page_path": "/config-admin /strategy-admin", "source_payload": "v2/frontend/public/operator_runtime/risk_gateway*/latest/*.json", "rendered_evidence": "deferred_to_screenshot_artifact_phase"},
+    {"capability": "orchestrator_state", "page_path": "/mission-control", "source_payload": "v2/frontend/public/operator_runtime/v2_orchestrator_arbitration/latest/v2_orchestrator_arbitration_status.json", "rendered_evidence": "deferred_to_screenshot_artifact_phase"},
+    {"capability": "paper_state", "page_path": "/paper-trading", "source_payload": "v2/frontend/public/operator_runtime/paper_shadow_observation/latest/paper_shadow_observation_status.json", "rendered_evidence": "deferred_to_screenshot_artifact_phase"},
+    {"capability": "paper_pnl_and_edge", "page_path": "/paper-trading /history /audit-ledger", "source_payload": "claude_worklog/final_readiness/v2_24h_parallel_recovery_war_room/latest/war_room_status.json", "rendered_evidence": "deferred_to_screenshot_artifact_phase"},
+    {"capability": "disabled_live_canary_controls", "page_path": "/trader /exchange-manager", "source_payload": "v2/frontend/public/operator_runtime/v2_default_blocked_execution_adapter/latest/v2_default_blocked_execution_adapter_status.json", "rendered_evidence": "deferred; payload confirms blocked-adapter is default"},
+    {"capability": "logs_and_errors", "page_path": "/audit-ledger", "source_payload": "v2/frontend/public/operator_runtime/live_observer/latest/audit_ledger_tail.json", "rendered_evidence": "deferred_to_screenshot_artifact_phase"},
+    {"capability": "operator_decisions", "page_path": "/codex-review-center /mission-control", "source_payload": "claude_worklog/final_readiness/v2_24h_parallel_recovery_war_room/latest/operator_decision_queue.json", "rendered_evidence": "deferred_to_screenshot_artifact_phase"},
+    {"capability": "executions_view", "page_path": "/executions", "source_payload": "v2/frontend/public/operator_runtime/v2_execution_ledger_worker/latest/v2_execution_ledger_worker_status.json", "rendered_evidence": "deferred_to_screenshot_artifact_phase"},
+    {"capability": "signals_view", "page_path": "/signals", "source_payload": "v2/frontend/public/operator_runtime/v2_signal_publisher/latest/v2_signal_publisher_status.json", "rendered_evidence": "deferred_to_screenshot_artifact_phase"},
+    {"capability": "mobile_iphone_readiness", "page_path": "/mobile-iphone-readiness", "source_payload": "v2/frontend/public/*", "rendered_evidence": "deferred_to_screenshot_artifact_phase"}
+  ],
+
+  "frontend_pages_full_inventory": [
+    "ai-brain", "audit-ledger", "build-validation-status", "claude-admin-ai",
+    "codex-review-center", "config-admin", "exchange-manager", "executions",
+    "external-manual-position-quarantine", "history", "login", "market",
+    "market-intelligence", "markets", "mission-control", "mobile-iphone-readiness",
+    "monitor-center", "ollama-local-assistant", "operator-proof-dashboard",
+    "paper-trading", "public-landing", "public-landing-v2", "public-status",
+    "script-registry", "signals", "strategy-admin", "symbols", "trader",
+    "trainer-admin"
+  ],
+
+  "trading_platform_vs_coding_report_dashboard_classification": "TRADING_PLATFORM",
+  "trading_platform_evidence": [
+    "/trader page exists",
+    "/paper-trading page exists",
+    "/executions page exists",
+    "/signals page exists",
+    "/symbols page exists",
+    "/markets and /market pages exist",
+    "/risk and risk-control surfaces via /config-admin and /strategy-admin",
+    "/exchange-manager page exists",
+    "/market-intelligence page exists",
+    "/external-manual-position-quarantine page exists",
+    "no /docs-only / /report-only top-level page replacing the trading routes"
+  ],
+
+  "rendered_proof_artifact_status": "DEFERRED_TO_OPERATOR_SCREENSHOT_PASS",
+  "rendered_proof_artifact_owner": "operator_or_separate_visual_regression_lane",
+  "rendered_proof_artifact_block": "out_of_scope_for_headless_burn_in_phase",
+
+  "control_surface_safety": {
+    "default_execution_adapter": "v2_default_blocked_execution_adapter",
+    "default_execution_adapter_blocks_real_orders": true,
+    "live_canary_dry_run_only": true,
+    "places_real_order_path_present_in_frontend": false,
+    "live_trading_button_present_in_frontend": false,
+    "approval_workflow_required_before_any_live_button": true
+  },
+
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "places_real_order": false,
+    "writes_old_redis": false
+  }
+}

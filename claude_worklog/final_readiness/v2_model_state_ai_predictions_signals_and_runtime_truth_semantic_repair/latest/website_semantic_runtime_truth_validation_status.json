@@ -1,0 +1,91 @@
+{
+  "assertions": [
+    {
+      "assertion": "current_runtime_panel_payload_age_lte_5m",
+      "pass": true
+    },
+    {
+      "assertion": "no_age_6d_current_panel",
+      "pass": true
+    },
+    {
+      "assertion": "no_blocked_human_only_when_live_gate_approved",
+      "pass": true
+    },
+    {
+      "assertion": "no_stale_9950_minus49_minus45_current_equity",
+      "pass": true
+    },
+    {
+      "assertion": "no_not_full_parity_when_required_missing_zero",
+      "pass": true
+    },
+    {
+      "assertion": "training_steps_2_allowed_only_if_current_runtime_heartbeat_confirms",
+      "pass": true
+    },
+    {
+      "assertion": "persistent_service_active_when_current_runtime_claims_continuous",
+      "pass": true
+    },
+    {
+      "assertion": "training_steps_increase_when_persistent_service_active",
+      "pass": true
+    },
+    {
+      "assertion": "resource_utilization_present_for_current_trainer",
+      "pass": true
+    },
+    {
+      "assertion": "paper_threshold_trial_guard_not_active_after_drawdown_breach",
+      "pass": true
+    },
+    {
+      "assertion": "no_predictions_202_if_current_grid_differs",
+      "pass": true
+    },
+    {
+      "assertion": "no_symbols_tfs_101_2_if_current_grid_differs",
+      "pass": true
+    },
+    {
+      "assertion": "stale_burn_in_report_not_current_runtime_source",
+      "pass": true
+    }
+  ],
+  "current_truth": {
+    "live_gate": "enabled_operator_approved",
+    "live_order_submit_blocker": "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER",
+    "paper_equity": 10056.49408454,
+    "paper_pnl": 56.49408454,
+    "prediction_grid_rows": 680,
+    "timeframes": [
+      "15m",
+      "1h",
+      "1m",
+      "4h",
+      "5m"
+    ],
+    "trader_state": "LIVE_ARMED_BALANCE_HOLD",
+    "trainer_source": "V2_NATIVE_RL_MASA_PPO_CUDA_TRAINER_PAPER_SHADOW",
+    "valid_symbol_count": 136
+  },
+  "failed_assertions": [],
+  "generated_est": "2026-06-14T17:01:46-04:00",
+  "route_crawl_http_200_is_not_sufficient": true,
+  "routes_checked": [
+    "/dashboard",
+    "/ai-predictions",
+    "/ai-predictions/model-state",
+    "/signals",
+    "/trade",
+    "/trade/paper",
+    "/portfolio",
+    "/system/trainer",
+    "/system/readiness",
+    "/system/execution"
+  ],
+  "schema_version": "website_semantic_runtime_truth_validation_status_v1",
+  "semantic_route_crawl_required": true,
+  "status": "SEMANTIC_RUNTIME_TRUTH_VALIDATION_PASS"
+}

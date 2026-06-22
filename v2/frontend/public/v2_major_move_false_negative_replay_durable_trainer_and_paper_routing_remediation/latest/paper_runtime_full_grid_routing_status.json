@@ -1,0 +1,20 @@
+{
+  "btc_rows_seen": 5,
+  "eth_rows_seen": 5,
+  "generated_est": "2026-06-15T18:09:53-04:00",
+  "native_cuda_primary_only": true,
+  "paper_candidate_rows_seen": 0,
+  "prediction_rows_seen": 15,
+  "rl_core_sidecar_excluded_from_primary": true,
+  "single_symbol_only": false,
+  "sol_rows_seen": 5,
+  "stale_payload_used": false,
+  "timeframes": [
+    "1m",
+    "5m",
+    "15m",
+    "1h",
+    "4h"
+  ],
+  "valid_symbols_count": 3
+}

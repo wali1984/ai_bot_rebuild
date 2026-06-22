@@ -1,0 +1,323 @@
+The write permission keeps being denied. I'll stop re-attempting and instead present the full proposed patch in chat so you can review and either approve the writes interactively or paste them manually. Tell me which you'd prefer.
+
+**Patch 1 of 3 — `v2/backend/app/services/war_room/parallel_recovery_24h.py`**
+
+Replace the `ROOT_CAUSE_CODES` block and `_classify_false_negative` function (lines ~303–388) with:
+
+```python
+ROOT_CAUSE_CODES = {
+    "model_hold_due_checkpoint",
+    "feature_missing",
+    "risk_gate_block",
+    "paper_fill_gate_block",
+    "paper_fill_gate_block_unrecorded_reason",
+    "stale_feature",
+    "insufficient_liquidation_data",
+    "no_policy_architecture",
+    "observation_gap",
+    "altdata_missing",
+    "MISSING_SOURCE",
+}
+
+
+_PAPER_GATE_REASON_SOURCES: tuple[str, ...] = (
+    "paper_gate_decision",
+    "trainer_output",
+    "paper_intent",
+    "orchestrator_held_by_paper_fill_gate",
+)
+
+
+def _resolve_paper_gate_block_reasons(bundle: dict[str, Any]) -> dict[str, Any]:
+    sources_checked: list[str] = []
+    source = "MISSING_SOURCE"
+    reasons: list[str] = []
+
+    paper_gate = bundle.get("paper_gate_decision") or {}
+    trainer_output = bundle.get("trainer_output") or {}
+    paper_intent = bundle.get("paper_intent") or {}
+    orchestrator = bundle.get("orchestrator_decision") or {}
+    prediction_id = (
+        (orchestrator.get("bucket_winners") or [{}])[0].get("winner_proposal_id")
+        if orchestrator else None
+    ) or paper_intent.get("intent_id")
+    symbol = (bundle.get("symbol") or "").upper()
+
+    candidates: list[tuple[str, list[str]]] = []
+    for src in _PAPER_GATE_REASON_SOURCES:
+        sources_checked.append(src)
+        if src == "paper_gate_decision":
+            values = paper_gate.get("paper_fill_gate_block_reasons") or []
+        elif src == "trainer_output":
+            values = trainer_output.get("paper_fill_gate_block_reasons") or []
+        elif src == "paper_intent":
+            values = paper_intent.get("paper_fill_gate_block_reasons") or []
+        elif src == "orchestrator_held_by_paper_fill_gate":
+            held = orchestrator.get("held_by_paper_fill_gate") or []
+            values = []
+            for entry in held if isinstance(held, list) else []:
+                if not isinstance(entry, dict):
+                    continue
+                entry_pred = (
+                    entry.get("prediction_id")
+                    or entry.get("winner_proposal_id")
+                    or entry.get("intent_id")
+                )
+                entry_symbol = (entry.get("symbol") or "").upper()
+                if prediction_id and entry_pred and entry_pred != prediction_id:
+                    continue
+                if not prediction_id and symbol and entry_symbol and entry_symbol != symbol:
+                    continue
+                values.extend(entry.get("paper_fill_gate_block_reasons") or [])
+        else:
+            values = []
+        if values:
+            candidates.append((src, list(values)))
+
+    if candidates:
+        source = candidates[0][0]
+        seen_r: set[str] = set()
+        for _src, vals in candidates:
+            for r in vals:
+                if r in seen_r:
+                    continue
+                seen_r.add(r)
+                reasons.append(r)
+
+    return {"reasons": reasons, "source": source, "sources_checked": sources_checked}
+
+
+def _classify_false_negative(bundle: dict[str, Any]) -> dict[str, Any]:
+    causes: list[str] = []
+    notes: list[str] = []
+
+    trainer_output = bundle.get("trainer_output") or {}
+    risk_decision = bundle.get("risk_decision") or {}
+    paper_gate = bundle.get("paper_gate_decision") or {}
+    altdata = bundle.get("altdata_snapshot")
+    paper_intent = bundle.get("paper_intent") or {}
+
+    if trainer_output.get("selected_action") in (None, "hold"):
+        causes.append("model_hold_due_checkpoint")
+        notes.append("trainer selected_action was hold or absent")
+
+    if not risk_decision.get("pre_trade_allowed", True):
+        causes.append("risk_gate_block")
+        notes.append(
+            f"risk gate blocked: churn={risk_decision.get('churn_reason')} "
+            f"fee={risk_decision.get('fee_gate_reason')}"
+        )
+
+    paper_allowed = paper_gate.get("paper_fill_allowed")
+    resolved = _resolve_paper_gate_block_reasons(bundle)
+    resolved_reasons = resolved["reasons"]
+    resolved_source = resolved["source"]
+
+    if paper_allowed is False:
+        causes.append("paper_fill_gate_block")
+        if resolved_reasons:
+            notes.append(
+                f"paper gate reasons resolved from source={resolved_source}: "
+                f"{resolved_reasons}"
+            )
+        else:
+            causes.append("paper_fill_gate_block_unrecorded_reason")
+            causes.append("MISSING_SOURCE")
+            causes.append("observation_gap")
+            notes.append(
+                "paper_fill_allowed=false with empty "
+                "paper_fill_gate_block_reasons in every checked source "
+                f"({resolved['sources_checked']}) — marked MISSING_SOURCE "
+                "rather than guessing"
+            )
+
+    if altdata is None:
+        causes.append("altdata_missing")
+        notes.append("altdata_snapshot is null")
+
+    if paper_intent.get("decision") == "SHADOW_OBSERVATION_ONLY":
+        notes.append(
+            "paper intent recorded as SHADOW_OBSERVATION_ONLY — fill path "
+            "was not exercised even though risk/edge cleared"
+        )
+
+    seen: set[str] = set()
+    deduped = [c for c in causes if not (c in seen or seen.add(c))]
+    return {
+        "symbol": bundle.get("symbol"),
+        "anchor_ts": bundle.get("anchor_ts"),
+        "feature_snapshot_id": bundle.get("feature_snapshot_id"),
+        "prediction_id": (
+            (bundle.get("orchestrator_decision") or {})
+            .get("bucket_winners", [{}])[0]
+            .get("winner_proposal_id")
+            if bundle.get("orchestrator_decision") else None
+        ),
+        "expected_move_after_cost_bps": trainer_output.get(
+            "expected_move_after_cost_bps"
+        ),
+        "outcome_after_cost": bundle.get("outcome_after_cost"),
+        "paper_gate_decision": paper_gate,
+        "paper_fill_gate_block_reasons_resolved": resolved_reasons,
+        "paper_fill_gate_block_reasons_source": resolved_source,
+        "paper_fill_gate_block_reasons_sources_checked": resolved["sources_checked"],
+        "risk_decision": risk_decision,
+        "altdata_snapshot_present": altdata is not None,
+        "trainer_selected_action": trainer_output.get("selected_action"),
+        "root_causes": deduped,
+        "notes": notes,
+    }
+```
+
+**Patch 2 of 3 — `v2/backend/tests/integration/cli/test_v2_24h_parallel_recovery_war_room.py`**
+
+Append after the existing `test_false_negative_classification_flags_paper_gate_opaque_block_and_altdata_missing` (around line 154):
+
+```python
+def test_false_negative_resolves_paper_gate_reason_from_trainer_output_when_decision_is_empty():
+    bundle = _bundle(
+        "false_negative",
+        paper_fill_allowed=False,
+        paper_reasons=[],
+        altdata={"score": 0.5},
+        after_cost_5m=11.0,
+    )
+    bundle["trainer_output"]["paper_fill_gate_block_reasons"] = [
+        "v2_native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+    ]
+
+    report, _ = build_false_negative_root_cause_report([bundle])
+    cls = report["classifications"][0]
+
+    assert cls["paper_fill_gate_block_reasons_source"] == "trainer_output"
+    assert cls["paper_fill_gate_block_reasons_resolved"] == [
+        "v2_native_trainer_not_implemented",
+        "checkpoint_operator_decision_required",
+    ]
+    assert "paper_fill_gate_block" in cls["root_causes"]
+    assert "paper_fill_gate_block_unrecorded_reason" not in cls["root_causes"]
+    assert "MISSING_SOURCE" not in cls["root_causes"]
+
+
+def test_false_negative_marks_missing_source_when_no_evidence_in_any_source():
+    bundle = _bundle(
+        "false_negative",
+        paper_fill_allowed=False,
+        paper_reasons=[],
+        altdata={"score": 0.5},
+        after_cost_5m=11.0,
+    )
+
+    report, _ = build_false_negative_root_cause_report([bundle])
+    cls = report["classifications"][0]
+
+    assert cls["paper_fill_gate_block_reasons_resolved"] == []
+    assert cls["paper_fill_gate_block_reasons_source"] == "MISSING_SOURCE"
+    assert cls["paper_fill_gate_block_reasons_sources_checked"] == [
+        "paper_gate_decision",
+        "trainer_output",
+        "paper_intent",
+        "orchestrator_held_by_paper_fill_gate",
+    ]
+    assert "MISSING_SOURCE" in cls["root_causes"]
+    assert "paper_fill_gate_block_unrecorded_reason" in cls["root_causes"]
+
+
+def test_false_negative_resolves_paper_gate_reason_from_orchestrator_held_list():
+    bundle = _bundle(
+        "false_negative",
+        paper_fill_allowed=False,
+        paper_reasons=[],
+        altdata={"score": 0.5},
+        after_cost_5m=9.0,
+    )
+    pred_id = bundle["orchestrator_decision"]["bucket_winners"][0]["winner_proposal_id"]
+    bundle["orchestrator_decision"]["held_by_paper_fill_gate"] = [
+        {
+            "prediction_id": pred_id,
+            "symbol": bundle["symbol"],
+            "paper_fill_gate_block_reasons": [
+                "contract_only_or_baseline_prediction_not_tradeable",
+                "live_gate_blocked_human_only",
+            ],
+        }
+    ]
+
+    report, _ = build_false_negative_root_cause_report([bundle])
+    cls = report["classifications"][0]
+
+    assert (
+        cls["paper_fill_gate_block_reasons_source"]
+        == "orchestrator_held_by_paper_fill_gate"
+    )
+    assert cls["paper_fill_gate_block_reasons_resolved"] == [
+        "contract_only_or_baseline_prediction_not_tradeable",
+        "live_gate_blocked_human_only",
+    ]
+    assert "MISSING_SOURCE" not in cls["root_causes"]
+    assert "paper_fill_gate_block_unrecorded_reason" not in cls["root_causes"]
+```
+
+**Patch 3 of 3 — new file `claude_worklog/v2_false_negative_evidence_quality/latest/implementation_report.json`**
+
+```json
+{
+  "schema_version": "v2_false_negative_evidence_quality_v1_implementation_report",
+  "task_id": "v2_false_negative_evidence_quality_improvement",
+  "title": "Join replay false-negatives to strict paper-fill-gate state and explicitly mark MISSING_SOURCE",
+  "generated_utc": "2026-05-24T00:00:00Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false,
+  "scope": "analysis-only; no Redis writes, no exchange mutation, no strict-gate code changes",
+  "strict_paper_gate_preserved": true,
+  "strict_paper_gate_source": "v2/backend/app/services/trainer_bridge_exit/native_prediction_publisher.py:280-321 (unchanged)",
+  "changes": [
+    {
+      "file": "v2/backend/app/services/war_room/parallel_recovery_24h.py",
+      "kind": "edit",
+      "summary": "Add _resolve_paper_gate_block_reasons() that joins replay bundle to four in-bundle sources (paper_gate_decision, trainer_output, paper_intent, orchestrator_held_by_paper_fill_gate); update _classify_false_negative to record explicit resolved reasons when evidence exists and emit MISSING_SOURCE when none does; add MISSING_SOURCE to ROOT_CAUSE_CODES; preserve paper_fill_gate_block_unrecorded_reason for dashboard back-compat."
+    },
+    {
+      "file": "v2/backend/tests/integration/cli/test_v2_24h_parallel_recovery_war_room.py",
+      "kind": "add",
+      "summary": "Add three tests: (1) reasons resolved from trainer_output, no MISSING_SOURCE / no unrecorded_reason; (2) every source empty, MISSING_SOURCE + unrecorded_reason both emitted, sources_checked recorded; (3) reasons resolved from orchestrator held_by_paper_fill_gate list matched by prediction_id."
+    },
+    {
+      "file": "claude_worklog/v2_false_negative_evidence_quality/latest/implementation_report.json",
+      "kind": "add",
+      "summary": "Per-task implementation report (this file)."
+    }
+  ],
+  "evidence": {
+    "current_false_negative_report": "claude_worklog/final_readiness/v2_24h_parallel_recovery_war_room/latest/lane2/false_negative_root_cause_report.json",
+    "current_state_15_of_15_fn_bundles_carry_unrecorded_reason": true,
+    "checked_join_sources": [
+      "paper_gate_decision.paper_fill_gate_block_reasons (replay_miner.py:401-407)",
+      "trainer_output.paper_fill_gate_block_reasons (replay_miner.py:391-400)",
+      "paper_intent.paper_fill_gate_block_reasons (replay_miner.py:409-414)",
+      "orchestrator_decision.held_by_paper_fill_gate (v2_orchestrator_arbitration_loop.py:116-134)"
+    ],
+    "no_guessing_rule": "If every checked source returns empty, classification carries paper_fill_gate_block_reasons_resolved=[], paper_fill_gate_block_reasons_source=\"MISSING_SOURCE\", and root_causes contains \"MISSING_SOURCE\" alongside the legacy \"paper_fill_gate_block_unrecorded_reason\" marker — never a guessed reason string."
+  },
+  "verification_commands": [
+    "pytest v2/backend/tests/integration/cli/test_v2_24h_parallel_recovery_war_room.py -k 'false_negative' -v",
+    "python -c \"from v2.backend.app.services.war_room.parallel_recovery_24h import _resolve_paper_gate_block_reasons; print(_resolve_paper_gate_block_reasons({}))\""
+  ],
+  "non_goals": [
+    "Modifying the strict paper-fill gate decision logic",
+    "Mutating Redis or any live runtime",
+    "Approving live or canary trading",
+    "Changing thresholds or evaluator gates",
+    "Backfilling historical replay bundles"
+  ],
+  "operator_decision_required": false,
+  "next_steps_for_operator": "Run the new pytest cases locally; re-run the 24h war-room to regenerate lane2/false_negative_root_cause_report.json with the new fields; verify cause_counts now distinguish MISSING_SOURCE from explicit resolved-source counts."
+}
+```
+
+Want me to retry the writes (you'd need to approve the permission prompts), apply the patches yourself, or have me drop them as a single shell-applied diff? My recommendation: approve patches 1 and 2 (code + tests, low blast radius, no runtime mutation) and patch 3 (new report file, purely analytical).

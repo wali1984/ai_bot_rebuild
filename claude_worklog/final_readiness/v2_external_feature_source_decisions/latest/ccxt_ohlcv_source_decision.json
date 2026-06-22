@@ -1,0 +1,56 @@
+{
+  "schema_version": "v2_external_feature_source_decision_v1",
+  "family_id": "unified_feature_family.ccxt_ohlcv",
+  "target_dims_within_unified_features_slice": 10,
+  "legacy_v3_slice_owner": "unified_features (1430-dim) sub-family",
+  "v2_native_can_produce_today": false,
+  "why_v2_cannot_produce_today": [
+    "Legacy ccxt_ohlcv is a secondary-exchange OHLCV slice (10 dims) derived from a CCXT-style alternative exchange feed.",
+    "V2 keeps the native Binance live klines as the canonical OHLCV path; running a parallel CCXT feed has not been approved.",
+    "No v2:market:ccxt_ohlcv namespace exists today."
+  ],
+  "possible_v2_native_source": {
+    "kind": "OPERATOR_DECISION_REQUIRED_SECONDARY_EXCHANGE_OHLCV",
+    "candidates": [
+      "ccxt against KuCoin (V2 already ingests KuCoin live trades; OHLCV via ccxt can be layered)",
+      "ccxt against Binance.us / Bybit / OKX (operator-provided secondary exchange)",
+      "CoinAPI OHLCV (V2 already uses CoinAPI for some price data; could be extended)"
+    ],
+    "v2_implementation_outline_if_approved": [
+      "Extend v2 ingestor registry to publish v2:market:ccxt_ohlcv:{exchange}:{symbol}:{timeframe}.",
+      "Add focused projection in full_observation_builder for the 10-dim slice.",
+      "Codex review pair before adoption.",
+      "Continue treating native Binance v2:market:* as the canonical OHLCV source; ccxt_ohlcv is shadow only."
+    ]
+  },
+  "required_credentials_or_api": {
+    "credentials_required": "CONDITIONAL",
+    "credential_kind": "API_KEY_OR_BEARER_TOKEN_IF_PRIVATE_FEED_SELECTED",
+    "credential_storage": ".local_secrets/ (gitignored; never embedded in payloads)",
+    "public_ccxt_feeds_available_without_credentials": true,
+    "no_raw_credentials_in_this_packet": true,
+    "rate_limit_decision_required": true
+  },
+  "optional_for_checkpoint_compatibility": "OPTIONAL_FOR_CHECKPOINT_COMPATIBILITY_IF_NATIVE_BINANCE_OHLCV_PRESENT",
+  "rationale_for_optionality": "ccxt_ohlcv is a secondary alt-exchange OHLCV slice. V2's native Binance OHLCV plus the technical_analysis / binance_klines sub-families already carry the canonical price-history signal for paper inference. The legacy checkpoint is not expected to require ccxt_ohlcv to be filled when native binance_klines is present, but this depends on the operator-provided checkpoint sidecar metadata.",
+  "operator_decision_required": true,
+  "operator_decision_options": [
+    "APPROVE_CCXT_OHLCV_SHADOW: V2 publishes secondary-exchange OHLCV to v2:market:ccxt_ohlcv:* (shadow only, no live trade impact).",
+    "DEFER_CCXT_OHLCV: keep 10 dims explicit-missing as OPERATOR_DECISION_REQUIRED (current default).",
+    "EXCLUDE_CCXT_OHLCV: skip permanently; document checkpoint compatibility assumption that native Binance OHLCV is sufficient."
+  ],
+  "current_default_state": "DEFER_CCXT_OHLCV",
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "creates_external_feed": false,
+  "creates_credentials": false,
+  "creates_paper_only_shutdown_acceptance_file": false,
+  "modifies_legacy": false,
+  "loads_any_blob": false,
+  "exchange_mutation": false,
+  "writes_old_redis": false
+}

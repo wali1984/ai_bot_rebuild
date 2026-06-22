@@ -1,0 +1,218 @@
+{
+  "active_claude_task": "NEEDS_DISPATCH:claude_12h_p0_2c_checkpoint_metadata_loading",
+  "active_codex_task": "GOVERNOR_MONITOR_AND_PHASE_REVIEWS",
+  "active_phase": "P0.2C",
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "exchange_mutation_state": "no_mutations_attempted",
+  "generated_at": "2026-05-16T03:30:34Z",
+  "git_head": "31a7fd70319f0d586c454b5ea2ea530ba9cb1541",
+  "legacy_shutdown_allowed": false,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "old_redis_write_state": "no_writes_attempted",
+  "permanent_migration_contract": {
+    "behavior_mapping_required": true,
+    "codex_pass_required": true,
+    "config_env_mapping_required": true,
+    "dependency_closure_required": true,
+    "legacy_source_paths_required": true,
+    "live_gate_must_remain": "blocked_human_only",
+    "live_symbols_must_remain_empty": true,
+    "no_exchange_mutation_required": true,
+    "no_old_redis_writes_required": true,
+    "public_payload_required": true,
+    "sha256_citations_required": true,
+    "tests_required": true,
+    "v2_implementation_required": true
+  },
+  "phases": [
+    {
+      "artifact_paths": [
+        "claude_worklog/final_readiness/12h_native_core_sprint/latest/SPRINT_STATUS.md",
+        "claude_worklog/final_readiness/12h_native_core_sprint/latest/sprint_status.json",
+        "v2/frontend/public/12h_native_core_sprint/latest/operator_dashboard_payload.json"
+      ],
+      "blockers": [],
+      "codex_status": "CODEX_30M_STATUS_ACTIVE",
+      "go_no_go": "SPRINT_CONTROLLER_READY",
+      "name": "Sprint controller and status packet",
+      "phase_id": "P0",
+      "status": "CODEX_GOVERNOR_INITIALIZED"
+    },
+    {
+      "artifact_paths": [
+        "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2b/latest/codex_review/CODEX_GO_NO_GO.md",
+        "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2b/latest/codex_review/CODEX_REVIEW.md",
+        "v2/backend/app/services/rl_core/masa_adapter.py",
+        "v2/backend/app/services/rl_core/policy.py",
+        "v2/backend/app/services/rl_core/ppo_policy.py",
+        "v2/backend/tests/integration/cli/test_v2_rl_core_p0_2b_policy.py"
+      ],
+      "blockers": [
+        "FULL_TRAINER_MIGRATION_NOT_CLAIMED",
+        "CHECKPOINT_DEFERRED_TO_P0_2C",
+        "CPU_UPDATE_DEFERRED_TO_P0_2D",
+        "GPU_PARITY_DEFERRED_TO_P0_2E",
+        "TRAINER_OUTPUT_CONTRACT_DEFERRED_TO_P0_2F"
+      ],
+      "codex_status": "PASS",
+      "go_no_go": "V2_NATIVE_RL_MASA_PPO_P0_2B_CODEX_PASS",
+      "name": "MASA/PPO CPU-first forward-pass policy",
+      "phase_id": "P0.2B",
+      "status": "READY_SCOPE_LIMITED"
+    },
+    {
+      "artifact_paths": [
+        "v2/backend/app/services/rl_core/checkpoints.py",
+        "v2/backend/tests/integration/cli/test_v2_rl_core_p0_2c_checkpoint.py"
+      ],
+      "blockers": [
+        "AWAITING_CLAUDE_IMPLEMENTATION"
+      ],
+      "codex_status": "PENDING",
+      "go_no_go": null,
+      "name": "Checkpoint metadata and safe weight loading",
+      "phase_id": "P0.2C",
+      "status": "NEXT_REQUIRED"
+    },
+    {
+      "artifact_paths": [
+        "v2/backend/app/services/rl_core/training_loop.py",
+        "v2/backend/tests/integration/cli/test_v2_rl_core_p0_2d_training_loop.py"
+      ],
+      "blockers": [],
+      "codex_status": "PENDING",
+      "go_no_go": null,
+      "name": "Tiny CPU PPO update loop",
+      "phase_id": "P0.2D",
+      "status": "PENDING"
+    },
+    {
+      "artifact_paths": [
+        "v2/backend/app/services/rl_core/gpu_training.py",
+        "v2/backend/tests/integration/cli/test_v2_rl_core_p0_2e_gpu_training.py"
+      ],
+      "blockers": [
+        "DEPENDS_ON_P0_2D"
+      ],
+      "codex_status": "PENDING",
+      "go_no_go": null,
+      "name": "GPU training loop parity",
+      "phase_id": "P0.2E",
+      "status": "PENDING"
+    },
+    {
+      "artifact_paths": [
+        "v2/backend/app/services/rl_core/trainer_output.py",
+        "v2/backend/tests/integration/cli/test_v2_rl_core_p0_2f_trainer_output.py"
+      ],
+      "blockers": [],
+      "codex_status": "PENDING",
+      "go_no_go": null,
+      "name": "Trainer output contract (expected move, confidence, attribution)",
+      "phase_id": "P0.2F",
+      "status": "PENDING"
+    },
+    {
+      "artifact_paths": [
+        "v2/backend/app/services/orchestrator_arbitration/",
+        "v2/backend/app/cli/v2_orchestrator_arbitration_worker.py",
+        "v2/backend/tests/integration/cli/test_v2_orchestrator_arbitration_worker.py",
+        "v2/frontend/public/operator_runtime/v2_orchestrator_arbitration/latest/v2_orchestrator_arbitration_status.json"
+      ],
+      "blockers": [],
+      "codex_status": "PENDING",
+      "go_no_go": null,
+      "name": "Orchestrator arbitration native paper-first",
+      "phase_id": "P0.3",
+      "status": "PENDING"
+    },
+    {
+      "artifact_paths": [
+        "v2/backend/app/services/trade_management_paper/",
+        "v2/backend/app/cli/v2_trade_management_paper_worker.py",
+        "v2/backend/tests/integration/cli/test_v2_trade_management_paper_worker.py",
+        "v2/frontend/public/operator_runtime/v2_trade_management_paper/latest/v2_trade_management_paper_status.json"
+      ],
+      "blockers": [],
+      "codex_status": "PENDING",
+      "go_no_go": null,
+      "name": "Stop/TP/stealth/hedge/anti-churn paper engine",
+      "phase_id": "P0.4",
+      "status": "PENDING"
+    },
+    {
+      "artifact_paths": [
+        "v2/backend/app/services/native_ingestors/",
+        "v2/backend/app/cli/v2_native_ingestors_worker.py",
+        "v2/backend/tests/integration/cli/test_v2_native_ingestors_worker.py",
+        "v2/frontend/public/operator_runtime/v2_native_ingestors/latest/v2_native_ingestors_status.json"
+      ],
+      "blockers": [],
+      "codex_status": "PENDING",
+      "go_no_go": null,
+      "name": "Native ingestor verification/build",
+      "phase_id": "P0.5",
+      "status": "PENDING"
+    },
+    {
+      "artifact_paths": [
+        "v2/backend/app/cli/v2_owned_non_live_startup.py",
+        "v2/backend/tests/integration/cli/test_v2_owned_non_live_startup.py",
+        "v2/frontend/public/operator_runtime/v2_owned_non_live_startup/latest/v2_owned_non_live_startup_status.json"
+      ],
+      "blockers": [],
+      "codex_status": "PENDING",
+      "go_no_go": null,
+      "name": "Integration: V2-owned non-live startup",
+      "phase_id": "P9",
+      "status": "PENDING"
+    },
+    {
+      "artifact_paths": [
+        "claude_worklog/final_readiness/12h_native_core_sprint/latest/LEGACY_SHUTDOWN_READINESS_PACKET.md",
+        "claude_worklog/final_readiness/12h_native_core_sprint/latest/legacy_shutdown_readiness_packet.json"
+      ],
+      "blockers": [
+        "BLOCKED_UNTIL_PHASES_1_THROUGH_9_CODEX_PASS"
+      ],
+      "codex_status": "PENDING",
+      "go_no_go": null,
+      "name": "Legacy shutdown readiness gate",
+      "phase_id": "P10",
+      "status": "PENDING"
+    },
+    {
+      "artifact_paths": [
+        "v2/frontend (admin/permanent-migration, admin/trainer-parity, admin/paper-edge, admin/decision-quality, admin/codex-claude-control, status-simple, markets, derivatives, chart/:symbol, bots/trainer, paper-trading, signals, risk)"
+      ],
+      "blockers": [],
+      "codex_status": "PENDING",
+      "go_no_go": null,
+      "name": "Frontend truth and user pages",
+      "phase_id": "P11",
+      "status": "PENDING"
+    },
+    {
+      "artifact_paths": [
+        "claude_worklog/final_readiness/12h_native_core_sprint/latest/GO_NO_GO.md",
+        "claude_worklog/final_readiness/12h_native_core_sprint/latest/TWELVE_HOUR_NATIVE_CORE_MIGRATION_REPORT.md",
+        "claude_worklog/final_readiness/12h_native_core_sprint/latest/final_blocker_matrix.json",
+        "v2/frontend/public/12h_native_core_sprint/latest/operator_dashboard_payload.json"
+      ],
+      "blockers": [
+        "P0_2C_THROUGH_P10_INCOMPLETE"
+      ],
+      "codex_status": "FAIL_CORE_INCOMPLETE",
+      "go_no_go": "TWELVE_HOUR_NATIVE_CORE_MIGRATION_CODEX_FAIL_CORE_INCOMPLETE",
+      "name": "Final 12-hour packet",
+      "phase_id": "P12",
+      "status": "BLOCKED"
+    }
+  ],
+  "schema_version": "twelve_hour_native_core_sprint_status_v1",
+  "sprint_id": "TWELVE_HOUR_NATIVE_CORE_MIGRATION_AND_SHUTDOWN_READINESS_SPRINT"
+}

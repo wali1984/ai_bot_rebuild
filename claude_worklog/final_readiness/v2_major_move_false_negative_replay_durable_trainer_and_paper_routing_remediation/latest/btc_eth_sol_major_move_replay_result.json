@@ -1,0 +1,19 @@
+{
+  "btc_would_have_created_paper_candidate": false,
+  "candidate_direction": {},
+  "candidate_time": "2026-06-15T22:09:53Z",
+  "eth_would_have_created_paper_candidate": false,
+  "expected_move_after_cost_bps": {
+    "BTCUSDT": 1.177819,
+    "ETHUSDT": -0.61154,
+    "SOLUSDT": 2.652475
+  },
+  "expected_paper_pnl_after_cost": "paper_replay_required_after_candidate_lifecycle",
+  "generated_est": "2026-06-15T18:09:53-04:00",
+  "paper_entry_allowed": false,
+  "paper_entry_block_reason": [
+    "EVIDENCE_SCORE_BELOW_THRESHOLD",
+    "EXPECTED_MOVE_AFTER_COST_NOT_POSITIVE"
+  ],
+  "sol_would_have_created_paper_candidate": false
+}

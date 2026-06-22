@@ -1,0 +1,2665 @@
+BEGIN_FILE: claude_worklog/v2_architecture_remediation/04_API_CONTRACT_REMEDIATION.md
+# 04 — API Contract Remediation (V2 Control Plane)
+
+**Status:** ARCHITECTURE REMEDIATION (non-live, no code change)
+**Date:** 2026-05-24
+**Author:** Claude Code (planner mode, read-only)
+**Scope:** Resolves the blocker `API_CONTRACT_INCOMPLETE` identified by Codex adversarial review of the V2 architecture. Defines every public/internal HTTP+WS endpoint, its request/response/error schemas, idempotency posture, RBAC matrix, and the contract-schema deltas required vs. the prior draft.
+**Read-only inputs:**
+- `claude_worklog/agent_supervisor/tasks/002_codex_adversarial_architecture_review.json`
+- `claude_worklog/agent_supervisor/tasks/004_fix_api_contract_architecture.json`
+- `claude_worklog/v2_architecture_remediation/02_RISK_GATEWAY_REMEDIATION.md` (assumed sibling)
+- `requirements/v2_gui_pages.md` (GUI page list — drives endpoint surface)
+- `legacy_reference/**` (read-only; only consulted for shape of legacy Redis keys mirrored into V2 read endpoints)
+
+**Write boundary:** This document is the sole artifact. No V2 code is created.
+
+---
+
+## 0. Remediation Summary (vs. prior draft)
+
+| # | Defect found by Codex | Resolution in this doc |
+|---|------------------------|-------------------------|
+| C1 | Endpoints listed only as "GET /signals" with no schema | Full request/response JSON Schemas inline (§3–§5) |
+| C2 | No idempotency strategy for control-plane writes | Mandatory `Idempotency-Key` header for every POST/PATCH/DELETE that mutates state, with replay window + storage model (§2.6) |
+| C3 | RBAC inferred from path only | Explicit RBAC matrix per endpoint with role + scope + approval requirement (§2.5, §3–§5) |
+| C4 | No error envelope; mix of 4xx/5xx without typed codes | Single `ErrorEnvelope` with `error.code` taxonomy (§2.4) |
+| C5 | Dangerous mutations (enable live, key rotation) lacked dual-control / approval handshake | Two-phase `propose → approve` contract with HMAC-bound proposal IDs (§2.7) |
+| C6 | WebSocket streams were undefined | WS channel registry with envelope, heartbeat, replay cursor (§6) |
+| C7 | No versioning / deprecation contract | `/v1` URL prefix + `X-API-Version` + `Sunset` header policy (§2.2) |
+| C8 | No pagination/filter standard | Cursor-based pagination contract (§2.3) |
+| C9 | Trainer/Ollama/Codex/Claude admin endpoints missing entirely | Added §5 (Admin AI surfaces) |
+| C10 | No content-type / negotiation rules | Strict `application/json; charset=utf-8`, UTF-8, ISO-8601 UTC, monotonic ints (§2.1) |
+
+---
+
+## 1. Endpoint Surface — Master Index
+
+All endpoints are prefixed `/api/v1`. WebSocket endpoints are prefixed `/ws/v1`. Counts below are the contracted surface this document defines.
+
+| Group | REST count | WS count | RBAC anchor |
+|------|------------|----------|-------------|
+| Auth & session                       | 6  | 0 | §3.1 |
+| Mission Control                      | 4  | 1 | §3.2 |
+| Monitor Center                       | 9  | 2 | §3.3 |
+| Coverage / System Atlas              | 5  | 0 | §3.4 |
+| Script Registry                      | 7  | 0 | §3.5 |
+| Symbols / Universe                   | 5  | 0 | §3.6 |
+| Signals                              | 6  | 1 | §3.7 |
+| Trainer Prediction Monitor           | 6  | 1 | §3.8 |
+| Signal Explainability                | 3  | 0 | §3.9 |
+| Executions (paper/replay only)       | 6  | 1 | §4.1 |
+| Positions (paper/replay only)        | 4  | 1 | §4.2 |
+| Risk Gateway                         | 7  | 1 | §4.3 |
+| Config Admin                         | 8  | 0 | §4.4 |
+| Strategy Admin                       | 6  | 0 | §4.5 |
+| Trainer Admin                        | 7  | 1 | §4.6 |
+| Orchestrator Admin                   | 6  | 1 | §4.7 |
+| Execution Admin                      | 5  | 0 | §4.8 |
+| Paper Trading                        | 5  | 1 | §4.9 |
+| Replay                               | 6  | 1 | §4.10 |
+| Audit Ledger                         | 4  | 1 | §4.11 |
+| System Health                        | 5  | 1 | §4.12 |
+| Live Readiness Gate                  | 6  | 0 | §4.13 |
+| Claude Admin AI                      | 5  | 1 | §5.1 |
+| Ollama Local Assistant               | 6  | 1 | §5.2 |
+| Codex Review Center                  | 6  | 1 | §5.3 |
+| Build / Validation Status            | 4  | 1 | §5.4 |
+| Mobile Readiness                     | 3  | 0 | §5.5 |
+| **Total**                            | **140** | **20** |     |
+
+---
+
+## 2. Global Contract Rules
+
+### 2.1 Encoding & types
+- `Content-Type: application/json; charset=utf-8` for REST request/response bodies (except `multipart/form-data` for evidence uploads in §5.2).
+- All timestamps: ISO-8601 with `Z` (UTC). Server rejects naive timestamps with `E_TIME_NAIVE`.
+- All monetary values: string-encoded decimal (`"123.45"`), never float. Server rejects float for monetary fields with `E_MONEY_FLOAT`.
+- All identifiers: ULID-26 (`01J...`) unless explicitly UUIDv7.
+- All booleans explicit (`true`/`false`, never `0`/`1`).
+
+### 2.2 Versioning & deprecation
+- URL: `/api/v1/...`. Major-version bumps create `/api/v2/...`. No breaking change within a major.
+- Response header on every response: `X-API-Version: 1.<minor>.<patch>`.
+- Deprecation: `Sunset: <RFC1123 date>` + `Link: <doc>; rel="deprecation"` for ≥90 days before removal.
+
+### 2.3 Pagination, filtering, sorting
+- Cursor-based only. Query: `?limit=<1..500>&cursor=<opaque>&order=asc|desc`.
+- Response envelope: `{ "items": [...], "page": { "next_cursor": "...", "prev_cursor": "...", "has_more": true } }`.
+- Filters: explicit per endpoint; unknown filter keys → `E_UNKNOWN_FILTER`.
+
+### 2.4 Error envelope (single shape)
+```json
+{
+  "error": {
+    "code": "E_<DOMAIN>_<REASON>",
+    "message": "<human-readable>",
+    "http_status": 400,
+    "request_id": "01J...",
+    "details": { "field": "leverage", "constraint": "<=1" },
+    "evidence": { "log_ref": "rid://...", "redis_key": null }
+  }
+}
+```
+Code taxonomy (prefix → domain):
+| Prefix | Domain |
+|--------|--------|
+| `E_AUTH_` | Authentication / session |
+| `E_RBAC_` | Authorization / scope |
+| `E_INPUT_` | Schema / validation |
+| `E_IDEMP_` | Idempotency conflict |
+| `E_STATE_` | State machine violation |
+| `E_RISK_` | Risk gateway block |
+| `E_APPROVAL_` | Dual-control flow |
+| `E_RUNTIME_` | Downstream runtime (trainer/Redis/legacy) |
+| `E_RATE_` | Rate limiting |
+| `E_TIME_` | Time / clock |
+| `E_MONEY_` | Money encoding |
+| `E_NOTFOUND_` | Missing resource |
+| `E_CONFLICT_` | Optimistic-concurrency / etag |
+| `E_INTERNAL_` | Unhandled |
+HTTP codes: `400` validation, `401` unauth, `403` RBAC, `404` not found, `409` conflict, `410` gone (deprecated), `412` precondition (etag), `422` business-rule, `423` locked (kill switch), `429` rate, `451` legal/policy (live-blocked), `500` internal, `503` downstream.
+
+### 2.5 RBAC roles
+| Role | Description | May approve dangerous? |
+|------|-------------|------------------------|
+| `viewer`          | Read-only across all monitor/audit surfaces | No |
+| `operator`        | Paper/replay control, restart non-live scripts | No |
+| `strategy_admin`  | Strategy + signal + trainer admin (non-live) | No |
+| `risk_admin`      | Risk gateway thresholds, kill switch toggle | Partial (kill-switch only) |
+| `config_admin`    | Versioned config writes (non-dangerous) | No |
+| `human_approver`  | Required signer for dangerous proposals | YES |
+| `service`         | Internal service-to-service tokens (mTLS-bound) | No |
+| `auditor`         | Full read of audit ledger + raw evidence | No |
+Every dangerous action requires **two distinct identities**: `proposer` (any of operator/strategy_admin/risk_admin/config_admin) AND `approver` (`human_approver`). Same human cannot fill both within the proposal lifetime.
+
+### 2.6 Idempotency
+- Header `Idempotency-Key: <ULID>` required on every non-GET that mutates state. Server stores `(key, sha256(body), response)` for **24h**.
+- Same key + same body within window → replays stored response (200/201 as originally returned).
+- Same key + different body → `409 E_IDEMP_BODY_MISMATCH`.
+- Missing key on mutating request → `400 E_IDEMP_MISSING`.
+- GET/HEAD never require idempotency keys.
+
+### 2.7 Dual-control for dangerous actions
+Dangerous actions (live-trade enable, API-key add/activate, leverage raise, CROSS margin, position-size raise, daily-loss raise, kill-switch disable, mandatory-stop disable, hedge/DCA enable, ADJUST_LEVERAGE, paper→live switch) follow a two-phase contract:
+
+1. **Propose** — `POST /api/v1/<area>/proposals`
+   - Body: action payload + `reason` + `evidence_refs[]`.
+   - Returns `proposal_id`, `payload_hmac` (HMAC-SHA256 over canonical JSON, key = server secret), `expires_at` (≤15 min), `required_approvers=1`.
+   - State: `pending`.
+2. **Approve** — `POST /api/v1/<area>/proposals/{proposal_id}/approve`
+   - Header `X-Approver-Identity` mTLS-pinned; must differ from proposer.
+   - Body: `{ "payload_hmac": "<from step 1>", "approver_reason": "..." }`.
+   - Server re-verifies HMAC, transitions to `approved`, then synchronously executes; emits `audit_dangerous_approved`.
+3. **Reject / Expire** — `POST .../reject` or auto-expire → `E_APPROVAL_EXPIRED` on later approve.
+
+Until 2026 default state remains `LIVE TRADING: BLOCKED`. Endpoints that would enable live always return `451 E_RISK_LIVE_BLOCKED` if global flag `live_enabled=false`.
+
+### 2.8 Rate limits & quotas
+- Per-token bucket: 60 req/min default; 600 for `service`; 10/min for dangerous-proposal endpoints.
+- Burst of 10. On exceed → `429 E_RATE_EXCEEDED` with `Retry-After` (seconds).
+
+### 2.9 ETags / optimistic concurrency
+- All updatable resources (configs, strategies, risk thresholds) return `ETag: "W/\"<sha256-12>\""`.
+- Updates require `If-Match`. Mismatch → `412 E_CONFLICT_ETAG`.
+
+### 2.10 Request ID & tracing
+- Server echoes `X-Request-ID` (ULID); also embedded in every audit row and error envelope. Clients may supply one; server replaces with ULID if malformed.
+
+### 2.11 Auth
+- mTLS for internal `service` tokens.
+- Session cookies (HTTPOnly, SameSite=Strict, Secure) for browser GUI, backed by short-lived JWT (≤15 min) + refresh token (≤8h).
+- Mobile/PWA: same JWT issued via `/auth/login`. Device binding via `X-Device-ID`.
+
+### 2.12 Content negotiation
+- Only `application/json`. `Accept` other → `406 E_INPUT_UNSUPPORTED_MEDIA`.
+
+### 2.13 Safety invariants (cross-cutting)
+- No endpoint may directly call legacy trainer in-process; trainer interaction is subprocess only and exposed via `/api/v1/trainer/*` adapter endpoints documented in §4.6.
+- No endpoint writes to legacy Redis keys; V2 prefix is `v2:` enforced in adapter layer; violation → `E_RUNTIME_LEGACY_KEY`.
+- All exchange-effecting endpoints are paper/replay scoped until live readiness gate (§4.13) passes AND dangerous-proposal flow approves.
+
+---
+
+## 3. Endpoint Detail — Read & Monitor Surfaces
+
+> Schema notation: JSON Schema draft 2020-12 fragments. Every endpoint inherits §2 rules; only deltas are shown.
+
+### 3.1 Auth & Session
+
+| # | Method | Path | RBAC | Idempotent | Purpose |
+|---|--------|------|------|------------|---------|
+| 3.1.1 | POST   | /auth/login                       | public            | yes | Exchange credentials → JWT pair |
+| 3.1.2 | POST   | /auth/refresh                     | public+refresh    | yes | Refresh access JWT |
+| 3.1.3 | POST   | /auth/logout                      | any authed        | yes | Revoke session |
+| 3.1.4 | GET    | /auth/me                          | any authed        | n/a | Current identity + role + scopes |
+| 3.1.5 | POST   | /auth/mfa/enroll                  | any authed        | yes | Enrol TOTP |
+| 3.1.6 | POST   | /auth/mfa/verify                  | any authed        | yes | Verify TOTP for step-up |
+
+**3.1.1 Request**
+```json
+{ "username":"string","password":"string","device_id":"string","totp":"string|null" }
+```
+**Response 200**
+```json
+{ "access_token":"jwt","refresh_token":"jwt","expires_in":900,
+  "role":"operator","scopes":["read","paper:execute"],"requires_mfa":false }
+```
+**Errors:** `401 E_AUTH_INVALID`, `403 E_AUTH_MFA_REQUIRED`, `429 E_RATE_EXCEEDED`.
+
+---
+
+### 3.2 Mission Control
+
+| # | Method | Path | RBAC | Idempotent | Purpose |
+|---|--------|------|------|------------|---------|
+| 3.2.1 | GET    | /mission/overview                 | viewer+           | n/a | KPIs: equity, drawdown, risk state, live flag |
+| 3.2.2 | GET    | /mission/alerts                   | viewer+           | n/a | Active alerts (severity, owner, source) |
+| 3.2.3 | POST   | /mission/alerts/{id}/ack          | operator+         | yes | Acknowledge alert |
+| 3.2.4 | POST   | /mission/alerts/{id}/silence      | operator+         | yes | Silence with TTL |
+
+**3.2.1 Response 200**
+```json
+{
+  "equity": {"value":"12345.67","ccy":"USDT","as_of":"2026-05-24T12:00:00Z"},
+  "drawdown_pct":"3.21",
+  "risk_state":"normal|elevated|halt",
+  "live_enabled":false,
+  "kill_switch":"armed|disabled",
+  "open_positions":0,
+  "stale_features":["funding_rate@BTCUSDT"],
+  "last_audit_id":"01J..."
+}
+```
+
+---
+
+### 3.3 Monitor Center
+
+| # | Method | Path | RBAC | Idempotent | Purpose |
+|---|--------|------|------|------------|---------|
+| 3.3.1 | GET  | /monitor/scripts                          | viewer+    | n/a | List monitor scripts w/ classification |
+| 3.3.2 | GET  | /monitor/scripts/{id}                     | viewer+    | n/a | Detail incl. metrics, Redis keys, owners |
+| 3.3.3 | POST | /monitor/scripts/{id}/run                 | operator+  | yes (24h) | Trigger one-shot run (paper) |
+| 3.3.4 | POST | /monitor/scripts/{id}/disable             | operator+  | yes | Disable script |
+| 3.3.5 | POST | /monitor/scripts/{id}/enable              | operator+  | yes | Enable script |
+| 3.3.6 | GET  | /monitor/streams/predictions              | viewer+    | n/a | Last N trainer predictions |
+| 3.3.7 | GET  | /monitor/streams/signal_causality         | viewer+    | n/a | Signal→execution lineage rows |
+| 3.3.8 | GET  | /monitor/health                           | viewer+    | n/a | Aggregate monitor-of-monitors |
+| 3.3.9 | GET  | /monitor/feature_freshness                | viewer+    | n/a | Feature staleness matrix |
+
+**3.3.1 Response 200 (item shape)**
+```json
+{
+  "id":"01J...","name":"trainer_stale_watch","path":"legacy_reference/scripts/...",
+  "status":"active|broken|unused|duplicate|unknown",
+  "owner":"trainer","last_run":"...","last_success":"...","last_failure":"...|null",
+  "metrics_emitted":["trainer_stale_seconds"],
+  "redis_keys_watched":["v2:trainer:heartbeat"],
+  "logs_watched":["/var/log/trainer.log"],
+  "processes_watched":["python hybrid_trainer.py"],
+  "alerts_24h":3,
+  "evidence":{"raw_source":"legacy_reference/scripts/...:L42-L88"}
+}
+```
+
+---
+
+### 3.4 Coverage / System Atlas
+
+| # | Method | Path | RBAC | Idempotent | Purpose |
+|---|--------|------|------|------------|---------|
+| 3.4.1 | GET  | /atlas/files                              | viewer+    | n/a | Inventory: file, hash, classification, evidence |
+| 3.4.2 | GET  | /atlas/files/{sha256}                     | viewer+    | n/a | File detail incl. tier, owners, raw refs |
+| 3.4.3 | GET  | /atlas/redis_writers                      | viewer+    | n/a | Redis key→writer path map |
+| 3.4.4 | GET  | /atlas/exchange_actions                   | auditor+   | n/a | Exchange-action call sites (raw-reviewed) |
+| 3.4.5 | GET  | /atlas/unsafe_unknowns                    | viewer+    | n/a | Unresolved unsafe_unknown count (must be 0 to proceed) |
+
+---
+
+### 3.5 Script Registry
+
+| # | Method | Path | RBAC | Idempotent | Purpose |
+|---|--------|------|------|------------|---------|
+| 3.5.1 | GET  | /scripts                              | viewer+         | n/a | All scripts w/ usage evidence |
+| 3.5.2 | GET  | /scripts/{id}                         | viewer+         | n/a | Detail w/ raw evidence refs |
+| 3.5.3 | POST | /scripts/{id}/classify                | strategy_admin  | yes | Reclassify (active/broken/unused/duplicate) |
+| 3.5.4 | POST | /scripts/{id}/owner                   | strategy_admin  | yes | Assign owner |
+| 3.5.5 | POST | /scripts/{id}/evidence                | strategy_admin  | yes | Attach raw evidence pointer |
+| 3.5.6 | DELETE | /scripts/{id}/evidence/{ev}         | strategy_admin  | yes | Detach evidence |
+| 3.5.7 | GET  | /scripts/export                       | viewer+         | n/a | Bulk JSONL export |
+
+---
+
+### 3.6 Symbols / Universe
+
+| # | Method | Path | RBAC | Idempotent | Purpose |
+|---|--------|------|------|------------|---------|
+| 3.6.1 | GET  | /symbols                              | viewer+         | n/a | Resolved USDM universe + CoinAnk merge state |
+| 3.6.2 | GET  | /symbols/{symbol}                     | viewer+         | n/a | Symbol metadata, exchange info, last tick freshness |
+| 3.6.3 | POST | /symbols/refresh                      | operator+       | yes | Re-pull from venue (read-only) |
+| 3.6.4 | POST | /symbols/{symbol}/blacklist           | strategy_admin  | yes | Blacklist symbol from V2 universe |
+| 3.6.5 | POST | /symbols/{symbol}/whitelist           | strategy_admin  | yes | Remove from blacklist |
+
+---
+
+### 3.7 Signals
+
+| # | Method | Path | RBAC | Idempotent | Purpose |
+|---|--------|------|------|------------|---------|
+| 3.7.1 | GET  | /signals                              | viewer+   | n/a | Recent signals (filter symbol, side, strategy, ts range) |
+| 3.7.2 | GET  | /signals/{id}                         | viewer+   | n/a | Signal detail |
+| 3.7.3 | GET  | /signals/{id}/explain                 | viewer+   | n/a | Forwards to §3.9 explainability |
+| 3.7.4 | POST | /signals/replay                       | operator+ | yes | Re-emit signal into replay engine |
+| 3.7.5 | GET  | /signals/stats                        | viewer+   | n/a | Aggregated by strategy, win rate, expectancy |
+| 3.7.6 | GET  | /signals/export                       | viewer+   | n/a | Bulk JSONL export |
+
+**3.7.2 Response 200**
+```json
+{
+  "id":"01J...","ts":"...","symbol":"BTCUSDT","side":"long|short|flat",
+  "strategy_id":"01J...","model_version":"v3.4.2","checkpoint":"ck_2026_05_22",
+  "confidence":"0.7321","calibrated_confidence":"0.6810",
+  "raw_model_output":{"logits":[...],"head":"price_direction"},
+  "features_snapshot_id":"01J...","feature_freshness":{"funding_rate_sec":12,"mark_sec":1},
+  "config_version":"01J...","risk_decision":"allow|block|defer",
+  "execution_id":"01J...|null",
+  "evidence":{"redis":"v2:signal:01J...","log":"rid://...","db_row":"signals.id=01J..."}
+}
+```
+
+---
+
+### 3.8 Trainer Prediction Monitor
+
+| # | Method | Path | RBAC | Idempotent | Purpose |
+|---|--------|------|------|------------|---------|
+| 3.8.1 | GET  | /trainer/predictions                   | viewer+ | n/a | Latest predictions (filter symbol, horizon) |
+| 3.8.2 | GET  | /trainer/predictions/{id}              | viewer+ | n/a | Detail with feature snapshot ref |
+| 3.8.3 | GET  | /trainer/accuracy                      | viewer+ | n/a | Rolling MAE/hit-rate by horizon |
+| 3.8.4 | GET  | /trainer/causality                     | viewer+ | n/a | Prediction → signal → execution chain |
+| 3.8.5 | GET  | /trainer/stale                         | viewer+ | n/a | Trainer staleness gauges |
+| 3.8.6 | GET  | /trainer/checkpoints                   | viewer+ | n/a | Available checkpoints w/ hashes |
+
+---
+
+### 3.9 Signal Explainability
+
+| # | Method | Path | RBAC | Idempotent | Purpose |
+|---|--------|------|------|------------|---------|
+| 3.9.1 | GET  | /explain/signal/{id}                   | viewer+ | n/a | Full explainability bundle (mandatory fields below) |
+| 3.9.2 | GET  | /explain/prediction/{id}               | viewer+ | n/a | Same shape for raw predictions |
+| 3.9.3 | GET  | /explain/execution/{id}                | viewer+ | n/a | Reverse-lineage from execution to inputs |
+
+**Mandatory fields (CLAUDE.md Signal Explainability Rule):** `exact_input_data, feature_snapshot, feature_freshness, raw_model_output, confidence, calibration, model_version, checkpoint, orchestrator_reason, risk_gateway_reason, config_version, log_refs, redis_refs, db_refs, missing_evidence[]`. Missing any field → server returns `422 E_INPUT_INCOMPLETE_EXPLAIN` with `details.missing_fields[]` rather than silently omitting.
+
+---
+
+## 4. Endpoint Detail — Control & Admin Surfaces
+
+### 4.1 Executions (paper/replay only)
+
+| # | Method | Path | RBAC | Idempotent | Purpose |
+|---|--------|------|------|------------|---------|
+| 4.1.1 | GET    | /executions                                  | viewer+   | n/a | List |
+| 4.1.2 | GET    | /executions/{id}                             | viewer+   | n/a | Detail |
+| 4.1.3 | POST   | /executions/paper                            | operator+ | yes | Submit paper execution (validated through risk) |
+| 4.1.4 | POST   | /executions/paper/{id}/cancel                | operator+ | yes | Cancel paper |
+| 4.1.5 | GET    | /executions/stats                            | viewer+   | n/a | Latency, slippage, fill ratio |
+| 4.1.6 | GET    | /executions/export                           | viewer+   | n/a | JSONL |
+
+**4.1.3 Request**
+```json
+{
+  "signal_id":"01J...",
+  "symbol":"BTCUSDT","side":"buy|sell","qty":"0.001",
+  "order_type":"market|limit","price":"60123.45|null","tif":"IOC|GTC",
+  "mode":"paper",                       // server rejects "live" unless live gate passed
+  "reason":"operator backtest",
+  "risk_overrides":null
+}
+```
+Server flow: validate → risk gateway `/api/v1/risk/decide` (internal) → if allow, write paper fill via paper engine. Returns `201` with `execution_id` and `audit_id`.
+**Errors:** `422 E_RISK_BLOCKED` (with `details.risk_reason`), `423 E_STATE_KILL_SWITCH`, `451 E_RISK_LIVE_BLOCKED`.
+
+---
+
+### 4.2 Positions (paper/replay only)
+
+| # | Method | Path | RBAC | Idempotent | Purpose |
+|---|--------|------|------|------------|---------|
+| 4.2.1 | GET  | /positions                                   | viewer+   | n/a | All open positions (paper) |
+| 4.2.2 | GET  | /positions/{symbol}                          | viewer+   | n/a | Per-symbol |
+| 4.2.3 | POST | /positions/{symbol}/close                    | operator+ | yes | Close paper position |
+| 4.2.4 | GET  | /positions/history                           | viewer+   | n/a | Closed positions |
+
+---
+
+### 4.3 Risk Gateway
+
+| # | Method | Path | RBAC | Idempotent | Purpose |
+|---|--------|------|------|------------|---------|
+| 4.3.1 | GET  | /risk/state                                   | viewer+    | n/a | Current state, thresholds, last decisions |
+| 4.3.2 | POST | /risk/decide                                  | service    | yes | Internal: orchestrator asks risk to validate proposal |
+| 4.3.3 | GET  | /risk/thresholds                              | viewer+    | n/a | Current threshold set (etag) |
+| 4.3.4 | PATCH| /risk/thresholds                              | risk_admin | yes (etag) | Update non-dangerous thresholds |
+| 4.3.5 | POST | /risk/proposals                               | risk_admin | yes | Propose dangerous threshold change (dual-control) |
+| 4.3.6 | POST | /risk/proposals/{id}/approve                  | human_approver | yes | Approve |
+| 4.3.7 | POST | /risk/kill_switch                             | risk_admin → human_approver | yes | Two-phase kill-switch disable; arm requires only risk_admin |
+
+**4.3.2 Request (internal)**
+```json
+{
+  "proposal_id":"01J...","symbol":"BTCUSDT","side":"buy","qty":"0.01",
+  "price":"60100","leverage":"1","margin_mode":"ISOLATED",
+  "context":{"signal_id":"...","strategy_id":"...","mode":"paper",
+             "feature_freshness_sec":{"funding":12,"mark":1},
+             "open_exposure_usd":"0","equity_usd":"12345"}
+}
+```
+**Response 200**
+```json
+{ "decision":"allow|block|defer",
+  "reason_code":"R_OK|R_STALE_FEATURES|R_MAX_LEVERAGE|R_DAILY_LOSS|R_KILL_SWITCH|...",
+  "reason_human":"...","applied_thresholds":{...},
+  "audit_id":"01J...","ttl_sec":5 }
+```
+Orchestrator MUST NOT execute if `decision != "allow"`; doing so is contract violation logged as `E_STATE_RISK_BYPASS`.
+
+---
+
+### 4.4 Config Admin
+
+| # | Method | Path | RBAC | Idempotent | Purpose |
+|---|--------|------|------|------------|---------|
+| 4.4.1 | GET    | /config                                          | viewer+     | n/a | Current effective config (etag) |
+| 4.4.2 | GET    | /config/versions                                 | viewer+     | n/a | Version history |
+| 4.4.3 | GET    | /config/versions/{id}                            | viewer+     | n/a | Specific version |
+| 4.4.4 | POST   | /config                                          | config_admin| yes | New version (non-dangerous) |
+| 4.4.5 | POST   | /config/{id}/activate                            | config_admin| yes | Activate version (rollback safe) |
+| 4.4.6 | POST   | /config/proposals                                | config_admin| yes | Propose dangerous config change |
+| 4.4.7 | POST   | /config/proposals/{id}/approve                   | human_approver | yes | Approve |
+| 4.4.8 | POST   | /config/diff                                     | viewer+     | n/a | Diff two versions |
+
+---
+
+### 4.5 Strategy Admin
+
+| # | Method | Path | RBAC | Idempotent | Purpose |
+|---|--------|------|------|------------|---------|
+| 4.5.1 | GET  | /strategies                                  | viewer+        | n/a | List |
+| 4.5.2 | GET  | /strategies/{id}                             | viewer+        | n/a | Detail (params, gates, evidence) |
+| 4.5.3 | POST | /strategies                                  | strategy_admin | yes | Create (paper-only by default) |
+| 4.5.4 | PATCH| /strategies/{id}                             | strategy_admin | yes (etag) | Update params |
+| 4.5.5 | POST | /strategies/{id}/enable                      | strategy_admin | yes | Enable in paper |
+| 4.5.6 | POST | /strategies/{id}/disable                     | strategy_admin | yes | Disable |
+
+Note: any strategy state move to live requires §4.13 readiness gate + §2.7 dangerous-proposal.
+
+---
+
+### 4.6 Trainer Admin
+
+| # | Method | Path | RBAC | Idempotent | Purpose |
+|---|--------|------|------|------------|---------|
+| 4.6.1 | GET  | /trainer/status                              | viewer+        | n/a | Subprocess adapter status |
+| 4.6.2 | POST | /trainer/run/status                          | operator+      | yes (5m) | Spawn `LEGACY_TRAINER_PYTHON ... --mode status` |
+| 4.6.3 | POST | /trainer/run/export                          | operator+      | yes (5m) | Spawn `--mode export` (artifacts → /trainer/artifacts) |
+| 4.6.4 | GET  | /trainer/artifacts                           | viewer+        | n/a | List exported artifacts |
+| 4.6.5 | GET  | /trainer/artifacts/{id}                      | viewer+        | n/a | Download artifact (signed URL) |
+| 4.6.6 | POST | /trainer/checkpoints/{id}/promote/proposals  | strategy_admin | yes | Propose promote (dual-control) |
+| 4.6.7 | POST | /trainer/checkpoints/{id}/promote/{pid}/approve | human_approver | yes | Approve |
+
+**Constraint:** §3 of CLAUDE.md “Protected Runtime Policy” — all 4.6.* mutating endpoints use subprocess boundary only. In-process import attempts → `E_RUNTIME_PROTECTED_RUNTIME`. No pip installs ever invokable from API surface.
+
+---
+
+### 4.7 Orchestrator Admin
+
+| # | Method | Path | RBAC | Idempotent | Purpose |
+|---|--------|------|------|------------|---------|
+| 4.7.1 | GET  | /orchestrator/state                          | viewer+        | n/a | Active strategies, pending proposals |
+| 4.7.2 | POST | /orchestrator/pause                          | operator+      | yes | Pause new signal intake |
+| 4.7.3 | POST | /orchestrator/resume                         | operator+      | yes | Resume |
+| 4.7.4 | POST | /orchestrator/drain                          | operator+      | yes | Drain in-flight; orchestrator stops proposing |
+| 4.7.5 | GET  | /orchestrator/proposals                      | viewer+        | n/a | In-flight proposals to risk gateway |
+| 4.7.6 | POST | /orchestrator/proposals/{id}/cancel          | operator+      | yes | Cancel before risk decision |
+
+**Invariant:** Orchestrator endpoints can never bypass risk; they only manage queue. `pause/drain` do not stop risk gateway from being callable; they stop *new* proposals from being created.
+
+---
+
+### 4.8 Execution Admin
+
+| # | Method | Path | RBAC | Idempotent | Purpose |
+|---|--------|------|------|------------|---------|
+| 4.8.1 | GET  | /execution_admin/engines                     | viewer+   | n/a | List paper/replay engines |
+| 4.8.2 | POST | /execution_admin/engines/{id}/restart        | operator+ | yes | Restart non-live engine |
+| 4.8.3 | GET  | /execution_admin/keys                        | risk_admin| n/a | Listed API keys (redacted; LIVE keys hidden) |
+| 4.8.4 | POST | /execution_admin/keys/proposals              | risk_admin| yes | Propose add/activate LIVE key (dangerous) |
+| 4.8.5 | POST | /execution_admin/keys/proposals/{id}/approve | human_approver | yes | Approve (LIVE remains blocked until §4.13) |
+
+---
+
+### 4.9 Paper Trading
+
+| # | Method | Path | RBAC | Idempotent | Purpose |
+|---|--------|------|------|------------|---------|
+| 4.9.1 | GET  | /paper/state                                 | viewer+   | n/a | Equity, positions, fills |
+| 4.9.2 | POST | /paper/session                               | operator+ | yes | Start new paper session |
+| 4.9.3 | POST | /paper/session/{id}/stop                     | operator+ | yes | Stop session |
+| 4.9.4 | POST | /paper/session/{id}/reset                    | operator+ | yes | Reset equity |
+| 4.9.5 | GET  | /paper/sessions                              | viewer+   | n/a | List sessions |
+
+---
+
+### 4.10 Replay
+
+| # | Method | Path | RBAC | Idempotent | Purpose |
+|---|--------|------|------|------------|---------|
+| 4.10.1 | GET  | /replay/datasets                            | viewer+   | n/a | Available replay datasets |
+| 4.10.2 | POST | /replay/sessions                            | operator+ | yes | Create replay session (dataset, range, strategy set) |
+| 4.10.3 | GET  | /replay/sessions/{id}                       | viewer+   | n/a | Session detail (progress, results) |
+| 4.10.4 | POST | /replay/sessions/{id}/start                 | operator+ | yes | Start |
+| 4.10.5 | POST | /replay/sessions/{id}/pause                 | operator+ | yes | Pause |
+| 4.10.6 | POST | /replay/sessions/{id}/cancel                | operator+ | yes | Cancel |
+
+---
+
+### 4.11 Audit Ledger
+
+| # | Method | Path | RBAC | Idempotent | Purpose |
+|---|--------|------|------|------------|---------|
+| 4.11.1 | GET  | /audit                                       | auditor+  | n/a | Query (filters: actor, action, ts, target, request_id) |
+| 4.11.2 | GET  | /audit/{id}                                  | auditor+  | n/a | Single row + raw evidence pointers |
+| 4.11.3 | GET  | /audit/export                                | auditor+  | n/a | JSONL export (hash-chained) |
+| 4.11.4 | GET  | /audit/verify                                | auditor+  | n/a | Verify hash chain integrity |
+
+Audit rows are append-only; no mutation endpoint exists by design.
+
+---
+
+### 4.12 System Health
+
+| # | Method | Path | RBAC | Idempotent | Purpose |
+|---|--------|------|------|------------|---------|
+| 4.12.1 | GET  | /health                                      | public    | n/a | Liveness (200/503) |
+| 4.12.2 | GET  | /ready                                       | public    | n/a | Readiness |
+| 4.12.3 | GET  | /health/components                           | viewer+   | n/a | Per-component status (Redis, DB, trainer adapter, paper engine, Codex, Ollama, Claude bridge) |
+| 4.12.4 | GET  | /health/version                              | public    | n/a | Build hash, V2 commit, API version |
+| 4.12.5 | GET  | /health/clock                                | viewer+   | n/a | Server clock skew vs NTP |
+
+---
+
+### 4.13 Live Readiness Gate
+
+| # | Method | Path | RBAC | Idempotent | Purpose |
+|---|--------|------|------|------------|---------|
+| 4.13.1 | GET  | /live_readiness/checklist                    | viewer+        | n/a | Full checklist with pass/fail per gate |
+| 4.13.2 | GET  | /live_readiness/state                        | viewer+        | n/a | Aggregate: NOT_READY / READY / BLOCKED |
+| 4.13.3 | POST | /live_readiness/refresh                      | operator+      | yes | Re-evaluate (read-only) |
+| 4.13.4 | POST | /live_readiness/enable_live/proposals        | risk_admin     | yes | Propose flipping live-enable (requires READY) |
+| 4.13.5 | POST | /live_readiness/enable_live/proposals/{id}/approve | human_approver | yes | Approve |
+| 4.13.6 | POST | /live_readiness/enable_live/proposals/{id}/reject  | human_approver | yes | Reject |
+
+**Invariant:** 4.13.5 succeeding flips `live_enabled=true` ONLY for the API surface; actual exchange writes additionally require execution_admin key activation (§4.8) which is independently approved. Default and on any health failure → `live_enabled=false` and `E_RISK_LIVE_BLOCKED`.
+
+---
+
+## 5. Endpoint Detail — Admin AI Surfaces
+
+### 5.1 Claude Admin AI
+
+| # | Method | Path | RBAC | Idempotent | Purpose |
+|---|--------|------|------|------------|---------|
+| 5.1.1 | POST | /claude/tasks                              | operator+ | yes | Submit bounded task (one-task = one-session rule) |
+| 5.1.2 | GET  | /claude/tasks/{id}                         | viewer+   | n/a | Status |
+| 5.1.3 | POST | /claude/tasks/{id}/cancel                  | operator+ | yes | Cancel |
+| 5.1.4 | GET  | /claude/quota                              | viewer+   | n/a | /usage + /status mirror |
+| 5.1.5 | GET  | /claude/history                            | viewer+   | n/a | Past task summaries |
+
+Tasks never grant Claude write access beyond CLAUDE.md write boundary. Endpoint rejects task bodies that reference forbidden paths with `E_INPUT_FORBIDDEN_PATH`.
+
+---
+
+### 5.2 Ollama Local Assistant
+
+| # | Method | Path | RBAC | Idempotent | Purpose |
+|---|--------|------|------|------------|---------|
+| 5.2.1 | POST | /ollama/summarize                          | operator+ | yes | Summarize low-risk file/log |
+| 5.2.2 | POST | /ollama/group_anomalies                    | operator+ | yes | Group anomaly clusters |
+| 5.2.3 | POST | /ollama/draft_inventory                    | operator+ | yes | Draft script inventory |
+| 5.2.4 | POST | /ollama/draft_evidence_packet              | operator+ | yes | Draft packet description |
+| 5.2.5 | GET  | /ollama/outputs                            | viewer+   | n/a | List outputs |
+| 5.2.6 | POST | /ollama/outputs/{id}/promote               | strategy_admin | yes | Mark verified (only after raw-evidence check; server requires `verified_against` ref) |
+
+**Contract guard:** 5.2.6 returns `422 E_INPUT_UNVERIFIED` if `verified_against` is empty or unresolvable. Ollama outputs are NEVER auto-promoted.
+
+---
+
+### 5.3 Codex Review Center
+
+| # | Method | Path | RBAC | Idempotent | Purpose |
+|---|--------|------|------|------------|---------|
+| 5.3.1 | POST | /codex/reviews                             | strategy_admin | yes | Open review with evidence packet |
+| 5.3.2 | GET  | /codex/reviews                             | viewer+        | n/a | List |
+| 5.3.3 | GET  | /codex/reviews/{id}                        | viewer+        | n/a | Detail (findings, blockers) |
+| 5.3.4 | POST | /codex/reviews/{id}/rerun                  | strategy_admin | yes | Rerun review |
+| 5.3.5 | POST | /codex/reviews/{id}/close                  | strategy_admin | yes | Close (requires all blockers resolved) |
+| 5.3.6 | GET  | /codex/gates                               | viewer+        | n/a | Gate status (which phases pass Codex) |
+
+---
+
+### 5.4 Build / Validation Status
+
+| # | Method | Path | RBAC | Idempotent | Purpose |
+|---|--------|------|------|------------|---------|
+| 5.4.1 | GET  | /build/status                              | viewer+   | n/a | Current build, tests, lint state |
+| 5.4.2 | GET  | /build/coverage                            | viewer+   | n/a | Test coverage matrix |
+| 5.4.3 | POST | /build/run                                 | operator+ | yes (5m) | Trigger validation suite |
+| 5.4.4 | GET  | /build/artifacts                           | viewer+   | n/a | Artifacts (logs, reports) |
+
+---
+
+### 5.5 Mobile Readiness
+
+| # | Method | Path | RBAC | Idempotent | Purpose |
+|---|--------|------|------|------------|---------|
+| 5.5.1 | GET  | /mobile/manifest                           | public    | n/a | PWA manifest |
+| 5.5.2 | GET  | /mobile/push/vapid_public_key              | public    | n/a | VAPID pub key |
+| 5.5.3 | POST | /mobile/push/subscribe                     | any authed| yes | Register push subscription |
+
+---
+
+## 6. WebSocket Channel Registry
+
+Single endpoint: `/ws/v1` upgraded with auth bearer in `Sec-WebSocket-Protocol` (`bearer.<jwt>`). Clients subscribe via control frame; server pushes data frames.
+
+### 6.1 Envelope
+```json
+{
+  "type":"event|ack|error|heartbeat",
+  "channel":"<channel>",
+  "seq": 12345,                  // monotonic per channel per connection
+  "ts":"2026-05-24T12:00:00Z",
+  "data": {...},
+  "evidence":{"audit_id":"01J...|null"}
+}
+```
+Heartbeat every 15s; missing 2 → server closes with `1011 E_RUNTIME_HEARTBEAT`.
+
+### 6.2 Channels
+
+| Channel | Producer area | Replay cursor | RBAC |
+|---------|----------------|---------------|------|
+| `mission.alerts`              | §3.2  | last 1000     | viewer+ |
+| `monitor.predictions`         | §3.3  | last 5000     | viewer+ |
+| `monitor.feature_freshness`   | §3.3  | last 1000     | viewer+ |
+| `signals.stream`              | §3.7  | last 5000     | viewer+ |
+| `trainer.predictions`         | §3.8  | last 5000     | viewer+ |
+| `executions.stream`           | §4.1  | last 1000     | viewer+ |
+| `positions.updates`           | §4.2  | snapshot      | viewer+ |
+| `risk.decisions`              | §4.3  | last 1000     | viewer+ |
+| `trainer.runtime_events`      | §4.6  | last 500      | viewer+ |
+| `orchestrator.events`         | §4.7  | last 1000     | viewer+ |
+| `paper.events`                | §4.9  | last 1000     | viewer+ |
+| `replay.progress`             | §4.10 | per-session   | viewer+ |
+| `audit.tail`                  | §4.11 | last 500      | auditor+ |
+| `health.components`           | §4.12 | snapshot      | viewer+ |
+| `claude.task_progress`        | §5.1  | per-task      | viewer+ |
+| `ollama.task_progress`        | §5.2  | per-task      | viewer+ |
+| `codex.review_progress`       | §5.3  | per-review    | viewer+ |
+| `build.events`                | §5.4  | last 200      | viewer+ |
+| `system.kill_switch`          | §4.3  | latest        | viewer+ |
+| `system.live_readiness`       | §4.13 | latest        | viewer+ |
+
+Subscribe frame:
+```json
+{ "op":"subscribe","channel":"signals.stream","since_seq": 12340 }
+```
+Reject if RBAC insufficient → `{"type":"error","code":"E_RBAC_DENIED"}` and channel removed.
+
+---
+
+## 7. Contract Schema Deltas (vs. prior draft)
+
+| Object | Prior draft | Required delta |
+|--------|-------------|----------------|
+| `Signal` | omitted `calibrated_confidence`, `risk_decision`, `evidence` | Add all three; `evidence` is mandatory non-empty |
+| `Execution` | numeric `qty` as float | String decimal; reject float |
+| `RiskDecision` | no `ttl_sec`, no `applied_thresholds` | Add both; orchestrator must re-ask after TTL |
+| `ConfigVersion` | mutable `id` | Make immutable; activation is a separate verb |
+| `Strategy` | `mode:"live"` allowed at create | Force `mode:"paper"`; live transition only via §4.13 |
+| `Proposal` | single-phase | Two-phase with HMAC + approver identity |
+| `MonitorScript` | no `evidence.raw_source` | Mandatory raw-source pointer (CLAUDE.md evidence rule) |
+| `OllamaOutput` | `verified` boolean | Replace with `verified_against` (raw-evidence ref); endpoint blocks without it |
+| `AuditRow` | no hash chain | Add `prev_hash`, `row_hash`; expose `/audit/verify` |
+| `Error` | mixed shapes | Single `ErrorEnvelope` (§2.4) |
+| `Pagination` | offset-based | Cursor-based (§2.3) |
+| `Headers` | no `Idempotency-Key`, `If-Match`, `X-Request-ID`, `X-API-Version` | All four standardized |
+
+---
+
+## 8. Test & Verification Plan (non-code, contract-level)
+
+The following verification artifacts MUST be produced before any V2 code lands against this contract (each cited from raw evidence; none auto-pass):
+
+1. **OpenAPI 3.1 generation** — schema-only, lives under `requirements/openapi/v1.yaml`. Lint with `spectral` ruleset that enforces:
+   - every non-GET has `Idempotency-Key` parameter,
+   - every response has `ErrorEnvelope` for 4xx/5xx,
+   - every dangerous endpoint references the proposal/approve pair,
+   - every endpoint declares `x-rbac-role` and `x-rbac-scope`.
+2. **Contract conformance matrix** — markdown table cross-checking §3–§5 vs. `requirements/v2_gui_pages.md` page-by-page; missing endpoint per page → blocker.
+3. **Dangerous-action audit trace** — sample dual-control flow ending with hash-chained audit rows; verified by `/audit/verify`.
+4. **Negative tests catalog** — at least one per error code in §2.4 taxonomy; documented as test vectors.
+5. **WS replay correctness** — sample of `since_seq` reconnects with no gaps and no duplicates per channel in §6.2.
+6. **RBAC denial sweep** — for every endpoint, lowest-privilege role attempts → expect `403 E_RBAC_DENIED`.
+7. **Live-blocked invariants** — sweep across §4.1, §4.8, §4.13 confirming `live_enabled=false` returns `451 E_RISK_LIVE_BLOCKED` from every live-effecting path.
+8. **Protected runtime invariants** — confirm §4.6 endpoints invoke subprocess only (no in-process import) via captured process tree.
+
+---
+
+## 9. Acceptance Criteria for Blocker Closure (`API_CONTRACT_INCOMPLETE`)
+
+The blocker is closed only when ALL hold (each verifiable):
+- [ ] §1 surface count matches OpenAPI generated file (140 REST + 20 WS).
+- [ ] Every endpoint has: method, path, request schema, response schema, error codes, idempotency posture, RBAC role+scope, approval requirement (or `none`).
+- [ ] Single `ErrorEnvelope` adopted across all endpoints; no ad-hoc shapes.
+- [ ] Dual-control flow specified for every dangerous action listed in CLAUDE.md “Admin Control Rule”.
+- [ ] Idempotency contract specified and enforced on all mutating endpoints.
+- [ ] WS registry covers every required real-time GUI page (Mission Control, Monitor, Trainer, Signals, Risk, Health, Live Readiness).
+- [ ] Live-blocked default and 451 envelope verified across all live-effecting endpoints.
+- [ ] Protected-runtime subprocess boundary enforced in trainer endpoints (no import path exposed).
+- [ ] Audit ledger append-only, hash-chained, verifiable.
+- [ ] Codex Review Center re-runs against this document and produces zero blockers in the API_CONTRACT area.
+
+---
+
+## 10. Out of Scope (explicitly)
+
+- Wire-level transport details beyond HTTP/1.1 + HTTP/2 + WSS.
+- Database schema (covered in 03_DATABASE_REMEDIATION.md).
+- Frontend route → endpoint mapping (covered in 05_FRONTEND_REMEDIATION.md).
+- Any actual code. This is contract-only remediation per planner mode.
+
+END_FILE: claude_worklog/v2_architecture_remediation/04_API_CONTRACT_REMEDIATION.md
+BEGIN_FILE: claude_worklog/v2_architecture_remediation/04_API_CONTRACT_REMEDIATION.md
+# 04 — API Contract Remediation
+
+Status: ARCHITECTURE REMEDIATION (non-code, non-runtime)
+Scope: Close the API-contract blocker called out by Codex adversarial review (tasks 002/004) and harden the V2 control-plane contract surface before any V2 build resumes.
+Owner: Master Non-Live Rebuild Planner
+Live trading: BLOCKED (this document does not unblock it)
+
+------------------------------------------------------------
+## 1. Problem Statement (what the blocker actually is)
+
+Prior remediation drafts referenced API routes by name only and treated FastAPI route signatures as if they were contracts. Codex flagged:
+
+1. No canonical method+path matrix — multiple docs disagreed on `/api/v2/...` vs `/v2/api/...` and on plural vs singular nouns.
+2. Request/response shapes were described in prose, never as schemas. Frontend, trainer adapter, and risk gateway each inferred their own.
+3. Error model was undefined — handlers returned ad-hoc `{ "error": "..." }` strings, HTTP 200 with `ok:false`, and FastAPI default validation errors interchangeably.
+4. Idempotency was absent on every mutating route, including dangerous ones (config writes, strategy admin, paper-trade submit, kill-switch).
+5. RBAC was implied ("Admin only") but never bound to a role token, scope, or claim — meaning the GUI was effectively the access boundary.
+6. No versioning rule — additive vs breaking changes had no defined path.
+7. No correlation/audit-id propagation contract — audit ledger entries could not be tied back to the originating HTTP call.
+
+This document fixes those seven items as **contract deltas**, not as code.
+
+------------------------------------------------------------
+## 2. Global Contract Rules (apply to every endpoint)
+
+### 2.1 Base path & versioning
+- Canonical prefix: `/api/v2`
+- Version is path-segment, not header. `/api/v3/...` is reserved for the next breaking generation.
+- Additive changes (new optional field, new endpoint, new enum variant marked `x-additive: true`) do NOT bump the version.
+- Breaking changes (removed field, type change, required→optional inversion, enum removal, semantic change) require a new version segment and a deprecation window of ≥ 1 release with `Sunset` + `Deprecation` headers.
+
+### 2.2 Content
+- Request and response bodies: `application/json; charset=utf-8` only.
+- Streaming endpoints (monitor, prediction feed, audit tail): `text/event-stream` (SSE). WebSocket reserved, not yet contracted.
+- File uploads (replay bundles, evidence packets): `multipart/form-data` with declared parts.
+
+### 2.3 Required request headers
+| Header | When | Purpose |
+|---|---|---|
+| `Authorization: Bearer <token>` | All non-public routes | Identity + RBAC scopes |
+| `X-Request-Id` | All | Client-supplied UUIDv4; echoed in response; written to audit ledger |
+| `X-Idempotency-Key` | All mutating (POST/PUT/PATCH/DELETE) | UUIDv4; server stores keyed result for 24h |
+| `X-Actor-Confirm` | Dangerous (see §6) | Must equal a server-issued one-time confirm token |
+| `If-Match: <etag>` | All PUT/PATCH on versioned resources (config, strategy) | Optimistic concurrency |
+
+### 2.4 Standard response envelope
+All JSON responses use a single envelope. There is no "naked array" or "naked object" response.
+
+```jsonc
+{
+  "data":   { /* resource or list */ } | null,
+  "meta":   {
+    "request_id":   "uuid",
+    "trace_id":     "uuid",
+    "audit_id":     "uuid | null",
+    "served_at":    "RFC3339",
+    "version":      "v2",
+    "etag":         "string | null"
+  },
+  "error":  null | {
+    "code":          "ERR_NAMESPACE_REASON",
+    "http_status":   409,
+    "message":       "human readable, never PII",
+    "details":       { /* structured, schema-defined per code */ },
+    "retryable":     false,
+    "remediation":   "string | null"
+  },
+  "warnings": [ { "code": "...", "message": "..." } ]
+}
+```
+
+- HTTP status code and `error.http_status` must match.
+- `error == null` IFF `data != null`. No "ok:false with HTTP 200" pattern.
+
+### 2.5 Pagination (list endpoints)
+- Cursor-based only.
+- Query: `?limit=<1..200, default 50>&cursor=<opaque>&order=asc|desc&order_by=<allow-listed field>`
+- Response `meta` adds: `next_cursor`, `prev_cursor`, `total_estimate` (nullable; never a blocking count for large streams).
+
+### 2.6 Idempotency contract
+- Server keeps a `(actor_id, route, X-Idempotency-Key) → response_hash + status + body` store with 24h TTL.
+- Replay with same key + same body → returns stored response with header `Idempotent-Replay: true`.
+- Replay with same key + different body → `409 ERR_IDEMPOTENCY_BODY_MISMATCH`.
+- Missing key on a mutating route → `400 ERR_IDEMPOTENCY_KEY_REQUIRED`.
+
+### 2.7 RBAC model
+- Token carries claims: `sub`, `roles[]`, `scopes[]`, `mfa: bool`, `iat`, `exp`.
+- Roles (initial set, additive-only):
+  - `viewer` — read-only on monitoring, signals, executions, audit
+  - `operator` — viewer + paper/replay submit, config read, monitor acks
+  - `strategy_admin` — operator + strategy CRUD, trainer admin (non-live), config write (non-dangerous)
+  - `risk_admin` — operator + risk policy edits, kill switch toggle, mandatory-stop edits
+  - `system_admin` — full non-dangerous surface + RBAC mgmt
+  - `live_authority` — required (in addition to system_admin) for any §6 dangerous action; requires `mfa:true`
+- Every endpoint declares **required scopes** (intersection of role scope sets) and **dangerous flag**.
+
+### 2.8 Error code namespacing
+Codes are `ERR_<DOMAIN>_<REASON>`, stable, documented. No free-form strings in `error.code`.
+Initial domains: `AUTH`, `RBAC`, `VALIDATION`, `IDEMPOTENCY`, `CONCURRENCY`, `STATE`, `RISK`, `LEGACY_ADAPTER`, `TRAINER`, `RESOURCE`, `RATELIMIT`, `INTEGRITY`, `INTERNAL`.
+
+### 2.9 Rate limiting
+- Token-bucket per `(actor_id, route_class)`.
+- Limits exceeded → `429 ERR_RATELIMIT_EXCEEDED` with `Retry-After` header (seconds) and `meta.retry_after`.
+
+### 2.10 Audit propagation
+- For every mutating call the handler MUST write one audit-ledger row and set `meta.audit_id` to that row's id.
+- For dangerous calls, the audit row stores: actor, role, scopes, `X-Actor-Confirm` issuance id, request body hash, response body hash, before/after resource hashes.
+
+------------------------------------------------------------
+## 3. Endpoint Matrix — Canonical Method/Path Inventory
+
+Columns: `Method` `Path` `Role(min)` `Scope(s)` `Idempotent` `Dangerous` `Streaming` `Notes`.
+All paths are prefixed `/api/v2`. "Idempotent" = safe to retry without unintended side-effects (GET/HEAD/PUT/DELETE are inherently so; POST requires Idempotency-Key store).
+
+### 3.1 System / Health / Coverage
+| Method | Path | Role | Scopes | Idemp | Danger | Stream | Notes |
+|---|---|---|---|---|---|---|---|
+| GET | `/system/health` | viewer | `system:read` | yes | no | no | per-subsystem status + freshness |
+| GET | `/system/coverage` | viewer | `system:read` | yes | no | no | coverage atlas summary |
+| GET | `/system/coverage/{component}` | viewer | `system:read` | yes | no | no | unsafe_unknowns listed inline |
+| GET | `/system/build-status` | viewer | `system:read` | yes | no | no | gate state, last codex review id |
+| GET | `/system/live-readiness` | viewer | `system:read` | yes | no | no | always reports `live=BLOCKED` until §6 satisfied |
+
+### 3.2 Monitor Center
+| Method | Path | Role | Scopes | Idemp | Danger | Stream | Notes |
+|---|---|---|---|---|---|---|---|
+| GET | `/monitors` | viewer | `monitor:read` | yes | no | no | list all monitors w/ status |
+| GET | `/monitors/{monitor_id}` | viewer | `monitor:read` | yes | no | no | detail incl. last_run, last_success |
+| GET | `/monitors/{monitor_id}/metrics` | viewer | `monitor:read` | yes | no | no | cursor list of emitted metrics |
+| POST | `/monitors/{monitor_id}/ack` | operator | `monitor:ack` | yes(key) | no | no | acknowledge alert |
+| GET | `/monitors/stream` | viewer | `monitor:read` | yes | no | SSE | live event tail |
+
+### 3.3 Symbols / Universe
+| Method | Path | Role | Scopes | Idemp | Danger | Stream | Notes |
+|---|---|---|---|---|---|---|---|
+| GET | `/symbols` | viewer | `symbol:read` | yes | no | no | active universe + source provenance |
+| GET | `/symbols/{symbol}` | viewer | `symbol:read` | yes | no | no | metadata, freshness, listing source |
+| GET | `/symbols/coinank` | viewer | `symbol:read` | yes | no | no | CoinAnk discovery list snapshot |
+
+### 3.4 Signals / Predictions / Explainability
+| Method | Path | Role | Scopes | Idemp | Danger | Stream | Notes |
+|---|---|---|---|---|---|---|---|
+| GET | `/signals` | viewer | `signal:read` | yes | no | no | cursor list, filter by symbol/time |
+| GET | `/signals/{signal_id}` | viewer | `signal:read` | yes | no | no | base record |
+| GET | `/signals/{signal_id}/explain` | viewer | `signal:read,explain:read` | yes | no | no | full explainability payload (see §4.3) |
+| GET | `/predictions/stream` | viewer | `prediction:read` | yes | no | SSE | trainer prediction feed (read-only mirror) |
+| GET | `/predictions/{prediction_id}` | viewer | `prediction:read` | yes | no | no | raw model output + checkpoint |
+
+### 3.5 Executions / Positions (read-only mirror of legacy)
+| Method | Path | Role | Scopes | Idemp | Danger | Stream | Notes |
+|---|---|---|---|---|---|---|---|
+| GET | `/executions` | viewer | `exec:read` | yes | no | no | cursor list |
+| GET | `/executions/{execution_id}` | viewer | `exec:read` | yes | no | no | detail incl. risk reason |
+| GET | `/positions` | viewer | `exec:read` | yes | no | no | mirrored, never edited |
+
+### 3.6 Risk Control
+| Method | Path | Role | Scopes | Idemp | Danger | Stream | Notes |
+|---|---|---|---|---|---|---|---|
+| GET | `/risk/policy` | viewer | `risk:read` | yes | no | no | active policy + version |
+| GET | `/risk/policy/history` | risk_admin | `risk:read` | yes | no | no | versioned audit |
+| PUT | `/risk/policy` | risk_admin | `risk:write` | yes(If-Match) | yes | no | requires `X-Actor-Confirm` |
+| POST | `/risk/kill-switch` | risk_admin+live_authority | `risk:kill` | yes(key) | yes | no | body declares `engage:true/false` |
+| GET | `/risk/decisions` | viewer | `risk:read` | yes | no | no | cursor list of allow/block decisions |
+
+### 3.7 Config Admin
+| Method | Path | Role | Scopes | Idemp | Danger | Stream | Notes |
+|---|---|---|---|---|---|---|---|
+| GET | `/config` | operator | `config:read` | yes | no | no | redacted (no secrets) |
+| GET | `/config/{key}` | operator | `config:read` | yes | no | no | versioned |
+| PUT | `/config/{key}` | strategy_admin | `config:write` | yes(If-Match) | depends | no | dangerous iff key ∈ §6 |
+| GET | `/config/history` | operator | `config:read` | yes | no | no | full version chain |
+| POST | `/config/{key}/rollback` | strategy_admin | `config:write` | yes(key) | depends | no | rolls to prior version id |
+
+### 3.8 Strategy Admin
+| Method | Path | Role | Scopes | Idemp | Danger | Stream | Notes |
+|---|---|---|---|---|---|---|---|
+| GET | `/strategies` | viewer | `strategy:read` | yes | no | no | list |
+| GET | `/strategies/{id}` | viewer | `strategy:read` | yes | no | no | detail |
+| POST | `/strategies` | strategy_admin | `strategy:write` | yes(key) | no | no | create (non-live) |
+| PUT | `/strategies/{id}` | strategy_admin | `strategy:write` | yes(If-Match) | no | no | update |
+| POST | `/strategies/{id}/activate` | strategy_admin | `strategy:write` | yes(key) | no | no | paper/replay only |
+| POST | `/strategies/{id}/promote-live` | live_authority | `strategy:write,live:authority` | yes(key) | yes | no | requires `X-Actor-Confirm` + MFA |
+
+### 3.9 Trainer Admin (non-live; subprocess adapter only)
+| Method | Path | Role | Scopes | Idemp | Danger | Stream | Notes |
+|---|---|---|---|---|---|---|---|
+| GET | `/trainer/status` | viewer | `trainer:read` | yes | no | no | adapter-reported status |
+| GET | `/trainer/checkpoints` | viewer | `trainer:read` | yes | no | no | list (no file payloads) |
+| GET | `/trainer/checkpoints/{id}` | viewer | `trainer:read` | yes | no | no | metadata only |
+| POST | `/trainer/checkpoints/{id}/promote` | strategy_admin | `trainer:promote` | yes(key) | yes | no | paper-only promotion still dangerous if it could feed live |
+| GET | `/trainer/freshness` | viewer | `trainer:read` | yes | no | no | trainer_stale snapshot |
+
+### 3.10 Orchestrator Admin
+| Method | Path | Role | Scopes | Idemp | Danger | Stream | Notes |
+|---|---|---|---|---|---|---|---|
+| GET | `/orchestrator/state` | viewer | `orch:read` | yes | no | no | current routing |
+| PUT | `/orchestrator/routing` | strategy_admin | `orch:write` | yes(If-Match) | yes | no | requires confirm |
+| GET | `/orchestrator/handoffs` | viewer | `orch:read` | yes | no | no | last N handoffs |
+
+### 3.11 Execution Admin (paper only)
+| Method | Path | Role | Scopes | Idemp | Danger | Stream | Notes |
+|---|---|---|---|---|---|---|---|
+| POST | `/exec/paper/submit` | operator | `exec:paper` | yes(key) | no | no | always paper; live route 410 Gone |
+| POST | `/exec/paper/cancel/{client_order_id}` | operator | `exec:paper` | yes(key) | no | no | |
+| POST | `/exec/live/*` | live_authority | `exec:live` | yes(key) | yes | no | returns `503 ERR_STATE_LIVE_BLOCKED` until §6 satisfied |
+
+### 3.12 Replay / Paper Sessions
+| Method | Path | Role | Scopes | Idemp | Danger | Stream | Notes |
+|---|---|---|---|---|---|---|---|
+| POST | `/replay/sessions` | operator | `replay:write` | yes(key) | no | no | create |
+| GET | `/replay/sessions/{id}` | viewer | `replay:read` | yes | no | no | status |
+| POST | `/replay/sessions/{id}/start` | operator | `replay:write` | yes(key) | no | no | |
+| POST | `/replay/sessions/{id}/stop` | operator | `replay:write` | yes(key) | no | no | |
+| GET | `/replay/sessions/{id}/events` | viewer | `replay:read` | yes | no | SSE | live event tail |
+
+### 3.13 Audit Ledger
+| Method | Path | Role | Scopes | Idemp | Danger | Stream | Notes |
+|---|---|---|---|---|---|---|---|
+| GET | `/audit` | viewer | `audit:read` | yes | no | no | cursor list, filters |
+| GET | `/audit/{audit_id}` | viewer | `audit:read` | yes | no | no | full row |
+| GET | `/audit/stream` | viewer | `audit:read` | yes | no | SSE | tail |
+
+### 3.14 Codex Review / Build Gates
+| Method | Path | Role | Scopes | Idemp | Danger | Stream | Notes |
+|---|---|---|---|---|---|---|---|
+| GET | `/codex/reviews` | viewer | `codex:read` | yes | no | no | list of review tasks |
+| GET | `/codex/reviews/{task_id}` | viewer | `codex:read` | yes | no | no | verdict + evidence pointers |
+| POST | `/codex/reviews/{task_id}/acknowledge` | system_admin | `codex:ack` | yes(key) | no | no | acks blocker resolution |
+
+### 3.15 Claude Admin AI / Ollama Local Assistant
+| Method | Path | Role | Scopes | Idemp | Danger | Stream | Notes |
+|---|---|---|---|---|---|---|---|
+| POST | `/assistant/claude/ask` | operator | `assistant:ask` | yes(key) | no | no | bounded prompt, no tool exec |
+| POST | `/assistant/ollama/summarize` | operator | `assistant:ask` | yes(key) | no | no | low-risk summaries only |
+| GET | `/assistant/health` | viewer | `assistant:read` | yes | no | no | both backends |
+
+### 3.16 Auth / Session
+| Method | Path | Role | Scopes | Idemp | Danger | Stream | Notes |
+|---|---|---|---|---|---|---|---|
+| POST | `/auth/login` | (public) | — | yes(key) | no | no | password+MFA; returns short-lived token |
+| POST | `/auth/refresh` | viewer | `auth:refresh` | yes(key) | no | no | rotates token |
+| POST | `/auth/logout` | viewer | `auth:logout` | yes(key) | no | no | revokes token |
+| POST | `/auth/confirm-token` | dangerous-action initiator | scope of target route | yes(key) | yes | no | issues one-shot `X-Actor-Confirm` for a specific `(route,resource_id,body_hash)` |
+
+------------------------------------------------------------
+## 4. Schema Deltas (canonical shapes)
+
+These are contract schemas, not code. Field types use JSON Schema vocab.
+
+### 4.1 Envelope schema delta
+- `data` MUST be present on success; MUST be `null` on error.
+- `error.code` MUST match `^ERR_[A-Z]+(?:_[A-Z0-9]+)+$`.
+- `meta.audit_id` MUST be present for any 2xx response on a mutating route.
+- `meta.etag` MUST be present on any resource that supports `If-Match`.
+
+### 4.2 Resource: Monitor
+```jsonc
+{
+  "monitor_id":     "string",
+  "name":           "string",
+  "owner":          "string",
+  "script_path":    "string",
+  "status":         "active | broken | unused | duplicate | unknown",
+  "last_run":       "RFC3339 | null",
+  "last_success":   "RFC3339 | null",
+  "last_failure":   "RFC3339 | null",
+  "metrics_emitted":["string"],
+  "redis_keys":     ["string"],
+  "logs_watched":   ["string"],
+  "processes":      ["string"],
+  "alerts_24h":     "integer >= 0",
+  "evidence_refs":  [ { "type": "code|redis|log|db|cmd|config", "pointer": "string" } ]
+}
+```
+Delta vs prior drafts: `status` enum is closed; `evidence_refs[]` mandatory (Evidence Integrity Rule); no free-form "notes" field.
+
+### 4.3 Resource: SignalExplanation
+```jsonc
+{
+  "signal_id":         "string",
+  "symbol":            "string",
+  "generated_at":      "RFC3339",
+  "input_data_ref":    "string",                // pointer to immutable input snapshot
+  "feature_snapshot":  { "<feature>": "number|string|null" },
+  "feature_freshness": { "<feature>": "RFC3339" },
+  "raw_model_output":  { /* opaque */ },
+  "confidence":        "number 0..1",
+  "calibration":       { "method": "string", "params": { } },
+  "model_version":     "string",
+  "checkpoint_id":     "string",
+  "orchestrator_reason":"string",
+  "risk_gateway":      {
+    "decision":        "allow | block",
+    "reasons":         ["string"],
+    "policy_version":  "string"
+  },
+  "config_version":    "string",
+  "evidence_refs":     [ { "type": "...", "pointer": "string" } ],
+  "missing_evidence":  ["string"]
+}
+```
+Delta: `risk_gateway` is its own object (was previously a string); `missing_evidence[]` mandatory.
+
+### 4.4 Resource: RiskPolicy
+```jsonc
+{
+  "policy_id":         "string",
+  "version":           "integer >= 1",
+  "etag":              "string",
+  "kill_switch":       "engaged | disengaged",
+  "mandatory_stop":    { "enabled": true, "bps": "integer > 0" },
+  "max_leverage":      "integer >= 1",
+  "margin_mode":       "ISOLATED | CROSS",
+  "max_position_usd":  "number >= 0",
+  "daily_loss_limit_usd":"number >= 0",
+  "hedge_enabled":     "boolean",
+  "dca_enabled":       "boolean",
+  "adjust_leverage_enabled":"boolean",
+  "updated_by":        "actor_id",
+  "updated_at":        "RFC3339"
+}
+```
+Delta: `margin_mode` enum closed; `mandatory_stop` is structured (was boolean); every numeric has explicit bound.
+
+### 4.5 Resource: ExecutionRecord (read-only mirror)
+```jsonc
+{
+  "execution_id":   "string",
+  "client_order_id":"string",
+  "mode":           "paper | live",         // contract allows enum; "live" is filtered out unless live_authority
+  "symbol":         "string",
+  "side":           "buy | sell",
+  "qty":            "number > 0",
+  "price":          "number > 0 | null",
+  "status":         "accepted|rejected|filled|partially_filled|cancelled",
+  "risk_decision":  { "decision":"allow|block","reasons":["string"] },
+  "submitted_at":   "RFC3339",
+  "settled_at":     "RFC3339 | null",
+  "source":         "orchestrator | replay | paper_manual",
+  "audit_id":       "string"
+}
+```
+Delta: every execution carries the `audit_id` that produced it; `risk_decision` always present (was optional).
+
+### 4.6 Error payload schema (per code, examples)
+| `code` | HTTP | `details` shape |
+|---|---|---|
+| `ERR_AUTH_INVALID_TOKEN` | 401 | `{}` |
+| `ERR_AUTH_MFA_REQUIRED` | 401 | `{ "challenge_id":"string" }` |
+| `ERR_RBAC_SCOPE_DENIED` | 403 | `{ "required_scopes":["..."], "actor_scopes":["..."] }` |
+| `ERR_VALIDATION_FIELD` | 422 | `{ "field":"path.to.field", "constraint":"string", "got":"any" }` |
+| `ERR_IDEMPOTENCY_KEY_REQUIRED` | 400 | `{}` |
+| `ERR_IDEMPOTENCY_BODY_MISMATCH` | 409 | `{ "key":"uuid" }` |
+| `ERR_CONCURRENCY_ETAG_STALE` | 412 | `{ "expected":"etag","actual":"etag" }` |
+| `ERR_STATE_LIVE_BLOCKED` | 503 | `{ "unblock_steps":["..."] }` |
+| `ERR_RISK_POLICY_BLOCK` | 409 | `{ "policy_version":"...", "reasons":["..."] }` |
+| `ERR_LEGACY_ADAPTER_TIMEOUT` | 504 | `{ "adapter":"trainer\|exchange_mirror","elapsed_ms":1234 }` |
+| `ERR_TRAINER_STALE` | 409 | `{ "last_fresh_at":"RFC3339","threshold_s":600 }` |
+| `ERR_RATELIMIT_EXCEEDED` | 429 | `{ "retry_after_s":12 }` |
+| `ERR_INTEGRITY_EVIDENCE_MISSING` | 409 | `{ "claim_id":"...", "missing":["..."] }` |
+| `ERR_INTERNAL_UNEXPECTED` | 500 | `{ "incident_id":"uuid" }` |
+
+Delta: `ERR_INTEGRITY_EVIDENCE_MISSING` is new — surfaces the Evidence Integrity Rule into the API so the GUI can refuse to display unverified claims as if they were verified.
+
+------------------------------------------------------------
+## 5. Idempotency Contract Details
+
+### 5.1 Key requirements
+- UUIDv4 (RFC 4122) only; server rejects non-UUID with `400 ERR_VALIDATION_FIELD`.
+- Scope of uniqueness: `(actor_id, route, X-Idempotency-Key)`. The same key from a different actor is a different entry.
+
+### 5.2 Storage record
+```jsonc
+{
+  "actor_id":     "string",
+  "route":        "METHOD /path",
+  "key":          "uuid",
+  "body_sha256":  "hex",
+  "status_code":  "integer",
+  "response_sha256":"hex",
+  "response_body":"json",
+  "first_seen_at":"RFC3339",
+  "expires_at":   "RFC3339"   // first_seen + 24h
+}
+```
+
+### 5.3 Replay semantics
+- Same body → stored response, header `Idempotent-Replay: true`, `meta.audit_id` unchanged.
+- Different body → `409 ERR_IDEMPOTENCY_BODY_MISMATCH`.
+- After TTL expiry → treated as a new request; new audit row.
+
+### 5.4 Dangerous-action overlay
+For §6 routes, idempotency-key reuse does not bypass `X-Actor-Confirm`. The confirm token is single-use and bound to `(route, resource_id, body_sha256)`; replaying the same idempotency key returns the stored success without re-consuming a new confirm token, but a NEW logical attempt requires a NEW confirm token.
+
+------------------------------------------------------------
+## 6. Dangerous Actions Gate (binding to API contract)
+
+The following routes are flagged `dangerous: true`. They MUST:
+1. Require `live_authority` role and `mfa:true` in the token.
+2. Require a one-shot `X-Actor-Confirm` issued by `POST /auth/confirm-token` ≤ 5 min prior, bound to `(route, resource_id, body_sha256)`.
+3. Reject if `live_readiness != READY` AND the action would touch live trading; otherwise return `503 ERR_STATE_LIVE_BLOCKED`.
+4. Emit an audit row with full before/after hashes and the confirm token id.
+
+Dangerous route list (canonical):
+- `PUT /api/v2/risk/policy` (when changing kill-switch, mandatory_stop.enabled, max_leverage, margin_mode=CROSS, max_position_usd, daily_loss_limit_usd, hedge_enabled, dca_enabled, adjust_leverage_enabled)
+- `POST /api/v2/risk/kill-switch`
+- `PUT /api/v2/config/{key}` where key ∈ {`live_trading_enabled`, `exchange_api_keys.*`, `leverage_default`, `margin_mode_default`, `max_position_size`, `daily_loss_limit`, `kill_switch_enabled`, `mandatory_stop_enabled`, `hedge_enabled`, `dca_enabled`, `adjust_leverage_enabled`}
+- `POST /api/v2/config/{key}/rollback` where key ∈ dangerous set
+- `POST /api/v2/strategies/{id}/promote-live`
+- `POST /api/v2/trainer/checkpoints/{id}/promote`
+- `PUT /api/v2/orchestrator/routing` (when target includes live execution path)
+- `POST /api/v2/exec/live/*` (currently always returns `503 ERR_STATE_LIVE_BLOCKED`)
+
+Default state for the whole gate: `live_readiness=BLOCKED`. This document does not change that.
+
+------------------------------------------------------------
+## 7. Streaming Contract (SSE)
+
+- Event payload is always the standard envelope wrapped as one SSE `data:` line.
+- Event types via `event:` field: `snapshot`, `update`, `heartbeat`, `error`, `end`.
+- `heartbeat` every ≤ 15 s; client disconnects after 30 s of silence.
+- `error` event delivers the standard `error` object; HTTP-level `text/event-stream` connection then closes.
+- Resumption: client sends `Last-Event-Id`; server may honor or restart from snapshot.
+- RBAC checked at connect and re-checked every 5 minutes; scope loss → `error: ERR_RBAC_SCOPE_DENIED` + close.
+
+------------------------------------------------------------
+## 8. OpenAPI Generation Rule
+
+- A single `openapi.v2.yaml` is the source of truth.
+- Server route registration is generated from it (or validated against it at boot — boot fails on drift).
+- Frontend types are generated from it.
+- Trainer adapter, risk gateway, and audit ledger consume the same schema package.
+- Any PR that changes a route signature without updating `openapi.v2.yaml` fails CI.
+
+This eliminates the original blocker root cause (route definitions diverging across consumers).
+
+------------------------------------------------------------
+## 9. Migration Plan from Current Draft Routes
+
+1. Freeze all `/api/v2/...` route additions until `openapi.v2.yaml` skeleton lands.
+2. Walk every existing draft route in `claude_worklog/v2_architecture/` and reclassify against §3 matrix. Anything not in §3 is either added to §3 (with rationale) or removed.
+3. Add the standard envelope to every handler — no naked bodies. Old shapes get a single release window of dual-emit behind `Accept: application/vnd.v2-envelope+json` if needed; default flips next release.
+4. Introduce idempotency middleware before any new mutating route is wired.
+5. Introduce RBAC middleware reading the token claim model in §2.7; default-deny.
+6. Introduce `X-Actor-Confirm` issuer (`POST /auth/confirm-token`) and bind it to §6 routes.
+7. Add `ERR_STATE_LIVE_BLOCKED` short-circuit to every §6 live-touching route so the live boundary is enforced at the contract, not at the GUI.
+8. Generate openapi → backend stubs + frontend client; remove hand-written client typings.
+9. Run Codex re-review on this remediation against tasks 002/004 acceptance criteria.
+
+------------------------------------------------------------
+## 10. Acceptance Criteria (what makes this blocker closed)
+
+- [ ] `openapi.v2.yaml` exists and validates against the matrix in §3.
+- [ ] Every endpoint in §3 has: method, path, role, scopes[], idempotency flag, dangerous flag, request schema ref, response schema ref, error code list.
+- [ ] Standard envelope (§2.4) is the only response shape; no naked bodies.
+- [ ] Error code registry (§4.6) exists as a closed enum referenced by openapi.
+- [ ] Idempotency middleware contract documented and referenced by every POST/PUT/PATCH/DELETE in §3.
+- [ ] RBAC scope set (§2.7) documented; every endpoint declares required scopes.
+- [ ] Dangerous-action gate (§6) lists every route that touches live, leverage, margin, kill switch, or promotion to live; each requires `X-Actor-Confirm` + MFA + `live_authority`.
+- [ ] Audit propagation rule (§2.10) covered — every mutating 2xx returns `meta.audit_id`.
+- [ ] Streaming contract (§7) covered — envelope, heartbeats, scope re-check.
+- [ ] Codex re-review references this file by path and signs off on tasks 002/004 blocker.
+
+------------------------------------------------------------
+## 11. Evidence Anchors (verification commands, not summaries)
+
+The following are pointers the next Codex pass must verify against raw sources before this blocker can be marked closed. None of these are run by this document; they are the verification surface.
+
+- Coverage of route list vs. legacy reference:
+  - `grep -RnE "@(app|router)\.(get|post|put|patch|delete)" legacy_reference/`
+  - `grep -RnE "@(app|router)\.(get|post|put|patch|delete)" v2/ 2>/dev/null || echo "v2 not yet present"`
+- Coverage of Redis writers (must align with `exec_admin`, `risk`, `orchestrator` route boundaries):
+  - `grep -RnE "(rset|hset|xadd|publish|set\()" legacy_reference/`
+- Coverage of exchange-action paths (must all be `dangerous:true` in §6):
+  - `grep -RnE "(place_order|cancel_order|set_leverage|set_margin_mode)" legacy_reference/`
+- Coverage of trainer entrypoints (must align with §3.9):
+  - see `claude_worklog/trainer_atlas/` indexes
+- Audit ledger schema check:
+  - `cat claude_worklog/v2_architecture/audit_ledger_schema.md 2>/dev/null`
+- Existing codex blocker tasks:
+  - `claude_worklog/agent_supervisor/tasks/002_codex_adversarial_architecture_review.json`
+  - `claude_worklog/agent_supervisor/tasks/004_fix_api_contract_architecture.json`
+
+Until those verifications run and return clean, this document remains REMEDIATION DRAFT — adopted as the contract spec, not yet as evidence of conformance.
+
+------------------------------------------------------------
+END_FILE: claude_worklog/v2_architecture_remediation/04_API_CONTRACT_REMEDIATION.md
+BEGIN_FILE: claude_worklog/v2_architecture_remediation/04_API_CONTRACT_REMEDIATION.md
+# 04 — API Contract Remediation (Blocker Closure)
+
+**Status:** REMEDIATION DRAFT — non-live, paper/read_only default
+**Scope:** Full HTTP API surface contracts for V2 FastAPI control plane
+**Blocker Closed:** "API endpoints lack method/path/request/response/error/idempotency/RBAC contracts"
+**Authoritative Source:** This document supersedes scattered route stubs in `v2/api/**` planning notes
+**Live Trading:** BLOCKED at gateway; mutation endpoints to exchange-action paths return 423 Locked
+**Date:** 2026-05-24
+**Document Class:** Architecture Contract (not implementation)
+
+---
+
+## 0. Conventions
+
+### 0.1 Base + Versioning
+- **Base path:** `/api/v1`
+- **Version policy:** Breaking changes require new prefix `/api/v2`; additive fields allowed in-place; removed fields require 1 minor cycle deprecation header `Sunset: <RFC1123>` + `Deprecation: true`.
+- **Content-Type:** `application/json; charset=utf-8` for all bodies (no form bodies; multipart only for `/v1/uploads/*`).
+- **Timestamps:** RFC 3339 UTC with `Z` suffix; epoch millis only inside high-frequency stream payloads (`/v1/stream/*`).
+- **IDs:** ULID strings (26 chars, Crockford base32) for V2-issued resources; legacy IDs preserved verbatim with `legacy_` prefix in field name.
+
+### 0.2 Standard Headers (Request)
+| Header | Required | Purpose |
+|---|---|---|
+| `Authorization: Bearer <jwt>` | Yes (except `/v1/auth/*`, `/v1/health`) | Session auth |
+| `X-Request-Id` | Optional (server generates if missing) | Correlation across logs/Redis/audit |
+| `X-Idempotency-Key` | Required on POST/PUT/DELETE marked `IDEMPOTENT` below | Replay-safe mutation |
+| `X-Config-Version` | Required on POST/PUT against `/v1/config/**`, `/v1/risk/**`, `/v1/strategy/**` | Optimistic concurrency |
+| `X-Approval-Token` | Required on endpoints flagged `APPROVAL_REQUIRED` | Dual-control mutation |
+| `X-Replay-Token` | Required on `/v1/replay/**` mutating endpoints | Distinguishes replay from live |
+| `X-Client-Build` | Optional | GUI build sha for support |
+
+### 0.3 Standard Headers (Response)
+| Header | Always | Purpose |
+|---|---|---|
+| `X-Request-Id` | Yes | Echo or generated |
+| `X-Response-Time-Ms` | Yes | Server-measured |
+| `X-Live-Mode` | Yes | `paper` / `replay` / `read_only` / `live_blocked` (never `live` in this phase) |
+| `X-Config-Version` | On state-bearing reads | Returned ETag-style integer |
+| `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset` | Yes on rate-limited routes | RFC draft-ietf-httpapi-ratelimit-headers |
+| `Sunset`, `Deprecation` | Conditional | Migration signaling |
+
+### 0.4 Envelope (Success)
+```json
+{
+  "ok": true,
+  "data": { /* resource or list */ },
+  "meta": {
+    "request_id": "01HXY...",
+    "config_version": 142,
+    "live_mode": "paper",
+    "generated_at": "2026-05-24T12:00:00Z"
+  },
+  "pagination": {
+    "cursor_next": "eyJpZCI6Li4ufQ==",
+    "cursor_prev": null,
+    "limit": 50,
+    "total_estimate": 1234
+  }
+}
+```
+- `pagination` present only on list endpoints.
+- `data` is `null` only on 204-equivalent JSON responses (we still return 200 with `data: null` for browser cache friendliness).
+
+### 0.5 Envelope (Error)
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "RISK_GATE_BLOCKED",
+    "category": "risk",
+    "message": "Risk gateway rejected order: max_position_notional_exceeded",
+    "http_status": 423,
+    "retryable": false,
+    "details": {
+      "limit": 50000,
+      "requested": 75000,
+      "rule_id": "RG-014"
+    },
+    "evidence": {
+      "audit_ledger_id": "01HXY...",
+      "redis_event_id": "v2:risk:decisions:01HXY...",
+      "log_pointer": "v2/logs/risk_gateway/2026-05-24.log#L4421"
+    },
+    "request_id": "01HXY...",
+    "occurred_at": "2026-05-24T12:00:00Z"
+  }
+}
+```
+
+### 0.6 Error Code Taxonomy (Authoritative)
+| Category | Code prefix | HTTP defaults |
+|---|---|---|
+| `auth` | `AUTH_*` | 401, 403 |
+| `validation` | `VAL_*` | 400, 422 |
+| `idempotency` | `IDEM_*` | 409, 422 |
+| `concurrency` | `CONC_*` | 409, 412 |
+| `not_found` | `NF_*` | 404 |
+| `rate_limit` | `RL_*` | 429 |
+| `risk` | `RISK_*` | 423 |
+| `live_blocked` | `LIVE_BLOCKED_*` | 423 |
+| `approval` | `APPROVAL_*` | 412, 423 |
+| `runtime` | `RT_*` | 500, 503 |
+| `dependency` | `DEP_*` | 502, 504 |
+| `evidence_missing` | `EVID_*` | 424 |
+| `legacy_adapter` | `LEGACY_*` | 502, 504 |
+| `ollama` | `OLLAMA_*` | 502, 504 |
+| `codex_gate` | `CODEX_*` | 412, 424 |
+
+Full enumerated codes in §11.
+
+### 0.7 Idempotency Semantics
+- Server stores `(X-Idempotency-Key, route, request_body_sha256, principal_id)` for **24h**.
+- Same key + same body + same principal → returns the original response (with `X-Idempotent-Replay: true`).
+- Same key + different body → `409 IDEM_KEY_REUSED_DIFFERENT_BODY`.
+- Missing key on required route → `400 IDEM_KEY_REQUIRED`.
+
+### 0.8 RBAC Roles (Authoritative)
+| Role | Slug | Notes |
+|---|---|---|
+| Read-Only Viewer | `viewer` | GUI dashboards, no mutations |
+| Operator | `operator` | Paper/replay mutations, config drafts |
+| Risk Approver | `risk_approver` | Co-signs APPROVAL_REQUIRED items |
+| Trainer Admin | `trainer_admin` | Trainer Admin page mutations |
+| Strategy Admin | `strategy_admin` | Strategy enable/disable in paper |
+| System Admin | `sys_admin` | Config Admin, kill switches |
+| Live Gatekeeper | `live_gatekeeper` | Reserved; cannot enable live in this phase |
+| Audit | `audit` | Read all ledgers, no mutations |
+| Service (machine) | `svc_<name>` | Internal service-to-service tokens |
+
+All endpoints below list `Roles:` with required-of-any semantics unless `ALL:` is shown (require-all).
+
+### 0.9 Approval Matrix
+Endpoints requiring `X-Approval-Token` must present a token signed by a **second** principal holding the listed approver role, generated via `/v1/approvals/issue`. Tokens are single-use, route-bound, body-hash-bound, and expire in 10 minutes.
+
+### 0.10 Rate Limit Buckets
+| Bucket | Policy |
+|---|---|
+| `read_default` | 600 req/min/principal |
+| `read_heavy` | 60 req/min/principal (atlas, ledger exports) |
+| `mutation_default` | 60 req/min/principal |
+| `mutation_sensitive` | 10 req/min/principal (risk/config/strategy admin) |
+| `auth` | 20 req/min/IP |
+| `stream` | 5 concurrent connections/principal |
+
+### 0.11 Live-Trading Blockade (Cross-cutting)
+Any endpoint whose `LiveImpact: yes` field is true is wrapped by the **Live Blockade Middleware**:
+1. Read `system.live_trading_enabled` (must be `false` in this phase).
+2. If `false` → return `423 LIVE_BLOCKED_GLOBAL` with evidence pointer to `audits/live_blockade_state.json`.
+3. If `true` (out-of-scope) → still requires per-endpoint live gating.
+
+### 0.12 Audit-Ledger Linkage
+Every mutation response includes `meta.audit_ledger_id`. Every error envelope includes `error.evidence.audit_ledger_id` when the mutation reached the ledger before failing. Pure read endpoints SHOULD include `meta.audit_ledger_id` when serving a snapshotted derived view.
+
+---
+
+## 1. Endpoint Inventory (Authoritative Matrix)
+
+Format per row: `Method · Path · Roles · Bucket · Idempotent · Approval · LiveImpact · Brief`
+
+### 1.1 Auth & Session
+| M | Path | Roles | Bucket | Idem | Appr | Live | Brief |
+|---|---|---|---|---|---|---|---|
+| POST | `/v1/auth/login` | (public) | `auth` | No | No | No | Username+password → JWT |
+| POST | `/v1/auth/refresh` | any | `auth` | No | No | No | Refresh JWT |
+| POST | `/v1/auth/logout` | any | `auth` | Yes | No | No | Revoke session |
+| GET | `/v1/auth/me` | any | `read_default` | No | No | No | Current principal + roles |
+| POST | `/v1/auth/mfa/enroll` | any | `auth` | Yes | No | No | TOTP enroll |
+| POST | `/v1/auth/mfa/verify` | any | `auth` | No | No | No | TOTP step-up |
+| POST | `/v1/approvals/issue` | `risk_approver`,`sys_admin`,`trainer_admin`,`strategy_admin` | `mutation_sensitive` | Yes | No | No | Mint approval token |
+| GET | `/v1/approvals/{token_id}` | `audit`,`sys_admin` | `read_default` | No | No | No | Inspect token state |
+
+### 1.2 Health & System
+| M | Path | Roles | Bucket | Idem | Appr | Live | Brief |
+|---|---|---|---|---|---|---|---|
+| GET | `/v1/health` | (public) | `read_default` | No | No | No | Liveness |
+| GET | `/v1/health/ready` | (public) | `read_default` | No | No | No | Readiness (deps) |
+| GET | `/v1/health/deep` | `sys_admin`,`audit` | `read_heavy` | No | No | No | Per-dependency probes |
+| GET | `/v1/system/info` | `viewer`+ | `read_default` | No | No | No | Build, mode, prefixes |
+| GET | `/v1/system/live-blockade` | `viewer`+ | `read_default` | No | No | No | Blockade status + evidence |
+
+### 1.3 Mission Control
+| M | Path | Roles | Bucket | Idem | Appr | Live | Brief |
+|---|---|---|---|---|---|---|---|
+| GET | `/v1/mission-control/summary` | `viewer`+ | `read_default` | No | No | No | Aggregated KPIs |
+| GET | `/v1/mission-control/incidents` | `viewer`+ | `read_default` | No | No | No | Open incidents |
+| POST | `/v1/mission-control/acknowledge` | `operator`,`sys_admin` | `mutation_default` | **Yes** | No | No | Ack alert |
+
+### 1.4 Monitor Center
+| M | Path | Roles | Bucket | Idem | Appr | Live | Brief |
+|---|---|---|---|---|---|---|---|
+| GET | `/v1/monitors` | `viewer`+ | `read_default` | No | No | No | List monitors |
+| GET | `/v1/monitors/{id}` | `viewer`+ | `read_default` | No | No | No | Monitor detail |
+| GET | `/v1/monitors/{id}/runs` | `viewer`+ | `read_default` | No | No | No | Run history |
+| POST | `/v1/monitors/{id}/run` | `operator`,`sys_admin` | `mutation_default` | **Yes** | No | No | Trigger ad-hoc run (read-only monitors only) |
+| PATCH | `/v1/monitors/{id}` | `sys_admin` | `mutation_sensitive` | **Yes** | No | No | Enable/disable/classify |
+
+### 1.5 Coverage / System Atlas
+| M | Path | Roles | Bucket | Idem | Appr | Live | Brief |
+|---|---|---|---|---|---|---|---|
+| GET | `/v1/atlas/manifest` | `viewer`+ | `read_heavy` | No | No | No | File manifest |
+| GET | `/v1/atlas/files` | `viewer`+ | `read_heavy` | No | No | No | Paginated file index |
+| GET | `/v1/atlas/files/{sha256}` | `viewer`+ | `read_default` | No | No | No | File classification + evidence |
+| GET | `/v1/atlas/coverage` | `viewer`+ | `read_default` | No | No | No | Coverage rollups |
+| GET | `/v1/atlas/unknowns` | `viewer`+,`audit` | `read_default` | No | No | No | Unresolved unsafe_unknown |
+
+### 1.6 Script Registry
+| M | Path | Roles | Bucket | Idem | Appr | Live | Brief |
+|---|---|---|---|---|---|---|---|
+| GET | `/v1/scripts` | `viewer`+ | `read_default` | No | No | No | Registry list |
+| GET | `/v1/scripts/{id}` | `viewer`+ | `read_default` | No | No | No | Script detail (usage evidence) |
+| PATCH | `/v1/scripts/{id}/classification` | `sys_admin` | `mutation_sensitive` | **Yes** | No | No | Reclassify (audit-trailed) |
+
+### 1.7 Trainer Prediction Monitor / Trainer Admin
+| M | Path | Roles | Bucket | Idem | Appr | Live | Brief |
+|---|---|---|---|---|---|---|---|
+| GET | `/v1/trainer/status` | `viewer`+ | `read_default` | No | No | No | Stale/health/version |
+| GET | `/v1/trainer/predictions` | `viewer`+ | `read_default` | No | No | No | Cursor stream |
+| GET | `/v1/trainer/predictions/{id}` | `viewer`+ | `read_default` | No | No | No | Single explainability bundle |
+| GET | `/v1/trainer/checkpoints` | `trainer_admin`,`viewer` | `read_default` | No | No | No | Checkpoint inventory |
+| POST | `/v1/trainer/checkpoints/{id}/promote` | `trainer_admin` | `mutation_sensitive` | **Yes** | **Yes** (`risk_approver`) | No | Promote checkpoint (paper-only) |
+| POST | `/v1/trainer/adapter/call` | `trainer_admin`,`sys_admin` | `mutation_sensitive` | **Yes** | No | No | Subprocess adapter call (read_only ops only) |
+
+### 1.8 Signal Explainability
+| M | Path | Roles | Bucket | Idem | Appr | Live | Brief |
+|---|---|---|---|---|---|---|---|
+| GET | `/v1/signals` | `viewer`+ | `read_default` | No | No | No | List signals (cursor) |
+| GET | `/v1/signals/{id}` | `viewer`+ | `read_default` | No | No | No | Full explainability |
+| GET | `/v1/signals/{id}/evidence` | `viewer`+,`audit` | `read_default` | No | No | No | Raw evidence pointers |
+
+### 1.9 Symbols
+| M | Path | Roles | Bucket | Idem | Appr | Live | Brief |
+|---|---|---|---|---|---|---|---|
+| GET | `/v1/symbols` | `viewer`+ | `read_default` | No | No | No | Active universe |
+| GET | `/v1/symbols/{symbol}` | `viewer`+ | `read_default` | No | No | No | Symbol detail |
+| GET | `/v1/symbols/{symbol}/features` | `viewer`+ | `read_default` | No | No | No | Latest features + freshness |
+
+### 1.10 Executions / Positions
+| M | Path | Roles | Bucket | Idem | Appr | Live | Brief |
+|---|---|---|---|---|---|---|---|
+| GET | `/v1/executions` | `viewer`+,`audit` | `read_default` | No | No | No | Paper/replay executions |
+| GET | `/v1/executions/{id}` | `viewer`+,`audit` | `read_default` | No | No | No | Detail with risk decision |
+| GET | `/v1/positions` | `viewer`+ | `read_default` | No | No | No | Open positions (paper/replay) |
+| GET | `/v1/positions/{id}` | `viewer`+ | `read_default` | No | No | No | Position detail |
+| POST | `/v1/executions/paper` | `operator` | `mutation_default` | **Yes** | No | No (paper) | Submit paper order (passes risk gate) |
+| POST | `/v1/positions/{id}/close-paper` | `operator` | `mutation_default` | **Yes** | No | No (paper) | Close paper position |
+| POST | `/v1/executions/{id}/cancel-paper` | `operator` | `mutation_default` | **Yes** | No | No (paper) | Cancel paper order |
+
+### 1.11 Risk Control
+| M | Path | Roles | Bucket | Idem | Appr | Live | Brief |
+|---|---|---|---|---|---|---|---|
+| GET | `/v1/risk/config` | `viewer`+ | `read_default` | No | No | No | Active risk config |
+| PATCH | `/v1/risk/config` | `sys_admin` | `mutation_sensitive` | **Yes** | **Yes** (`risk_approver`) | Yes* | Update risk limits (still paper-effective) |
+| GET | `/v1/risk/decisions` | `viewer`+,`audit` | `read_default` | No | No | No | Recent decisions |
+| GET | `/v1/risk/decisions/{id}` | `viewer`+,`audit` | `read_default` | No | No | No | Decision detail |
+| POST | `/v1/risk/kill-switch` | `sys_admin` | `mutation_sensitive` | **Yes** | **Yes** (`risk_approver`) | Yes | Engage kill switch |
+| POST | `/v1/risk/kill-switch/release` | `sys_admin` | `mutation_sensitive` | **Yes** | **Yes** (`risk_approver`) | Yes | Release kill switch |
+
+`Yes*` = changes risk-gate behavior even in paper; subject to live blockade only when activating live-only fields.
+
+### 1.12 Config Admin
+| M | Path | Roles | Bucket | Idem | Appr | Live | Brief |
+|---|---|---|---|---|---|---|---|
+| GET | `/v1/config` | `viewer`+ | `read_default` | No | No | No | Active config |
+| GET | `/v1/config/versions` | `viewer`+,`audit` | `read_default` | No | No | No | Versions list |
+| GET | `/v1/config/versions/{n}` | `viewer`+,`audit` | `read_default` | No | No | No | Specific version |
+| POST | `/v1/config/drafts` | `sys_admin` | `mutation_default` | **Yes** | No | No | Create draft |
+| POST | `/v1/config/drafts/{id}/promote` | `sys_admin` | `mutation_sensitive` | **Yes** | **Yes** (second `sys_admin`) | Yes* | Promote to active |
+| GET | `/v1/config/diff?from=&to=` | `viewer`+ | `read_default` | No | No | No | Structured diff |
+
+### 1.13 Strategy Admin
+| M | Path | Roles | Bucket | Idem | Appr | Live | Brief |
+|---|---|---|---|---|---|---|---|
+| GET | `/v1/strategies` | `viewer`+ | `read_default` | No | No | No | List |
+| POST | `/v1/strategies/{id}/enable-paper` | `strategy_admin` | `mutation_sensitive` | **Yes** | No | No | Enable paper |
+| POST | `/v1/strategies/{id}/disable` | `strategy_admin`,`sys_admin` | `mutation_sensitive` | **Yes** | No | No | Disable |
+| POST | `/v1/strategies/{id}/enable-live` | `live_gatekeeper`+`strategy_admin` (ALL) | `mutation_sensitive` | **Yes** | **Yes** (`risk_approver`) | Yes | **Always returns 423** in this phase |
+
+### 1.14 Orchestrator Admin
+| M | Path | Roles | Bucket | Idem | Appr | Live | Brief |
+|---|---|---|---|---|---|---|---|
+| GET | `/v1/orchestrator/state` | `viewer`+ | `read_default` | No | No | No | Current state |
+| POST | `/v1/orchestrator/pause` | `sys_admin` | `mutation_sensitive` | **Yes** | No | No | Pause proposals |
+| POST | `/v1/orchestrator/resume` | `sys_admin` | `mutation_sensitive` | **Yes** | No | No | Resume |
+
+### 1.15 Execution Admin
+| M | Path | Roles | Bucket | Idem | Appr | Live | Brief |
+|---|---|---|---|---|---|---|---|
+| GET | `/v1/execution/engine/state` | `viewer`+ | `read_default` | No | No | No | Engine mode |
+| POST | `/v1/execution/engine/mode` | `sys_admin` | `mutation_sensitive` | **Yes** | **Yes** (`risk_approver`) | Yes | Set mode (clamped paper/replay/read_only) |
+
+### 1.16 Paper Trading / Replay
+| M | Path | Roles | Bucket | Idem | Appr | Live | Brief |
+|---|---|---|---|---|---|---|---|
+| POST | `/v1/paper/sessions` | `operator` | `mutation_default` | **Yes** | No | No | Start paper session |
+| GET | `/v1/paper/sessions/{id}` | `viewer`+ | `read_default` | No | No | No | Session detail |
+| POST | `/v1/paper/sessions/{id}/stop` | `operator`,`sys_admin` | `mutation_default` | **Yes** | No | No | Stop |
+| POST | `/v1/replay/sessions` | `operator`,`audit` | `mutation_default` | **Yes** | No | No | Start replay (requires `X-Replay-Token`) |
+| GET | `/v1/replay/sessions/{id}` | `viewer`+,`audit` | `read_default` | No | No | No | Detail |
+| POST | `/v1/replay/sessions/{id}/step` | `operator`,`audit` | `mutation_default` | **Yes** | No | No | Step forward |
+
+### 1.17 Audit Ledger
+| M | Path | Roles | Bucket | Idem | Appr | Live | Brief |
+|---|---|---|---|---|---|---|---|
+| GET | `/v1/audit/ledger` | `viewer`+,`audit` | `read_heavy` | No | No | No | Append-only entries (cursor) |
+| GET | `/v1/audit/ledger/{id}` | `viewer`+,`audit` | `read_default` | No | No | No | Entry + integrity proof |
+| GET | `/v1/audit/export?from=&to=` | `audit`,`sys_admin` | `read_heavy` | No | No | No | NDJSON export (streamed) |
+
+### 1.18 Live Readiness
+| M | Path | Roles | Bucket | Idem | Appr | Live | Brief |
+|---|---|---|---|---|---|---|---|
+| GET | `/v1/live-readiness/checks` | `viewer`+ | `read_default` | No | No | No | Gate checklist |
+| GET | `/v1/live-readiness/blockers` | `viewer`+ | `read_default` | No | No | No | Open blockers |
+
+### 1.19 Claude Admin AI / Ollama / Codex Review
+| M | Path | Roles | Bucket | Idem | Appr | Live | Brief |
+|---|---|---|---|---|---|---|---|
+| POST | `/v1/claude/tasks` | `sys_admin`,`audit` | `mutation_default` | **Yes** | No | No | Enqueue Claude task (metadata only; no live mutation) |
+| GET | `/v1/claude/tasks/{id}` | `sys_admin`,`audit` | `read_default` | No | No | No | Task status |
+| POST | `/v1/ollama/summarize` | `operator`,`sys_admin` | `mutation_default` | **Yes** | No | No | Low-risk summarization |
+| GET | `/v1/ollama/jobs/{id}` | `operator`,`sys_admin`,`audit` | `read_default` | No | No | No | Job status |
+| GET | `/v1/codex/reviews` | `viewer`+,`audit` | `read_default` | No | No | No | Review list |
+| GET | `/v1/codex/reviews/{id}` | `viewer`+,`audit` | `read_default` | No | No | No | Review detail |
+| POST | `/v1/codex/reviews/{id}/accept` | `sys_admin` | `mutation_sensitive` | **Yes** | **Yes** (`risk_approver`) | No | Accept gate finding |
+
+### 1.20 Build / Validation Status
+| M | Path | Roles | Bucket | Idem | Appr | Live | Brief |
+|---|---|---|---|---|---|---|---|
+| GET | `/v1/build/status` | `viewer`+ | `read_default` | No | No | No | Latest CI/build |
+| GET | `/v1/validation/runs` | `viewer`+ | `read_default` | No | No | No | Validation runs |
+| GET | `/v1/validation/runs/{id}` | `viewer`+ | `read_default` | No | No | No | Detail |
+
+### 1.21 Streams (SSE / WebSocket)
+| M | Path | Roles | Bucket | Idem | Appr | Live | Brief |
+|---|---|---|---|---|---|---|---|
+| GET (SSE) | `/v1/stream/predictions` | `viewer`+ | `stream` | No | No | No | Trainer prediction stream |
+| GET (SSE) | `/v1/stream/signals` | `viewer`+ | `stream` | No | No | No | Signal stream |
+| GET (SSE) | `/v1/stream/risk-decisions` | `viewer`+,`audit` | `stream` | No | No | No | Risk decision stream |
+| GET (SSE) | `/v1/stream/audit` | `audit`,`sys_admin` | `stream` | No | No | No | Audit ledger tail |
+| WS | `/v1/ws/mission-control` | `viewer`+ | `stream` | No | No | No | Multiplexed dashboard |
+
+---
+
+## 2. Contract Schemas (Per-Endpoint Details)
+
+> Notation: `JSONSchema-ish`. Optional fields marked `?`. Enums fully enumerated. All money fields are decimal strings to avoid float drift.
+
+### 2.1 `POST /v1/auth/login`
+**Roles:** public · **Bucket:** `auth` · **Idempotent:** no
+**Request:**
+```json
+{
+  "username": "string (3..64)",
+  "password": "string (8..256)",
+  "mfa_code?": "string (6..8 digits)"
+}
+```
+**Response 200:**
+```json
+{
+  "ok": true,
+  "data": {
+    "access_token": "jwt",
+    "refresh_token": "jwt",
+    "expires_in": 900,
+    "principal": {
+      "id": "ulid",
+      "username": "string",
+      "roles": ["viewer", "operator"],
+      "mfa_enrolled": true
+    }
+  }
+}
+```
+**Errors:** `401 AUTH_INVALID_CREDENTIALS`, `401 AUTH_MFA_REQUIRED`, `423 AUTH_LOCKED`, `429 RL_AUTH`.
+
+### 2.2 `POST /v1/approvals/issue`
+**Roles:** approver-class · **Idempotent:** yes
+**Request:**
+```json
+{
+  "target_route": "/v1/risk/config",
+  "target_method": "PATCH",
+  "target_body_sha256": "hex(64)",
+  "ttl_seconds": 600,
+  "reason": "string (10..500)"
+}
+```
+**Response 200:**
+```json
+{
+  "ok": true,
+  "data": {
+    "token_id": "ulid",
+    "token": "jws-compact",
+    "expires_at": "2026-05-24T12:10:00Z",
+    "issued_by": "principal_id",
+    "binding": {
+      "route": "/v1/risk/config",
+      "method": "PATCH",
+      "body_sha256": "hex",
+      "single_use": true
+    }
+  }
+}
+```
+**Errors:** `403 AUTH_ROLE_INSUFFICIENT`, `412 APPROVAL_SELF_APPROVAL_FORBIDDEN`, `422 VAL_BODY_HASH_INVALID`.
+
+### 2.3 `GET /v1/system/live-blockade`
+**Response 200:**
+```json
+{
+  "ok": true,
+  "data": {
+    "live_trading_enabled": false,
+    "mode": "paper",
+    "blockade_reasons": ["phase_2_active", "live_gatekeeper_not_armed"],
+    "evidence": {
+      "config_pointer": "v2/config/system.yaml#live_trading_enabled",
+      "audit_ledger_id": "01HXY..."
+    },
+    "last_changed_at": "2026-05-01T00:00:00Z"
+  }
+}
+```
+
+### 2.4 `GET /v1/monitors` (cursor list)
+**Query:** `?status=active|broken|unused|duplicate|unknown&limit=1..200&cursor=opaque`
+**Response 200 `data`:**
+```json
+[
+  {
+    "id": "ulid",
+    "name": "trainer_stale_monitor",
+    "owner": "trainer_atlas",
+    "script_path": "tools/monitors/trainer_stale.py",
+    "status": "active",
+    "classification": "active",
+    "last_run_at": "2026-05-24T11:59:00Z",
+    "last_success_at": "2026-05-24T11:59:00Z",
+    "last_failure_at": null,
+    "metrics_emitted": ["trainer_stale_seconds"],
+    "redis_keys_watched": ["v2:trainer:heartbeat"],
+    "logs_watched": ["v2/logs/trainer/*.log"],
+    "processes_watched": ["trainer_runtime"],
+    "alerts_generated_24h": 0,
+    "evidence": {"audit_ledger_id": "01HXY..."}
+  }
+]
+```
+
+### 2.5 `POST /v1/monitors/{id}/run`
+**Headers:** `X-Idempotency-Key` required.
+**Request:** `{"reason": "string (10..500)", "args?": {"k": "v"}}`
+**Response 202:**
+```json
+{
+  "ok": true,
+  "data": {"run_id": "ulid", "status": "queued", "queued_at": "..."}
+}
+```
+**Errors:** `409 IDEM_KEY_REUSED_DIFFERENT_BODY`, `423 MONITOR_DISABLED`, `424 EVID_SCRIPT_NOT_REGISTERED`.
+
+### 2.6 `GET /v1/signals/{id}` (Explainability)
+**Response 200 `data`:**
+```json
+{
+  "id": "ulid",
+  "symbol": "BTCUSDT",
+  "side": "long",
+  "issued_at": "...",
+  "model_version": "trainer-2026-05-23-A",
+  "checkpoint_id": "ulid",
+  "inputs": {
+    "feature_snapshot_id": "ulid",
+    "freshness_seconds": 2.4,
+    "raw_redis_keys": ["v2:features:BTCUSDT:..."],
+    "missing_features": []
+  },
+  "model_output": {
+    "raw_logits": [0.12, 0.88],
+    "confidence": 0.88,
+    "calibrated_confidence": 0.81,
+    "calibration_curve_id": "ulid"
+  },
+  "orchestrator": {
+    "reason": "trend_continuation",
+    "config_version": 142
+  },
+  "risk_gateway": {
+    "decision_id": "ulid",
+    "decision": "allow|block|throttle",
+    "rules_evaluated": ["RG-001","RG-014"],
+    "reason": "within_limits"
+  },
+  "evidence": {
+    "log_pointers": ["v2/logs/signal/2026-05-24.log#L1234"],
+    "redis_event_ids": ["v2:signals:01HXY..."],
+    "db_rows": ["signals:01HXY..."],
+    "audit_ledger_id": "01HXY...",
+    "missing_evidence": []
+  }
+}
+```
+**Errors:** `404 NF_SIGNAL`, `424 EVID_INCOMPLETE`.
+
+### 2.7 `POST /v1/executions/paper`
+**Headers:** `X-Idempotency-Key`, `X-Config-Version`.
+**Request:**
+```json
+{
+  "symbol": "BTCUSDT",
+  "side": "long|short",
+  "type": "market|limit",
+  "qty": "0.005",
+  "limit_price?": "65000.0",
+  "tif?": "GTC|IOC|FOK",
+  "client_order_id": "ulid",
+  "signal_id?": "ulid",
+  "reason": "string"
+}
+```
+**Response 201:**
+```json
+{
+  "ok": true,
+  "data": {
+    "execution_id": "ulid",
+    "status": "accepted_paper",
+    "risk_decision_id": "ulid",
+    "estimated_fill": {"price": "65010.0", "qty": "0.005"},
+    "audit_ledger_id": "01HXY..."
+  }
+}
+```
+**Errors:** `412 CONC_CONFIG_VERSION_MISMATCH`, `423 RISK_GATE_BLOCKED`, `423 LIVE_BLOCKED_GLOBAL` (must be impossible: paper-only route — defense in depth), `422 VAL_QTY_OUT_OF_RANGE`, `409 IDEM_KEY_REUSED_DIFFERENT_BODY`, `424 EVID_SIGNAL_MISSING`.
+
+### 2.8 `PATCH /v1/risk/config`
+**Headers:** `X-Idempotency-Key`, `X-Config-Version`, `X-Approval-Token`.
+**Request (RFC 7396 merge patch):**
+```json
+{
+  "max_position_notional": "50000",
+  "max_daily_loss": "1000",
+  "max_leverage": 3,
+  "margin_mode": "ISOLATED",
+  "kill_switch_thresholds": {
+    "consecutive_losses": 5,
+    "drawdown_pct": "0.05"
+  }
+}
+```
+**Forbidden in this phase (returns `423 LIVE_BLOCKED_FIELD`):**
+- `margin_mode: "CROSS"`
+- `leverage_adjust_enabled: true`
+- `hedge_mode_enabled: true`
+- `dca_enabled: true`
+- `kill_switch_disabled: true`
+- `mandatory_stop_disabled: true`
+
+**Response 200:**
+```json
+{
+  "ok": true,
+  "data": {
+    "config_version": 143,
+    "effective_at": "2026-05-24T12:00:00Z",
+    "diff": [{"path": "/max_position_notional", "from": "40000", "to": "50000"}],
+    "audit_ledger_id": "01HXY..."
+  }
+}
+```
+**Errors:** `412 APPROVAL_TOKEN_INVALID`, `412 APPROVAL_BODY_HASH_MISMATCH`, `412 CONC_CONFIG_VERSION_MISMATCH`, `423 LIVE_BLOCKED_FIELD`, `422 VAL_LIMIT_OUT_OF_RANGE`.
+
+### 2.9 `POST /v1/risk/kill-switch`
+**Request:** `{"reason": "string (10..1000)", "scope": "global|symbol|strategy", "scope_id?": "string"}`
+**Response 200:** `{"ok":true,"data":{"engaged":true,"engaged_at":"...","audit_ledger_id":"..."}}`
+**Errors:** `409 IDEM_KEY_REUSED_DIFFERENT_BODY`, `412 APPROVAL_TOKEN_INVALID`, `409 RISK_KS_ALREADY_ENGAGED`.
+
+### 2.10 `POST /v1/config/drafts/{id}/promote`
+**Headers:** `X-Idempotency-Key`, `X-Approval-Token`.
+**Request:** `{"effective_at?": "2026-05-24T12:00:00Z"}`
+**Response 200:** `{"ok":true,"data":{"config_version": 144, "promoted_at": "...", "audit_ledger_id": "..."}}`
+**Errors:** `412 APPROVAL_TOKEN_INVALID`, `409 CONFIG_DRAFT_STALE`, `422 CONFIG_DRAFT_INVALID`.
+
+### 2.11 `POST /v1/strategies/{id}/enable-live`
+**Always returns:**
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "LIVE_BLOCKED_GLOBAL",
+    "category": "live_blocked",
+    "message": "Live trading is globally blocked in current phase",
+    "http_status": 423,
+    "retryable": false,
+    "evidence": {
+      "config_pointer": "v2/config/system.yaml#live_trading_enabled",
+      "audit_ledger_id": "01HXY..."
+    }
+  }
+}
+```
+
+### 2.12 `POST /v1/trainer/adapter/call`
+**Request:**
+```json
+{
+  "operation": "status|export_features|export_predictions|export_checkpoint_meta",
+  "args?": {"since": "2026-05-24T00:00:00Z"},
+  "timeout_seconds": 30
+}
+```
+**Whitelist enforcement:** server rejects any `operation` not in the read-only enumeration (`422 VAL_OPERATION_NOT_ALLOWED`).
+**Response 200:**
+```json
+{
+  "ok": true,
+  "data": {
+    "subprocess_id": "ulid",
+    "exit_code": 0,
+    "stdout_pointer": "v2/artifacts/trainer_adapter/01HXY.stdout.ndjson",
+    "stderr_pointer": "v2/artifacts/trainer_adapter/01HXY.stderr.log",
+    "duration_ms": 1240,
+    "audit_ledger_id": "01HXY..."
+  }
+}
+```
+**Errors:** `502 LEGACY_SUBPROCESS_FAILED`, `504 LEGACY_SUBPROCESS_TIMEOUT`, `422 VAL_OPERATION_NOT_ALLOWED`.
+
+### 2.13 `POST /v1/replay/sessions`
+**Headers:** `X-Replay-Token` required.
+**Request:**
+```json
+{
+  "dataset_id": "ulid",
+  "from_ts": "2026-04-01T00:00:00Z",
+  "to_ts": "2026-04-02T00:00:00Z",
+  "speed": 1.0,
+  "strategy_ids": ["ulid"]
+}
+```
+**Response 201:** `{"ok":true,"data":{"session_id":"ulid","status":"running","started_at":"..."}}`
+**Errors:** `422 REPLAY_DATASET_UNAVAILABLE`, `412 REPLAY_TOKEN_INVALID`, `409 REPLAY_SESSION_LIMIT`.
+
+### 2.14 `GET /v1/audit/export`
+**Query:** `from`, `to` (RFC 3339, ≤ 7 days span), `format=ndjson|csv`.
+**Response 200:** `Content-Type: application/x-ndjson`; streamed; each line:
+```json
+{"id":"...","ts":"...","actor":"...","route":"...","action":"...","subject":"...","before_sha256":"...","after_sha256":"...","prev_hash":"...","hash":"..."}
+```
+**Errors:** `422 VAL_RANGE_TOO_WIDE`, `403 AUTH_ROLE_INSUFFICIENT`.
+
+### 2.15 `GET (SSE) /v1/stream/predictions`
+**Query:** `?symbol=BTCUSDT&since=opaque-cursor`
+**Event format:**
+```
+id: 01HXY...
+event: prediction
+data: {"id":"...","ts_ms":1748083200123,"symbol":"BTCUSDT","confidence":0.88,...}
+```
+**Heartbeat:** `event: heartbeat` every 15s.
+**Backpressure:** server drops oldest with `event: dropped` notice (counts in payload).
+**Errors:** 401/403 close stream with terminal `event: error`.
+
+### 2.16 `WS /v1/ws/mission-control`
+**Subprotocol:** `v1.aibot.mission-control`
+**Client → Server messages:**
+```json
+{"type":"subscribe","topics":["incidents","trainer_status","risk_decisions"]}
+{"type":"unsubscribe","topics":["risk_decisions"]}
+{"type":"ping","ts":"..."}
+```
+**Server → Client:**
+```json
+{"type":"event","topic":"incidents","payload":{...}}
+{"type":"pong","ts":"..."}
+{"type":"error","code":"AUTH_EXPIRED","message":"..."}
+```
+
+---
+
+## 3. RBAC Matrix (Compact)
+
+| Resource group | viewer | operator | risk_approver | trainer_admin | strategy_admin | sys_admin | live_gatekeeper | audit |
+|---|---|---|---|---|---|---|---|---|
+| Health | R | R | R | R | R | R | R | R |
+| Mission Control | R | R+ack | R | R | R | R | R | R |
+| Monitors | R | R+run | R | R | R | R+admin | R | R |
+| Atlas | R | R | R | R | R | R | R | R |
+| Scripts | R | R | R | R | R | R+reclass | R | R |
+| Trainer status/preds | R | R | R | R | R | R | R | R |
+| Trainer checkpoints | — | — | co-sign | R+promote | — | — | — | R |
+| Signals | R | R | R | R | R | R | R | R |
+| Symbols | R | R | R | R | R | R | R | R |
+| Executions read | R | R | R | R | R | R | R | R |
+| Executions paper mutate | — | RW | — | — | — | RW | — | — |
+| Positions paper mutate | — | RW | — | — | — | RW | — | — |
+| Risk read | R | R | R | R | R | R | R | R |
+| Risk config write | — | — | co-sign | — | — | RW | — | — |
+| Kill switch | — | — | co-sign | — | — | RW | — | — |
+| Config read | R | R | R | R | R | R | R | R |
+| Config drafts | — | — | — | — | — | RW | — | — |
+| Config promote | — | — | — | — | — | RW (dual sys_admin) | — | — |
+| Strategy enable paper | — | — | — | — | RW | — | — | — |
+| Strategy enable live | — | — | co-sign | — | RW (with live_gatekeeper) | — | RW (with strategy_admin) | — |
+| Orchestrator pause/resume | — | — | — | — | — | RW | — | — |
+| Execution engine mode | — | — | co-sign | — | — | RW | — | — |
+| Paper sessions | — | RW | — | — | — | RW | — | — |
+| Replay sessions | — | RW | — | — | — | RW | — | RW |
+| Audit ledger | R | R | R | R | R | R | R | R+export |
+| Live readiness | R | R | R | R | R | R | R | R |
+| Claude tasks | — | — | — | — | — | RW | — | RW |
+| Ollama jobs | — | RW | — | — | — | RW | — | R |
+| Codex reviews | R | R | R | R | R | R+accept (co-sign) | R | R |
+
+`R`=read · `RW`=read+write · `—`=no access · `co-sign`=may issue approval token only
+
+---
+
+## 4. Idempotency, Concurrency, Approval — Operational Rules
+
+### 4.1 Idempotency
+- Required on every state-mutating route marked **Yes** in §1.
+- Server table: `v2.idempotency(key, principal_id, route, method, body_sha256, response_sha256, response_status, response_body, created_at)`.
+- Replay returns original response unchanged with header `X-Idempotent-Replay: true`.
+- Key format: ULID or UUIDv4 strings, max 64 chars.
+
+### 4.2 Optimistic Concurrency
+- Endpoints touching versioned resources (`/v1/risk/config`, `/v1/config/**`, `/v1/strategy/**` admin) require `X-Config-Version`.
+- Server compares against current; mismatch → `412 CONC_CONFIG_VERSION_MISMATCH` with `error.details.current_version`.
+
+### 4.3 Approval Tokens
+- Issued by **distinct** principal (self-approval forbidden: `412 APPROVAL_SELF_APPROVAL_FORBIDDEN`).
+- Bound to `(route, method, body_sha256)`.
+- Single-use, recorded in audit ledger.
+- TTL ≤ 600s.
+
+### 4.4 Live Blockade
+- Middleware order: AuthN → AuthZ → RateLimit → LiveBlockade → Idempotency → Handler.
+- LiveBlockade rejects ALL `LiveImpact: yes` routes that materially change live behavior; paper-only routes pass through (still wrapped for defense-in-depth check on `mode`).
+
+---
+
+## 5. Error Code Catalogue (Authoritative Enumeration)
+
+### 5.1 `AUTH_*`
+| Code | HTTP | Retry | Notes |
+|---|---|---|---|
+| `AUTH_INVALID_CREDENTIALS` | 401 | no | Generic, do not leak which |
+| `AUTH_MFA_REQUIRED` | 401 | no | Re-submit with `mfa_code` |
+| `AUTH_MFA_INVALID` | 401 | no | Wrong TOTP |
+| `AUTH_TOKEN_EXPIRED` | 401 | retry after refresh | |
+| `AUTH_TOKEN_INVALID` | 401 | no | |
+| `AUTH_ROLE_INSUFFICIENT` | 403 | no | Lists `required_roles` |
+| `AUTH_LOCKED` | 423 | no | Account lock |
+
+### 5.2 `VAL_*`
+| Code | HTTP | Notes |
+|---|---|---|
+| `VAL_SCHEMA` | 422 | JSONSchema failure; includes `details.errors[]` |
+| `VAL_FIELD_REQUIRED` | 422 | |
+| `VAL_FIELD_TYPE` | 422 | |
+| `VAL_QTY_OUT_OF_RANGE` | 422 | |
+| `VAL_LIMIT_OUT_OF_RANGE` | 422 | |
+| `VAL_OPERATION_NOT_ALLOWED` | 422 | Trainer adapter whitelist |
+| `VAL_RANGE_TOO_WIDE` | 422 | Audit export span |
+| `VAL_BODY_HASH_INVALID` | 422 | |
+
+### 5.3 `IDEM_*`
+| Code | HTTP |
+|---|---|
+| `IDEM_KEY_REQUIRED` | 400 |
+| `IDEM_KEY_INVALID` | 400 |
+| `IDEM_KEY_REUSED_DIFFERENT_BODY` | 409 |
+| `IDEM_KEY_PENDING` | 409 |
+
+### 5.4 `CONC_*`
+| `CONC_CONFIG_VERSION_MISMATCH` | 412 |
+| `CONC_RESOURCE_LOCKED` | 423 |
+
+### 5.5 `NF_*`
+| `NF_SIGNAL`, `NF_EXECUTION`, `NF_POSITION`, `NF_MONITOR`, `NF_SCRIPT`, `NF_CONFIG_VERSION`, `NF_STRATEGY`, `NF_CHECKPOINT`, `NF_AUDIT_ENTRY` | 404 |
+
+### 5.6 `RL_*`
+| `RL_DEFAULT`, `RL_AUTH`, `RL_STREAM_LIMIT` | 429 |
+
+### 5.7 `RISK_*`
+| `RISK_GATE_BLOCKED` | 423 | Blocked by gateway |
+| `RISK_KS_ENGAGED` | 423 | Kill switch engaged |
+| `RISK_KS_ALREADY_ENGAGED` | 409 | |
+| `RISK_FRESHNESS_STALE` | 424 | Features too old |
+
+### 5.8 `LIVE_BLOCKED_*`
+| `LIVE_BLOCKED_GLOBAL` | 423 |
+| `LIVE_BLOCKED_FIELD` | 423 |
+| `LIVE_BLOCKED_GATEKEEPER_NOT_ARMED` | 423 |
+
+### 5.9 `APPROVAL_*`
+| `APPROVAL_TOKEN_REQUIRED` | 412 |
+| `APPROVAL_TOKEN_INVALID` | 412 |
+| `APPROVAL_TOKEN_EXPIRED` | 412 |
+| `APPROVAL_BODY_HASH_MISMATCH` | 412 |
+| `APPROVAL_ROUTE_MISMATCH` | 412 |
+| `APPROVAL_SELF_APPROVAL_FORBIDDEN` | 412 |
+| `APPROVAL_ALREADY_USED` | 409 |
+
+### 5.10 `RT_*` / `DEP_*` / `EVID_*` / `LEGACY_*` / `OLLAMA_*` / `CODEX_*`
+| `RT_INTERNAL` | 500 | Unhandled exception (no stack to client) |
+| `RT_SHUTTING_DOWN` | 503 | |
+| `DEP_REDIS_DOWN` | 502 | |
+| `DEP_DB_DOWN` | 502 | |
+| `DEP_TIMEOUT` | 504 | |
+| `EVID_INCOMPLETE` | 424 | Evidence Integrity Rule violation; cannot serve |
+| `EVID_SIGNAL_MISSING` | 424 | |
+| `EVID_SCRIPT_NOT_REGISTERED` | 424 | |
+| `LEGACY_SUBPROCESS_FAILED` | 502 | |
+| `LEGACY_SUBPROCESS_TIMEOUT` | 504 | |
+| `LEGACY_ADAPTER_DISABLED` | 423 | |
+| `OLLAMA_UNAVAILABLE` | 502 | |
+| `OLLAMA_REJECTED` | 422 | |
+| `CODEX_GATE_PENDING` | 412 | |
+| `CODEX_FINDING_UNRESOLVED` | 424 | |
+
+---
+
+## 6. Contract Schema Deltas (vs. Prior Drafts)
+
+| # | Area | Prior State | New Contract | Rationale |
+|---|---|---|---|---|
+| Δ1 | Versioning | No `/v1` prefix enforced | All routes under `/api/v1` | Future deprecation path |
+| Δ2 | Envelopes | Inconsistent (some raw, some wrapped) | Mandatory `{ok,data,meta,error}` envelope on JSON | Uniform client handling |
+| Δ3 | Errors | String messages only | Structured `error.code` taxonomy + `evidence` block | Evidence Integrity Rule compliance |
+| Δ4 | Idempotency | Optional/undocumented | Required on enumerated mutations; 24h dedupe table | Replay safety |
+| Δ5 | Concurrency | No version handshake | `X-Config-Version` required for config/risk/strategy writes | Lost-update prevention |
+| Δ6 | Approval | Implicit single-actor | `X-Approval-Token` dual-control on sensitive routes | Admin Control Rule |
+| Δ7 | Live blockade | Per-route checks | Middleware enforces globally; route-level reasoning preserved | Defense in depth |
+| Δ8 | Trainer adapter | Free-form subprocess | Whitelisted `operation` enum, sandboxed args, artifact pointers | Protected Runtime Policy |
+| Δ9 | Streaming | Unspecified | SSE w/ heartbeat + WS multiplexed channel; cursors + backpressure | Mobile/PWA readiness |
+| Δ10 | Audit linkage | Optional | Every mutation response carries `meta.audit_ledger_id`; errors carry `evidence.audit_ledger_id` when applicable | Auditability mission goal |
+| Δ11 | RBAC roles | 3 roles | 9 roles incl. `audit`, `live_gatekeeper`, `risk_approver` | Separation of duties |
+| Δ12 | Replay isolation | Shared with paper paths | Requires `X-Replay-Token`; never mutates live or production Redis keys | Replay/Live confusion prevention |
+| Δ13 | Rate limiting | None documented | 6 named buckets with RFC headers | Stability + DoS mitigation |
+| Δ14 | Pagination | Offset-based | Cursor-based opaque tokens | Append-only ledgers |
+| Δ15 | Sensitive read | Same as default | `read_heavy` bucket + role gating for atlas/audit exports | Resource protection |
+| Δ16 | Mobile readiness | No specific contract | All endpoints CORS-safe, SSE/WS available, MFA enrol APIs present | Mobile/iPhone Future Rule |
+| Δ17 | Field forbidden in phase | Implicit | `LIVE_BLOCKED_FIELD` enumerated forbidden risk fields (CROSS, hedge, DCA, ks_disabled, etc.) | Default LIVE TRADING: BLOCKED |
+| Δ18 | Strategy enable-live | Existed | Hard-coded `423 LIVE_BLOCKED_GLOBAL` while phase active | Mythos compliance |
+| Δ19 | Signal explainability | Subset of fields | Full block (inputs, model_output, orchestrator, risk_gateway, evidence, missing_evidence) | Signal Explainability Rule |
+| Δ20 | Codex review acceptance | Single click | Co-signed approval + audit_ledger entry | Codex Review Gate |
+
+---
+
+## 7. Cross-Cutting Concerns
+
+### 7.1 Logging Per Request
+Every handler emits one structured log line:
+```
+ts, request_id, principal_id, route, method, status, latency_ms,
+idempotent_replay, config_version_in, config_version_out,
+risk_decision_id, audit_ledger_id, error_code, live_mode
+```
+
+### 7.2 Redis Key Discipline (V2-only)
+- All V2 writes go under `V2_REDIS_PREFIX` (default `v2:`).
+- Endpoints **must not** write outside that prefix; integration test enforces.
+- Reads from legacy prefix are allowed but tagged `legacy_read: true` in audit.
+
+### 7.3 Database Concurrency
+- `SERIALIZABLE` for config/risk/strategy mutation transactions.
+- `READ COMMITTED` elsewhere.
+- All mutation tx include ledger insert in same tx.
+
+### 7.4 Time Source
+- Server clock from monotonic NTP-disciplined source.
+- Endpoints accepting `effective_at` reject values > 24h in future or in the past (except replay).
+
+### 7.5 Size Limits
+| Body type | Max |
+|---|---|
+| Standard JSON request | 1 MiB |
+| Config draft body | 256 KiB |
+| Audit export response chunk | 4 MiB |
+| SSE message | 64 KiB |
+
+### 7.6 CORS
+- Default origins: `http://localhost:5173`, `http://127.0.0.1:5173`, `http://localhost:3000`, configured PWA origin.
+- Credentialed; `Authorization` allowed; SSE allowed.
+
+### 7.7 Security Headers
+`Strict-Transport-Security` (when TLS terminated), `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `Content-Security-Policy` configured by frontend, `Cache-Control: no-store` for mutation responses.
+
+---
+
+## 8. OpenAPI Generation Contract
+
+- Source of truth: `v2/api/openapi.yaml` to be generated to match this document.
+- Generator must enforce:
+  - Every operation has `operationId` matching `^[a-z][a-zA-Z0-9]+$`.
+  - Every operation lists at minimum one 4xx and one 5xx response.
+  - Every operation declares `security` referencing `bearerAuth` (except `/v1/health*`, `/v1/auth/login`, `/v1/auth/refresh`).
+  - `x-roles`, `x-rate-limit-bucket`, `x-idempotent`, `x-approval-required`, `x-live-impact` vendor extensions present.
+- CI gate: schema lint (spectral) + drift check (this doc ↔ openapi.yaml) MUST pass.
+
+---
+
+## 9. Test Coverage Requirements (Per Route)
+
+For each row in §1, the route is not considered contract-complete until the following tests exist under `v2/tests/api/`:
+1. **Happy path** (200/201/202/204-equivalent).
+2. **AuthN missing** → 401.
+3. **AuthZ missing** → 403.
+4. **Rate limited** → 429.
+5. **Validation failure** → 422.
+6. **Idempotency replay** (where applicable) → identical response + header.
+7. **Idempotency conflict** (where applicable) → 409.
+8. **Concurrency mismatch** (where applicable) → 412.
+9. **Approval missing/invalid** (where applicable) → 412.
+10. **Live blockade trigger** (where `LiveImpact: yes`) → 423.
+11. **Evidence missing** (where claims served) → 424.
+12. **Audit ledger entry assertion** (every mutation).
+
+Coverage roll-up exposed at `/v1/build/status` → `data.api_contract_coverage_pct` must reach 100% before V2_API_CONTRACT_READY gate.
+
+---
+
+## 10. Open Items (Tracked, Not Blockers Here)
+
+1. SSE → WS migration policy if PWA push notifications adopted (Mobile Rule).
+2. Federated multi-operator approval (currently single co-sign).
+3. Field-level access for `viewer` on signal `model_output.raw_logits` (privacy/IP question).
+4. Audit export signing key rotation cadence.
+5. Streaming compression (`zstd`/`gzip`) negotiation header.
+
+These do not block the API Contract Remediation closure; they are tracked for Phase 3 contract addenda.
+
+---
+
+## 11. Closure Statement
+
+This document defines for every public V2 API endpoint:
+- HTTP method + path
+- Required and optional request schema
+- Success response schema + status code
+- Error code taxonomy with HTTP status, retryability, and evidence pointers
+- Idempotency requirement and semantics
+- Concurrency handshake (where applicable)
+- Approval/co-sign requirement (where applicable)
+- RBAC role matrix (per-resource and compact)
+- Rate limit bucket
+- Live-trading blockade behavior
+- Audit ledger linkage
+- Per-route test coverage requirement
+
+With this in place, the architecture blocker "**API endpoints lack method/path/request/response/error/idempotency/RBAC contracts**" is **CLOSED for remediation**.
+
+Implementation of the routes is out of scope for this document and must occur under §0–§7 and §9, validated by Codex review at the next gate (`V2_API_CONTRACT_READY`).
+
+END_FILE: claude_worklog/v2_architecture_remediation/04_API_CONTRACT_REMEDIATION.md
+BEGIN_FILE: claude_worklog/v2_architecture_remediation/04_API_CONTRACT_REMEDIATION.md
+# 04 — API Contract Remediation
+
+**Scope:** Close the API-contract blocker raised in `claude_worklog/agent_supervisor/tasks/004_fix_api_contract_architecture.json`. Define concrete request/response/error/idempotency/RBAC contracts for every V2 API surface so that the FastAPI scaffold, the SPA, the Risk Gateway, and the Audit Ledger share one source of truth.
+
+**Status:** ARCHITECTURE REMEDIATION — no V2 code is produced from this document. V2 remains paper/read-only. Live trading remains BLOCKED.
+
+**Authoritative refs:**
+- `requirements/v2_api_surface_inventory.md` (route inventory)
+- `claude_worklog/agent_supervisor/tasks/004_fix_api_contract_architecture.json` (blocker)
+- `claude_worklog/v2_architecture_remediation/03_RISK_GATEWAY_REMEDIATION.md` (risk-gateway decision contract)
+- `legacy_reference/` (read-only legacy payload shapes used as evidence)
+
+---
+
+## 1. Contract Principles (binding)
+
+1. **One spec, two consumers.** Every endpoint is defined here once; the FastAPI route handler and the SPA typed client must both import the same Pydantic / TypeScript model. No ad-hoc dict responses.
+2. **Envelope is mandatory.** All JSON responses (success or error) use the envelope in §2. No bare arrays, no bare scalars at the top level. Streaming endpoints (SSE/WebSocket) use the frame schema in §11.
+3. **Idempotency is explicit.** Every state-mutating endpoint declares one of: `idempotent_by_design`, `idempotency_key_required`, or `non_idempotent_requires_approval`. Non-idempotent endpoints without approval are forbidden.
+4. **RBAC is per-endpoint.** Every endpoint declares one role from the matrix in §4. No "open" endpoints. Anonymous read is forbidden in V2.
+5. **Risk-gating is centralized.** No endpoint executes a trading-shaped action by itself; it must call the Risk Gateway and return the gateway decision verbatim (see §6).
+6. **Audit on every write.** Every state-mutating endpoint emits exactly one `audit_ledger` row with the envelope's `request_id` as the correlation key. Endpoints that fail to audit MUST fail closed.
+7. **Live actions stay blocked.** Any contract that touches live order placement, leverage change, margin-mode change, API-key install, or kill-switch disable carries `live_blocked: true` and returns `423 LIVE_BLOCKED` until the dual-approval ceremony lands in a later phase.
+8. **Schema evolution.** Breaking changes require a new path segment (`/v2/...` → `/v3/...`) or a new field name; never silently change a field's type. Additive optional fields are allowed.
+
+---
+
+## 2. Response Envelope (binding)
+
+```jsonc
+{
+  "ok": true,
+  "request_id": "req_01HXYZ...",          // ULID; mirrors X-Request-ID
+  "issued_at": "2026-05-24T18:42:11.913Z",// RFC3339 UTC, ms precision
+  "schema_version": "v2.1",               // semver-ish; bump on additive change
+  "data": { /* endpoint-specific payload, object only */ },
+  "warnings": [ /* optional, see §3 */ ],
+  "meta": {                               // optional, transport-level facts
+    "page": { "cursor_next": null, "cursor_prev": null, "count": 42 },
+    "trace": { "trace_id": "...", "span_id": "..." },
+    "rate_limit": { "remaining": 117, "reset_at": "2026-05-24T18:43:00Z" }
+  }
+}
+```
+
+**Error envelope** (used for any non-2xx):
+
+```jsonc
+{
+  "ok": false,
+  "request_id": "req_01HXYZ...",
+  "issued_at": "2026-05-24T18:42:11.913Z",
+  "schema_version": "v2.1",
+  "error": {
+    "code": "RISK_BLOCKED",               // enum, see §3
+    "http_status": 409,
+    "message": "Risk gateway rejected the proposal.",
+    "details": { /* code-specific machine-readable payload */ },
+    "retryable": false,
+    "retry_after_ms": null,
+    "evidence": {                         // points at raw audit row
+      "audit_ledger_id": "aud_01HXYZ...",
+      "redis_key": null,
+      "log_pointer": null
+    }
+  }
+}
+```
+
+**Headers (request):**
+- `X-Request-ID` — optional ULID; server generates if absent and echoes in envelope and response header.
+- `Idempotency-Key` — required on POST/PUT/PATCH/DELETE for any endpoint flagged `idempotency_key_required` in §4. ULID, 26 chars; server caches result for 24h keyed by `(role, route, key)`.
+- `X-Approval-Token` — required on endpoints flagged `non_idempotent_requires_approval`. Issued by the dual-approval ceremony; single-use.
+- `Authorization: Bearer <session_jwt>` — required on every endpoint.
+- `X-Schema-Version` — optional; if set, server may reject with `SCHEMA_VERSION_MISMATCH` if minor incompatible.
+
+**Headers (response):**
+- `X-Request-ID`, `X-Schema-Version`, `X-Idempotency-Replayed: true|false`, `Retry-After` (when applicable).
+
+---
+
+## 3. Canonical Error Codes (binding enum)
+
+| Code | HTTP | Meaning | Retryable | Notes |
+|---|---|---|---|---|
+| `OK` | 200/201/202/204 | Success | n/a | Never appears in error block. |
+| `BAD_REQUEST` | 400 | Schema / parse failure | no | `details.validation_errors[]` per Pydantic. |
+| `UNAUTHENTICATED` | 401 | Missing/invalid token | no | |
+| `FORBIDDEN_RBAC` | 403 | Role lacks permission | no | `details.required_role`. |
+| `NOT_FOUND` | 404 | Resource missing | no | |
+| `CONFLICT_STATE` | 409 | Resource in incompatible state | sometimes | `details.observed_state`. |
+| `RISK_BLOCKED` | 409 | Risk Gateway denied | no | `details.gateway_decision` per §6. |
+| `IDEMPOTENCY_REPLAY_MISMATCH` | 409 | Same key, different body | no | |
+| `PRECONDITION_FAILED` | 412 | If-Match/version mismatch | no | |
+| `RATE_LIMITED` | 429 | Per-role bucket exhausted | yes | `retry_after_ms` set. |
+| `LIVE_BLOCKED` | 423 | Live ops disabled in V2 | no | All live-action endpoints. |
+| `APPROVAL_REQUIRED` | 428 | Needs dual-approval token | no | `details.approval_ceremony`. |
+| `LEGACY_ADAPTER_TIMEOUT` | 504 | Subprocess call to legacy trainer timed out | yes | |
+| `LEGACY_ADAPTER_UNAVAILABLE` | 503 | Trainer venv / process missing | yes | |
+| `DEPENDENCY_UNAVAILABLE` | 503 | Redis/DB down | yes | |
+| `SCHEMA_VERSION_MISMATCH` | 426 | Client wants version server cannot serve | no | |
+| `INTERNAL_ERROR` | 500 | Unhandled; audited as `unsafe_unknown` | yes (idempotent only) | |
+
+**Warning codes** (non-fatal, attached to a successful response):
+`STALE_FEATURE_SNAPSHOT`, `STALE_PREDICTION`, `LEGACY_ADAPTER_DEGRADED`, `OLLAMA_DEGRADED`, `CODEX_REVIEW_PENDING`, `MONITOR_GAP_DETECTED`.
+
+---
+
+## 4. RBAC Matrix (binding)
+
+Roles, in increasing privilege:
+
+| Role | Description |
+|---|---|
+| `viewer` | Read-only dashboards and ledgers. |
+| `operator` | Paper/replay control, monitor toggles, non-trading admin edits. |
+| `risk_admin` | Risk-config edits, kill-switch arm/disarm in paper, approval ceremony participant. |
+| `strategy_admin` | Strategy/trainer admin, checkpoint promotion (paper-only), config Admin writes. |
+| `system_admin` | Service restarts (V2 only), build/validation toggles, infra config. |
+| `live_admin` | Holds half of dual-approval for any live-shaped action; cannot act alone. |
+| `claude_supervisor` | Claude Admin AI surface; same authority as `operator` plus AI-channel writes. |
+| `service_account` | Internal service-to-service (Risk Gateway, Audit Ledger, Trainer adapter). Never granted to humans. |
+
+**Per-endpoint role assignment** is fixed in §7–§10 ("RBAC" column). Endpoints that touch live actions list **both** `risk_admin` and `live_admin` and require `X-Approval-Token`.
+
+**Default deny.** A role not listed in the endpoint's RBAC row receives `FORBIDDEN_RBAC`.
+
+---
+
+## 5. Idempotency Classes (binding)
+
+| Class | Definition | Examples |
+|---|---|---|
+| `idempotent_by_design` | GET, HEAD, OPTIONS, or write where repeated identical call yields identical resource state. | `GET /signals/{id}`, `PUT /config/strategy/{name}` (full-document upsert) |
+| `idempotency_key_required` | Mutating call where natural identity is insufficient; client must provide `Idempotency-Key`. Server caches `(role, route, key) → response` for 24h. Replays return cached body with `X-Idempotency-Replayed: true`. | `POST /paper/orders`, `POST /replay/runs`, `POST /codex/reviews` |
+| `non_idempotent_requires_approval` | Sensitive action; requires single-use `X-Approval-Token` from ceremony. Token consumption is itself idempotent. | All live-shaped endpoints (currently all return `LIVE_BLOCKED`). |
+| `internal_event_replay_safe` | Service-account-only ingest endpoints whose payloads carry a server-side dedupe key (e.g. event hash). | `POST /internal/trainer-events` |
+
+**Idempotency replay mismatch:** if `(role, route, key)` is reused with a different body hash, return `IDEMPOTENCY_REPLAY_MISMATCH`.
+
+---
+
+## 6. Risk-Gating Contract (binding for all action endpoints)
+
+Any endpoint that proposes an action (paper order, strategy enable, kill-switch toggle, leverage change, etc.) MUST:
+
+1. Build a `RiskProposal` (schema below) from validated input.
+2. POST it to the in-process Risk Gateway (not over HTTP, not over Redis).
+3. Receive a `RiskDecision`.
+4. If `decision == "allow"`, hand `(proposal, decision)` to the Execution Engine (or paper adapter), capture `ExecutionResult`, audit `(proposal, decision, result)`, return success envelope.
+5. If `decision == "deny"`, audit `(proposal, decision)`, return error envelope with `code = RISK_BLOCKED`, `details.gateway_decision = decision`.
+6. Never bypass. Never override. Never re-shape the decision before returning it.
+
+```jsonc
+// RiskProposal
+{
+  "proposal_id": "prop_01HXYZ...",        // ULID
+  "actor": { "user_id": "...", "role": "operator" },
+  "intent": "paper_order|enable_strategy|toggle_killswitch|...",
+  "symbol": "BTCUSDT|null",
+  "side": "buy|sell|null",
+  "quantity": "decimal-string|null",
+  "leverage": "int|null",
+  "margin_mode": "ISOLATED|CROSS|null",
+  "config_version_id": "cfg_...",
+  "feature_snapshot_id": "feat_...|null",
+  "prediction_id": "pred_...|null",
+  "requested_at": "2026-05-24T18:42:11.913Z"
+}
+
+// RiskDecision
+{
+  "decision": "allow|deny",
+  "reason_code": "OK|MAX_POSITION|DAILY_LOSS|KILLSWITCH_ARMED|...",
+  "reason_human": "string",
+  "evaluated_rules": [
+    { "rule_id": "...", "result": "pass|fail|skip", "evidence_ref": "..." }
+  ],
+  "decided_at": "2026-05-24T18:42:11.917Z",
+  "audit_ledger_id": "aud_01HXYZ..."
+}
+```
+
+---
+
+## 7. Endpoint Matrix — Read Surfaces
+
+| # | Method | Path | Purpose | Request | Response data | RBAC | Idempotency | Live-blocked | Audited |
+|---|---|---|---|---|---|---|---|---|---|
+| R1 | GET | `/v2/health` | Liveness | — | `{ status, deps:{redis,db,legacy_adapter}, build_id }` | `viewer+` | `idempotent_by_design` | no | no |
+| R2 | GET | `/v2/mission-control/summary` | Mission Control top tiles | `?since=ISO` | `MissionControlSummary` (§9) | `viewer+` | `idempotent_by_design` | no | no |
+| R3 | GET | `/v2/monitors` | Monitor inventory | `?status&owner&cursor` | `Page<Monitor>` | `viewer+` | `idempotent_by_design` | no | no |
+| R4 | GET | `/v2/monitors/{id}` | Single monitor detail | path id | `MonitorDetail` | `viewer+` | `idempotent_by_design` | no | no |
+| R5 | GET | `/v2/coverage/atlas` | Coverage / System Atlas | `?phase` | `CoverageAtlas` | `viewer+` | `idempotent_by_design` | no | no |
+| R6 | GET | `/v2/scripts` | Script Registry | filters | `Page<ScriptEntry>` | `viewer+` | `idempotent_by_design` | no | no |
+| R7 | GET | `/v2/trainer/predictions` | Trainer prediction stream snapshot | `?symbol&since` | `Page<Prediction>` | `viewer+` | `idempotent_by_design` | no | no |
+| R8 | GET | `/v2/signals` | Signals list | filters | `Page<Signal>` | `viewer+` | `idempotent_by_design` | no | no |
+| R9 | GET | `/v2/signals/{id}/explainability` | Signal Explainability | path id | `SignalExplainability` (§9) | `viewer+` | `idempotent_by_design` | no | no |
+| R10 | GET | `/v2/symbols` | Symbol universe | filters | `Page<SymbolEntry>` | `viewer+` | `idempotent_by_design` | no | no |
+| R11 | GET | `/v2/executions` | Executions ledger | filters | `Page<Execution>` | `viewer+` | `idempotent_by_design` | no | no |
+| R12 | GET | `/v2/positions` | Positions (paper) | filters | `Page<Position>` | `viewer+` | `idempotent_by_design` | no | no |
+| R13 | GET | `/v2/risk/status` | Risk gateway status | — | `RiskGatewayStatus` | `viewer+` | `idempotent_by_design` | no | no |
+| R14 | GET | `/v2/audit-ledger` | Audit ledger query | filters | `Page<AuditRow>` | `viewer+` | `idempotent_by_design` | no | no |
+| R15 | GET | `/v2/system/health` | System Health page | — | `SystemHealth` | `viewer+` | `idempotent_by_design` | no | no |
+| R16 | GET | `/v2/live-readiness` | Live Readiness checklist | — | `LiveReadiness` | `viewer+` | `idempotent_by_design` | no | no |
+| R17 | GET | `/v2/build/status` | Build/Validation Status | — | `BuildStatus` | `viewer+` | `idempotent_by_design` | no | no |
+| R18 | GET | `/v2/codex/reviews` | Codex Review list | filters | `Page<CodexReview>` | `viewer+` | `idempotent_by_design` | no | no |
+| R19 | GET | `/v2/codex/reviews/{id}` | Codex review detail | path | `CodexReviewDetail` | `viewer+` | `idempotent_by_design` | no | no |
+| R20 | GET | `/v2/ollama/jobs` | Ollama assistant jobs | filters | `Page<OllamaJob>` | `viewer+` | `idempotent_by_design` | no | no |
+| R21 | GET | `/v2/replay/runs` | Replay run list | filters | `Page<ReplayRun>` | `viewer+` | `idempotent_by_design` | no | no |
+| R22 | GET | `/v2/replay/runs/{id}` | Replay run detail | path | `ReplayRunDetail` | `viewer+` | `idempotent_by_design` | no | no |
+| R23 | GET | `/v2/paper/portfolio` | Paper portfolio snapshot | — | `PaperPortfolio` | `viewer+` | `idempotent_by_design` | no | no |
+| R24 | GET | `/v2/admin/config/{namespace}` | Read versioned config | path | `ConfigDocument` | `operator+` | `idempotent_by_design` | no | no |
+| R25 | GET | `/v2/admin/config/{namespace}/history` | Config history | path | `Page<ConfigVersion>` | `operator+` | `idempotent_by_design` | no | no |
+| R26 | GET | `/v2/mobile/readiness` | Mobile/iPhone Readiness | — | `MobileReadiness` | `viewer+` | `idempotent_by_design` | no | no |
+
+---
+
+## 8. Endpoint Matrix — Write Surfaces
+
+| # | Method | Path | Purpose | Request | Response data | RBAC | Idempotency | Live-blocked | Audited |
+|---|---|---|---|---|---|---|---|---|---|
+| W1 | POST | `/v2/paper/orders` | Submit paper order via Risk Gateway | `PaperOrderRequest` | `PaperOrderAck` | `operator`, `strategy_admin` | `idempotency_key_required` | no | yes |
+| W2 | POST | `/v2/paper/orders/{id}/cancel` | Cancel paper order | path | `PaperOrderAck` | `operator+` | `idempotent_by_design` (cancel of cancelled = OK) | no | yes |
+| W3 | POST | `/v2/replay/runs` | Start replay | `ReplayRunRequest` | `ReplayRunAck` | `operator+` | `idempotency_key_required` | no | yes |
+| W4 | POST | `/v2/replay/runs/{id}/stop` | Stop replay | path | `ReplayRunAck` | `operator+` | `idempotent_by_design` | no | yes |
+| W5 | POST | `/v2/monitors/{id}/toggle` | Enable/disable monitor | `{ enabled }` | `Monitor` | `operator+` | `idempotent_by_design` | no | yes |
+| W6 | PUT | `/v2/admin/config/{namespace}` | Upsert config doc | `ConfigDocument` (with `if_match` version) | `ConfigDocument` | `strategy_admin` or `risk_admin` per namespace ACL | `idempotent_by_design` (full doc) | partial — see §8.1 | yes |
+| W7 | POST | `/v2/admin/config/{namespace}/rollback` | Roll back to prior version | `{ to_version }` | `ConfigDocument` | `strategy_admin` or `risk_admin` | `idempotency_key_required` | partial | yes |
+| W8 | POST | `/v2/strategies/{name}/enable` | Enable strategy (paper) | — | `StrategyState` | `strategy_admin` | `idempotent_by_design` | no | yes |
+| W9 | POST | `/v2/strategies/{name}/disable` | Disable strategy | — | `StrategyState` | `strategy_admin` | `idempotent_by_design` | no | yes |
+| W10 | POST | `/v2/trainer/checkpoints/{id}/promote-paper` | Promote checkpoint into paper trainer slot | — | `CheckpointState` | `strategy_admin` | `idempotency_key_required` | no | yes |
+| W11 | POST | `/v2/risk/killswitch/arm` | Arm kill-switch (paper) | `{ scope }` | `KillSwitchState` | `risk_admin` | `idempotent_by_design` | no | yes |
+| W12 | POST | `/v2/risk/killswitch/disarm` | Disarm kill-switch | `{ scope }` | `KillSwitchState` | `risk_admin` | `non_idempotent_requires_approval` | no | yes |
+| W13 | POST | `/v2/codex/reviews` | Request Codex review | `CodexReviewRequest` | `CodexReviewAck` | `operator+` | `idempotency_key_required` | no | yes |
+| W14 | POST | `/v2/codex/reviews/{id}/decision` | Record reviewer decision | `{ verdict, notes }` | `CodexReview` | `risk_admin` or `strategy_admin` | `idempotent_by_design` | no | yes |
+| W15 | POST | `/v2/ollama/jobs` | Submit Ollama summary job | `OllamaJobRequest` | `OllamaJobAck` | `operator+` | `idempotency_key_required` | no | yes |
+| W16 | POST | `/v2/claude/messages` | Claude Admin AI message | `ClaudeMessageRequest` | `ClaudeMessageAck` | `claude_supervisor` | `idempotency_key_required` | no | yes |
+| W17 | POST | `/v2/live/orders` | **Live order** | `LiveOrderRequest` | — | `risk_admin` + `live_admin` | `non_idempotent_requires_approval` | **YES — returns `LIVE_BLOCKED`** | yes |
+| W18 | POST | `/v2/live/leverage` | **Change leverage** | `LeverageRequest` | — | `risk_admin` + `live_admin` | `non_idempotent_requires_approval` | **YES** | yes |
+| W19 | POST | `/v2/live/margin-mode` | **Change margin mode** | `MarginModeRequest` | — | `risk_admin` + `live_admin` | `non_idempotent_requires_approval` | **YES** | yes |
+| W20 | POST | `/v2/live/api-keys` | **Install live API keys** | `ApiKeyRequest` | — | `system_admin` + `live_admin` | `non_idempotent_requires_approval` | **YES** | yes |
+| W21 | POST | `/v2/live/enable` | **Flip LIVE flag** | — | — | `risk_admin` + `live_admin` + `system_admin` | `non_idempotent_requires_approval` | **YES** | yes |
+| W22 | POST | `/v2/internal/trainer-events` | Trainer subprocess event ingest | `TrainerEvent` | `{ accepted, dedupe_key }` | `service_account` | `internal_event_replay_safe` | no | yes |
+| W23 | POST | `/v2/internal/risk-decisions` | Risk Gateway decision ingest (for ledger) | `RiskDecision` | `{ audit_ledger_id }` | `service_account` | `internal_event_replay_safe` | no | yes |
+
+### 8.1 "Partial live-blocked" for config namespaces
+
+`PUT /v2/admin/config/{namespace}` is paper-safe for most namespaces but **returns `LIVE_BLOCKED`** when `namespace` is one of:
+`risk.live`, `exchange.api_keys`, `execution.live`, `leverage.live`, `kill_switch.live_override`, `margin_mode.live`. These can only change via the approval ceremony (W21-class), never via a direct config upsert.
+
+---
+
+## 9. Core Payload Schemas (deltas vs. scaffold)
+
+Below are the contract-level schemas the scaffold must adopt. They replace any `Dict[str, Any]` placeholders currently in the FastAPI scaffold and the SPA's `apiClient`.
+
+```python
+# common.py
+class Envelope(BaseModel, Generic[T]):
+    ok: Literal[True]
+    request_id: str
+    issued_at: datetime
+    schema_version: Literal["v2.1"]
+    data: T
+    warnings: list[Warning] = []
+    meta: Meta | None = None
+
+class Warning(BaseModel):
+    code: WarningCode
+    message: str
+    details: dict[str, Any] = {}
+
+class ErrorEnvelope(BaseModel):
+    ok: Literal[False]
+    request_id: str
+    issued_at: datetime
+    schema_version: Literal["v2.1"]
+    error: ErrorObject
+
+class ErrorObject(BaseModel):
+    code: ErrorCode
+    http_status: int
+    message: str
+    details: dict[str, Any] = {}
+    retryable: bool
+    retry_after_ms: int | None
+    evidence: EvidenceRef
+
+class EvidenceRef(BaseModel):
+    audit_ledger_id: str | None
+    redis_key: str | None
+    log_pointer: str | None
+```
+
+```python
+# mission_control.py
+class MissionControlSummary(BaseModel):
+    mode: Literal["paper", "replay", "read_only"]
+    live_blocked: Literal[True]              # constant in V2
+    legacy_adapter: AdapterStatus
+    redis: DependencyStatus
+    db: DependencyStatus
+    monitors: MonitorsSummary
+    trainer: TrainerSummary
+    risk_gateway: RiskGatewaySummary
+    last_signal: SignalSummary | None
+    last_execution: ExecutionSummary | None
+    coverage: CoverageSummary
+    build: BuildSummary
+```
+
+```python
+# signal_explainability.py
+class SignalExplainability(BaseModel):
+    signal_id: str
+    symbol: str
+    issued_at: datetime
+    model_version: str
+    checkpoint_id: str
+    config_version_id: str
+    feature_snapshot: FeatureSnapshotRef         # id + freshness_ms + missing[]
+    raw_model_output: RawModelOutput             # logits/probas + shape
+    confidence: ConfidenceBreakdown              # calibrated + raw + buckets
+    orchestrator_reason: OrchestratorReason
+    risk_gateway_reason: RiskDecision            # see §6
+    redis_refs: list[RedisRef]
+    db_refs: list[DbRef]
+    log_refs: list[LogRef]
+    missing_evidence: list[MissingEvidence]      # MUST be empty for "verified"
+```
+
+```python
+# paper_order.py
+class PaperOrderRequest(BaseModel):
+    symbol: str
+    side: Literal["buy", "sell"]
+    quantity: Decimal                            # string in JSON
+    order_type: Literal["market", "limit"]
+    limit_price: Decimal | None
+    time_in_force: Literal["GTC", "IOC", "FOK"] = "GTC"
+    strategy_id: str
+    config_version_id: str
+    feature_snapshot_id: str | None
+    prediction_id: str | None
+    client_note: str | None
+
+class PaperOrderAck(BaseModel):
+    order_id: str
+    state: Literal["accepted", "filled", "partially_filled", "rejected", "cancelled"]
+    risk_decision: RiskDecision                  # always present
+    fills: list[Fill] = []
+    audit_ledger_id: str
+```
+
+```python
+# config_admin.py
+class ConfigDocument(BaseModel):
+    namespace: str
+    version_id: str                              # monotonic ULID
+    if_match: str | None                         # required on PUT
+    payload: dict[str, Any]                      # validated by namespace schema
+    schema_id: str                               # ref to JSON Schema doc
+    authored_by: ActorRef
+    authored_at: datetime
+    paper_safe: bool                             # false ⇒ §8.1 path
+```
+
+```python
+# audit_ledger.py
+class AuditRow(BaseModel):
+    audit_ledger_id: str
+    request_id: str
+    actor: ActorRef
+    route: str
+    intent: str
+    proposal: RiskProposal | None
+    decision: RiskDecision | None
+    result: dict[str, Any] | None
+    evidence: EvidenceRef
+    created_at: datetime
+```
+
+TypeScript mirrors are generated from these via `openapi-typescript` and committed under `v2/web/src/generated/api/`. The SPA's `apiClient` is forbidden from inlining any of these shapes.
+
+---
+
+## 10. Endpoint-Level Contract Deltas vs. Current Scaffold
+
+The following table records the **delta** between the current scaffold (per `requirements/v2_api_surface_inventory.md` and the 015c skeleton) and the binding contracts in this document. The scaffold is not patched here; this is the punch list for a follow-up task.
+
+| Endpoint | Current scaffold issue | Required change |
+|---|---|---|
+| All routes | Returns bare object or `{ "data": ... }` ad-hoc | Wrap in §2 envelope; add `request_id`, `issued_at`, `schema_version`. |
+| All routes | No `X-Request-ID` echo | Add middleware: accept or mint ULID, propagate, echo header + body. |
+| Error paths | Mixed 500 / FastAPI default | Replace with `ErrorEnvelope` + canonical `ErrorCode`. |
+| `POST /v2/paper/orders` | Skips Risk Gateway; returns mock fill | Build `RiskProposal`, call gateway, return `RiskDecision` in `PaperOrderAck`. |
+| `POST /v2/risk/killswitch/*` | No approval token wiring | `disarm` must require `X-Approval-Token`; arm is `idempotent_by_design`. |
+| `PUT /v2/admin/config/{namespace}` | Accepts any namespace | Enforce §8.1 live-blocked namespace list. |
+| `POST /v2/codex/reviews` | No idempotency key | Require `Idempotency-Key`; cache 24h. |
+| `POST /v2/internal/trainer-events` | Open ingest | Restrict to `service_account`; dedupe by `event_hash`. |
+| `GET /v2/signals/{id}/explainability` | Returns partial fields | Must return all §9 `SignalExplainability` fields or `MISSING_EVIDENCE` warning per field. |
+| Live endpoints (W17–W21) | Some return 501; some 500 | All must return `423 LIVE_BLOCKED` with `details.approval_ceremony` describing how to unblock in a future phase. |
+| All write endpoints | Audit row written best-effort | Audit write must be in same transaction as state change; if audit fails, state change is rolled back; endpoint returns `INTERNAL_ERROR` with `evidence.audit_ledger_id = null`. |
+| Pagination | Mixed (offset/limit, no cursor) | Standardize on cursor pagination via `meta.page.cursor_next/cursor_prev`. Offset-only endpoints (e.g. R5 atlas) are exempt and must document. |
+| Streaming | Mission Control SSE uses bare JSON lines | Adopt §11 frame schema. |
+| CORS / auth | Some routes mounted without auth dependency | Apply `Depends(require_role(...))` to every route; remove "open" defaults. |
+
+---
+
+## 11. Streaming Contract (SSE / WebSocket)
+
+Used by Monitor Center live tiles, trainer prediction stream, audit ledger tail.
+
+**SSE event frame:**
+```jsonc
+{
+  "stream": "monitor.tiles|trainer.predictions|audit.tail|...",
+  "frame_id": "frm_01HXYZ...",                  // monotonic ULID per stream
+  "issued_at": "2026-05-24T18:42:11.913Z",
+  "schema_version": "v2.1",
+  "kind": "snapshot|delta|heartbeat|error|terminal",
+  "data": { /* stream-specific */ },
+  "checkpoint_token": "ckpt_..."                // client resumes via ?since=
+}
+```
+
+Rules:
+- First frame after connect is always `snapshot`; subsequent are `delta`.
+- `heartbeat` every 15s when idle. Missing heartbeat ⇒ client must reconnect with `checkpoint_token`.
+- `error` frames carry `ErrorObject` from §2 and are followed by `terminal`.
+- WebSocket frames use the same JSON envelope; binary frames are not used in V2.
+
+---
+
+## 12. Versioning, Compatibility, and Deprecation
+
+- **Path prefix** `/v2/...` is locked for this contract generation. Any breaking change requires `/v3/...`.
+- **Schema version** in envelope and `X-Schema-Version` header. Minor bumps (additive fields, new optional query params) keep `v2.x`. Breaking → `v3.0`.
+- **Deprecation policy:** an endpoint may be marked deprecated by setting `meta.deprecation = { sunset_at, replacement_path }`. The SPA must surface this in the Build/Validation page.
+- **Replay safety:** when the scaffold is later patched to match these contracts, integration tests must replay a snapshot of recorded request/response pairs and confirm bytewise equality of `data`, `error.code`, and `meta.page`.
+
+---
+
+## 13. Test & Verification Plan (binding for the follow-up implementation task)
+
+To declare this remediation "landed" in a future build task, the following must hold; each item names the raw evidence source per the Evidence Integrity Rule.
+
+1. **Envelope conformance.** Run `tools/api_contract_check.py` against a running V2 paper instance. Every route in §7–§8 returns the §2 envelope. Evidence: tool output JSON committed to `claude_worklog/v2_architecture_remediation/04_envelope_check_<run_id>.json`.
+2. **Schema generation.** `openapi-typescript v2/openapi.json -o v2/web/src/generated/api/index.d.ts` runs clean; SPA build passes type-check. Evidence: build log path.
+3. **RBAC matrix.** For each endpoint, a contract test asserts 403 for every disallowed role. Evidence: pytest report path.
+4. **Idempotency.** For each `idempotency_key_required` endpoint, a test replays the same key with the same body (expect cached response with `X-Idempotency-Replayed: true`) and with a different body (expect `IDEMPOTENCY_REPLAY_MISMATCH`). Evidence: pytest report path.
+5. **Risk-gating.** For each W-row that touches an action, a test asserts the endpoint refuses to act when the gateway is mocked to `deny`, and returns the gateway's `RiskDecision` verbatim. Evidence: pytest report path.
+6. **Live-block.** Endpoints W17–W21 and the §8.1 namespaces return `423 LIVE_BLOCKED` for every authorized role combination until the approval ceremony exists. Evidence: pytest report path.
+7. **Audit transactionality.** Forcing the audit write to fail (fault injection) must roll back the state change and surface `INTERNAL_ERROR` with `evidence.audit_ledger_id = null`. Evidence: pytest report path.
+8. **Streaming.** SSE smoke test: connect, receive snapshot, receive ≥1 delta, kill server, reconnect with `checkpoint_token`, receive a fresh snapshot followed by deltas. Evidence: tool output path.
+9. **Codex review gate.** A Codex pass on the patched scaffold must accept these contracts. Evidence: Codex task id under `claude_worklog/agent_supervisor/tasks/`.
+
+Until items 1–9 are satisfied, the V2 API surface remains **architecturally remediated, not yet implemented**, and live trading remains BLOCKED.
+
+---
+
+## 14. Open Items (not blockers for this document)
+
+- Dual-approval ceremony design (token issuance, audit, expiry) — separate remediation doc.
+- Rate-limit bucket sizing per role — measured during paper soak.
+- WebSocket vs. SSE choice per stream — decision in the Monitor Center remediation.
+- Mobile/PWA-specific auth flow (mobile-safe approvals, push notifications) — separate doc per `requirements/v2_mobile_readiness.md`.
+
+END_FILE: claude_worklog/v2_architecture_remediation/04_API_CONTRACT_REMEDIATION.md

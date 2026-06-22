@@ -1,0 +1,928 @@
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T02:28:28-04:00",
+  "goal_simulation_status": "GOAL_NOT_SUPPORTED_BY_CURRENT_EDGE",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10006.57651965,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": -184.89308519996484,
+  "required_monthly_return_pct": 0.9993427802568555,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T02:33:28-04:00",
+  "goal_simulation_status": "GOAL_NOT_SUPPORTED_BY_CURRENT_EDGE",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10008.08445874,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": -283.41900599998553,
+  "required_monthly_return_pct": 0.99919220718277,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T02:38:28-04:00",
+  "goal_simulation_status": "GOAL_REQUIRES_MORE_CAPITAL",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10024.12930429,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": 88.60990380002477,
+  "required_monthly_return_pct": 0.9975928777894283,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T02:43:28-04:00",
+  "goal_simulation_status": "GOAL_REQUIRES_MORE_CAPITAL",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10020.64289702,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": 260.1650870999947,
+  "required_monthly_return_pct": 0.997939962811554,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T02:48:28-04:00",
+  "goal_simulation_status": "GOAL_REQUIRES_MORE_CAPITAL",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10030.61436402,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": 523.41008100002,
+  "required_monthly_return_pct": 0.9969479073854325,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T02:53:28-04:00",
+  "goal_simulation_status": "GOAL_REQUIRES_MORE_CAPITAL",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10030.10613101,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": 481.58742749999874,
+  "required_monthly_return_pct": 0.996998423484581,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T02:58:29-04:00",
+  "goal_simulation_status": "GOAL_REQUIRES_MORE_CAPITAL",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10034.62735738,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": 567.1225131000392,
+  "required_monthly_return_pct": 0.9965492134240008,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T03:03:29-04:00",
+  "goal_simulation_status": "GOAL_REQUIRES_MORE_CAPITAL",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10025.26017417,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": 542.2238517000187,
+  "required_monthly_return_pct": 0.9974803472696816,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T03:08:29-04:00",
+  "goal_simulation_status": "GOAL_REQUIRES_MORE_CAPITAL",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10029.06344835,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": 365.0143815000047,
+  "required_monthly_return_pct": 0.9971020775270116,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T03:13:29-04:00",
+  "goal_simulation_status": "GOAL_REQUIRES_MORE_CAPITAL",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10024.87028793,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": 433.8873720000083,
+  "required_monthly_return_pct": 0.9975191411743308,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T03:18:29-04:00",
+  "goal_simulation_status": "GOAL_REQUIRES_MORE_CAPITAL",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10013.39853123,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": 256.23769199999515,
+  "required_monthly_return_pct": 0.9986619396812969,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T03:23:29-04:00",
+  "goal_simulation_status": "GOAL_NOT_SUPPORTED_BY_CURRENT_EDGE",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10006.53420697,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": -180.09519180001007,
+  "required_monthly_return_pct": 0.9993470059828059,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T03:28:29-04:00",
+  "goal_simulation_status": "GOAL_NOT_SUPPORTED_BY_CURRENT_EDGE",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10002.07622702,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": -180.09519180001007,
+  "required_monthly_return_pct": 0.9997924203962383,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T03:33:29-04:00",
+  "goal_simulation_status": "GOAL_NOT_SUPPORTED_BY_CURRENT_EDGE",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10015.35583052,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": -273.44542919998275,
+  "required_monthly_return_pct": 0.9984667713479329,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T03:38:29-04:00",
+  "goal_simulation_status": "GOAL_NOT_SUPPORTED_BY_CURRENT_EDGE",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10016.03150266,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": -9.602244599991536,
+  "required_monthly_return_pct": 0.9983994157111284,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T03:43:29-04:00",
+  "goal_simulation_status": "GOAL_REQUIRES_MORE_CAPITAL",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10025.91849005,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": 52.954278600027465,
+  "required_monthly_return_pct": 0.9974148513100598,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T03:48:29-04:00",
+  "goal_simulation_status": "GOAL_REQUIRES_MORE_CAPITAL",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10021.27303495,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": 269.7290661000261,
+  "required_monthly_return_pct": 0.9978772123186537,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T03:53:29-04:00",
+  "goal_simulation_status": "GOAL_REQUIRES_MORE_CAPITAL",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10019.90763491,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": 186.34662630000093,
+  "required_monthly_return_pct": 0.9980131917742794,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T03:58:29-04:00",
+  "goal_simulation_status": "GOAL_REQUIRES_MORE_CAPITAL",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10012.28230776,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": 23.750806499992905,
+  "required_monthly_return_pct": 0.9987732759242635,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T04:03:29-04:00",
+  "goal_simulation_status": "GOAL_REQUIRES_MORE_CAPITAL",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10025.5664397,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": 356.1107700000139,
+  "required_monthly_return_pct": 0.997449875789685,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T04:08:29-04:00",
+  "goal_simulation_status": "GOAL_REQUIRES_MORE_CAPITAL",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10033.42640536,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": 557.3232218999874,
+  "required_monthly_return_pct": 0.9966684954860342,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T04:13:29-04:00",
+  "goal_simulation_status": "GOAL_REQUIRES_MORE_CAPITAL",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10019.13912887,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": 265.80841410001085,
+  "required_monthly_return_pct": 0.9980897431781488,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T04:18:29-04:00",
+  "goal_simulation_status": "GOAL_NOT_SUPPORTED_BY_CURRENT_EDGE",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10011.30851085,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": -74.2538219999733,
+  "required_monthly_return_pct": 0.9988704262946503,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T04:23:29-04:00",
+  "goal_simulation_status": "GOAL_NOT_SUPPORTED_BY_CURRENT_EDGE",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10007.74668227,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": -180.61315439999817,
+  "required_monthly_return_pct": 0.9992259314193349,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T04:28:29-04:00",
+  "goal_simulation_status": "GOAL_NOT_SUPPORTED_BY_CURRENT_EDGE",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10008.0910366,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": -128.93950140000015,
+  "required_monthly_return_pct": 0.999191550459482,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T04:33:29-04:00",
+  "goal_simulation_status": "GOAL_NOT_SUPPORTED_BY_CURRENT_EDGE",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10010.04985976,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": -266.9179361999704,
+  "required_monthly_return_pct": 0.9989960230067984,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T04:38:30-04:00",
+  "goal_simulation_status": "GOAL_NOT_SUPPORTED_BY_CURRENT_EDGE",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10007.94299972,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": -173.14969589999237,
+  "required_monthly_return_pct": 0.9992063304397095,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T04:43:30-04:00",
+  "goal_simulation_status": "GOAL_NOT_SUPPORTED_BY_CURRENT_EDGE",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10010.62064742,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": -196.2687461999849,
+  "required_monthly_return_pct": 0.9989390620427977,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}
+{
+  "adaptive_leverage_margin_selection_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "trainer feedback missing strategy/hedge/regime fields on some closed-trade outcomes"
+  ],
+  "gate": "V2_MONTHLY_10K_PROFIT_TARGET_TRAINER_STRATEGY_HEDGE_MONITOR_READY",
+  "generated_est": "2026-06-14T04:48:30-04:00",
+  "goal_simulation_status": "GOAL_NOT_SUPPORTED_BY_CURRENT_EDGE",
+  "goal_status": "LIVE_TARGET_NOT_EXECUTABLE_NO_CAPITAL",
+  "hedging_status": "HEDGING_BLOCKED_NO_VALID_HEDGE_CONTEXT",
+  "live_available_margin": 0.0,
+  "live_leverage_margin_action_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "live_target_executable": false,
+  "paper_equity": 10009.29937259,
+  "paper_recommended_leverage": 1.0,
+  "paper_run_rate_monthly_pnl": -112.4306336999689,
+  "required_monthly_return_pct": 0.9990709267208586,
+  "safety": {
+    "fixed_runtime_sizing": false,
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_balance_held_until_margin_sufficient": true,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "trainer_capability_status": "TRAINER_DATASET_TOO_SMALL"
+}

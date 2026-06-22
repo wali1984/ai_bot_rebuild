@@ -1,28 +1,38 @@
 {
-  "task_id": "012d_trainer_liveness_validation_evidence",
   "agent": "claude",
-  "risk_level": "L1",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "claude_worklog/v2_architecture/",
     "claude_worklog/v2_architecture_remediation/"
   ],
+  "auto_commit": true,
+  "commit_message": "Close trainer liveness evidence architecture gap",
+  "completed_at": "2026-06-15T19:54:42Z",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": [
+    "012c_feature_explainability_completeness"
+  ],
+  "emit_files": true,
+  "max_attempts": 3,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_tasks_on_failure": [],
+  "next_tasks_on_success": [
+    "012e_milestone_go_no_go_integration"
+  ],
+  "normalized_from_artifact": true,
+  "priority": 90,
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. Close only the trainer liveness validation evidence gap. Inputs: claude_worklog/v2_architecture/14_CONTINUOUS_MONITORING_AND_EVIDENCE_PACKET_ARCHITECTURE.md, claude_worklog/continuous_monitoring_impl/TRAINER_LIVENESS_MONITOR_FALSE_POSITIVE_FIX_REPORT.md, claude_worklog/continuous_monitoring_impl/TRAINER_LIVENESS_POST_FIX_10MIN_VALIDATION.md, claude_worklog/continuous_monitoring_impl/TRAINER_PREDICTION_WORKER_ROOT_CAUSE_AUDIT.md, claude_worklog/agent_supervisor/ollama_context/012d_trainer_liveness_context.md (if present). Output full updated architecture file and summary claude_worklog/v2_architecture_remediation/12D_TRAINER_LIVENESS_EVIDENCE_CLOSURE.md using BEGIN_FILE blocks only. Requirements: include corrected timezone handling, stream-ID growth over XLEN for capped streams, validation evidence required before scaffold planning, evidence packet fields, and dashboard gate metrics.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/v2_architecture/14_CONTINUOUS_MONITORING_AND_EVIDENCE_PACKET_ARCHITECTURE.md",
     "claude_worklog/v2_architecture_remediation/12D_TRAINER_LIVENESS_EVIDENCE_CLOSURE.md"
   ],
-  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. Close only the trainer liveness validation evidence gap. Inputs: claude_worklog/v2_architecture/14_CONTINUOUS_MONITORING_AND_EVIDENCE_PACKET_ARCHITECTURE.md, claude_worklog/continuous_monitoring_impl/TRAINER_LIVENESS_MONITOR_FALSE_POSITIVE_FIX_REPORT.md, claude_worklog/continuous_monitoring_impl/TRAINER_LIVENESS_POST_FIX_10MIN_VALIDATION.md, claude_worklog/continuous_monitoring_impl/TRAINER_PREDICTION_WORKER_ROOT_CAUSE_AUDIT.md, claude_worklog/agent_supervisor/ollama_context/012d_trainer_liveness_context.md (if present). Output full updated architecture file and summary claude_worklog/v2_architecture_remediation/12D_TRAINER_LIVENESS_EVIDENCE_CLOSURE.md using BEGIN_FILE blocks only. Requirements: include corrected timezone handling, stream-ID growth over XLEN for capped streams, validation evidence required before scaffold planning, evidence packet fields, and dashboard gate metrics.",
-  "depends_on": [
-    "012c_feature_explainability_completeness"
-  ],
-  "auto_commit": true,
-  "commit_message": "Close trainer liveness evidence architecture gap",
-  "max_attempts": 3,
-  "priority": 90,
-  "next_tasks_on_success": [
-    "012e_milestone_go_no_go_integration"
-  ],
-  "next_tasks_on_failure": [],
-  "normalized_from_artifact": true
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-06-15T19:54:42Z",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/012d_trainer_liveness_validation_evidence.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "012d_trainer_liveness_validation_evidence",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

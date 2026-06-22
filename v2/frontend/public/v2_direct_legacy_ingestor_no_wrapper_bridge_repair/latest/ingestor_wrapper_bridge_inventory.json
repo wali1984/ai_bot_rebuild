@@ -1,0 +1,67 @@
+{
+  "generated_est": "2026-06-09T18:41:55-04:00",
+  "gate": "V2_DIRECT_LEGACY_INGESTOR_NO_WRAPPER_BRIDGE_REPAIR_READY",
+  "scope": "V2 market ingestors and website runtime payloads",
+  "active_ingestor_bridge_violations": 0,
+  "direct_coinank_services": [
+    {
+      "service": "ai-bot-v2-coinank-live-direct.service",
+      "active": true,
+      "exec_start": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 /home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/ingest/live_coinank.py"
+    },
+    {
+      "service": "ai-bot-v2-coinank-global-aggregator-direct.service",
+      "active": true,
+      "exec_start": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 /home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/ingest/live_coinank_global_aggregator.py"
+    }
+  ],
+  "direct_liquidation_services": [
+    {
+      "service": "ai-bot-v2-liquidation-wss-paper-shadow.service",
+      "active": true,
+      "role": "direct public Binance forceOrder WSS"
+    },
+    {
+      "service": "ai-bot-v2-liquidation-levels-engine.service",
+      "active": true,
+      "role": "direct V2 liquidation levels runtime"
+    },
+    {
+      "service": "ai-bot-v2-liquidation-runtime-status-publisher.service",
+      "active": true,
+      "role": "status-only publisher, no ingestor bridge"
+    }
+  ],
+  "retired_or_masked_bridge_units": [
+    {
+      "service": "ai-bot-v2-coinank-global-bridge-loop.service",
+      "state": "masked",
+      "active": false
+    },
+    {
+      "service": "ai-bot-v2-liquidation-bridge.service",
+      "state": "masked",
+      "active": false
+    },
+    {
+      "service": "ai-bot-v2-liquidation-bridge-status-publisher.service",
+      "state": "masked",
+      "active": false
+    }
+  ],
+  "non_ingestor_bridge_units_left_untouched": [
+    {
+      "service": "ai-bot-v2-trainer-bridge.service",
+      "reason": "not a market ingestor lane"
+    }
+  ],
+  "current_script_monitor_excludes_retired_ingestor_bridges": true,
+  "safety": {
+    "real_order_submitted": false,
+    "test_order_called": false,
+    "leverage_or_margin_mutation": false,
+    "legacy_restart": false,
+    "redis_trim": false,
+    "raw_credentials_output": false
+  }
+}

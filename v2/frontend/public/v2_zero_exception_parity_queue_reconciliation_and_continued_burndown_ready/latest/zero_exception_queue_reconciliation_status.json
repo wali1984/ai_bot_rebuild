@@ -1,0 +1,542 @@
+{
+  "by_agent": {
+    "claude": {
+      "current_active_count": 0,
+      "done_count": 46,
+      "failed_count": 0,
+      "pending_count": 0,
+      "running_count": 0,
+      "task_count": 46,
+      "waiting_on_dependency_count": 0
+    },
+    "codex": {
+      "current_active_count": 0,
+      "done_count": 46,
+      "failed_count": 0,
+      "pending_count": 0,
+      "running_count": 0,
+      "task_count": 46,
+      "waiting_on_dependency_count": 0
+    }
+  },
+  "codex_review_completion": {
+    "completed_count": 46,
+    "completed_reviews": [
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_adapter_alphavantage_client_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_adapter_alphavantage_client_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_adapter_alphavantage_normalizer_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_adapter_alphavantage_normalizer_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_adapter_technical_analysis_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_adapter_technical_analysis_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_adapter_tokenmetrics_normalizer_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_adapter_tokenmetrics_normalizer_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_backtest_edge_not_claimed_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_backtest_edge_not_claimed_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_feature_pipeline_running_partial_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_feature_pipeline_running_partial_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_hardcoded_ta_depth_imbalance_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_hardcoded_ta_depth_imbalance_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_hardcoded_ta_htf_rsi_14_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_hardcoded_ta_htf_rsi_14_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_hardcoded_ta_last_liq_bps_24h_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_hardcoded_ta_last_liq_bps_24h_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_hardcoded_ta_macd_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_hardcoded_ta_macd_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_hardcoded_ta_macd_hist_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_hardcoded_ta_macd_hist_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_hardcoded_ta_macd_signal_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_hardcoded_ta_macd_signal_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_hardcoded_ta_oi_change_pct_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_hardcoded_ta_oi_change_pct_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_hardcoded_ta_rsi_14_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_hardcoded_ta_rsi_14_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_hardcoded_ta_toxicity_proxy_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_hardcoded_ta_toxicity_proxy_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_ingest_live_binance_running_partial_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_ingest_live_binance_running_partial_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_live_coinank_global_aggregator_running_partial_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_live_coinank_global_aggregator_running_partial_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_misc_state_keys_running_partial_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_misc_state_keys_running_partial_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_missing_impl_live_coinank_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_missing_impl_live_coinank_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_missing_impl_live_kucoin_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_missing_impl_live_kucoin_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_missing_impl_live_technical_analysis_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_missing_impl_live_technical_analysis_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_missing_impl_monitor_portfolio_primary_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_missing_impl_monitor_portfolio_primary_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_missing_impl_rl_orchestrator_promotion_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_missing_impl_rl_orchestrator_promotion_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_missing_impl_trading_opportunity_tracker_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_missing_impl_trading_opportunity_tracker_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_missing_page_ingestors_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_missing_page_ingestors_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_missing_page_liquidation_bridge_levels_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_missing_page_liquidation_bridge_levels_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_missing_page_logs_errors_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_missing_page_logs_errors_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_missing_page_strategy_backtesting_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_missing_page_strategy_backtesting_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_missing_page_technical_analysis_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_missing_page_technical_analysis_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_old_redis_writer_proof_incomplete_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_old_redis_writer_proof_incomplete_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_paper_lineage_historical_aggregate_index_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_paper_lineage_historical_aggregate_index_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_realtime_price_provider_running_partial_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_realtime_price_provider_running_partial_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_rl_orchestrator_worker_running_partial_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_rl_orchestrator_worker_running_partial_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_stale_ingestor_arkham_altdata_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_stale_ingestor_arkham_altdata_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_stale_ingestor_binance_ohlcv_bars_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_stale_ingestor_binance_ohlcv_bars_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_stale_ingestor_binance_orderbook_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_stale_ingestor_binance_orderbook_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_stale_ingestor_coinapi_v1_rest_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_stale_ingestor_coinapi_v1_rest_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_stale_ingestor_kucoin_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_stale_ingestor_kucoin_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_stale_ingestor_live_coinapi_v1_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_stale_ingestor_live_coinapi_v1_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_stale_ingestor_live_coinapi_wsds_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_stale_ingestor_live_coinapi_wsds_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_stale_ingestor_ohlcv_resampler_hotfix_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_stale_ingestor_ohlcv_resampler_hotfix_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_stale_ingestor_realtime_price_provider_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_stale_ingestor_realtime_price_provider_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_stale_ingestor_signal_router_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_stale_ingestor_signal_router_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_stale_ingestor_technical_analysis_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_stale_ingestor_technical_analysis_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_trading_trader_and_trader_asjad_running_partial_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_trading_trader_and_trader_asjad_running_partial_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_trainer_feed_placeholder_liquidations_events_xlen_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_trainer_feed_placeholder_liquidations_events_xlen_20260531",
+        "status": "done"
+      }
+    ],
+    "failed_review_count": 0,
+    "failed_reviews": []
+  },
+  "dependency_release": {
+    "blocked_pairs": [],
+    "evaluated_pairs": 46,
+    "released_count": 46,
+    "released_pairs": [
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_adapter_alphavantage_client_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_adapter_alphavantage_client_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_adapter_alphavantage_normalizer_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_adapter_alphavantage_normalizer_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_adapter_technical_analysis_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_adapter_technical_analysis_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_adapter_tokenmetrics_normalizer_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_adapter_tokenmetrics_normalizer_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_backtest_edge_not_claimed_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_backtest_edge_not_claimed_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_feature_pipeline_running_partial_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_feature_pipeline_running_partial_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_hardcoded_ta_depth_imbalance_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_hardcoded_ta_depth_imbalance_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_hardcoded_ta_htf_rsi_14_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_hardcoded_ta_htf_rsi_14_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_hardcoded_ta_last_liq_bps_24h_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_hardcoded_ta_last_liq_bps_24h_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_hardcoded_ta_macd_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_hardcoded_ta_macd_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_hardcoded_ta_macd_hist_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_hardcoded_ta_macd_hist_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_hardcoded_ta_macd_signal_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_hardcoded_ta_macd_signal_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_hardcoded_ta_oi_change_pct_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_hardcoded_ta_oi_change_pct_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_hardcoded_ta_rsi_14_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_hardcoded_ta_rsi_14_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_hardcoded_ta_toxicity_proxy_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_hardcoded_ta_toxicity_proxy_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_ingest_live_binance_running_partial_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_ingest_live_binance_running_partial_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_live_coinank_global_aggregator_running_partial_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_live_coinank_global_aggregator_running_partial_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_misc_state_keys_running_partial_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_misc_state_keys_running_partial_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_missing_impl_live_coinank_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_missing_impl_live_coinank_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_missing_impl_live_kucoin_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_missing_impl_live_kucoin_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_missing_impl_live_technical_analysis_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_missing_impl_live_technical_analysis_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_missing_impl_monitor_portfolio_primary_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_missing_impl_monitor_portfolio_primary_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_missing_impl_rl_orchestrator_promotion_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_missing_impl_rl_orchestrator_promotion_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_missing_impl_trading_opportunity_tracker_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_missing_impl_trading_opportunity_tracker_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_missing_page_ingestors_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_missing_page_ingestors_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_missing_page_liquidation_bridge_levels_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_missing_page_liquidation_bridge_levels_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_missing_page_logs_errors_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_missing_page_logs_errors_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_missing_page_strategy_backtesting_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_missing_page_strategy_backtesting_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_missing_page_technical_analysis_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_missing_page_technical_analysis_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_old_redis_writer_proof_incomplete_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_old_redis_writer_proof_incomplete_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_paper_lineage_historical_aggregate_index_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_paper_lineage_historical_aggregate_index_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_realtime_price_provider_running_partial_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_realtime_price_provider_running_partial_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_rl_orchestrator_worker_running_partial_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_rl_orchestrator_worker_running_partial_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_stale_ingestor_arkham_altdata_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_stale_ingestor_arkham_altdata_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_stale_ingestor_binance_ohlcv_bars_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_stale_ingestor_binance_ohlcv_bars_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_stale_ingestor_binance_orderbook_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_stale_ingestor_binance_orderbook_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_stale_ingestor_coinapi_v1_rest_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_stale_ingestor_coinapi_v1_rest_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_stale_ingestor_kucoin_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_stale_ingestor_kucoin_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_stale_ingestor_live_coinapi_v1_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_stale_ingestor_live_coinapi_v1_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_stale_ingestor_live_coinapi_wsds_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_stale_ingestor_live_coinapi_wsds_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_stale_ingestor_ohlcv_resampler_hotfix_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_stale_ingestor_ohlcv_resampler_hotfix_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_stale_ingestor_realtime_price_provider_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_stale_ingestor_realtime_price_provider_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_stale_ingestor_signal_router_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_stale_ingestor_signal_router_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_stale_ingestor_technical_analysis_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_stale_ingestor_technical_analysis_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_trading_trader_and_trader_asjad_running_partial_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_trading_trader_and_trader_asjad_running_partial_20260531",
+        "status": "done"
+      },
+      {
+        "claude_task_id": "claude_v2_zero_exception_parity_trainer_feed_placeholder_liquidations_events_xlen_20260531",
+        "codex_task_id": "codex_review_v2_zero_exception_parity_trainer_feed_placeholder_liquidations_events_xlen_20260531",
+        "status": "done"
+      }
+    ],
+    "waiting_count": 0
+  },
+  "descriptors_discovered_count": 92,
+  "file_lock": {
+    "active_file_lock_groups": {},
+    "duplicate_file_lock_count": 0,
+    "duplicate_lock_groups": []
+  },
+  "generated_est": "2026-06-03T22:51:41-04:00",
+  "generated_utc": "2026-06-04T02:51:41Z",
+  "milestone": "v2_zero_exception_parity_queue_reconciliation_and_continued_burndown_ready",
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "exchange_action_taken": false,
+    "legacy_restart_taken": false,
+    "leverage_change": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "margin_mode_change": false,
+    "modifies_legacy_repo": false,
+    "old_redis_writes_detected": false,
+    "places_real_order": false,
+    "redis_trim_or_flush_taken": false,
+    "trader_execution_enabled": false,
+    "writes_exchange_orders": false,
+    "writes_legacy_redis": false,
+    "writes_old_redis": false
+  },
+  "schema_version": "v2_zero_exception_queue_reconciliation_status_v4",
+  "status_ids": {
+    "done": "claude_v2_zero_exception_parity_adapter_alphavantage_client_20260531\nclaude_v2_zero_exception_parity_adapter_alphavantage_normalizer_20260531\nclaude_v2_zero_exception_parity_adapter_technical_analysis_20260531\nclaude_v2_zero_exception_parity_adapter_tokenmetrics_normalizer_20260531\nclaude_v2_zero_exception_parity_backtest_edge_not_claimed_20260531\nclaude_v2_zero_exception_parity_feature_pipeline_running_partial_20260531\nclaude_v2_zero_exception_parity_hardcoded_ta_depth_imbalance_20260531\nclaude_v2_zero_exception_parity_hardcoded_ta_htf_rsi_14_20260531\nclaude_v2_zero_exception_parity_hardcoded_ta_last_liq_bps_24h_20260531\nclaude_v2_zero_exception_parity_hardcoded_ta_macd_20260531\nclaude_v2_zero_exception_parity_hardcoded_ta_macd_hist_20260531\nclaude_v2_zero_exception_parity_hardcoded_ta_macd_signal_20260531\nclaude_v2_zero_exception_parity_hardcoded_ta_oi_change_pct_20260531\nclaude_v2_zero_exception_parity_hardcoded_ta_rsi_14_20260531\nclaude_v2_zero_exception_parity_hardcoded_ta_toxicity_proxy_20260531\nclaude_v2_zero_exception_parity_ingest_live_binance_running_partial_20260531\nclaude_v2_zero_exception_parity_live_coinank_global_aggregator_running_partial_20260531\nclaude_v2_zero_exception_parity_misc_state_keys_running_partial_20260531\nclaude_v2_zero_exception_parity_missing_impl_live_coinank_20260531\nclaude_v2_zero_exception_parity_missing_impl_live_kucoin_20260531\nclaude_v2_zero_exception_parity_missing_impl_live_technical_analysis_20260531\nclaude_v2_zero_exception_parity_missing_impl_monitor_portfolio_primary_20260531\nclaude_v2_zero_exception_parity_missing_impl_rl_orchestrator_promotion_20260531\nclaude_v2_zero_exception_parity_missing_impl_trading_opportunity_tracker_20260531\nclaude_v2_zero_exception_parity_missing_page_ingestors_20260531\nclaude_v2_zero_exception_parity_missing_page_liquidation_bridge_levels_20260531\nclaude_v2_zero_exception_parity_missing_page_logs_errors_20260531\nclaude_v2_zero_exception_parity_missing_page_strategy_backtesting_20260531\nclaude_v2_zero_exception_parity_missing_page_technical_analysis_20260531\nclaude_v2_zero_exception_parity_old_redis_writer_proof_incomplete_20260531\nclaude_v2_zero_exception_parity_paper_lineage_historical_aggregate_index_20260531\nclaude_v2_zero_exception_parity_realtime_price_provider_running_partial_20260531\nclaude_v2_zero_exception_parity_rl_orchestrator_worker_running_partial_20260531\nclaude_v2_zero_exception_parity_stale_ingestor_arkham_altdata_20260531\nclaude_v2_zero_exception_parity_stale_ingestor_binance_ohlcv_bars_20260531\nclaude_v2_zero_exception_parity_stale_ingestor_binance_orderbook_20260531\nclaude_v2_zero_exception_parity_stale_ingestor_coinapi_v1_rest_20260531\nclaude_v2_zero_exception_parity_stale_ingestor_kucoin_20260531\nclaude_v2_zero_exception_parity_stale_ingestor_live_coinapi_v1_20260531\nclaude_v2_zero_exception_parity_stale_ingestor_live_coinapi_wsds_20260531\nclaude_v2_zero_exception_parity_stale_ingestor_ohlcv_resampler_hotfix_20260531\nclaude_v2_zero_exception_parity_stale_ingestor_realtime_price_provider_20260531\nclaude_v2_zero_exception_parity_stale_ingestor_signal_router_20260531\nclaude_v2_zero_exception_parity_stale_ingestor_technical_analysis_20260531\nclaude_v2_zero_exception_parity_trading_trader_and_trader_asjad_running_partial_20260531\nclaude_v2_zero_exception_parity_trainer_feed_placeholder_liquidations_events_xlen_20260531\ncodex_review_v2_zero_exception_parity_adapter_alphavantage_client_20260531\ncodex_review_v2_zero_exception_parity_adapter_alphavantage_normalizer_20260531\ncodex_review_v2_zero_exception_parity_adapter_technical_analysis_20260531\ncodex_review_v2_zero_exception_parity_adapter_tokenmetrics_normalizer_20260531\ncodex_review_v2_zero_exception_parity_backtest_edge_not_claimed_20260531\ncodex_review_v2_zero_exception_parity_feature_pipeline_running_partial_20260531\ncodex_review_v2_zero_exception_parity_hardcoded_ta_depth_imbalance_20260531\ncodex_review_v2_zero_exception_parity_hardcoded_ta_htf_rsi_14_20260531\ncodex_review_v2_zero_exception_parity_hardcoded_ta_last_liq_bps_24h_20260531\ncodex_review_v2_zero_exception_parity_hardcoded_ta_macd_20260531\ncodex_review_v2_zero_exception_parity_hardcoded_ta_macd_hist_20260531\ncodex_review_v2_zero_exception_parity_hardcoded_ta_macd_signal_20260531\ncodex_review_v2_zero_exception_parity_hardcoded_ta_oi_change_pct_20260531\ncodex_review_v2_zero_exception_parity_hardcoded_ta_rsi_14_20260531\ncodex_review_v2_zero_exception_parity_hardcoded_ta_toxicity_proxy_20260531\ncodex_review_v2_zero_exception_parity_ingest_live_binance_running_partial_20260531\ncodex_review_v2_zero_exception_parity_live_coinank_global_aggregator_running_partial_20260531\ncodex_review_v2_zero_exception_parity_misc_state_keys_running_partial_20260531\ncodex_review_v2_zero_exception_parity_missing_impl_live_coinank_20260531\ncodex_review_v2_zero_exception_parity_missing_impl_live_kucoin_20260531\ncodex_review_v2_zero_exception_parity_missing_impl_live_technical_analysis_20260531\ncodex_review_v2_zero_exception_parity_missing_impl_monitor_portfolio_primary_20260531\ncodex_review_v2_zero_exception_parity_missing_impl_rl_orchestrator_promotion_20260531\ncodex_review_v2_zero_exception_parity_missing_impl_trading_opportunity_tracker_20260531\ncodex_review_v2_zero_exception_parity_missing_page_ingestors_20260531\ncodex_review_v2_zero_exception_parity_missing_page_liquidation_bridge_levels_20260531\ncodex_review_v2_zero_exception_parity_missing_page_logs_errors_20260531\ncodex_review_v2_zero_exception_parity_missing_page_strategy_backtesting_20260531\ncodex_review_v2_zero_exception_parity_missing_page_technical_analysis_20260531\ncodex_review_v2_zero_exception_parity_old_redis_writer_proof_incomplete_20260531\ncodex_review_v2_zero_exception_parity_paper_lineage_historical_aggregate_index_20260531\ncodex_review_v2_zero_exception_parity_realtime_price_provider_running_partial_20260531\ncodex_review_v2_zero_exception_parity_rl_orchestrator_worker_running_partial_20260531\ncodex_review_v2_zero_exception_parity_stale_ingestor_arkham_altdata_20260531\ncodex_review_v2_zero_exception_parity_stale_ingestor_binance_ohlcv_bars_20260531\ncodex_review_v2_zero_exception_parity_stale_ingestor_binance_orderbook_20260531\ncodex_review_v2_zero_exception_parity_stale_ingestor_coinapi_v1_rest_20260531\ncodex_review_v2_zero_exception_parity_stale_ingestor_kucoin_20260531\ncodex_review_v2_zero_exception_parity_stale_ingestor_live_coinapi_v1_20260531\ncodex_review_v2_zero_exception_parity_stale_ingestor_live_coinapi_wsds_20260531\ncodex_review_v2_zero_exception_parity_stale_ingestor_ohlcv_resampler_hotfix_20260531\ncodex_review_v2_zero_exception_parity_stale_ingestor_realtime_price_provider_20260531\ncodex_review_v2_zero_exception_parity_stale_ingestor_signal_router_20260531\ncodex_review_v2_zero_exception_parity_stale_ingestor_technical_analysis_20260531\ncodex_review_v2_zero_exception_parity_trading_trader_and_trader_asjad_running_partial_20260531\ncodex_review_v2_zero_exception_parity_trainer_feed_placeholder_liquidations_events_xlen_20260531\n",
+    "failed": "",
+    "pending": "",
+    "running": "",
+    "waiting_on_dependency": ""
+  },
+  "task_state_counts": {
+    "done": 92,
+    "failed": 0,
+    "pending": 0,
+    "running": 0,
+    "total": 92,
+    "waiting_on_dependency": 0
+  }
+}

@@ -1,0 +1,7 @@
+[Unit]
+Description=AI BOT V2 Closed-Loop Spark Runtime
+After=network.target multi-user.target
+Wants=ai-bot-v2-closed-loop-autoseed.timer ai-bot-v2-closed-loop-burndown.timer ai-bot-v2-closed-loop-metrics.service
+
+[Install]
+WantedBy=multi-user.target

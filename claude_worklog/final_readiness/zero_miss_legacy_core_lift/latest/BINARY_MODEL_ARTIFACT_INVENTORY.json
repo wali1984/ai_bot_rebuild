@@ -1,0 +1,5 @@
+{
+  "binary_artifacts": [],
+  "note": "Binary/model/checkpoint files not copied. operator_approval_required for any of these to enter V2 runtime tree.",
+  "schema_version": "1.0.0"
+}

@@ -1,28 +1,39 @@
 {
-  "task_id": "claude_wire_online_readiness_banner_api",
   "agent": "claude",
-  "risk_level": "L2",
-  "status": "pending",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "v2/backend/app/api/v1/",
     "v2/backend/tests/integration/",
     "v2/backend/tests/unit/api/",
     "claude_worklog/final_readiness/online_readiness/latest/"
   ],
-  "required_output_files": [
-    "claude_worklog/final_readiness/online_readiness/latest/BANNER_API_WIRE_REPORT.md"
+  "blocked_by": [
+    "codex_review_online_readiness_aggregator"
   ],
-  "priority": 2570,
+  "completed_at": "2026-05-11T07:26:11.299591+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
   "lane": "online_readiness",
-  "mvp_relevance": "Expose the online-readiness rollup as a read-only V2 API endpoint so the GUI can render a banner without any live mutation.",
-  "blocked_by": ["codex_review_online_readiness_aggregator"],
   "legacy_evidence_consulted": [
     "v2/backend/app/proof/online_readiness_aggregator.py",
     "v2/backend/app/api/v1/live_readiness.py",
     "v2/backend/app/api/v1/health.py"
   ],
+  "mvp_relevance": "Expose the online-readiness rollup as a read-only V2 API endpoint so the GUI can render a banner without any live mutation.",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_recommended_action": "After Codex review passes, unblock claude_online_readiness_banner_frontend.",
+  "priority": 2570,
   "prompt": "Strict BEGIN_FILE materialization mode. Add a GET /banner endpoint to v2/backend/app/api/v1/live_readiness.py that calls build_online_readiness_rollup with the repo root and returns the resulting dict as JSON. The handler must be strictly read-only: no Redis, no exchange clients, no subprocess, no file writes (call build_online_readiness_rollup, not write_online_readiness_rollup). Preserve existing OPTIONS metadata. Add a unit test under v2/backend/tests/unit/api/ that seeds a tmp repo root with synthetic markers (mirroring the aggregator's lane spec) and verifies READY and BLOCKED responses through FastAPI's TestClient. Do not enable live trading. Do not modify /home/wali/Desktop/AI BOT. Do not touch Redis. Emit a BANNER_API_WIRE_REPORT.md under claude_worklog/final_readiness/online_readiness/latest/ describing what changed, the tests run, and evidence pointers.",
-  "next_recommended_action": "After Codex review passes, unblock claude_online_readiness_banner_frontend."
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
+  "required_output_files": [
+    "claude_worklog/final_readiness/online_readiness/latest/BANNER_API_WIRE_REPORT.md"
+  ],
+  "resolved_from_source_truth": true,
+  "risk_level": "L2",
+  "source_truth_completed_at": "2026-05-11T07:26:11.299591+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/claude_wire_online_readiness_banner_api.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "claude_wire_online_readiness_banner_api",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

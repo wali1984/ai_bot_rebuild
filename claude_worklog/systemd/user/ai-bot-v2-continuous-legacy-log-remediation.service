@@ -1,0 +1,17 @@
+[Unit]
+Description=AI BOT V2 continuous legacy-log -> rebuild remediation loop (read-only)
+After=ai-bot-v2-legacy-log-intelligence-observer.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment=PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD
+Environment=LIVE_GATE=blocked_human_only
+ExecStart=/usr/bin/env bash -lc 'exec /home/wali/Desktop/AI\\ BOT\\ REBUILD/.venv/bin/python3 claude_worklog/tools/v2_continuous_legacy_log_to_rebuild_remediation.py --loop --interval-seconds 300'
+StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_continuous_legacy_log_remediation.log
+StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_continuous_legacy_log_remediation.err
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=default.target

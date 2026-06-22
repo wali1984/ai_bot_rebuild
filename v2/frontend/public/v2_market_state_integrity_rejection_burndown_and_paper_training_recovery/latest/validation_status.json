@@ -1,0 +1,9 @@
+{
+  "py_compile": {
+    "cmd": "python3 -m py_compile v2/backend/app/services/market_state_integrity/scoring.py v2/backend/app/services/market_state_integrity/publisher.py v2/backend/app/services/operator_truth/realtime_runtime_truth.py v2/backend/app/cli/v2_orchestrator_arbitration_loop.py v2/backend/app/cli/v2_market_state_integrity_rejection_burndown_and_paper_training_recovery.py",
+    "duration_seconds": 0.036,
+    "returncode": 0,
+    "stderr_tail": "",
+    "stdout_tail": ""
+  }
+}

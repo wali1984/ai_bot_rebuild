@@ -1,0 +1,131 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "can_shutdown_old_system_simple_english": "No. Source ownership/import/smoke blockers are fixed, but native algorithmic core migration and trading readiness are still not complete.",
+  "closed_blockers": [
+    "tools import resolved",
+    "ingest.technical_analysis copied",
+    "monitoring package copied",
+    "dependency closure unresolved_local=0",
+    "all strict smoke wrappers pass",
+    "stale LEGACY_ROOT_READ_ACCESS_DENIED removed for required files"
+  ],
+  "closure": {
+    "external_dependencies_count": 24,
+    "external_dependencies_unique": [
+      "aiohttp",
+      "binance",
+      "ccxt",
+      "cloudpickle",
+      "dateutil",
+      "dotenv",
+      "gymnasium",
+      "numpy",
+      "nvidia_ml_py",
+      "nvidia_ml_py3",
+      "pandas",
+      "psutil",
+      "pynvml",
+      "pytz",
+      "redis",
+      "requests",
+      "schedule",
+      "scipy",
+      "stable_baselines3",
+      "talib",
+      "torch",
+      "tqdm",
+      "urllib3",
+      "websockets"
+    ],
+    "parse_errors_count": 0,
+    "py_file_count": 259,
+    "unresolved_local_imports_count": 0,
+    "unresolved_local_imports_unique": []
+  },
+  "codex_go_no_go": "ZERO_MISS_LEGACY_CORE_REMEDIATION_ROUND_2_CODEX_PASS",
+  "codex_review_path": "claude_worklog/final_readiness/zero_miss_legacy_core_lift_remediation/latest/codex_review/CODEX_ZERO_MISS_REMEDIATION_ROUND_2_REVIEW.md",
+  "evidence_paths": [
+    "claude_worklog/final_readiness/zero_miss_legacy_core_lift_remediation/latest/LEGACY_ROOT_ACCESS_PROOF.md",
+    "claude_worklog/final_readiness/zero_miss_legacy_core_lift_remediation/latest/tools_import_resolution_report.md",
+    "claude_worklog/final_readiness/zero_miss_legacy_core_lift_remediation/latest/strict_smoke_import_remediation.md",
+    "claude_worklog/final_readiness/zero_miss_legacy_core_lift/latest/ZERO_MISS_DEPENDENCY_CLOSURE.json",
+    "claude_worklog/final_readiness/zero_miss_legacy_core_lift/latest/V2_OWNED_RUNTIME_IMPORT_PROOF.json",
+    "claude_worklog/final_readiness/zero_miss_legacy_core_lift_remediation/latest/codex_review/CODEX_ZERO_MISS_REMEDIATION_ROUND_2_REVIEW.md",
+    "claude_worklog/final_readiness/zero_miss_legacy_core_lift_remediation/latest/codex_review/CODEX_GO_NO_GO.md"
+  ],
+  "generated_utc": "2026-05-16T01:30:30Z",
+  "go_no_go": "ZERO_MISS_LEGACY_CORE_REMEDIATION_ROUND_2_READY",
+  "last_updated": "2026-05-16T01:30:30Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "readiness": "SOURCE_OWNERSHIP_IMPORT_SMOKE_READY_NATIVE_CORE_NOT_STARTED",
+  "remaining_blockers": [
+    "NATIVE_ALGORITHMIC_CORE_MISSING_SEPARATE_NEXT_PHASE",
+    "LEGACY_SHUTDOWN_STILL_BLOCKED",
+    "LIVE_STILL_BLOCKED"
+  ],
+  "shutdown_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",
+  "strict_smoke": {
+    "all_smoke_passed": true,
+    "smoke_results": {
+      "v2_owned_feature_pipeline": {
+        "blockers": [],
+        "external_dependency_missing_count": 0,
+        "legacy_root_rejected_count": 0,
+        "module_count": 6,
+        "resolved_count": 6,
+        "smoke_pass": true,
+        "unresolved_count": 0
+      },
+      "v2_owned_ingestors": {
+        "blockers": [],
+        "external_dependency_missing_count": 0,
+        "legacy_root_rejected_count": 0,
+        "module_count": 11,
+        "resolved_count": 11,
+        "smoke_pass": true,
+        "unresolved_count": 0
+      },
+      "v2_owned_monitoring": {
+        "blockers": [],
+        "external_dependency_missing_count": 0,
+        "legacy_root_rejected_count": 0,
+        "module_count": 8,
+        "resolved_count": 8,
+        "smoke_pass": true,
+        "unresolved_count": 0
+      },
+      "v2_owned_orchestrator": {
+        "blockers": [],
+        "external_dependency_missing_count": 0,
+        "legacy_root_rejected_count": 0,
+        "module_count": 13,
+        "resolved_count": 13,
+        "smoke_pass": true,
+        "unresolved_count": 0
+      },
+      "v2_owned_trade_management": {
+        "blockers": [],
+        "external_dependency_missing_count": 0,
+        "legacy_root_rejected_count": 0,
+        "module_count": 22,
+        "resolved_count": 22,
+        "smoke_pass": true,
+        "unresolved_count": 0
+      },
+      "v2_owned_trainer": {
+        "blockers": [],
+        "external_dependency_missing_count": 0,
+        "legacy_root_rejected_count": 0,
+        "module_count": 19,
+        "resolved_count": 19,
+        "smoke_pass": true,
+        "unresolved_count": 0
+      }
+    }
+  },
+  "worker_id": "zero_miss_legacy_core_lift_remediation_round_2"
+}

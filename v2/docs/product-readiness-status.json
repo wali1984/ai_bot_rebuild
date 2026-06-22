@@ -1,0 +1,762 @@
+{
+  "$schema": "./product-readiness-status.schema.json",
+  "generated": "2026-06-14",
+  "purpose": "Machine-readable monitoring snapshot for AlphaForge v2 readiness. This is not launch approval.",
+  "source_of_truth": {
+    "docs_index": "docs/product-readiness-docs-index.md",
+    "current_status": "docs/product-readiness-current-status.md",
+    "completion_checklist": "docs/product-readiness-completion-checklist.md",
+    "readiness_monitor": "docs/product-readiness-monitor.md",
+    "monitor_log": "docs/product-readiness-monitor-log.md",
+    "phase_blocker_map": "docs/product-readiness-phase-blocker-map.md",
+    "blocker_owner_map": "docs/product-readiness-blocker-owner-map.md",
+    "change_control": "docs/product-readiness-change-control.md",
+    "monitor_runbook": "docs/product-readiness-monitor-runbook.md",
+    "phase_progress": "docs/frontend-redesign-phase-progress.md",
+    "acceptance_matrix": "docs/redesign-acceptance-matrix.md",
+    "launch_readiness": "docs/launch-readiness.md",
+    "status_schema": "docs/product-readiness-status.schema.json",
+    "status_guard": "scripts/check_product_readiness_status.py",
+    "docs_status_guard": "scripts/check_readiness_docs_consistency.py",
+    "schema_requirements_guard": "scripts/check_product_readiness_schema_requirements.py",
+    "status_snapshot": "docs/product-readiness-status.json",
+    "status_history": "docs/product-readiness-status-history.jsonl",
+    "master_todo": "docs/frontend-redesign-master-todo.md",
+    "api_gap_register": "docs/api-gap-register.md",
+    "auth_rbac_audit": "docs/auth-rbac-audit.md",
+    "data_source_inventory": "docs/data-source-inventory.md",
+    "visible_string_ledger": "docs/visible-string-ledger.md",
+    "trade_redesign_audit": "docs/trade-redesign-audit.md",
+    "phase_13a_visual_review": "docs/phase-13a-visual-review.md",
+    "ui_defect_log_after": "docs/ui-defect-log-after.md",
+    "pending_evidence_ledger": "docs/product-readiness-pending-evidence-ledger.md",
+    "guardrail_ledger": "docs/product-readiness-guardrail-ledger.md",
+    "route_blocker_ledger": "docs/product-readiness-route-blocker-ledger.md",
+    "phase_launch_ledger": "docs/product-readiness-phase-launch-ledger.md",
+    "route_status_ledger": "docs/product-readiness-route-status-ledger.md",
+    "source_of_truth_ledger": "docs/product-readiness-source-of-truth-ledger.md",
+    "current_blocker_ledger": "docs/product-readiness-current-blocker-ledger.md",
+    "validation_queue_ledger": "docs/product-readiness-validation-queue-ledger.md",
+    "evidence_status_ledger": "docs/product-readiness-evidence-status-ledger.md",
+    "source_artifact_existence_ledger": "docs/product-readiness-source-artifact-existence-ledger.md",
+    "status_snapshot_manifest_ledger": "docs/product-readiness-status-snapshot-manifest-ledger.md",
+    "history_event_ledger": "docs/product-readiness-history-event-ledger.md",
+    "history_supersession_ledger": "docs/product-readiness-history-supersession-ledger.md",
+    "blocker_closure_ledger": "docs/product-readiness-blocker-closure-ledger.md",
+    "route_closure_ledger": "docs/product-readiness-route-closure-ledger.md",
+    "pending_evidence_validation_coverage_ledger": "docs/product-readiness-pending-evidence-validation-coverage-ledger.md"
+  },
+  "launch_status": {
+    "full_product_launch": "BLOCKED",
+    "paper_read_only_launch": "BLOCKED",
+    "real_live_trading": "BLOCKED",
+    "production_ready_claim": "BLOCKED"
+  },
+  "route_status": {
+    "/": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/login": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_auth_session_hardening_missing",
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/account-settings": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_auth_session_hardening_missing",
+        "production_trader_account_repositories_and_writers_missing",
+        "backend_only_binance_credential_vault_missing",
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/status": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_stream_validation_alerting_missing",
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/status-simple": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_stream_validation_alerting_missing",
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/dashboard": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_trader_account_repositories_and_writers_missing",
+        "full_phase13_visual_review_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/markets": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_stream_validation_alerting_missing",
+        "derivatives_realtime_sources_missing",
+        "full_phase13_visual_review_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/markets/symbols": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "full_phase13_visual_review_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/trade": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_stream_validation_alerting_missing",
+        "production_trader_account_repositories_and_writers_missing",
+        "backend_only_binance_credential_vault_missing",
+        "production_paper_submit_cancel_validation_missing",
+        "durable_paper_audit_policy_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/trade/paper": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "full_phase13_visual_review_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/market/:symbol": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_stream_validation_alerting_missing",
+        "derivatives_realtime_sources_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/chart/:symbol": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_https_smoke_missing",
+        "production_stream_validation_alerting_missing",
+        "full_phase13_visual_review_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/derivatives": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_stream_validation_alerting_missing",
+        "derivatives_realtime_sources_missing",
+        "full_phase13_visual_review_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/signals": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_stream_validation_alerting_missing",
+        "production_trader_account_repositories_and_writers_missing",
+        "full_phase13_visual_review_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/ai-predictions": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_stream_validation_alerting_missing",
+        "production_trader_account_repositories_and_writers_missing",
+        "full_phase13_visual_review_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/ai-predictions/model-state": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "full_phase13_visual_review_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/alerts": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "alert_crud_delivery_audit_repositories_missing",
+        "full_phase13_visual_review_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/backtests": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "full_phase13_visual_review_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/backtests/replay": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "full_phase13_visual_review_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/research": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "full_phase13_visual_review_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/research/technical-analysis": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "full_phase13_visual_review_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/portfolio": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_trader_account_repositories_and_writers_missing",
+        "full_phase13_visual_review_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/portfolio/executions": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_trader_account_repositories_and_writers_missing",
+        "full_phase13_visual_review_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/portfolio/history": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_trader_account_repositories_and_writers_missing",
+        "full_phase13_visual_review_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/admin": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_auth_session_hardening_missing",
+        "alembic_auth_revocation_admin_audit_migration_approval_missing",
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/admin/system": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_auth_session_hardening_missing",
+        "alembic_auth_revocation_admin_audit_migration_approval_missing",
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/admin/ingestors": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_auth_session_hardening_missing",
+        "alembic_auth_revocation_admin_audit_migration_approval_missing",
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/admin/trainer": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_auth_session_hardening_missing",
+        "alembic_auth_revocation_admin_audit_migration_approval_missing",
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/admin/orchestrator": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_auth_session_hardening_missing",
+        "alembic_auth_revocation_admin_audit_migration_approval_missing",
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/admin/risk": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_auth_session_hardening_missing",
+        "alembic_auth_revocation_admin_audit_migration_approval_missing",
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/admin/traders": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_auth_session_hardening_missing",
+        "alembic_auth_revocation_admin_audit_migration_approval_missing",
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/admin/execution": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_auth_session_hardening_missing",
+        "alembic_auth_revocation_admin_audit_migration_approval_missing",
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/admin/exchanges": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_auth_session_hardening_missing",
+        "alembic_auth_revocation_admin_audit_migration_approval_missing",
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/admin/config": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_auth_session_hardening_missing",
+        "alembic_auth_revocation_admin_audit_migration_approval_missing",
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/admin/readiness": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_auth_session_hardening_missing",
+        "alembic_auth_revocation_admin_audit_migration_approval_missing",
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/admin/users": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_auth_session_hardening_missing",
+        "alembic_auth_revocation_admin_audit_migration_approval_missing",
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/admin/logs": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_auth_session_hardening_missing",
+        "alembic_auth_revocation_admin_audit_migration_approval_missing",
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/admin/reports": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_auth_session_hardening_missing",
+        "alembic_auth_revocation_admin_audit_migration_approval_missing",
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/system/*": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_auth_session_hardening_missing",
+        "alembic_auth_revocation_admin_audit_migration_approval_missing",
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/admin/audit": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_auth_session_hardening_missing",
+        "alembic_auth_revocation_admin_audit_migration_approval_missing",
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/admin/evidence": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_auth_session_hardening_missing",
+        "alembic_auth_revocation_admin_audit_migration_approval_missing",
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/admin/scripts": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_auth_session_hardening_missing",
+        "alembic_auth_revocation_admin_audit_migration_approval_missing",
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/admin/build-validation": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_auth_session_hardening_missing",
+        "alembic_auth_revocation_admin_audit_migration_approval_missing",
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/admin/coverage": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_auth_session_hardening_missing",
+        "alembic_auth_revocation_admin_audit_migration_approval_missing",
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/admin/migrations": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_auth_session_hardening_missing",
+        "alembic_auth_revocation_admin_audit_migration_approval_missing",
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/admin/codex": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_auth_session_hardening_missing",
+        "alembic_auth_revocation_admin_audit_migration_approval_missing",
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    },
+    "/admin/ai-tools": {
+      "status": "IN_PROGRESS",
+      "blockers": [
+        "production_auth_session_hardening_missing",
+        "alembic_auth_revocation_admin_audit_migration_approval_missing",
+        "full_phase13_visual_review_missing",
+        "production_https_smoke_missing",
+        "current_validation_rerun_pending"
+      ]
+    }
+  },
+  "phase_status": {
+    "0": "IN_PROGRESS",
+    "1": "IN_PROGRESS",
+    "2": "IN_PROGRESS",
+    "3": "IN_PROGRESS",
+    "4": "IN_PROGRESS",
+    "5": "IN_PROGRESS",
+    "6": "IN_PROGRESS",
+    "7": "IN_PROGRESS",
+    "8": "IN_PROGRESS",
+    "9": "IN_PROGRESS",
+    "10": "IN_PROGRESS",
+    "11": "IN_PROGRESS",
+    "12": "IN_PROGRESS",
+    "13": "IN_PROGRESS",
+    "14": "IN_PROGRESS",
+    "15": "BLOCKED"
+  },
+  "current_blockers": [
+    "production_trader_account_repositories_and_writers_missing",
+    "backend_only_binance_credential_vault_missing",
+    "production_stream_validation_alerting_missing",
+    "derivatives_realtime_sources_missing",
+    "alert_crud_delivery_audit_repositories_missing",
+    "production_paper_fill_writer_missing",
+    "production_paper_submit_cancel_validation_missing",
+    "durable_paper_audit_policy_missing",
+    "production_auth_session_hardening_missing",
+    "alembic_auth_revocation_admin_audit_migration_approval_missing",
+    "full_phase13_visual_review_missing",
+    "production_https_smoke_missing",
+    "current_validation_rerun_pending"
+  ],
+  "last_current_evidence": {
+    "status_schema_blocker_requirements_after_latest_changes": "PENDING",
+    "status_schema_evidence_queue_requirements_after_latest_changes": "PENDING",
+    "status_schema_source_of_truth_requirements_after_latest_changes": "PENDING",
+    "status_schema_launch_phase_guardrail_requirements_after_latest_changes": "PENDING",
+    "readiness_schema_guard_evidence_keys_aligned_after_latest_changes": "PENDING",
+    "readiness_docs_consistency_guard_after_latest_changes": "PENDING",
+    "readiness_change_control_status_lock_guard_after_latest_changes": "PENDING",
+    "readiness_docs_route_table_drift_guard_after_latest_changes": "PENDING",
+    "readiness_monitor_route_status_drift_guard_after_latest_changes": "PENDING",
+    "readiness_docs_phase_status_drift_guard_after_latest_changes": "PENDING",
+    "readiness_completion_checklist_phase_status_drift_guard_after_latest_changes": "PENDING",
+    "readiness_phase_progress_status_drift_guard_after_latest_changes": "PENDING",
+    "readiness_docs_launch_status_drift_guard_after_latest_changes": "PENDING",
+    "readiness_docs_exchange_scope_phrase_guard_after_latest_changes": "PENDING",
+    "readiness_launch_readiness_status_drift_guard_after_latest_changes": "PENDING",
+    "readiness_docs_current_blocker_key_drift_guard_after_latest_changes": "PENDING",
+    "readiness_blocker_owner_label_guard_after_latest_changes": "PENDING",
+    "readiness_docs_phase_blocker_current_key_drift_guard_after_latest_changes": "PENDING",
+    "readiness_current_blockers_exact_key_guard_after_latest_changes": "PENDING",
+    "readiness_docs_validation_queue_drift_guard_after_latest_changes": "PENDING",
+    "readiness_completion_checklist_validation_queue_drift_guard_after_latest_changes": "PENDING",
+    "readiness_validation_queue_exact_command_guard_after_latest_changes": "PENDING",
+    "readiness_docs_source_of_truth_drift_guard_after_latest_changes": "PENDING",
+    "readiness_source_of_truth_exact_key_guard_after_latest_changes": "PENDING",
+    "readiness_source_of_truth_artifact_existence_guard_after_latest_changes": "PENDING",
+    "readiness_source_of_truth_core_artifacts_after_latest_changes": "PENDING",
+    "readiness_source_of_truth_docs_guard_checked_artifacts_after_latest_changes": "PENDING",
+    "readiness_docs_to_check_source_of_truth_coupling_after_latest_changes": "PENDING",
+    "readiness_pending_evidence_ledger_after_latest_changes": "PENDING",
+    "readiness_pending_evidence_ledger_drift_guard_after_latest_changes": "PENDING",
+    "readiness_history_event_monitor_log_drift_guard_after_latest_changes": "PENDING",
+    "readiness_history_evidence_key_snapshot_guard_after_latest_changes": "PENDING",
+    "readiness_docs_acceptance_matrix_route_status_drift_guard_after_latest_changes": "PENDING",
+    "readiness_route_status_exact_key_guard_after_latest_changes": "PENDING",
+    "readiness_route_blockers_exact_key_guard_after_latest_changes": "PENDING",
+    "readiness_route_blockers_global_blocker_coupling_after_latest_changes": "PENDING",
+    "readiness_launch_phase_guardrail_exact_key_guard_after_latest_changes": "PENDING",
+    "readiness_evidence_exact_key_guard_after_latest_changes": "PENDING",
+    "readiness_runbook_exact_guard_coverage_after_latest_changes": "PENDING",
+    "readiness_current_status_index_exact_guard_coverage_after_latest_changes": "PENDING",
+    "readiness_docs_guard_repository_credential_phrases_after_latest_changes": "PENDING",
+    "readiness_docs_guard_account_scope_prochart_phrases_after_latest_changes": "PENDING",
+    "phase_blocker_map_repository_credential_boundary_after_latest_changes": "PENDING",
+    "browser_side_native_public_stream_after_latest_changes": "PENDING",
+    "backend_native_public_stream_after_latest_changes": "PENDING",
+    "market_stream_telemetry_after_latest_changes": "PENDING",
+    "market_stream_telemetry_persistence_after_latest_changes": "PENDING",
+    "public_status_market_stream_health_after_latest_changes": "PENDING",
+    "public_status_market_stream_alert_after_latest_changes": "PENDING",
+    "market_stream_alert_history_after_latest_changes": "PENDING",
+    "market_stream_alert_webhook_notifier_after_latest_changes": "PENDING",
+    "market_stream_alert_active_only_delivery_after_latest_changes": "PENDING",
+    "production_stream_alerting_artifact_after_latest_changes": "PENDING",
+    "production_stream_alerting_smoke_runner_after_latest_changes": "PENDING",
+    "landing_public_account_metrics_removed_after_latest_changes": "PENDING",
+    "backend_only_credential_status_after_latest_changes": "PENDING",
+    "admin_audit_readiness_status_after_latest_changes": "PENDING",
+    "credential_reference_hidden_after_latest_changes": "PENDING",
+    "credential_vault_readiness_status_after_latest_changes": "PENDING",
+    "credential_permission_probe_artifact_after_latest_changes": "PENDING",
+    "signed_read_validation_artifact_after_latest_changes": "PENDING",
+    "credential_secret_redaction_smoke_artifact_after_latest_changes": "PENDING",
+    "secret_redaction_smoke_runner_after_latest_changes": "PENDING",
+    "auth_production_secret_fail_closed_after_latest_changes": "PENDING",
+    "auth_production_secret_strength_after_latest_changes": "PENDING",
+    "auth_secret_rotation_after_latest_changes": "PENDING",
+    "auth_production_revocation_store_fail_closed_after_latest_changes": "PENDING",
+    "auth_revocation_store_error_fail_closed_after_latest_changes": "PENDING",
+    "auth_sqlalchemy_revocation_store_after_latest_changes": "PENDING",
+    "admin_sqlalchemy_audit_store_after_latest_changes": "PENDING",
+    "admin_audit_retention_policy_after_latest_changes": "PENDING",
+    "alembic_auth_revocation_admin_audit_migration_approval_after_latest_changes": "PENDING",
+    "auth_admin_step_up_after_latest_changes": "PENDING",
+    "auth_admin_activation_audit_after_latest_changes": "PENDING",
+    "auth_admin_user_mutation_audit_after_latest_changes": "PENDING",
+    "auth_production_issuer_audience_fail_closed_after_latest_changes": "PENDING",
+    "auth_production_session_minutes_fail_closed_after_latest_changes": "PENDING",
+    "auth_production_password_policy_after_latest_changes": "PENDING",
+    "auth_production_cookie_samesite_fail_closed_after_latest_changes": "PENDING",
+    "auth_secure_cookie_after_latest_changes": "PENDING",
+    "auth_session_issuer_audience_after_latest_changes": "PENDING",
+    "auth_session_ttl_after_latest_changes": "PENDING",
+    "auth_session_security_status_after_latest_changes": "PENDING",
+    "auth_refresh_token_rotation_after_latest_changes": "PENDING",
+    "auth_password_change_session_revocation_after_latest_changes": "PENDING",
+    "auth_session_version_invalidation_after_latest_changes": "PENDING",
+    "trader_scoped_signed_readonly_account_after_latest_changes": "PENDING",
+    "frontend_credential_status_display_after_latest_changes": "PENDING",
+    "backend_credential_binding_after_latest_changes": "PENDING",
+    "credential_readonly_scope_enforcement_after_latest_changes": "PENDING",
+    "trader_exchange_account_scope_normalization_after_latest_changes": "PENDING",
+    "admin_exchange_account_readonly_normalization_after_latest_changes": "PENDING",
+    "account_scope_proof_metadata_after_latest_changes": "PENDING",
+    "account_scope_strict_data_match_after_latest_changes": "PENDING",
+    "account_scope_partial_match_fail_closed_after_latest_changes": "PENDING",
+    "trader_account_binding_copy_after_latest_changes": "PENDING",
+    "auth_session_revocation_after_latest_changes": "PENDING",
+    "trader_user_scope_enforcement_after_latest_changes": "PENDING",
+    "frontend_trader_scoped_paper_account_after_latest_changes": "PENDING",
+    "frontend_primary_exchange_account_scope_selection_after_latest_changes": "PENDING",
+    "dashboard_trader_scoped_account_after_latest_changes": "PENDING",
+    "positions_trader_scoped_account_after_latest_changes": "PENDING",
+    "paper_trading_trader_scoped_account_after_latest_changes": "PENDING",
+    "broader_trader_account_metric_scope_cleanup_after_latest_changes": "PENDING",
+    "all_public_trader_account_scope_call_sites_reviewed_after_latest_changes": "PENDING",
+    "public_trader_source_copy_cleanup_after_latest_changes": "PENDING",
+    "markets_symbols_readonly_contract_after_latest_changes": "PENDING",
+    "trader_account_repository_strict_matching_after_latest_changes": "PENDING",
+    "trader_account_repository_unique_paper_scope_after_latest_changes": "PENDING",
+    "trader_repository_readiness_status_after_latest_changes": "PENDING",
+    "trader_account_scope_smoke_runner_after_latest_changes": "PENDING",
+    "trader_account_scope_smoke_artifact_after_latest_changes": "PENDING",
+    "repository_row_level_scope_filtering_after_latest_changes": "PENDING",
+    "sqlalchemy_trader_account_repository_after_latest_changes": "PENDING",
+    "frontend_typed_activity_row_scope_filter_after_latest_changes": "PENDING",
+    "frontend_typed_portfolio_signal_scope_filter_after_latest_changes": "PENDING",
+    "trade_typed_activity_tabs_after_latest_changes": "PENDING",
+    "symbol_data_legacy_terminal_fallback_removed_after_latest_changes": "PENDING",
+    "trade_open_order_paper_fill_ui_after_latest_changes": "PENDING",
+    "trade_open_order_explicit_local_repository_guard_after_latest_changes": "PENDING",
+    "paper_order_repository_submit_cancel_after_latest_changes": "PENDING",
+    "local_paper_fill_writer_after_latest_changes": "PENDING",
+    "paper_order_audit_events_after_latest_changes": "PENDING",
+    "local_paper_audit_ledger_after_latest_changes": "PENDING",
+    "paper_audit_retention_policy_after_latest_changes": "PENDING",
+    "durable_paper_audit_policy_artifact_after_latest_changes": "PENDING",
+    "durable_paper_audit_policy_smoke_runner_after_latest_changes": "PENDING",
+    "local_paper_audit_chain_verification_after_latest_changes": "PENDING",
+    "local_paper_audit_chain_window_completeness_after_latest_changes": "PENDING",
+    "paper_execution_policy_status_after_latest_changes": "PENDING",
+    "production_paper_actions_fail_closed_after_latest_changes": "PENDING",
+    "prochart_derivative_overlay_null_clear_after_latest_changes": "PENDING",
+    "prochart_realtime_merge_after_latest_changes": "PENDING",
+    "prochart_timestamp_normalization_after_latest_changes": "PENDING",
+    "prochart_overlay_timestamp_normalization_after_latest_changes": "PENDING",
+    "prochart_stream_symbol_timeframe_filter_after_latest_changes": "PENDING",
+    "prochart_typed_candle_envelope_filter_after_latest_changes": "PENDING",
+    "prochart_backend_snapshot_live_candle_filter_after_latest_changes": "PENDING",
+    "prochart_realtime_contract_spec_after_latest_changes": "PENDING",
+    "admin_paper_account_preservation_after_latest_changes": "PENDING",
+    "frontend_realtime_stream_merge_after_latest_changes": "PENDING",
+    "market_stream_status_alert_after_latest_changes": "PENDING",
+    "market_derivatives_contract_after_latest_changes": "PENDING",
+    "alerts_contract_after_latest_changes": "PENDING",
+    "alerts_crud_delivery_audit_repositories": "MISSING",
+    "backend_pytest_after_latest_changes": "PENDING",
+    "typecheck_after_latest_changes": "PENDING",
+    "build_after_latest_changes": "PENDING",
+    "lint_after_latest_changes": "PENDING",
+    "focused_playwright_after_latest_changes": "PENDING",
+    "screenshot_overflow_after_latest_changes": "PENDING",
+    "full_chromium_after_latest_changes": "PENDING",
+    "production_https_smoke": "MISSING",
+    "full_phase13_visual_review": "MISSING",
+    "backend_only_binance_credential_vault": "PARTIAL",
+    "production_stream_validation_alerting": "PARTIAL",
+    "production_trader_repositories_and_writers": "MISSING",
+    "production_paper_submit_cancel_validation": "MISSING",
+    "durable_paper_audit_policy": "PARTIAL",
+    "real_live_trading_approval": "MISSING",
+    "readiness_guardrail_ledger_drift_guard_after_latest_changes": "PENDING",
+    "readiness_route_blocker_ledger_drift_guard_after_latest_changes": "PENDING",
+    "readiness_phase_launch_ledger_drift_guard_after_latest_changes": "PENDING",
+    "readiness_route_status_ledger_drift_guard_after_latest_changes": "PENDING",
+    "readiness_source_of_truth_ledger_drift_guard_after_latest_changes": "PENDING",
+    "readiness_current_blocker_ledger_drift_guard_after_latest_changes": "PENDING",
+    "readiness_validation_queue_ledger_drift_guard_after_latest_changes": "PENDING",
+    "readiness_evidence_status_ledger_drift_guard_after_latest_changes": "PENDING",
+    "readiness_source_artifact_existence_ledger_drift_guard_after_latest_changes": "PENDING",
+    "readiness_status_snapshot_manifest_ledger_drift_guard_after_latest_changes": "PENDING",
+    "readiness_history_event_ledger_drift_guard_after_latest_changes": "PENDING",
+    "readiness_history_supersession_ledger_drift_guard_after_latest_changes": "PENDING",
+    "readiness_blocker_closure_ledger_drift_guard_after_latest_changes": "PENDING",
+    "readiness_route_closure_ledger_drift_guard_after_latest_changes": "PENDING",
+    "readiness_pending_evidence_validation_coverage_ledger_drift_guard_after_latest_changes": "PENDING",
+    "production_https_smoke_runner_after_latest_changes": "PENDING",
+    "production_https_smoke_artifact_metadata_after_latest_changes": "PENDING",
+    "production_trader_repository_smoke_runner_after_latest_changes": "PENDING",
+    "production_trader_repository_smoke_artifact_metadata_after_latest_changes": "PENDING",
+    "production_paper_action_validation_smoke_runner_after_latest_changes": "PENDING",
+    "production_paper_action_validation_artifact_metadata_after_latest_changes": "PENDING",
+    "production_alert_delivery_audit_smoke_runner_after_latest_changes": "PENDING",
+    "sqlalchemy_alert_repository_after_latest_changes": "PENDING",
+    "production_alert_delivery_audit_artifact_metadata_after_latest_changes": "PENDING",
+    "auth_session_hardening_artifact_metadata_after_latest_changes": "PENDING",
+    "auth_session_hardening_smoke_runner_after_latest_changes": "PENDING",
+    "production_paper_fill_writer_artifact_metadata_after_latest_changes": "PENDING",
+    "durable_credential_vault_artifact_metadata_after_latest_changes": "PENDING",
+    "durable_credential_vault_smoke_runner_after_latest_changes": "PENDING",
+    "derivatives_realtime_source_smoke_runner_after_latest_changes": "PENDING",
+    "phase13_visual_review_smoke_runner_after_latest_changes": "PENDING",
+    "alembic_auth_migration_approval_smoke_runner_after_latest_changes": "PENDING",
+    "production_stream_validation_artifact_metadata_after_latest_changes": "PENDING",
+    "current_validation_evidence_smoke_runner_after_latest_changes": "PENDING"
+  },
+  "pending_validation_queue": [
+    "python scripts/check_product_readiness_status.py",
+    "python scripts/check_readiness_docs_consistency.py",
+    "python scripts/check_product_readiness_schema_requirements.py",
+    "../.venv/bin/python -m pytest backend/tests/integration/api/test_auth_rbac_and_status.py backend/tests/integration/api/v2/test_market_contract_routes.py",
+    "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_alembic_auth_migration_approval_smoke.py",
+    "../.venv/bin/python -m pytest backend/tests/unit/api/test_readonly_market_stream_parser.py",
+    "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_derivatives_realtime_source_smoke.py",
+    "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_production_stream_alerting_smoke.py",
+    "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_production_alert_delivery_audit_smoke.py",
+    "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_production_https_smoke.py",
+    "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_durable_credential_vault_smoke.py",
+    "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_auth_session_hardening_smoke.py",
+    "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_trader_account_scope_smoke.py",
+    "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_production_trader_repository_smoke.py",
+    "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_check_readiness_docs_consistency.py",
+    "npm run typecheck",
+    "npm run build",
+    "npm run lint --if-present",
+    "npx playwright test tests/e2e/trade_terminal_redesign.spec.ts --project=chromium",
+    "npx playwright test tests/e2e/market_detail_redesign.spec.ts --project=chromium",
+    "npx playwright test tests/e2e/api_v2_contract_states.spec.ts --project=chromium",
+    "npx playwright test tests/e2e/trader_nav_cleanliness.spec.ts --project=chromium",
+    "npx playwright test tests/e2e/public_status_redesign.spec.ts --project=chromium",
+    "npx playwright test tests/e2e/pro_chart_realtime_contract.spec.ts --project=chromium",
+    "npx playwright test tests/e2e/redesign_screenshot_overflow.spec.ts --project=chromium",
+    "npx playwright test tests/e2e/symbols_route_readonly_contract.spec.ts --project=chromium",
+    "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_phase13_visual_review_smoke.py",
+    "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_current_validation_evidence_smoke.py",
+    "npx playwright test --project=chromium",
+    "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_durable_paper_audit_policy_smoke.py",
+    "../.venv/bin/python -m pytest backend/tests/unit/scripts/test_run_production_paper_action_validation_smoke.py",
+    "../.venv/bin/python -m pytest backend/tests/unit/services/website/test_website_contracts.py"
+  ],
+  "guardrails": {
+    "do_not_mark_trade_pass": true,
+    "do_not_mark_market_symbol_pass": true,
+    "do_not_mark_phase13_pass": true,
+    "do_not_mark_phase14_pass_without_current_rerun": true,
+    "do_not_mark_phase15_pass": true,
+    "do_not_mark_paper_launch_pass": true,
+    "do_not_mark_real_live_trading_pass": true,
+    "treat_prior_pass_evidence_as_historical_after_changes": true,
+    "do_not_mark_full_product_launch_pass": true,
+    "do_not_mark_admin_security_pass": true,
+    "do_not_mark_any_monitored_route_pass_without_current_evidence": true
+  }
+}

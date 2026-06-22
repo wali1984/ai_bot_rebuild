@@ -1,0 +1,75 @@
+{
+  "agent": "claude",
+  "completion_evidence": {
+    "artifact_dir": "claude_worklog/final_readiness/v2_zero_exception_parity_implementation_burndown_20260531/missing_impl_trading_opportunity_tracker",
+    "claim": "Opportunity tracker is implemented as a V2 paper-only publisher and writes v2:opportunity:* keys.",
+    "completed_by": "codex_takeover",
+    "completed_est": "2026-06-03T22:44:59-04:00",
+    "completed_utc": "2026-06-04T02:44:59Z",
+    "confidence": "MEDIUM_HIGH",
+    "live_safety": {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "exchange_action_taken": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "places_real_order": false,
+      "trader_execution_enabled": false,
+      "writes_exchange_orders": false,
+      "writes_legacy_redis": false
+    },
+    "missing_evidence": "No live order routing is enabled from opportunity output.",
+    "raw_evidence": "v2_opportunity_tracker_publisher --once returned OPPORTUNITY_TRACKER_OK; v2:opportunity:* has 29 fresh keys.",
+    "verification_command": "python -m v2.backend.app.cli.v2_opportunity_tracker_publisher --once"
+  },
+  "created_at": "2026-05-31T00:00:00Z",
+  "current_active": false,
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": null,
+  "duplicate_suppression_key": null,
+  "expected_output_paths": [
+    "claude_worklog/final_readiness/v2_zero_exception_parity_implementation_burndown_20260531/missing_impl_trading_opportunity_tracker/IMPLEMENTATION_REPORT.md",
+    "claude_worklog/final_readiness/v2_zero_exception_parity_implementation_burndown_20260531/missing_impl_trading_opportunity_tracker/GO_NO_GO.md",
+    "claude_worklog/final_readiness/v2_zero_exception_parity_implementation_burndown_20260531/missing_impl_trading_opportunity_tracker/STATUS.json"
+  ],
+  "fail_blockers": [],
+  "file_lock_group": "v2_zero_exception_parity_missing_impl_trading_opportunity_tracker",
+  "max_stall_relaunches": 1,
+  "mission_category": "ZERO_EXCEPTION_PARITY",
+  "next_action": "Implement and emit evidence artifacts in scope.",
+  "owner": "CLAUDE",
+  "paired_task_id": "codex_review_v2_zero_exception_parity_missing_impl_trading_opportunity_tracker_20260531",
+  "predecessor_task_ids": null,
+  "priority": 9000,
+  "prompt": "Implement V2_MISSING_IMPLEMENTATION: trading/opportunity_tracker.py as part of V2_ZERO_EXCEPTION_PARITY_IMPLEMENTATION_BURNDOWN_READY. Do not run live, canary, or shutdown operations. Keep V2 scoped writes only and preserve no legacy Redis key writes. Emit concrete evidence artifacts at expected output paths.",
+  "risk_level": "L1",
+  "safe_envelope": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "scope_paths": [
+    "v2/legacy_owned_runtime/trading/opportunity_tracker.py",
+    "v2/backend/app"
+  ],
+  "source_matrix_row": "v2_zero_exception_parity_missing_impl_trading_opportunity_tracker",
+  "stall_count": 0,
+  "stall_threshold_seconds": 600,
+  "status": "done",
+  "task_id": "claude_v2_zero_exception_parity_missing_impl_trading_opportunity_tracker_20260531",
+  "task_type": "CLAUDE_IMPLEMENTATION",
+  "updated_at": "2026-06-04T02:44:59Z"
+}

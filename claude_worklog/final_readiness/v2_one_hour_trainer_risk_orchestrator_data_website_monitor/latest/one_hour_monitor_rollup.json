@@ -1,0 +1,247 @@
+{
+  "gate": "V2_ONE_HOUR_TRAINER_RISK_ORCHESTRATOR_DATA_WEBSITE_MONITOR_READY",
+  "generated_est": "2026-06-15T18:46:34-04:00",
+  "issue_counts": {
+    "RUNTIME_TRUTH_TRAINER_STATUS_MISSING": 1
+  },
+  "latest": {
+    "api": {
+      "operator_runtime_truth_ok": false,
+      "pipeline_status_live_gate": null,
+      "pipeline_status_ok": false,
+      "pipeline_symbol_count": 0
+    },
+    "data": {
+      "coinank_samples": {
+        "funding": 163,
+        "liquidations": 162,
+        "long_short": 160,
+        "open_interest": 166
+      },
+      "features_freshness_states": {
+        "CURRENT": 440
+      },
+      "features_latest_count": 440,
+      "liquidation_levels_count": 441,
+      "prices": {
+        "count": 88,
+        "max_age_seconds": 87.35920190811157,
+        "rows_with_age": 88,
+        "stale_over_2m": 0
+      },
+      "ta_count": 684
+    },
+    "generated_est": "2026-06-15T18:46:34-04:00",
+    "generated_utc": "2026-06-15T22:46:34Z",
+    "issues": [
+      "RUNTIME_TRUTH_TRAINER_STATUS_MISSING"
+    ],
+    "orchestrator": {
+      "classification": null,
+      "held_by_paper_fill_gate_count": 412,
+      "winner_count": 0
+    },
+    "paper": {
+      "accepted_count": 81,
+      "blocked_count": 45,
+      "economic_fill_total": 81,
+      "equity": 10032.27063619,
+      "held_count": 412,
+      "open_positions_count": 81,
+      "pnl": 32.27063619,
+      "top_block_reasons": {
+        "confidence_below_threshold": 38,
+        "data_coverage_below_threshold": 4,
+        "expected_move_after_cost_below_threshold": 22
+      }
+    },
+    "predictions": {
+      "action_counts": {
+        "hold": 8,
+        "long": 34,
+        "short": 698
+      },
+      "confidence": {
+        "count": 740,
+        "max": 0.7009588927614647,
+        "mean": 0.5680323607380868,
+        "min": 0.4530880988156373
+      },
+      "expected_move_after_cost_bps": {
+        "count": 740,
+        "max": 26.141326904296875,
+        "mean": -95.65576772013226,
+        "min": -131.99614715576172
+      },
+      "freshness": {
+        "max_age_seconds": null,
+        "rows_with_age": 0,
+        "stale_over_10m": 0
+      },
+      "invalid_symbols": [],
+      "primary_rows": 740,
+      "rl_core_sidecar_rows": 0,
+      "timeframes": {
+        "15m": 148,
+        "1h": 148,
+        "1m": 148,
+        "4h": 148,
+        "5m": 148
+      },
+      "total_rows": 740,
+      "trainer_sources": {
+        "V2_NATIVE_RL_MASA_PPO_CUDA_TRAINER_PAPER_SHADOW": 740
+      }
+    },
+    "redis_connected": true,
+    "risk": {
+      "actions": {
+        "unknown": 740
+      },
+      "decision_ids_present": 740,
+      "rows": 740
+    },
+    "runtime_truth": {
+      "classification": null,
+      "cuda_trainer_status": null,
+      "live_gate": null,
+      "live_order_submit_blocker": null,
+      "orchestrator_status": null,
+      "paper_trader_status": null,
+      "risk_status": null,
+      "trader_state": null,
+      "trainer_status": null
+    },
+    "safety": {
+      "legacy_restart": false,
+      "leverage_or_margin_mutation": false,
+      "old_redis_write": false,
+      "raw_credentials_emitted": false,
+      "real_order_mutation": false,
+      "test_order_called": false
+    },
+    "schema_version": "v2_one_hour_monitor_sample_v1",
+    "services": {
+      "failed_services": [],
+      "inactive_critical_services": [
+        "ai-bot-v2-public-website-backend.service"
+      ],
+      "services": {
+        "ai-bot-v2-binance-kline-wss-loop.service": {
+          "ActiveState": "active",
+          "NRestarts": "0",
+          "Result": "success",
+          "SubState": "running"
+        },
+        "ai-bot-v2-coinank-global-aggregator-direct.service": {
+          "ActiveState": "active",
+          "NRestarts": "7",
+          "Result": "success",
+          "SubState": "running"
+        },
+        "ai-bot-v2-coinank-live-direct.service": {
+          "ActiveState": "active",
+          "NRestarts": "1",
+          "Result": "success",
+          "SubState": "running"
+        },
+        "ai-bot-v2-coinapi-wsds-loop.service": {
+          "ActiveState": "active",
+          "NRestarts": "10",
+          "Result": "success",
+          "SubState": "running"
+        },
+        "ai-bot-v2-feature-pipeline-native-loop.service": {
+          "ActiveState": "active",
+          "NRestarts": "4",
+          "Result": "success",
+          "SubState": "running"
+        },
+        "ai-bot-v2-liquidation-levels-engine.service": {
+          "ActiveState": "active",
+          "NRestarts": "308",
+          "Result": "success",
+          "SubState": "running"
+        },
+        "ai-bot-v2-native-rl-masa-ppo-cuda-trainer-loop.service": {
+          "ActiveState": "inactive",
+          "NRestarts": "0",
+          "Result": "success",
+          "SubState": "dead"
+        },
+        "ai-bot-v2-native-rl-masa-ppo-cuda-trainer-loop.timer": {
+          "ActiveState": "inactive",
+          "Result": "success",
+          "SubState": "dead"
+        },
+        "ai-bot-v2-orchestrator-arbitration-loop.service": {
+          "ActiveState": "active",
+          "NRestarts": "0",
+          "Result": "success",
+          "SubState": "running"
+        },
+        "ai-bot-v2-portfolio-state-publisher.service": {
+          "ActiveState": "active",
+          "NRestarts": "0",
+          "Result": "success",
+          "SubState": "running"
+        },
+        "ai-bot-v2-public-website-backend.service": {
+          "ActiveState": "inactive",
+          "NRestarts": "0",
+          "Result": "success",
+          "SubState": "dead"
+        },
+        "ai-bot-v2-risk-gateway-live-loop.service": {
+          "ActiveState": "active",
+          "NRestarts": "0",
+          "Result": "success",
+          "SubState": "running"
+        },
+        "ai-bot-v2-trade-management-paper-loop.service": {
+          "ActiveState": "active",
+          "NRestarts": "16",
+          "Result": "success",
+          "SubState": "running"
+        },
+        "ai-bot-v2-trainer-training-live-loop.service": {
+          "ActiveState": "active",
+          "NRestarts": "22",
+          "Result": "success",
+          "SubState": "running"
+        }
+      }
+    },
+    "signals": {
+      "paper_fill_allowed": 425,
+      "paper_fill_blocked": 315,
+      "rows": 740,
+      "top_block_reasons": {
+        "confidence_below_threshold": 300,
+        "data_coverage_below_threshold": 205,
+        "expected_move_after_cost_below_threshold": 22
+      }
+    }
+  },
+  "latest_est": "2026-06-15T18:46:34-04:00",
+  "monitor_finished": true,
+  "sample_count": 1,
+  "schema_version": "v2_one_hour_monitor_rollup_v1",
+  "started_est": "2026-06-15T18:46:34-04:00",
+  "strategy_diagnosis": {
+    "current_strategy_inputs": [
+      "OHLCV and current price",
+      "TA feature rows",
+      "funding/open interest/orderbook/liquidation optional features",
+      "CoinAnk long-short/funding/OI where current",
+      "market-state integrity masks optional/event-dependent gaps"
+    ],
+    "improvement_candidates": [
+      "Fix any runtime truth source still reading old trainer bridge status.",
+      "Remove invalid non-runtime symbols from website/API control grids.",
+      "Keep liquidity/liquidation levels as optional but scored features for training and paper actionability.",
+      "Use paper mark-to-market outcomes to downrank strategies whose expected_move_after_cost fails after fees/slippage."
+    ],
+    "prediction_generation": "Native predictions are read from v2:prediction:{symbol}:{timeframe}; orchestrator picks scored proposal winners; risk loop independently records risk decisions; paper loop accepts only signals with paper_fill_allowed and complete lineage."
+  }
+}

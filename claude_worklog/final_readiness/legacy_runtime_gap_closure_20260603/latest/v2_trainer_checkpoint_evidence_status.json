@@ -1,0 +1,145 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "candidate_count": 15388,
+  "checkpoint_blocker": "LEGACY_CHECKPOINT_METADATA_PRESENT_WEIGHTS_NOT_DESERIALIZED_V2_SAFE_MODE",
+  "checkpoint_evidence_status": "LEGACY_CHECKPOINT_METADATA_PRESENT",
+  "checkpoint_loading": {
+    "checkpoint_id": "ppo_checkpoint_1777264095",
+    "checkpoint_metadata_status": "CHECKPOINT_METADATA_ONLY_NO_WEIGHTS_LOADED",
+    "checkpoint_source": "/home/wali/Desktop/AI BOT REBUILD/legacy_reference/models/checkpoints/live_enhanced/ppo_checkpoint_1777264095.zip",
+    "declared_action_count": 5,
+    "declared_observation_dim": 26,
+    "generated_utc": "2026-06-22T00:25:08Z",
+    "missing_checkpoint_blockers": [
+      "v2_control_plane_does_not_load_torch_weights",
+      "weight_shape_verification_requires_operator_approved_subprocess",
+      "checkpoint_promotion_to_v2_requires_codex_review"
+    ],
+    "model_shape_status": "MODEL_SHAPE_VERIFICATION_BLOCKED_NO_TORCH",
+    "weight_loading_status": "CHECKPOINT_WEIGHT_BLOB_OPERATOR_REQUIRED"
+  },
+  "checkpoint_weight_status": "LEGACY_CHECKPOINT_METADATA_PRESENT_WEIGHTS_NOT_DESERIALIZED_V2_SAFE_MODE",
+  "exchange_action_taken": false,
+  "generated_utc": "2026-06-22T00:25:08Z",
+  "inventory_status": "CHECKPOINT_METADATA_ONLY_NO_WEIGHTS_LOADED",
+  "legacy_checkpoint_metadata_status": "LEGACY_CHECKPOINT_METADATA_PRESENT",
+  "legacy_mutation_performed": false,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "missing_checkpoint_blockers": [
+    "v2_control_plane_does_not_load_torch_weights",
+    "weight_shape_verification_requires_operator_approved_subprocess",
+    "checkpoint_promotion_to_v2_requires_codex_review"
+  ],
+  "model_shape_status": "MODEL_SHAPE_VERIFICATION_BLOCKED_NO_TORCH",
+  "model_weights_loaded_into_v2_process": false,
+  "pickle_deserialized": false,
+  "redis_ok": true,
+  "scanned_roots": [
+    "/home/wali/Desktop/AI BOT REBUILD/legacy_reference/.backups",
+    "/home/wali/Desktop/AI BOT REBUILD/legacy_reference/models/checkpoints"
+  ],
+  "schema_version": "v2_trainer_checkpoint_evidence_v1",
+  "selected_by_role": {
+    "latest_any": {
+      "checkpoint_id": "ppo_checkpoint_1777264095",
+      "extension": ".zip",
+      "mtime_utc": "2026-04-27T04:28:15.497195Z",
+      "parsed_metadata": {
+        "checkpoint_id": "ppo_checkpoint_1777264095",
+        "created_utc": "2026-04-27T04:28:15Z",
+        "model_version": "unknown",
+        "prefix": "ppo_checkpoint",
+        "sha256_if_known": "SHA256_SKIPPED_FILE_TOO_LARGE_101900416",
+        "source_legacy_path": "ppo_checkpoint_1777264095.zip"
+      },
+      "path": "/home/wali/Desktop/AI BOT REBUILD/legacy_reference/models/checkpoints/live_enhanced/ppo_checkpoint_1777264095.zip",
+      "sha256_hex": "SHA256_SKIPPED_FILE_TOO_LARGE_101900416",
+      "sidecar_metadata_path": null,
+      "size_bytes": 101900416
+    },
+    "latest_enterprise_modules": {
+      "checkpoint_id": "enterprise_modules_1777264095",
+      "extension": ".pt",
+      "mtime_utc": "2026-04-27T04:28:15.866223Z",
+      "parsed_metadata": {
+        "checkpoint_id": "enterprise_modules_1777264095",
+        "created_utc": "2026-04-27T04:28:15Z",
+        "model_version": "unknown",
+        "prefix": "enterprise_modules",
+        "sha256_if_known": "6b628810c43e26aef08854d7281c8c7d047f53b5b48140fc8d5ac326e9bb5508",
+        "source_legacy_path": "enterprise_modules_1777264095.pt"
+      },
+      "path": "/home/wali/Desktop/AI BOT REBUILD/legacy_reference/models/checkpoints/live_enhanced/enterprise_modules_1777264095.pt",
+      "sha256_hex": "6b628810c43e26aef08854d7281c8c7d047f53b5b48140fc8d5ac326e9bb5508",
+      "sidecar_metadata_path": null,
+      "size_bytes": 1649
+    },
+    "latest_masa": {
+      "checkpoint_id": "masa_checkpoint_1777264095",
+      "extension": ".pkl",
+      "mtime_utc": "2026-04-27T04:28:15.863239Z",
+      "parsed_metadata": {
+        "checkpoint_id": "masa_checkpoint_1777264095",
+        "created_utc": "2026-04-27T04:28:15Z",
+        "model_version": "unknown",
+        "prefix": "masa_checkpoint",
+        "sha256_if_known": "SHA256_SKIPPED_FILE_TOO_LARGE_47461045",
+        "source_legacy_path": "masa_checkpoint_1777264095.pkl"
+      },
+      "path": "/home/wali/Desktop/AI BOT REBUILD/legacy_reference/models/checkpoints/live_enhanced/masa_checkpoint_1777264095.pkl",
+      "sha256_hex": "SHA256_SKIPPED_FILE_TOO_LARGE_47461045",
+      "sidecar_metadata_path": null,
+      "size_bytes": 47461045
+    },
+    "latest_ppo": {
+      "checkpoint_id": "ppo_checkpoint_1777264095",
+      "extension": ".zip",
+      "mtime_utc": "2026-04-27T04:28:15.497195Z",
+      "parsed_metadata": {
+        "checkpoint_id": "ppo_checkpoint_1777264095",
+        "created_utc": "2026-04-27T04:28:15Z",
+        "model_version": "unknown",
+        "prefix": "ppo_checkpoint",
+        "sha256_if_known": "SHA256_SKIPPED_FILE_TOO_LARGE_101900416",
+        "source_legacy_path": "ppo_checkpoint_1777264095.zip"
+      },
+      "path": "/home/wali/Desktop/AI BOT REBUILD/legacy_reference/models/checkpoints/live_enhanced/ppo_checkpoint_1777264095.zip",
+      "sha256_hex": "SHA256_SKIPPED_FILE_TOO_LARGE_101900416",
+      "sidecar_metadata_path": null,
+      "size_bytes": 101900416
+    }
+  },
+  "selected_checkpoint": {
+    "checkpoint_id": "ppo_checkpoint_1777264095",
+    "extension": ".zip",
+    "mtime_utc": "2026-04-27T04:28:15.497195Z",
+    "parsed_metadata": {
+      "checkpoint_id": "ppo_checkpoint_1777264095",
+      "created_utc": "2026-04-27T04:28:15Z",
+      "model_version": "unknown",
+      "prefix": "ppo_checkpoint",
+      "sha256_if_known": "SHA256_SKIPPED_FILE_TOO_LARGE_101900416",
+      "source_legacy_path": "ppo_checkpoint_1777264095.zip"
+    },
+    "path": "/home/wali/Desktop/AI BOT REBUILD/legacy_reference/models/checkpoints/live_enhanced/ppo_checkpoint_1777264095.zip",
+    "sha256_hex": "SHA256_SKIPPED_FILE_TOO_LARGE_101900416",
+    "sidecar_metadata_path": null,
+    "size_bytes": 101900416
+  },
+  "selected_checkpoint_id": "ppo_checkpoint_1777264095",
+  "selected_checkpoint_path": "/home/wali/Desktop/AI BOT REBUILD/legacy_reference/models/checkpoints/live_enhanced/ppo_checkpoint_1777264095.zip",
+  "stable_baselines_imported": false,
+  "torch_imported": false,
+  "trainer_online_mode": "V2_NATIVE_RL_CORE_WITH_LEGACY_CHECKPOINT_EVIDENCE",
+  "v2_redis_keys_written": [
+    "v2:trainer:checkpoint:evidence",
+    "v2:trainer:checkpoint:heartbeat"
+  ],
+  "v2_redis_keys_written_count": 2,
+  "weight_deserialization_performed": false,
+  "worker_id": "v2_trainer_checkpoint_evidence",
+  "writes_legacy_redis": false
+}

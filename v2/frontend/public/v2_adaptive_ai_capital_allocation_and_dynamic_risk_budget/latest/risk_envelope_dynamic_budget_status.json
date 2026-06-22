@@ -1,0 +1,24 @@
+{
+  "status": "PERCENTAGE_BASED_RISK_ENVELOPE_ACTIVE",
+  "generated_est": "2026-06-11T16:19:38-04:00",
+  "operator_envelope_type": "PERCENTAGE_BASED_RISK_ENVELOPE",
+  "adaptive_allocator_decides": [
+    "target_notional_usdt",
+    "target_quantity",
+    "position_scale",
+    "confidence_edge_weighted_allocation",
+    "size_down_or_skip"
+  ],
+  "risk_envelope_enforces": [
+    "lineage_present",
+    "market_state_valid",
+    "exchange_filters_pass",
+    "drawdown_guard",
+    "kill_switch_inactive",
+    "total_exposure_safe",
+    "account_margin_sufficient"
+  ],
+  "static_trade_size_used": false,
+  "fixed_200_usdt_runtime_sizing": false,
+  "emergency_absolute_cap_supported_as_safety_ceiling_only": true
+}

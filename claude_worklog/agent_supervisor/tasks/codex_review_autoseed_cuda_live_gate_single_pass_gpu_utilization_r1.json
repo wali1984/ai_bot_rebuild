@@ -1,0 +1,48 @@
+{
+  "agent": "codex",
+  "autoseed_metadata": {
+    "generated_at": "2026-06-05T00:00:00+00:00",
+    "source": "v2_autonomous_mission_backlog_autoseed",
+    "task_role": "codex_review",
+    "title": "CUDA live-gate single-pass: GPU utilization under target",
+    "pass_marker": "V2_CUDA_SINGLE_PASS_GPU_UTILIZATION_CODEX_PASS",
+    "fail_marker": "V2_CUDA_SINGLE_PASS_GPU_UTILIZATION_CODEX_FAIL"
+  },
+  "codex_cli_form": "codex_exec_review",
+  "codex_pair_task_id": "claude_autoseed_cuda_live_gate_single_pass_gpu_utilization_r1",
+  "created_at": "2026-06-05T00:00:00+00:00",
+  "depends_on": [
+    "claude_autoseed_cuda_live_gate_single_pass_gpu_utilization_r1"
+  ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "file_lock_group": "cuda_live_gate_single_pass_gpu_utilization",
+  "goal": "V2_CUDA_TRAINER_GPU_TRADER_BINANCE_LIVE_GATE_SINGLE_PASS_READY",
+  "lane": "non_drift_codex_audit",
+  "owner": "CODEX",
+  "predecessor_task_ids": [
+    "claude_autoseed_cuda_live_gate_single_pass_gpu_utilization_r1"
+  ],
+  "prompt": "Review the paired implementation for CUDA live-gate single-pass GPU utilization under target. Verify evidence-driven remediation, no assumptions, and non-live gate safety: do not alter live symbols, do not enable live execution, and keep write scope read-only outside legacy systems. Confirm fail-closed reporting is explicit and current artifacts explain why the remediation is needed.",
+  "priority": 9050,
+  "risk_level": "L1",
+  "scope_paths": [
+    "v2/backend/app",
+    "v2/frontend/public/operator_runtime"
+  ],
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "status": "pending",
+  "task_id": "codex_review_autoseed_cuda_live_gate_single_pass_gpu_utilization_r1",
+  "task_type": "CODEX_REVIEW",
+  "title": "Codex review for CUDA live-gate single-pass GPU utilization under target",
+  "updated_at": "2026-06-05T00:00:00+00:00"
+}

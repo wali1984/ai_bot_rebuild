@@ -1,0 +1,85 @@
+{
+  "schema_version": "v2_autonomous_full_rebuild_self_healing_file_lock_registry_v1",
+  "generated_utc": "2026-05-23T02:05:00Z",
+  "concurrency_rule": "controller may dispatch parallel work ONLY when the candidate file sets are disjoint",
+  "locks": [
+    {
+      "lock_id": "lock_full_observation_builder",
+      "paths": [
+        "v2/backend/app/services/rl_core/full_observation_builder.py",
+        "v2/backend/app/services/rl_core/full_observation_builder_status.py"
+      ],
+      "lane_ids": ["full_observation_builder", "remaining_dim_queue", "autonomous_full_observation_burndown"],
+      "exclusive": true
+    },
+    {
+      "lock_id": "lock_policy_architecture",
+      "paths": [
+        "v2/backend/app/services/rl_core/policy_architecture/**",
+        "v2/backend/app/services/rl_core/policy/**"
+      ],
+      "lane_ids": ["policy_architecture"],
+      "exclusive": true,
+      "blocked_by_operator_gate": true
+    },
+    {
+      "lock_id": "lock_checkpoint_files",
+      "paths": [
+        "v2/backend/app/services/rl_core/checkpoint/**",
+        "v2/backend/app/services/rl_core/model_loader.py"
+      ],
+      "lane_ids": ["checkpoint_model_parity"],
+      "exclusive": true,
+      "blocked_by_operator_gate": true,
+      "no_blob_deserialization": true
+    },
+    {
+      "lock_id": "lock_symbol_universe",
+      "paths": [
+        "v2/backend/app/services/symbol_universe/**",
+        "v2/backend/app/cli/v2_symbol_universe_*.py"
+      ],
+      "lane_ids": ["symbol_universe", "alt_data_candidate_publisher"],
+      "exclusive": true,
+      "automatic_adoption_forbidden": true
+    },
+    {
+      "lock_id": "lock_alt_data_providers",
+      "paths": [
+        "v2/backend/app/services/altdata/**",
+        "v2/backend/app/cli/v2_altdata_*.py"
+      ],
+      "lane_ids": ["alt_data_provider_clients", "alt_data_symbol_scoring", "alt_data_candidate_publisher"],
+      "exclusive": true,
+      "paid_endpoints_forbidden_without_operator_decision": true
+    },
+    {
+      "lock_id": "lock_frontend_monitor_center",
+      "paths": [
+        "v2/frontend/src/pages/MonitorCenter*",
+        "v2/frontend/src/components/MonitorCenter/**",
+        "v2/frontend/public/v2_autonomous_full_rebuild_self_healing/**"
+      ],
+      "lane_ids": ["frontend_truth", "top10_dashboards"],
+      "exclusive": true
+    },
+    {
+      "lock_id": "lock_live_canary_safety",
+      "paths": [
+        "v2/backend/app/services/live/**",
+        "v2/backend/app/cli/v2_live_*.py",
+        "v2/backend/app/cli/v2_canary_*.py"
+      ],
+      "lane_ids": ["live_canary_safety"],
+      "exclusive": true,
+      "blocked_by_operator_gate": true,
+      "human_only": true
+    }
+  ],
+  "current_active_locks": [],
+  "safety": {
+    "did_not_modify_legacy_bot": true,
+    "did_not_write_redis": true,
+    "did_not_call_exchange": true
+  }
+}

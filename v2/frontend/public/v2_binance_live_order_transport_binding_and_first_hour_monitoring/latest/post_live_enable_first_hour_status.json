@@ -1,0 +1,14 @@
+{
+  "auto_freeze_triggered": false,
+  "blockers": [
+    "LIVE_GATE_RUNTIME_STATE_STALE",
+    "LIVE_ORDER_TRANSPORT_WRITE_ENV_NOT_ENABLED",
+    "RISK_GATEWAY_DECISION_ID_MISMATCH"
+  ],
+  "generated_est": "2026-06-07T15:21:01-04:00",
+  "monitor_interval_seconds": 5,
+  "orders_attempted": 0,
+  "orders_rejected": 0,
+  "orders_submitted": 0,
+  "status": "POST_ENABLE_MONITOR_NOT_STARTED_ORDER_TRANSPORT_BLOCKED"
+}

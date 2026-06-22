@@ -5,9 +5,6 @@ import copy
 import datetime as dt
 import json
 import time
-import urllib.error
-import urllib.parse
-import urllib.request
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -17,7 +14,14 @@ from v2.backend.app.composition.paper_edge_scoring import score_paper_edge
 from v2.backend.app.composition.paper_expected_move_coverage import (
     evaluate_paper_expected_move_coverage,
 )
+from v2.backend.app.services.binance_unified_websocket_transport import fetch_unified_market_snapshot
+from v2.backend.app.services.paper_trade_management.outcomes import (
+    FUNDING_PNL_ACCOUNTING_FORMULA,
+    FUNDING_PNL_ACCOUNTING_VERSION,
+)
+from v2.backend.app.services.runtime_clock import est_now_iso
 from v2.backend.app.services.signal_publisher import build_paper_runtime_lineage
+from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
 
 
 LIVE_GATE_STATUS = "blocked_human_only"
@@ -25,6 +29,8 @@ READY_MARKER = "V2_PAPER_ONLINE_FULL_OPERATIONAL_RECOVERY_READY"
 BLOCKED_MARKER = "V2_PAPER_ONLINE_FULL_OPERATIONAL_RECOVERY_BLOCKED"
 CODEX_PASS_MARKER = "V2_PAPER_ONLINE_FULL_OPERATIONAL_CODEX_PASS"
 CODEX_FAIL_MARKER = "V2_PAPER_ONLINE_FULL_OPERATIONAL_CODEX_FAIL"
+PAPER_ONLINE_INTENTS_KEY = "v2:paper_online:intents"
+PAPER_ONLINE_LEDGER_KEY = "v2:paper_online:ledger"
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 V2_ROOT = REPO_ROOT / "v2"
@@ -40,6 +46,16 @@ TRAINER_BRIDGE_STATUS_FILE = (
     / "latest"
     / "v2_trainer_bridge_status.json"
 )
+
+
+def _resolve_runtime_symbol(symbol: str | None, *, smoke_test: bool = False) -> str:
+    explicit = str(symbol or "").strip().upper()
+    if explicit:
+        return explicit
+    resolved = resolve_symbols(smoke_test=smoke_test, include_baseline=True)
+    return str(resolved[0]).upper()
+
+
 PAPER_SHADOW_OUTCOME_STATUS_FILE = (
     V2_ROOT
     / "frontend"
@@ -82,21 +98,7 @@ class MarketSnapshot:
 
 
 def iso_now() -> str:
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-
-
-def _iso_from_ms(ts_ms: int) -> str:
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(ts_ms / 1000))
-
-
-def _http_json(url: str) -> Any:
-    request = urllib.request.Request(
-        url,
-        method="GET",
-        headers={"User-Agent": "ai-bot-v2-paper-online-readonly"},
-    )
-    with urllib.request.urlopen(request, timeout=8) as response:
-        return json.loads(response.read().decode("utf-8"))
+    return est_now_iso()
 
 
 def _read_json_file(path: Path) -> dict[str, Any]:
@@ -116,9 +118,110 @@ def _float_or_none(value: Any) -> float | None:
         return None
 
 
+def _first_float(*values: Any) -> float | None:
+    for value in values:
+        parsed = _float_or_none(value)
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _paper_funding_accounting(
+    *,
+    side: str,
+    notional_usdt: float,
+    hold_time_seconds: int,
+    funding_rate: float | None,
+    funding_bps: float | None,
+    funding_interval_seconds: float | None = None,
+) -> dict[str, Any]:
+    if funding_rate is None and funding_bps is not None:
+        funding_rate = funding_bps / 10000.0
+    if funding_bps is None and funding_rate is not None:
+        funding_bps = funding_rate * 10000.0
+    interval_seconds = max(1.0, float(funding_interval_seconds or 28800.0))
+    intervals = max(0.0, float(hold_time_seconds)) / interval_seconds
+    side_sign = -1.0 if str(side).lower() == "long" else 1.0
+    funding_pnl = (
+        0.0
+        if funding_rate is None
+        else round(abs(notional_usdt) * funding_rate * intervals * side_sign, 6)
+    )
+    return {
+        "funding_pnl_accounting_version": FUNDING_PNL_ACCOUNTING_VERSION,
+        "funding_pnl_accounting_status": (
+            "READY_FUNDING_PNL_ACCRUED"
+            if funding_rate is not None
+            else "MISSING_FUNDING_RATE_OR_BPS"
+        ),
+        "funding_pnl_usd": funding_pnl,
+        "funding_rate": funding_rate,
+        "funding_bps": funding_bps,
+        "funding_interval_seconds": interval_seconds,
+        "funding_accrual_intervals": intervals,
+        "funding_notional_usd": abs(notional_usdt),
+        "funding_pnl_formula": FUNDING_PNL_ACCOUNTING_FORMULA,
+        "funding_pnl_side_sign": side_sign,
+        "funding_pnl_source": (
+            "FUNDING_RATE_OR_BPS_FROM_LINEAGE"
+            if funding_rate is not None
+            else "MISSING_FUNDING_RATE"
+        ),
+    }
+
+
+def _funding_inputs_from_lineage(lineage: dict[str, Any]) -> tuple[float | None, float | None, float | None]:
+    risk = lineage.get("risk_decision") if isinstance(lineage.get("risk_decision"), dict) else {}
+    signal = lineage.get("signal") if isinstance(lineage.get("signal"), dict) else {}
+    prediction = (
+        lineage.get("trainer_prediction")
+        if isinstance(lineage.get("trainer_prediction"), dict)
+        else {}
+    )
+    feature_snapshot = (
+        lineage.get("feature_snapshot")
+        if isinstance(lineage.get("feature_snapshot"), dict)
+        else {}
+    )
+    features = (
+        feature_snapshot.get("features")
+        if isinstance(feature_snapshot.get("features"), dict)
+        else {}
+    )
+    funding_rate = _first_float(
+        risk.get("funding_rate"),
+        signal.get("funding_rate"),
+        prediction.get("funding_rate"),
+        feature_snapshot.get("funding_rate"),
+        features.get("funding_rate"),
+        features.get("actual_funding_rate"),
+        features.get("expected_funding_rate"),
+    )
+    funding_bps = _first_float(
+        risk.get("expected_funding_bps"),
+        signal.get("expected_funding_bps"),
+        prediction.get("expected_funding_bps"),
+        feature_snapshot.get("expected_funding_bps"),
+        features.get("expected_funding_bps"),
+        features.get("funding_bps"),
+        features.get("funding_rate_bps"),
+    )
+    interval_seconds = _first_float(
+        risk.get("funding_interval_seconds"),
+        signal.get("funding_interval_seconds"),
+        prediction.get("funding_interval_seconds"),
+        feature_snapshot.get("funding_interval_seconds"),
+        features.get("funding_interval_seconds"),
+    )
+    return funding_rate, funding_bps, interval_seconds
+
+
 def _trainer_bridge_expected_move(feature_snapshot: dict[str, Any]) -> dict[str, Any]:
     bridge = _read_json_file(TRAINER_BRIDGE_STATUS_FILE)
     expected_move = _float_or_none(bridge.get("expected_move_bps"))
+    expected_move_after_cost = _float_or_none(
+        bridge.get("expected_move_after_cost_bps")
+    )
     if expected_move is None:
         return {"status": "MISSING_NATIVE_EXPECTED_MOVE"}
     if str(bridge.get("expected_move_evidence_mode") or "") != "NATIVE_FIELD_PRESENT":
@@ -140,6 +243,7 @@ def _trainer_bridge_expected_move(feature_snapshot: dict[str, Any]) -> dict[str,
     return {
         "status": "NATIVE_EXPECTED_MOVE_PRESENT",
         "expected_move_bps": expected_move,
+        "expected_move_after_cost_bps": expected_move_after_cost,
         "expected_move_source": str(bridge.get("expected_move_source") or ""),
         "expected_move_timeframe": bridge_timeframe,
         "feature_timeframe": feature_timeframe,
@@ -163,66 +267,19 @@ def _freshness(age_seconds: int | None) -> str:
 
 
 def fetch_market_snapshot(symbol: str) -> MarketSnapshot:
-    generated_at = iso_now()
-    errors: list[str] = []
-    encoded = urllib.parse.urlencode({"symbol": symbol})
-    try:
-        ticker = _http_json(f"https://fapi.binance.com/fapi/v1/ticker/price?{encoded}")
-        klines = _http_json(
-            "https://fapi.binance.com/fapi/v1/klines?"
-            + urllib.parse.urlencode({"symbol": symbol, "interval": "1m", "limit": "30"})
-        )
-        event_ms = int(ticker.get("time") or klines[-1][6])
-        now_ms = int(time.time() * 1000)
-        age_seconds = max(0, int((now_ms - event_ms) / 1000))
-        candles = [
-            {
-                "time": _iso_from_ms(int(row[0])),
-                "open": float(row[1]),
-                "high": float(row[2]),
-                "low": float(row[3]),
-                "close": float(row[4]),
-                "volume": float(row[5]),
-                "source_type": "READONLY_MARKET_FEED",
-            }
-            for row in klines
-        ]
-        return MarketSnapshot(
-            symbol=symbol,
-            price=float(ticker["price"]),
-            source_type="READONLY_MARKET_FEED",
-            source="binance_usdm_public_get_only",
-            source_pointer="/fapi/v1/ticker/price + /fapi/v1/klines",
-            generated_at=generated_at,
-            last_event_at=_iso_from_ms(event_ms),
-            age_seconds=age_seconds,
-            freshness_state=_freshness(age_seconds),
-            errors=errors,
-            candles=candles,
-        )
-    except (
-        OSError,
-        urllib.error.URLError,
-        TimeoutError,
-        ValueError,
-        TypeError,
-        KeyError,
-        IndexError,
-    ) as exc:
-        errors.append(f"binance_usdm_readonly_market_feed_failed:{exc.__class__.__name__}")
-
+    snapshot = fetch_unified_market_snapshot(symbol, timeframe="1m", limit=30)
     return MarketSnapshot(
-        symbol=symbol,
-        price=None,
-        source_type="MISSING_EVIDENCE",
-        source="binance_usdm_public_get_only",
-        source_pointer="/fapi/v1/ticker/price + /fapi/v1/klines",
-        generated_at=generated_at,
-        last_event_at=None,
-        age_seconds=None,
-        freshness_state="MISSING",
-        errors=errors,
-        candles=[],
+        symbol=snapshot.symbol,
+        price=snapshot.price,
+        source_type=snapshot.source_type,
+        source=snapshot.source,
+        source_pointer=snapshot.source_pointer,
+        generated_at=snapshot.generated_at,
+        last_event_at=snapshot.last_event_at,
+        age_seconds=snapshot.age_seconds,
+        freshness_state=snapshot.freshness_state,
+        errors=snapshot.errors,
+        candles=snapshot.candles,
     )
 
 
@@ -429,6 +486,10 @@ def build_trainer_prediction(feature_snapshot: dict[str, Any], tick_id: str) -> 
     }
     if bridge_expected_move.get("status") == "NATIVE_EXPECTED_MOVE_PRESENT":
         raw_output["expected_move_bps"] = bridge_expected_move["expected_move_bps"]
+        if bridge_expected_move.get("expected_move_after_cost_bps") is not None:
+            raw_output["expected_move_after_cost_bps"] = bridge_expected_move[
+                "expected_move_after_cost_bps"
+            ]
         raw_output["expected_move_source"] = bridge_expected_move["expected_move_source"]
         raw_output["expected_move_timeframe"] = bridge_expected_move["expected_move_timeframe"]
         raw_output["cross_timeframe_expected_move"] = bridge_expected_move["cross_timeframe_expected_move"]
@@ -447,6 +508,9 @@ def build_trainer_prediction(feature_snapshot: dict[str, Any], tick_id: str) -> 
         "feature_snapshot_id": feature_snapshot["feature_snapshot_id"],
         "raw_output": raw_output,
         "expected_move_bps": bridge_expected_move.get("expected_move_bps"),
+        "expected_move_after_cost_bps": bridge_expected_move.get(
+            "expected_move_after_cost_bps"
+        ),
         "expected_move_source": bridge_expected_move.get("expected_move_source"),
         "expected_move_bridge_status": bridge_expected_move.get("status"),
         "confidence_raw": round(raw_confidence, 6),
@@ -696,6 +760,137 @@ def apply_paper_tightening_gate(
     return gated
 
 
+def apply_paper_entry_gates(lineage: dict[str, Any]) -> dict[str, Any]:
+    """Phase 3/4/8/9 entry gates for new paper positions.
+
+    Only called when no open position exists. Checks in order:
+        Phase 3 — symbol/timeframe/outcome-memory entry gate
+        Phase 4 — high-precision confidence/edge/coverage gate
+        Phase 9 — anti-market-maker detector (entry-block detectors)
+        Phase 8 — leverage recommendation (advisory; never blocks)
+
+    All checks fail-safe: any import error or unexpected input silently
+    skips that gate (fail-open for the individual gate, not the full chain).
+    A hard Phase 3 or 4 block sets risk_action=deny and returns early.
+    No exchange mutation. Live gate remains blocked_human_only.
+    """
+    gated = copy.deepcopy(lineage)
+    risk = gated["risk_decision"]
+    intent = gated["execution_intent"]
+
+    if risk.get("risk_action") != "allow":
+        return gated
+
+    signal = gated.get("signal", {})
+    feature_snapshot = gated.get("feature_snapshot", {})
+    prediction = gated.get("trainer_prediction", {})
+    raw_output = prediction.get("raw_output") if isinstance(prediction.get("raw_output"), dict) else {}
+    features = feature_snapshot.get("features") if isinstance(feature_snapshot.get("features"), dict) else {}
+    sym = str(intent.get("symbol") or signal.get("symbol") or "").upper()
+    tf = str(prediction.get("timeframe") or "")
+    side = str(intent.get("side") or "").lower()
+    conf = _float_or_none(prediction.get("confidence_calibrated"))
+    edge = _float_or_none(risk.get("expected_move_after_cost_bps"))
+
+    def _block(reason_code: str, reasons: list[str], gate_name: str) -> None:
+        risk["risk_action"] = "deny"
+        risk["risk_result"] = f"BLOCKED_{gate_name.upper()}"
+        risk["risk_reason_code"] = reason_code
+        checked = list(risk.get("required_blocks_checked") or [])
+        if gate_name not in checked:
+            checked.append(gate_name)
+        risk["required_blocks_checked"] = checked
+        intent["intent_action"] = "paper_noop_blocked"
+        intent["exchange_order_allowed"] = False
+        intent["paper_only"] = True
+
+    # ── Phase 3: entry gate ────────────────────────────────────────────────────
+    try:
+        from v2.backend.app.services.paper_trade_management.entry_gate import (  # noqa: PLC0415
+            evaluate_entry_gate,
+        )
+        entry_result = evaluate_entry_gate(
+            symbol=sym,
+            timeframe=tf,
+            strategy_mode=None,
+            confidence_calibrated=conf,
+            expected_move_after_cost_bps=edge,
+            major_move_detected=bool(raw_output.get("major_move_detected")),
+        )
+        risk["entry_gate"] = entry_result
+        if not entry_result["allowed"]:
+            _block("deny_entry_gate", entry_result["reasons"], "entry_gate")
+            return gated
+    except Exception:  # noqa: BLE001
+        pass
+
+    if risk["risk_action"] != "allow":
+        return gated
+
+    # ── Phase 4: high-precision gate ──────────────────────────────────────────
+    try:
+        from v2.backend.app.services.paper_trade_management.high_precision_gate import (  # noqa: PLC0415
+            evaluate_high_precision_gate,
+        )
+        hp_result = evaluate_high_precision_gate(
+            action=side,
+            confidence_calibrated=conf,
+            expected_move_after_cost_bps=edge,
+            data_coverage_pct=_float_or_none(feature_snapshot.get("data_coverage_percent")),
+            market_state_integrity_score=100.0,
+            prediction=prediction,
+        )
+        risk["high_precision_gate"] = hp_result
+        if not hp_result["allow"]:
+            _block("deny_high_precision_gate", hp_result["reasons"], "high_precision_gate")
+            return gated
+    except Exception:  # noqa: BLE001
+        pass
+
+    if risk["risk_action"] != "allow":
+        return gated
+
+    # ── Phase 9: anti-market-maker detection ──────────────────────────────────
+    try:
+        from v2.backend.app.services.paper_trade_management.anti_market_maker_detector import (  # noqa: PLC0415
+            evaluate_all_detectors,
+        )
+        anti_mm = evaluate_all_detectors(features)
+        risk["anti_mm_detection"] = anti_mm
+        if anti_mm.get("entry_blocked"):
+            triggered = [
+                f"ANTI_MM_{k}:{v['reason']}"
+                for k, v in (anti_mm.get("detectors") or {}).items()
+                if v.get("detected")
+            ]
+            _block("deny_anti_mm_detected", triggered, "anti_mm_detection")
+            return gated
+    except Exception:  # noqa: BLE001
+        pass
+
+    # ── Phase 8: leverage recommendation (advisory — never blocks) ────────────
+    if risk["risk_action"] == "allow":
+        try:
+            from v2.backend.app.services.paper_trade_management.leverage_recommendation import (  # noqa: PLC0415
+                recommend_leverage_for_signal,
+            )
+            lev_rec = recommend_leverage_for_signal(
+                symbol=sym,
+                timeframe=tf or "1m",
+                signal_id=str((gated.get("signal") or {}).get("signal_id") or "unknown"),
+                direction=side or "long",
+                confidence_calibrated=float(conf or 0.0),
+                expected_move_after_cost_bps=edge,
+                atr_bps=_float_or_none(features.get("atr_bps")),
+                equity_usd=None,
+            )
+            risk["leverage_recommendation"] = lev_rec
+        except Exception:  # noqa: BLE001
+            pass
+
+    return gated
+
+
 def build_paper_ledger_entry(
     *,
     tick_id: str,
@@ -713,10 +908,20 @@ def build_paper_ledger_entry(
     fee = round(notional * fee_rate, 6) if risk["risk_action"] == "allow" else 0.0
     slippage = round(_basis_points(price, slippage_bps), 6) if risk["risk_action"] == "allow" else 0.0
     fill_price = round(price + slippage, 6) if intent["side"] == "long" else round(price - slippage, 6)
+    funding_rate, funding_bps, funding_interval_seconds = _funding_inputs_from_lineage(lineage)
+    funding = _paper_funding_accounting(
+        side=str(intent.get("side") or ""),
+        notional_usdt=notional if risk["risk_action"] == "allow" else 0.0,
+        hold_time_seconds=0,
+        funding_rate=funding_rate,
+        funding_bps=funding_bps,
+        funding_interval_seconds=funding_interval_seconds,
+    )
     equity = round(previous_equity - fee, 6)
     ledger_entry = {
         "paper_ledger_entry_id": f"pledger_{tick_id}",
         "generated_at": generated_at,
+        "policy_activated_at": generated_at if risk["risk_action"] == "allow" else None,
         "execution_intent_id": intent["execution_intent_id"],
         "risk_decision_id": risk["risk_decision_id"],
         "signal_id": lineage["signal"]["signal_id"],
@@ -729,6 +934,7 @@ def build_paper_ledger_entry(
         "fee_rate": fee_rate,
         "slippage_bps": slippage_bps,
         "funding_assumption": "zero_until_funding_feed_adapter_current",
+        **funding,
         "exchange_order_id": None,
         "live_order": False,
         "legacy_redis_write": False,
@@ -769,14 +975,67 @@ def build_position_lifecycle_entry(
         and age_seconds < int(previous_position.get("minimum_hold_seconds") or PAPER_POSITION_MIN_HOLD_SECONDS)
     )
     exit_reason = _position_exit_reason(previous_position, current_price=current_price, generated_at=generated_at)
+    # Phase 7: anti-MM exit acceleration check (advisory — may override hold decision)
+    _phase7_exit_source = "position_exit_reason"
+    if not exit_reason:
+        try:
+            from v2.backend.app.services.paper_trade_management.anti_market_maker_detector import (  # noqa: PLC0415
+                evaluate_all_detectors,
+            )
+            _p7_features: dict[str, Any] = {}
+            _p7_features["price_change_bps"] = current_return_bps
+            anti_mm_exit = evaluate_all_detectors(_p7_features)
+            if anti_mm_exit.get("exit_accelerated") and age_seconds is not None and age_seconds >= PAPER_POSITION_MIN_HOLD_SECONDS:
+                exit_reason = "ANTI_MM_EXIT_ACCELERATED"
+                _phase7_exit_source = "anti_mm_exit_accelerate"
+        except Exception:  # noqa: BLE001
+            pass
+    # Phase 7: hedge advisory (fail-closed — operator_paper_hedge_engine_approved=False)
+    _phase7_hedge: dict[str, Any] = {}
+    try:
+        from v2.backend.app.services.trade_management_paper.hedge_engine import (  # noqa: PLC0415
+            HedgePositionInputs,
+            evaluate_hedge,
+        )
+        _hedge_eval = evaluate_hedge(
+            HedgePositionInputs(
+                symbol=str(previous_position.get("symbol") or market.symbol),
+                side=side,
+                notional_usd=notional,
+                unrealized_pnl_bps=current_return_bps,
+                age_seconds=age_seconds or 0,
+                drawdown_bps_abs=abs(current_return_bps) if current_return_bps < 0 else 0.0,
+                live_gate=LIVE_GATE_STATUS,
+                live_symbols=(),
+            ),
+            operator_paper_hedge_engine_approved=False,
+        )
+        _phase7_hedge = asdict(_hedge_eval)
+    except Exception:  # noqa: BLE001
+        pass
     if exit_reason:
         exit_fee = round(notional * fee_rate, 6)
-        realized_delta = round(gross_unrealized - exit_fee, 6)
+        funding_rate = _first_float(previous_position.get("funding_rate"))
+        funding_bps = _first_float(
+            previous_position.get("funding_bps"),
+            previous_position.get("expected_funding_bps"),
+        )
+        funding_interval_seconds = _first_float(previous_position.get("funding_interval_seconds"))
+        funding = _paper_funding_accounting(
+            side=side,
+            notional_usdt=notional,
+            hold_time_seconds=age_seconds or 0,
+            funding_rate=funding_rate,
+            funding_bps=funding_bps,
+            funding_interval_seconds=funding_interval_seconds,
+        )
+        realized_delta = round(gross_unrealized - exit_fee + float(funding["funding_pnl_usd"] or 0.0), 6)
         realized_pnl = round(previous_realized + realized_delta, 6)
         equity = round(10000.0 + realized_pnl, 6)
         ledger_entry = {
             "paper_ledger_entry_id": f"pledger_{tick_id}",
             "generated_at": generated_at,
+            "policy_activated_at": previous_position.get("policy_activated_at"),
             "execution_intent_id": lineage["execution_intent"]["execution_intent_id"],
             "risk_decision_id": risk["risk_decision_id"],
             "signal_id": lineage["signal"]["signal_id"],
@@ -791,6 +1050,7 @@ def build_position_lifecycle_entry(
             "fee_rate": fee_rate,
             "slippage_bps": 0.0,
             "funding_assumption": "zero_until_funding_feed_adapter_current",
+            **funding,
             "gross_pnl_usdt": gross_unrealized,
             "realized_delta_usdt": realized_delta,
             "exchange_order_id": None,
@@ -813,22 +1073,38 @@ def build_position_lifecycle_entry(
                 **previous_position,
                 "status": "CLOSED",
                 "closed_at": generated_at,
+                "policy_activated_at": previous_position.get("policy_activated_at"),
                 "exit_price": current_price,
                 "exit_reason": exit_reason,
+                "exit_source": _phase7_exit_source,
                 "position_age_seconds": age_seconds,
                 "minimum_hold_seconds": previous_position.get("minimum_hold_seconds")
                 or PAPER_POSITION_MIN_HOLD_SECONDS,
                 "paper_exit_coordinator_status": "EXIT_COORDINATED_PAPER_ONLY",
                 "gross_pnl_usdt": gross_unrealized,
+                **funding,
                 "realized_delta_usdt": realized_delta,
+                "phase7_hedge_advisory": _phase7_hedge,
             },
         }
         return ledger_entry, account, lifecycle
 
     equity = round(10000.0 + previous_realized + gross_unrealized, 6)
+    held_funding = _paper_funding_accounting(
+        side=side,
+        notional_usdt=notional,
+        hold_time_seconds=age_seconds or 0,
+        funding_rate=_first_float(previous_position.get("funding_rate")),
+        funding_bps=_first_float(
+            previous_position.get("funding_bps"),
+            previous_position.get("expected_funding_bps"),
+        ),
+        funding_interval_seconds=_first_float(previous_position.get("funding_interval_seconds")),
+    )
     ledger_entry = {
         "paper_ledger_entry_id": f"pledger_{tick_id}",
         "generated_at": generated_at,
+        "policy_activated_at": previous_position.get("policy_activated_at"),
         "execution_intent_id": lineage["execution_intent"]["execution_intent_id"],
         "risk_decision_id": risk["risk_decision_id"],
         "signal_id": lineage["signal"]["signal_id"],
@@ -841,6 +1117,7 @@ def build_position_lifecycle_entry(
         "fee_rate": fee_rate,
         "slippage_bps": 0.0,
         "funding_assumption": "zero_until_funding_feed_adapter_current",
+        **held_funding,
         "unrealized_pnl_usdt": gross_unrealized,
         "exchange_order_id": None,
         "live_order": False,
@@ -863,9 +1140,11 @@ def build_position_lifecycle_entry(
             "last_mark_price": current_price,
             "last_mark_at": generated_at,
             "unrealized_pnl_usdt": gross_unrealized,
+            **held_funding,
             "current_return_bps": current_return_bps,
             "position_age_seconds": age_seconds,
             "minimum_hold_active": minimum_hold_active,
+            "phase7_hedge_advisory": _phase7_hedge,
             "paper_exit_coordinator_status": (
                 "MINIMUM_HOLD_ACTIVE_PAPER_ONLY"
                 if minimum_hold_active
@@ -892,12 +1171,25 @@ def paper_position_lifecycle_from_entry(
         "open_position": {
             "status": "OPEN",
             "opened_at": ledger_entry["generated_at"],
+            "policy_activated_at": ledger_entry.get("policy_activated_at"),
             "symbol": ledger_entry["symbol"],
             "side": intent.get("side"),
             "entry_price": ledger_entry["fill_price"],
             "notional_usdt": ledger_entry["notional_usdt"],
             "entry_fee_usdt": ledger_entry["fee_usdt"],
             "fee_rate": ledger_entry["fee_rate"],
+            "funding_pnl_accounting_version": ledger_entry.get("funding_pnl_accounting_version"),
+            "funding_pnl_accounting_status": ledger_entry.get("funding_pnl_accounting_status"),
+            "funding_pnl_usd": ledger_entry.get("funding_pnl_usd"),
+            "funding_rate": ledger_entry.get("funding_rate"),
+            "funding_bps": ledger_entry.get("funding_bps"),
+            "expected_funding_bps": ledger_entry.get("funding_bps"),
+            "funding_interval_seconds": ledger_entry.get("funding_interval_seconds"),
+            "funding_accrual_intervals": ledger_entry.get("funding_accrual_intervals"),
+            "funding_notional_usd": ledger_entry.get("funding_notional_usd"),
+            "funding_pnl_formula": ledger_entry.get("funding_pnl_formula"),
+            "funding_pnl_side_sign": ledger_entry.get("funding_pnl_side_sign"),
+            "funding_pnl_source": ledger_entry.get("funding_pnl_source"),
             "take_profit_bps": max(PAPER_POSITION_MIN_TAKE_PROFIT_BPS, expected_after_cost),
             "stop_loss_bps": PAPER_POSITION_DEFAULT_STOP_BPS,
             "minimum_hold_seconds": PAPER_POSITION_MIN_HOLD_SECONDS,
@@ -975,6 +1267,7 @@ def append_paper_event(root: Path, payload: dict[str, Any], risk_runtime_payload
     signal = payload["current_signal_lineage"]["signal"]
     risk = payload["current_risk_decision"]
     trainer = payload["trainer_prediction"]
+    _intent = (payload.get("current_signal_lineage") or {}).get("execution_intent") or {}
     feature_snapshot = payload["feature_snapshot"]
     paper_edge_gate = risk.get("paper_edge_gate") if isinstance(risk.get("paper_edge_gate"), dict) else {}
     protective_gate = (
@@ -1053,6 +1346,15 @@ def append_paper_event(root: Path, payload: dict[str, Any], risk_runtime_payload
         "live_symbols": [],
         "exchange_order": False,
         "legacy_redis_write": False,
+        # Fields added for hourly monitor / feedback / leverage tracking
+        "timeframe": trainer.get("timeframe") or "unknown",
+        "side": _intent.get("side") or None,
+        "paper_action": f"paper_{_intent.get('side') or 'unknown'}",
+        "leverage_recommendation": risk.get("leverage_recommendation"),
+        "feedback_sent": ledger_entry["paper_result"] == "POSITION_CLOSED_PAPER_ONLY",
+        "anti_mm_entry_blocked": bool((risk.get("anti_mm_detection") or {}).get("entry_blocked")),
+        "entry_gate_result": risk.get("entry_gate"),
+        "high_precision_gate_result": risk.get("high_precision_gate"),
         "source_type": "V2_PAPER_RUNTIME_JSONL_EVENT",
     }
     root.mkdir(parents=True, exist_ok=True)
@@ -1078,6 +1380,14 @@ def build_runtime_payload(symbol: str, interval: int) -> tuple[dict[str, Any], d
     tick_id = f"paper_tick_{int(time.time() * 1000)}"
     feature_snapshot = build_feature_snapshot(market, tick_id)
     trainer_prediction = build_trainer_prediction(feature_snapshot, tick_id)
+    # Phase 6: enrich prediction with required schema fields (direction, coverage, drivers, etc.)
+    try:
+        from v2.backend.app.services.paper_trade_management.prediction_accuracy_tracker import (  # noqa: PLC0415
+            enrich_prediction_for_phase6,
+        )
+        trainer_prediction = enrich_prediction_for_phase6(trainer_prediction)
+    except Exception:  # noqa: BLE001
+        pass
     lineage = build_signal_lineage(
         tick_id=tick_id,
         generated_at=generated_at,
@@ -1103,6 +1413,8 @@ def build_runtime_payload(symbol: str, interval: int) -> tuple[dict[str, Any], d
             previous_account=previous_account,
         )
     else:
+        # Phases 3/4/8/9: entry gate → high-precision gate → anti-MM → leverage rec
+        lineage = apply_paper_entry_gates(lineage)
         ledger_entry, paper_account = build_paper_ledger_entry(
             tick_id=tick_id,
             generated_at=generated_at,
@@ -1240,6 +1552,166 @@ def build_runtime_payload(symbol: str, interval: int) -> tuple[dict[str, Any], d
     return payload, positions
 
 
+def _push_decisions_to_redis(payload: dict[str, Any]) -> None:
+    """Write risk/orchestrator/ledger decisions to V2 Redis namespace.
+
+    This bridges the file-based paper_online_runtime output to the Redis
+    keys consumed by all_timeframe_prediction_signal_price_target_publisher
+    so that risk_decision_id and orchestrator_decision_id are no longer
+    missing from the all-TF signal lineage artifact.
+
+    All writes use v2: prefix only. No legacy Redis writes.
+    Fail-safe: any Redis error is silently absorbed so the paper loop
+    continues even when Redis is temporarily unavailable.
+    """
+    try:
+        import redis as _redis  # type: ignore
+    except ImportError:
+        return
+    try:
+        r = _redis.Redis(
+            host="127.0.0.1",
+            port=6379,
+            db=0,
+            decode_responses=True,
+            socket_connect_timeout=2,
+        )
+        r.ping()
+    except Exception:  # noqa: BLE001
+        return
+    try:
+        lineage = payload.get("current_signal_lineage") or {}
+        risk_decision = payload.get("current_risk_decision") or lineage.get("risk_decision") or {}
+        orch_decision = lineage.get("orchestrator_decision") or {}
+        execution_intent = lineage.get("execution_intent") or {}
+        ledger_entries = payload.get("paper_ledger_tail") or []
+        generated_at = payload.get("generated_at", "")
+
+        def _append_to_json_list(key: str, new_item: dict, max_len: int = 300) -> None:
+            existing_raw = r.get(key)
+            existing_list: list = []
+            if existing_raw:
+                try:
+                    parsed = json.loads(existing_raw)
+                    if isinstance(parsed, list):
+                        existing_list = parsed
+                except Exception:  # noqa: BLE001
+                    pass
+            existing_list.insert(0, new_item)
+            r.set(key, json.dumps(existing_list[:max_len]))
+
+        if risk_decision:
+            risk_entry = dict(risk_decision)
+            risk_entry.setdefault("generated_at", generated_at)
+            # Delay list append until we have symbol_key (done below in signal_id block).
+            r.set("v2:risk:decisions:latest", json.dumps(risk_entry))
+
+        if orch_decision:
+            orch_entry = dict(orch_decision)
+            orch_entry.setdefault("generated_at", generated_at)
+            existing_orch_raw = r.get("v2:orchestrator:decisions")
+            if existing_orch_raw:
+                try:
+                    existing_orch = json.loads(existing_orch_raw)
+                    if isinstance(existing_orch, dict) and "schema_version" in existing_orch:
+                        existing_orch["paper_online_latest"] = orch_entry
+                        existing_orch["paper_online_generated_at"] = generated_at
+                        r.set("v2:orchestrator:decisions", json.dumps(existing_orch))
+                    else:
+                        r.set("v2:orchestrator:decisions", json.dumps({
+                            "generated_at": generated_at,
+                            "paper_online_latest": orch_entry,
+                            "decisions": [orch_entry],
+                        }))
+                except Exception:  # noqa: BLE001
+                    pass
+            else:
+                r.set("v2:orchestrator:decisions", json.dumps({
+                    "generated_at": generated_at,
+                    "paper_online_latest": orch_entry,
+                    "decisions": [orch_entry],
+                }))
+
+        if execution_intent:
+            intent_entry = dict(execution_intent)
+            intent_entry.setdefault("generated_at", generated_at)
+            _append_to_json_list(PAPER_ONLINE_INTENTS_KEY, intent_entry)
+
+        if ledger_entries:
+            latest_entry = ledger_entries[0] if isinstance(ledger_entries[0], dict) else {}
+            risk_action = risk_decision.get("risk_action", "deny")
+            paper_ledger = {
+                "generated_at": generated_at,
+                "source": "v2.backend.app.cli.paper_online_runtime",
+                "accepted_count": 1 if risk_action == "allow" else 0,
+                "blocked_count": 0 if risk_action == "allow" else 1,
+                "accepted": [latest_entry] if risk_action == "allow" else [],
+                "shadow_observations": [latest_entry] if risk_action != "allow" else [],
+                "latest_entry": latest_entry,
+            }
+            r.set(PAPER_ONLINE_LEDGER_KEY, json.dumps(paper_ledger))
+
+        lineage_ids = lineage.get("lineage_ids") or {}
+        signal_id = lineage_ids.get("signal_id") or (lineage.get("signal") or {}).get("signal_id")
+        if signal_id:
+            signal_record = dict(lineage.get("signal") or {})
+            signal_record["risk_decision_id"] = risk_decision.get("risk_decision_id")
+            signal_record["orchestrator_decision_id"] = orch_decision.get("orchestrator_decision_id")
+            signal_record["execution_intent_id"] = execution_intent.get("execution_intent_id")
+            signal_record["paper_ledger_entry_id"] = (
+                (ledger_entries[0] or {}).get("paper_ledger_entry_id") if ledger_entries else None
+            )
+            signal_record["generated_at"] = generated_at
+            symbol_key = str(payload.get("market_feed", {}).get("symbol") or "").upper()
+            if symbol_key:
+                r.set(f"v2:signals:paper:{symbol_key}:1m", json.dumps(signal_record))
+                gateway_entry = {
+                    "generated_at": generated_at,
+                    "symbol": symbol_key,
+                    "prediction_id": lineage_ids.get("prediction_id"),
+                    "risk_decision_id": risk_decision.get("risk_decision_id"),
+                    "risk_action": risk_decision.get("risk_action"),
+                    "risk_result": risk_decision.get("risk_result"),
+                }
+                r.set("v2:risk:gateway:decisions:latest", json.dumps(gateway_entry))
+                _append_to_json_list("v2:risk:gateway:decisions", gateway_entry)
+                # Also inject symbol into the risk decision entry so _by_symbol fallback works
+                if risk_decision:
+                    risk_entry_sym = dict(risk_decision)
+                    risk_entry_sym["symbol"] = symbol_key
+                    risk_entry_sym["orchestrator_decision_id"] = orch_decision.get("orchestrator_decision_id")
+                    risk_entry_sym.setdefault("generated_at", generated_at)
+                    r.set("v2:risk:decisions:latest", json.dumps(risk_entry_sym))
+                    _append_to_json_list("v2:risk:decisions", risk_entry_sym)
+        # Phase 6: backfill realized outcome when a position just closed
+        if ledger_entries:
+            _ledger_result = (ledger_entries[0] or {}).get("paper_result", "")
+            if _ledger_result == "POSITION_CLOSED_PAPER_ONLY":
+                _last_closed = (
+                    (payload.get("paper_position_lifecycle") or {}).get("last_closed_position") or {}
+                )
+                if _last_closed and lineage_ids.get("prediction_id"):
+                    try:
+                        from v2.backend.app.services.paper_trade_management.prediction_accuracy_tracker import (  # noqa: PLC0415
+                            backfill_realized_outcome,
+                        )
+                        _realized_bps = float(_last_closed.get("current_return_bps") or 0.0)
+                        _sym_key = str(payload.get("market_feed", {}).get("symbol") or "").upper()
+                        backfill_realized_outcome(
+                            symbol=_sym_key,
+                            timeframe="1m",
+                            prediction_id=str(lineage_ids["prediction_id"]),
+                            realized_outcome_direction="long" if _realized_bps > 0 else "short",
+                            realized_outcome_bps=_realized_bps,
+                            realized_at_ms=int(time.time() * 1000),
+                            redis_client=r,
+                        )
+                    except Exception:  # noqa: BLE001
+                        pass
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def write_runtime_payload(symbol: str, interval: int, write_evidence: bool) -> dict[str, Any]:
     payload, positions = build_runtime_payload(symbol, interval)
     for root in (LOCAL_RUNTIME_DIR, PUBLIC_RUNTIME_DIR):
@@ -1258,6 +1730,7 @@ def write_runtime_payload(symbol: str, interval: int, write_evidence: bool) -> d
             },
         )
         append_paper_event(root, payload, payload["risk_runtime_payload"])
+    _push_decisions_to_redis(payload)
     if write_evidence:
         write_evidence_packet(payload, positions)
     return payload
@@ -1636,7 +2109,7 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument("--once", action="store_true", help="Write one runtime tick and exit.")
     mode.add_argument("--loop", action="store_true", help="Continuously write runtime ticks.")
     parser.add_argument("--interval", type=int, default=30, help="Loop interval in seconds.")
-    parser.add_argument("--symbol", default="BTCUSDT")
+    parser.add_argument("--symbol", default=None)
     parser.add_argument("--write-evidence", action="store_true", help="Write final readiness evidence files.")
     return parser
 
@@ -1644,12 +2117,13 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     interval = max(args.interval, 5)
+    symbol = _resolve_runtime_symbol(args.symbol, smoke_test=False)
     if args.loop:
         while True:
-            payload = write_runtime_payload(args.symbol, interval, write_evidence=False)
+            payload = write_runtime_payload(symbol, interval, write_evidence=False)
             print(f"{payload['generated_at']} {payload['runtime_state']} {payload['last_paper_event']['paper_action']}", flush=True)
             time.sleep(interval)
-    payload = write_runtime_payload(args.symbol, interval, write_evidence=args.write_evidence or args.once)
+    payload = write_runtime_payload(symbol, interval, write_evidence=args.write_evidence or args.once)
     print(payload["runtime_state"])
     print(PUBLIC_RUNTIME_DIR)
     return 0 if payload["runtime_state"] == "PAPER_RUNTIME_ONLINE_ACTIVE" else 2

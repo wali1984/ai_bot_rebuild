@@ -1,0 +1,11 @@
+{
+  "chain_complete_count": 0,
+  "execution_live_symbols": [],
+  "generated_est": "2026-06-21T20:28:29-04:00",
+  "lineage_rows": [],
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "missing_lineage_count": 0,
+  "schema_version": "v2_all_timeframe_signal_lineage_status_v1",
+  "status": "ALL_TIMEFRAME_LINEAGE_BLOCKED_OR_PARTIAL"
+}

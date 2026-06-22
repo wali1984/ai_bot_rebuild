@@ -1,0 +1,9 @@
+{
+  "alive": true,
+  "file_lock_group": "v2_dynamic_symbol_coverage_missing_source_closure",
+  "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/codex_review_autoseed_dynamic_symbol_coverage_missing_source_closure_codex.log",
+  "pid": 1820417,
+  "task_id": "codex_review_autoseed_dynamic_symbol_coverage_missing_source_closure",
+  "task_type": "CODEX_REVIEW",
+  "updated_at": "2026-05-24T22:20:59Z"
+}

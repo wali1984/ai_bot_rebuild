@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="620" viewBox="0 0 640 620">
+  <defs><linearGradient id="g" x1="12" y1="14" x2="86" y2="84" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#7C5CFF"/><stop offset="0.53" stop-color="#4B7BFF"/><stop offset="1" stop-color="#22D3C5"/></linearGradient></defs>
+  <rect width="640" height="620" fill="#070A12"/>
+  <g transform="translate(180 65) scale(2.9)">
+    <rect x="2" y="2" width="92" height="92" rx="20" fill="url(#g)"/>
+    <path d="M25 69 V27 L71 69 V27" fill="none" stroke="#F6F7FB" stroke-width="8.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M41 60 L57 36" fill="none" stroke="#07101B" stroke-opacity="0.5" stroke-width="10" stroke-linecap="round"/>
+    <path d="M41 60 L57 36" fill="none" stroke="#5CF2B3" stroke-width="5" stroke-linecap="round"/>
+    <circle cx="25" cy="27" r="3.3" fill="#F6F7FB"/><circle cx="71" cy="69" r="3.3" fill="#F6F7FB"/><circle cx="41" cy="60" r="2.4" fill="#5CF2B3"/><circle cx="57" cy="36" r="2.4" fill="#5CF2B3"/>
+  </g>
+  <text x="68" y="450" font-family="Inter, Arial, sans-serif" font-size="76" font-weight="800" letter-spacing="2.4"><tspan fill="#F6F7FB">NERVY</tspan><tspan fill="#22D3C5">X</tspan></text>
+  <g transform="translate(412 391)"><rect width="126" height="64" rx="20" fill="#F6F7FB"/><text x="63" y="43" text-anchor="middle" fill="#070A12" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="800" letter-spacing="4">ONE</text></g>
+  <text x="320" y="510" text-anchor="middle" fill="#A8B3C7" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="600" letter-spacing="3.5">ADAPTIVE MARKET INTELLIGENCE</text>
+  <text x="320" y="556" text-anchor="middle" fill="#F6F7FB" font-family="Inter, Arial, sans-serif" font-size="19" font-weight="600">Sense. Decide. Adapt.</text>
+</svg>

@@ -1,0 +1,44 @@
+{
+  "schema_version": "v2_hourly_monitor_v1",
+  "generated_at": "2026-06-21T23:02:27Z",
+  "window_start_est": "2026-06-21T20:02:26+00:00",
+  "window_end_est": "2026-06-21T21:02:26+00:00",
+  "event_count_in_window": 118,
+  "live_gate": "blocked_human_only",
+  "live_mutation_count_must_be_zero": 0,
+  "mutates_exchange": false,
+  "fill_count": 0,
+  "closed_trade_count": 0,
+  "open_position_count": 0,
+  "blocked_count": 118,
+  "paper_realized_pnl": 0,
+  "paper_unrealized_pnl": 0,
+  "win_count": 0,
+  "loss_count": 0,
+  "win_rate": null,
+  "profit_factor": null,
+  "average_win_bps": null,
+  "average_loss_bps": null,
+  "max_drawdown_usdt": 0.0,
+  "trade_count_by_symbol": {},
+  "trade_count_by_timeframe": {},
+  "trade_count_by_strategy": {},
+  "long_count": 0,
+  "short_count": 0,
+  "long_short_ratio": 0.0,
+  "top_block_reasons": [
+    {
+      "reason": "deny_canary_profile_tightening",
+      "count": 112
+    },
+    {
+      "reason": "deny_low_confidence",
+      "count": 5
+    },
+    {
+      "reason": "deny_orchestrator_held",
+      "count": 1
+    }
+  ],
+  "exit_reason_counts": {}
+}

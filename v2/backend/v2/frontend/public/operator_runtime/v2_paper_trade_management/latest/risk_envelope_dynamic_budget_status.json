@@ -1,0 +1,10 @@
+{
+  "available_margin": 0.0,
+  "drawdown_bps": 0.0,
+  "equity": 0.0,
+  "equity_source": "v2:portfolio:state",
+  "fixed_200_usdt_runtime_sizing": false,
+  "generated_utc": "2026-06-16T06:27:08Z",
+  "operator_envelope_type": "PERCENTAGE_BASED_RISK_ENVELOPE",
+  "static_trade_size_used": false
+}

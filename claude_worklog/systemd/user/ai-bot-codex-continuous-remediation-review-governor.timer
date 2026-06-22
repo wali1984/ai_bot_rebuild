@@ -1,0 +1,12 @@
+[Unit]
+Description=Run AI Bot Codex continuous remediation review governor every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Persistent=true
+Unit=ai-bot-codex-continuous-remediation-review-governor.service
+
+[Install]
+WantedBy=timers.target

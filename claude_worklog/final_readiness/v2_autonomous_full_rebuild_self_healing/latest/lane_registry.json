@@ -1,0 +1,317 @@
+{
+  "schema_version": "v2_autonomous_full_rebuild_self_healing_lane_registry_v1",
+  "generated_utc": "2026-05-23T02:00:00Z",
+  "lanes": [
+    {
+      "lane_id": "runtime_soak",
+      "current_go_no_go": "V2_RUNTIME_SOAK_READY",
+      "latest_codex_marker": "V2_RUNTIME_SOAK_CODEX_PASS",
+      "required_payloads": [
+        "v2/frontend/public/operator_runtime/v2_rl_core/latest/full_observation_builder_status.json"
+      ],
+      "runtime_processes": [
+        "v2_production_replacement_runtime",
+        "continuous_remediation_governor",
+        "legacy_log_observer",
+        "v2_vs_legacy_comparator",
+        "liquidation_wss_daemon",
+        "position_history_tracker"
+      ],
+      "known_blockers": [],
+      "next_action": "monitor; do not interfere",
+      "owner": "OPERATOR",
+      "automation_status": "MONITOR_ONLY",
+      "can_claude_fix": false,
+      "can_codex_fix": false,
+      "operator_required": false
+    },
+    {
+      "lane_id": "continuous_remediation",
+      "current_go_no_go": "CONTINUOUS_REMEDIATION_GOVERNOR_READY",
+      "latest_codex_marker": "CONTINUOUS_REMEDIATION_GOVERNOR_CODEX_PASS",
+      "required_payloads": [
+        "claude_worklog/final_readiness/codex_continuous_remediation_review_governor/latest/codex_continuous_remediation_review_governor_status.json"
+      ],
+      "runtime_processes": ["codex_continuous_remediation_review_governor"],
+      "known_blockers": [],
+      "next_action": "monitor",
+      "owner": "CODEX",
+      "automation_status": "RUNNING",
+      "can_claude_fix": false,
+      "can_codex_fix": true,
+      "operator_required": false
+    },
+    {
+      "lane_id": "autonomous_full_observation_burndown",
+      "current_go_no_go": "V2_AUTONOMOUS_PRODUCTION_EQUIVALENCE_BURNDOWN_CONTROLLER_READY",
+      "latest_codex_marker": "V2_AUTONOMOUS_PRODUCTION_EQUIVALENCE_BURNDOWN_CONTROLLER_CODEX_PASS",
+      "required_payloads": [
+        "claude_worklog/final_readiness/v2_autonomous_production_equivalence_burndown/latest/autonomous_burndown_status.json"
+      ],
+      "runtime_processes": ["v2_autonomous_production_equivalence_burndown_controller"],
+      "known_blockers": [],
+      "next_action": "buildable queue exhausted; await next operator-approved gate",
+      "owner": "CLAUDE",
+      "automation_status": "READY_QUEUE_EXHAUSTED",
+      "can_claude_fix": false,
+      "can_codex_fix": false,
+      "operator_required": true
+    },
+    {
+      "lane_id": "full_observation_builder",
+      "current_go_no_go": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+      "latest_codex_marker": "V2_FULL_OBSERVATION_REMAINING_DIM_EXECUTION_QUEUE_CODEX_PASS",
+      "required_payloads": [
+        "v2/frontend/public/operator_runtime/v2_rl_core/latest/full_observation_builder_status.json",
+        "claude_worklog/final_readiness/v2_full_observation_remaining_dim_execution_queue/latest/remaining_dim_execution_queue.json"
+      ],
+      "runtime_processes": [],
+      "known_blockers": [
+        "V2_EVENT_DEPENDENT_LIQUIDATION_WSS",
+        "V2_POSITION_DEPENDENT_OPEN_POSITION_REQUIRED",
+        "EXTERNAL_SOURCE_REQUIRED_TOKEN_METRICS",
+        "EXTERNAL_SOURCE_REQUIRED_ONCHAIN_BTC",
+        "EXTERNAL_SOURCE_REQUIRED_ONCHAIN_ETH",
+        "OPERATOR_DECISION_REQUIRED_CCXT_OHLCV",
+        "V2_LANE_EXISTS_PAYLOAD_ABSENT",
+        "LEGACY_V3_EXTRA_NO_V2_SOURCE",
+        "NOT_REQUIRED_FOR_CURRENT_V2_MODEL_PATH"
+      ],
+      "next_action": "all V2_BUILDABLE_NOW exact-source tasks completed; next progress requires operator-approved gate (event-dependent / position-dependent / external / operator-decision)",
+      "owner": "OPERATOR",
+      "automation_status": "BUILDABLE_QUEUE_EXHAUSTED",
+      "can_claude_fix": false,
+      "can_codex_fix": false,
+      "operator_required": true
+    },
+    {
+      "lane_id": "remaining_dim_queue",
+      "current_go_no_go": "V2_FULL_OBSERVATION_REMAINING_DIM_EXECUTION_QUEUE_REMEDIATED_READY",
+      "latest_codex_marker": "V2_FULL_OBSERVATION_REMAINING_DIM_EXECUTION_QUEUE_CODEX_PASS",
+      "required_payloads": [
+        "claude_worklog/final_readiness/v2_full_observation_remaining_dim_execution_queue/latest/remaining_dim_execution_queue.json"
+      ],
+      "runtime_processes": [],
+      "known_blockers": [],
+      "next_action": "monitor; refresh classifier on next runtime change",
+      "owner": "CLAUDE",
+      "automation_status": "READY",
+      "can_claude_fix": true,
+      "can_codex_fix": true,
+      "operator_required": false
+    },
+    {
+      "lane_id": "liquidation_wss",
+      "current_go_no_go": "V2_LIQUIDATION_WSS_DAEMON_GOVERNED",
+      "latest_codex_marker": null,
+      "required_payloads": ["v2:market:liquidations:heartbeat"],
+      "runtime_processes": ["liquidation_wss_daemon"],
+      "known_blockers": [
+        "publisher does not emit v2:market:liquidations:latest:{symbol} or v2:market:liquidations:aggregate:{symbol} yet"
+      ],
+      "next_action": "event-dependent; awaits publisher emission for buildable progress",
+      "owner": "CLAUDE",
+      "automation_status": "EVENT_DEPENDENT",
+      "can_claude_fix": true,
+      "can_codex_fix": true,
+      "operator_required": false
+    },
+    {
+      "lane_id": "position_history_tracker",
+      "current_go_no_go": "V2_POSITION_HISTORY_TRACKER_HEARTBEAT_FRESH",
+      "latest_codex_marker": null,
+      "required_payloads": ["v2:paper:position_history:heartbeat"],
+      "runtime_processes": ["position_history_tracker"],
+      "known_blockers": [
+        "position-dependent fields require an open paper position"
+      ],
+      "next_action": "position-dependent; sourcing happens automatically when a paper position opens",
+      "owner": "CLAUDE",
+      "automation_status": "POSITION_DEPENDENT",
+      "can_claude_fix": false,
+      "can_codex_fix": false,
+      "operator_required": false
+    },
+    {
+      "lane_id": "alt_data_provider_clients",
+      "current_go_no_go": "ALT_DATA_PAPER_SHADOW_ONLY",
+      "latest_codex_marker": null,
+      "required_payloads": [
+        "v2:altdata:nansen:status",
+        "v2:altdata:lunarcrush:status"
+      ],
+      "runtime_processes": ["nansen_paper_shadow_client", "lunarcrush_paper_shadow_client"],
+      "known_blockers": [
+        "paid endpoints disallowed without operator decision"
+      ],
+      "next_action": "paper/shadow only; no operator approval requested",
+      "owner": "OPERATOR",
+      "automation_status": "PAPER_SHADOW_ONLY",
+      "can_claude_fix": false,
+      "can_codex_fix": false,
+      "operator_required": true
+    },
+    {
+      "lane_id": "alt_data_symbol_scoring",
+      "current_go_no_go": "ALT_DATA_SYMBOL_SCORING_LANE_EXISTS_PAYLOAD_ABSENT",
+      "latest_codex_marker": null,
+      "required_payloads": ["v2:altdata:symbol_score:{symbol}"],
+      "runtime_processes": [],
+      "known_blockers": ["scorer has not republished v2:altdata:symbol_score keys yet"],
+      "next_action": "wait for scorer; do not adopt symbols",
+      "owner": "CLAUDE",
+      "automation_status": "LANE_EXISTS_PAYLOAD_ABSENT",
+      "can_claude_fix": true,
+      "can_codex_fix": true,
+      "operator_required": false
+    },
+    {
+      "lane_id": "alt_data_candidate_publisher",
+      "current_go_no_go": "ALT_DATA_CANDIDATE_PUBLISHER_CANDIDATE_ONLY",
+      "latest_codex_marker": null,
+      "required_payloads": ["v2:symbol_universe:altdata_candidates"],
+      "runtime_processes": [],
+      "known_blockers": ["automatic Symbol Universe adoption disallowed"],
+      "next_action": "candidate-only; no adoption authority",
+      "owner": "CLAUDE",
+      "automation_status": "CANDIDATE_ONLY",
+      "can_claude_fix": true,
+      "can_codex_fix": true,
+      "operator_required": false
+    },
+    {
+      "lane_id": "top10_dashboards",
+      "current_go_no_go": "TOP10_DASHBOARDS_OPERATOR_REVIEW",
+      "latest_codex_marker": null,
+      "required_payloads": [
+        "v2/frontend/public/operator_runtime/v2_rl_core/latest/full_observation_builder_status.json"
+      ],
+      "runtime_processes": [],
+      "known_blockers": [],
+      "next_action": "monitor; verify wording stays honest",
+      "owner": "CLAUDE",
+      "automation_status": "MONITOR",
+      "can_claude_fix": true,
+      "can_codex_fix": true,
+      "operator_required": false
+    },
+    {
+      "lane_id": "symbol_universe",
+      "current_go_no_go": "SYMBOL_UNIVERSE_PROPOSAL_ONLY",
+      "latest_codex_marker": null,
+      "required_payloads": ["v2:symbol_universe:state"],
+      "runtime_processes": [],
+      "known_blockers": ["automatic adoption disallowed without operator-approved gate"],
+      "next_action": "proposal-only; never auto-adopt",
+      "owner": "OPERATOR",
+      "automation_status": "PROPOSAL_ONLY",
+      "can_claude_fix": false,
+      "can_codex_fix": false,
+      "operator_required": true
+    },
+    {
+      "lane_id": "legacy_log_observer",
+      "current_go_no_go": "LEGACY_LOG_OBSERVER_RUNNING",
+      "latest_codex_marker": null,
+      "required_payloads": [
+        "v2/frontend/public/legacy_log_observer/latest/operator_dashboard_payload.json"
+      ],
+      "runtime_processes": ["legacy_log_observer"],
+      "known_blockers": [],
+      "next_action": "do not stop",
+      "owner": "OPERATOR",
+      "automation_status": "RUNNING",
+      "can_claude_fix": false,
+      "can_codex_fix": false,
+      "operator_required": false
+    },
+    {
+      "lane_id": "v2_vs_legacy_comparator",
+      "current_go_no_go": "V2_VS_LEGACY_COMPARATOR_RUNNING",
+      "latest_codex_marker": null,
+      "required_payloads": [
+        "v2/frontend/public/v2_legacy_v2_production_comparator/latest/operator_dashboard_payload.json"
+      ],
+      "runtime_processes": ["v2_legacy_v2_production_comparator"],
+      "known_blockers": [],
+      "next_action": "do not stop",
+      "owner": "CLAUDE",
+      "automation_status": "RUNNING",
+      "can_claude_fix": true,
+      "can_codex_fix": true,
+      "operator_required": false
+    },
+    {
+      "lane_id": "policy_architecture",
+      "current_go_no_go": "POLICY_ARCHITECTURE_NOT_STARTED",
+      "latest_codex_marker": null,
+      "required_payloads": [],
+      "runtime_processes": [],
+      "known_blockers": ["operator approval required; observation gate must precede"],
+      "next_action": "blocked; requires operator approval after observation gate",
+      "owner": "OPERATOR",
+      "automation_status": "OPERATOR_GATE",
+      "can_claude_fix": false,
+      "can_codex_fix": false,
+      "operator_required": true
+    },
+    {
+      "lane_id": "checkpoint_model_parity",
+      "current_go_no_go": "CHECKPOINT_MODEL_PARITY_NOT_CLAIMED",
+      "latest_codex_marker": null,
+      "required_payloads": [],
+      "runtime_processes": [],
+      "known_blockers": ["operator approval required; do not deserialize checkpoint blobs"],
+      "next_action": "blocked; operator gate",
+      "owner": "OPERATOR",
+      "automation_status": "OPERATOR_GATE",
+      "can_claude_fix": false,
+      "can_codex_fix": false,
+      "operator_required": true
+    },
+    {
+      "lane_id": "frontend_truth",
+      "current_go_no_go": "FRONTEND_TRUTH_HONEST_PARTIAL",
+      "latest_codex_marker": null,
+      "required_payloads": [
+        "v2/frontend/public/**/latest/*"
+      ],
+      "runtime_processes": [],
+      "known_blockers": [],
+      "next_action": "controller refreshes payloads after every successful lane action",
+      "owner": "CLAUDE",
+      "automation_status": "MONITOR_AND_REFRESH",
+      "can_claude_fix": true,
+      "can_codex_fix": true,
+      "operator_required": false
+    },
+    {
+      "lane_id": "live_canary_safety",
+      "current_go_no_go": "LIVE_CANARY_BLOCKED_HUMAN_ONLY",
+      "latest_codex_marker": null,
+      "required_payloads": [],
+      "runtime_processes": [],
+      "known_blockers": ["live and canary trading require explicit human approval"],
+      "next_action": "remain blocked",
+      "owner": "OPERATOR",
+      "automation_status": "BLOCKED_HUMAN_ONLY",
+      "can_claude_fix": false,
+      "can_codex_fix": false,
+      "operator_required": true
+    },
+    {
+      "lane_id": "production_equivalence_shutdown_gate",
+      "current_go_no_go": "LEGACY_SHUTDOWN_BLOCKED",
+      "latest_codex_marker": null,
+      "required_payloads": [],
+      "runtime_processes": [],
+      "known_blockers": ["shutdown acceptance requires operator approval"],
+      "next_action": "remain blocked",
+      "owner": "OPERATOR",
+      "automation_status": "BLOCKED_HUMAN_ONLY",
+      "can_claude_fix": false,
+      "can_codex_fix": false,
+      "operator_required": true
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "alive": true,
+  "file_lock_group": "v2_altdata_replay_bundle_snapshot_attachment",
+  "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/codex_review_autoseed_altdata_replay_bundle_snapshot_attachment_codex.log",
+  "pid": 1572936,
+  "task_id": "codex_review_autoseed_altdata_replay_bundle_snapshot_attachment",
+  "task_type": "CODEX_REVIEW",
+  "updated_at": "2026-05-25T00:59:30Z"
+}

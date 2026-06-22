@@ -1,0 +1,69 @@
+{
+  "schema_version": "v2_paper_edge_threshold_simulation_v1",
+  "generated_utc": "2026-05-25T06:15:00Z",
+  "git_head": "10513bbe0517fd81c9c87e4672bb15486a083c02",
+  "purpose": "Operator-facing simulation of what would pass/fail under candidate threshold sets. Informational only; no edge claim is made.",
+  "observed_metrics": {
+    "expected_move_after_cost_bps": -8.981832584893514,
+    "after_cost_ci_lower_bps": -13.090729934534577,
+    "after_cost_ci_upper_bps": -5.115957570291047,
+    "sample_count": 3347,
+    "max_drawdown_bps_observed": 309.82905982905976,
+    "false_negative_rate": 0.19753086419753085,
+    "false_positive_rate": null,
+    "downside_pre_cascade_recall": null
+  },
+  "candidate_threshold_sets": [
+    {
+      "set_id": "conservative_operator_candidate",
+      "operator_decision_required": true,
+      "min_after_cost_expectancy_bps": 5,
+      "min_after_cost_lower_ci_bps": 0,
+      "min_sample_count": 5000,
+      "max_drawdown_bps_rolling": 200,
+      "max_false_positive_rate": 0.1,
+      "max_false_negative_rate": 0.15,
+      "min_downside_pre_cascade_recall": 0.6,
+      "would_pass_under_current_metrics": false,
+      "fail_reasons": [
+        "after-cost expectancy is -8.98 bps which is < 5 bps required",
+        "after-cost CI lower is -13.09 bps which is < 0 bps required",
+        "sample_count 3347 < 5000 required",
+        "max_drawdown_bps_observed 309.83 > 200 cap",
+        "false_negative_rate 0.198 > 0.15 cap",
+        "downside_pre_cascade_recall is null; insufficient labeled downside events"
+      ]
+    },
+    {
+      "set_id": "loose_operator_candidate",
+      "operator_decision_required": true,
+      "min_after_cost_expectancy_bps": 0,
+      "min_after_cost_lower_ci_bps": -5,
+      "min_sample_count": 2000,
+      "max_drawdown_bps_rolling": 500,
+      "max_false_positive_rate": 0.25,
+      "max_false_negative_rate": 0.3,
+      "min_downside_pre_cascade_recall": 0.4,
+      "would_pass_under_current_metrics": false,
+      "fail_reasons": [
+        "after-cost expectancy is -8.98 bps which is < 0 bps required",
+        "after-cost CI lower is -13.09 bps which is < -5 bps required",
+        "downside_pre_cascade_recall is null; insufficient labeled downside events"
+      ]
+    }
+  ],
+  "simulation_decision": "EDGE_NOT_CLAIMED_UNDER_ANY_CANDIDATE_THRESHOLD_SET",
+  "no_edge_claim_made": true,
+  "no_threshold_persisted": true,
+  "operator_required_to_persist_any_threshold": true,
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "fabricates_edge": false,
+    "creates_approval_tokens": false
+  }
+}

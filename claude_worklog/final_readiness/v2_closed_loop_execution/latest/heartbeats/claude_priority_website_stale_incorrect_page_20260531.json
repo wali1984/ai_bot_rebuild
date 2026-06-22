@@ -1,0 +1,10 @@
+{
+  "alive": true,
+  "cmd": [
+    "/home/wali/.local/bin/claude",
+    "..."
+  ],
+  "pid": 3645525,
+  "task_id": "claude_priority_website_stale_incorrect_page_20260531",
+  "updated_at": "2026-06-12T19:25:43Z"
+}

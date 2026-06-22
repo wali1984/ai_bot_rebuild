@@ -1,0 +1,46 @@
+{
+  "bridge_data_labeled_as_v2_native": false,
+  "controls_present": false,
+  "fake_readiness": false,
+  "full_migration_claimed": false,
+  "generated_at": "2026-06-12T18:28:39Z",
+  "go_no_go": "V2_NATIVE_TRAINER_BRIDGE_EXIT_PREDICTION_PUBLISHER_READY",
+  "safety_scoreboard": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "did_not_call_exchange_mutation": true,
+    "did_not_claim_checkpoint_compatibility": true,
+    "did_not_claim_trainer_native_readiness": true,
+    "did_not_expose_raw_api_keys": true,
+    "did_not_modify_legacy_tree": true,
+    "did_not_overwrite_stronger_existing_prediction": true,
+    "did_not_stop_codex_governors": true,
+    "did_not_stop_legacy_runtime": true,
+    "did_not_stop_replay_miner": true,
+    "did_not_stop_report_center": true,
+    "did_not_stop_v2_runtime": true,
+    "did_not_weaken_paper_fill_gate": true,
+    "did_not_write_old_redis_keys": true,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "schema_version": "v2_native_trainer_bridge_exit_prediction_publisher_v1_operator_dashboard_payload",
+  "summary": {
+    "baseline_count": 50,
+    "contract_only_count": 0,
+    "old_redis_write_attempts": 0,
+    "preserved_count": 0,
+    "published_count": 50,
+    "redis_writes_succeeded": 52,
+    "rejected_count": 0,
+    "timeframes": [
+      "1m",
+      "5m"
+    ],
+    "universe_size": 25
+  },
+  "trainer_native_readiness_claimed": false,
+  "v2_native_trainer_ready": false
+}

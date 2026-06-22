@@ -1,0 +1,25 @@
+{
+  "cadence_seconds": 300,
+  "generated_est": "2026-06-08T18:00:39-04:00",
+  "generated_utc": "2026-06-08T22:00:39Z",
+  "loop_contract": {
+    "emit_paper_equity_stale_after_fill": true,
+    "publish_portfolio_payload": true,
+    "publish_runtime_truth": true,
+    "read_paper_ledger": true,
+    "recompute_equity": true,
+    "update_website_payload": true
+  },
+  "schema_version": "paper_equity_continuous_monitor_status_v1",
+  "service_evidence": {
+    "activeState": "active",
+    "active_state": "UNKNOWN",
+    "fragmentPath": "/home/wali/.config/systemd/user/ai-bot-v2-portfolio-state-publisher.service",
+    "service": "ai-bot-v2-portfolio-state-publisher.service",
+    "subState": "running",
+    "sub_state": "UNKNOWN",
+    "systemctl_checked": true,
+    "systemctl_returncode": 0
+  },
+  "status": "EXISTING_PORTFOLIO_STATE_PUBLISHER_ACTIVE"
+}

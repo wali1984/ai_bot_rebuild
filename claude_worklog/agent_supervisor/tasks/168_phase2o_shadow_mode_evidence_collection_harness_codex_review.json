@@ -1,29 +1,67 @@
 {
-  "task_id": "168_phase2o_shadow_mode_evidence_collection_harness_codex_review",
   "agent": "codex",
-  "risk_level": "L1",
-  "status": "pending",
+  "allowed_output_prefixes": [
+    "claude_worklog/phase2_core_rebuild/shadow_mode_evidence_collection_harness/"
+  ],
+  "blocked_by": [
+    "PHASE2E3C_TRAINER_PREDICTION_OUTPUT_COMPOSITION_ROOT_CODEX_PASS",
+    "PHASE2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_CODEX_PASS",
+    "PHASE2G_C_RISK_GATEWAY_COMPOSITION_ROOT_CODEX_PASS",
+    "PHASE2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_CODEX_PASS",
+    "PHASE2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_CODEX_PASS",
+    "PHASE2J_C_PAPER_MODE_RUNTIME_FLAG_COMPOSITION_ROOT_CODEX_PASS",
+    "PHASE2K_C_SHADOW_MODE_READINESS_FLAG_COMPOSITION_ROOT_CODEX_PASS",
+    "V2_BACKTEST_AND_PAPER_MVP_READY",
+    "V2_BACKTEST_AND_PAPER_MVP_READY_CODEX_PASS",
+    "PHASE2M_REPLAY_CASE_LAB_HEDGE_UNWIND_IMPLEMENTATION_READY",
+    "PHASE2M_REPLAY_CASE_LAB_HEDGE_UNWIND_CODEX_PASS",
+    "PHASE2N_PAPER_MODE_EVIDENCE_COLLECTION_HARNESS_IMPLEMENTATION_READY",
+    "PHASE2N_PAPER_MODE_EVIDENCE_COLLECTION_HARNESS_CODEX_PASS",
+    "PHASE2O_SHADOW_MODE_EVIDENCE_COLLECTION_HARNESS_IMPLEMENTATION_READY"
+  ],
+  "completed_at": "2026-05-08T02:35:45.216499+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "depends_on": [
     "167_phase2o_shadow_mode_evidence_collection_harness_implementation"
   ],
-  "predecessor_task_ids": [
-    "167_phase2o_shadow_mode_evidence_collection_harness_implementation"
-  ],
-  "predecessor_required_marker": "PHASE2O_SHADOW_MODE_EVIDENCE_COLLECTION_HARNESS_IMPLEMENTATION_READY",
-  "predecessor_required_marker_file": "claude_worklog/phase2_core_rebuild/shadow_mode_evidence_collection_harness/07_GO_NO_GO.md",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "emit_files": true,
-  "task_granularity_mode": "consolidated_default",
-  "requires_clean_worktree": true,
-  "worktree_excluded_paths": [
-    "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt",
-    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_closed_loop_recovery_128_ready.json",
-    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_fail_marker_recovery_ready.json",
-    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_non_live_recovery_ready.json",
-    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_parallel_readonly_review_ready.json"
-  ],
-  "allowed_output_prefixes": [
-    "claude_worklog/phase2_core_rebuild/shadow_mode_evidence_collection_harness/"
+  "failure_marker": "PHASE2O_SHADOW_MODE_EVIDENCE_COLLECTION_HARNESS_CODEX_FAIL",
+  "failure_marker_file": "claude_worklog/phase2_core_rebuild/shadow_mode_evidence_collection_harness/09_CODEX_GO_NO_GO.md",
+  "forbidden_actions": [
+    "modify any v2/ source or test file",
+    "modify any task definition under claude_worklog/agent_supervisor/tasks/",
+    "modify the master planner prompt",
+    "modify any prior-milestone artifact byte content",
+    "modify any Phase 2O planning artifact (01, 02, 03, 04, 05) authored by the planner turn",
+    "modify the Phase 2O implementation report (06) or implementation GO/NO-GO marker (07)",
+    "modify the Phase 2O planner-turn implementation note (PLANNER_TURN_2O_OPEN_IMPLEMENTATION.md) or this Codex-review planner-turn note (PLANNER_TURN_2O_OPEN_CODEX_REVIEW.md)",
+    "modify /home/wali/Desktop/AI BOT",
+    "read or write any Redis key",
+    "invoke any Redis command",
+    "restart any live service",
+    "place or cancel exchange orders",
+    "change leverage or margin",
+    "enable live trading",
+    "ship to anywhere",
+    "run a migration in any environment",
+    "expose or commit credentials",
+    "approve the live gate",
+    "emit a standalone harness framing token marker line in any authored file body",
+    "propose adding any execution-side surface, paper trader process, paper executor, shadow trader process, shadow executor, live trader process, replay engine, scheduler, background loop, FastAPI surface, Redis adapter, GPU runner, model-loading subsystem, or strategy library at the Phase 2O layer",
+    "propose adding any new lineage ID at the Phase 2O layer beyond feature_snapshot_id, prediction_id, decision_id, and the auto-derived risk_decision_id (rd_<decision_id>) already carried by the existing typed records",
+    "propose introducing a shadow_decision_id, execution_intent_id, or new standalone paper_trade_id lineage row at the Phase 2O layer",
+    "propose introducing PnL, position sizing, quantity, price, fees, slippage, funding, OI, liquidation map, orderbook depth, hedge-state, residual-exposure, or squeeze-risk computation in any Phase 2O source / test / fixture / harness file",
+    "propose introducing ledger persistence (SQL, SQLite, JSON file, Parquet, CSV, Redis, in-memory dict acting as a ledger) in any Phase 2O source / test / fixture / harness file",
+    "propose flipping the live-readiness gate or substituting for FINAL_NON_LIVE_REBUILD_READY_FOR_LIVE_GATE_REVIEW",
+    "propose modifying placeholder file v2/backend/app/services/paper_loop.py or v2/backend/app/services/replay_runner.py at the Phase 2O layer",
+    "propose populating v2/backend/app/domain/replay/ or v2/backend/app/domain/execution/ at the Phase 2O layer",
+    "propose introducing a v2/backend/app/composition/v2_backtest_and_paper_mvp_ready.py flat-file placeholder",
+    "propose introducing wall-clock helper invocation (time.time, time.monotonic, datetime.now, datetime.utcnow) in any Phase 2O file",
+    "propose introducing file I/O helper (open, pathlib.Path read/write) in any Phase 2O file",
+    "propose introducing network client import (socket, requests, httpx, urllib, redis, aioredis, ccxt, fastapi, starlette, pydantic) in any Phase 2O file",
+    "propose introducing environment-variable reader (os.environ, os.getenv) in any Phase 2O file",
+    "propose introducing heavyweight numerics / ML library import (torch, numpy, pandas, scikit-learn) in any Phase 2O test, fixture, or harness file",
+    "propose use of mock, patch, or monkeypatch on build_risk_gateway_runtime, build_orchestrator_decision_runtime, assemble_risk_decision_record, or any of their dependencies"
   ],
   "forbidden_output_paths": [
     "v2/backend/app/composition/",
@@ -73,50 +111,7 @@
     "claude_worklog/phase2_core_rebuild/shadow_mode_evidence_collection_harness/PLANNER_TURN_2O_OPEN_CODEX_REVIEW.md",
     "/home/wali/Desktop/AI BOT"
   ],
-  "required_output_files": [
-    "claude_worklog/phase2_core_rebuild/shadow_mode_evidence_collection_harness/08_CODEX_REVIEW.md",
-    "claude_worklog/phase2_core_rebuild/shadow_mode_evidence_collection_harness/09_CODEX_GO_NO_GO.md"
-  ],
-  "forbidden_actions": [
-    "modify any v2/ source or test file",
-    "modify any task definition under claude_worklog/agent_supervisor/tasks/",
-    "modify the master planner prompt",
-    "modify any prior-milestone artifact byte content",
-    "modify any Phase 2O planning artifact (01, 02, 03, 04, 05) authored by the planner turn",
-    "modify the Phase 2O implementation report (06) or implementation GO/NO-GO marker (07)",
-    "modify the Phase 2O planner-turn implementation note (PLANNER_TURN_2O_OPEN_IMPLEMENTATION.md) or this Codex-review planner-turn note (PLANNER_TURN_2O_OPEN_CODEX_REVIEW.md)",
-    "modify /home/wali/Desktop/AI BOT",
-    "read or write any Redis key",
-    "invoke any Redis command",
-    "restart any live service",
-    "place or cancel exchange orders",
-    "change leverage or margin",
-    "enable live trading",
-    "ship to anywhere",
-    "run a migration in any environment",
-    "expose or commit credentials",
-    "approve the live gate",
-    "emit a standalone harness framing token marker line in any authored file body",
-    "propose adding any execution-side surface, paper trader process, paper executor, shadow trader process, shadow executor, live trader process, replay engine, scheduler, background loop, FastAPI surface, Redis adapter, GPU runner, model-loading subsystem, or strategy library at the Phase 2O layer",
-    "propose adding any new lineage ID at the Phase 2O layer beyond feature_snapshot_id, prediction_id, decision_id, and the auto-derived risk_decision_id (rd_<decision_id>) already carried by the existing typed records",
-    "propose introducing a shadow_decision_id, execution_intent_id, or new standalone paper_trade_id lineage row at the Phase 2O layer",
-    "propose introducing PnL, position sizing, quantity, price, fees, slippage, funding, OI, liquidation map, orderbook depth, hedge-state, residual-exposure, or squeeze-risk computation in any Phase 2O source / test / fixture / harness file",
-    "propose introducing ledger persistence (SQL, SQLite, JSON file, Parquet, CSV, Redis, in-memory dict acting as a ledger) in any Phase 2O source / test / fixture / harness file",
-    "propose flipping the live-readiness gate or substituting for FINAL_NON_LIVE_REBUILD_READY_FOR_LIVE_GATE_REVIEW",
-    "propose modifying placeholder file v2/backend/app/services/paper_loop.py or v2/backend/app/services/replay_runner.py at the Phase 2O layer",
-    "propose populating v2/backend/app/domain/replay/ or v2/backend/app/domain/execution/ at the Phase 2O layer",
-    "propose introducing a v2/backend/app/composition/v2_backtest_and_paper_mvp_ready.py flat-file placeholder",
-    "propose introducing wall-clock helper invocation (time.time, time.monotonic, datetime.now, datetime.utcnow) in any Phase 2O file",
-    "propose introducing file I/O helper (open, pathlib.Path read/write) in any Phase 2O file",
-    "propose introducing network client import (socket, requests, httpx, urllib, redis, aioredis, ccxt, fastapi, starlette, pydantic) in any Phase 2O file",
-    "propose introducing environment-variable reader (os.environ, os.getenv) in any Phase 2O file",
-    "propose introducing heavyweight numerics / ML library import (torch, numpy, pandas, scikit-learn) in any Phase 2O test, fixture, or harness file",
-    "propose use of mock, patch, or monkeypatch on build_risk_gateway_runtime, build_orchestrator_decision_runtime, assemble_risk_decision_record, or any of their dependencies"
-  ],
-  "scope_dirty_paths": [],
   "lane": "codex_watchdog",
-  "mvp_relevance": "Closes the Codex review gate for the Phase 2O shadow-mode evidence-collection harness authoring milestone, the third post-consolidation Lane A evidence-collection task after V2_BACKTEST_AND_PAPER_MVP_READY closed at HEAD 7b46dbf, the Phase 2M LAB hedge-unwind / squeeze replay-case authoring closed, and the Phase 2N paper-mode evidence-collection harness closed. PASS records that the Phase 2O packet (planning artifacts 01-05, planner-turn notes for implementation and Codex review, implementation report 06, implementation GO/NO-GO 07, four test-only files under v2/backend/tests/unit/shadow_mode_evidence_collection_harness/) accurately drives the existing build_risk_gateway_runtime composition root end-to-end against a deterministic four-scenario evidence pack (12 typed OrchestratorDecisionRecord input rows; 12 produced typed RiskDecisionRecord rows; 12 produced test-only ShadowModeComparisonRecord rows; one harness-level ShadowModeReadinessFlag with live_blocked True covering both ready and not_ready requested states as evidence) and produces the typed offline-inspectable shadow-comparison baseline that subsequent shadow_decision_id lineage, decision-explainability UI, and risk-gateway-extension milestones replay against, and introduces no source / test / fixture / harness file under v2/backend/app/, no execution-side surface, no Redis writes, no live trading enablement, and no live-readiness gate flip. Distance to V2_BACKTEST_AND_PAPER_MVP_READY at task 168 dispatch: zero remaining MVP milestones (the consolidation marker is closed); this task validates the third Lane A post-consolidation evidence-collection artifact. After this PASS the planner opens the next post-consolidation Lane A category per claude_worklog/phase2_core_rebuild/v2_backtest_and_paper_mvp_ready/07_NEXT_STEP_AFTER_CONSOLIDATION.md - historical-PnL audit Phase 2P stub authoring under claude_worklog/historical_pnl_audit/ (read-only legacy-evidence indexing per REQ_0024; non-live, non-FastAPI, non-scheduler; no Binance API call dispatched at this planner turn; HISTORICAL_PNL_TRADE_TRAINER_AUDIT_PARTIAL_LOCAL_ONLY posture until secret-handling and 30-day-Binance-pull preconditions are independently approved).",
-  "next_gate": "PHASE2O_SHADOW_MODE_EVIDENCE_COLLECTION_HARNESS_CODEX_PASS",
   "legacy_evidence_consulted": [
     "claude_worklog/phase2_core_rebuild/shadow_mode_evidence_collection_harness/01_LEGACY_FAILURE_EVIDENCE.md",
     "claude_worklog/phase2_core_rebuild/shadow_mode_evidence_collection_harness/02_TYPED_INPUT_FIXTURE_SPEC.md",
@@ -161,22 +156,30 @@
     "v2/backend/app/composition/risk_gateway/runtime.py"
   ],
   "legacy_failure_addressed": "review verifies that the Phase 2O shadow-mode evidence-collection harness packet accurately drives the existing build_risk_gateway_runtime composition root end-to-end against a deterministic four-scenario evidence pack and produces the typed offline-inspectable shadow-comparison baseline (12 RiskDecisionRecord rows, 12 ShadowModeComparisonRecord rows, one harness-level ShadowModeReadinessFlag covering both ready and not_ready requested states) that subsequent shadow_decision_id lineage, decision-explainability UI, and risk-gateway-extension milestones replay against, fixing the legacy shadow-mode operational gap (legacy did not run a typed shadow-comparison side-by-side: there was no typed RiskDecisionRecord mirror, no typed ShadowModeComparisonRecord, no typed ShadowModeReadinessFlag, no typed lineage rows, and no offline-inspectable shadow-comparison baseline), without enabling live trading, without opening any execution-side surface, without writing Redis, without restarting live services, without placing / canceling exchange orders, without changing leverage / margin, without deploying, without exposing secrets, without flipping the live-readiness gate, without modifying /home/wali/Desktop/AI BOT, without modifying any prior-milestone artifact byte content under claude_worklog/phase2_core_rebuild/, without modifying the Phase 2O planning artifacts (01-05), without modifying the Phase 2O implementation report (06), without modifying the Phase 2O implementation GO/NO-GO marker (07), without modifying any v2/backend/app/ source file, without introducing any new lineage ID at the Phase 2O layer, without introducing a shadow_decision_id / execution_intent_id / new standalone paper_trade_id lineage row, without introducing PnL / position sizing / quantity / price / fees / slippage / funding / OI / liquidation map / orderbook depth / hedge-state / residual-exposure / squeeze-risk computation, without introducing ledger persistence, without modifying placeholder file v2/backend/app/services/paper_loop.py or v2/backend/app/services/replay_runner.py, without populating v2/backend/app/domain/replay/ or v2/backend/app/domain/execution/, without introducing a v2/backend/app/composition/v2_backtest_and_paper_mvp_ready.py flat-file placeholder, without introducing wall-clock helper invocation in any Phase 2O file, without introducing file I/O / network client / environment-variable reader / heavyweight numerics import in any Phase 2O file, and without using mock / patch / monkeypatch on build_risk_gateway_runtime, build_orchestrator_decision_runtime, assemble_risk_decision_record, or any of their dependencies. PASS records that the Phase 2O packet establishes the typed shadow-comparison evidence baseline that subsequent shadow_decision_id lineage, decision-explainability UI, and risk-gateway-extension milestones replay against; the richer shadow-mode runtime modelling (shadow_decision_id lineage row introduction, multi-scenario shadow-PnL attribution, shadow-trader process, shadow executor) belongs to separate, later milestones explicitly out of scope at Phase 2O.",
-  "blocked_by": [
-    "PHASE2E3C_TRAINER_PREDICTION_OUTPUT_COMPOSITION_ROOT_CODEX_PASS",
-    "PHASE2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_CODEX_PASS",
-    "PHASE2G_C_RISK_GATEWAY_COMPOSITION_ROOT_CODEX_PASS",
-    "PHASE2H_C_PAPER_EXECUTION_LEDGER_COMPOSITION_ROOT_CODEX_PASS",
-    "PHASE2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_CODEX_PASS",
-    "PHASE2J_C_PAPER_MODE_RUNTIME_FLAG_COMPOSITION_ROOT_CODEX_PASS",
-    "PHASE2K_C_SHADOW_MODE_READINESS_FLAG_COMPOSITION_ROOT_CODEX_PASS",
-    "V2_BACKTEST_AND_PAPER_MVP_READY",
-    "V2_BACKTEST_AND_PAPER_MVP_READY_CODEX_PASS",
-    "PHASE2M_REPLAY_CASE_LAB_HEDGE_UNWIND_IMPLEMENTATION_READY",
-    "PHASE2M_REPLAY_CASE_LAB_HEDGE_UNWIND_CODEX_PASS",
-    "PHASE2N_PAPER_MODE_EVIDENCE_COLLECTION_HARNESS_IMPLEMENTATION_READY",
-    "PHASE2N_PAPER_MODE_EVIDENCE_COLLECTION_HARNESS_CODEX_PASS",
-    "PHASE2O_SHADOW_MODE_EVIDENCE_COLLECTION_HARNESS_IMPLEMENTATION_READY"
+  "mvp_relevance": "Closes the Codex review gate for the Phase 2O shadow-mode evidence-collection harness authoring milestone, the third post-consolidation Lane A evidence-collection task after V2_BACKTEST_AND_PAPER_MVP_READY closed at HEAD 7b46dbf, the Phase 2M LAB hedge-unwind / squeeze replay-case authoring closed, and the Phase 2N paper-mode evidence-collection harness closed. PASS records that the Phase 2O packet (planning artifacts 01-05, planner-turn notes for implementation and Codex review, implementation report 06, implementation GO/NO-GO 07, four test-only files under v2/backend/tests/unit/shadow_mode_evidence_collection_harness/) accurately drives the existing build_risk_gateway_runtime composition root end-to-end against a deterministic four-scenario evidence pack (12 typed OrchestratorDecisionRecord input rows; 12 produced typed RiskDecisionRecord rows; 12 produced test-only ShadowModeComparisonRecord rows; one harness-level ShadowModeReadinessFlag with live_blocked True covering both ready and not_ready requested states as evidence) and produces the typed offline-inspectable shadow-comparison baseline that subsequent shadow_decision_id lineage, decision-explainability UI, and risk-gateway-extension milestones replay against, and introduces no source / test / fixture / harness file under v2/backend/app/, no execution-side surface, no Redis writes, no live trading enablement, and no live-readiness gate flip. Distance to V2_BACKTEST_AND_PAPER_MVP_READY at task 168 dispatch: zero remaining MVP milestones (the consolidation marker is closed); this task validates the third Lane A post-consolidation evidence-collection artifact. After this PASS the planner opens the next post-consolidation Lane A category per claude_worklog/phase2_core_rebuild/v2_backtest_and_paper_mvp_ready/07_NEXT_STEP_AFTER_CONSOLIDATION.md - historical-PnL audit Phase 2P stub authoring under claude_worklog/historical_pnl_audit/ (read-only legacy-evidence indexing per REQ_0024; non-live, non-FastAPI, non-scheduler; no Binance API call dispatched at this planner turn; HISTORICAL_PNL_TRADE_TRAINER_AUDIT_PARTIAL_LOCAL_ONLY posture until secret-handling and 30-day-Binance-pull preconditions are independently approved).",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_gate": "PHASE2O_SHADOW_MODE_EVIDENCE_COLLECTION_HARNESS_CODEX_PASS",
+  "next_recommended_action": "On PHASE2O_SHADOW_MODE_EVIDENCE_COLLECTION_HARNESS_CODEX_PASS, the planner opens the next post-consolidation Lane A evidence-collection category per claude_worklog/phase2_core_rebuild/v2_backtest_and_paper_mvp_ready/07_NEXT_STEP_AFTER_CONSOLIDATION.md - historical-PnL audit Phase 2P stub authoring under claude_worklog/historical_pnl_audit/ (read-only legacy-evidence indexing per REQ_0024; non-live, non-FastAPI, non-scheduler; no Binance API call dispatched at this planner turn; HISTORICAL_PNL_TRADE_TRAINER_AUDIT_PARTIAL_LOCAL_ONLY posture until secret-handling and 30-day-Binance-pull preconditions are independently approved). Live trading remains blocked. On PHASE2O_SHADOW_MODE_EVIDENCE_COLLECTION_HARNESS_CODEX_FAIL with concrete documentation blockers and no safety violation, supervisor dispatches a REQ_0007 / REQ_0014 autofix task scoped to the Phase 2O packet only. If the FAIL is a stale-rubric / pre-existing-placeholder false positive analogous to the 2H.A / 2H.B / 2H.C / 2I.A / 2I.B / 2I.C / 2J.C / 2L / 2M / 2N reconciliation precedent, the supervisor authors 10_CODEX_RECONCILIATION_ADDENDUM.md under claude_worklog/phase2_core_rebuild/shadow_mode_evidence_collection_harness/ and rewrites the 09_CODEX_GO_NO_GO.md body to PASS per the established reconciliation precedent. On any safety violation, surface to human attention; no autofix is permitted.",
+  "predecessor_required_marker": "PHASE2O_SHADOW_MODE_EVIDENCE_COLLECTION_HARNESS_IMPLEMENTATION_READY",
+  "predecessor_required_marker_file": "claude_worklog/phase2_core_rebuild/shadow_mode_evidence_collection_harness/07_GO_NO_GO.md",
+  "predecessor_task_ids": [
+    "167_phase2o_shadow_mode_evidence_collection_harness_implementation"
   ],
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/shadow_mode_evidence_collection_harness/08_CODEX_REVIEW.md",
+    "claude_worklog/phase2_core_rebuild/shadow_mode_evidence_collection_harness/09_CODEX_GO_NO_GO.md"
+  ],
+  "requires_clean_worktree": true,
+  "resolved_from_source_truth": true,
+  "review_report_file": "claude_worklog/phase2_core_rebuild/shadow_mode_evidence_collection_harness/08_CODEX_REVIEW.md",
+  "review_report_marker": "PHASE2O_SHADOW_MODE_EVIDENCE_COLLECTION_HARNESS_CODEX_REVIEW_READY",
+  "risk_level": "L1",
+  "scope_dirty_paths": [],
+  "source_truth_completed_at": "2026-05-08T02:35:45.216499+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/168_phase2o_shadow_mode_evidence_collection_harness_codex_review.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
   "spec_documents": [
     "claude_worklog/phase2_core_rebuild/shadow_mode_evidence_collection_harness/01_LEGACY_FAILURE_EVIDENCE.md",
     "claude_worklog/phase2_core_rebuild/shadow_mode_evidence_collection_harness/02_TYPED_INPUT_FIXTURE_SPEC.md",
@@ -188,6 +191,12 @@
     "claude_worklog/phase2_core_rebuild/shadow_mode_evidence_collection_harness/PLANNER_TURN_2O_OPEN_IMPLEMENTATION.md",
     "claude_worklog/phase2_core_rebuild/shadow_mode_evidence_collection_harness/PLANNER_TURN_2O_OPEN_CODEX_REVIEW.md"
   ],
+  "status": "completed",
+  "success_marker": "PHASE2O_SHADOW_MODE_EVIDENCE_COLLECTION_HARNESS_CODEX_PASS",
+  "success_marker_file": "claude_worklog/phase2_core_rebuild/shadow_mode_evidence_collection_harness/09_CODEX_GO_NO_GO.md",
+  "task_granularity_mode": "consolidated_default",
+  "task_id": "168_phase2o_shadow_mode_evidence_collection_harness_codex_review",
+  "updated_at": "2026-06-15T19:54:42Z",
   "validation_commands": [
     "git status --porcelain",
     "test \"$(cat claude_worklog/phase2_core_rebuild/shadow_mode_evidence_collection_harness/07_GO_NO_GO.md)\" = \"PHASE2O_SHADOW_MODE_EVIDENCE_COLLECTION_HARNESS_IMPLEMENTATION_READY\"",
@@ -226,11 +235,11 @@
     "git diff --stat HEAD -- claude_worklog/phase2_core_rebuild/shadow_mode_evidence_collection_harness/PLANNER_TURN_2O_OPEN_CODEX_REVIEW.md",
     "git status -s"
   ],
-  "success_marker": "PHASE2O_SHADOW_MODE_EVIDENCE_COLLECTION_HARNESS_CODEX_PASS",
-  "success_marker_file": "claude_worklog/phase2_core_rebuild/shadow_mode_evidence_collection_harness/09_CODEX_GO_NO_GO.md",
-  "failure_marker": "PHASE2O_SHADOW_MODE_EVIDENCE_COLLECTION_HARNESS_CODEX_FAIL",
-  "failure_marker_file": "claude_worklog/phase2_core_rebuild/shadow_mode_evidence_collection_harness/09_CODEX_GO_NO_GO.md",
-  "review_report_file": "claude_worklog/phase2_core_rebuild/shadow_mode_evidence_collection_harness/08_CODEX_REVIEW.md",
-  "review_report_marker": "PHASE2O_SHADOW_MODE_EVIDENCE_COLLECTION_HARNESS_CODEX_REVIEW_READY",
-  "next_recommended_action": "On PHASE2O_SHADOW_MODE_EVIDENCE_COLLECTION_HARNESS_CODEX_PASS, the planner opens the next post-consolidation Lane A evidence-collection category per claude_worklog/phase2_core_rebuild/v2_backtest_and_paper_mvp_ready/07_NEXT_STEP_AFTER_CONSOLIDATION.md - historical-PnL audit Phase 2P stub authoring under claude_worklog/historical_pnl_audit/ (read-only legacy-evidence indexing per REQ_0024; non-live, non-FastAPI, non-scheduler; no Binance API call dispatched at this planner turn; HISTORICAL_PNL_TRADE_TRAINER_AUDIT_PARTIAL_LOCAL_ONLY posture until secret-handling and 30-day-Binance-pull preconditions are independently approved). Live trading remains blocked. On PHASE2O_SHADOW_MODE_EVIDENCE_COLLECTION_HARNESS_CODEX_FAIL with concrete documentation blockers and no safety violation, supervisor dispatches a REQ_0007 / REQ_0014 autofix task scoped to the Phase 2O packet only. If the FAIL is a stale-rubric / pre-existing-placeholder false positive analogous to the 2H.A / 2H.B / 2H.C / 2I.A / 2I.B / 2I.C / 2J.C / 2L / 2M / 2N reconciliation precedent, the supervisor authors 10_CODEX_RECONCILIATION_ADDENDUM.md under claude_worklog/phase2_core_rebuild/shadow_mode_evidence_collection_harness/ and rewrites the 09_CODEX_GO_NO_GO.md body to PASS per the established reconciliation precedent. On any safety violation, surface to human attention; no autofix is permitted."
+  "worktree_excluded_paths": [
+    "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt",
+    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_closed_loop_recovery_128_ready.json",
+    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_fail_marker_recovery_ready.json",
+    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_non_live_recovery_ready.json",
+    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_parallel_readonly_review_ready.json"
+  ]
 }

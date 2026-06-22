@@ -14,7 +14,7 @@ export default function LiveReadinessPage(): JSX.Element {
   const { payload: tonightPayload } = useTonightReadinessPayload();
   return (
     <DesignPageShell meta={meta} rbac={rbac} route={route} eyebrow="Live Readiness" source="GO_NO_GO / final live gate policy" status="FINAL LIVE CAPITAL APPROVAL REQUIRED">
-      <SourceRibbon labels={['live blocked', 'human-only final gate', 'dangerous controls disabled', 'paper/shadow first']} />
+      <SourceRibbon labels={['operator gated', 'human-only final gate', 'dangerous controls disabled', 'execution/shadow first']} />
       {truthPayload ? <RouteTruthSummary payload={truthPayload} title="Live Readiness" /> : <OperatorTruthLoading error={truthError} />}
       <PaperOnlineRuntimeStatusPanel payload={paperRuntime} />
       {payload ? (

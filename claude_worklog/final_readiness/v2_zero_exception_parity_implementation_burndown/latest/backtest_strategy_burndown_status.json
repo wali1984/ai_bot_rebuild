@@ -1,0 +1,17 @@
+{
+  "schema_version": "backtest_strategy_burndown_status_v1",
+  "milestone": "v2_zero_exception_parity_implementation_burndown",
+  "phase": 7,
+  "generated_est": "2026-05-31T01:36:00-0400",
+  "generated_utc": "2026-05-31T05:36:00Z",
+  "war_room_executor": "v2.backend.app.cli.v2_24h_parallel_recovery_war_room",
+  "war_room_last_run_utc": "2026-05-31T03:53:15Z",
+  "war_room_dataset": {"dataset_total_rows": 58, "train_rows": 46, "validation_rows": 12},
+  "war_room_edge_gate": {"edge_claimed": false, "edge_claim_blocked_reason": "operator_thresholds_required_and_not_set"},
+  "war_room_evaluator": {"sample_count": 7750, "expected_move_after_cost_bps": -7.254636885056447, "verdict": "EDGE_NOT_CLAIMED_OPERATOR_THRESHOLDS_REQUIRED"},
+  "strategies_implemented": ["v2_deterministic_policy_shadow_only","naive_threshold_expected_move_10bps","logistic_baseline_1d_expected_move","hold"],
+  "strategies_missing": ["trend_classical","mean_reversion_classical","breakout_classical","funding_oi_combined","liquidation_cascade","orderbook_imbalance","ta_confirmation","no_trade_preservation"],
+  "edge_claimed": false,
+  "verdict": "BACKTEST_PARTIAL_EDGE_NOT_CLAIMED",
+  "live_safety": {"live_gate_status": "blocked_human_only", "live_symbols": []}
+}

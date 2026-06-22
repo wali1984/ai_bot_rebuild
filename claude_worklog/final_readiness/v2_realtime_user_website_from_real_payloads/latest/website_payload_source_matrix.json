@@ -1,0 +1,154 @@
+{
+  "schema_version": "v2_realtime_user_website_payload_source_matrix_v1",
+  "generated_utc": "2026-05-18T17:30:00Z",
+  "design_principle": "every panel binds to one real V2 public payload path; never a mock fixture; PAYLOAD_MISSING rendered with path on absence",
+  "payload_sources": [
+    {
+      "key": "frontend_truth",
+      "path": "/operator_runtime/frontend_truth/latest/frontend_truth_payload.json",
+      "hook": "useFrontendTruth",
+      "renders_on": ["/market", "/admin/war-room"]
+    },
+    {
+      "key": "war_room_dashboard",
+      "path": "/v2_8h_war_room/latest/operator_dashboard_payload.json",
+      "hook": "useWarRoomDashboard",
+      "renders_on": ["/market", "/admin/war-room"]
+    },
+    {
+      "key": "war_room_codex_5m",
+      "path": "/v2_8h_war_room/latest/codex_5m_review_payload.json",
+      "hook": "useWarRoomCodex5m",
+      "renders_on": ["/admin/war-room"]
+    },
+    {
+      "key": "war_room_gap_matrix",
+      "path": "/v2_8h_war_room/latest/model_signal_gap_matrix.json",
+      "hook": "useWarRoomGapMatrix",
+      "renders_on": ["/market", "/admin/war-room"]
+    },
+    {
+      "key": "war_room_actions_applied",
+      "path": "/v2_8h_war_room/latest/actions_applied.json",
+      "hook": "useWarRoomActionsApplied",
+      "renders_on": ["/admin/war-room"]
+    },
+    {
+      "key": "war_room_codex_queue",
+      "path": "/v2_8h_war_room/latest/codex_review_queue.json",
+      "hook": "useWarRoomCodexQueue",
+      "renders_on": ["/admin/war-room"]
+    },
+    {
+      "key": "war_room_runtime_cycle",
+      "path": "/v2_8h_war_room/latest/runtime_cycle_status.json",
+      "hook": "useWarRoomRuntimeCycle",
+      "renders_on": ["/admin/war-room"]
+    },
+    {
+      "key": "war_room_alt_provider",
+      "path": "/v2_8h_war_room/latest/alt_data_provider_runtime_status.json",
+      "hook": "useAltDataProviderRuntime",
+      "renders_on": ["/market"]
+    },
+    {
+      "key": "war_room_alt_universe_gap",
+      "path": "/v2_8h_war_room/latest/alt_data_symbol_universe_gap_matrix.json",
+      "hook": "useAltDataSymbolUniverseGapMatrix",
+      "renders_on": ["/market"]
+    },
+    {
+      "key": "production_equivalence_comparison",
+      "path": "/v2_runtime_soak_and_production_equivalence/latest/production_equivalence_comparison.json",
+      "hook": "useProductionEquivalence",
+      "renders_on": ["/admin/war-room (auxiliary)"]
+    },
+    {
+      "key": "legacy_log_enriched_comparison",
+      "path": "/v2_runtime_soak_and_production_equivalence/latest/legacy_log_enriched_comparison.json",
+      "hook": "useLegacyLogEnriched",
+      "renders_on": ["/admin/war-room (auxiliary)"]
+    },
+    {
+      "key": "legacy_log_intelligence",
+      "path": "/operator_runtime/legacy_log_intelligence/latest/legacy_log_intelligence_status.json",
+      "hook": "useLegacyLogIntelligence",
+      "renders_on": ["/admin/war-room"]
+    },
+    {
+      "key": "full_observation_builder",
+      "path": "/operator_runtime/v2_rl_core/latest/full_observation_builder_status.json",
+      "hook": "useFullObservationBuilder",
+      "renders_on": ["/market", "/admin/war-room"]
+    },
+    {
+      "key": "liquidation_wss_client",
+      "path": "/operator_runtime/v2_liquidation_wss_client/latest/v2_liquidation_wss_client_status.json",
+      "hook": "useLiquidationWssClient",
+      "renders_on": ["/market"]
+    },
+    {
+      "key": "alt_data_symbol_universe_scoring",
+      "path": "/operator_runtime/v2_alt_data_symbol_universe_scoring/latest/alt_data_symbol_universe_scoring_status.json",
+      "hook": "useAltDataSymbolUniverseScoringStatus",
+      "renders_on": ["/market"]
+    },
+    {
+      "key": "alternative_data",
+      "path": "/operator_runtime/v2_alternative_data/latest/v2_alternative_data_status.json",
+      "hook": "useAlternativeDataStatus",
+      "renders_on": ["/market"]
+    },
+    {
+      "key": "top10_binance_dashboard_feed",
+      "path": "/operator_runtime/v2_top10_binance_dashboard_feed/latest/v2_top10_binance_dashboard_feed_status.json",
+      "hook": "useTop10BinanceDashboards",
+      "renders_on": ["/market"]
+    },
+    {
+      "key": "trainer_bridge",
+      "path": "/operator_runtime/v2_trainer_bridge/latest/v2_trainer_bridge_status.json",
+      "hook": "useTrainerBridge",
+      "renders_on": ["/market"]
+    },
+    {
+      "key": "orchestrator_arbitration_live",
+      "path": "/operator_runtime/v2_orchestrator_arbitration/live/latest/v2_orchestrator_arbitration_live_status.json",
+      "hook": "useOrchestratorArbitrationLive",
+      "renders_on": ["/market"]
+    },
+    {
+      "key": "trade_management_paper_live",
+      "path": "/operator_runtime/v2_trade_management_paper/live/latest/v2_trade_management_paper_live_status.json",
+      "hook": "useTradeManagementPaperLive",
+      "renders_on": ["/market"]
+    },
+    {
+      "key": "paper_online",
+      "path": "/operator_runtime/paper_online/latest/paper_online_status.json",
+      "hook": "usePaperOnlineStatus",
+      "renders_on": ["/market (hero status strip)"]
+    }
+  ],
+  "missing_evidence_render_rule": "every panel renders PayloadMissingCard with path + error + 'No mock data is rendered when the payload is missing' when the payload returns null or HTTP error; per-field MISSING/STALE chip otherwise",
+  "frontend_code_changes_in_this_packet": true,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_real": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false,
+  "paper_only_shutdown_acceptance_created": false,
+  "writes_legacy_redis": false,
+  "writes_exchange_orders": false,
+  "no_mock_data_as_current_truth": true,
+  "no_static_proof_fixture_as_primary_truth": true,
+  "no_order_entry_controls": true,
+  "no_live_trading_button": true,
+  "no_shutdown_ready_button": true,
+  "no_fake_all_migrated_claim": true,
+  "credential_in_payload": "NEVER",
+  "raw_api_keys_exposed": false,
+  "gate": "blocked_human_only",
+  "symbols_real": []
+}

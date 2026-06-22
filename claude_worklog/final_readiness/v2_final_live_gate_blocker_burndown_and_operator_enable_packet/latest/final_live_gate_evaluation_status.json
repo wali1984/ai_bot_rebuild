@@ -1,0 +1,47 @@
+{
+  "allowed_outputs": [
+    "LIVE_GATE_BLOCKED",
+    "LIVE_OPERATOR_ENABLE_AVAILABLE",
+    "LIVE_READY_AFTER_OPERATOR_ACCEPTANCE"
+  ],
+  "approvals": {
+    "audit_ledger_write_exists": false,
+    "edge_accepted_or_proven": false,
+    "final_codex_pass_exists": true,
+    "live_symbols_accepted": false,
+    "mutation_safety_passed": true,
+    "risk_caps_accepted": false,
+    "trader_connected": true,
+    "typed_operator_confirmation_exists": false
+  },
+  "do_not_emit_live_ready_reason": "One or more required approvals/evidence items is absent.",
+  "exact_remaining_blockers": [
+    "AUDIT_LEDGER_WRITE_FOR_FINAL_ENABLE_REQUIRED",
+    "EDGE_ACCEPTANCE_REQUIRED",
+    "EDGE_NOT_PROVEN",
+    "FEATURE_PARITY_PROVIDER_EVENT_OR_PLAN_ROWS_REMAIN",
+    "LIVE_RISK_CAPS_OPERATOR_REQUIRED",
+    "LIVE_SYMBOL_APPROVAL_REQUIRED",
+    "LIVE_SYMBOL_SELECTION_ACCEPTANCE_REQUIRED",
+    "RISK_PROFILE_ACCEPTANCE_REQUIRED",
+    "TYPED_OPERATOR_CONFIRMATION_REQUIRED"
+  ],
+  "execution_live_symbols": [],
+  "generated_est": "2026-06-05T01:20:08-04:00",
+  "go_no_go_marker": "V2_FINAL_LIVE_GATE_BLOCKER_BURNDOWN_AND_OPERATOR_ENABLE_PACKET_BLOCKED",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "safety_invariants": {
+    "exchange_mutation_frozen": true,
+    "legacy_restarted": false,
+    "leverage_changed": false,
+    "margin_mode_changed": false,
+    "real_order_attempted": false,
+    "redis_trimmed": false,
+    "test_order_endpoint_attempted": false,
+    "writes_old_redis": false
+  },
+  "schema_version": "final_live_gate_evaluation_status_v1",
+  "service_id": "v2_final_live_gate_blocker_burndown_and_operator_enable_packet",
+  "verdict": "LIVE_GATE_BLOCKED"
+}

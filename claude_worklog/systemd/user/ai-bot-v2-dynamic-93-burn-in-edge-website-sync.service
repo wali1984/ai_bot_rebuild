@@ -1,0 +1,21 @@
+[Unit]
+Description=AI BOT V2 dynamic 93-symbol burn-in edge website sync gate (paper/shadow only)
+ConditionPathExists=/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/v2_dynamic_93_symbol_runtime_burn_in_edge_and_website_sync.py
+After=network-online.target ai-bot-v2-post-hoc-replay-outcome-miner.service ai-bot-v2-report-center-indexer.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment=PYTHONUNBUFFERED=1
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+Environment="LIVE_GATE=blocked_human_only"
+ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -m v2.backend.app.cli.v2_dynamic_93_symbol_runtime_burn_in_edge_and_website_sync'
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=false
+
+[Install]
+WantedBy=default.target

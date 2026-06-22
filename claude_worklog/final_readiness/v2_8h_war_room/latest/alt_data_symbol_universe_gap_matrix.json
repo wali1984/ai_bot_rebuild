@@ -1,0 +1,60 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_real": false,
+  "approves_redis_trim": false,
+  "candidate_payload_state": {
+    "live_symbols_continued": null,
+    "may_not_authorize_live_or_canary": null,
+    "may_not_override_strict_paper_fill_gate": null,
+    "paper_symbol_expansion_blocked_reason": null,
+    "paper_symbols_expanded": null,
+    "present": false
+  },
+  "cycle": "lane_d_symbol_universe_scoring",
+  "gate": "blocked_human_only",
+  "generated_utc": "2026-05-18T05:56:20Z",
+  "missing_provider_data_converted_to_numeric_score": false,
+  "per_symbol_gap": {
+    "BTCUSDT": {
+      "altdata_freshness_score": null,
+      "altdata_symbol_score": null,
+      "lunarcrush_payload_present": false,
+      "missing_reasons": null,
+      "nansen_payload_present": false,
+      "provider_availability_score": null,
+      "providers_consulted": null,
+      "smart_money_score": null,
+      "social_momentum_score": null,
+      "social_volume_velocity": null
+    },
+    "ETHUSDT": {
+      "altdata_freshness_score": null,
+      "altdata_symbol_score": null,
+      "lunarcrush_payload_present": false,
+      "missing_reasons": null,
+      "nansen_payload_present": false,
+      "provider_availability_score": null,
+      "providers_consulted": null,
+      "smart_money_score": null,
+      "social_momentum_score": null,
+      "social_volume_velocity": null
+    },
+    "SOLUSDT": {
+      "altdata_freshness_score": null,
+      "altdata_symbol_score": null,
+      "lunarcrush_payload_present": false,
+      "missing_reasons": null,
+      "nansen_payload_present": false,
+      "provider_availability_score": null,
+      "providers_consulted": null,
+      "smart_money_score": null,
+      "social_momentum_score": null,
+      "social_volume_velocity": null
+    }
+  },
+  "schema_version": "v2_8h_war_room_alt_data_symbol_universe_gap_matrix_v1",
+  "symbols_real": [],
+  "writes_exchange_orders": false,
+  "writes_legacy_redis": false
+}

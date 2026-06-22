@@ -1,0 +1,85 @@
+{
+  "executive_command_center": {
+    "automation": {
+      "next_automatable_task": null,
+      "pending_claude_count": 0,
+      "pending_codex_count": 0,
+      "stalled_claude_count": 0,
+      "stalled_codex_count": 0,
+      "ui_only_work_allowed_because_frontend_truth_blocker": false
+    },
+    "blocker_matrix": {
+      "all_blockers_frontend_visible": true,
+      "critical_live_blockers_block_live": true,
+      "critical_live_blockers_not_blocking_live": [],
+      "hidden_blockers": [],
+      "missing_required_blockers": [],
+      "required_blockers_present": true
+    },
+    "capital_gate": {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "placeholder_caps_present": true,
+      "safe": true
+    },
+    "dashboard_truth": {
+      "age_seconds": 0.004261493682861328,
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "exists": true,
+      "live_blocked": true,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "shutdown_blocked": true
+    },
+    "exists": true,
+    "mission_lock_present": true,
+    "scorecard": {
+      "not_inflated": true,
+      "overall_score": 20.2
+    }
+  },
+  "fail_blockers": [],
+  "full_observation": {
+    "checkpoint_compatibility_claimed": false,
+    "no_zero_fill_for_unknown_fields": true,
+    "policy_architecture_parity_claimed": false,
+    "state": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+    "target_full_observation_dim": 1911,
+    "zero_filled_field_count": 0
+  },
+  "generated_utc": "2026-05-23T03:49:30Z",
+  "go_no_go": "CODEX_EXECUTIVE_RECOVERY_AND_PRODUCTION_READINESS_GOVERNOR_READY",
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "did_not_call_exchange": true,
+    "did_not_create_approvals": true,
+    "did_not_touch_legacy": true,
+    "did_not_write_redis": true,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "schema_version": "codex_executive_recovery_and_production_readiness_governor_v1",
+  "tool_runs": [
+    {
+      "command": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python /home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools/codex_full_rebuild_self_healing_review_and_takeover_governor.py",
+      "returncode": 0,
+      "stderr_tail": "",
+      "stdout_tail": "{\n  \"fail_blockers\": [],\n  \"go_no_go\": \"CODEX_FULL_REBUILD_SELF_HEALING_REVIEW_AND_TAKEOVER_GOVERNOR_READY\",\n  \"remediation_task\": {\n    \"created\": false,\n    \"reason\": \"selected_work_is_not_codex_review_fail\"\n  }\n}\n"
+    },
+    {
+      "command": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python /home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools/v2_executive_command_center.py --json",
+      "returncode": 0,
+      "stderr_tail": "",
+      "stdout_tail": "{\n  \"automation\": {\n    \"active_controllers\": 2,\n    \"pending_claude\": 0,\n    \"pending_codex\": 0,\n    \"stale_controllers\": 0\n  },\n  \"controller\": \"v2_executive_command_center\",\n  \"generated_utc\": \"2026-05-23T03:49:30Z\",\n  \"go_no_go\": \"V2_EXECUTIVE_RECOVERY_AND_PRODUCTION_READINESS_COMMAND_CENTER_READY\",\n  \"live_gate\": \"blocked_human_only\",\n  \"live_symbols\": [],\n  \"next_automatable_task\": null,\n  \"next_operator_required_decision\": {\n    \"category\": \"EXTERNAL_SOURCE_REQUIRED\",\n    \"evidence\": {\n      \"category\": \"EXTERNAL_SOURCE_REQUIRED_ONCHAIN_BTC\",\n      \"dim_count\": 45\n    },\n    \"owner\": \"OPERATOR\",\n    \"remediation\": \"operator-approved gate or external feed required\",\n    \"severity\": \"P2\",\n    \"source\": \"remaining_dim_queue:EXTERNAL_SOURCE_REQUIRED_ONCHAIN_BTC\"\n  },\n  \"overall_score\": 20.2\n}\n"
+    }
+  ]
+}

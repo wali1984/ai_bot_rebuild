@@ -1,0 +1,24 @@
+[Unit]
+Description=AI BOT V2 public website backend (uvicorn + FastAPI; read-only payload server; NEVER enables live trading; LIVE_GATE=blocked_human_only)
+After=ai-bot-v2-trade-management-paper-loop.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD/v2/backend
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD/v2/backend"
+Environment="REDIS_URL=redis://localhost:6379/0"
+Environment="LEGACY_REDIS_URL=redis://localhost:6379/0"
+Environment="V2_REDIS_PREFIX=v2:"
+Environment="V2_MODE=paper"
+Environment="LIVE_GATE=blocked_human_only"
+Environment="V2_BACKEND_HOST=127.0.0.1"
+Environment="V2_BACKEND_PORT=5173"
+Environment="V2_BACKEND_WORKERS=1"
+ExecStart=/usr/bin/env bash -lc 'exec /home/wali/Desktop/AI\ BOT\ REBUILD/v2/backend/scripts/start_v2_backend_uvicorn.sh'
+Restart=on-failure
+RestartSec=10s
+StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_public_website_backend.log
+StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_public_website_backend.err
+
+[Install]
+WantedBy=default.target

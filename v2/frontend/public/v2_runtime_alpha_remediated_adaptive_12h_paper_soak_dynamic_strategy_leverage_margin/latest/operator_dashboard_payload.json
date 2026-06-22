@@ -1,0 +1,42 @@
+{
+  "blockers": [
+    "release-candidate guard is not clear",
+    "1h density-aware soak is still pending",
+    "paper trader adaptive readiness checks are not all true"
+  ],
+  "completion_window_elapsed_seconds": 3612,
+  "completion_window_required_seconds": 3600,
+  "dynamic_exit_logic_status": "DYNAMIC_EXIT_LOGIC_READY_PAPER_ONLY",
+  "dynamic_leverage_status": "LEVERAGE_RECOMMENDATION_READY_PAPER_ONLY",
+  "dynamic_margin_mode_status": "ISOLATED_RECOMMENDED_PAPER_ONLY",
+  "dynamic_strategy_status": "DYNAMIC_STRATEGY_SELECTION_MONITORED",
+  "exchange_leverage_mutation": false,
+  "exchange_margin_mode_mutation": false,
+  "exit_logic_selection_status": "DYNAMIC_EXIT_LOGIC_READY_PAPER_ONLY",
+  "gate": "V2_RUNTIME_ALPHA_REMEDIATED_ADAPTIVE_1H_PAPER_SOAK_DYNAMIC_STRATEGY_LEVERAGE_MARGIN_BLOCKED",
+  "generated_est": "2026-06-15T14:53:38-04:00",
+  "generated_utc": "2026-06-15T18:53:38Z",
+  "live_order_submitted": false,
+  "local_trainer_contract_status": "LOCAL_NATIVE_TRAINER_CORE_NOT_PROVEN",
+  "missing_symbol_timeframe_count": 0,
+  "missing_symbol_timeframes": [],
+  "missing_symbol_timeframes_by_symbol": {},
+  "monthly_10k_goal_blockers": [
+    "capital shortfall: live target is not executable because available margin is below minimum order margin",
+    "risk too high: current risk requirement is not acceptable under the envelope",
+    "edge shortfall: projected monthly net PnL 0.00 USDT is below 10000.00 USDT",
+    "insufficient clean outcomes: 0 qualified outcomes, need 30"
+  ],
+  "monthly_10k_goal_status": "GOAL_REQUIRES_MORE_CAPITAL",
+  "paper_only": true,
+  "paper_trader_adaptive_readiness_status": "PAPER_TRADER_ADAPTIVE_READINESS_BLOCKED",
+  "position_size_selection_status": "ADAPTIVE_ALLOCATOR_ACTIVE",
+  "proof_status": "PENDING_1H_OBSERVATION",
+  "schema_version": "runtime_alpha_dynamic_strategy_leverage_margin_operator_dashboard_v1",
+  "soak_12h_complete": false,
+  "soak_1h_complete": false,
+  "soak_complete": false,
+  "status": "BLOCKED",
+  "test_order_called": false,
+  "trainer_10k_objective_status": "TRAINER_ACTIVE_INSUFFICIENT_OUTCOMES"
+}

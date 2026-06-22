@@ -1,0 +1,25 @@
+{
+  "freshness_seconds": 2317155.02196455,
+  "go_no_go": "V2_FULL_DYNAMIC_REBUILD_IMPLEMENTATION_BLOCKED",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "owner": "CLAUDE",
+  "redaction_applied": false,
+  "report_id": "v2_full_dynamic_rebuild_implementation",
+  "sanitized_summary": {
+    "go_no_go": "V2_FULL_DYNAMIC_REBUILD_IMPLEMENTATION_BLOCKED",
+    "pruned": {
+      "go_no_go": "V2_FULL_DYNAMIC_REBUILD_IMPLEMENTATION_BLOCKED",
+      "live_symbols": [],
+      "summary": {
+        "next_automatic_action": "Spark consumes the missing-component backlog (claude_worklog/v2_full_dynamic_rebuild/.../v2_full_runtime_missing_component_backlog.json) to wire visible-but-not-systemd CLIs into dedicated units; Codex 5.5 reviews each pair; report center refreshes on its timer"
+      }
+    },
+    "redaction_applied": false,
+    "redaction_token": null,
+    "status": "BLOCKED"
+  },
+  "stale": true,
+  "status": "BLOCKED",
+  "title": "V2 Full Dynamic Rebuild Implementation"
+}

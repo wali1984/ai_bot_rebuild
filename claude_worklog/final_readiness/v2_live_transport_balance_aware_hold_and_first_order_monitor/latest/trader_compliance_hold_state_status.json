@@ -1,0 +1,37 @@
+{
+  "accepted_risk_profile": "conservative_min_executable",
+  "accepted_symbols": [
+    "BNBUSDT",
+    "BTCUSDT",
+    "ETHUSDT",
+    "PAXGUSDT",
+    "XAUTUSDT",
+    "ZECUSDT"
+  ],
+  "blockers": [
+    "ACCOUNT_CRITICAL_SIGNED_READS_NOT_PROVEN"
+  ],
+  "critical_account_read_gate_status": "CRITICAL_ACCOUNT_READ_GATE_BLOCKED",
+  "generated_est": "2026-06-21T20:28:07-04:00",
+  "hold_release_requires": [
+    "account-critical signed reads classify API_OK",
+    "available margin is freshly proven",
+    "position mode is freshly proven",
+    "positions and open orders are known",
+    "symbol filters are current",
+    "lineage and risk pre-submit checks pass",
+    "kill switch is inactive"
+  ],
+  "live_gate": "blocked_human_only",
+  "order_submitted": false,
+  "paper_shadow_keep_running": true,
+  "public_market_trainer_risk_orchestrator_keep_running": true,
+  "raw_credentials_exposed": false,
+  "retry_allowed": null,
+  "schema_version": "trader_compliance_hold_state_status_v1",
+  "signed_read_classification": "NO_451_DETECTED",
+  "status": "TRADER_COMPLIANCE_HOLD_NOT_REQUIRED",
+  "trader_execution_enabled": false,
+  "trader_state": "LIVE_ARMED_BALANCE_HOLD",
+  "website_keep_updated": true
+}

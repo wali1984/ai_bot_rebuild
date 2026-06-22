@@ -1,0 +1,322 @@
+.v2-realtime-market-chart,
+.v2-professional-market-chart {
+  width: 100%;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  overflow: hidden;
+  background: color-mix(in oklch, var(--bg-panel) 90%, transparent);
+}
+
+.v2-realtime-market-chart__head,
+.v2-professional-market-chart__toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.v2-realtime-market-chart__head > div,
+.v2-professional-market-chart__toolbar > div {
+  min-width: 0;
+}
+
+.v2-realtime-market-chart__head span,
+.v2-professional-market-chart__toolbar span,
+.v2-realtime-market-chart__chips,
+.v2-professional-market-chart__chips {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+
+.v2-realtime-market-chart__head strong,
+.v2-professional-market-chart__toolbar strong {
+  display: block;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 15px;
+}
+
+.v2-realtime-market-chart__chips,
+.v2-professional-market-chart__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.v2-realtime-market-chart__svg,
+.v2-realtime-market-chart__svg rect {
+  width: 100%;
+  height: auto;
+  display: block;
+  background: var(--chart-bg);
+}
+
+.v2-realtime-market-chart__svg rect {
+  fill: color-mix(in oklch, var(--chart-bg) 92%, #000);
+  stroke: var(--chart-grid);
+  stroke-width: 1;
+}
+
+.v2-realtime-market-chart__empty,
+.v2-professional-market-chart__empty,
+.chart-empty-state {
+  padding: 16px;
+  min-height: 120px;
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+  border-top: 1px solid var(--line-soft);
+}
+
+.chart-live-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.chart-live-dot {
+  fill: var(--ok);
+  stroke: #000;
+  stroke-opacity: 0.2;
+}
+
+.chart-grid-line {
+  stroke: color-mix(in oklch, var(--chart-grid) 68%, transparent);
+  stroke-width: 1;
+  opacity: 0.75;
+}
+
+.chart-live-dot[style*='chart-live-dot'] {
+  animation: blink 1.2s ease-in-out infinite;
+}
+
+.v2-realtime-market-chart__meta,
+.v2-professional-market-chart__metrics {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  padding: 10px;
+  border-top: 1px solid var(--line-soft);
+  background: color-mix(in oklch, var(--bg-elevated) 84%, transparent);
+}
+
+.v2-realtime-market-chart__meta span,
+.v2-professional-market-chart__metrics > div {
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  min-height: 42px;
+  padding: 7px 9px;
+  display: grid;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.v2-realtime-market-chart__meta span,
+.v2-professional-market-chart__metrics span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.v2-realtime-market-chart__meta span strong,
+.v2-professional-market-chart__metrics div strong {
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+
+.v2-professional-market-chart__layout {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+  align-items: start;
+  padding: 10px;
+}
+
+.v2-professional-market-chart__canvas-shell {
+  position: relative;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--chart-bg);
+}
+
+.v2-professional-market-chart__canvas {
+  min-height: 300px;
+  width: 100%;
+}
+
+.v2-professional-market-chart__metrics {
+  align-self: stretch;
+}
+
+.v2-professional-market-chart__metrics > div {
+  background: color-mix(in oklch, var(--bg-panel) 88%, transparent);
+}
+
+.v2-professional-market-chart__source {
+  margin-top: 4px;
+  padding: 0 10px 10px;
+}
+
+.v2-professional-market-chart__source summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.v2-professional-market-chart__source pre {
+  margin-top: 8px;
+  padding: 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.v2-professional-market-chart__evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.v2-professional-market-chart__evidence-grid > div {
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--bg-elevated) 86%, transparent);
+  min-width: 0;
+}
+
+.v2-professional-market-chart__evidence-grid span {
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.v2-professional-market-chart__evidence-grid strong {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.symbols-chart-selector {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.symbols-chart-selector--compact {
+  gap: 10px;
+}
+
+.symbols-chart-selector strong {
+  margin: 0;
+}
+
+.symbols-chart-selector small {
+  color: var(--text-muted);
+}
+
+.symbols-chart-selector select,
+.v2-professional-market-chart__toolbar select {
+  min-height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--line-soft);
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  padding: 0 10px;
+}
+
+.symbols-chart-status-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  gap: 6px;
+  padding: 10px;
+}
+
+.symbols-chart-status-pill {
+  min-height: 28px;
+  border-radius: 999px;
+  padding: 6px 9px;
+  border: 1px solid var(--line-soft);
+  color: var(--text-primary);
+  text-align: center;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.symbols-chart-status-pill--ok {
+  color: var(--buy);
+  border-color: color-mix(in oklch, var(--buy) 45%, var(--line-soft));
+  background: color-mix(in oklch, var(--buy) 12%, transparent);
+}
+
+.symbols-chart-status-pill--warn {
+  color: var(--warn);
+  border-color: color-mix(in oklch, var(--warn) 45%, var(--line-soft));
+  background: color-mix(in oklch, var(--warn) 12%, transparent);
+}
+
+.symbols-chart-status-pill--block {
+  color: var(--error);
+  border-color: color-mix(in oklch, var(--error) 45%, var(--line-soft));
+  background: color-mix(in oklch, var(--error) 12%, transparent);
+}
+
+.chart-tooltip,
+.cockpit-evidence-gap {
+  font-size: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+@media (max-width: 1200px) {
+  .v2-professional-market-chart__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .v2-professional-market-chart__metrics {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .v2-realtime-market-chart__head,
+  .v2-professional-market-chart__toolbar {
+    align-items: stretch;
+  }
+
+  .v2-realtime-market-chart__chips,
+  .v2-professional-market-chart__chips,
+  .symbols-chart-selector {
+    width: 100%;
+  }
+}
+
+@keyframes blink {
+  0% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.35;
+  }
+}

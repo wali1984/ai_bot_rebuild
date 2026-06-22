@@ -1,0 +1,45 @@
+{
+  "agent": "codex",
+  "depends_on_task_id": "no_manual_current_v2_migration_audit_next_automatable_actions_current_v2_migration_audit_blocked_current_v2_mi_implementation",
+  "descriptor_only_progress_forbidden": true,
+  "file_lock_group": "no_manual_policy_next_automatable_actions_current_v2_migration_audit_blocked_current_v2_migration_audit",
+  "lane_group": "runtime-codex",
+  "lane_type": "CODEX_REVIEW",
+  "mission_category": "runtime_stability",
+  "owner": "CODEX",
+  "paired_task_id": "no_manual_current_v2_migration_audit_next_automatable_actions_current_v2_migration_audit_blocked_current_v2_mi_implementation",
+  "policy_source": "v2_autonomous_no_manual_next_task_policy",
+  "policy_source_key": "next_automatable_actions_current_v2_migration_audit_blocked_current_v2_migration_audit",
+  "prompt": "Review implementation task no_manual_current_v2_migration_audit_next_automatable_actions_current_v2_migration_audit_blocked_current_v2_mi_implementation. Verify it resolves or honestly classifies the blocker without report-only drift, old Redis writes, exchange mutation, live/canary/shutdown approvals, or fake readiness. GO/NO-GO must be PASS or FAIL, and FAIL must map to remediation/operator/unsafe.",
+  "report_only_work_forbidden": true,
+  "safe_envelope": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "scope_paths": [
+    "v2/backend/app",
+    "claude_worklog/tools",
+    "claude_worklog/final_readiness"
+  ],
+  "source_classification": {
+    "allowed_classification": true,
+    "classification": "AUTOMATABLE_NOW",
+    "classification_reason": "CURRENT_BLOCKING_WORK_IS_SAFE_TO_AUTOMATE",
+    "current_blockers": [],
+    "mission_category": "runtime_stability",
+    "next_action": null,
+    "owner": "CODEX",
+    "report_id": "current_v2_migration_audit",
+    "source": "next_automatable_actions",
+    "source_key": "next_automatable_actions_current_v2_migration_audit_blocked_current_v2_migration_audit",
+    "status": "BLOCKED",
+    "title": "Current V2 Migration Audit"
+  },
+  "status": "pending",
+  "task_id": "codex_review_no_manual_current_v2_migration_audit_next_automatable_actions_current_v2_migration_audit_blocked_current_v2_mi",
+  "task_type": "CODEX_REVIEW"
+}

@@ -1,0 +1,205 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "did_not_call_exchange_mutation": true,
+  "did_not_enable_any_control": true,
+  "did_not_expose_raw_api_keys": true,
+  "did_not_modify_legacy_tree": true,
+  "did_not_mutate_cloudflare_configuration": true,
+  "did_not_render_live_or_order_or_shutdown_or_adopt_button": true,
+  "did_not_start_or_stop_frontend_build": true,
+  "did_not_stop_codex_governors": true,
+  "did_not_stop_legacy_runtime": true,
+  "did_not_stop_replay_miner": true,
+  "did_not_stop_report_center": true,
+  "did_not_stop_v2_runtime": true,
+  "did_not_write_old_redis_keys": true,
+  "every_bridge_labeled_explicitly": true,
+  "frontend_does_not_read_redis_directly": true,
+  "generated_utc": "2026-06-04T03:30:04Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "no_fake_readiness": true,
+  "no_v2_native_label_for_bridge_data": true,
+  "rows": [
+    {
+      "frontend_does_not_read_redis_directly": true,
+      "page_id": "public_landing",
+      "payload_source": "v2/frontend/public/operator_runtime/paper_online/latest/*.json",
+      "redis_source_if_bridged": null,
+      "route": "/landing",
+      "source_label": "V2_NATIVE_PUBLIC_PAYLOAD"
+    },
+    {
+      "frontend_does_not_read_redis_directly": true,
+      "page_id": "markets",
+      "payload_source": "v2/frontend/public/v2_top10_market_and_altdata_dashboard*/latest/*.json",
+      "redis_source_if_bridged": null,
+      "route": "/markets",
+      "source_label": "V2_NATIVE_PUBLIC_PAYLOAD"
+    },
+    {
+      "frontend_does_not_read_redis_directly": true,
+      "page_id": "market_legacy",
+      "payload_source": "v2/frontend/public/v2_top10_market_and_altdata_dashboard*/latest/*.json",
+      "redis_source_if_bridged": null,
+      "route": "/market",
+      "source_label": "V2_NATIVE_PUBLIC_PAYLOAD"
+    },
+    {
+      "frontend_does_not_read_redis_directly": true,
+      "page_id": "status",
+      "payload_source": "v2/frontend/public/operator_runtime/paper_online/latest/risk_runtime_payload.json",
+      "redis_source_if_bridged": null,
+      "route": "/status",
+      "source_label": "V2_NATIVE_PUBLIC_PAYLOAD"
+    },
+    {
+      "frontend_does_not_read_redis_directly": true,
+      "page_id": "ai_brain",
+      "payload_source": "v2/frontend/public/operator_runtime/paper_online/latest/trainer_prediction_current_record.json",
+      "redis_source_if_bridged": "v2:prediction:* (via bridge)",
+      "route": "/ai-brain",
+      "source_label": "V2_BRIDGE_FROM_LEGACY_REDIS"
+    },
+    {
+      "frontend_does_not_read_redis_directly": true,
+      "page_id": "trader",
+      "payload_source": "v2/frontend/public/operator_runtime/paper_online/latest/*.json",
+      "redis_source_if_bridged": null,
+      "route": "/trader",
+      "source_label": "V2_NATIVE_PUBLIC_PAYLOAD"
+    },
+    {
+      "frontend_does_not_read_redis_directly": true,
+      "page_id": "history",
+      "payload_source": "v2/frontend/public/operator_runtime/paper_online/latest/*.json",
+      "redis_source_if_bridged": null,
+      "route": "/history",
+      "source_label": "V2_NATIVE_PUBLIC_PAYLOAD"
+    },
+    {
+      "frontend_does_not_read_redis_directly": true,
+      "page_id": "mission_control",
+      "payload_source": "v2/frontend/public/operator_runtime/**/*.json",
+      "redis_source_if_bridged": null,
+      "route": "/admin/mission-control",
+      "source_label": "V2_NATIVE_PUBLIC_PAYLOAD"
+    },
+    {
+      "frontend_does_not_read_redis_directly": true,
+      "page_id": "report_center",
+      "payload_source": "v2/frontend/public/v2_*/latest/*.json",
+      "redis_source_if_bridged": null,
+      "route": "/admin/codex-review-center",
+      "source_label": "V2_NATIVE_PUBLIC_PAYLOAD"
+    },
+    {
+      "frontend_does_not_read_redis_directly": true,
+      "page_id": "risk_control",
+      "payload_source": "v2/frontend/public/operator_runtime/paper_online/latest/risk_runtime_payload.json",
+      "redis_source_if_bridged": null,
+      "route": "/admin/risk-control",
+      "source_label": "V2_NATIVE_PUBLIC_PAYLOAD"
+    },
+    {
+      "frontend_does_not_read_redis_directly": true,
+      "page_id": "config_admin",
+      "payload_source": "v2 config api (read-only)",
+      "redis_source_if_bridged": null,
+      "route": "/admin/config-admin",
+      "source_label": "V2_NATIVE_PUBLIC_PAYLOAD"
+    },
+    {
+      "frontend_does_not_read_redis_directly": true,
+      "page_id": "paper_trading",
+      "payload_source": "v2/frontend/public/operator_runtime/paper_online/latest/*.json",
+      "redis_source_if_bridged": null,
+      "route": "/admin/paper-trading",
+      "source_label": "V2_NATIVE_PUBLIC_PAYLOAD"
+    },
+    {
+      "frontend_does_not_read_redis_directly": true,
+      "page_id": "exchange_manager",
+      "payload_source": null,
+      "redis_source_if_bridged": null,
+      "route": "/admin/exchange-manager",
+      "source_label": "PLACEHOLDER_NOT_READY"
+    },
+    {
+      "frontend_does_not_read_redis_directly": true,
+      "page_id": "signals",
+      "payload_source": "v2/frontend/public/operator_runtime/paper_online/latest/current_signal_lineage.json",
+      "redis_source_if_bridged": null,
+      "route": "/admin/signals",
+      "source_label": "V2_NATIVE_PUBLIC_PAYLOAD"
+    },
+    {
+      "frontend_does_not_read_redis_directly": true,
+      "page_id": "market_intelligence",
+      "payload_source": "v2/frontend/public/operator_runtime/v2_coinank_bridge/latest/*.json",
+      "redis_source_if_bridged": "v2:altdata:coinank:* (via bridge)",
+      "route": "/admin/market-intelligence",
+      "source_label": "V2_BRIDGE_FROM_LEGACY_REDIS"
+    },
+    {
+      "frontend_does_not_read_redis_directly": true,
+      "page_id": "positions",
+      "payload_source": "v2/frontend/public/operator_runtime/paper_online/latest/*.json",
+      "redis_source_if_bridged": null,
+      "route": "/admin/positions",
+      "source_label": "V2_NATIVE_PUBLIC_PAYLOAD"
+    },
+    {
+      "frontend_does_not_read_redis_directly": true,
+      "page_id": "system_health",
+      "payload_source": "v2/frontend/public/operator_runtime/**/*.json",
+      "redis_source_if_bridged": null,
+      "route": "/admin/system-health",
+      "source_label": "V2_NATIVE_PUBLIC_PAYLOAD"
+    },
+    {
+      "frontend_does_not_read_redis_directly": true,
+      "page_id": "top_10_dashboards",
+      "payload_source": "v2/frontend/public/v2_top10_market_and_altdata_dashboard*/latest/*.json",
+      "redis_source_if_bridged": null,
+      "route": "/admin/market-intelligence",
+      "source_label": "V2_NATIVE_PUBLIC_PAYLOAD"
+    },
+    {
+      "frontend_does_not_read_redis_directly": true,
+      "page_id": "alt_data_candidate_publisher",
+      "payload_source": "v2/frontend/public/v2_alt_data_symbol_candidate_publisher*/latest/*.json",
+      "redis_source_if_bridged": null,
+      "route": "/admin/symbols",
+      "source_label": "V2_NATIVE_PUBLIC_PAYLOAD"
+    },
+    {
+      "frontend_does_not_read_redis_directly": true,
+      "page_id": "replay_edge_proof",
+      "payload_source": "v2/frontend/public/v2_post_hoc_replay_outcome_miner/latest/*.json",
+      "redis_source_if_bridged": null,
+      "route": "/admin/replay",
+      "source_label": "V2_NATIVE_PUBLIC_PAYLOAD"
+    },
+    {
+      "frontend_does_not_read_redis_directly": true,
+      "page_id": "startup_parity_bridge_exit",
+      "payload_source": "v2/frontend/public/v2_legacy_startup_manifest_parity_and_bridge_exit/latest/*.json",
+      "redis_source_if_bridged": null,
+      "route": "/admin/permanent-migration",
+      "source_label": "V2_NATIVE_PUBLIC_PAYLOAD"
+    },
+    {
+      "frontend_does_not_read_redis_directly": true,
+      "page_id": "dynamic_symbol_coverage",
+      "payload_source": "v2/frontend/public/v2_native_dynamic_ingestor_runtime_and_symbol_expansion/latest/operator_dashboard_payload.json",
+      "redis_source_if_bridged": null,
+      "route": "/admin/coverage-system-atlas",
+      "source_label": "V2_NATIVE_PUBLIC_PAYLOAD"
+    }
+  ],
+  "schema_version": "v2_website_data_alignment_and_control_plane_v1_website_page_contracts"
+}

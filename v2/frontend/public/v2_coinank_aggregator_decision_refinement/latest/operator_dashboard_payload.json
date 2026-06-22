@@ -1,0 +1,18 @@
+{
+  "schema_version": "v2_coinank_aggregator_decision_refinement_dashboard_v1",
+  "go_no_go": "V2_COINANK_AGGREGATOR_DECISION_REFINEMENT_READY",
+  "generated_utc": "2026-05-17T21:05:30Z",
+  "subfamily_target_per_symbol": 22,
+  "subfamily_present_per_symbol_today": 16,
+  "subfamily_missing_per_symbol_today": 6,
+  "computable_from_v2_without_aggregator_count": 0,
+  "external_paid_aggregator_required_count": 6,
+  "current_default_state": "DEFER_COINANK_AGGREGATOR",
+  "modifies_full_observation_builder": false,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false
+}

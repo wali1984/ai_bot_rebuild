@@ -1,0 +1,110 @@
+{
+  "schema_version": "v2_final_production_equivalence_and_legacy_shutdown_readiness_v2",
+  "generated_utc": "2026-05-25T01:24:29Z",
+  "go_no_go": "V2_FINAL_PRODUCTION_EQUIVALENCE_AND_LEGACY_SHUTDOWN_READINESS_BLOCKED",
+  "ready": false,
+  "production_equivalence_ready": false,
+  "legacy_shutdown_ready": false,
+  "live_ready": false,
+  "paper_edge_proven": false,
+  "non_operator_p0_implementation_blocker_count": 0,
+  "operator_required_blocker_count": 2,
+  "evidence_or_event_dependent_blocker_count": 2,
+  "blockers": [
+    {
+      "blocker_id": "full_observation_builder",
+      "classification": "OPERATOR_REQUIRED_EXTERNAL_EVENT_DEPENDENT",
+      "status": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+      "operator_required": true,
+      "next_required_family": null,
+      "no_buildable_internal_family_remaining": true,
+      "external_source_required_families": [
+        "unified_feature_family.token_metrics",
+        "onchain_btc",
+        "onchain_eth"
+      ],
+      "operator_decision_required_families": [
+        "unified_feature_family.ccxt_ohlcv"
+      ],
+      "event_dependent_families": [
+        "liquidations"
+      ],
+      "conditionally_undefined_families": [
+        "technical_analysis"
+      ],
+      "exact_operator_or_event_requirement": [
+        "operator must approve/adopt token_metrics external source",
+        "operator must approve/adopt onchain_btc external source",
+        "operator must approve/adopt onchain_eth external source",
+        "operator must decide whether ccxt_ohlcv belongs in unified features",
+        "wait for real per-symbol liquidation events; do not fabricate missing liquidation fields",
+        "do not zero-fill mathematically undefined technical-analysis ratios"
+      ]
+    },
+    {
+      "blocker_id": "checkpoint_promotion",
+      "classification": "OPERATOR_DECISION_REQUIRED",
+      "status": "V2_CHECKPOINT_PROMOTION_OPERATOR_REQUIRED",
+      "operator_required": true,
+      "exact_operator_requirement": [
+        "operator must provide or approve a checkpoint under protected runtime policy",
+        "checkpoint compatibility and promotion must remain unclaimed until separately reviewed"
+      ]
+    },
+    {
+      "blocker_id": "paper_edge_not_proven",
+      "classification": "EVIDENCE_AND_OPERATOR_THRESHOLD_REQUIRED",
+      "operator_required": true,
+      "exact_requirement": [
+        "operator must define/accept numeric edge thresholds",
+        "paper/shadow evidence must show statistically defensible positive after-cost expectancy",
+        "do not infer edge from task completion, one-off correct-no-trade rows, or active worker leases"
+      ]
+    },
+    {
+      "blocker_id": "legacy_shutdown",
+      "classification": "OPERATOR_ONLY",
+      "operator_required": true,
+      "exact_operator_requirement": [
+        "LEGACY_STILL_OWNS_PRODUCTION_RUNTIME",
+        "LEGACY_PRODUCTION_REDIS_KEYS_STILL_ACTIVE"
+      ]
+    }
+  ],
+  "autonomous_backlog": {
+    "go_no_go": "V2_AUTONOMOUS_MISSION_BACKLOG_AUTOSEED_AND_DISPATCH_READY",
+    "automatable_blocker_count": 0,
+    "operator_required_blocker_count": 2,
+    "seed_triggered": false,
+    "reason": "remaining top blockers are not safe automatable implementation tasks"
+  },
+  "worker_pool": {
+    "active_claude_workers": 3,
+    "active_codex_workers": 3,
+    "active_lane_count": 6,
+    "current_automatable_count": 5,
+    "readiness_note": "worker activity is not counted as production equivalence, paper edge, checkpoint readiness, live approval, or shutdown approval"
+  },
+  "report_center": {
+    "blocked_count": 1,
+    "operator_decision_required_count": 1,
+    "top_blockers": [
+      "full_observation_builder",
+      "checkpoint_promotion"
+    ]
+  },
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false,
+    "calls_exchange_mutation": false,
+    "creates_approval_tokens": false,
+    "fabricates_missing_observations": false,
+    "fabricates_edge": false
+  }
+}

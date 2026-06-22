@@ -1,0 +1,56 @@
+{
+  "by_agent": {
+    "claude": {
+      "current_active_count": 0,
+      "done_count": 46,
+      "failed_count": 0,
+      "pending_count": 0,
+      "running_count": 0,
+      "task_count": 46,
+      "waiting_on_dependency_count": 0
+    },
+    "codex": {
+      "current_active_count": 0,
+      "done_count": 46,
+      "failed_count": 0,
+      "pending_count": 0,
+      "running_count": 0,
+      "task_count": 46,
+      "waiting_on_dependency_count": 0
+    }
+  },
+  "completed_reviews": 46,
+  "failed_reviews": 0,
+  "generated_est": "2026-06-03T22:51:41-04:00",
+  "generated_utc": "2026-06-04T02:51:41Z",
+  "go_no_go": "V2_ZERO_EXCEPTION_PARITY_CODEX_TAKEOVER_ALL_TASKS_COMPLETE_GO",
+  "queue_counts": {
+    "done": 92,
+    "failed": 0,
+    "pending": 0,
+    "running": 0,
+    "total": 92,
+    "waiting_on_dependency": 0
+  },
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "exchange_action_taken": false,
+    "legacy_restart_taken": false,
+    "leverage_change": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "margin_mode_change": false,
+    "modifies_legacy_repo": false,
+    "old_redis_writes_detected": false,
+    "places_real_order": false,
+    "redis_trim_or_flush_taken": false,
+    "trader_execution_enabled": false,
+    "writes_exchange_orders": false,
+    "writes_legacy_redis": false,
+    "writes_old_redis": false
+  },
+  "schema_version": "v2_zero_exception_parity_codex_takeover_completion_status_v3"
+}

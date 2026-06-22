@@ -1,0 +1,3563 @@
+{
+  "generated_est": "2026-06-08T23:21:50-04:00",
+  "generated_utc": "2026-06-09T03:21:50Z",
+  "rows": [
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -21.053850173950195,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_6526ad24f02a3699f8bb1531ac8d9a73",
+      "symbol": "NIGHTUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -24.817005157470703,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_92940eefaae9c18cbb0077607a96de77",
+      "symbol": "SLXUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -23.654916763305664,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_a7ee0a20024156bd01cc3bf0fd1beb62",
+      "symbol": "ZROUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -30.759000778198242,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_6b4ec7c22781e56ee3c160afb33a2a67",
+      "symbol": "FARTCOINUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": 13.033489227294922,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "long",
+      "prediction_id": "v2h_d101cf21a2ad21faa912d3961de78ef4",
+      "symbol": "TAUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.4231345981175834,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -113.99376536590921,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": [
+        0.10295846498802906,
+        0.38582927613961987,
+        0.17287672338059362,
+        0.3383355354917574,
+        0.0
+      ],
+      "ppo_policy_value": null,
+      "ppo_selected_action": "long",
+      "prediction_id": "v2_native_pred_2e08f65f4b5f6707c3f39b926b9137f8_219a2190e2b0ebb8",
+      "symbol": "JSTUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -61.640724182128906,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_344897ee0532097fcf05b0ad13e58ba7",
+      "symbol": "LITUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -14.836869239807129,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_91bc2ec3b818d58b428e177771b4b9eb",
+      "symbol": "WLDUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -43.66576385498047,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_fc52c30b6955222d7c9616e5d958c1e0",
+      "symbol": "LINKUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -31.473859786987305,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_632f7b7c3f8e8ca6cdd85d5643b06782",
+      "symbol": "PARTIUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -33.36448669433594,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_372390cad95f412c331303d18b482908",
+      "symbol": "BANKUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "NONE",
+      "disagreement_classes": [
+        "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS"
+      ],
+      "masa_confidence": 0.3965997576626246,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -106.96040149679203,
+      "masa_ppo_agreement_score": 100.0,
+      "masa_ppo_disagreement_reason": "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS",
+      "ppo_action_probabilities": [
+        0.12473762470227352,
+        0.31258430571258683,
+        0.21504954255988737,
+        0.3476285270252523,
+        0.0
+      ],
+      "ppo_policy_value": null,
+      "ppo_selected_action": "close",
+      "prediction_id": "v2_native_pred_b8fc8abd22d04b646df329823baf0a6a_219a2190e2b0ebb8",
+      "symbol": "TONUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -22.713653564453125,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_e75fdba44e2f733b645d8fd4842e24d8",
+      "symbol": "NIGHTUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.41404390002888464,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -113.5746977791461,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": [
+        0.10576605433625766,
+        0.3726396340699259,
+        0.181237336387113,
+        0.34035697520670344,
+        0.0
+      ],
+      "ppo_policy_value": null,
+      "ppo_selected_action": "long",
+      "prediction_id": "v2_native_pred_0b99d817eff6e796382405886c495d1d_219a2190e2b0ebb8",
+      "symbol": "ASTERUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -28.106857299804688,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_92ced47ff2c26f05c15d11897682f47f",
+      "symbol": "BABYUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -30.45012855529785,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_03fc87fc2af26194fe6e11197520e2e3",
+      "symbol": "ETCUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -55.82087707519531,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_c402c2e169ab80a82936182c0b19dad1",
+      "symbol": "LABUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -6.373597145080566,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_e733fd87450c2fb86fa4c2787ec633be",
+      "symbol": "HOTUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": 30.231563568115234,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "long",
+      "prediction_id": "v2h_960ba45bf3076db0fb8c8395ef16b723",
+      "symbol": "ASRUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -56.78705596923828,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_1920f8dbd86d48fd828ba2f1bda129b2",
+      "symbol": "POLUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -39.121795654296875,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_4c4d5d56210043edbdd75b3acbcec614",
+      "symbol": "TRUMPUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -34.259071350097656,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_80740cfe03fc6b0844a5db5a32601f87",
+      "symbol": "AVNTUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -12.458470344543457,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_03d98e3928c0fabfd757a3d96b10f952",
+      "symbol": "MEMEUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -23.73917579650879,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_0e0b6dda71dc2389e6e5082f9628754d",
+      "symbol": "BILLUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -51.85669708251953,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_017eb3c001c1759b71c9eae9b95af4ce",
+      "symbol": "XLMUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -39.06816864013672,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_ba6c181b5915756f7ed89ce2779beb1d",
+      "symbol": "1000LUNCUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -21.1168270111084,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_1424d979e3205d41573e73462de173bf",
+      "symbol": "1000PEPEUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -63.62798309326172,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_0d031d48b438248f2d0752bde32e89fa",
+      "symbol": "AVAXUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -34.37889862060547,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_a1473fdad2396773346f7ae63819ad7f",
+      "symbol": "ONDOUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -28.383771896362305,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_3e767bf3720866b3331858248a1a04a9",
+      "symbol": "BARDUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "NONE",
+      "disagreement_classes": [
+        "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS"
+      ],
+      "masa_confidence": 0.40826555867530556,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -117.71419780324143,
+      "masa_ppo_agreement_score": 100.0,
+      "masa_ppo_disagreement_reason": "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS",
+      "ppo_action_probabilities": [
+        0.11465667564206909,
+        0.30925694264920983,
+        0.2117773777324049,
+        0.3643090039763162,
+        0.0
+      ],
+      "ppo_policy_value": null,
+      "ppo_selected_action": "close",
+      "prediction_id": "v2_native_pred_320130e87f5237046011392781e79f34_219a2190e2b0ebb8",
+      "symbol": "EPICUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -23.91330337524414,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_6ca0554268ec2ca34a9fc300e1ffd1d8",
+      "symbol": "BEATUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -23.23994255065918,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_1bb811dcd12af31c223175f9ac4f8dc7",
+      "symbol": "PIPPINUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -58.2768669128418,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_aa8439adb0e648331a7fe673dec2a3ac",
+      "symbol": "SSVUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -31.876766204833984,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_c336aa419accf3f83bc3e2c079e65b37",
+      "symbol": "BILLUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": 10.662166595458984,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "long",
+      "prediction_id": "v2h_13326000f6446396f50d0f1ebcaa0bf2",
+      "symbol": "XAUTUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -23.012407302856445,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_39f76e1c15c17a988b60ca72543c3932",
+      "symbol": "1000SHIBUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -23.313982009887695,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_2a2e5ac884da295cc66eff06cd1d0c96",
+      "symbol": "ALICEUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -32.45454406738281,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_26290c8c851bed233c2aa399d7d0a580",
+      "symbol": "BSBUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": 33.537532806396484,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "long",
+      "prediction_id": "v2h_9e240b95a140b4143843c9fcd9722acb",
+      "symbol": "XAUTUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -24.700244903564453,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_078b4c3086d192c33d46f0f56c7e638c",
+      "symbol": "ADAUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "PPO_HOLD_MASA_TRADE"
+      ],
+      "masa_confidence": 0.4057066668635119,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -49.778963427868526,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "PPO_HOLD_MASA_TRADE",
+      "ppo_action_probabilities": [
+        0.36063389275561175,
+        0.24505734474494392,
+        0.20612276249880349,
+        0.18818600000064079,
+        0.0
+      ],
+      "ppo_policy_value": null,
+      "ppo_selected_action": "hold",
+      "prediction_id": "v2_native_pred_c63a364f09c72d66108bc507c2ecf9c0_219a2190e2b0ebb8",
+      "symbol": "BCHUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -24.72822380065918,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_3bdf25217bb01d22cf2919f50097867e",
+      "symbol": "GALAUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -27.038599014282227,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_394ac9be3e923a8eb8af5f47ee79f720",
+      "symbol": "BILLUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -60.48359680175781,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_3838ebbe984fb36f64d2c2426ad4806d",
+      "symbol": "ARUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -23.80721664428711,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_0cedb88cbea7ea3821b659885e299423",
+      "symbol": "SUIUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -21.56779670715332,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_b040d8c1fff216ab06d6b016b04d5581",
+      "symbol": "IRYSUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -8.873756408691406,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_17cbcd18934f14c15786b1e144fba2d7",
+      "symbol": "HEIUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -68.17453002929688,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_0ee58ff70f9382de149d41112412f58b",
+      "symbol": "SOLUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -63.7968864440918,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_bcf19646655d0fac149ef44f3fc26a13",
+      "symbol": "ZECUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.4012244612325351,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -111.93162745152301,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": [
+        0.11237391912844324,
+        0.35421817782645165,
+        0.19033914415552355,
+        0.34306875888958155,
+        0.0
+      ],
+      "ppo_policy_value": null,
+      "ppo_selected_action": "long",
+      "prediction_id": "v2_native_pred_065682281b250c467ffbc8cda081334b_219a2190e2b0ebb8",
+      "symbol": "1000BONKUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -31.144245147705078,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_0684ebd15aa56045c545457cd43471c8",
+      "symbol": "SEIUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -59.06993103027344,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_b3ad98805c180c713b36308191e557d3",
+      "symbol": "NEOUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -35.0327033996582,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_e2e4621401e45669e6d802a39ac8756c",
+      "symbol": "WIFUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -17.73820686340332,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_65ace136736cf2260af627759fab5c91",
+      "symbol": "ALICEUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -24.227327346801758,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_ad886ba994f5ffe2379976cd3b5c6bf8",
+      "symbol": "SKYAIUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -31.367572784423828,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_869b1a9f16042ca4ebfed2d8df0d77fc",
+      "symbol": "1000LUNCUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -45.3138542175293,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_484e345857fe95b71d4f4428a16e2904",
+      "symbol": "ZROUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": 30.231563568115234,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "long",
+      "prediction_id": "v2h_4a81890bbefef962bcd396b0933c88c0",
+      "symbol": "ASRUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -46.49375915527344,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_171ed1c41c25496742dd0997316f4316",
+      "symbol": "SSVUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -65.03567504882812,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_42f5563b5d4b4e016ad9df4c49622d16",
+      "symbol": "RENDERUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -28.208541870117188,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_a3153d5b3f5aca2a481c2a03f8e80929",
+      "symbol": "STRKUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -43.536319732666016,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_eee54f496b359e7956cf22abc57fb03b",
+      "symbol": "NEOUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -53.62784194946289,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_f01b954260d3d82a10cb9bccdfbcdfd3",
+      "symbol": "PENDLEUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -24.410266876220703,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_529f5a4275b23181e5135981a208cf6d",
+      "symbol": "XLMUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "NONE",
+      "disagreement_classes": [
+        "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS"
+      ],
+      "masa_confidence": 0.4030076470545879,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -111.5821103481905,
+      "masa_ppo_agreement_score": 100.0,
+      "masa_ppo_disagreement_reason": "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS",
+      "ppo_action_probabilities": [
+        0.12040453175351774,
+        0.31052860188816445,
+        0.21229964507781376,
+        0.356767221280504,
+        0.0
+      ],
+      "ppo_policy_value": null,
+      "ppo_selected_action": "close",
+      "prediction_id": "v2_native_pred_114ad9d2d5b5f47d162e762bf3efd2bf_219a2190e2b0ebb8",
+      "symbol": "ADAUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -17.83588981628418,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_aeaa3b6dc9c3740d3a31065739f90f27",
+      "symbol": "SEIUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -26.861112594604492,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_814d5ae450f68744d9084d05e062ce4b",
+      "symbol": "FETUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -24.41024398803711,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_e9dd235ec4b1cf88dc60d08b2eb1ddfa",
+      "symbol": "MINAUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -58.981327056884766,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_05c6d3b64b98ef3ad94af9ac0e6e9057",
+      "symbol": "ETHUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "NONE",
+      "disagreement_classes": [
+        "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -3.31738543510437,
+      "masa_ppo_agreement_score": 100.0,
+      "masa_ppo_disagreement_reason": "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "hold",
+      "prediction_id": "v2h_5b235c9eaf5a0bdc06be9d9f6d4fb354",
+      "symbol": "SUNUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -22.411361694335938,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_8dad1c7de309e1df6cea222efbbfff88",
+      "symbol": "PIPPINUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -28.764589309692383,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_5a018c1ffa9e00ad850cb4a561d3717d",
+      "symbol": "POLUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -59.79663848876953,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_b757cf41d59640315b6abdc7b2f63334",
+      "symbol": "\u5e01\u5b89\u4eba\u751fUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -31.253520965576172,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_cf9de29c22d2ac0e02310ff25d927d5c",
+      "symbol": "MINAUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -10.179620742797852,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_2aa0fbc7b27ec25e13ff6f1c982bdad5",
+      "symbol": "CELRUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -63.946693420410156,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_d3bf9fa09d5096dac11d75f304a790f4",
+      "symbol": "SOLUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -29.326658248901367,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_6ee38dcb83668cfbffec8efff3e90f45",
+      "symbol": "POLUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "NONE",
+      "disagreement_classes": [
+        "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS"
+      ],
+      "masa_confidence": 0.40683458394472655,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -119.76861171501704,
+      "masa_ppo_agreement_score": 100.0,
+      "masa_ppo_disagreement_reason": "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS",
+      "ppo_action_probabilities": [
+        0.11077768342070993,
+        0.3210240054709367,
+        0.20594557883919162,
+        0.3622527322691618,
+        0.0
+      ],
+      "ppo_policy_value": null,
+      "ppo_selected_action": "close",
+      "prediction_id": "v2_native_pred_90586b5d1b903a74758db349e1606766_219a2190e2b0ebb8",
+      "symbol": "SUIUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "NONE",
+      "disagreement_classes": [
+        "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS"
+      ],
+      "masa_confidence": 0.41018084344924705,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -120.79628391931978,
+      "masa_ppo_agreement_score": 100.0,
+      "masa_ppo_disagreement_reason": "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS",
+      "ppo_action_probabilities": [
+        0.11147516330837168,
+        0.31121598245599,
+        0.21024338032785175,
+        0.3670654739077866,
+        0.0
+      ],
+      "ppo_policy_value": null,
+      "ppo_selected_action": "close",
+      "prediction_id": "v2_native_pred_6af41a4d656d88b3393e582eb6c31806_219a2190e2b0ebb8",
+      "symbol": "JTOUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -62.40366744995117,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_46ab28b9ecc4cc3256c02ed26d39f249",
+      "symbol": "AAVEUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -30.36557388305664,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_bf2455cc474dcb1468a5bfc4f4d0f7f2",
+      "symbol": "CRVUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -17.225114822387695,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_7bd5a089ba35082118b2ab3a2892a709",
+      "symbol": "GALAUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "NONE",
+      "disagreement_classes": [
+        "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -1.6065601110458374,
+      "masa_ppo_agreement_score": 100.0,
+      "masa_ppo_disagreement_reason": "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "hold",
+      "prediction_id": "v2h_42216bd72158ec6682eaba1334a5561a",
+      "symbol": "SUNUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -14.22416877746582,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_a934bdd3c9442f24ee6ce29e750b26bf",
+      "symbol": "1000SHIBUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -20.9749813079834,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_a8f061e57a13a9a212309251235bdada",
+      "symbol": "CHZUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -14.814422607421875,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_67f4b96cafe040e8ccfeccabfe53a6f9",
+      "symbol": "HUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": 28.63850975036621,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "long",
+      "prediction_id": "v2h_9d4119cd36f5ce3d7e4548a55b5998f9",
+      "symbol": "CAKEUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -13.472513198852539,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_27309993c6be17d5e8ccdd3d24ff5231",
+      "symbol": "MEMEUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -34.107418060302734,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_c760187ab62f7beebea408cf9aa7ff4b",
+      "symbol": "CHZUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -22.011850357055664,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_d9ab078e4c570c7801963b8bb37ced73",
+      "symbol": "MONUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -23.211727142333984,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_2b07230e29febf82e460cd0791b10e3f",
+      "symbol": "HOMEUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -29.148944854736328,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_a31659581b98009bf5fc5a759b80682a",
+      "symbol": "1000BONKUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -34.47906494140625,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_db3a93a498e439b6ce9a31cbc9a2b36b",
+      "symbol": "WIFUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -33.0339469909668,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_9290ee86bab96f2ac76462cb0b1da5c5",
+      "symbol": "NEARUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "PPO_HOLD_MASA_TRADE"
+      ],
+      "masa_confidence": 0.39804964394288483,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -35.57192489977309,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "PPO_HOLD_MASA_TRADE",
+      "ppo_action_probabilities": [
+        0.3496910814955716,
+        0.2129742529241803,
+        0.2090812840002121,
+        0.228253381580036,
+        0.0
+      ],
+      "ppo_policy_value": null,
+      "ppo_selected_action": "hold",
+      "prediction_id": "v2_native_pred_1c4d3a1d474518ca22661812cdc729d9_219a2190e2b0ebb8",
+      "symbol": "HEIUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -13.585347175598145,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_1562963c2ef4aaf5ac3806c7ad02ac46",
+      "symbol": "PENGUUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -59.56967544555664,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_5e0de0e181b1c1dd131d152887195844",
+      "symbol": "\u5e01\u5b89\u4eba\u751fUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -38.07213592529297,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_2ccc8929dcd8ee4a80ad369567affdc2",
+      "symbol": "ATOMUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -26.474010467529297,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_81762cefbb4c6e5ed74eeddf68783cc0",
+      "symbol": "XPLUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -32.65879821777344,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_9b60153711053a41625985b169ccd991",
+      "symbol": "LDOUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -25.237781524658203,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_3106bcbd217bf0a67b6774e326dc5a12",
+      "symbol": "ENAUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -17.659358978271484,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_4c042fac2a1039ad33c3b3471f32fbae",
+      "symbol": "PENGUUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -53.064422607421875,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_1621f68baec97cd5e181b8375b4e0d11",
+      "symbol": "PENDLEUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -66.33065795898438,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_f15af511dd10fb3b15e05d542cf7be33",
+      "symbol": "SIRENUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.4540960214970093,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -129.2048014233389,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": [
+        0.0765031512144372,
+        0.4313852420244659,
+        0.14491522673956264,
+        0.34719638002153425,
+        0.0
+      ],
+      "ppo_policy_value": null,
+      "ppo_selected_action": "long",
+      "prediction_id": "v2_native_pred_8ade43a27299eae266368ecfcb0eb974_219a2190e2b0ebb8",
+      "symbol": "MONUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -27.38173484802246,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_a03f7727c1964039277ce0fe0b327805",
+      "symbol": "VIRTUALUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -32.639503479003906,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_56d743c2476c732ef4a9e333b1f34b6c",
+      "symbol": "XRPUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "NONE",
+      "disagreement_classes": [
+        "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": 1.854383111000061,
+      "masa_ppo_agreement_score": 100.0,
+      "masa_ppo_disagreement_reason": "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "hold",
+      "prediction_id": "v2h_3f4357b40f127300c19a37bb8143f29b",
+      "symbol": "DASHUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -54.46092987060547,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_d9ec2c5aca850f495d6a93767b1c3b7d",
+      "symbol": "XAUTUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -11.757869720458984,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_dee377b86d73aa13ce2b9a8edae68ebb",
+      "symbol": "MEMEUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -42.52454376220703,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_d5fd0b584ac5ab9f2a2edcd2af80a29a",
+      "symbol": "AUCTIONUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -25.4783992767334,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_dc49b14416d8f98785728b9dbda5194d",
+      "symbol": "STOUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -47.13923645019531,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_4519ed54e8186d85c35a587a912f607e",
+      "symbol": "LITUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -16.238630294799805,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_b74d0abd47298329efdd95b1f6161d1f",
+      "symbol": "HUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -45.798011779785156,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_563cf2cb1372939ab182ad8b8a53376d",
+      "symbol": "TONUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -5.019479751586914,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_b1f3093a321af4dba9b23755acce217d",
+      "symbol": "BTCUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "NONE",
+      "disagreement_classes": [
+        "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -1.5419139862060547,
+      "masa_ppo_agreement_score": 100.0,
+      "masa_ppo_disagreement_reason": "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "hold",
+      "prediction_id": "v2h_f2dd65ea9a5ecad412f716ae3025e897",
+      "symbol": "KITEUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -30.301212310791016,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_2023d62f2931aaa68599e15f71fbfe2f",
+      "symbol": "WIFUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -17.26095962524414,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_011f97ec9968fe639da1080417a35550",
+      "symbol": "PENGUUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -25.913328170776367,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_2aa6b4290316dc8c88d7a7b544dce54f",
+      "symbol": "ALGOUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -29.952425003051758,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_704d3697da27c45ef73fe1879a2264f8",
+      "symbol": "ASTERUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -62.03339385986328,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_2d530e846db4f7b3b5dce9af97429fdb",
+      "symbol": "AVAXUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.4388249319980809,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -123.26341579604532,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": [
+        0.08713919495349053,
+        0.4088071942542897,
+        0.15896681667799598,
+        0.3450867941142237,
+        0.0
+      ],
+      "ppo_policy_value": null,
+      "ppo_selected_action": "long",
+      "prediction_id": "v2_native_pred_d3cea6ff43b2a971e78a33979605e709_219a2190e2b0ebb8",
+      "symbol": "ZROUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.41438770481919035,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -116.20995522647723,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": [
+        0.10183978135164139,
+        0.3731366409744629,
+        0.18170553295061392,
+        0.3433180447232817,
+        0.0
+      ],
+      "ppo_policy_value": null,
+      "ppo_selected_action": "long",
+      "prediction_id": "v2_native_pred_b2aea5c1aa6edb15571cb8bbe26dbd2b_219a2190e2b0ebb8",
+      "symbol": "PENDLEUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": 13.033489227294922,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "long",
+      "prediction_id": "v2h_f81852f4fc5813a114effb4d44bae52b",
+      "symbol": "TAUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -44.25388717651367,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_e135e27905b0c4b35e443173351d7db4",
+      "symbol": "PENDLEUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -16.030418395996094,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_288d6c2e2e1516b1de2dac9cd29b18b5",
+      "symbol": "HOMEUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -60.37083053588867,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_5c599063296ef509fa518fdb3ace4a5e",
+      "symbol": "\u5e01\u5b89\u4eba\u751fUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.44310615544444437,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -125.72293036973838,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": [
+        0.08307535272935952,
+        0.41511785406031004,
+        0.15447381274148997,
+        0.34733298046884037,
+        0.0
+      ],
+      "ppo_policy_value": null,
+      "ppo_selected_action": "long",
+      "prediction_id": "v2_native_pred_200b71ca01416f3c21f73dc777cc4281_219a2190e2b0ebb8",
+      "symbol": "MINAUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -44.079002380371094,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_ce3c03cbf9124e706384b3890b1f46e5",
+      "symbol": "INUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "NONE",
+      "disagreement_classes": [
+        "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS"
+      ],
+      "masa_confidence": 0.39950135270192444,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -107.99023475483452,
+      "masa_ppo_agreement_score": 100.0,
+      "masa_ppo_disagreement_reason": "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS",
+      "ppo_action_probabilities": [
+        0.1200588191099281,
+        0.290634473075537,
+        0.23754738807533177,
+        0.3517593197392031,
+        0.0
+      ],
+      "ppo_policy_value": null,
+      "ppo_selected_action": "close",
+      "prediction_id": "v2_native_pred_be9971b95dc6fe0d9b76bb2b4feac979_219a2190e2b0ebb8",
+      "symbol": "AUCTIONUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.4054407318785462,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -113.32778633168704,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": [
+        0.10866631506533185,
+        0.3602524627448052,
+        0.18744909023216283,
+        0.3436321319577002,
+        0.0
+      ],
+      "ppo_policy_value": null,
+      "ppo_selected_action": "long",
+      "prediction_id": "v2_native_pred_15239d911654d79ed88971916061676e_219a2190e2b0ebb8",
+      "symbol": "XLMUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -51.62438201904297,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_49368feddb48c00e4f8478422cf1bac7",
+      "symbol": "UNIUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "PPO_HOLD_MASA_TRADE"
+      ],
+      "masa_confidence": 0.48279338853630077,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -84.40334921715325,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "PPO_HOLD_MASA_TRADE",
+      "ppo_action_probabilities": [
+        0.4742028140768294,
+        0.1953139909701704,
+        0.1743838129628372,
+        0.15609938199016296,
+        0.0
+      ],
+      "ppo_policy_value": null,
+      "ppo_selected_action": "hold",
+      "prediction_id": "v2_native_pred_b79ec7aaef4a3fada590fc81d0542a2d_219a2190e2b0ebb8",
+      "symbol": "BNBUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -36.179996490478516,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_5b2da6e4c9752dc65d5313d27dcd3c2e",
+      "symbol": "APTUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -67.72309112548828,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_f3adf133310c5ee959fb8cce9100c5c3",
+      "symbol": "DOTUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -27.755271911621094,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_529932206d7592b7d73324b7357bf2d5",
+      "symbol": "JSTUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -21.53403091430664,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_9e4fac763687498072c638164fbbf793",
+      "symbol": "PENGUUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -13.000334739685059,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_59b73307b798d8fd0062e4e4ddfc5bea",
+      "symbol": "SUNUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -47.24602127075195,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_0ac2e7154950839bc5b65e7c77bd6958",
+      "symbol": "LITUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -51.22637176513672,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_4a7e9280aa7780282a9f188b49c8b5e3",
+      "symbol": "HOTUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -50.398250579833984,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_90c8fb83d9fec33f9a05318ac760023e",
+      "symbol": "ARUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "NONE",
+      "disagreement_classes": [
+        "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS"
+      ],
+      "masa_confidence": 0.38615447470002195,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -88.64336873487088,
+      "masa_ppo_agreement_score": 100.0,
+      "masa_ppo_disagreement_reason": "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS",
+      "ppo_action_probabilities": [
+        0.14163763637118754,
+        0.3117373949526877,
+        0.21376070533336328,
+        0.3328642633427615,
+        0.0
+      ],
+      "ppo_policy_value": null,
+      "ppo_selected_action": "close",
+      "prediction_id": "v2_native_pred_1d3944eb9498b9bfb1645ec0b42eedf3_219a2190e2b0ebb8",
+      "symbol": "1INCHUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": 30.179718017578125,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "long",
+      "prediction_id": "v2h_788bf097f274d83d3616803c6e334a5b",
+      "symbol": "CAKEUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -53.299468994140625,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_87ae3d4dfb23cb26437228c0070a81c2",
+      "symbol": "BNBUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.44483979386777767,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -138.70604051197537,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": [
+        0.06700469253828822,
+        0.4176777485727672,
+        0.1533688609677979,
+        0.36194869792114676,
+        0.0
+      ],
+      "ppo_policy_value": null,
+      "ppo_selected_action": "long",
+      "prediction_id": "v2_native_pred_d728df707bb5765d5662c8b837b27d0e_219a2190e2b0ebb8",
+      "symbol": "SUNUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "NONE",
+      "disagreement_classes": [
+        "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS"
+      ],
+      "masa_confidence": 0.41839819864697875,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -130.0676713787416,
+      "masa_ppo_agreement_score": 100.0,
+      "masa_ppo_disagreement_reason": "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS",
+      "ppo_action_probabilities": [
+        0.10022822445769185,
+        0.29099792073376174,
+        0.22982886776419403,
+        0.3789449870443523,
+        0.0
+      ],
+      "ppo_policy_value": null,
+      "ppo_selected_action": "close",
+      "prediction_id": "v2_native_pred_b3eedb2205159f1a0fed3a0616deac2c_219a2190e2b0ebb8",
+      "symbol": "AVAXUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -63.231719970703125,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_b917fa0ece25c7b88f2a2d02d7c8381a",
+      "symbol": "LABUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -33.5263557434082,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_707e527b79e6f045b906c5a61e686d39",
+      "symbol": "RAVEUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -20.430435180664062,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_7d45a8a3dad59744030d3ddc662de79f",
+      "symbol": "MYXUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -23.458885192871094,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_52363e750b928cd9374c8db077126d3d",
+      "symbol": "HBARUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -19.17194938659668,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_e4793c733b70af81c6f9f342ab403336",
+      "symbol": "STOUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.42080795619986683,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -117.42312596166184,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": [
+        0.09880254573915695,
+        0.38244428613498516,
+        0.17485360244071446,
+        0.34389956568514346,
+        0.0
+      ],
+      "ppo_policy_value": null,
+      "ppo_selected_action": "long",
+      "prediction_id": "v2_native_pred_c30357966f95f67405d89fa56ce6249d_219a2190e2b0ebb8",
+      "symbol": "TRXUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -71.05662536621094,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_8ef24e7d6a8e751eab575bd04b0d762d",
+      "symbol": "RIVERUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "NONE",
+      "disagreement_classes": [
+        "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -2.9563069343566895,
+      "masa_ppo_agreement_score": 100.0,
+      "masa_ppo_disagreement_reason": "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "hold",
+      "prediction_id": "v2h_8366b4403f4b8f335007e5e922425c07",
+      "symbol": "BNBUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -19.68964195251465,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_7d1e66a4a2fc2d291f8673241099de8b",
+      "symbol": "ALICEUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -25.28373908996582,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_b56699629ea8e5abc591410d363d144f",
+      "symbol": "SKYAIUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -72.19971466064453,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_cc4077f0a5a1011a44f587f6039f1136",
+      "symbol": "DASHUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -72.25221252441406,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_e7faf727794581f772d8fdd2e00aabcd",
+      "symbol": "UNIUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -56.14912033081055,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_bfffe3f165c2229dcea40b362f13052f",
+      "symbol": "TAOUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.45738276731398664,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -132.8802086669881,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": [
+        0.07135692896131539,
+        0.43626723695884106,
+        0.14223682282612676,
+        0.3501390112537167,
+        0.0
+      ],
+      "ppo_policy_value": null,
+      "ppo_selected_action": "long",
+      "prediction_id": "v2_native_pred_4c06ba3d033d4c827366315ca625f512_219a2190e2b0ebb8",
+      "symbol": "CHZUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -33.37113571166992,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_bf1c59063b90e6d5e288f8fa82ba1938",
+      "symbol": "AVNTUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -32.443626403808594,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_55a23f0b8b304e0141b093e63f73d14f",
+      "symbol": "TRXUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -26.977256774902344,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_b144f84df1ad97596fb651da6307fba4",
+      "symbol": "TIAUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -41.902748107910156,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_73032447afb0375821f02132e2b14a35",
+      "symbol": "ZECUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -79.79620361328125,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_610a805564eb3a52f9043d096cda58cb",
+      "symbol": "NEOUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "PPO_HOLD_MASA_TRADE"
+      ],
+      "masa_confidence": 0.40078456047994604,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -32.74939580427748,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "PPO_HOLD_MASA_TRADE",
+      "ppo_action_probabilities": [
+        0.35359003893161006,
+        0.21260540253641216,
+        0.20950200657992588,
+        0.22430255195205184,
+        0.0
+      ],
+      "ppo_policy_value": null,
+      "ppo_selected_action": "hold",
+      "prediction_id": "v2_native_pred_753f7cae471aecd055ea332d6cdfa931_219a2190e2b0ebb8",
+      "symbol": "ETCUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -21.536113739013672,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_8592774e631e2411612a2261aba8ea4b",
+      "symbol": "JSTUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -56.75979995727539,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_935dbd6fdb1371fabe80a99267fff987",
+      "symbol": "BCHUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -19.96599578857422,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_94c786a23ab868a000d2ff2cfbf5c61b",
+      "symbol": "TAOUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -14.467005729675293,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_f8c077710b273a94c013514fe244dad5",
+      "symbol": "ZESTUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -18.598628997802734,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_dc74758061798a90b2299214afa15a02",
+      "symbol": "ADAUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -18.880098342895508,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_924adcb1f4fee95bf2de69890a823a8f",
+      "symbol": "WLFIUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -6.168267726898193,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_1d889e8621fa0e1a2e23c351439b3641",
+      "symbol": "KITEUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -35.22573471069336,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_3dd40783c91f33b8d4e9a4dabd5b22ff",
+      "symbol": "SUIUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.42998793432400706,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -120.0202719241157,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": [
+        0.09327402686817177,
+        0.3958348354329548,
+        0.16700516586590242,
+        0.34388597183297104,
+        0.0
+      ],
+      "ppo_policy_value": null,
+      "ppo_selected_action": "long",
+      "prediction_id": "v2_native_pred_33542e4f522e03a02d2b3f3724d47b13_219a2190e2b0ebb8",
+      "symbol": "FILUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.40148198777929955,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -111.92323154357761,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": [
+        0.11229219516784393,
+        0.3545860307733975,
+        0.19035578946848422,
+        0.34276598459027435,
+        0.0
+      ],
+      "ppo_policy_value": null,
+      "ppo_selected_action": "long",
+      "prediction_id": "v2_native_pred_2f861f585717820f941d59adc3074d9c_219a2190e2b0ebb8",
+      "symbol": "BARDUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -25.02276611328125,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_4f4a8ade69469a84ebdc45a080a6928f",
+      "symbol": "AVNTUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -14.248258590698242,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_c130ed898922aeebe623b4130f9f6d62",
+      "symbol": "PENGUUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -52.82530212402344,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_f885eec898267b67ed8496ca5a6d10da",
+      "symbol": "SUIUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -51.67287826538086,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_fe2dbd94349ce0f89b68518a30f1d457",
+      "symbol": "RAVEUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -65.25929260253906,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_5d5a05ceed2697ac705285657c7509e1",
+      "symbol": "LTCUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -33.957176208496094,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_499fad6c9c0a7eaeec53c414a3ead1fe",
+      "symbol": "BEATUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -16.176193237304688,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_731e560b46eaf46505453bf231bf3813",
+      "symbol": "HIGHUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -71.57551574707031,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_b74d0767f4e0e9b49447dbd354332609",
+      "symbol": "DASHUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -22.43894386291504,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_46efc5a9e5f46218ae7918a6ae7ddbe6",
+      "symbol": "SAHARAUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -34.386627197265625,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_00987a7a694a9597463f131d23ae1afe",
+      "symbol": "XRPUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -35.39982986450195,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_44e6c98fce6f36a71dcf3cb35527113b",
+      "symbol": "RAVEUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -29.25816535949707,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_73dcbf65693099368e1aca497cdec588",
+      "symbol": "JTOUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -19.138944625854492,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_c6332232cbdf10a4b1cdabf13b13a821",
+      "symbol": "1000SHIBUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -26.253921508789062,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_79aea09298105727999b248072e0460e",
+      "symbol": "SLXUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -22.49955940246582,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_2edaed8095416b3471774145569689f7",
+      "symbol": "DOGEUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -21.021682739257812,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_fa53674c0fe77853878f8e4d4eb94994",
+      "symbol": "DOGEUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -28.700956344604492,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_7eefb6daba0534b518e978b16ce8de47",
+      "symbol": "JSTUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "NONE",
+      "disagreement_classes": [
+        "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS"
+      ],
+      "masa_confidence": 0.3975842761054993,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -117.82294538052594,
+      "masa_ppo_agreement_score": 100.0,
+      "masa_ppo_disagreement_reason": "AGREEMENT_OR_INSUFFICIENT_MASA_FIELDS",
+      "ppo_action_probabilities": [
+        0.10469806460383899,
+        0.336730746741328,
+        0.20954246035187202,
+        0.34902872830296094,
+        0.0
+      ],
+      "ppo_policy_value": null,
+      "ppo_selected_action": "close",
+      "prediction_id": "v2_native_pred_68cec30d824fa7617b2ee3115e6393ec_219a2190e2b0ebb8",
+      "symbol": "INJUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -24.520099639892578,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_fd7ac46ac22dd7cfdb8c77460dd3db0d",
+      "symbol": "POLUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -37.007598876953125,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_9620bb910f4d644ee658bc2a42d9a32a",
+      "symbol": "IRYSUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -24.8275203704834,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_259e7a30d2a5f084dcb928f0f06e28ec",
+      "symbol": "1000FLOKIUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "actionability_adjustment": "DOWNRANK_OR_BLOCK",
+      "disagreement_classes": [
+        "CONFIDENCE_DISAGREEMENT"
+      ],
+      "masa_confidence": 0.5,
+      "masa_direction_probability": null,
+      "masa_expected_move_bps": -32.51468276977539,
+      "masa_ppo_agreement_score": 75.0,
+      "masa_ppo_disagreement_reason": "CONFIDENCE_DISAGREEMENT",
+      "ppo_action_probabilities": null,
+      "ppo_policy_value": null,
+      "ppo_selected_action": "short",
+      "prediction_id": "v2h_06202a8616d4174575ec3e9703707acb",
+      "symbol": "SKYAIUSDT",
+      "timeframe": "15m"
+    }
+  ],
+  "schema_version": "masa_ppo_disagreement_log_v1"
+}

@@ -1,0 +1,273 @@
+{
+  "generated_utc": "2026-06-19T13:27:36Z",
+  "closed_trade_count": 1027,
+  "open_position_count": 10,
+  "active_policy_closed_count": 51,
+  "active_policy_trailing_count": 0,
+  "active_policy_net_pnl_usd": 8.261125956363836,
+  "active_policy_strategy_counts": [
+    {
+      "mode": "mean_reversion_mode",
+      "count": 7
+    },
+    {
+      "mode": "reduce_size_mode",
+      "count": 44
+    }
+  ],
+  "active_policy_close_reason_counts": [
+    {
+      "reason": "TIER_1_ATR_VOLATILITY_STOP",
+      "count": 33
+    },
+    {
+      "reason": "TIER_2_PROFIT_BANK",
+      "count": 5
+    },
+    {
+      "reason": "TIER_2_PROFIT_LOCK",
+      "count": 4
+    },
+    {
+      "reason": "TIER_2_TAKE_PROFIT",
+      "count": 7
+    },
+    {
+      "reason": "TIER_3_MODEL_REVERSAL_NETTING",
+      "count": 2
+    }
+  ],
+  "blocked_strategy_mode_tail": [],
+  "blocked_reason_counts": [
+    {
+      "reason": "P0_ENTRY_GATE_BLOCKED",
+      "count": 255
+    },
+    {
+      "reason": "STRATEGY_ROUTER_BLOCKED",
+      "count": 20
+    }
+  ],
+  "last_20_closed": [
+    {
+      "symbol": "SUIUSDT",
+      "side": "short",
+      "timeframe": "1m",
+      "strategy_selected_mode": "reduce_size_mode",
+      "close_reason": "TIER_1_ATR_VOLATILITY_STOP",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "realized_pnl_usd": -0.07277087987503834,
+      "exit_price_utc": "2026-06-19T12:55:08Z",
+      "trailing_stop_history_count": 0
+    },
+    {
+      "symbol": "CRVUSDT",
+      "side": "long",
+      "timeframe": "1h",
+      "strategy_selected_mode": "reduce_size_mode",
+      "close_reason": "TIER_2_TAKE_PROFIT",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "realized_pnl_usd": 2.435784517706816,
+      "exit_price_utc": "2026-06-19T12:56:45Z",
+      "trailing_stop_history_count": 9
+    },
+    {
+      "symbol": "JTOUSDT",
+      "side": "short",
+      "timeframe": "1h",
+      "strategy_selected_mode": "reduce_size_mode",
+      "close_reason": "TIER_3_MODEL_REVERSAL_NETTING",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "realized_pnl_usd": -0.009904128546497054,
+      "exit_price_utc": "2026-06-19T12:59:10Z",
+      "trailing_stop_history_count": 0
+    },
+    {
+      "symbol": "ALGOUSDT",
+      "side": "long",
+      "timeframe": "1h",
+      "strategy_selected_mode": "reduce_size_mode",
+      "close_reason": "TIER_2_TAKE_PROFIT",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "realized_pnl_usd": 1.1914780021569007,
+      "exit_price_utc": "2026-06-19T12:59:10Z",
+      "trailing_stop_history_count": 59
+    },
+    {
+      "symbol": "CHZUSDT",
+      "side": "long",
+      "timeframe": "1h",
+      "strategy_selected_mode": "reduce_size_mode",
+      "close_reason": "TIER_2_TAKE_PROFIT",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "realized_pnl_usd": 1.1337882451998142,
+      "exit_price_utc": "2026-06-19T13:01:01Z",
+      "trailing_stop_history_count": 13
+    },
+    {
+      "symbol": "ENAUSDT",
+      "side": "short",
+      "timeframe": "1m",
+      "strategy_selected_mode": "reduce_size_mode",
+      "close_reason": "TIER_1_ATR_VOLATILITY_STOP",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "realized_pnl_usd": -0.051520213906557415,
+      "exit_price_utc": "2026-06-19T13:01:01Z",
+      "trailing_stop_history_count": 0
+    },
+    {
+      "symbol": "LABUSDT",
+      "side": "long",
+      "timeframe": "1h",
+      "strategy_selected_mode": "reduce_size_mode",
+      "close_reason": "TIER_2_PROFIT_LOCK",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "realized_pnl_usd": 0.016908487302192146,
+      "exit_price_utc": "2026-06-19T13:03:38Z",
+      "trailing_stop_history_count": 59
+    },
+    {
+      "symbol": "BEATUSDT",
+      "side": "short",
+      "timeframe": "15m",
+      "strategy_selected_mode": "mean_reversion_mode",
+      "close_reason": "TIER_2_TAKE_PROFIT",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "realized_pnl_usd": 1.3600245510238709,
+      "exit_price_utc": "2026-06-19T13:03:38Z",
+      "trailing_stop_history_count": 1
+    },
+    {
+      "symbol": "SEIUSDT",
+      "side": "short",
+      "timeframe": "1h",
+      "strategy_selected_mode": "reduce_size_mode",
+      "close_reason": "TIER_1_ATR_VOLATILITY_STOP",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "realized_pnl_usd": -0.01069509494855977,
+      "exit_price_utc": "2026-06-19T13:05:47Z",
+      "trailing_stop_history_count": 0
+    },
+    {
+      "symbol": "BIOUSDT",
+      "side": "short",
+      "timeframe": "1h",
+      "strategy_selected_mode": "reduce_size_mode",
+      "close_reason": "TIER_1_ATR_VOLATILITY_STOP",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "realized_pnl_usd": -0.9561856421223879,
+      "exit_price_utc": "2026-06-19T13:06:56Z",
+      "trailing_stop_history_count": 0
+    },
+    {
+      "symbol": "ESPORTSUSDT",
+      "side": "short",
+      "timeframe": "1m",
+      "strategy_selected_mode": "reduce_size_mode",
+      "close_reason": "TIER_2_PROFIT_LOCK",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "realized_pnl_usd": 0.03260418610713499,
+      "exit_price_utc": "2026-06-19T13:07:04Z",
+      "trailing_stop_history_count": 25
+    },
+    {
+      "symbol": "SUIUSDT",
+      "side": "short",
+      "timeframe": "1m",
+      "strategy_selected_mode": "reduce_size_mode",
+      "close_reason": "TIER_1_ATR_VOLATILITY_STOP",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "realized_pnl_usd": -0.08035243785902128,
+      "exit_price_utc": "2026-06-19T13:08:07Z",
+      "trailing_stop_history_count": 0
+    },
+    {
+      "symbol": "BEATUSDT",
+      "side": "short",
+      "timeframe": "15m",
+      "strategy_selected_mode": "mean_reversion_mode",
+      "close_reason": "TIER_1_ATR_VOLATILITY_STOP",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "realized_pnl_usd": -1.306433890022504,
+      "exit_price_utc": "2026-06-19T13:11:10Z",
+      "trailing_stop_history_count": 0
+    },
+    {
+      "symbol": "BSBUSDT",
+      "side": "short",
+      "timeframe": "1h",
+      "strategy_selected_mode": "mean_reversion_mode",
+      "close_reason": "TIER_2_PROFIT_LOCK",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "realized_pnl_usd": 0.03634467009925026,
+      "exit_price_utc": "2026-06-19T13:13:43Z",
+      "trailing_stop_history_count": 17
+    },
+    {
+      "symbol": "MEGAUSDT",
+      "side": "short",
+      "timeframe": "1h",
+      "strategy_selected_mode": "reduce_size_mode",
+      "close_reason": "TIER_1_ATR_VOLATILITY_STOP",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "realized_pnl_usd": -0.23757749643288212,
+      "exit_price_utc": "2026-06-19T13:17:52Z",
+      "trailing_stop_history_count": 0
+    },
+    {
+      "symbol": "BIOUSDT",
+      "side": "short",
+      "timeframe": "1h",
+      "strategy_selected_mode": "mean_reversion_mode",
+      "close_reason": "TIER_1_ATR_VOLATILITY_STOP",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "realized_pnl_usd": -0.6095660757817287,
+      "exit_price_utc": "2026-06-19T13:19:30Z",
+      "trailing_stop_history_count": 0
+    },
+    {
+      "symbol": "JTOUSDT",
+      "side": "long",
+      "timeframe": "15m",
+      "strategy_selected_mode": "reduce_size_mode",
+      "close_reason": "TIER_1_ATR_VOLATILITY_STOP",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "realized_pnl_usd": -0.5680660721624423,
+      "exit_price_utc": "2026-06-19T13:19:54Z",
+      "trailing_stop_history_count": 30
+    },
+    {
+      "symbol": "CHZUSDT",
+      "side": "short",
+      "timeframe": "1h",
+      "strategy_selected_mode": "reduce_size_mode",
+      "close_reason": "TIER_1_ATR_VOLATILITY_STOP",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "realized_pnl_usd": -0.008844344498356645,
+      "exit_price_utc": "2026-06-19T13:21:49Z",
+      "trailing_stop_history_count": 0
+    },
+    {
+      "symbol": "BSBUSDT",
+      "side": "short",
+      "timeframe": "1h",
+      "strategy_selected_mode": "reduce_size_mode",
+      "close_reason": "TIER_2_PROFIT_BANK",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "realized_pnl_usd": 1.0866597413523473,
+      "exit_price_utc": "2026-06-19T13:23:56Z",
+      "trailing_stop_history_count": 16
+    },
+    {
+      "symbol": "ESPORTSUSDT",
+      "side": "short",
+      "timeframe": "1m",
+      "strategy_selected_mode": "reduce_size_mode",
+      "close_reason": "TIER_2_PROFIT_BANK",
+      "paper_exit_policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+      "realized_pnl_usd": 1.0167409900499207,
+      "exit_price_utc": "2026-06-19T13:26:00Z",
+      "trailing_stop_history_count": 1
+    }
+  ]
+}

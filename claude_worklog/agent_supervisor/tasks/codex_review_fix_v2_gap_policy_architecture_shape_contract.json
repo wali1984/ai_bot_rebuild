@@ -1,0 +1,37 @@
+{
+  "task_id": "codex_review_fix_v2_gap_policy_architecture_shape_contract",
+  "kind": "codex_review",
+  "paired_claude_task_id": "claude_fix_v2_gap_policy_architecture_shape_contract",
+  "gap_id": "policy_architecture_shape_contract",
+  "severity": "OPERATOR_DECISION_REQUIRED",
+  "created_utc": "2026-05-17T18:00:00Z",
+  "updated_utc": "2026-05-17T18:00:00Z",
+  "status": "pending_codex_review_of_options_only",
+  "review_inputs": [
+    "claude_worklog/final_readiness/v2_model_parity_sprint/latest/policy_architecture_compatibility.json",
+    "claude_worklog/final_readiness/v2_model_parity_sprint/latest/legacy_observation_shape_contract.json",
+    "claude_worklog/final_readiness/v2_model_parity_sprint/latest/checkpoint_candidate_inventory.json",
+    "v2/backend/app/services/rl_core/policy_architecture_compatibility.py",
+    "v2/backend/app/services/rl_core/legacy_observation_contract.py",
+    "v2/backend/app/services/rl_core/checkpoint_inventory.py"
+  ],
+  "fail_conditions": [
+    "claim full-migration scope before operator decision",
+    "approve loading legacy pickle weights into V2 process",
+    "approve loading any blob outside .local_models/",
+    "approve live or canary",
+    "approve legacy shutdown",
+    "approve Redis trim",
+    "change live_gate or live_symbols",
+    "claim V2 policy is equivalent to legacy production policy without architecture port",
+    "claim positive paper edge"
+  ],
+  "verification_checklist": [
+    "v2 policy facts match v2/backend/app/services/rl_core/policy.py source of truth",
+    "legacy architecture facts cite v2/legacy_owned_runtime/rl/enhanced_architectures.py read-only",
+    "no torch import was performed by the analysis",
+    "no pickle deserialization was performed by the analysis",
+    "live_gate=blocked_human_only and live_symbols=[] preserved",
+    "task is presented as OPERATOR_DECISION_REQUIRED, not auto-applied"
+  ]
+}

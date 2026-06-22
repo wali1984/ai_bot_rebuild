@@ -1,0 +1,121 @@
+{
+  "backend_service": {
+    "ActiveEnterTimestamp": "Sun 2026-06-21 19:19:49 EDT",
+    "ActiveState": "active",
+    "Description": "AI BOT V2 public website backend (uvicorn + FastAPI; read-only payload server; NEVER enables live trading; LIVE_GATE=blocked_human_only)",
+    "ExecMainStatus": 0,
+    "FragmentPath": "/home/wali/.config/systemd/user/ai-bot-v2-public-website-backend.service",
+    "Id": "ai-bot-v2-public-website-backend.service",
+    "LoadState": "loaded",
+    "MainPID": 2657,
+    "NRestarts": 0,
+    "SubState": "running",
+    "active": true,
+    "unit": "ai-bot-v2-public-website-backend.service",
+    "uptime_seconds": 715
+  },
+  "current_route_probe_failures": [],
+  "current_route_probe_passed_count": 9,
+  "current_route_probe_total_count": 9,
+  "current_route_probes": [
+    {
+      "http_status": 200,
+      "ok": true,
+      "path": "/healthz",
+      "stderr": "",
+      "url": "http://127.0.0.1:5173/healthz"
+    },
+    {
+      "http_status": 200,
+      "ok": true,
+      "path": "/",
+      "stderr": "",
+      "url": "http://127.0.0.1:5173/"
+    },
+    {
+      "http_status": 200,
+      "ok": true,
+      "path": "/trader",
+      "stderr": "",
+      "url": "http://127.0.0.1:5173/trader"
+    },
+    {
+      "http_status": 200,
+      "ok": true,
+      "path": "/paper-trading",
+      "stderr": "",
+      "url": "http://127.0.0.1:5173/paper-trading"
+    },
+    {
+      "http_status": 200,
+      "ok": true,
+      "path": "/risk-control",
+      "stderr": "",
+      "url": "http://127.0.0.1:5173/risk-control"
+    },
+    {
+      "http_status": 200,
+      "ok": true,
+      "path": "/monitor-center",
+      "stderr": "",
+      "url": "http://127.0.0.1:5173/monitor-center"
+    },
+    {
+      "http_status": 200,
+      "ok": true,
+      "path": "/market",
+      "stderr": "",
+      "url": "http://127.0.0.1:5173/market"
+    },
+    {
+      "http_status": 200,
+      "ok": true,
+      "path": "/admin/report-center",
+      "stderr": "",
+      "url": "http://127.0.0.1:5173/admin/report-center"
+    },
+    {
+      "http_status": 200,
+      "ok": true,
+      "path": "/admin/operator-proof-dashboard",
+      "stderr": "",
+      "url": "http://127.0.0.1:5173/admin/operator-proof-dashboard"
+    }
+  ],
+  "execution_adapter_default": "v2_default_blocked_execution_adapter",
+  "generated_est": "2026-06-21T19:31:44-0400",
+  "generated_utc": "2026-06-21T23:31:44Z",
+  "git_head": "d36df906b7e57e4d5515416af79f68af18af3bcf",
+  "go_no_go": "V2_COPIED_RUNTIME_BURN_IN_AND_PAPER_EDGE_IMPROVEMENT_BLOCKED",
+  "live_safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "exchange_action_taken": false,
+    "legacy_root_runtime_active": false,
+    "leverage_change": false,
+    "live_binance_liquidations_active": false,
+    "live_gate": "blocked_human_only",
+    "live_gate_status": "blocked_human_only",
+    "live_symbols": [],
+    "margin_mode_change": false,
+    "old_redis_writes_detected": false,
+    "places_real_order": false,
+    "v2_canary": 0,
+    "v2_live": 0
+  },
+  "milestone": "v2_copied_runtime_burn_in_and_paper_edge_improvement",
+  "phase": 6,
+  "prior_rendered_route_matrix": {
+    "age_seconds": 2257677,
+    "failed_count": 0,
+    "note": "This collector performs current lightweight HTTP probes. Full rendered screenshots remain in the copied-runtime restart evidence.",
+    "passed_count": 34,
+    "path": "v2/frontend/public/v2_full_copied_runtime_and_trading_platform_restart/latest/production_route_matrix_codex_after.json",
+    "rendered_screenshot_evidence_present": true,
+    "route_count": 34
+  },
+  "schema_version": "v2_trading_platform_runtime_ui_verification_v3",
+  "website_runtime_state_visible": true
+}

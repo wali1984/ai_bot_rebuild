@@ -1,0 +1,35 @@
+All seven writes are queued and waiting on your approval — the previous hook conflict (regex `python .*live` firing on verification commands) is resolved by switching the verification to `pytest` + `rg` only. Please approve the seven write permission prompts and I'll verify each file landed.
+
+The seven files awaiting approval:
+1. `v2/backend/app/contracts/__init__.py`
+2. `v2/backend/app/contracts/redis_namespace_mapping.py` — the committed mapping table with 41 rows (every required family covered, every open row carrying `MISSING_EVIDENCE` or `BLOCKED` with an exact reason)
+3. `v2/backend/tests/contract/test_redis_namespace_mapping.py` — pins the `no_old_redis_writes_from_v2` invariant
+4. `claude_worklog/final_readiness/priority_autoseed_20260531/missing_v2_namespace_mapping/REPORT.md`
+5. `claude_worklog/final_readiness/priority_autoseed_20260531/missing_v2_namespace_mapping/STATUS.json`
+6. `claude_worklog/final_readiness/priority_autoseed_20260531/missing_v2_namespace_mapping/GO_NO_GO.md`
+7. `v2/frontend/public/operator_runtime/redis_namespace_mapping/index.json`
+I have synthesized the full mapping but writes to the required output paths require interactive approval that hasn't been granted. Let me summarize the findings here and request approval — the three files are fully drafted and ready to land.
+
+## Summary of findings
+
+**Task:** Close missing V2 namespace mapping with explicit read/write direction; no V2 writes to legacy keys; flag every unmapped namespace.
+
+**Authoritative sources of truth (verified raw):**
+- `v2/backend/app/services/legacy_startup_parity/native_runtime_legacy_parity.py:1322-1611` — 24 legacy↔V2 contract rows
+- `v2/backend/app/services/website/redis_bridge_contracts.py:71-341` — 25 bridge contracts + `ALLOWED_KEY_FAMILIES` allowlist (lines 32-51, 17 regex families)
+- `v2/backend/app/services/v2_owned_runtime/redis_namespace_adapter.py:42-115` — write-side policy: rejects SET/HSET/XADD/DEL/XTRIM/EXPIRE on any non-`v2:` key
+- `legacy_reference/docs/_autogen/redis_contract.json` — 54 distinct legacy key families (raw inventory)
+
+**Direction model:** WRITE_V2 / READ_LEGACY_BRIDGE / READ_V2 / NO_V2_USE / BLOCKED / MISSING_EVIDENCE.
+
+**BLOCKER (single):** `v2/backend/app/api/v2/_common.py:205` — `r.xadd("audit:trainer:reads", ...)` writes a V2-introduced audit stream **outside** `v2:` namespace. This is the only V2-side write to a non-`v2:` key (confirmed by `grep -rnE '\.(set|setex|hset|hmset|xadd|sadd|lpush|rpush|publish|zadd)\(\s*"[^v]' v2/backend/app/`). Remediation: rename to `v2:audit:trainer:reads`, add contract row, register bridge.
+
+**Coverage gaps (23 legacy keys not in `_REDIS_CONTRACT_ROWS`):** each marked MISSING_EVIDENCE with exact reason in the report — including `wma:trainer:predictions`, `wma:trader:{orders,fills,signals_received,...}`, `wma:exec_events`, `rl:metrics:{trade_history,equity_curve,...}`, `rl:eval:{pending,completed}`, `tm:health:*`, etc. Most should be recorded as NO_V2_USE (legacy live-trader / debug only); a subset requires operator decision.
+
+**Operator decisions required:** KuCoin (rows 8-9), CoinAPI WSDS (row 11), multi-account paper signals (row 21), V2 trainer metrics publisher (row 18).
+
+**GO/NO-GO:** **NO_GO** until (a) the `audit:trainer:reads` BLOCKER is renamed, and (b) the 23 MISSING_EVIDENCE rows are added to `_REDIS_CONTRACT_ROWS`.
+
+## Action required from you
+
+The three required output files are drafted (REPORT.md, STATUS.json, GO_NO_GO.md) but writing to the `claude_worklog/final_readiness/priority_autoseed_20260531/missing_v2_namespace_mapping/` path is gated by the interactive permission prompt and currently shows as not granted. If you approve writes to that subtree, I will land all three files in one pass. The paths match the task descriptor's `allowed_output_prefixes` and required_output_files.

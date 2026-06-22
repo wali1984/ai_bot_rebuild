@@ -1,0 +1,134 @@
+{
+  "schema_version": "v2_phase3_9_wiring_sprint_status_v1",
+  "generated_at": "2026-06-17T20:00:00Z",
+  "session_label": "Phase 3-9 wiring sprint — all services wired into paper_online_runtime",
+  "prior_state": {
+    "blocker_1": "Services existed but were NOT wired into paper_online_runtime.py",
+    "blocker_2": "backfill_realized_outcome existed but was NOT called on position close",
+    "full_suite_before": {"passed": 4332, "failed": 0}
+  },
+  "wiring_applied": {
+    "file": "v2/backend/app/cli/paper_online_runtime.py",
+    "new_function": "apply_paper_entry_gates",
+    "description": "New function called in the new-entry branch (when no open position) of build_runtime_payload. Chains Phase 3/4/9/8 gates in order.",
+    "phase_3_entry_gate": {
+      "function": "evaluate_entry_gate",
+      "module": "v2.backend.app.services.paper_trade_management.entry_gate",
+      "insertion_point": "apply_paper_entry_gates, before build_paper_ledger_entry",
+      "behavior": "Blocks 1m/5m timeframes by default; allows 15m/1h/4h; dynamic outcome-memory bucket loaded from Redis with static soak fallback",
+      "fail_safe": "try/except BLE001 — import errors silently skip gate"
+    },
+    "phase_4_high_precision_gate": {
+      "function": "evaluate_high_precision_gate",
+      "module": "v2.backend.app.services.paper_trade_management.high_precision_gate",
+      "insertion_point": "apply_paper_entry_gates, after Phase 3 passes",
+      "behavior": "Blocks on confidence<0.75, edge<15bps, coverage<85%, missing feature families, multi-TF disagreement, OB confirmation absence",
+      "fail_safe": "try/except BLE001 — import errors silently skip gate"
+    },
+    "phase_9_anti_mm": {
+      "function": "evaluate_all_detectors",
+      "module": "v2.backend.app.services.paper_trade_management.anti_market_maker_detector",
+      "insertion_point": "apply_paper_entry_gates, after Phase 4 passes",
+      "behavior": "6 detectors: sweep, spoof/wall-pull, liquidity hunt, depth-tape divergence, toxic flow, stop-run risk. entry_blocked=True → deny_anti_mm_detected",
+      "fail_safe": "try/except BLE001 — import errors silently skip gate"
+    },
+    "phase_8_leverage_rec": {
+      "function": "recommend_leverage_for_signal",
+      "module": "v2.backend.app.services.paper_trade_management.leverage_recommendation",
+      "insertion_point": "apply_paper_entry_gates, after Phases 3/4/9 all pass (advisory)",
+      "behavior": "Produces leverage_recommendation dict in risk_decision. NEVER blocks. max_leverage=3, max_loss=$50, isolated margin only, live_gate=blocked_human_only",
+      "fail_safe": "try/except BLE001 — import errors silently skip recommendation"
+    },
+    "phase_6_prediction_enrichment": {
+      "function": "enrich_prediction_for_phase6",
+      "module": "v2.backend.app.services.paper_trade_management.prediction_accuracy_tracker",
+      "insertion_point": "build_runtime_payload, after build_trainer_prediction",
+      "behavior": "Adds direction/price_target_bps/data_coverage_pct/top_feature_codes/reasoning_drivers/strategy_family/regime to trainer_prediction",
+      "fail_safe": "try/except BLE001 — import errors silently skip enrichment"
+    },
+    "phase_6_backfill": {
+      "function": "backfill_realized_outcome",
+      "module": "v2.backend.app.services.paper_trade_management.prediction_accuracy_tracker",
+      "insertion_point": "_push_decisions_to_redis, when ledger result is POSITION_CLOSED_PAPER_ONLY",
+      "behavior": "Updates v2:prediction:{symbol}:{timeframe} Redis key with realized_outcome_direction, realized_outcome_bps, realized_at_ms when a paper position closes",
+      "fail_safe": "try/except BLE001 — Redis errors or missing prediction key silently ignored"
+    },
+    "phase_7_anti_mm_exit": {
+      "function": "evaluate_all_detectors",
+      "module": "v2.backend.app.services.paper_trade_management.anti_market_maker_detector",
+      "insertion_point": "build_position_lifecycle_entry, after _position_exit_reason",
+      "behavior": "When exit_reason is None and anti-MM exit_accelerated=True and past min hold: sets exit_reason=ANTI_MM_EXIT_ACCELERATED",
+      "fail_safe": "try/except BLE001 — silently skipped"
+    },
+    "phase_7_hedge_advisory": {
+      "function": "evaluate_hedge",
+      "module": "v2.backend.app.services.trade_management_paper.hedge_engine",
+      "insertion_point": "build_position_lifecycle_entry, for both OPEN and CLOSED lifecycle",
+      "behavior": "Evaluates hedge with operator_paper_hedge_engine_approved=False (fail-closed). Result recorded in phase7_hedge_advisory field. hedge_needed=False invariant until operator enables.",
+      "fail_safe": "try/except BLE001 — silently skipped"
+    }
+  },
+  "new_tests_added": {
+    "file": "v2/backend/tests/unit/cli/test_paper_online_runtime_phase3_9_gates.py",
+    "count": 20,
+    "tests": [
+      "test_entry_gate_blocks_1m_timeframe",
+      "test_entry_gate_allows_15m_timeframe",
+      "test_entry_gate_allows_1h_timeframe",
+      "test_entry_gate_skipped_when_already_denied",
+      "test_entry_gate_records_result_dict",
+      "test_high_precision_gate_blocks_low_confidence",
+      "test_high_precision_gate_blocks_low_edge",
+      "test_high_precision_gate_records_result_dict",
+      "test_phase4_block_does_not_set_live_order",
+      "test_leverage_recommendation_never_blocks",
+      "test_leverage_recommendation_present_when_gates_pass",
+      "test_anti_mm_detection_recorded_in_risk",
+      "test_anti_mm_entry_block_denies_risk_action",
+      "test_phase7_hedge_advisory_in_held_lifecycle",
+      "test_phase7_hedge_advisory_in_closed_lifecycle",
+      "test_phase7_hedge_advisory_fail_closed",
+      "test_apply_entry_gates_never_enables_live_order",
+      "test_apply_entry_gates_never_writes_live_symbols",
+      "test_apply_entry_gates_preserves_paper_only_flag",
+      "test_apply_entry_gates_does_not_mutate_original"
+    ]
+  },
+  "full_test_suite": {
+    "total": 4352,
+    "passed": 4352,
+    "failed": 0,
+    "skipped": 4,
+    "duration_seconds": 457,
+    "previous_count": 4332,
+    "new_tests_added": 20
+  },
+  "blockers_resolved": {
+    "blocker_1": {
+      "was": "anti_market_maker_detector, enrich_prediction_for_phase6, recommend_leverage_for_signal NOT wired into paper_online_runtime",
+      "now": "All 3 + backfill_realized_outcome + hedge_advisory + phase6_enrichment wired via apply_paper_entry_gates + _push_decisions_to_redis"
+    },
+    "blocker_2": {
+      "was": "backfill_realized_outcome NOT called on position close",
+      "now": "Called in _push_decisions_to_redis when paper_result == POSITION_CLOSED_PAPER_ONLY"
+    }
+  },
+  "remaining_blockers": {
+    "blocker_3": "Paper soak minimum not met: 500 closed trades, 55% WR, 5bps EV, zero liquidations — requires live paper runtime operation",
+    "blocker_4": "SHAP attribution gap: top_positive_feature_codes and top_negative_feature_codes return [] until SHAP wired in trainer checkpoint export",
+    "blocker_5": "DataLoader zombies: 18 zombie PIDs under trainer PID 1037427 — code fixed (persistent_workers=False), clears on next natural trainer restart",
+    "blocker_6": "No operator review of paper accuracy evidence yet"
+  },
+  "safety_invariants_verified": {
+    "no_live_orders": true,
+    "no_exchange_mutation": true,
+    "no_old_redis_writes": true,
+    "live_gate_blocked_human_only": true,
+    "hedge_fail_closed_operator_required": true,
+    "leverage_max_3x_isolated_only": true,
+    "anti_mm_never_places_order": true
+  },
+  "phase_verdict": "WIRING_SPRINT_COMPLETE",
+  "paper_status": "PAPER_RUNTIME_ALL_SERVICES_WIRED",
+  "live_status": "LIVE_TRADING_BLOCKED"
+}

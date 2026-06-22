@@ -1,0 +1,13 @@
+{
+  "exchange_mutation_frozen_before_enable": true,
+  "execution_live_symbols": [],
+  "generated_est": "2026-06-05T16:26:51-04:00",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "no_leverage_margin_mutation_by_this_flow": true,
+  "no_old_redis_write_by_this_flow": true,
+  "no_order_test_order_cancel_modify_by_this_flow": true,
+  "runtime_mutation_executed_by_enable": false,
+  "schema_version": "trader_runtime_safety_status_v1",
+  "service_id": "v2_audited_live_acceptance_records_and_enable_execution"
+}

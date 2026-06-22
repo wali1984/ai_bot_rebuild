@@ -1,0 +1,21 @@
+[Unit]
+Description=AI BOT V2 post-hoc replay outcome miner (paper/shadow only; one-shot per timer tick)
+ConditionPathExists=/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/v2_post_hoc_replay_outcome_miner.py
+After=network-online.target ai-bot-v2-paper-online-runtime.service ai-bot-v2-position-history-persistent-tracker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment=PYTHONUNBUFFERED=1
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+Environment="LIVE_GATE=blocked_human_only"
+ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -m v2.backend.app.cli.v2_post_hoc_replay_outcome_miner --symbols BTCUSDT,ETHUSDT,SOLUSDT --json'
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=false
+
+[Install]
+WantedBy=default.target

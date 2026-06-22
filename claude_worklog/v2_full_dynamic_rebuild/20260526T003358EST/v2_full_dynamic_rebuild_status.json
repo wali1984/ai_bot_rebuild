@@ -1,0 +1,59 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "go_no_go": "V2_FULL_DYNAMIC_REBUILD_IMPLEMENTATION_BLOCKED",
+  "implementation_ready": false,
+  "live_ready": false,
+  "live_symbols": [],
+  "readiness_ladder": [
+    {
+      "evidence": "running_count=26, visible_terminals=32, not_started_count=19, backtest_has_run=False",
+      "ready": false,
+      "state": "V2_FULL_DYNAMIC_REBUILD_RUNNING"
+    },
+    {
+      "evidence": "after-cost paper edge not yet proven positive; backtest engine scaffold pending first run",
+      "ready": false,
+      "state": "V2_PAPER_EDGE_PROVEN"
+    },
+    {
+      "evidence": "operator has not set risk caps; risk gateway fails closed",
+      "ready": false,
+      "state": "V2_RISK_CAPS_ACCEPTED"
+    },
+    {
+      "evidence": "binance_readonly_connectivity_status.json = READY",
+      "ready": true,
+      "state": "V2_READ_ONLY_EXCHANGE_PROBE_PASS"
+    },
+    {
+      "evidence": "blocked behind earlier states",
+      "ready": false,
+      "state": "V2_CANARY_OPERATOR_DECISION_REQUIRED"
+    },
+    {
+      "evidence": "blocked",
+      "ready": false,
+      "state": "V2_CANARY_PASS"
+    },
+    {
+      "evidence": "blocked",
+      "ready": false,
+      "state": "V2_LIVE_OPERATOR_DECISION_REQUIRED"
+    },
+    {
+      "evidence": "blocked",
+      "ready": false,
+      "state": "V2_LIVE_READY"
+    }
+  ],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "running_component_count": 26,
+  "ts_est": "20260526T003358EST",
+  "ts_iso_est": "2026-05-26T00:49:15-0400",
+  "visible_terminal_count": 32,
+  "writes_exchange_orders": false
+}

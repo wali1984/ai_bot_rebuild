@@ -1,0 +1,30 @@
+{
+  "freshness_seconds": 2268854.772969246,
+  "go_no_go": "V2_CHECKPOINT_PROMOTION_OPERATOR_REQUIRED",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "owner": "CLAUDE",
+  "redaction_applied": false,
+  "report_id": "checkpoint_promotion",
+  "sanitized_summary": {
+    "go_no_go": "V2_CHECKPOINT_PROMOTION_OPERATOR_REQUIRED",
+    "pruned": {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "candidate_count": 0,
+      "generated_utc": "2026-05-26T17:53:09Z",
+      "go_no_go": "V2_CHECKPOINT_PROMOTION_OPERATOR_REQUIRED",
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "schema_version": "v2_checkpoint_promotion_status_v2_torch_native_shape_contract"
+    },
+    "redaction_applied": false,
+    "redaction_token": null,
+    "status": "OPERATOR_DECISION_REQUIRED"
+  },
+  "stale": true,
+  "status": "OPERATOR_DECISION_REQUIRED",
+  "title": "Checkpoint Promotion"
+}

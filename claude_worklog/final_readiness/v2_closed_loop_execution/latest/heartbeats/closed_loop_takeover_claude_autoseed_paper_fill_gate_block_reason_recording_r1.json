@@ -1,0 +1,9 @@
+{
+  "alive": true,
+  "file_lock_group": "paper_fill_gate_block_reason_recording",
+  "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/closed_loop_takeover_claude_autoseed_paper_fill_gate_block_reason_recording_r1_codex.log",
+  "pid": 2955021,
+  "task_id": "closed_loop_takeover_claude_autoseed_paper_fill_gate_block_reason_recording_r1",
+  "task_type": "CODEX_TAKEOVER",
+  "updated_at": "2026-06-15T00:54:17Z"
+}

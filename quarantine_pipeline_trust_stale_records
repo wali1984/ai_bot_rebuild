@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+set -euo pipefail
+python -m v2.backend.app.cli.quarantine_pipeline_trust_stale_records "$@"

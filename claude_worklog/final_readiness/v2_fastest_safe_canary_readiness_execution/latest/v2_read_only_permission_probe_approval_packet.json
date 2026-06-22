@@ -1,0 +1,87 @@
+{
+  "schema_version": "v2_read_only_permission_probe_approval_packet_v1",
+  "generated_utc": "2026-05-25T19:55:00Z",
+  "git_head": "10513bbe0517fd81c9c87e4672bb15486a083c02",
+  "lane_id": "v2_fastest_safe_canary_readiness_execution",
+  "scope": "PHASE_5_READ_ONLY_PERMISSION_PROBE_APPROVAL_PACKET_DRAFT",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "this_packet_creates_approval_token": false,
+  "this_packet_creates_approval_artifact": false,
+  "operator_approval_required_before_any_execution": true,
+  "operator_approval_artifact_path": "OPERATOR_REQUIRED_SEPARATE_READ_ONLY_PERMISSION_PROBE_ARTIFACT_NOT_CREATED",
+  "operator_approval_artifact_present": false,
+  "probe_execution_state": "PROBE_DRAFT_NOT_EXECUTED",
+  "probe_executor_evidence_path": "v2/backend/app/services/live_canary/permission_probe.py",
+  "probe_invariants": {
+    "no_order_endpoints_called": true,
+    "no_test_order_endpoint_called": true,
+    "no_leverage_endpoint_called": true,
+    "no_margin_endpoint_called": true,
+    "no_position_side_endpoint_called": true,
+    "no_batch_orders_endpoint_called": true,
+    "no_exchange_mutation": true,
+    "no_balance_value_in_public_payload": true,
+    "balance_exposure_strategy_when_returned": "RANGE_BUCKET_ONLY_NEVER_RAW",
+    "credentials_in_logs": "NEVER_PRINTED",
+    "credentials_in_public_payload": "NEVER_PERSISTED",
+    "credentials_referenced_by_env_var_name_only": true
+  },
+  "explicitly_forbidden_endpoints": [
+    "POST /fapi/v1/order",
+    "PUT /fapi/v1/order",
+    "DELETE /fapi/v1/order",
+    "POST /fapi/v1/order/test",
+    "POST /fapi/v1/leverage",
+    "POST /fapi/v1/marginType",
+    "POST /fapi/v1/positionSide/dual",
+    "POST /fapi/v1/batchOrders",
+    "any_endpoint_that_mutates_exchange_state"
+  ],
+  "allowed_probe_calls_when_operator_signs": [
+    {"endpoint": "GET /fapi/v1/account", "scope": "read_only_account_info_balance_bucketed_in_payload"},
+    {"endpoint": "GET /fapi/v1/balance", "scope": "read_only_balance_bucketed_in_payload"},
+    {"endpoint": "GET /sapi/v1/account/apiRestrictions", "scope": "read_only_api_key_permission_introspection_capability_flags_only"},
+    {"endpoint": "GET /fapi/v1/positionRisk", "scope": "read_only_position_inventory_for_pre_canary_verification"}
+  ],
+  "required_env_var_names_by_name_only": [
+    "BINANCE_API_KEY",
+    "BINANCE_API_SECRET"
+  ],
+  "required_env_var_names_present_in_container": [
+    "BINANCE_API_KEY",
+    "BINANCE_API_SECRET"
+  ],
+  "credential_presence_reported_by_env_var_name_only": true,
+  "credential_source_paths_exposed": false,
+  "env_var_values_read_in_this_packet": false,
+  "env_var_values_exposed_in_this_packet": false,
+  "expected_outputs_if_probe_runs_under_approval": [
+    "v2/frontend/public/v2_read_only_permission_probe/latest/probe_result.json",
+    "v2/frontend/public/v2_read_only_permission_probe/latest/operator_dashboard_payload.json"
+  ],
+  "next_operator_action": "Operator signs a separate read-only permission-probe approval artifact with required positive language: 'read-only', 'no order endpoints', 'no leverage change', 'no margin change', 'no test order', 'live_gate = blocked_human_only', 'live_symbols = []'. Forbidden language: any live/canary/order enablement wording.",
+  "next_automatic_action_after_operator_approval": "Closed-loop Spark seeder creates a paired implementation/Codex review task to execute the read-only probe and emit the result payload.",
+  "blocks_canary": true,
+  "blocks_live": true,
+  "tokenmetrics_excluded": true,
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "writes_old_redis": false,
+    "calls_exchange_mutation": false,
+    "places_real_order": false,
+    "leverage_changed": false,
+    "margin_mode_changed": false,
+    "creates_approval_tokens": false,
+    "creates_approval_artifacts": false,
+    "fabricates_edge": false,
+    "modifies_legacy_repo": false,
+    "raw_values_read": false,
+    "raw_values_exposed": false
+  }
+}

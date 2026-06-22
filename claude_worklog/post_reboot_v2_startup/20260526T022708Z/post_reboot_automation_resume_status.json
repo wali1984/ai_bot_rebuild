@@ -1,0 +1,42 @@
+{
+  "actions": [
+    {
+      "action": "report_center_indexer --once --json",
+      "log": "automation_resume/report_center.txt",
+      "ran": true,
+      "result_sample": "    }\n  ]\n}\n"
+    },
+    {
+      "action": "v2_autonomous_no_manual_next_task_policy --json",
+      "log": "automation_resume/no_manual_policy.txt",
+      "ran": true,
+      "result_sample": "      \"tasks_missing_safe_envelope\": 0,\n      \"tasks_missing_safe_envelope_detail\": []\n    },\n    \"remediations_created_last_hour\": 0,\n    \"tasks_completed_last_hour\": 4,\n    \"unmapped_codex_fail_count\": 0\n  },\n  \"worker_heartbeat_counted_as_progress\": false,\n  \"writes_old_redis\": false\n}\n"
+    },
+    {
+      "action": "v2_post_hoc_replay_outcome_miner --json",
+      "log": "automation_resume/replay_miner.txt",
+      "ran": true,
+      "result_sample": "    \"1m\": 128,\n    \"5m\": 121\n  },\n  \"windows_insufficient_5m_evidence\": 4436\n}\n"
+    },
+    {
+      "action": "v2_production_equivalence_comparator --once",
+      "log": "automation_resume/prod_eq.txt",
+      "ran": true,
+      "result_sample": "{\"minutes_observed\": 13010.05, \"observation_count\": 3242, \"soak_15m_ready\": false, \"soak_1h_ready\": false, \"soak_6h_ready\": false}\n"
+    },
+    {
+      "action": "spark_worker_pool snapshot read",
+      "log": "worker_pool_status.json (repo root)",
+      "ran": true,
+      "result_sample": "worker_pool_status.json mtime age (s)=14406"
+    }
+  ],
+  "all_ran": true,
+  "go_no_go": "POST_REBOOT_AUTOMATION_RESUME_READY",
+  "live_trading_enabled": false,
+  "outdir": "claude_worklog/post_reboot_v2_startup/20260526T022708Z",
+  "real_orders_enabled": false,
+  "ts_iso": "2026-05-26T02:50:57Z",
+  "ts_utc": "20260526T022708Z",
+  "writes_exchange_orders": false
+}

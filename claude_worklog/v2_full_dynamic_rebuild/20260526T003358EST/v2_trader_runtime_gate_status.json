@@ -1,0 +1,27 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "go_no_go": "V2_TRADER_RUNTIME_GATE_STATUS_READY",
+  "leverage_change_disabled": true,
+  "live_symbols": [],
+  "live_trader_disabled": true,
+  "margin_mode_change_disabled": true,
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "real_orders_disabled": true,
+  "requires_future_approval": [
+    "live trading enable",
+    "canary enable",
+    "test-order endpoint call",
+    "leverage change",
+    "margin mode change",
+    "checkpoint deserialization/promotion",
+    "Redis trim"
+  ],
+  "test_orders_disabled": true,
+  "ts_est": "20260526T003358EST",
+  "ts_iso_est": "2026-05-26T00:49:15-0400",
+  "writes_exchange_orders": false
+}

@@ -1,0 +1,16 @@
+{
+  "gate": "V2_PAPER_TRADE_MANAGEMENT_EXIT_NETTING_RISK_AND_TRAINER_FEEDBACK_READY",
+  "status": "PASS",
+  "generated_utc": "2026-06-11T20:27:36Z",
+  "runtime_evidence_file": "v2/frontend/public/operator_runtime/v2_paper_trade_management/latest/paper_hedge_netting_status.json",
+  "accidental_hedge_pairs_allowed": false,
+  "same_symbol_same_direction_behavior": "NET_INTO_EXISTING_POSITION",
+  "same_symbol_opposite_direction_behavior": "REDUCE_OR_CLOSE_BEFORE_REVERSE",
+  "explicit_hedge_behavior": "REQUIRES_EXPLICIT_HEDGE_TAG_AND_BUDGET",
+  "verified": {
+    "same_symbol_repeated_long_nets_into_one_position": true,
+    "long_then_short_closes_before_reverse": true,
+    "unmanaged_self_cancelling_pairs_blocked": true
+  }
+}
+

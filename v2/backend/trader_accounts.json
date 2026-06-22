@@ -1,0 +1,34 @@
+{
+  "accounts": [
+    {
+      "trader_id": "admin-001",
+      "paper_account_id": "paper-admin-001",
+      "currency": "USDT",
+      "equity": 10000.0,
+      "realized_pnl": 0.0,
+      "unrealized_pnl": 0.0,
+      "positions": [],
+      "orders": [],
+      "executions": [],
+      "signals": [],
+      "source_status": "seeded_initial",
+      "created_at": "2026-06-14T05:24:59.893812Z",
+      "updated_at": "2026-06-14T05:24:59.893812Z"
+    },
+    {
+      "trader_id": "trader-wajidali1984",
+      "paper_account_id": "paper-wajidali1984",
+      "currency": "USDT",
+      "equity": 10000.0,
+      "realized_pnl": 0.0,
+      "unrealized_pnl": 0.0,
+      "positions": [],
+      "orders": [],
+      "executions": [],
+      "signals": [],
+      "source_status": "seeded_initial",
+      "created_at": "2026-06-14T05:24:59.893812Z",
+      "updated_at": "2026-06-14T05:24:59.893812Z"
+    }
+  ]
+}

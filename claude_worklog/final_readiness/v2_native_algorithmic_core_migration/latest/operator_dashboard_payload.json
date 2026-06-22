@@ -1,0 +1,62 @@
+{
+  "worker_id": "v2_native_algorithmic_core_migration",
+  "go_no_go": "V2_NATIVE_ALGORITHMIC_CORE_MIGRATION_FROM_DEEP_AUDIT_BLOCKED",
+  "blocked_by": "CODEX_REVIEW_FAIL",
+  "codex_review_path": "v2/frontend/public/native_algorithmic_core_migration/latest/operator_dashboard_payload.json",
+  "generated_utc": "2026-05-15",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false,
+  "final_approval_token": "absent",
+  "redis_trim_approval_token": "absent",
+  "audit_source": "migration-audit-deep.md",
+  "contract_ref": "claude_worklog/final_readiness/permanent_migration_runtime/latest/MIGRATION_COMPLETION_CONTRACT.md",
+  "subprojects": {
+    "1_rl_core": {
+      "go_no_go": "SUBPROJECT_1_RL_CORE_PARTIALLY_MIGRATED_PAPER_ONLY",
+      "tests": {"passed": 15, "failed": 0, "total": 15},
+      "status_path": "v2/frontend/public/operator_runtime/v2_rl_core/latest/v2_rl_core_status.json",
+      "service_path": "v2/backend/app/services/rl_core/",
+      "cli_path": "v2/backend/app/cli/v2_rl_core_worker.py",
+      "classification": "PARTIALLY_MIGRATED"
+    },
+    "2_feature_intelligence": {
+      "go_no_go": "SUBPROJECT_2_FEATURE_INTELLIGENCE_PARTIALLY_MIGRATED_PAPER_ONLY",
+      "tests": {"passed": 16, "failed": 0, "total": 16},
+      "status_path": "v2/frontend/public/operator_runtime/v2_feature_intelligence/latest/v2_feature_intelligence_status.json",
+      "service_path": "v2/backend/app/services/feature_intelligence/",
+      "cli_path": "v2/backend/app/cli/v2_feature_intelligence_worker.py",
+      "classification": "PARTIALLY_MIGRATED"
+    },
+    "3_trade_management_paper": {
+      "go_no_go": "SUBPROJECT_3_TRADE_MANAGEMENT_PAPER_PARTIALLY_MIGRATED_PAPER_ONLY",
+      "tests": {"passed": 19, "failed": 0, "total": 19},
+      "status_path": "v2/frontend/public/operator_runtime/v2_trade_management_paper/latest/v2_trade_management_paper_status.json",
+      "service_path": "v2/backend/app/services/trade_management_paper/",
+      "cli_path": "v2/backend/app/cli/v2_trade_management_paper_worker.py",
+      "classification": "PARTIALLY_MIGRATED",
+      "hedge_dca_classification": "FAIL_CLOSED_STUB"
+    },
+    "4_orchestrator_arbitration": {
+      "go_no_go": "SUBPROJECT_4_ORCHESTRATOR_ARBITRATION_PARTIALLY_MIGRATED_PAPER_ONLY",
+      "tests": {"passed": 21, "failed": 0, "total": 21},
+      "status_path": "v2/frontend/public/operator_runtime/v2_orchestrator_arbitration/latest/v2_orchestrator_arbitration_status.json",
+      "service_path": "v2/backend/app/services/orchestrator_arbitration/",
+      "cli_path": "v2/backend/app/cli/v2_orchestrator_arbitration_worker.py",
+      "classification": "PARTIALLY_MIGRATED"
+    }
+  },
+  "combined_test_result": {"passed": 71, "failed": 0, "total": 71},
+  "validation": {
+    "py_compile": "clean",
+    "json_validation": "clean_4_of_4_invariant_clean",
+    "frontend_typecheck": "clean",
+    "forbidden_mutation_scan": "clean",
+    "final_approval_token_absent": true,
+    "redis_trim_approval_token_absent": true
+  },
+  "summary": "Four P0 subprojects each implemented as V2-native paper/shadow code with tests. All four are PARTIALLY_MIGRATED. None claims MIGRATED_CODEX_PASS. Migration is NOT complete; Codex review for each subproject is the next gate."
+}

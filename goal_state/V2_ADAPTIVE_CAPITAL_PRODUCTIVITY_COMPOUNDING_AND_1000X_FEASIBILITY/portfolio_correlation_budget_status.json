@@ -1,0 +1,147 @@
+{
+  "schema_version": "v2_adaptive_capital_productivity_status_v1",
+  "goal_id": "V2_ADAPTIVE_CAPITAL_PRODUCTIVITY_COMPOUNDING_AND_1000X_FEASIBILITY",
+  "generated_utc": "2026-06-21T19:58:34Z",
+  "status": "PASSED",
+  "correlation_blocker_reasons": [],
+  "open_position_count": 5,
+  "open_symbol_count": 5,
+  "gross_open_notional_usd": 650.47959295,
+  "effective_portfolio_leverage": 0.06031145,
+  "total_exposure_pct_of_equity": 0.06031145,
+  "max_total_portfolio_exposure_pct": 0.6,
+  "max_single_symbol_exposure_pct": 0.08,
+  "max_observed_symbol_exposure_pct": 0.04657384,
+  "portfolio_concentration_limits_enforced": true,
+  "concentration_limit_breaches": [],
+  "correlation_matrix_ready": true,
+  "correlation_input_coverage": 1.0,
+  "correlation_input_count": 5,
+  "correlation_input_missing_symbols": [],
+  "correlation_input_missing_count": 0,
+  "correlation_input_missing_reasons": {},
+  "correlation_input_missing_sample": [],
+  "correlation_source_by_symbol": {
+    "AEROUSDT": "position_or_feature_payload",
+    "CHZUSDT": "position_or_feature_payload",
+    "FETUSDT": "position_or_feature_payload",
+    "IPUSDT": "position_or_feature_payload",
+    "TRXUSDT": "position_or_feature_payload"
+  },
+  "correlation_source_counts": {
+    "position_or_feature_payload": 5
+  },
+  "correlation_input_status_counts": {
+    "MISSING": 0,
+    "READY": 5
+  },
+  "derived_correlation_symbol_count": 0,
+  "derived_correlation_symbols": [],
+  "correlation_return_timeframe": "1m",
+  "min_correlation_return_points": 30,
+  "max_correlation_candle_age_seconds": 21600,
+  "correlation_pair_counts_by_symbol": {
+    "AEROUSDT": 4,
+    "CHZUSDT": 4,
+    "FETUSDT": 4,
+    "IPUSDT": 4,
+    "TRXUSDT": 4
+  },
+  "correlation_candle_diagnostics_by_symbol": {
+    "AEROUSDT": {
+      "source": "v2:market:ohlcv:binance:AEROUSDT:1m",
+      "raw_candle_count": 100,
+      "accepted_candle_count": 99,
+      "return_count": 98,
+      "first_close_time": "2026-06-21T18:19:59.999000Z",
+      "last_close_time": "2026-06-21T19:57:59.999000Z",
+      "last_candle_age_seconds": 34.001,
+      "reject_counts": {
+        "CANDLE_CLOSE_TIME_AFTER_GENERATED_AT": 1
+      }
+    },
+    "CHZUSDT": {
+      "source": "v2:market:ohlcv:binance:CHZUSDT:1m",
+      "raw_candle_count": 100,
+      "accepted_candle_count": 99,
+      "return_count": 98,
+      "first_close_time": "2026-06-21T18:19:59.999000Z",
+      "last_close_time": "2026-06-21T19:57:59.999000Z",
+      "last_candle_age_seconds": 34.001,
+      "reject_counts": {
+        "CANDLE_CLOSE_TIME_AFTER_GENERATED_AT": 1
+      }
+    },
+    "FETUSDT": {
+      "source": "v2:market:ohlcv:binance:FETUSDT:1m",
+      "raw_candle_count": 100,
+      "accepted_candle_count": 99,
+      "return_count": 98,
+      "first_close_time": "2026-06-21T18:19:59.999000Z",
+      "last_close_time": "2026-06-21T19:57:59.999000Z",
+      "last_candle_age_seconds": 34.001,
+      "reject_counts": {
+        "CANDLE_CLOSE_TIME_AFTER_GENERATED_AT": 1
+      }
+    },
+    "IPUSDT": {
+      "source": "v2:market:ohlcv:binance:IPUSDT:1m",
+      "raw_candle_count": 100,
+      "accepted_candle_count": 99,
+      "return_count": 98,
+      "first_close_time": "2026-06-21T18:19:59.999000Z",
+      "last_close_time": "2026-06-21T19:57:59.999000Z",
+      "last_candle_age_seconds": 34.001,
+      "reject_counts": {
+        "CANDLE_CLOSE_TIME_AFTER_GENERATED_AT": 1
+      }
+    },
+    "TRXUSDT": {
+      "source": "v2:market:ohlcv:binance:TRXUSDT:1m",
+      "raw_candle_count": 100,
+      "accepted_candle_count": 100,
+      "return_count": 99,
+      "first_close_time": "2026-06-21T18:17:59.999000Z",
+      "last_close_time": "2026-06-21T19:56:59.999000Z",
+      "last_candle_age_seconds": 94.001,
+      "reject_counts": {}
+    }
+  },
+  "max_correlation_exposure_pct": 0.18,
+  "max_observed_correlation_exposure_pct": 0.17399278,
+  "correlation_budget_breach_count": 0,
+  "correlation_budget_breach_sample": [],
+  "correlation_budget_breaches": [],
+  "correlation_budget_reduction_required": false,
+  "correlation_budget_reduction_plan_count": 0,
+  "correlation_budget_reduction_plan_sample": [],
+  "correlation_budget_reduction_plan": [],
+  "breached_correlation_open_notional_usd": 0,
+  "symbol_exposure_usd": {
+    "AEROUSDT": 28.80781241,
+    "CHZUSDT": 4.51287912,
+    "FETUSDT": 80.59526066,
+    "IPUSDT": 34.24894705,
+    "TRXUSDT": 502.31469371
+  },
+  "symbol_margin_exposure_usd": {
+    "AEROUSDT": 28.80781241,
+    "CHZUSDT": 4.51287912,
+    "FETUSDT": 80.59526066,
+    "IPUSDT": 34.24894705,
+    "TRXUSDT": 1004.62938741
+  },
+  "side_exposure_usd": {
+    "long": 582.90995437,
+    "short": 67.56963858
+  },
+  "regime_exposure_usd": {
+    "MODEL_DISAGREEMENT,RANGE": 502.31469371,
+    "RANGE": 113.91595219,
+    "TREND": 34.24894705
+  },
+  "strategy_exposure_usd": {
+    "mean_reversion_mode": 616.23064589,
+    "trend_mode": 34.24894705
+  }
+}

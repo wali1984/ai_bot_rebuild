@@ -1,0 +1,98 @@
+{
+  "current_inferred_paper_confidence_threshold": 0.5501359270406313,
+  "generated_est": "2026-06-10T14:15:07-04:00",
+  "live_risk_changed": false,
+  "live_threshold_changed": false,
+  "paper_threshold_auto_applied": false,
+  "runtime_thresholds_changed": false,
+  "schema_version": "v2_confidence_calibration_paper_actionability_v1_threshold_simulation",
+  "simulation_thresholds": [
+    0.55,
+    0.545,
+    0.54,
+    0.535,
+    0.53,
+    0.525,
+    0.52
+  ],
+  "simulations": [
+    {
+      "additional_recovered_candidate_count": 0,
+      "avg_expected_move_after_cost_bps": 9.132134437561035,
+      "current_allowed_overlap": 2,
+      "live_threshold_changed": false,
+      "min_market_state_integrity_score": 96.25,
+      "paper_confidence_threshold": 0.55,
+      "runtime_thresholds_changed": false,
+      "scope": "paper_only_simulation",
+      "simulated_paper_candidate_count": 2
+    },
+    {
+      "additional_recovered_candidate_count": 9,
+      "avg_expected_move_after_cost_bps": 15.705302325162021,
+      "current_allowed_overlap": 2,
+      "live_threshold_changed": false,
+      "min_market_state_integrity_score": 96.25,
+      "paper_confidence_threshold": 0.545,
+      "runtime_thresholds_changed": false,
+      "scope": "paper_only_simulation",
+      "simulated_paper_candidate_count": 11
+    },
+    {
+      "additional_recovered_candidate_count": 18,
+      "avg_expected_move_after_cost_bps": 19.918764781951904,
+      "current_allowed_overlap": 2,
+      "live_threshold_changed": false,
+      "min_market_state_integrity_score": 96.25,
+      "paper_confidence_threshold": 0.54,
+      "runtime_thresholds_changed": false,
+      "scope": "paper_only_simulation",
+      "simulated_paper_candidate_count": 20
+    },
+    {
+      "additional_recovered_candidate_count": 49,
+      "avg_expected_move_after_cost_bps": 19.066573012108897,
+      "current_allowed_overlap": 2,
+      "live_threshold_changed": false,
+      "min_market_state_integrity_score": 96.25,
+      "paper_confidence_threshold": 0.535,
+      "runtime_thresholds_changed": false,
+      "scope": "paper_only_simulation",
+      "simulated_paper_candidate_count": 51
+    },
+    {
+      "additional_recovered_candidate_count": 83,
+      "avg_expected_move_after_cost_bps": 22.251858296113856,
+      "current_allowed_overlap": 2,
+      "live_threshold_changed": false,
+      "min_market_state_integrity_score": 96.25,
+      "paper_confidence_threshold": 0.53,
+      "runtime_thresholds_changed": false,
+      "scope": "paper_only_simulation",
+      "simulated_paper_candidate_count": 85
+    },
+    {
+      "additional_recovered_candidate_count": 112,
+      "avg_expected_move_after_cost_bps": 23.231627046016225,
+      "current_allowed_overlap": 2,
+      "live_threshold_changed": false,
+      "min_market_state_integrity_score": 96.25,
+      "paper_confidence_threshold": 0.525,
+      "runtime_thresholds_changed": false,
+      "scope": "paper_only_simulation",
+      "simulated_paper_candidate_count": 114
+    },
+    {
+      "additional_recovered_candidate_count": 131,
+      "avg_expected_move_after_cost_bps": 23.78855541774205,
+      "current_allowed_overlap": 2,
+      "live_threshold_changed": false,
+      "min_market_state_integrity_score": 96.25,
+      "paper_confidence_threshold": 0.52,
+      "runtime_thresholds_changed": false,
+      "scope": "paper_only_simulation",
+      "simulated_paper_candidate_count": 133
+    }
+  ],
+  "status": "PAPER_ONLY_SIMULATION_READY"
+}

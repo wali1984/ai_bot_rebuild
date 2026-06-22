@@ -1,0 +1,13 @@
+{
+  "claim_scope": "local payload updated; production fixed only after dashboard.wajidali.us serves the matching deployed bundle",
+  "generated_est": "2026-06-21T20:28:29-04:00",
+  "live_gate": "blocked_human_only",
+  "local_dev_prediction_rows_count": 430,
+  "local_dev_route_signal_grid_status": "PAYLOAD_GRID_READY_ROUTE_CRAWL_REQUIRED",
+  "production_base_url": "http://127.0.0.1:5177",
+  "production_route_hashes": [],
+  "public_payload_hash": "c13355323221ab2e658902d99f31a66a6699a7d2961d3b909a3137e84d03c210",
+  "public_payload_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_signals/latest/signals_payload.json",
+  "schema_version": "v2_website_signal_grid_production_truth_status_v1",
+  "status": "PRODUCTION_ROUTE_HASH_CAPTURED_REQUIRES_DEPLOYMENT_HASH_COMPARE"
+}

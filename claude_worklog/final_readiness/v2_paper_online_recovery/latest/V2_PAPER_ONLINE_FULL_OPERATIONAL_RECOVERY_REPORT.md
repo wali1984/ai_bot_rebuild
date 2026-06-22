@@ -2,16 +2,16 @@
 
 Status: V2_PAPER_ONLINE_FULL_OPERATIONAL_RECOVERY_READY
 
-Generated at: 2026-05-12T20:27:46Z
+Generated at: 2026-06-17T15:13:35-04:00
 
 - Runtime state: `PAPER_RUNTIME_ONLINE_ACTIVE`
 - Runtime mode: `paper_only_non_live`
 - Live gate: `blocked_human_only`
 - Market feed: `READONLY_MARKET_FEED` / `CURRENT`
 - Paper loop available: `True`
-- Paper event count: `1870`
-- Paper action: `PAPER_FILL_SIMULATED`
-- Risk result: `APPROVED_FOR_PAPER_ONLY`
+- Paper event count: `5917`
+- Paper action: `PAPER_INTENT_BLOCKED`
+- Risk result: `BLOCKED`
 - Exchange orders: `false`
 - Legacy Redis writes: `false`
 - Leverage changes: `false`

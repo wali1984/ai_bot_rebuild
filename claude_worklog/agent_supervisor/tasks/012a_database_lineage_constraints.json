@@ -1,27 +1,37 @@
 {
-  "task_id": "012a_database_lineage_constraints",
   "agent": "claude",
-  "risk_level": "L1",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "claude_worklog/v2_architecture/",
     "claude_worklog/v2_architecture_remediation/"
   ],
+  "auto_commit": true,
+  "commit_message": "Close database lineage architecture gap",
+  "completed_at": "2026-06-15T19:54:42Z",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": [],
+  "emit_files": true,
+  "max_attempts": 3,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_recommended_action": "Run 012B after 012A succeeds.",
+  "next_tasks_on_failure": [],
+  "next_tasks_on_success": [
+    "012b_api_lineage_enforcement"
+  ],
+  "normalized_from_artifact": true,
+  "priority": 120,
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. This is a small focused task. Read claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md and update it to add enforceable database lineage constraints for feature_snapshot_id -> prediction_id -> signal_id -> decision_id -> risk_decision_id -> execution_intent_id. Include tables/constraints/indexes/nullability rules for feature_snapshots, prediction_events, signal_events, orchestrator_decisions, risk_decisions, execution_intents. Include missing-attribution rejection support and query indexes for explainability/audit. Print exactly two BEGIN_FILE blocks and no other text. First: BEGIN_FILE: claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md with the full updated file. Second: BEGIN_FILE: claude_worklog/v2_architecture_remediation/12A_DATABASE_LINEAGE_CLOSURE.md with a concise summary proving the database lineage gap is closed. Use only architecture text, no code build.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md",
     "claude_worklog/v2_architecture_remediation/12A_DATABASE_LINEAGE_CLOSURE.md"
   ],
-  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. This is a small focused task. Read claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md and update it to add enforceable database lineage constraints for feature_snapshot_id -> prediction_id -> signal_id -> decision_id -> risk_decision_id -> execution_intent_id. Include tables/constraints/indexes/nullability rules for feature_snapshots, prediction_events, signal_events, orchestrator_decisions, risk_decisions, execution_intents. Include missing-attribution rejection support and query indexes for explainability/audit. Print exactly two BEGIN_FILE blocks and no other text. First: BEGIN_FILE: claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md with the full updated file. Second: BEGIN_FILE: claude_worklog/v2_architecture_remediation/12A_DATABASE_LINEAGE_CLOSURE.md with a concise summary proving the database lineage gap is closed. Use only architecture text, no code build.",
-  "next_recommended_action": "Run 012B after 012A succeeds.",
-  "auto_commit": true,
-  "commit_message": "Close database lineage architecture gap",
-  "max_attempts": 3,
-  "priority": 120,
-  "depends_on": [],
-  "next_tasks_on_success": [
-    "012b_api_lineage_enforcement"
-  ],
-  "next_tasks_on_failure": [],
-  "normalized_from_artifact": true
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-06-15T19:54:42Z",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/012a_database_lineage_constraints.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "012a_database_lineage_constraints",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

@@ -1,0 +1,20 @@
+{
+  "after_integrity_filtering": {
+    "edge_claimed": false,
+    "samples": 0
+  },
+  "before_integrity_filtering": {
+    "edge_claimed": false,
+    "samples": 732
+  },
+  "ci_lower": null,
+  "drawdown": null,
+  "expectancy": null,
+  "false_negatives": null,
+  "false_positives": null,
+  "generated_est": "2026-06-08T23:21:50-04:00",
+  "generated_utc": "2026-06-09T03:21:50Z",
+  "rejected_samples": 732,
+  "schema_version": "market_state_integrity_backtest_impact_status_v1",
+  "verdict": "NO_EDGE_CLAIM_INTEGRITY_FILTER_STATUS_ONLY"
+}

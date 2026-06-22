@@ -1,0 +1,13 @@
+{
+  "schema_version": "v2_hourly_monitor_v1",
+  "generated_at": "2026-06-21T23:02:25Z",
+  "window_start_est": "2020-01-01T00:00:00+00:00",
+  "window_end_est": "2026-06-21T23:02:22+00:00",
+  "event_count_in_window": 95728,
+  "live_gate": "blocked_human_only",
+  "live_mutation_count_must_be_zero": 0,
+  "mutates_exchange": false,
+  "fill_count": 2279,
+  "adaptive_leverage_recommendation_count": 0,
+  "adaptive_margin_recommendation_count": 0
+}

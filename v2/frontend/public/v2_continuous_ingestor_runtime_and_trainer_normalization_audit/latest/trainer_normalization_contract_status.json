@@ -1,0 +1,84 @@
+{
+  "schema_version": "trainer_normalization_contract_status_v1",
+  "generated_est": "2026-06-09T21:01:26-04:00",
+  "status": "TRAINER_NORMALIZATION_CURRENT_AND_MASKED",
+  "normalization_pipeline": [
+    "provider ingestors publish provider/current V2 Redis keys",
+    "native feature pipeline builds v2:features:latest:{symbol}:{timeframe}",
+    "TA loop builds v2:features:ta and v2:features:ta_full",
+    "CoinAnk direct ingestor publishes latest:coinank:* current-source keys",
+    "V2HybridTrainerDataLoader reads V2 provider keys plus narrow read-only latest:coinank:* keys",
+    "V2UnifiedFeatureTensorBuilder maps raw provider shapes into fixed FEATURE_SPEC values",
+    "missing values become 0.0 only when missing_mask=1",
+    "stale values are carried separately in stale_mask",
+    "source_availability and source_labels preserve provider lineage",
+    "market-state integrity gates training/prediction/risk/orchestrator/paper/live validity",
+    "trainer emits predictions/signals with lineage for risk, orchestrator, and paper"
+  ],
+  "source_contracts": {
+    "binance_public": [
+      "v2:market:ohlcv:binance:{symbol}:{timeframe}",
+      "v2:market:prices:{symbol}",
+      "v2:market:funding:{symbol}",
+      "v2:market:open_interest:{symbol}"
+    ],
+    "coinapi": [
+      "v2:market:coinapi:wsds:{symbol}",
+      "v2:features:microfeat:{symbol}:{timeframe}"
+    ],
+    "kucoin": [
+      "v2:market:kucoin:*",
+      "v2:features:kucoin:*"
+    ],
+    "coinank_direct": [
+      "latest:coinank:open_interest:{symbol}:{timeframe}",
+      "latest:coinank:funding:{symbol}:{timeframe}",
+      "latest:coinank:long_short:{symbol}:{timeframe}",
+      "latest:coinank:liquidations:{symbol}:{timeframe}",
+      "latest:coinank:market_order_flow:{symbol}:{timeframe}",
+      "latest:coinank:advanced:{symbol}:{timeframe}"
+    ],
+    "liquidations": [
+      "v2:liquidations:events",
+      "v2:liquidations:levels:{symbol}:{timeframe}",
+      "v2:unified_features:{symbol}:{timeframe}"
+    ],
+    "altdata": [
+      "v2:altdata:symbol_score:{symbol}",
+      "v2:altdata:public_intel:symbol:{symbol}",
+      "v2:altdata:aicoin:symbol:{symbol}",
+      "v2:altdata:whale_walls:symbol:{symbol}",
+      "v2:altdata:nansen:symbol:{symbol}",
+      "v2:altdata:lunarcrush:symbol:{symbol}"
+    ]
+  },
+  "trainer_code_references": {
+    "data_loader_coinank_read_only_guard": "v2/backend/app/services/native_trainer/hybrid_cuda_trainer/data_loader.py:49",
+    "data_loader_payload_key_contract": "v2/backend/app/services/native_trainer/hybrid_cuda_trainer/data_loader.py:100",
+    "data_loader_coinank_current_keys": "v2/backend/app/services/native_trainer/hybrid_cuda_trainer/data_loader.py:143",
+    "tensor_builder_missing_mask_contract": "v2/backend/app/services/native_trainer/hybrid_cuda_trainer/tensor_builder.py:410",
+    "tensor_builder_coinank_numeric_fallbacks": "v2/backend/app/services/native_trainer/hybrid_cuda_trainer/tensor_builder.py:484",
+    "tensor_builder_masks_source_lineage": "v2/backend/app/services/native_trainer/hybrid_cuda_trainer/tensor_builder.py:731",
+    "website_trade_derivatives_current_sources": "v2/backend/app/services/operator_truth/trade_derivatives_runtime.py:300"
+  },
+  "current_trainer_runtime": {
+    "native_cuda_trainer_one_shot": "completed_successfully_via_systemd",
+    "native_cuda_trainer_timer": "active/waiting",
+    "trainer_training_live_loop": "active/running",
+    "training_rows": 655,
+    "runtime_truth_trainer_status": "V2_NATIVE_RL_MASA_PPO_CUDA_TRAINER_PAPER_SHADOW",
+    "runtime_truth_cuda_trainer_status": "V2_NATIVE_RL_MASA_PPO_CUDA_TRAINER_PAPER_SHADOW"
+  },
+  "masked_optional_sources": {
+    "nansen": "provider API intermittently returns API_FORBIDDEN_403; field is optional/masked, not fabricated",
+    "lunarcrush": "provider API returns API_PAYMENT_REQUIRED_402; field is optional/masked, not fabricated"
+  },
+  "validation": {
+    "py_compile": "PASS",
+    "focused_backend_tests": "PASS: 4 passed",
+    "runtime_truth_refresh": "PASS",
+    "trade_derivatives_payload_refresh": "PASS",
+    "coinank_status_refresh": "PASS",
+    "exchange_mutation": "none"
+  }
+}

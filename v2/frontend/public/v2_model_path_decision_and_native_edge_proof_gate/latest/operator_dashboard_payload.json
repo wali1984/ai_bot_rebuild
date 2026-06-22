@@ -1,0 +1,79 @@
+{
+  "schema_version": "v2_model_path_decision_operator_dashboard_v1",
+  "generated_utc": "2026-05-23T03:30:00Z",
+  "go_no_go": "V2_MODEL_PATH_DECISION_NATIVE_EDGE_PROOF_RECOMMENDED",
+  "decision_headline": "V2-native compact-to-expanded model is the primary path. Legacy parity preserved as informational secondary path.",
+  "why_native": [
+    "76.6% of current missing observation dims are LEGACY_V3_EXTRA_NO_V2_SOURCE — unreachable through V2 lanes without building parallel publishers.",
+    "Time-to-evidence is short on the 224-dim per-symbol V2 surface that is already wired and tested.",
+    "No checkpoint blob deserialization required.",
+    "No policy architecture port required upfront.",
+    "Aligns with capital-protection-first doctrine after operator capital loss."
+  ],
+  "what_is_blocked": [
+    "Live trading is blocked.",
+    "Canary trading is blocked.",
+    "Legacy shutdown is blocked.",
+    "Checkpoint blob loading is blocked.",
+    "Policy architecture port start is blocked.",
+    "Symbol Universe adoption is blocked.",
+    "External feed adoption is blocked.",
+    "Exchange order / cancel / modify is blocked.",
+    "Leverage / margin change is blocked.",
+    "Old-Redis writes are blocked."
+  ],
+  "observation_state": {
+    "per_symbol_generated": {"BTCUSDT": 224, "ETHUSDT": 224, "SOLUSDT": 224},
+    "per_symbol_missing": {"BTCUSDT": 1687, "ETHUSDT": 1687, "SOLUSDT": 1687},
+    "target_full_observation_dim": 1911,
+    "legacy_v3_extra_share_of_missing": 0.766,
+    "legacy_v3_extra_share_of_target": 0.677,
+    "queue_go_no_go": "V2_FULL_OBSERVATION_REMAINING_DIM_EXECUTION_QUEUE_REMEDIATED_READY",
+    "v2_buildable_now_remaining": 0
+  },
+  "recovery_gates_in_order": [
+    "paper_edge_certified",
+    "operator_caps_set",
+    "canary_approval",
+    "live_ramp_approval"
+  ],
+  "operator_decisions_required": [
+    "Approve the V2-native edge-proof gate (paper-only soak; no canary).",
+    "Set 10 numeric capital protection caps in capital_recovery_gate_model.json.",
+    "Decide whether to start the legacy policy architecture port in parallel (optional).",
+    "Decide each external feed individually (token metrics, onchain BTC, onchain ETH, CCXT OHLCV, paid CoinAnk aggregator).",
+    "Approve the paper-edge certification threshold (min trade count, min after-cost expectancy, drawdown bounds).",
+    "Approve the V2-vs-legacy decision-match certification threshold (informational only)."
+  ],
+  "next_automatable_tasks": [
+    "Author the V2-native compact-to-expanded training spec.",
+    "Wire a paper-soak evaluator that emits rolling after-cost expectancy + drawdown bounds.",
+    "Route every training/evaluation artifact through Codex review.",
+    "Continue read-only V2-vs-legacy comparator (informational, not a gate).",
+    "Keep executive command center / self-healing controller / report center / remaining-dim queue current."
+  ],
+  "required_visible_text": [
+    "Live trading is blocked.",
+    "Legacy shutdown is blocked.",
+    "Candidate symbols are not adopted automatically.",
+    "Recovery requires proof of edge before scaling.",
+    "No fake readiness."
+  ],
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false,
+  "did_not_modify_legacy_bot": true,
+  "did_not_stop_v2_runtime": true,
+  "did_not_start_policy_architecture": true,
+  "did_not_claim_checkpoint_compatibility": true,
+  "did_not_deserialize_checkpoint_blobs": true,
+  "did_not_call_exchange": true,
+  "did_not_write_old_redis": true,
+  "did_not_create_approval_marker": true,
+  "did_not_create_shutdown_acceptance_file": true,
+  "did_not_adopt_symbol_universe_automatically": true,
+  "did_not_adopt_external_feeds_automatically": true
+}

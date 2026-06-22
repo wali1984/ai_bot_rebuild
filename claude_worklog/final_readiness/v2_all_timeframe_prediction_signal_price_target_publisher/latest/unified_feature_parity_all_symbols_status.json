@@ -1,0 +1,4733 @@
+{
+  "blocked_field_rows_count": 7428,
+  "coverage_rows_count": 27520,
+  "data_coverage_avg": 62.32104753249769,
+  "execution_live_symbols": [],
+  "feature_parity_evidence_source": "prediction_rows_feature_summary",
+  "generated_est": "2026-06-21T20:28:28-04:00",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "no_silent_zero_fill": true,
+  "required_feature_fields": [
+    {
+      "expected_status_when_present": "REAL_PROVIDER_VALUE",
+      "family": "market",
+      "field": "last_price"
+    },
+    {
+      "expected_status_when_present": "REAL_PROVIDER_VALUE",
+      "family": "market",
+      "field": "mark_price"
+    },
+    {
+      "expected_status_when_present": "REAL_PROVIDER_VALUE",
+      "family": "market",
+      "field": "index_price"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "market",
+      "field": "basis_pct"
+    },
+    {
+      "expected_status_when_present": "REAL_PROVIDER_VALUE",
+      "family": "market",
+      "field": "funding_rate"
+    },
+    {
+      "expected_status_when_present": "REAL_PROVIDER_VALUE",
+      "family": "market",
+      "field": "open_interest"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "market",
+      "field": "oi_change_pct"
+    },
+    {
+      "expected_status_when_present": "REAL_PROVIDER_VALUE",
+      "family": "market",
+      "field": "quote_volume"
+    },
+    {
+      "expected_status_when_present": "REAL_PROVIDER_VALUE",
+      "family": "ohlcv",
+      "field": "volume"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "market",
+      "field": "volatility"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "market",
+      "field": "volatility_pct"
+    },
+    {
+      "expected_status_when_present": "REAL_PROVIDER_VALUE",
+      "family": "ohlcv",
+      "field": "open"
+    },
+    {
+      "expected_status_when_present": "REAL_PROVIDER_VALUE",
+      "family": "ohlcv",
+      "field": "high"
+    },
+    {
+      "expected_status_when_present": "REAL_PROVIDER_VALUE",
+      "family": "ohlcv",
+      "field": "low"
+    },
+    {
+      "expected_status_when_present": "REAL_PROVIDER_VALUE",
+      "family": "ohlcv",
+      "field": "close"
+    },
+    {
+      "expected_status_when_present": "REAL_PROVIDER_VALUE",
+      "family": "ohlcv",
+      "field": "num_trades"
+    },
+    {
+      "expected_status_when_present": "REAL_PROVIDER_VALUE",
+      "family": "ohlcv",
+      "field": "taker_buy_base_vol"
+    },
+    {
+      "expected_status_when_present": "REAL_PROVIDER_VALUE",
+      "family": "ohlcv",
+      "field": "taker_buy_quote_vol"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "ohlcv",
+      "field": "taker_sell_base_vol"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "ohlcv",
+      "field": "taker_sell_quote_vol"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "ohlcv",
+      "field": "taker_buy_ratio"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "ohlcv",
+      "field": "taker_sell_ratio"
+    },
+    {
+      "expected_status_when_present": "REAL_PROVIDER_VALUE",
+      "family": "orderbook",
+      "field": "ob_best_bid"
+    },
+    {
+      "expected_status_when_present": "REAL_PROVIDER_VALUE",
+      "family": "orderbook",
+      "field": "ob_best_ask"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "orderbook",
+      "field": "ob_mid_price"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "orderbook",
+      "field": "ob_spread_bps"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "orderbook",
+      "field": "ob_imbalance"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "orderbook",
+      "field": "orderbook_depth_usd"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "orderbook",
+      "field": "depth_total_usd"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "orderbook",
+      "field": "depth_usd"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "orderbook",
+      "field": "depth_vs_tape_divergence"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "ta",
+      "field": "RSI"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "ta",
+      "field": "MACD"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "ta",
+      "field": "MACD_signal"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "ta",
+      "field": "MACD_hist"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "ta",
+      "field": "ATR"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "ta",
+      "field": "EMA_12"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "ta",
+      "field": "EMA_26"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "ta",
+      "field": "bollinger_upper"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "ta",
+      "field": "bollinger_middle"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "ta",
+      "field": "bollinger_lower"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "ta",
+      "field": "bollinger_width_pct"
+    },
+    {
+      "expected_status_when_present": "EVENT_DEPENDENT",
+      "family": "liquidation",
+      "field": "liquidation_long_level"
+    },
+    {
+      "expected_status_when_present": "EVENT_DEPENDENT",
+      "family": "liquidation",
+      "field": "liquidation_short_level"
+    },
+    {
+      "expected_status_when_present": "EVENT_DEPENDENT",
+      "family": "liquidation",
+      "field": "liquidation_distance_pct"
+    },
+    {
+      "expected_status_when_present": "EVENT_DEPENDENT",
+      "family": "liquidation",
+      "field": "liquidation_strength"
+    },
+    {
+      "expected_status_when_present": "EVENT_DEPENDENT",
+      "family": "liquidation",
+      "field": "last_liq_bps_24h"
+    },
+    {
+      "expected_status_when_present": "EVENT_DEPENDENT",
+      "family": "liquidation",
+      "field": "liquidation_is_stale"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "microstructure",
+      "field": "microprice"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "microstructure",
+      "field": "spread"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "microstructure",
+      "field": "micro_volatility"
+    },
+    {
+      "expected_status_when_present": "REAL_COMPUTED",
+      "family": "microstructure",
+      "field": "toxicity_proxy"
+    },
+    {
+      "expected_status_when_present": "EVENT_DEPENDENT",
+      "family": "microstructure",
+      "field": "tape_imbalance"
+    },
+    {
+      "expected_status_when_present": "EVENT_DEPENDENT",
+      "family": "microstructure",
+      "field": "order_flow_imbalance"
+    },
+    {
+      "expected_status_when_present": "REAL_PROVIDER_VALUE",
+      "family": "altdata",
+      "field": "public_intel_score"
+    },
+    {
+      "expected_status_when_present": "PROVIDER_BLOCKED",
+      "family": "altdata",
+      "field": "nansen_score"
+    },
+    {
+      "expected_status_when_present": "PROVIDER_BLOCKED",
+      "family": "altdata",
+      "field": "lunarcrush_score"
+    },
+    {
+      "expected_status_when_present": "PROVIDER_BLOCKED",
+      "family": "altdata",
+      "field": "aicoin_score"
+    },
+    {
+      "expected_status_when_present": "EVENT_DEPENDENT",
+      "family": "altdata",
+      "field": "whale_wall_score"
+    },
+    {
+      "expected_status_when_present": "PROVIDER_BLOCKED",
+      "family": "altdata",
+      "field": "coingecko_score"
+    },
+    {
+      "expected_status_when_present": "PROVIDER_BLOCKED",
+      "family": "altdata",
+      "field": "surf_score"
+    },
+    {
+      "expected_status_when_present": "PROVIDER_BLOCKED",
+      "family": "altdata",
+      "field": "defillama_score"
+    },
+    {
+      "expected_status_when_present": "PROVIDER_BLOCKED",
+      "family": "altdata",
+      "field": "fear_greed_context"
+    },
+    {
+      "expected_status_when_present": "PROVIDER_BLOCKED",
+      "family": "altdata",
+      "field": "mempool_context"
+    }
+  ],
+  "required_timeframes": [
+    "1m",
+    "5m",
+    "15m",
+    "1h",
+    "4h"
+  ],
+  "schema_version": "v2_unified_feature_parity_all_symbols_status_v1",
+  "status": "UNIFIED_FEATURE_PARITY_BLOCKED_OR_PARTIAL",
+  "symbols_covered": [
+    "1000BONKUSDT",
+    "1000FLOKIUSDT",
+    "1000PEPEUSDT",
+    "1000SHIBUSDT",
+    "AAVEUSDT",
+    "ADAUSDT",
+    "AEROUSDT",
+    "AGTUSDT",
+    "ALICEUSDT",
+    "ALLOUSDT",
+    "APTUSDT",
+    "ARBUSDT",
+    "ASTERUSDT",
+    "AUCTIONUSDT",
+    "AVAXUSDT",
+    "AVNTUSDT",
+    "AXSUSDT",
+    "BANKUSDT",
+    "BARDUSDT",
+    "BCHUSDT",
+    "BELUSDT",
+    "BICOUSDT",
+    "BNBUSDT",
+    "BTCUSDT",
+    "BTWUSDT",
+    "CHZUSDT",
+    "CRVUSDT",
+    "DASHUSDT",
+    "DOGEUSDT",
+    "DOTUSDT",
+    "EIGENUSDT",
+    "ENAUSDT",
+    "ENSUSDT",
+    "EPICUSDT",
+    "ETCUSDT",
+    "ETHUSDT",
+    "FARTCOINUSDT",
+    "FETUSDT",
+    "FILUSDT",
+    "HBARUSDT",
+    "HYPEUSDT",
+    "ICPUSDT",
+    "INJUSDT",
+    "IPUSDT",
+    "JTOUSDT",
+    "JUPUSDT",
+    "KITEUSDT",
+    "LINKUSDT",
+    "LTCUSDT",
+    "MANAUSDT",
+    "MEGAUSDT",
+    "METUSDT",
+    "NEARUSDT",
+    "ONDOUSDT",
+    "OPUSDT",
+    "ORDIUSDT",
+    "PAXGUSDT",
+    "PENDLEUSDT",
+    "PENGUUSDT",
+    "PIPPINUSDT",
+    "POLUSDT",
+    "PUMPUSDT",
+    "RAREUSDT",
+    "RAVEUSDT",
+    "RENDERUSDT",
+    "REUSDT",
+    "RIVERUSDT",
+    "SANDUSDT",
+    "SLXUSDT",
+    "SOLUSDT",
+    "SUIUSDT",
+    "SUNUSDT",
+    "SYNUSDT",
+    "TAOUSDT",
+    "TRUMPUSDT",
+    "TRXUSDT",
+    "UNIUSDT",
+    "VIRTUALUSDT",
+    "WIFUSDT",
+    "WLDUSDT",
+    "XAUTUSDT",
+    "XLMUSDT",
+    "XMRUSDT",
+    "XPLUSDT",
+    "XRPUSDT",
+    "ZECUSDT"
+  ],
+  "tensor_rows": [
+    {
+      "data_coverage_percent": 68.24324324324324,
+      "feature_snapshot_id": "v2_fsnap_37173c5eceb8abf9085dda38eb3774096fdab42c45d66bbaac164b5f9468c5f7",
+      "missing_feature_count": 47,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "1000BONKUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 70.94594594594595,
+      "feature_snapshot_id": "v2_fsnap_36330393b3730d2a59a6abcc6eb9536f2019ece8b8d42dd5cacabb9de5c74e70",
+      "missing_feature_count": 43,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "1000BONKUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 69.5945945945946,
+      "feature_snapshot_id": "v2_fsnap_0c9184040c077af4d6806cdc8960915a56bc871231c83927a8f09cd80081a7dd",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "1000BONKUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 69.5945945945946,
+      "feature_snapshot_id": "v2_fsnap_67e459b045e7dbe1cf92d25abac72fe22cf3bc7d5b54b9603024d2038298244c",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "1000BONKUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 69.5945945945946,
+      "feature_snapshot_id": "v2_fsnap_8ee1b1b3c58f4f9a1f1aa6b7a132c91a22827cf563be4e407262a2efd6595c06",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "1000BONKUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 70.27027027027027,
+      "feature_snapshot_id": "v2_fsnap_bd6042ed399ae895d7204dcb6b7f0d808f160ce4fa2be304bc9cf0c1125bc9da",
+      "missing_feature_count": 44,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "1000FLOKIUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 72.29729729729729,
+      "feature_snapshot_id": "v2_fsnap_e9225359e805a5dbe9019a07055f6072a152850af7b67c07cec68c99a1836f8a",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "1000FLOKIUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 71.62162162162163,
+      "feature_snapshot_id": "v2_fsnap_05e8d5a7fc3542ce1ba8add3afd3d95a372ab87c35351bea8b9fbd78f3802d86",
+      "missing_feature_count": 42,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "1000FLOKIUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 70.94594594594595,
+      "feature_snapshot_id": "v2_fsnap_e02535ff29a3a9ccd602129fbf3c74676f3ac6e5c926a85d2edfac45aafbef61",
+      "missing_feature_count": 43,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "1000FLOKIUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 70.94594594594595,
+      "feature_snapshot_id": "v2_fsnap_987c33f1305b9ffb856b3afc9641c8c37123790f37467c6e0eb644ad59dd69ac",
+      "missing_feature_count": 43,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "1000FLOKIUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 70.94594594594595,
+      "feature_snapshot_id": "v2_fsnap_77195401801fdf91842682d729cd1e9053d971704c25dbcadf45f027c9d618e5",
+      "missing_feature_count": 43,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "1000PEPEUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 73.64864864864865,
+      "feature_snapshot_id": "v2_fsnap_fdf9c88f68c236cc4475fe72f21f0a22b2587ef919463f3c7a6fd14df1cd3798",
+      "missing_feature_count": 39,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "1000PEPEUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 72.29729729729729,
+      "feature_snapshot_id": "v2_fsnap_ccacde9ebaf258ff17041a3d7f890bc27921cc66a9a2d84daa28fd8ab5b89319",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "1000PEPEUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 72.29729729729729,
+      "feature_snapshot_id": "v2_fsnap_e2462b699765dcf0f6aa67011b60d7d00c1f5d8779b98440a35a6e96d4f1b592",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "1000PEPEUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 72.29729729729729,
+      "feature_snapshot_id": "v2_fsnap_dc7f0b93c11bcbf3b7a19c9be8f04cbffd711d08c6d3f6b58ab7f072c8b14a8e",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "1000PEPEUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 72.97297297297297,
+      "feature_snapshot_id": "v2_fsnap_41cae5fa6b15ca0e5b843e50fc8b82c788e843c8a66c6a5e589523cd246baf84",
+      "missing_feature_count": 40,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "1000SHIBUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 75.67567567567568,
+      "feature_snapshot_id": "v2_fsnap_c5060b7692b5dabbcd95dadc794e50367de3cf36b25240d59cb94a48f77fc4be",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "1000SHIBUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 74.32432432432432,
+      "feature_snapshot_id": "v2_fsnap_5953bb1f7bf97b533ecc7f965286da7f95848b44965306e63e9f6213eb2b07b5",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "1000SHIBUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 74.32432432432432,
+      "feature_snapshot_id": "v2_fsnap_1e2577b2fe77437078344a8a1871cfa54be04cb5db8eb4ca69fe8ee3c6b567a6",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "1000SHIBUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 74.32432432432432,
+      "feature_snapshot_id": "v2_fsnap_8638fd6ebad738e41e04050ca50ec0e16997d3feb38597ec0d1f3915cd9f65d1",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "1000SHIBUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 74.52229299363057,
+      "feature_snapshot_id": "v2_fsnap_e63175d22bd245cf520f42d6a3613438198c31f4deff92c8f566edbca4f52991",
+      "missing_feature_count": 40,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AAVEUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 74.52229299363057,
+      "feature_snapshot_id": "v2_fsnap_4b2c2ffb7b963a6f4e2905d27ef6d80876c5467d44c295b6bdd621dc3725ced1",
+      "missing_feature_count": 40,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AAVEUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 74.52229299363057,
+      "feature_snapshot_id": "v2_fsnap_21f75004874a95fb6c40555e28613ad12bdd69ea1ba0d784719289571a35f1b8",
+      "missing_feature_count": 40,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AAVEUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 74.52229299363057,
+      "feature_snapshot_id": "v2_fsnap_c17e2292dffd5c106c7fbe2a3996471e2a96e3f17bc301695cd1f897ff55d642",
+      "missing_feature_count": 40,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AAVEUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 74.52229299363057,
+      "feature_snapshot_id": "v2_fsnap_66098f8c0f32089681c0dee928ae997e7944bf2346236f59485fa94d8aeab762",
+      "missing_feature_count": 40,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AAVEUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 77.70700636942675,
+      "feature_snapshot_id": "v2_fsnap_fd0bbc78731535907c64921ed36281a1912eab3ca22abcaaf8aa757f90f11bb5",
+      "missing_feature_count": 35,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ADAUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 77.70700636942675,
+      "feature_snapshot_id": "v2_fsnap_f78c9aa23755ac7f9c16a01b89194797a280c729ae4513e2b535d037096a43c1",
+      "missing_feature_count": 35,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ADAUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 77.70700636942675,
+      "feature_snapshot_id": "v2_fsnap_f943129e142d2ef49bea3d1ee70f8ed6293f83c4e6f8ec73c2f871418a8ae114",
+      "missing_feature_count": 35,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ADAUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 77.70700636942675,
+      "feature_snapshot_id": "v2_fsnap_542bff77cdbca2739c0633e5e98c32b9467d4c4c6c2cb94e100c86e9c4b0d0cc",
+      "missing_feature_count": 35,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ADAUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 77.70700636942675,
+      "feature_snapshot_id": "v2_fsnap_3bf4dbd7465340040292b47e2302a48a9eda92e86c78eed15f1df14c2cb7dfb6",
+      "missing_feature_count": 35,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ADAUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 76.43312101910828,
+      "feature_snapshot_id": "v2_fsnap_439891640998b21afd57af865d55086f279ea8479b2f543f95859ceeab15a1d9",
+      "missing_feature_count": 37,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AEROUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 76.43312101910828,
+      "feature_snapshot_id": "v2_fsnap_a125aa2ba0a13cb0e99bccfbb209edcee4161fdc51a098d8056392e886fff801",
+      "missing_feature_count": 37,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AEROUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 76.43312101910828,
+      "feature_snapshot_id": "v2_fsnap_87f7e2e2bfef77a162e8951388205d35df7ee8f494bc171922cec7cef9da2bd2",
+      "missing_feature_count": 37,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AEROUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 76.43312101910828,
+      "feature_snapshot_id": "v2_fsnap_ec2ebd8e528a1e9079f7fe3a8b8079a6bcdc7b7794f4be46f501b81894114c78",
+      "missing_feature_count": 37,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AEROUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 76.43312101910828,
+      "feature_snapshot_id": "v2_fsnap_c6a0db2452c859c7179cdbf54b52f3a1e8c0340bd8aae863ebd9d1466c478b47",
+      "missing_feature_count": 37,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AEROUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AGTUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AGTUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AGTUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AGTUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AGTUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 72.97297297297297,
+      "feature_snapshot_id": "v2_fsnap_eadf5b10e473fedd5731a3b9b1a4119eec6a5cde8b1876d1cfbbfcddb670bfd1",
+      "missing_feature_count": 40,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ALICEUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 75.67567567567568,
+      "feature_snapshot_id": "v2_fsnap_49f74d18a5c56f8760dff8937b8ba61223f4ce95322d27ef07a7ad79bf85af66",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ALICEUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 74.32432432432432,
+      "feature_snapshot_id": "v2_fsnap_4f1501d1383e843cccdf6461a0d8d460ec7b97d70ec106ab36d32c89d23bcdd5",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ALICEUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 74.32432432432432,
+      "feature_snapshot_id": "v2_fsnap_255292ca285266098b8632ebd95978c3a598306702ade0ec634440644e78984c",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ALICEUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 72.29729729729729,
+      "feature_snapshot_id": "v2_fsnap_749b6fbda9e4535bc04e8ca17a6d9bca751200cb79aee55af236a85113bc1b38",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ALICEUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 71.97452229299363,
+      "feature_snapshot_id": "v2_fsnap_54b1f18d686dc4ddde82dac5cfab25a26d2e7eb3c9e235384bc26cfa6b0a51ac",
+      "missing_feature_count": 44,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ALLOUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 71.97452229299363,
+      "feature_snapshot_id": "v2_fsnap_b0b280116e3718cdd4495499da54664728f42190f06d02f71344f887e9b5970e",
+      "missing_feature_count": 44,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ALLOUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 71.97452229299363,
+      "feature_snapshot_id": "v2_fsnap_12e53b8f7e7a9375f52f3c7c8759fd44da93cf2fcc8d35d357f3cde75ae8ba4d",
+      "missing_feature_count": 44,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ALLOUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 71.97452229299363,
+      "feature_snapshot_id": "v2_fsnap_15661e1bbcdb94aa1f84bbe07c1c203087b6f2af9eb9781dc462db6541ea6a69",
+      "missing_feature_count": 44,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ALLOUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 71.97452229299363,
+      "feature_snapshot_id": "v2_fsnap_dd9b0dcb667f33355ab97dd0d30241fc23222f8cc995f42b12d748abcb618f05",
+      "missing_feature_count": 44,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ALLOUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 76.43312101910828,
+      "feature_snapshot_id": "v2_fsnap_f3dce622d30994aefad54a72f46fd9bb5b45a4233b291093aeebcc6dbec7272c",
+      "missing_feature_count": 37,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "APTUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 76.43312101910828,
+      "feature_snapshot_id": "v2_fsnap_dfd1e4ae13ea855627e900a54a1350cb3c3c549cd846473d7d4d29722260dcff",
+      "missing_feature_count": 37,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "APTUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 76.43312101910828,
+      "feature_snapshot_id": "v2_fsnap_6f6b9f467f4113c4072b375083a9c36c920a2d40a7bcdae2b717546f138b527b",
+      "missing_feature_count": 37,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "APTUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 76.43312101910828,
+      "feature_snapshot_id": "v2_fsnap_ae811cef9cc15708c57c92cf0a6c3081eb1cdd525a9f9801d3ce1601198c7ee5",
+      "missing_feature_count": 37,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "APTUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 76.43312101910828,
+      "feature_snapshot_id": "v2_fsnap_01396c47c51cd60fac6ad932979203726d9614ab632a69225f102781289f5c6f",
+      "missing_feature_count": 37,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "APTUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_32e87f371961b1791ccca5fc9dde002459e9faf594586f71d129e884ee8e589c",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ARBUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_93f39aac57941f445b97803683e1c460d7beea1972c0b61bbddf36dda4a7dbc3",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ARBUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_6363401a9fa7523f910169333367b0a479c54d6db08c88c7d0168b3796a6abd9",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ARBUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 73.2484076433121,
+      "feature_snapshot_id": "v2_fsnap_986784d345c038aea5a1066c4a847bdc0f96d0df8d0622889b629f586aaa769d",
+      "missing_feature_count": 42,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ARBUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 73.2484076433121,
+      "feature_snapshot_id": "v2_fsnap_3432bd39c73958979173b2a95292971172172cc8257c7a177a1733f502f52c47",
+      "missing_feature_count": 42,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ARBUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 72.97297297297297,
+      "feature_snapshot_id": "v2_fsnap_63ba86a873f77df7b05f8364e2d9725079502c2549667abc68db2cf04fc6e50c",
+      "missing_feature_count": 40,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ASTERUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 75.0,
+      "feature_snapshot_id": "v2_fsnap_7b6ffcdd85ed6aa5fae394b470208c181fde55010c224d7006ac8e1e4ee58df0",
+      "missing_feature_count": 37,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ASTERUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 74.32432432432432,
+      "feature_snapshot_id": "v2_fsnap_2bf02262ccf9c045b32709447804473793f5ed2daf2185e7a951483fcdbce2cf",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ASTERUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 74.32432432432432,
+      "feature_snapshot_id": "v2_fsnap_2f008f60e318cb370d4ee37737961088fec266a8756391c3788be0a0bfc6cc54",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ASTERUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 74.32432432432432,
+      "feature_snapshot_id": "v2_fsnap_4d7661f1b752bed0fdbe53bf2c865fba9b58c230523cc3d8f929945c63fe4793",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ASTERUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 70.27027027027027,
+      "feature_snapshot_id": "v2_fsnap_4b8da18e37f8240df665c6e0482f3b5fac6327f38fd8392aecc1cb7c8b8cb534",
+      "missing_feature_count": 44,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AUCTIONUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 72.97297297297297,
+      "feature_snapshot_id": "v2_fsnap_7063f8762050eca235b5551cbdbe30624ede60bc7d73738c4ec6455f28ffcbe8",
+      "missing_feature_count": 40,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AUCTIONUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 71.62162162162163,
+      "feature_snapshot_id": "v2_fsnap_c43c506421da509d31dddb7d839339c5240b2bce07bda280a47b3ef035066dc3",
+      "missing_feature_count": 42,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AUCTIONUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 71.62162162162163,
+      "feature_snapshot_id": "v2_fsnap_f02a5fb581198abb00a5134abd66f5fd37250dacc595df6d6a1226c94c72f53f",
+      "missing_feature_count": 42,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AUCTIONUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 69.5945945945946,
+      "feature_snapshot_id": "v2_fsnap_907e990c02b7ffeaa0d62b8266b5e83aa3ba55602dddc5993dd0efde178773a6",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AUCTIONUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_25d1b28f1ff074f00314442cd8c18248d1b0a4c9f6d6b24b04ff37c34aff2356",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AVAXUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_5b02cefe36865118172315d9fe070315dcb927227cfef3d60f464f57e3d267cf",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AVAXUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_7ddec9cba94395491ecdd74661c6d8e9d051bb55c342a934366e3a1a567b4e0c",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AVAXUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_ae6be6421893b878561dce9d8fb4e46b1c62848a2e8f3010104fedaa4e715fe1",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AVAXUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_63e837c7934d3a5d9ffe7c04b9cb9e3275cf93c06cace5f7f95c37417e751cd0",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AVAXUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 69.5945945945946,
+      "feature_snapshot_id": "v2_fsnap_b7fba1c1f99c26e3575d27852f7fab798a5763cdfdc3055befccdf9153ce39b2",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AVNTUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 72.97297297297297,
+      "feature_snapshot_id": "v2_fsnap_321ac12057164b83a0f14bfb4f90547e2c284b3924fcdf98a3b3fbc5af92d658",
+      "missing_feature_count": 40,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AVNTUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 71.62162162162163,
+      "feature_snapshot_id": "v2_fsnap_429167175a0e51c4f912e65338a98ae7802bd6eba73930aa7ca53be338a61093",
+      "missing_feature_count": 42,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AVNTUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 71.62162162162163,
+      "feature_snapshot_id": "v2_fsnap_510a1a23b1ff9cbacbf0ffa6ea6a91ddfdeaade8de1971c48c21229d65ebfe53",
+      "missing_feature_count": 42,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AVNTUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 71.62162162162163,
+      "feature_snapshot_id": "v2_fsnap_c32d7d274941345edde5e83e253e2505629eb73a82e9bd60042bf44575ffe6bf",
+      "missing_feature_count": 42,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AVNTUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AXSUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AXSUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AXSUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AXSUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "AXSUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 71.62162162162163,
+      "feature_snapshot_id": "v2_fsnap_6d015f7dc6399c3a74a17ac5feab8409b4a829590f90929900c1cef4da0dfe14",
+      "missing_feature_count": 42,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BANKUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 74.32432432432432,
+      "feature_snapshot_id": "v2_fsnap_db5c85c78b16794c2c258d4020d5383630680fd79bb9cf0e382361c276b59782",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BANKUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 72.97297297297297,
+      "feature_snapshot_id": "v2_fsnap_a96136476b4f25222e48071865aa8186f9d53b11a86b3b7349ab51ce67ecab51",
+      "missing_feature_count": 40,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BANKUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 72.97297297297297,
+      "feature_snapshot_id": "v2_fsnap_caa1c69f97ef3da5eae263658616dcf8f34235660b9ba7af4e59bd6e3197f702",
+      "missing_feature_count": 40,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BANKUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 72.97297297297297,
+      "feature_snapshot_id": "v2_fsnap_ec6035d70d23253796e7108e6b268006721eb25ee3a91643a970480562f11a19",
+      "missing_feature_count": 40,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BANKUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 70.27027027027027,
+      "feature_snapshot_id": "v2_fsnap_1eb7c449e17d3ed453105a5d9bd2cff1ac7b249e806da9e9c97d4b1eb4a23bfe",
+      "missing_feature_count": 44,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BARDUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 72.97297297297297,
+      "feature_snapshot_id": "v2_fsnap_ec1de27ebc3b35ecd05532c746dc086a31007a0ec820c771b0cbfde152052501",
+      "missing_feature_count": 40,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BARDUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 69.5945945945946,
+      "feature_snapshot_id": "v2_fsnap_17b5dbfe7c397dca58e0080307b41f13706018aa0ca3cad77ee65aa739f64c4d",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BARDUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 69.5945945945946,
+      "feature_snapshot_id": "v2_fsnap_6304e86e4eb94173047c8fd33536ddc64c3b76a48e511bde58628f41b54bc5f0",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BARDUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 67.56756756756756,
+      "feature_snapshot_id": "v2_fsnap_172e23142f087bf5d8f20afa774f17519ad93e84709dc05e8b85d7abff597e5b",
+      "missing_feature_count": 48,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BARDUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 70.70063694267516,
+      "feature_snapshot_id": "v2_fsnap_0907b40ddc7d9368923d6d860d6a4a29c849f90efed624b6f1692e88e4bc22da",
+      "missing_feature_count": 46,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BCHUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 70.70063694267516,
+      "feature_snapshot_id": "v2_fsnap_78bae8feda81bf010b0728a53824c8ea12ebc72068ca72e4490f4126f7b1f7aa",
+      "missing_feature_count": 46,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BCHUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 70.70063694267516,
+      "feature_snapshot_id": "v2_fsnap_39f915df3fd6edbba750b142c335b68ceb1208f34e7ae34238d16fd6f2bdbc1c",
+      "missing_feature_count": 46,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BCHUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 70.70063694267516,
+      "feature_snapshot_id": "v2_fsnap_d4c77a0a103c89057a20ba72edc0faf87fa6a1ef210dbf8456cf430955434408",
+      "missing_feature_count": 46,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BCHUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 70.70063694267516,
+      "feature_snapshot_id": "v2_fsnap_5b7ee519d998d793808dc5f516a79cedac6c431869cdffe451183be3d038d6a7",
+      "missing_feature_count": 46,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BCHUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BELUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BELUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BELUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BELUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BELUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BICOUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BICOUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BICOUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BICOUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BICOUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_6879e256cd83124f5dfb90b5b2e399e0a2e8862a1490675e7047274f17f510cd",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BNBUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_60ec1bdf171a7805cfdcfa52fa3a72e043f900932fdc6e2d6b79bf5035dfb912",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BNBUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_430a9edc5aea3943c1e2ee692af0497897d863db2114fc9ae42c61a078cf3b4e",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BNBUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_ff802ec6d8183ca6f24ba2df7569516eb264a5be1b8c853e23d611f760963aa5",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BNBUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_0ada5fa42a48386acceab22cbb2829c547a5deb6dbff5144baad051efcde60a4",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BNBUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 75.0,
+      "feature_snapshot_id": "v2_fsnap_0e67943fba1a03025e3427704cfa95f99ec54f3d45b7cf4ca721583828b407ea",
+      "missing_feature_count": 37,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BTCUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 79.05405405405405,
+      "feature_snapshot_id": "v2_fsnap_f38ead7298411b5a870187592276a3aac5671deef974e0237ac57b5c9a6222cd",
+      "missing_feature_count": 31,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BTCUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 77.70270270270271,
+      "feature_snapshot_id": "v2_fsnap_c5809d6396f0283e7f77936f5a8337afaf83be6b0e664c7043b32384879f7ee5",
+      "missing_feature_count": 33,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BTCUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 77.70270270270271,
+      "feature_snapshot_id": "v2_fsnap_a19b90c8e506630fa590fadf132e18c4b2fc619837b493a9d42c0fe4aaf8f248",
+      "missing_feature_count": 33,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BTCUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 77.70270270270271,
+      "feature_snapshot_id": "v2_fsnap_01cb996cec414d629d298e7680f2c314603f8d39ab4c2f11dd5df632445c29b8",
+      "missing_feature_count": 33,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BTCUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BTWUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BTWUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BTWUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BTWUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "BTWUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 71.3375796178344,
+      "feature_snapshot_id": "v2_fsnap_33a0f54fe5c749829e43d88808b683e05c9b661432805a8708d31d169557ab58",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "CHZUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 71.3375796178344,
+      "feature_snapshot_id": "v2_fsnap_4f6e017291ae333eb2b3d8a3542b4593881be2fad66d801da0c70142833376ce",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "CHZUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 71.3375796178344,
+      "feature_snapshot_id": "v2_fsnap_f88bbe0f8b84d85bfa82fe1d8ea9384fd7f520671cc19407c153dd7c3a8c029c",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "CHZUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 71.3375796178344,
+      "feature_snapshot_id": "v2_fsnap_0b23dac62789433e304f9ec174b455c12a7e6615a561af4d2eac1080fa249f78",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "CHZUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 71.3375796178344,
+      "feature_snapshot_id": "v2_fsnap_81a5f816fa54fc57f2e95cedefab7fc1b05f6c488f878f6da5cfae493e2151b9",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "CHZUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 70.06369426751593,
+      "feature_snapshot_id": "v2_fsnap_61ccee63612d84a9f206df8ecc2f46d905bf0094b90ef90625b3af0e4a705dc8",
+      "missing_feature_count": 47,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "CRVUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 70.06369426751593,
+      "feature_snapshot_id": "v2_fsnap_ebb9560c7a1927a4289936b0459af6f7a39bc7d98e52219fa05ee5529f3c2e0e",
+      "missing_feature_count": 47,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "CRVUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 70.06369426751593,
+      "feature_snapshot_id": "v2_fsnap_53cd9368f5581a3bd74534615e79827bf0f45d62a692aa73ed1f277d2040e9ee",
+      "missing_feature_count": 47,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "CRVUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 70.06369426751593,
+      "feature_snapshot_id": "v2_fsnap_e6424e7198ef1889df2d65d38461ee01d73cc8d070271319cc286b73f63d8a9a",
+      "missing_feature_count": 47,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "CRVUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 70.06369426751593,
+      "feature_snapshot_id": "v2_fsnap_bf5a1bc4952d3d5c18e6781999bc23936a5a8edc472215144e9717b22e1184cc",
+      "missing_feature_count": 47,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "CRVUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 75.1592356687898,
+      "feature_snapshot_id": "v2_fsnap_5c41518981ac110c9eaddf51c521f192dc10eee155041f7e8cbf93144a13d2fe",
+      "missing_feature_count": 39,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "DASHUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 75.1592356687898,
+      "feature_snapshot_id": "v2_fsnap_99452826669e89f3e4a837ec93c9c617101caf4e2d3ed884df86ac88674008c0",
+      "missing_feature_count": 39,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "DASHUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 75.1592356687898,
+      "feature_snapshot_id": "v2_fsnap_5f1bd2c12b4cf4e2a5175ea4f85689507fedea601d38103e11e99dd2c2733595",
+      "missing_feature_count": 39,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "DASHUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 75.1592356687898,
+      "feature_snapshot_id": "v2_fsnap_ed502931bed69b7daf3d47117277a6ec3dbc89b6bdc04a0205fb93875bba02af",
+      "missing_feature_count": 39,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "DASHUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 75.1592356687898,
+      "feature_snapshot_id": "v2_fsnap_936f0e859db49331b50b77fe55061bf849ba9e0208c56bb7fdabcbce6156b1ca",
+      "missing_feature_count": 39,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "DASHUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 52.7027027027027,
+      "feature_snapshot_id": "v2_fsnap_3c1f77f15c9c2cd11889599cdaa2b46c4f282ce8dcdb9f2e52afbed6fc516826",
+      "missing_feature_count": 70,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "DOGEUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 54.729729729729726,
+      "feature_snapshot_id": "v2_fsnap_a4b46b1f7b8da9b1e74e2808b95ee1ec67a30a4275d49bc4eef9bef5336bc31b",
+      "missing_feature_count": 67,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "DOGEUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 53.37837837837838,
+      "feature_snapshot_id": "v2_fsnap_ded95ee820c07a3fa86b3b027933cebb94d97817861b14d1f6e6549180c1b30d",
+      "missing_feature_count": 69,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "DOGEUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 53.37837837837838,
+      "feature_snapshot_id": "v2_fsnap_14f93767fc8daba0deec263b757c673393324582d32d962ea80cbca0ca295809",
+      "missing_feature_count": 69,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "DOGEUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 51.351351351351354,
+      "feature_snapshot_id": "v2_fsnap_12614bbaddf170843362a786ed5bd1d9069ff65d6d5db3f731a0c875a4e6fa4a",
+      "missing_feature_count": 72,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "DOGEUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_afcc0a3fbe784a993d12993c7759f01aad100f73d93500fa43fb3c2d4d2a03d2",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "DOTUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_842c8e3c7683e6a9cf64a9be00f677c4ddb4700ee08bbc1528f48df9fa6c4d6b",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "DOTUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_30af4d52394f4530220901cd50c6c8626cdc85b80df7fbdd74e5b3f4e9dcd2c0",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "DOTUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_50f0f6c1f342ece482b367001b8027df2e4f6520ef6beabd78ddae23d054004b",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "DOTUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_9202807f386abe3c1bbfae74315e157a620a40f853da9838d54368ed9578e83e",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "DOTUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_137e84706c2c5532d8460cca00444b4437f332e45e02738a987f59d7b511b2be",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "EIGENUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_db25703423f7281369d77ba2c31bdaec76a15f3f50a9568bdad6b6718abdf27c",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "EIGENUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_b6b69f20dbe5cff6f565a6c335cb9d9f0b2f0ca066a753c7782329940734fa58",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "EIGENUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_e686a978c058cb2c78c608e6e8399d4dd0cc3d377b561aa1cb0b6b037a019108",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "EIGENUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_7c234a77ec433188c906086135e77c5ebde8acae6feee5059c4fc69e3dec26f3",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "EIGENUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_94146846ab3d43fd85bcf04590a3ec2d51d94f91b2dc24a81e5bd8041b76c36f",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ENAUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_e4548ac88799d8a7bcca28c08297a6e38d73887a0e1b095d1e81cb9fe08d8303",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ENAUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_013cde604ccf4c1b1ef3a513a1e1ea9a84b860f31e8687d3cacffa195a7bd54c",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ENAUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_e77d7fcfff4c701316478e96742aca6a10330eff744a9dfd8cefb7f84d024c94",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ENAUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_837973298cd581330a51bdfe5acea817aa4d81d1e67a69310228dbb1f72a3916",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ENAUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ENSUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ENSUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ENSUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ENSUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ENSUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 71.3375796178344,
+      "feature_snapshot_id": "v2_fsnap_9dd53cac3cc7078a702c1dc420945871b3bd774bd463ce6376c8cd71c6141c7a",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "EPICUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 71.3375796178344,
+      "feature_snapshot_id": "v2_fsnap_9c2c7c21fed2fcde46403019c19024386198cbec5be8b814c920b3e379eccde8",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "EPICUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 71.3375796178344,
+      "feature_snapshot_id": "v2_fsnap_87f455916a280489edc715950086b24f4d5d15fd2a3d36ebacf4d719c3ce12f3",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "EPICUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 71.3375796178344,
+      "feature_snapshot_id": "v2_fsnap_d36a60c3947499b09971bdde7dfad74d475c7d902ecf6f80abe205e592f66c8c",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "EPICUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 71.3375796178344,
+      "feature_snapshot_id": "v2_fsnap_d7f5207d370ac278a42994d35745a6ac357f63227f86118d03c2f93b26560080",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "EPICUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 70.70063694267516,
+      "feature_snapshot_id": "v2_fsnap_47ef10e10bcff9c66edd90c1840f653cf68eeac7f9246ed91f1e8d107402de70",
+      "missing_feature_count": 46,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ETCUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 70.70063694267516,
+      "feature_snapshot_id": "v2_fsnap_8fb4fd8784299d2167da04f010104da2a923fc818e53b19972bafbe362e52ce7",
+      "missing_feature_count": 46,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ETCUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 70.70063694267516,
+      "feature_snapshot_id": "v2_fsnap_57b269beae4b4f07a48b261902f20e9e5e4989ccdc74f34bd32605dc0c5d1e2d",
+      "missing_feature_count": 46,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ETCUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 70.70063694267516,
+      "feature_snapshot_id": "v2_fsnap_f72164fec1a44adb4298293d79243c426d7f2d5226a3d8189c159647ac4c6572",
+      "missing_feature_count": 46,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ETCUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 70.70063694267516,
+      "feature_snapshot_id": "v2_fsnap_69acbdeeaba8f346525249a04cc252431eca52f4d78a6ad8b48e91fbd81bd90f",
+      "missing_feature_count": 46,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ETCUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 66.89189189189189,
+      "feature_snapshot_id": "v2_fsnap_e2cd3cda2a340b3137f615c0b7c58916af2c65c0d6e89b8d002dda72e054f50d",
+      "missing_feature_count": 49,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ETHUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 69.5945945945946,
+      "feature_snapshot_id": "v2_fsnap_a6d1c4850e90d80ec52e88793a04026e05965744755f1fecb55ca4fd12678271",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ETHUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 68.24324324324324,
+      "feature_snapshot_id": "v2_fsnap_a0718b304eb0d2b9436859796aeb1945f9ac30f5d916126cf4b575a020ef91ee",
+      "missing_feature_count": 47,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ETHUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 68.24324324324324,
+      "feature_snapshot_id": "v2_fsnap_0e783021f19e9adbe4b09a85900f3992dea169a5de1beb0bbede752dff7dc0f1",
+      "missing_feature_count": 47,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ETHUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 68.24324324324324,
+      "feature_snapshot_id": "v2_fsnap_559c462b5f28afc5f8336b524bbd1661de56208ade8d6b5bd28e81a849db8042",
+      "missing_feature_count": 47,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ETHUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 60.13513513513514,
+      "feature_snapshot_id": "v2_fsnap_45d508c6d41515807f4619e536632806a2e1d44b2410267149f156a258d47c9d",
+      "missing_feature_count": 59,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "FARTCOINUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 62.83783783783784,
+      "feature_snapshot_id": "v2_fsnap_d2772370d3398530a68ef134e3426dcdb242a2951aa0b2d158a3338f0b8d448d",
+      "missing_feature_count": 55,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "FARTCOINUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 61.486486486486484,
+      "feature_snapshot_id": "v2_fsnap_ca912da6f0a85394804b3034cae17227fb3604da31db9d22cb1fe55b59fdd01c",
+      "missing_feature_count": 57,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "FARTCOINUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 61.486486486486484,
+      "feature_snapshot_id": "v2_fsnap_8a7a712b39de456758e96daf380f24416f79f02abda0865e61870fbdb2b041e4",
+      "missing_feature_count": 57,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "FARTCOINUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 61.486486486486484,
+      "feature_snapshot_id": "v2_fsnap_9cfd325bf69385994b41976064fa63ebc7959a41021c4607a5a01f60a387de82",
+      "missing_feature_count": 57,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "FARTCOINUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_70324a332f83b5a7bedbed11a1b1a727cde8c354b77992f05159a793972bde0d",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "FETUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_26b5aff85ba5b7fca5124baf002715f315d3245bfe0a1cfd11bbb8182cff56c7",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "FETUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_d0a3d5508c56b1175398e95d0bf9e4672420bd4c8cd71b37d1243851688e1290",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "FETUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_5992dc546fc020550f0f787b97a6a9d47bf563460d2d343df3f439c092ac7430",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "FETUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_72f45bdbe261c8b42de45902d0c24b39bfe945d4842b2c90bde68ed3f36372f5",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "FETUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_d8ecd6a0880db9785a52fbeaf7335d3da60f189b9cf838ba8ec7a904f5b4db06",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "FILUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_94d214766bffcf2336dd7a7eb4ae8a96264b27a17da486b8deb4d3cc2024f931",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "FILUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_2e54a0190f3a31459fc585a37e0c30415801671b6619e5905d67b1eacb91f878",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "FILUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_68309ca6ef373405ace80682957f1bb562b12a7153dea7c3c54951841fe50d73",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "FILUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_fcd05a871e91f2517c9756c205aab6df25057b34255281c3daa94453958e4c4e",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "FILUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_1c7f72844e43ca93b503d6d055c946e86850401d4bf5b6a2dcf56c3965916b54",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "HBARUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_afaed4cf8f79e1936caebdcfd78ef88e8bea6779a2f44a3240fc181871701b27",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "HBARUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_fbb6d6477503b7c69f363476c05ae64a5d7879ed6c92b14e25794d9e2eb490ba",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "HBARUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_b2588b59216b4d10268b3cd397855af58f45d90c342fee128d336b404e0d7563",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "HBARUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_71c78636184c72345799755200b0ec356da8ab61c4a179c2f457d0857f74edd0",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "HBARUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_a8ab4b99b978ce534f6272780017fa5ea24d4b49cfdc9b5222bf9925d87b6858",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "HYPEUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_81c6a497e316de185458df655f3ba73b7df292fd1b028b2edf9d7678ecfa8eae",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "HYPEUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_6bedfab2f0407f0b70e905caacecfaa084debd335bef3661147afaf9c1226a32",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "HYPEUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_366abd57baf476fbc2527a145127a23bbd48d680ea801cb7d1d11c080e604d7f",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "HYPEUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_be9b2e5ab8d5c00f5c423a420fe5dc89763ffb0cf3bbb1c2642ec8ee3f31bc50",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "HYPEUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_f40ec8a085b7409517054104ba451a430a50de801c2d3a67822b7b0380e167e0",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ICPUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_a62ec54f7c3a2f7fa2e4abb9eeb95c91c9a132c73e7ab6e9b17a1ceff6a3fdf1",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ICPUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_bfdbd15cd7247d1f5db60e6fb60cd48649f482bc173f2325e272f6a70a75b454",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ICPUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_ddf21246b6eb90023b2fd36e7679fd4bd938a08976050511a16478c5ec3dcf77",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ICPUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_10ec5e62280dde4d92af1a8926e6776954664fb1cf6f8dd6b986176c81e30333",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ICPUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_04a8bf0764a483c79b4c5b6017e136186b633cb39a9d52450c96710c150f8d6d",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "INJUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_7f057df89707fc4331dbccfe4d0e7d3f5cab7c5876fa280c1a30760cfaee0d33",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "INJUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_37ba23d1ace023abcdb854cd5437f721efbf24464f06dabda82dd5c9ac62603c",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "INJUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_62b483d8d274b71008c02cc1939aea2aca3ae8e04113d2a722b55be5a54d3336",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "INJUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_e6efb795d4e615d92b2dca1efb668333aaab4ca09507a1013f5c3bc35c7237c9",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "INJUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 70.06369426751593,
+      "feature_snapshot_id": "v2_fsnap_72292cfd022b9986e3634d9f032e5ff15cf00d207011da3bc0341369cc266df6",
+      "missing_feature_count": 47,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "IPUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 70.06369426751593,
+      "feature_snapshot_id": "v2_fsnap_749f2f167eee55643b37bde196c101543246dff0e91497b3ac0b6f9ab7bd086f",
+      "missing_feature_count": 47,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "IPUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 70.06369426751593,
+      "feature_snapshot_id": "v2_fsnap_72b2f4f74ff050bf998262ed1e421b45877f20797fb1ca9da95b40641aa30854",
+      "missing_feature_count": 47,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "IPUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 70.06369426751593,
+      "feature_snapshot_id": "v2_fsnap_84fbc33d1144b860cebd33316c178aafb3816ca52c7c78e37c5f511b5d9a9652",
+      "missing_feature_count": 47,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "IPUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 70.06369426751593,
+      "feature_snapshot_id": "v2_fsnap_e2714a8a71de6e8a05c697543e63fa08d68312487cdba89709d3e47413362522",
+      "missing_feature_count": 47,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "IPUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_bf2ed23b26dbb4cf3799da56f4dce383a1da64126cd13f5085173e95f7f39374",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "JTOUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_f88dd2272514bc2528bf9d7bdd2523e9f59e913259154ffc1de79ceb7af610f9",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "JTOUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_487638ecff99d7395e78abf1ce255a415ac310e85818e0e3ffdd95cc1acc55f6",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "JTOUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_ba48ece7e823119ff1d3d9a0c4592ec02ce14d4934f6e86883aaf1895f19b39b",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "JTOUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_675f8ffc4d32f198c33fc66f05bff8a56a109668748257912789b050111eb7f9",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "JTOUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 72.97297297297297,
+      "feature_snapshot_id": "v2_fsnap_900191be190bf0d5b9061060b213c5ad2be8b27e6a4957a71536479d941075ce",
+      "missing_feature_count": 40,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "JUPUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 72.97297297297297,
+      "feature_snapshot_id": "v2_fsnap_4dfde3ce7179a8e8be4e70daf24c8b816752aa6ba975cab73011250b5683bd2c",
+      "missing_feature_count": 40,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "JUPUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 71.62162162162163,
+      "feature_snapshot_id": "v2_fsnap_efb54c5bbe51847d0494aea5e974ba112183468f56004eb1a2442885d1d72d02",
+      "missing_feature_count": 42,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "JUPUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 71.62162162162163,
+      "feature_snapshot_id": "v2_fsnap_d8c0935dee08eee11990805221879745574d4ccebff5e7bed65e29e606aea0ba",
+      "missing_feature_count": 42,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "JUPUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 71.62162162162163,
+      "feature_snapshot_id": "v2_fsnap_25ec463dbe8b7b81c074f645af2fa8c5d27b31840bd1eefc72618737bda7063b",
+      "missing_feature_count": 42,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "JUPUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 68.78980891719745,
+      "feature_snapshot_id": "v2_fsnap_1bb7e50bdb197613b86ad30ed5b1c29ffc244c2823a986e936556a52f1558324",
+      "missing_feature_count": 49,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "KITEUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 70.06369426751593,
+      "feature_snapshot_id": "v2_fsnap_dda623de6baf1e13c37876728ac8ce1b22cf89b79925a95a71578915cab694fd",
+      "missing_feature_count": 47,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "KITEUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 70.06369426751593,
+      "feature_snapshot_id": "v2_fsnap_6aa9a7eb24606221a40b3a571e0a02c6095d8e4b85b92488b62862a8c7746e34",
+      "missing_feature_count": 47,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "KITEUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 70.06369426751593,
+      "feature_snapshot_id": "v2_fsnap_c1d9a72fee634f34779f3228c2c2837651722970d2e4abd83d71bdb6c7c03523",
+      "missing_feature_count": 47,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "KITEUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 70.06369426751593,
+      "feature_snapshot_id": "v2_fsnap_2c9303ba5b8c671f34b2e01fdec8b398dafce62c007f7d0f04682ae0e5a3b86a",
+      "missing_feature_count": 47,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "KITEUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 65.54054054054055,
+      "feature_snapshot_id": "v2_fsnap_6c609a5f83c5500623dcaaf57302ecbcf2cba11327ef83ede68f24a055427e4c",
+      "missing_feature_count": 51,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "LINKUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 68.24324324324324,
+      "feature_snapshot_id": "v2_fsnap_36a2919c21d5aae07d7baf5a10b1489da01fecfb0650068c43895c6c1fa57149",
+      "missing_feature_count": 47,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "LINKUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 66.89189189189189,
+      "feature_snapshot_id": "v2_fsnap_bfac106a20be6c85fda009663fd66b5698c32a7771f117022388107cac3a4eb6",
+      "missing_feature_count": 49,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "LINKUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 66.89189189189189,
+      "feature_snapshot_id": "v2_fsnap_1b37713b00c69165cd9578681d861669e88a324ac034699b5be80d83dec60bf2",
+      "missing_feature_count": 49,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "LINKUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 66.89189189189189,
+      "feature_snapshot_id": "v2_fsnap_0a4275a448f49d4364794554cd148c0fd0620f239e3ce0c5894b675a6ceaf084",
+      "missing_feature_count": 49,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "LINKUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 73.64864864864865,
+      "feature_snapshot_id": "v2_fsnap_e04a90588866a6cfa986ee6bffb0980ad1f82ff376a7392e2e912dc61785aa3e",
+      "missing_feature_count": 39,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "LTCUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 76.35135135135135,
+      "feature_snapshot_id": "v2_fsnap_bbbc3824cb1151f33016812bf794311fc70a8e2fc808cf016c71453dd5852ca8",
+      "missing_feature_count": 35,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "LTCUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 75.0,
+      "feature_snapshot_id": "v2_fsnap_ba56f3d4840b5f132113333746c4129a872c6b10b9328a0621d4a3e25fe7c207",
+      "missing_feature_count": 37,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "LTCUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 75.0,
+      "feature_snapshot_id": "v2_fsnap_39cb4fdc90493f9f147257b7ad8669113b2b1e37611b3471c480384ca16fb4a1",
+      "missing_feature_count": 37,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "LTCUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 72.97297297297297,
+      "feature_snapshot_id": "v2_fsnap_58fde4076f9e1e51bbd1cdab9ef1b112400444342a7330e8aa9e35c9da4cef3c",
+      "missing_feature_count": 40,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "LTCUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "MANAUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "MANAUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "MANAUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "MANAUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "MANAUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_11d477f0eb4e00dcf954a72c419da1ac14a123a32eebf7f4df89556bd23ac831",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "MEGAUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_2b05858a2e72b4db48d7adda711b94ca346016d3ead61323157480c60b73c790",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "MEGAUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_e0ca0cec17a76f8b41b5eb026928f68a22a29512bcb9eb23e1e5caf4606a881b",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "MEGAUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_79b2f6b9b4121bf34a98a0afec901cd66f3a1d6d77cce3014aee38e7ae51fdcb",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "MEGAUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_e0ec322475134ba9c59a0dc1be2ac9e3029ca00fa2095902de8e095b3b0557b7",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "MEGAUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "METUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "METUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "METUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "METUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "METUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 78.34394904458598,
+      "feature_snapshot_id": "v2_fsnap_68cc181029a2d314a1ee4d3759505e9da9d86fffb5828e51411cbf9481cf76cb",
+      "missing_feature_count": 34,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "NEARUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 77.70700636942675,
+      "feature_snapshot_id": "v2_fsnap_57a35782aacc5ccdd9b1fe8782a2d513b538fb0ea59edb5c33c3b7b36f7fb8ef",
+      "missing_feature_count": 35,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "NEARUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 77.70700636942675,
+      "feature_snapshot_id": "v2_fsnap_8d7ec2def35ceb3c278c4530b085fc79587cbf35f0227826c1b7822c8885a680",
+      "missing_feature_count": 35,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "NEARUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 78.34394904458598,
+      "feature_snapshot_id": "v2_fsnap_7f469f8c3045f1f83f2d789ea2c970336f7658d6e7df9c6c2055a6b58f4a4e8e",
+      "missing_feature_count": 34,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "NEARUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 78.34394904458598,
+      "feature_snapshot_id": "v2_fsnap_82542d6271e7f2d5291170925f314f8521ed8dd7b783ada9aa7701eb535bf665",
+      "missing_feature_count": 34,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "NEARUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 76.43312101910828,
+      "feature_snapshot_id": "v2_fsnap_c56e8fd2515906ac4a613b0393093cf66088790ce790396edfffab6df4b06148",
+      "missing_feature_count": 37,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ONDOUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 76.43312101910828,
+      "feature_snapshot_id": "v2_fsnap_e788d3a5890a547980c9bcc4a928768b933f2c51b209a0f6e22fb64e6e9dcc7e",
+      "missing_feature_count": 37,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ONDOUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 76.43312101910828,
+      "feature_snapshot_id": "v2_fsnap_3437f456f04d721558b50533a5e60f56ed87ca72ac951f51bb6cad5f615cf138",
+      "missing_feature_count": 37,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ONDOUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 76.43312101910828,
+      "feature_snapshot_id": "v2_fsnap_923fdd76b58cbc43a9c3da5ab7102c0b2e532fcc1df62d5f7d638fe9417d9a5e",
+      "missing_feature_count": 37,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ONDOUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 76.43312101910828,
+      "feature_snapshot_id": "v2_fsnap_c3e3fc2c92469fc8a9ffe7648ae95f4eac03d0407709e65633f337a09028cddd",
+      "missing_feature_count": 37,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ONDOUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_d37d007703c6675bab9640544ab81efe5fe88c6d37123b543184394385c8bc70",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "OPUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_7dd4acc69671e91b3a30919c20fe5b3e1871ddd1b2cd6b3141f01697c20842b8",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "OPUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_61d9fddb9d98e5531882dbf463a50de250fe68c6b73a5d874a0bf81e26d0bbb1",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "OPUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_6977118e77e05d6b00cd38c281473ed77477bce191806c9d779f2c8ffdfe125e",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "OPUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_00f7dea8980f66d6e221f1d26deed3cdd8cd608ed7613baa996775b39e995cc4",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "OPUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ORDIUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ORDIUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ORDIUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ORDIUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ORDIUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_2e8e1f6b3505aaf8ec15d230c96461f3391448c71b6211899462bc4cca8645f3",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "PAXGUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_b2856f76e2cd11e38601a2a01dac37f4a334806331b44736f15883598205ff2e",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "PAXGUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_fa81bba23d0c0f131eaefbb2546e4f129e5cd5017f6a1d42397c77c7fc746d14",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "PAXGUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_f782ba1e0de07c2e5c3a12ac78cc68434bba7583f157f2acb2108630235314f1",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "PAXGUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_bca472d142322c897e4aa05e79217311d2748fc0a7e0ab952ee95572ea048d7b",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "PAXGUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_11140ef00f6f54c3a2f792cc8b016092759a13f50c88820a4cf42232ef4b49b3",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "PENDLEUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_78669be69298299a16805041526d9538e781ee17f9e4cd4c1f021c6a4f142ed1",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "PENDLEUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_6d51946ddc91e81d585dacc7e239c1b87ddcb71f22d58e1b33e922a3f6e82c3f",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "PENDLEUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_d389ae74546522f444f2d4df5c854c60cd5f9e53dd048cce40c21cf9e59be4af",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "PENDLEUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_25aadb57bf197f49db5060970f9ed52ebffa5d0f6ea0b608770fab71a1d4d787",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "PENDLEUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 74.32432432432432,
+      "feature_snapshot_id": "v2_fsnap_79782b70163f94741c4829ad0a5c5855e995e3de00f05c1272a088a42ba812b8",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "PENGUUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 77.02702702702703,
+      "feature_snapshot_id": "v2_fsnap_49d9e82b354f98ec8e231d9301da3d91427a321003e7c1fcb183e92e16a6c666",
+      "missing_feature_count": 34,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "PENGUUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 75.67567567567568,
+      "feature_snapshot_id": "v2_fsnap_e9e910edb0ef4f167c8c2ae086eb5ea714f53b04a0740edf0fbf55276323cd3e",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "PENGUUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 75.67567567567568,
+      "feature_snapshot_id": "v2_fsnap_343dc670ea261fa0780e55d62840c17cd984bd21575c2c7ea3fd2503485e32a3",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "PENGUUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 75.67567567567568,
+      "feature_snapshot_id": "v2_fsnap_269388d5c60a4734a0510032322edf2f37797f3bb2bd5eb5c32372cd1fb8b98c",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "PENGUUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 68.24324324324324,
+      "feature_snapshot_id": "v2_fsnap_00da0447cf3ac0fbf7146a15b3cd6ed5adfb0e7d908e3a8ceee10c5f972bbe07",
+      "missing_feature_count": 47,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "PIPPINUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 70.94594594594595,
+      "feature_snapshot_id": "v2_fsnap_b6ede210052dd77f24812b1b45969da67c8750abcb6d19bdb3d268c76ba3159b",
+      "missing_feature_count": 43,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "PIPPINUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 69.5945945945946,
+      "feature_snapshot_id": "v2_fsnap_b4f3391767132bc1875010ea87227c523a4d96de0fb2d1ef917ff3d38ddd10de",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "PIPPINUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 69.5945945945946,
+      "feature_snapshot_id": "v2_fsnap_71ab51b4862bcb30ee5c769250cc601f2b681acbb7efe1f1749d8e16f983246d",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "PIPPINUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 69.5945945945946,
+      "feature_snapshot_id": "v2_fsnap_67476177046074f2278fa3a120e02808e51ac80328d01c3092735583d438ccef",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "PIPPINUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_39411a6248c07e4041de92fa2397ea68c4208ed82dd4f6347dccbae317a1a953",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "POLUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_94f97f8a3ee8fc4fbe4caa2261e0e2a6daa4b40e7e3081731785e03acb203100",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "POLUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_8ec5461c82dcc52f5fb53722d3dacd2f170e185eeacfaba3234141d30dd6f870",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "POLUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_327836eeaa2ea77635508996fcc601e5fc1668cd71a8435ed5973e1e0d96e1ac",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "POLUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_4f130a66c0069639559b1f99b1374d231a5261230fa9e3056b6a35d63e8c9c4f",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "POLUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_f1a8e2cb739958eca92681e10282f3a8492bae998babe8e131a63123d37527e9",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "PUMPUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_db3f1d05913468e6fc7181d9787ced7ef50f985786ee61a2da94a5e0b4c665ae",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "PUMPUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_c196f749feb8e6db73c606f16c19d072e266674b30960c05dea893ca94667856",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "PUMPUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_81aacbb5f44314f37be69197f67a7e72e49ed9773053be74407ffe6a2263f4e7",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "PUMPUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_169df1392fe353f900a01f975c13f791e101cc0567f574be172b58f45a850db1",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "PUMPUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "RAREUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "RAREUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "RAREUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "RAREUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "RAREUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 67.56756756756756,
+      "feature_snapshot_id": "v2_fsnap_fe16cc59c04c7d20365c34797e74821820813dcc4a8fd11090f570103108e582",
+      "missing_feature_count": 48,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "RAVEUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 70.94594594594595,
+      "feature_snapshot_id": "v2_fsnap_e6c8eb48d4dd2380ba7c3475bb47f481503b367aba39163e3a6854d4ded71109",
+      "missing_feature_count": 43,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "RAVEUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 69.5945945945946,
+      "feature_snapshot_id": "v2_fsnap_14602ad4ffa5a772e9d5b4ee64bf2fd494b5a5b6bfe6c3334c94372b6169590d",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "RAVEUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 69.5945945945946,
+      "feature_snapshot_id": "v2_fsnap_8977d76e77be4f1bdb0ccfaf16e2c7e20682797d3020396d74b92f906adda703",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "RAVEUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 69.5945945945946,
+      "feature_snapshot_id": "v2_fsnap_231700dd2e986cc1a60b8525cc72d3c245acee7d07e67b6472e780d2831b4b8c",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "RAVEUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_b04b25d53549a759a36310bee1ab99e5da23dc7870fb8a7db4238a5f1cf10bc1",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "RENDERUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_88bc3f0cf389024331642969deb8c45abc9752085f2d12cdd3ce2728ef886c53",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "RENDERUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_d98d96bd22691969554da1819aa02034b0d6568eb342a14509189684fcba89a9",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "RENDERUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_cfbe08662a9dd7d1e22b3746861214f3878a7d60f62ebeacbee55bf61639312c",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "RENDERUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_759e0b4125d223dc8f2264c7001676f367f32817e269262b131a73622538776b",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "RENDERUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "REUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "REUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "REUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "REUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "REUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 70.27027027027027,
+      "feature_snapshot_id": "v2_fsnap_2e4d5727e33ecf1e7a64bf5a060f87f096b632691b9ccae61629e365127d9b83",
+      "missing_feature_count": 44,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "RIVERUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 72.97297297297297,
+      "feature_snapshot_id": "v2_fsnap_c1ff86569c940692300183488bf2842c57e4d39138976276c2d7b009ce7e5025",
+      "missing_feature_count": 40,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "RIVERUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 64.1891891891892,
+      "feature_snapshot_id": "v2_fsnap_6ac9192d20e13d4024d43615df6afd608330ea3196f338b9c8df1bb4110cca8b",
+      "missing_feature_count": 53,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "RIVERUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 64.1891891891892,
+      "feature_snapshot_id": "v2_fsnap_874ad89651fe71c9ebc28b9a3f887bfa7864d22df4a4a0a1372a948bd4f05672",
+      "missing_feature_count": 53,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "RIVERUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 62.16216216216216,
+      "feature_snapshot_id": "v2_fsnap_0236279e93e58d28bd697cee6692c34036d48d149a1bf5a29cb96727ace3cf80",
+      "missing_feature_count": 56,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "RIVERUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SANDUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SANDUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SANDUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SANDUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SANDUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 69.5945945945946,
+      "feature_snapshot_id": "v2_fsnap_85e76c6ac07254b380bbee1b1f715aa077bdc38f2027373bc9b53d1725db5495",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SLXUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 69.5945945945946,
+      "feature_snapshot_id": "v2_fsnap_16ed63cf360d2786f48e511f1ea098f9f9b365997829e9200efe825562156cfc",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SLXUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 69.5945945945946,
+      "feature_snapshot_id": "v2_fsnap_4eef1da01978b7ce4076e2bd872196772282e83d4a71fb77393ce31a027aa4d2",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SLXUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 69.5945945945946,
+      "feature_snapshot_id": "v2_fsnap_e7359660b653b8f39fd1478f3d183b3fe369526b79cd64a04f84b16e6da1d7b6",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SLXUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 69.5945945945946,
+      "feature_snapshot_id": "v2_fsnap_d892f9421dbe3d0930cd098d6d3e9927c6fd6ef4038a5cec531d390bdad4cb72",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SLXUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 75.67567567567568,
+      "feature_snapshot_id": "v2_fsnap_6e3a85aed7a423a1c50c1ca7f80fd9a377ed1b957bc82d0f3f81b334d86ed1fd",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SOLUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 78.37837837837837,
+      "feature_snapshot_id": "v2_fsnap_45e7e287e73cfabcd04309bfb29e4256d5d33a70d62ae219daa5d579e59e2c5e",
+      "missing_feature_count": 32,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SOLUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 77.02702702702703,
+      "feature_snapshot_id": "v2_fsnap_706da49140c74eadf2e122e918da72e325921e7f6eba9acdb7fa17d74a6ad5f8",
+      "missing_feature_count": 34,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SOLUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 77.02702702702703,
+      "feature_snapshot_id": "v2_fsnap_e0250e7f17e4e984f5216a3a2231cfffaed16e8e4585b2b5fa9cc77d1e7c50f2",
+      "missing_feature_count": 34,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SOLUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 77.02702702702703,
+      "feature_snapshot_id": "v2_fsnap_8e0a9d171f5123c503b14443c8bec07836e9d566e9139b689a7da8526cb5fbd2",
+      "missing_feature_count": 34,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SOLUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_15a3622848003aa80de8666b3b6a633ff91c35a5c1a447cd800a5f9d8cabd0fb",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SUIUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_66e2f5c21e20ed18d8b3a17bddddc251951496d8fb170d922ed5c5d2d81b4c0d",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SUIUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 78.34394904458598,
+      "feature_snapshot_id": "v2_fsnap_3070bf3d9654fa4f91b5183bb726eb9f223847b2f69a8826b021a32d310a5804",
+      "missing_feature_count": 34,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SUIUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 78.34394904458598,
+      "feature_snapshot_id": "v2_fsnap_5829c1622cd78d359dc279019284f3de81c701c94d09afa526139af1ca1a6987",
+      "missing_feature_count": 34,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SUIUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 78.34394904458598,
+      "feature_snapshot_id": "v2_fsnap_87c3a863f33ebf0bc05826985a5002e62bfdc6ad5aba2d616872b3d904e55e03",
+      "missing_feature_count": 34,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SUIUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 72.61146496815287,
+      "feature_snapshot_id": "v2_fsnap_f2d73472be205025f06f6ea505a1a78b98f83f96529ba8be5a4668aeb70e6508",
+      "missing_feature_count": 43,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SUNUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 72.61146496815287,
+      "feature_snapshot_id": "v2_fsnap_0d8c11980d1870e0cd954520cb51598ee9a00d3e5c10225b0df6034121d17c1d",
+      "missing_feature_count": 43,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SUNUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 72.61146496815287,
+      "feature_snapshot_id": "v2_fsnap_ac2ef431b8cea67e06a822cb5f93db1290ed3b45db913d68dd4c5760bbe8a7c3",
+      "missing_feature_count": 43,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SUNUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 72.61146496815287,
+      "feature_snapshot_id": "v2_fsnap_da36a0980f066b6dd2079f94f60cad82f7437ebba153db5906a571abed8f6377",
+      "missing_feature_count": 43,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SUNUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 72.61146496815287,
+      "feature_snapshot_id": "v2_fsnap_636aad2b8f05f0dbd071c73f498974a8fa1185ff4ea24eb64e9438e85b2bd8ee",
+      "missing_feature_count": 43,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SUNUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SYNUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SYNUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SYNUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SYNUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 0.0,
+      "feature_snapshot_id": null,
+      "missing_feature_count": 0,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "SYNUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_128b07e703fa851b1edc65f8c807f2759ba6a56a2f290d4a65db023a203882ea",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "TAOUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_1b1a20f05791af270f3c71e842ae35bef981b5b8a737f3a7739705e7d3aa4c73",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "TAOUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_037606e74e5000532ef0937c3cb86e4636789d9d3814cc7b8b5276ad2ea7ab32",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "TAOUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_debd4ceb163cd7005e1db84d2802387b6445cf093d345c866ce98ddf87b7c635",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "TAOUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_9d170a5582c08b9b597f21bdebd320c0fc5c1412b6e3196bf6bf485bbfdc6070",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "TAOUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 77.70700636942675,
+      "feature_snapshot_id": "v2_fsnap_ebe101b294bedcfe3c3ce45f2b65d4f8b9050662f908ffbeb5409b83e8bf4ff1",
+      "missing_feature_count": 35,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "TRUMPUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 77.70700636942675,
+      "feature_snapshot_id": "v2_fsnap_24fae77502f7afa80d7f11bbbf0adb08ca5ea850649930f1fa0c2abf7c6375b0",
+      "missing_feature_count": 35,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "TRUMPUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 77.70700636942675,
+      "feature_snapshot_id": "v2_fsnap_be61973dabc6cb3c38f3d15ac91da3effb5c29689b8a7d99afa60ab5e5f98f20",
+      "missing_feature_count": 35,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "TRUMPUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 77.70700636942675,
+      "feature_snapshot_id": "v2_fsnap_43a4f772f861d9b0ae2d35f21afd070f08a4fee7db22e6e2fe13a0ef020a30b2",
+      "missing_feature_count": 35,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "TRUMPUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 77.70700636942675,
+      "feature_snapshot_id": "v2_fsnap_b3e4fa5f7426e694255c302f87357f56b5c7cfc4053d0ca95129ee9732a2017a",
+      "missing_feature_count": 35,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "TRUMPUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_823c0f31be4e0a891d47a417244b298a0168027a68ef0f64748e20d0da81bf66",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "TRXUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_6a6d7790bd28d56be49041bac7ff24e4f1c27ac4516b3c0ad294e4a97865195b",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "TRXUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_fa619b6e10f455ef4df184cdfdb877f688391738e5f8d26aa5bd9cc90ea1f3fd",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "TRXUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_20838287dd4158575c2ec64db038bc82741ee27505bca69afc19434cdbef13c1",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "TRXUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_6284e28f6bd960ace01eb6944b306d4166d8a96f99433e06ed0e9e0e9924fdf1",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "TRXUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 74.32432432432432,
+      "feature_snapshot_id": "v2_fsnap_170419f6714289d4144fa645f61fc0b3ccf3355e1dbaa604894e8588201dfdfd",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "UNIUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 77.02702702702703,
+      "feature_snapshot_id": "v2_fsnap_daa7717fc8d678e4c68c76b1f05691b5c87058f582e160410e943c5e7a1783ff",
+      "missing_feature_count": 34,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "UNIUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 75.67567567567568,
+      "feature_snapshot_id": "v2_fsnap_27b5e0f3c535da07122018920da87db3c696a01a1f56a575f77e1e3cfd8a9885",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "UNIUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 75.67567567567568,
+      "feature_snapshot_id": "v2_fsnap_3e98c133c3514129b75b4f11773f2cbcff82e21a8b8e8312814d741e5c8df946",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "UNIUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 75.67567567567568,
+      "feature_snapshot_id": "v2_fsnap_7fde011e499d08896d93ff34a29c692f94a8a327ec10e5dd7903581e8ab6c4d8",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "UNIUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 72.61146496815287,
+      "feature_snapshot_id": "v2_fsnap_849b1fd2c194d41d5126131e6689ac94ed2650f2448e1bd32edcfd7c6f9e6af4",
+      "missing_feature_count": 43,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "VIRTUALUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 72.61146496815287,
+      "feature_snapshot_id": "v2_fsnap_0d82b115b70484325a6af84bfdaea2477d367443fe7197167c284002b1c4ddb8",
+      "missing_feature_count": 43,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "VIRTUALUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 72.61146496815287,
+      "feature_snapshot_id": "v2_fsnap_667f73bca4fe4942d39fd65c3584cdcce424557e3ffa0adadce914c396eb8c6f",
+      "missing_feature_count": 43,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "VIRTUALUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 72.61146496815287,
+      "feature_snapshot_id": "v2_fsnap_b35adb76fcffec181c783063cc4611553129f32b978663e2379ecb5daa7f8828",
+      "missing_feature_count": 43,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "VIRTUALUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 72.61146496815287,
+      "feature_snapshot_id": "v2_fsnap_85d6610e504b0b297287148a2e164b86588962b285803a6554da03ea644d5f53",
+      "missing_feature_count": 43,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "VIRTUALUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 68.24324324324324,
+      "feature_snapshot_id": "v2_fsnap_d9531b718214d204ac8a3cdb0d642cc41bc89a640cf4cac60a3bc26142bbe231",
+      "missing_feature_count": 47,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "WIFUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 70.94594594594595,
+      "feature_snapshot_id": "v2_fsnap_00ef40187812ef089286438b8f0ea7e6700a4737c8b23752ad3aed8af6c6113f",
+      "missing_feature_count": 43,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "WIFUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 69.5945945945946,
+      "feature_snapshot_id": "v2_fsnap_cc60648c6917741854665d99cfec15b94c432fb8088499138a8f97a2e783d136",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "WIFUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 69.5945945945946,
+      "feature_snapshot_id": "v2_fsnap_24baf9493224272dd0ee2d45eea048287513b58331a9ee7668f75a5f87c97a71",
+      "missing_feature_count": 45,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "WIFUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 62.16216216216216,
+      "feature_snapshot_id": "v2_fsnap_1e701ca512d0c0f3528a14119510c90d6a8a2543f7e1f097f140db229513403c",
+      "missing_feature_count": 56,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "WIFUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_9ac535a66a54201e32955549e1092759897998c68cb6da3243e7810b5d60486e",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "WLDUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_a8f2ea278a92c24cc37457bbc29c69338077fe1e2fb9e12fcfb3453c258a099d",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "WLDUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_2467ff29f97e28177d4eb5322f7c427adf98fdb725329c653600153ed2bcb6ad",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "WLDUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_570d5b07c7b3b7ace2f97bb2e04f6074585d5b3ec81a934bd144579688d2b59a",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "WLDUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 77.07006369426752,
+      "feature_snapshot_id": "v2_fsnap_756d82beab299b5125a8ff7d2493b8f4ed438912a58a3b8379af235274ddc630",
+      "missing_feature_count": 36,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "WLDUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_7abc0477f10e0dc4160c3b33d415fbde04f1930df860e9568d716c01174e79bd",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "XAUTUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_c94ffccf419730eff26a51515c100d22d9a7c89194bf078d212bc28f87eb2d6f",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "XAUTUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_01c8985112cd53b954f13f50261a2a9e1178d182981b0bd86feabb83d16c27d6",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "XAUTUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_cece3829e2f2731d8ba50f6c1d08ac99adae150a691966453b7946effcddbb12",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "XAUTUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 73.88535031847134,
+      "feature_snapshot_id": "v2_fsnap_4ea9af9787b87b813a52ac0e6fc813d4d55e55341bf4f24280cdfa59526995ef",
+      "missing_feature_count": 41,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "XAUTUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 76.43312101910828,
+      "feature_snapshot_id": "v2_fsnap_ffc52a0bd39df946f513f6ea6600c5a3614348303ec4e5200d55ba306cddc8a4",
+      "missing_feature_count": 37,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "XLMUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 76.43312101910828,
+      "feature_snapshot_id": "v2_fsnap_a3fa272ace2e0cf0be7e91633df1420d1827b8f656c24b5036f9dd81f41c7df4",
+      "missing_feature_count": 37,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "XLMUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 76.43312101910828,
+      "feature_snapshot_id": "v2_fsnap_bbe9106c4b6bb433604789031f30cca555bde5557e9e338a135c08c909a46c93",
+      "missing_feature_count": 37,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "XLMUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 76.43312101910828,
+      "feature_snapshot_id": "v2_fsnap_f753651d15ba05acaa9317246a65affb52056e778565f4566a7f22df035e3b09",
+      "missing_feature_count": 37,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "XLMUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 76.43312101910828,
+      "feature_snapshot_id": "v2_fsnap_10f1b7aff610bd72c4d3bf61bf2a6e5aa9040fb83953f659bc6e7f82195b74aa",
+      "missing_feature_count": 37,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "XLMUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 73.2484076433121,
+      "feature_snapshot_id": "v2_fsnap_bb84664fef60dd98677db1e9bdb01b67764d4bf7cd9a0bb0c5ea6d83190f9f4e",
+      "missing_feature_count": 42,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "XMRUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 73.2484076433121,
+      "feature_snapshot_id": "v2_fsnap_85ea222c8b6fa2656d56aee250ea6c60b918fb872e63cd88c530d472d3a8c648",
+      "missing_feature_count": 42,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "XMRUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 73.2484076433121,
+      "feature_snapshot_id": "v2_fsnap_643fa972725dffce438670d3411f5adf653002834da7729ff74f97b8161a740c",
+      "missing_feature_count": 42,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "XMRUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 73.2484076433121,
+      "feature_snapshot_id": "v2_fsnap_72e86ebd83e5e354a275b1abbcf54d65a99d8133c95573de22eb320637cff23d",
+      "missing_feature_count": 42,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "XMRUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 73.2484076433121,
+      "feature_snapshot_id": "v2_fsnap_4ba25968dc17ee2024df7e5c8e67a7727870ca18e3911e4c35d5b63ee8ceb03c",
+      "missing_feature_count": 42,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "XMRUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_600e32e6e9680acbcc4c7a33f32dec3572a40d072338f947e96f39906529d123",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "XPLUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_7271404a881483dc97d73bf8a0895e632dbd3dfb0ffb41b3e3d4f93296b0b0ea",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "XPLUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_3436c2fe278674d37a505550b217e5c8e47ccc396e25edfb20829afe45b47792",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "XPLUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_1329203c00d61ce6855439a92891888d5e5e97b4ff1336ffbcd05559f21c1995",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "XPLUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 75.79617834394904,
+      "feature_snapshot_id": "v2_fsnap_1482164eb9ff5a26daa1a2b303f5c1048a7e6a13c8366e5351376d469aa9c042",
+      "missing_feature_count": 38,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "XPLUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 73.64864864864865,
+      "feature_snapshot_id": "v2_fsnap_10b456bcc2b84a97cd59c2585183a27f2b87863f718a4ec3c035ece93c398539",
+      "missing_feature_count": 39,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "XRPUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 76.35135135135135,
+      "feature_snapshot_id": "v2_fsnap_6febaed0ef2a93a2a8985486257e3f279e350650f8c010e83218d8c1357917bb",
+      "missing_feature_count": 35,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "XRPUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 75.0,
+      "feature_snapshot_id": "v2_fsnap_8ce4309cc0dd6240161eb0d9ab62033b3701ac88e523e3d413e458e01874dfcb",
+      "missing_feature_count": 37,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "XRPUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 72.97297297297297,
+      "feature_snapshot_id": "v2_fsnap_d7075dfb8de7851db4def485d55fa5073d137ec8e9bca4119f36384a355c7b6d",
+      "missing_feature_count": 40,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "XRPUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 66.21621621621621,
+      "feature_snapshot_id": "v2_fsnap_06e41542ebc1aa2e06b2a93cbb7cf433da23440b0d2f6af5b45a332430a1d71c",
+      "missing_feature_count": 50,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "XRPUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    },
+    {
+      "data_coverage_percent": 75.1592356687898,
+      "feature_snapshot_id": "v2_fsnap_71fc9af9589cdffeab6d4232e55b568ff4ba3ac7681763da965a2d1bbba433be",
+      "missing_feature_count": 39,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ZECUSDT",
+      "tensor_id": null,
+      "timeframe": "1m"
+    },
+    {
+      "data_coverage_percent": 75.1592356687898,
+      "feature_snapshot_id": "v2_fsnap_ba44b12c29488345408538adf9588a4c3cc6209bae6d72a8f095f1cfcca3f46b",
+      "missing_feature_count": 39,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ZECUSDT",
+      "tensor_id": null,
+      "timeframe": "5m"
+    },
+    {
+      "data_coverage_percent": 75.1592356687898,
+      "feature_snapshot_id": "v2_fsnap_4808e454ed145c7996a344551c2120f11769290cbe68b739f607184af3a1d5d0",
+      "missing_feature_count": 39,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ZECUSDT",
+      "tensor_id": null,
+      "timeframe": "15m"
+    },
+    {
+      "data_coverage_percent": 75.1592356687898,
+      "feature_snapshot_id": "v2_fsnap_bc7e79ae363cfb26c18d8531ba5c4c94c7f001a05f41269ebc371ba2de3de500",
+      "missing_feature_count": 39,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ZECUSDT",
+      "tensor_id": null,
+      "timeframe": "1h"
+    },
+    {
+      "data_coverage_percent": 75.1592356687898,
+      "feature_snapshot_id": "v2_fsnap_20473327e4a47e5a1e8a5cd50a67a570160d51c289a5e0c9797718bd1e1c9d73",
+      "missing_feature_count": 39,
+      "row_classification": "PREDICTION_ROW_FEATURE_SUMMARY",
+      "stale_feature_count": 0,
+      "symbol": "ZECUSDT",
+      "tensor_id": null,
+      "timeframe": "4h"
+    }
+  ],
+  "tensor_rows_count": 430
+}

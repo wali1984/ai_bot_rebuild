@@ -384,6 +384,12 @@ def verify_records(records: list[SourceRecord], args: argparse.Namespace) -> Tru
     findings.extend(execution_findings)
     summaries["position_execution"] = execution_summary
 
+    snapshot_findings = check_snapshot_contract(decisions, execution_records, args)
+    findings.extend(snapshot_findings)
+
+    schema_field_findings = check_trust_schema_required_fields(records, args)
+    findings.extend(schema_field_findings)
+
     config_findings, config_summary = check_config_records(config_records, args)
     findings.extend(config_findings)
     summaries["config_admin"] = config_summary
@@ -1272,6 +1278,181 @@ def check_training_samples(samples: list[dict[str, Any]], args: argparse.Namespa
     return findings, summary
 
 
+def check_trust_schema_required_fields(
+    records: list[SourceRecord],
+    args: argparse.Namespace,
+) -> list[Finding]:
+    """Check all records with trust_schema_version for required temporal fields."""
+    findings: list[Finding] = []
+    missing_available_at: list[dict[str, Any]] = []
+    missing_feature_cutoff: list[dict[str, Any]] = []
+
+    for record in records:
+        for item in iter_candidate_items(record.value):
+            if not isinstance(item, dict):
+                continue
+            if not item.get("trust_schema_version"):
+                continue
+            if "available_at" in item and item["available_at"] is None:
+                missing_available_at.append({"source": record.source, "record": compact_record(item)})
+            if "feature_cutoff" in item and item["feature_cutoff"] is None:
+                missing_feature_cutoff.append({"source": record.source, "record": compact_record(item)})
+
+    if missing_available_at:
+        findings.append(
+            Finding(
+                "feature_integrity.missing_available_at",
+                "FAIL",
+                "Critical",
+                "feature vectors missing available_at timestamp detected",
+                AFFECTED_MODULES["features"],
+                example_records=missing_available_at[: args.max_examples],
+                recommended_fix="Set available_at on every trust-schema record to enforce temporal ordering and freshness guarantees.",
+            )
+        )
+    if missing_feature_cutoff:
+        findings.append(
+            Finding(
+                "feature_integrity.missing_feature_cutoff",
+                "FAIL",
+                "Critical",
+                "feature vectors missing feature_cutoff timestamp detected",
+                AFFECTED_MODULES["features"],
+                example_records=missing_feature_cutoff[: args.max_examples],
+                recommended_fix="Set feature_cutoff on every trust-schema record to enforce look-ahead leakage prevention.",
+            )
+        )
+    return findings
+
+
+def _record_missing_replay_snapshot(record: dict[str, Any]) -> bool:
+    replay_id = record.get("replay_snapshot_id")
+    replay_write = record.get("replay_snapshot_write_success")
+    if replay_id is None or replay_id == "" or replay_id is False:
+        return True
+    if replay_write is False:
+        return True
+    return False
+
+
+def _record_missing_mtf_snapshot(record: dict[str, Any]) -> bool:
+    mtf_id = record.get("mtf_snapshot_id")
+    mtf_valid = record.get("mtf_snapshot_valid")
+    if mtf_id is None or mtf_id == "" or mtf_id is False:
+        return True
+    if mtf_valid is False:
+        return True
+    return False
+
+
+def _is_active_execution_record(record: dict[str, Any]) -> bool:
+    active_flags = (
+        "pre_trade_allowed", "paper_fill_allowed", "risk_eligible",
+        "paper_eligible", "routes_to_orchestrator",
+    )
+    for flag in active_flags:
+        if record.get(flag) is True:
+            return True
+    if str(record.get("risk_action") or "").lower() in {"allow", "approved"}:
+        return True
+    if str(record.get("risk_state") or "").upper() in {"APPROVED", "ALLOW"}:
+        return True
+    return False
+
+
+def _is_terminal_inactive_execution_record(record: dict[str, Any]) -> bool:
+    lifecycle = str(record.get("paper_lifecycle_status") or "").strip().upper()
+    persistence = str(record.get("paper_fill_persistence_status") or "").strip().upper()
+    terminal = {
+        "CLOSED_PREVIOUSLY", "EXPIRED_PREVIOUSLY", "CANCELED_PREVIOUSLY",
+        "CANCELLED_PREVIOUSLY", "REJECTED_PREVIOUSLY",
+    }
+    if lifecycle in terminal:
+        return True
+    return lifecycle == "CLOSED" and persistence in {
+        "EXISTING_FILL_CARRIED_FORWARD", "HISTORICAL_FILL_CARRIED_FORWARD",
+    }
+
+
+def check_snapshot_contract(
+    decisions: list[dict[str, Any]],
+    execution_records: list[dict[str, Any]],
+    args: argparse.Namespace,
+) -> list[Finding]:
+    findings: list[Finding] = []
+    replay_missing_examples: list[dict[str, Any]] = []
+    mtf_missing_examples: list[dict[str, Any]] = []
+    trust_contract_examples: list[dict[str, Any]] = []
+
+    for decision in decisions:
+        if not decision.get("trust_schema_version"):
+            continue
+        if _record_missing_replay_snapshot(decision):
+            replay_missing_examples.append({"source": "masa_ppo", "record": compact_record(decision)})
+        if _record_missing_mtf_snapshot(decision):
+            mtf_missing_examples.append({"source": "masa_ppo", "record": compact_record(decision)})
+
+    for record in execution_records:
+        if _is_terminal_inactive_execution_record(record):
+            continue
+        if not _is_active_execution_record(record):
+            continue
+        if _record_missing_replay_snapshot(record):
+            replay_missing_examples.append({"source": "execution_record", "record": compact_record(record)})
+        if _record_missing_mtf_snapshot(record):
+            mtf_missing_examples.append({"source": "execution_record", "record": compact_record(record)})
+        missing_trust_fields: list[str] = []
+        if not record.get("trust_schema_version"):
+            missing_trust_fields.append("trust_schema_version")
+        if record.get("replay_snapshot_id") is None and record.get("trust_schema_version"):
+            missing_trust_fields.append("replay_snapshot_id")
+        if record.get("mtf_snapshot_id") is None and record.get("trust_schema_version"):
+            missing_trust_fields.append("mtf_snapshot_id")
+        if missing_trust_fields:
+            trust_contract_examples.append({
+                "missing_fields": missing_trust_fields,
+                "record": compact_record(record),
+            })
+
+    if replay_missing_examples:
+        findings.append(
+            Finding(
+                "replay_snapshot.missing",
+                "FAIL",
+                "Critical",
+                "active records missing replay snapshot evidence",
+                AFFECTED_MODULES.get("masa_ppo", []),
+                example_records=replay_missing_examples[: args.max_examples],
+                recommended_fix="Every active prediction/decision/paper-intent must have replay_snapshot_id and replay_snapshot_write_success=True.",
+            )
+        )
+    if mtf_missing_examples:
+        findings.append(
+            Finding(
+                "mtf_snapshot.missing",
+                "FAIL",
+                "Critical",
+                "active records missing MTF snapshot metadata",
+                AFFECTED_MODULES.get("mtf", []),
+                example_records=mtf_missing_examples[: args.max_examples],
+                recommended_fix="Every active prediction/decision/paper-intent must have mtf_snapshot_id and mtf_snapshot_valid=True.",
+            )
+        )
+    if trust_contract_examples:
+        findings.append(
+            Finding(
+                "runtime_trust.active_stale_missing_contract",
+                "FAIL",
+                "Critical",
+                "active runtime records missing trust contract fields",
+                AFFECTED_MODULES.get("masa_ppo", []),
+                example_records=trust_contract_examples[: args.max_examples],
+                recommended_fix="All active runtime records must carry trust_schema_version, replay_snapshot_id, and mtf_snapshot_id.",
+            )
+        )
+    return findings
+
+
 def check_execution_records(records: list[dict[str, Any]], args: argparse.Namespace) -> tuple[list[Finding], dict[str, Any]]:
     findings: list[Finding] = []
     summary = {"records_checked": len(records), "examples": []}
@@ -1752,8 +1933,56 @@ def looks_like_feature(item: Any, key: str | None) -> bool:
     return "feature_snapshot_id" in item or "feature_hash" in item
 
 
+def is_model_prediction_record(item: Any) -> bool:
+    if not isinstance(item, dict):
+        return False
+    if "value" in item and {"redis_key", "category"}.intersection(item):
+        return False
+    if looks_like_training_sample(item, None):
+        return False
+    if not first_value(item, ("prediction_id", "decision_id")):
+        return False
+    model_fields = {
+        "selected_action",
+        "action_probabilities",
+        "masa_signal",
+        "masa_generated_at",
+        "masa_feature_cutoff",
+        "masa_forecast_horizon",
+        "ppo_observation_time",
+        "ppo_feature_cutoff",
+    }
+    return bool(model_fields.intersection(item))
+
+
+def requires_snapshot_evidence(item: Any) -> bool:
+    if not isinstance(item, dict):
+        return False
+    if "value" in item and {"redis_key", "category"}.intersection(item):
+        return False
+    if looks_like_training_sample(item, None):
+        return False
+    if is_model_prediction_record(item):
+        return True
+    if item.get("trust_schema_version") and first_value(item, ("prediction_id", "decision_id")):
+        return True
+    active_flags = (
+        "pre_trade_allowed",
+        "paper_fill_allowed",
+        "risk_eligible",
+        "paper_eligible",
+        "routes_to_orchestrator",
+        "routeability_candidate",
+    )
+    return any(item.get(flag) is True for flag in active_flags)
+
+
 def looks_like_decision(item: Any, key: str | None) -> bool:
     if not isinstance(item, dict):
+        return False
+    if "value" in item and {"redis_key", "category"}.intersection(item):
+        return False
+    if looks_like_training_sample(item, key):
         return False
     lowered_key = (key or "").lower()
     decision_keys = {
@@ -1774,6 +2003,8 @@ def looks_like_training_sample(item: Any, key: str | None) -> bool:
     if not isinstance(item, dict):
         return False
     lowered_key = (key or "").lower()
+    if "features" in item and isinstance(item.get("features"), dict) and "sample_id" not in item:
+        return False
     sample_keys = {
         "training_sample_id",
         "sample_id",
@@ -2234,6 +2465,15 @@ def collect_dirty_training_flags(sample: dict[str, Any], classification: str) ->
         flags.append("future_leakage")
     if truthy(first_value(sample, ("missing_candles", "incomplete_candles", "source_stale"))):
         flags.append("source_incomplete_or_stale")
+    if sample.get("trust_schema_version"):
+        accepted_for_training = sample.get("accepted_for_training")
+        if accepted_for_training is False:
+            flags.append("accepted_for_training_false")
+        replay_id = sample.get("replay_snapshot_id")
+        if replay_id is None or replay_id == "" or replay_id is False:
+            flags.append("replay_snapshot_missing")
+        if truthy(first_value(sample, ("quarantined", "is_quarantined"))):
+            flags.append("quarantined")
     return flags
 
 

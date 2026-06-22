@@ -1,0 +1,119 @@
+{
+  "schema_version": "v2_paper_edge_proof_implementation_status_v1",
+  "generated_utc": "2026-05-25T06:15:00Z",
+  "git_head": "10513bbe0517fd81c9c87e4672bb15486a083c02",
+  "lane_id": "lane_1_paper_edge_proof",
+  "blocker_id": "paper_edge_not_proven",
+  "operator_selected_option": "REQUIRE_IMPLEMENTATION_BEFORE_SHUTDOWN",
+  "operator_accepted": false,
+  "goal": "Produce measurable paper/shadow edge evidence or keep shutdown blocked.",
+  "input_sources": [
+    "v2/frontend/public/v2_post_hoc_replay_outcome_miner/latest/post_hoc_replay_outcome_status.json",
+    "v2/frontend/public/v2_post_hoc_replay_outcome_miner/latest/edge_metrics_summary.json",
+    "v2/frontend/public/v2_24h_parallel_recovery_war_room/latest/war_room_status.json"
+  ],
+  "replay_miner_state": {
+    "go_no_go": "V2_POST_HOC_REPLAY_OUTCOME_MINER_READY",
+    "bundles_total": 3347,
+    "no_fabricated_outcomes": true,
+    "uses_only_v2_namespaces_and_comparator_mirror": true,
+    "no_live_approval_implied": true,
+    "miner_active": true,
+    "do_not_stop": true
+  },
+  "after_cost_expectancy": {
+    "expected_move_after_cost_bps": -8.981832584893514,
+    "after_cost_ci_lower_bps": -13.090729934534577,
+    "after_cost_ci_upper_bps": -5.115957570291047,
+    "fee_drag_bps": 5.0,
+    "slippage_estimate_bps": 2.0,
+    "cost_model_state": "DEFAULT_PAPER_COST_MODEL_PENDING_OPERATOR_OVERRIDE_OPERATOR_DECISION_REQUIRED",
+    "edge_claim_allowed": false,
+    "edge_claim_block_reason": "after-cost expectancy and CI are negative; operator thresholds OPERATOR_DECISION_REQUIRED; minimum_sample_satisfied=false"
+  },
+  "rate_metrics": {
+    "false_positive_rate": null,
+    "false_negative_rate": 0.19753086419753085,
+    "false_block_count": 0,
+    "no_trade_correct_count": 65,
+    "minimum_sample_satisfied": false,
+    "sample_count": 3347
+  },
+  "downside_pre_cascade": {
+    "downside_pre_cascade_precision": 0.0,
+    "downside_pre_cascade_recall": null,
+    "recall_block_reason": "insufficient downside events labeled; do not fabricate; await further miner cycles."
+  },
+  "drawdown_mfe_mae": {
+    "max_drawdown_bps_observed": 309.82905982905976,
+    "mfe_implementation_status": "PENDING_PER_BUNDLE_MFE_COLUMN",
+    "mae_implementation_status": "PENDING_PER_BUNDLE_MAE_COLUMN",
+    "note": "MFE/MAE per-bundle extension is queued for the next miner cycle and does not unblock edge proof on its own."
+  },
+  "by_symbol_breakdown": {
+    "symbols_tracked": ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+    "per_symbol_metrics_available_in": "lanes/lane_1_paper_edge_proof/paper_edge_metrics_by_symbol.json"
+  },
+  "by_timeframe_breakdown": {
+    "windows_filled": {"1m": 96, "5m": 81, "15m": 78, "1h": 189},
+    "primary_outcome_window_id": "5m",
+    "windows_insufficient_5m_evidence": 3264
+  },
+  "comparator_baselines": {
+    "v2_vs_legacy_action_match_rate": null,
+    "v2_hold_due_checkpoint_count": 24,
+    "v2_hold_due_strict_gate_count": 0,
+    "baseline_states": ["v2_native_paper", "hold", "legacy_reference"],
+    "baseline_evidence_state": "OPERATOR_DECISION_REQUIRED_FOR_COMPARATOR_CRITERIA"
+  },
+  "thresholds": {
+    "min_after_cost_expectancy_bps": "OPERATOR_DECISION_REQUIRED",
+    "min_after_cost_lower_ci_bps": "OPERATOR_DECISION_REQUIRED",
+    "min_sample_count": "OPERATOR_DECISION_REQUIRED",
+    "max_drawdown_bps_rolling": "OPERATOR_DECISION_REQUIRED",
+    "max_false_positive_rate": "OPERATOR_DECISION_REQUIRED",
+    "max_false_negative_rate": "OPERATOR_DECISION_REQUIRED",
+    "min_downside_pre_cascade_recall": "OPERATOR_DECISION_REQUIRED",
+    "min_v2_vs_legacy_action_match_rate": "OPERATOR_DECISION_REQUIRED_INFORMATIONAL_ONLY"
+  },
+  "edge_claim_decision": {
+    "edge_claim_made": false,
+    "edge_claim_allowed": false,
+    "verdict": "EDGE_NOT_CLAIMED_OPERATOR_THRESHOLDS_REQUIRED",
+    "verdict_reason": "one or more required thresholds are still OPERATOR_DECISION_REQUIRED; no edge claim is permitted until the operator sets concrete numerics"
+  },
+  "tasks": [
+    {"id": "continue_replay_miner", "state": "ACTIVE", "do_not_stop": true},
+    {"id": "compute_after_cost_expectancy", "state": "COMPUTED", "current_value_bps": -8.981832584893514},
+    {"id": "compute_false_positive_rate", "state": "INSUFFICIENT_LABELED_POSITIVES"},
+    {"id": "compute_false_negative_rate", "state": "COMPUTED", "current_value": 0.19753086419753085},
+    {"id": "compute_downside_pre_cascade_recall", "state": "INSUFFICIENT_LABELED_DOWNSIDE_EVENTS"},
+    {"id": "compute_drawdown_mfe_mae", "state": "PARTIAL", "drawdown_value_bps": 309.82905982905976, "mfe_mae_pending": true},
+    {"id": "evaluate_by_symbol_and_timeframe", "state": "ACTIVE", "output": "paper_edge_metrics_by_symbol.json"},
+    {"id": "compare_v2_baseline_vs_hold_vs_legacy", "state": "OPERATOR_DECISION_REQUIRED_FOR_CRITERIA"},
+    {"id": "claim_edge_only_if_thresholds_pass", "state": "BLOCKED_OPERATOR_THRESHOLDS_REQUIRED"}
+  ],
+  "blocks_paper_only_shutdown": true,
+  "blocks_live": true,
+  "blocks_canary": true,
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "writes_old_redis": false,
+    "calls_exchange_mutation": false,
+    "creates_approval_tokens": false,
+    "creates_approval_artifacts": false,
+    "fabricates_edge": false,
+    "fabricates_missing_observations": false,
+    "modifies_legacy_repo": false,
+    "stops_legacy": false,
+    "stops_v2_runtime": false,
+    "stops_report_center": false,
+    "stops_replay_miner": false,
+    "stops_spark_or_worker_pool": false
+  }
+}

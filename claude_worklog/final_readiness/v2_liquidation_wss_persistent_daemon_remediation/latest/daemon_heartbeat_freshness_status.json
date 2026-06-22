@@ -1,0 +1,56 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "codex_fail_blockers_addressed": [
+    "LIQUIDATION_WSS_HEARTBEAT_NOT_FRESH",
+    "STATUS_PAYLOAD_NOT_DAEMON_FRESH",
+    "HEARTBEAT_TTL_SHORTER_THAN_SESSION_BOUNDARY",
+    "SYSTEMD_PYTHONPATH_UNQUOTED"
+  ],
+  "daemon_freshness_settings": {
+    "heartbeat_interval_seconds_default": 60,
+    "heartbeat_ttl_seconds_default": 180,
+    "ttl_strictly_greater_than_interval": true
+  },
+  "generated_utc": "2026-05-18T02:03:44Z",
+  "go_no_go": "V2_LIQUIDATION_WSS_DAEMON_HEARTBEAT_FRESHNESS_REMEDIATION_READY",
+  "live_gate": "blocked_human_only",
+  "live_process_env": {
+    "LIVE_GATE": "blocked_human_only",
+    "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+    "V2_LIQUIDATION_WSS_OPT_IN": "true"
+  },
+  "live_symbols": [],
+  "main_pid": 3548989,
+  "no_legacy_filesystem_modified": true,
+  "no_pickle_loaded": true,
+  "no_synthetic_liquidation_events": true,
+  "no_torch_imported": true,
+  "redis": {
+    "heartbeat_key": "v2:market:liquidations:heartbeat",
+    "heartbeat_ttl_positive": true,
+    "heartbeat_ttl_seconds": 145,
+    "per_symbol_aggregate_keys_count": 0,
+    "per_symbol_latest_keys_count": 0
+  },
+  "restart_audit": {
+    "legacy_units_restarted": [],
+    "other_v2_runtime_loops_restarted": [],
+    "units_restarted": [
+      "ai-bot-v2-liquidation-wss-paper-shadow.service"
+    ]
+  },
+  "schema_version": "v2_liquidation_wss_daemon_heartbeat_freshness_status_v1",
+  "service_active": "active",
+  "service_sub_state": "running",
+  "service_unit": "ai-bot-v2-liquidation-wss-paper-shadow.service",
+  "tests": {
+    "failed": 0,
+    "focused_wss_suite_path": "v2/backend/tests/integration/cli/test_v2_liquidation_wss_loop.py",
+    "passed": 25
+  },
+  "writes_exchange_orders": false,
+  "writes_legacy_redis": false
+}

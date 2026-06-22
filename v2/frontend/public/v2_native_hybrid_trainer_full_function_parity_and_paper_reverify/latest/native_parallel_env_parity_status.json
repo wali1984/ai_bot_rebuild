@@ -1,0 +1,8 @@
+{
+  "generated_est": "2026-06-09T21:56:25-04:00",
+  "native_replacement": "parallel_env.py run_parallel_env_rollout_proof + configured_parallel_envs guard evidence",
+  "raw_stable_baselines3_subproc_vec_env_runtime_imported": false,
+  "safe_reason": "V2 uses bounded native paper-shadow rollout proof without legacy SubprocVecEnv wrapper",
+  "status": "NATIVE_PARALLEL_ENV_PARITY_READY",
+  "subproc_vec_env_imported": false
+}

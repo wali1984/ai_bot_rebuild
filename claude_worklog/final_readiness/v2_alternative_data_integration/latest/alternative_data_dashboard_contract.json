@@ -1,0 +1,263 @@
+{
+  "schema_version": "v2_alternative_data_dashboard_contract_v1",
+  "purpose": "Top-10 dashboard panel contracts for V2 alternative-data integration. PLAN ONLY; no frontend panel rendering changes shipped in this packet.",
+  "panel_count": 10,
+  "panels": [
+    {
+      "rank": 1,
+      "id": "binance_12h_volume_leaders",
+      "title": "Binance 12h Volume Leaders",
+      "category": "predictive_market_baseline",
+      "v2_source_keys": [
+        "v2:market:prices:{symbol}.ticker_24hr.quoteVolume"
+      ],
+      "required_fields": [
+        "symbol",
+        "quote_volume_12h",
+        "rank",
+        "generated_utc"
+      ],
+      "missing_or_stale_flag_required": true,
+      "credential_in_payload": "NEVER"
+    },
+    {
+      "rank": 2,
+      "id": "binance_12h_most_traded",
+      "title": "Binance 12h Most Traded",
+      "category": "predictive_market_baseline",
+      "v2_source_keys": [
+        "v2:market:prices:{symbol}.ticker_24hr.count"
+      ],
+      "required_fields": [
+        "symbol",
+        "trade_count_12h",
+        "rank",
+        "generated_utc"
+      ],
+      "missing_or_stale_flag_required": true,
+      "credential_in_payload": "NEVER"
+    },
+    {
+      "rank": 3,
+      "id": "binance_12h_volatility_leaders",
+      "title": "Binance 12h Volatility Leaders",
+      "category": "predictive_market_baseline",
+      "v2_source_keys": [
+        "v2:features:latest:{symbol}:1m.features.true_range_pct",
+        "v2:features:latest:{symbol}:1m.features.bb_width_pct"
+      ],
+      "required_fields": [
+        "symbol",
+        "true_range_pct",
+        "bb_width_pct",
+        "volatility_score_12h",
+        "rank",
+        "generated_utc"
+      ],
+      "missing_or_stale_flag_required": true,
+      "credential_in_payload": "NEVER"
+    },
+    {
+      "rank": 4,
+      "id": "futures_liquidation_tape",
+      "title": "Futures Liquidation Tape",
+      "category": "liquidation_wss_existing",
+      "v2_source_keys": [
+        "v2:market:liquidations:heartbeat",
+        "v2:market:liquidations:latest:{symbol}",
+        "v2:market:liquidations:aggregate:{symbol}"
+      ],
+      "required_fields": [
+        "symbol",
+        "latest_notional",
+        "latest_side",
+        "notional_1h",
+        "notional_24h",
+        "direction_bias_1h",
+        "freshness_seconds",
+        "v2_per_symbol_aggregator_present",
+        "generated_utc"
+      ],
+      "missing_or_stale_flag_required": true,
+      "no_synthetic_liquidation_events": true,
+      "credential_in_payload": "NEVER"
+    },
+    {
+      "rank": 5,
+      "id": "funding_open_interest_intelligence",
+      "title": "Funding / Open Interest Intelligence",
+      "category": "coinank_existing",
+      "v2_source_keys": [
+        "v2:market:funding:{symbol}",
+        "v2:market:open_interest:{symbol}",
+        "v2/frontend/public/operator_runtime/coinank_market_intelligence/latest/coinank_market_intelligence_status.json"
+      ],
+      "required_fields": [
+        "symbol",
+        "last_funding_rate",
+        "mark_price",
+        "index_price",
+        "open_interest",
+        "basis_mark_minus_index_pct",
+        "freshness_seconds",
+        "generated_utc"
+      ],
+      "missing_or_stale_flag_required": true,
+      "credential_in_payload": "NEVER"
+    },
+    {
+      "rank": 6,
+      "id": "nansen_smart_money_flow",
+      "title": "Nansen Smart Money Flow",
+      "category": "nansen",
+      "v2_source_keys": [
+        "v2:altdata:nansen:status",
+        "v2:altdata:nansen:symbol:{symbol}"
+      ],
+      "required_fields": [
+        "symbol",
+        "smart_money_net_flow_usd_24h",
+        "smart_money_buy_count_24h",
+        "smart_money_sell_count_24h",
+        "smart_money_score",
+        "freshness_seconds",
+        "missing_flag",
+        "stale_flag",
+        "tier",
+        "rate_limit_state",
+        "daily_request_budget_remaining",
+        "generated_utc"
+      ],
+      "missing_or_stale_flag_required": true,
+      "operator_decision_required_for_any_use": true,
+      "credential_in_payload": "NEVER",
+      "credential_env_var_name_documented_only": "NANSEN_API_KEY"
+    },
+    {
+      "rank": 7,
+      "id": "lunarcrush_social_momentum",
+      "title": "LunarCrush Social Momentum",
+      "category": "lunarcrush",
+      "v2_source_keys": [
+        "v2:altdata:lunarcrush:status",
+        "v2:altdata:lunarcrush:symbol:{symbol}"
+      ],
+      "required_fields": [
+        "symbol",
+        "social_volume_score",
+        "social_sentiment_score",
+        "social_momentum_score",
+        "social_volume_velocity",
+        "freshness_seconds",
+        "missing_flag",
+        "stale_flag",
+        "tier",
+        "rate_limit_state",
+        "daily_request_budget_remaining",
+        "generated_utc"
+      ],
+      "missing_or_stale_flag_required": true,
+      "operator_decision_required_for_any_use": true,
+      "credential_in_payload": "NEVER",
+      "credential_env_var_name_documented_only": "LUNARCRUSH_API_KEY"
+    },
+    {
+      "rank": 8,
+      "id": "arkham_entity_watchlist_future",
+      "title": "Arkham Entity Watchlist Future",
+      "category": "arkham_future",
+      "v2_source_keys": [
+        "v2:altdata:arkham:status"
+      ],
+      "required_fields": [
+        "symbol",
+        "entity_flow_score",
+        "entity_flow_direction",
+        "entity_known_label_present",
+        "freshness_seconds",
+        "missing_flag",
+        "stale_flag",
+        "future_state_marker",
+        "generated_utc"
+      ],
+      "missing_or_stale_flag_required": true,
+      "future_only_no_integration_today": true,
+      "credential_in_payload": "NEVER",
+      "credential_env_var_name_documented_only": "ARKHAM_API_KEY",
+      "credential_absent_until_operator_provides_it": true
+    },
+    {
+      "rank": 9,
+      "id": "v2_symbol_universe_altdata_ranking",
+      "title": "V2 Symbol Universe Alt-Data Ranking",
+      "category": "symbol_universe_integration",
+      "v2_source_keys": [
+        "v2:symbol_universe:altdata_candidates",
+        "v2:altdata:symbol_score:{symbol}"
+      ],
+      "required_fields": [
+        "schema_version",
+        "generated_utc",
+        "candidate_symbol_list",
+        "candidate_count",
+        "altdata_symbol_score_per_candidate",
+        "altdata_symbol_rank_per_candidate",
+        "providers_consulted_per_candidate",
+        "missing_signal_per_candidate",
+        "stale_signal_per_candidate",
+        "live_symbols_continued"
+      ],
+      "missing_or_stale_flag_required": true,
+      "live_symbols_must_remain_empty": true,
+      "credential_in_payload": "NEVER"
+    },
+    {
+      "rank": 10,
+      "id": "v2_trainer_risk_decision_overlay",
+      "title": "V2 Trainer / Risk Decision Overlay",
+      "category": "trainer_risk_orchestrator_overlay",
+      "v2_source_keys": [
+        "v2:prediction:{symbol}:{timeframe}",
+        "v2:risk:decisions",
+        "v2:orchestrator:decisions",
+        "v2:altdata:symbol_score:{symbol}"
+      ],
+      "required_fields": [
+        "symbol",
+        "trainer_selected_action",
+        "trainer_confidence_calibrated",
+        "paper_fill_allowed",
+        "paper_fill_gate_block_reasons",
+        "risk_pre_trade_allowed",
+        "risk_fee_gate_allowed",
+        "risk_churn_blocked",
+        "altdata_symbol_score",
+        "altdata_freshness_score",
+        "decision_modifier_applied",
+        "generated_utc"
+      ],
+      "missing_or_stale_flag_required": true,
+      "altdata_may_not_override_strict_paper_fill_gate": true,
+      "altdata_may_not_authorize_live_or_canary": true,
+      "altdata_may_not_place_orders": true,
+      "credential_in_payload": "NEVER"
+    }
+  ],
+  "dashboard_safety_invariants": {
+    "no_raw_credentials_in_any_panel_payload": true,
+    "missing_or_stale_flags_required_on_every_panel": true,
+    "live_symbols_must_remain_empty": true,
+    "live_gate": "blocked_human_only",
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false
+  },
+  "implementation_state": "PLAN_ONLY_NO_PANEL_RENDERING_IMPLEMENTED_HERE",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false
+}

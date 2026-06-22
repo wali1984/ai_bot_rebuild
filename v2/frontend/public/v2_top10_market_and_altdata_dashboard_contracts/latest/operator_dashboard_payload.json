@@ -1,0 +1,335 @@
+{
+  "alternative_data_dashboards_enabled": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "dashboard_count": 10,
+  "dashboard_ids": [
+    "binance_spot_12h_volume_leaders",
+    "binance_futures_12h_volume_leaders",
+    "binance_spot_12h_most_traded",
+    "binance_futures_12h_most_traded",
+    "binance_spot_12h_volatility_leaders",
+    "binance_futures_12h_volatility_leaders",
+    "liquidation_tape_top_symbols",
+    "funding_oi_movers",
+    "nansen_smart_money_top_symbols",
+    "lunarcrush_social_momentum_top_symbols"
+  ],
+  "dashboards": [
+    {
+      "category": "binance_market",
+      "credential_required": false,
+      "data_source_rule": "Use Binance rolling-window stats when present; otherwise use locally computed 12h windows from V2 market data.",
+      "empty_until_runtime_source_available": false,
+      "enabled": true,
+      "id": "binance_spot_12h_volume_leaders",
+      "market_type": "spot",
+      "missing_source_state": "MISSING_SOURCE",
+      "primary_v2_sources": [
+        "v2:market:binance:spot:rolling_12h:{symbol}",
+        "v2:market:prices:{symbol}",
+        "v2:features:latest:{symbol}:1m"
+      ],
+      "rank": 1,
+      "ranking_metric": "quote_volume_12h",
+      "raw_credentials_allowed": false,
+      "required_fields": [
+        "symbol",
+        "rank",
+        "generated_utc",
+        "window_seconds",
+        "source_freshness_seconds",
+        "missing_source",
+        "stale_flag",
+        "quote_volume_12h",
+        "base_volume_12h"
+      ],
+      "title": "Binance Spot 12h Volume Leaders"
+    },
+    {
+      "category": "binance_market",
+      "credential_required": false,
+      "data_source_rule": "Use Binance rolling-window stats when present; otherwise use locally computed 12h windows from V2 market data.",
+      "empty_until_runtime_source_available": false,
+      "enabled": true,
+      "id": "binance_futures_12h_volume_leaders",
+      "market_type": "futures",
+      "missing_source_state": "MISSING_SOURCE",
+      "primary_v2_sources": [
+        "v2:market:binance:futures:rolling_12h:{symbol}",
+        "v2:market:prices:{symbol}",
+        "v2:features:latest:{symbol}:1m"
+      ],
+      "rank": 2,
+      "ranking_metric": "quote_volume_12h",
+      "raw_credentials_allowed": false,
+      "required_fields": [
+        "symbol",
+        "rank",
+        "generated_utc",
+        "window_seconds",
+        "source_freshness_seconds",
+        "missing_source",
+        "stale_flag",
+        "quote_volume_12h",
+        "contract_volume_12h"
+      ],
+      "title": "Binance Futures 12h Volume Leaders"
+    },
+    {
+      "category": "binance_market",
+      "credential_required": false,
+      "data_source_rule": "Use Binance rolling-window stats when present; otherwise use locally computed 12h windows from V2 market data.",
+      "empty_until_runtime_source_available": false,
+      "enabled": true,
+      "id": "binance_spot_12h_most_traded",
+      "market_type": "spot",
+      "missing_source_state": "MISSING_SOURCE",
+      "primary_v2_sources": [
+        "v2:market:binance:spot:rolling_12h:{symbol}",
+        "v2:market:prices:{symbol}",
+        "v2:features:latest:{symbol}:1m"
+      ],
+      "rank": 3,
+      "ranking_metric": "trade_count_12h",
+      "raw_credentials_allowed": false,
+      "required_fields": [
+        "symbol",
+        "rank",
+        "generated_utc",
+        "window_seconds",
+        "source_freshness_seconds",
+        "missing_source",
+        "stale_flag",
+        "trade_count_12h"
+      ],
+      "title": "Binance Spot 12h Most Traded"
+    },
+    {
+      "category": "binance_market",
+      "credential_required": false,
+      "data_source_rule": "Use Binance rolling-window stats when present; otherwise use locally computed 12h windows from V2 market data.",
+      "empty_until_runtime_source_available": false,
+      "enabled": true,
+      "id": "binance_futures_12h_most_traded",
+      "market_type": "futures",
+      "missing_source_state": "MISSING_SOURCE",
+      "primary_v2_sources": [
+        "v2:market:binance:futures:rolling_12h:{symbol}",
+        "v2:market:prices:{symbol}",
+        "v2:features:latest:{symbol}:1m"
+      ],
+      "rank": 4,
+      "ranking_metric": "trade_count_12h",
+      "raw_credentials_allowed": false,
+      "required_fields": [
+        "symbol",
+        "rank",
+        "generated_utc",
+        "window_seconds",
+        "source_freshness_seconds",
+        "missing_source",
+        "stale_flag",
+        "trade_count_12h"
+      ],
+      "title": "Binance Futures 12h Most Traded"
+    },
+    {
+      "category": "binance_market",
+      "credential_required": false,
+      "data_source_rule": "Use Binance rolling-window stats when present; otherwise use locally computed 12h windows from V2 market data.",
+      "empty_until_runtime_source_available": false,
+      "enabled": true,
+      "id": "binance_spot_12h_volatility_leaders",
+      "market_type": "spot",
+      "missing_source_state": "MISSING_SOURCE",
+      "primary_v2_sources": [
+        "v2:market:binance:spot:rolling_12h:{symbol}",
+        "v2:market:prices:{symbol}",
+        "v2:features:latest:{symbol}:1m"
+      ],
+      "rank": 5,
+      "ranking_metric": "volatility_score_12h",
+      "raw_credentials_allowed": false,
+      "required_fields": [
+        "symbol",
+        "rank",
+        "generated_utc",
+        "window_seconds",
+        "source_freshness_seconds",
+        "missing_source",
+        "stale_flag",
+        "true_range_pct_12h",
+        "volatility_score_12h"
+      ],
+      "title": "Binance Spot 12h Volatility Leaders"
+    },
+    {
+      "category": "binance_market",
+      "credential_required": false,
+      "data_source_rule": "Use Binance rolling-window stats when present; otherwise use locally computed 12h windows from V2 market data.",
+      "empty_until_runtime_source_available": false,
+      "enabled": true,
+      "id": "binance_futures_12h_volatility_leaders",
+      "market_type": "futures",
+      "missing_source_state": "MISSING_SOURCE",
+      "primary_v2_sources": [
+        "v2:market:binance:futures:rolling_12h:{symbol}",
+        "v2:market:prices:{symbol}",
+        "v2:features:latest:{symbol}:1m"
+      ],
+      "rank": 6,
+      "ranking_metric": "volatility_score_12h",
+      "raw_credentials_allowed": false,
+      "required_fields": [
+        "symbol",
+        "rank",
+        "generated_utc",
+        "window_seconds",
+        "source_freshness_seconds",
+        "missing_source",
+        "stale_flag",
+        "true_range_pct_12h",
+        "volatility_score_12h"
+      ],
+      "title": "Binance Futures 12h Volatility Leaders"
+    },
+    {
+      "category": "liquidation_wss_existing",
+      "credential_required": false,
+      "data_source_rule": "Use V2 liquidation WSS aggregates only; never synthesize liquidation events.",
+      "enabled": true,
+      "id": "liquidation_tape_top_symbols",
+      "missing_source_state": "MISSING_SOURCE",
+      "no_synthetic_liquidation_events": true,
+      "primary_v2_sources": [
+        "v2:market:liquidations:heartbeat",
+        "v2:market:liquidations:latest:{symbol}",
+        "v2:market:liquidations:aggregate:{symbol}"
+      ],
+      "rank": 7,
+      "raw_credentials_allowed": false,
+      "required_fields": [
+        "symbol",
+        "rank",
+        "latest_notional",
+        "latest_side",
+        "notional_1h",
+        "notional_24h",
+        "direction_bias_1h",
+        "missing_source",
+        "stale_flag",
+        "generated_utc"
+      ],
+      "title": "Liquidation Tape Top Symbols"
+    },
+    {
+      "category": "coinank_existing",
+      "credential_required": false,
+      "data_source_rule": "Use V2-native CoinAnk/funding/open-interest payloads only.",
+      "enabled": true,
+      "id": "funding_oi_movers",
+      "missing_source_state": "MISSING_SOURCE",
+      "primary_v2_sources": [
+        "v2:market:funding:{symbol}",
+        "v2:market:open_interest:{symbol}",
+        "v2/frontend/public/operator_runtime/coinank_market_intelligence/latest/coinank_market_intelligence_status.json"
+      ],
+      "rank": 8,
+      "raw_credentials_allowed": false,
+      "required_fields": [
+        "symbol",
+        "rank",
+        "funding_rate",
+        "open_interest",
+        "open_interest_change_12h",
+        "funding_change_12h",
+        "missing_source",
+        "stale_flag",
+        "generated_utc"
+      ],
+      "title": "Funding/OI Movers"
+    },
+    {
+      "category": "alternative_data",
+      "credential_env_var_name_documented_only": "NANSEN_API_KEY",
+      "credential_value": "NEVER",
+      "disabled_reason": "KEY_PRESENT_NO_CLIENT_YET",
+      "empty_until_provider_client_codex_pass": true,
+      "enabled": false,
+      "id": "nansen_smart_money_top_symbols",
+      "may_not_authorize_live_or_canary": true,
+      "may_not_override_strict_paper_fill_gate": true,
+      "may_not_place_orders": true,
+      "paper_shadow_only": true,
+      "primary_v2_sources": [
+        "v2:altdata:nansen:status",
+        "v2:altdata:nansen:symbol:{symbol}"
+      ],
+      "provider_client_codex_pass_required": true,
+      "provider_id": "nansen",
+      "provider_key_present": true,
+      "rank": 9,
+      "raw_credentials_allowed": false,
+      "required_fields": [
+        "symbol",
+        "rank",
+        "generated_utc",
+        "missing_source",
+        "stale_flag",
+        "provider_key_present",
+        "provider_client_status",
+        "daily_request_budget_remaining",
+        "tier"
+      ],
+      "title": "Nansen Smart Money Top Symbols"
+    },
+    {
+      "category": "alternative_data",
+      "credential_env_var_name_documented_only": "LUNARCRUSH_API_KEY",
+      "credential_value": "NEVER",
+      "disabled_reason": "KEY_PRESENT_NO_CLIENT_YET",
+      "empty_until_provider_client_codex_pass": true,
+      "enabled": false,
+      "id": "lunarcrush_social_momentum_top_symbols",
+      "may_not_authorize_live_or_canary": true,
+      "may_not_override_strict_paper_fill_gate": true,
+      "may_not_place_orders": true,
+      "paper_shadow_only": true,
+      "primary_v2_sources": [
+        "v2:altdata:lunarcrush:status",
+        "v2:altdata:lunarcrush:symbol:{symbol}"
+      ],
+      "provider_client_codex_pass_required": true,
+      "provider_id": "lunarcrush",
+      "provider_key_present": true,
+      "rank": 10,
+      "raw_credentials_allowed": false,
+      "required_fields": [
+        "symbol",
+        "rank",
+        "generated_utc",
+        "missing_source",
+        "stale_flag",
+        "provider_key_present",
+        "provider_client_status",
+        "daily_request_budget_remaining",
+        "tier"
+      ],
+      "title": "LunarCrush Social Momentum Top Symbols"
+    }
+  ],
+  "exchange_mutation": false,
+  "generated_utc": "2026-05-18T01:31:40Z",
+  "go_no_go": "V2_TOP10_MARKET_AND_ALTDATA_DASHBOARD_CONTRACTS_READY",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "paid_tier_enabled": false,
+  "provider_clients_implemented": false,
+  "provider_network_calls_attempted": false,
+  "raw_values_exposed": false,
+  "schema_version": "v2_top10_market_and_altdata_dashboard_payload_v1",
+  "writes_old_redis": false
+}

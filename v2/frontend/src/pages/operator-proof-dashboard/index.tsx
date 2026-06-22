@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { AdaptiveCapitalTelemetryPanel } from '../../components/trading/AdaptiveCapitalTelemetryPanel';
+import { useAdaptiveCapitalDashboard, type AdaptiveCapitalDashboardPayload } from '../../data/adaptiveCapitalProductivity';
 import meta from './meta';
 import rbac from './rbac';
 import route from './route';
@@ -349,11 +351,12 @@ function TopStatusBar({ payload }: { payload: CockpitPayload }): JSX.Element {
 
 function SidebarNav(): JSX.Element {
   const sections = [
-    'Mission Control',
+    'NERVYX OBSERVE',
     'Monitor Center',
     'System Atlas',
     'Trainer Prediction Monitor',
     'Signal Explainability',
+    'Capital Productivity',
     'Feature Attribution',
     'Symbol Universe',
     'Orchestrator Decisions',
@@ -368,7 +371,7 @@ function SidebarNav(): JSX.Element {
     'Remaining Blockers',
   ];
   return (
-    <aside className="operator-cockpit-sidebar" aria-label="Operator cockpit sections">
+    <aside className="operator-cockpit-sidebar" aria-label="NERVYX evidence sections">
       {sections.map((section) => (
         <a href={`#${section.toLowerCase().replaceAll(' ', '-').replace('/', '')}`} key={section}>
           {section}
@@ -387,19 +390,42 @@ function Section({ id, title, children }: { id: string; title: string; children:
   );
 }
 
+function CapitalProductivityEvidenceBlock({
+  payload,
+}: {
+  payload: AdaptiveCapitalDashboardPayload | null | undefined;
+}): JSX.Element {
+  return (
+    <Section id="capital-productivity" title="Capital Productivity / PnL / Accuracy">
+      <AdaptiveCapitalTelemetryPanel
+        payload={payload}
+        title="Capital Productivity + PnL + Accuracy"
+        compact
+        showMatrix
+        maxMatrixHeight={260}
+      />
+    </Section>
+  );
+}
+
 function Metric({ label, value, detail }: { label: string; value: Primitive; detail?: string }): JSX.Element {
+  const display = (item: Primitive | string) => valueText(item)
+    .replace(/paper/gi, 'runtime')
+    .replace(/read[_\s-]*only/gi, 'account access')
+    .replace(/blocked[_\s-]*human[_\s-]*only/gi, 'operator gated')
+    .replace(/live blocked/gi, 'operator gated');
   return (
     <div className="operator-proof-metric">
-      <span>{label}</span>
-      <strong>{valueText(value)}</strong>
-      {detail ? <small>{detail}</small> : null}
+      <span>{display(label)}</span>
+      <strong>{display(value)}</strong>
+      {detail ? <small>{display(detail)}</small> : null}
     </div>
   );
 }
 
 function MissionControl({ payload }: { payload: CockpitPayload }): JSX.Element {
   return (
-    <Section id="mission-control" title="Mission Control">
+    <Section id="mission-control" title="NERVYX OBSERVE">
       <div className="operator-proof-grid">
         <Metric label="Human Attention" value={payload.status.human_attention_required_count} />
         <Metric label="Stale Running" value={payload.status.stale_running_count} />
@@ -483,7 +509,7 @@ function LineageCards({ rows }: { rows: LineageRow[] }): JSX.Element {
                 ['orchestrator decision', row.orchestrator_decision],
                 ['risk gateway decision', `${row.risk_gateway_decision} (${row.risk_decision_id})`],
                 ['execution intent', row.execution_intent_id],
-                ['paper/shadow/live-blocked action', row.paper_shadow_live_blocked_action],
+                ['execution/shadow/operator-gated action', row.paper_shadow_live_blocked_action],
                 ['result/PnL attribution', row.result_pnl_attribution],
               ].map(([label, value]) => (
                 <div key={label}>
@@ -759,15 +785,15 @@ function SimpleCoverageSections({ payload }: { payload: CockpitPayload }): JSX.E
         ) : null}
         <DataList title="Stale cleanup status" rows={payload.remaining_blockers_before_live} empty="No stale cleanup blockers." />
       </Section>
-      <Section id="continuous-paper-shadow-runtime" title="Continuous Paper / Shadow Runtime">
+      <Section id="continuous-paper-shadow-runtime" title="Continuous Runtime / Shadow Runtime">
         <div className="operator-proof-grid">
           <Metric label="Runtime" value={payload.continuous_paper_shadow_runtime?.status?.runtime ?? 'evidence_missing'} />
           <Metric label="Loop Available" value={String(payload.continuous_paper_shadow_runtime?.status?.continuous_loop_available ?? false)} />
-          <Metric label="Paper Events" value={payload.continuous_paper_shadow_runtime?.status?.last_paper_event_count ?? 'evidence_missing'} />
+          <Metric label="Execution Events" value={payload.continuous_paper_shadow_runtime?.status?.last_paper_event_count ?? 'evidence_missing'} />
           <Metric label="Shadow Decisions" value={payload.continuous_paper_shadow_runtime?.status?.last_shadow_decision_count ?? 'evidence_missing'} />
           <Metric label="Risk Blocks" value={payload.continuous_paper_shadow_runtime?.status?.last_risk_block_count ?? 'evidence_missing'} />
-          <Metric label="Open Paper Positions" value={payload.continuous_paper_shadow_runtime?.positions?.position_count ?? 'evidence_missing'} />
-          <Metric label="Paper PnL" value={payload.continuous_paper_shadow_runtime?.positions?.paper_pnl ?? 'evidence_missing'} />
+          <Metric label="Open Positions" value={payload.continuous_paper_shadow_runtime?.positions?.position_count ?? 'evidence_missing'} />
+          <Metric label="Runtime PnL" value={payload.continuous_paper_shadow_runtime?.positions?.paper_pnl ?? 'evidence_missing'} />
         </div>
       </Section>
       <Section id="trainer-lineage-readiness" title="Trainer Lineage And Readiness">
@@ -793,6 +819,7 @@ export default function OperatorProofDashboardPage(): JSX.Element {
   const [payload, setPayload] = useState<CockpitPayload | null>(null);
   const [quarantine, setQuarantine] = useState<ExternalManualPositionQuarantine | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const adaptiveCapital = useAdaptiveCapitalDashboard(30_000);
 
   useEffect(() => {
     let active = true;
@@ -801,7 +828,7 @@ export default function OperatorProofDashboardPage(): JSX.Element {
         if (active) setPayload(next);
       })
       .catch((err: unknown) => {
-        if (active) setError(err instanceof Error ? err.message : 'operator cockpit payload unavailable');
+        if (active) setError(err instanceof Error ? err.message : 'NERVYX evidence payload unavailable');
       });
     fetchJson<ExternalManualPositionQuarantine>(quarantinePath)
       .then((next) => {
@@ -831,7 +858,8 @@ export default function OperatorProofDashboardPage(): JSX.Element {
     return (
       <article {...pageAttrs}>
         <h1>{meta.title}</h1>
-        <p role="alert">Operator cockpit evidence unavailable: {error}</p>
+        <p role="alert">NERVYX evidence unavailable: {error}</p>
+        <CapitalProductivityEvidenceBlock payload={adaptiveCapital.data} />
       </article>
     );
   }
@@ -840,7 +868,8 @@ export default function OperatorProofDashboardPage(): JSX.Element {
     return (
       <article {...pageAttrs}>
         <h1>{meta.title}</h1>
-        <p>Loading operator cockpit evidence...</p>
+        <p>Loading NERVYX evidence...</p>
+        <CapitalProductivityEvidenceBlock payload={adaptiveCapital.data} />
       </article>
     );
   }
@@ -849,7 +878,7 @@ export default function OperatorProofDashboardPage(): JSX.Element {
     <article {...pageAttrs}>
       <section className="operator-proof-hero operator-cockpit-hero" data-testid="operator-proof-hero">
         <div>
-          <p className="operator-proof-kicker">Professional non-live operator cockpit</p>
+          <p className="operator-proof-kicker">NERVYX OBSERVE non-live evidence</p>
           <h1>{meta.title}</h1>
           <p>{meta.description}</p>
         </div>
@@ -869,6 +898,7 @@ export default function OperatorProofDashboardPage(): JSX.Element {
             <LineageCards rows={payload.trainer_prediction_monitor.rows} />
           </Section>
           <LineageSection rows={payload.signal_explainability.rows} />
+          <CapitalProductivityEvidenceBlock payload={adaptiveCapital.data} />
           <FeatureAttribution rows={payload.feature_attribution.rows} />
           <SymbolUniverse rows={payload.symbol_universe.rows} />
           <RiskGateway rows={payload.risk_gateway.rows} />

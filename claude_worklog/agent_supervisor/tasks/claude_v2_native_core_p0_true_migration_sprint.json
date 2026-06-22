@@ -1,0 +1,48 @@
+{
+  "agent": "claude",
+  "allowed_paths": [
+    "v2/**",
+    "claude_worklog/**",
+    "requirements/**"
+  ],
+  "completed_at": "2026-05-15T23:16:38.502002+00:00",
+  "forbidden": [
+    "modify_/home/wali/Desktop/AI BOT",
+    "old_redis_write",
+    "exchange_order_place_cancel_modify",
+    "leverage_change",
+    "margin_mode_change",
+    "live_enable",
+    "final_approval_token_creation",
+    "redis_trim_approval_creation",
+    "derived_evidence_mislabeled_native",
+    "bridge_only_marked_migrated",
+    "wrapper_only_marked_full_parity",
+    "legacy_behavior_dropped_silently",
+    "missing_sha256_citation_from_full_runtime_manifest",
+    "smoke_tests_only"
+  ],
+  "lane": "native_core_p0_true_migration",
+  "live_gate": "blocked_human_only",
+  "managed_by": "codex_native_core_p0_true_migration_governor",
+  "max_attempts": 1,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "prompt": "Implement V2_NATIVE_CORE_P0_TRUE_MIGRATION_SPRINT_READY. The latest audits and Codex review proved that V2 is mostly infrastructure/control-plane and does not yet contain the native algorithmic trading core. Stop treating PAPER_EDGE_UNPROVEN as the only top blocker; paper edge is a symptom of missing native core. Hard constraints: work only inside AI BOT REBUILD; do not modify /home/wali/Desktop/AI BOT; do not write old Redis; do not place/cancel/modify exchange orders; do not change leverage or margin mode; do not enable live; do not create approval tokens; live_gate remains blocked_human_only; live_symbols remains []. All new behavior is paper/shadow only. P0.1 native feature pipeline: build v2/backend/app/services/feature_pipeline_native/service.py and v2/backend/app/cli/v2_feature_pipeline_native.py from preserved feature_pipeline.py behavior, cite SHA256 from full_runtime_copied_source_manifest.json, produce v2_feature_pipeline_native_status.json, and tests proving V2 computes features rather than only reading legacy Redis. P0.2 native RL/MASA/PPO/reward stack: build v2/backend/app/services/rl_core/ and v2/backend/app/cli/v2_rl_core_worker.py; port rl/environment.py, rl/gymnasium_wrapper.py, rl/obs_schema.py, rl/unified_feature_builder.py, rl/agents/masa_agent.py, rl/enhanced_architectures.py, rl/gpu_cnn_policy.py, rl/reward_functions.py, rl/constrained_reward.py, rl/fee_ratio_reward_shaping.py, rl/hedge_reward_functions.py; milestones are environment+observation tensor, reward suite, MASA policy forward-pass parity, tiny CPU training loop, GPU parity when stable. P0.3 native orchestrator arbitration: build v2/backend/app/services/orchestrator_arbitration/ and v2/backend/app/cli/v2_orchestrator_arbitration_worker.py; decompose legacy rl/orchestrator_worker.py and port proposal scoring, regime filtering, signal routing, deconflict, shadow mode, stale/duplicate handling; decision schema alone is not arbitration. P0.4 paper-first trade-management engine: build v2/backend/app/services/trade_management_paper/ and v2/backend/app/cli/v2_trade_management_paper_worker.py; port paper equivalents of stealth_stops.py, dynamic_adaptive_stops.py, dynamic_tp_engine.py, stealth_dynamic_integration.py, exit_coordinator.py, churn_prevention.py, and hedge/DCA fail-closed behavior. P0.5 native ingestor verification: prove for each ingestor whether V2 opens its own WebSocket/REST source or only reads legacy Redis; downgrade bridge-only workers to READONLY_BRIDGED; build native V2 ingestors where feasible. For every subproject create LEGACY_BASELINE_ANALYSIS.md, legacy_behavior_mapping.json, SHA256 citations, dependency closure, config/env mapping, V2 implementation, integration tests, public payload, and Codex review task. GO/NO-GO must be V2_NATIVE_CORE_P0_TRUE_MIGRATION_SPRINT_READY or V2_NATIVE_CORE_P0_TRUE_MIGRATION_SPRINT_BLOCKED. Never claim live/canary/shutdown readiness.",
+  "reconciled_from_source_truth_at": "2026-05-26T17:49:17Z",
+  "required_output_files": [
+    "claude_worklog/final_readiness/v2_native_core_p0_true_migration_sprint/latest/V2_NATIVE_CORE_P0_TRUE_MIGRATION_SPRINT_REPORT.md",
+    "claude_worklog/final_readiness/v2_native_core_p0_true_migration_sprint/latest/native_core_p0_true_migration_sprint_status.json",
+    "claude_worklog/final_readiness/v2_native_core_p0_true_migration_sprint/latest/GO_NO_GO.md",
+    "v2/frontend/public/v2_native_core_p0_true_migration_sprint/latest/operator_dashboard_payload.json"
+  ],
+  "resolved_from_source_truth": true,
+  "risk_level": "L3",
+  "source_truth_completed_at": "2026-05-15T23:16:38.502002+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/claude_v2_native_core_p0_true_migration_sprint.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "claude_v2_native_core_p0_true_migration_sprint",
+  "task_timeout_seconds": 28800,
+  "updated_at": "2026-05-26T17:49:17Z"
+}

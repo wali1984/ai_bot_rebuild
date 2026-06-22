@@ -1,0 +1,175 @@
+{
+  "audit_utc": "2026-06-19T00:15:00Z",
+  "total_findings": 15,
+  "critical": 3,
+  "high": 5,
+  "medium": 5,
+  "informational": 2,
+  "findings": [
+    {
+      "id": "F01",
+      "severity": "CRITICAL",
+      "category": "Model",
+      "title": "PPO model exclusively outputs SHORT action",
+      "claim": "action_probabilities[1] (LONG) is near 0 for all sampled predictions. 645/645 executed trades are SHORT.",
+      "raw_evidence": "redis-cli get v2:prediction:LITUSDT:15m => action_probabilities=[2.42e-7, 1.40e-7, 0.9999996]; 645/645 closed trades action='short'",
+      "confidence": "HIGH",
+      "verified": true,
+      "blocker": true
+    },
+    {
+      "id": "F02",
+      "severity": "CRITICAL",
+      "category": "Exit",
+      "title": "Trailing stop is dominant loss driver (89.9% loss rate)",
+      "claim": "395 TS exits (61.2%), WR=10.1%, total_pnl=-$135.97. TS fires prematurely due to tight stop distance.",
+      "raw_evidence": "Computed from 645 closed trades: ts_count=395, ts_wins=40, ts_losses=355",
+      "confidence": "HIGH",
+      "verified": true,
+      "blocker": true
+    },
+    {
+      "id": "F03",
+      "severity": "CRITICAL",
+      "category": "Accounting",
+      "title": "Portfolio equity does not include $22.23 realized PnL from closed trades",
+      "claim": "v2:portfolio:state.realized_pnl_usd=0.0 despite $22.23 net realized from 645 closed trades",
+      "raw_evidence": "redis-cli get v2:portfolio:state | jq .realized_pnl_usd => 0.0; sum(closed_trades.realized_pnl_usd) => 22.23",
+      "confidence": "HIGH",
+      "verified": true,
+      "blocker": true
+    },
+    {
+      "id": "F04",
+      "severity": "HIGH",
+      "category": "Feature",
+      "title": "squeeze_evidence_score null on 100% of trades",
+      "claim": "No squeeze detection active. High-volume reversals, liquidation cascades enter without filter.",
+      "raw_evidence": "645/645 rows: squeeze_evidence_score=None",
+      "confidence": "HIGH",
+      "verified": true,
+      "blocker": true
+    },
+    {
+      "id": "F05",
+      "severity": "HIGH",
+      "category": "Risk",
+      "title": "bid_ask_spread_bps constant at 2.0 bps \u2014 not market-observed",
+      "claim": "Spread constant means low-liquidity symbols (NIGHTUSDT, PUMPUSDT) receive same treatment as BTC. Router's 12-bps threshold never triggers.",
+      "raw_evidence": "645/645 microstructure_context.bid_ask_spread_bps=2.0",
+      "confidence": "HIGH",
+      "verified": true,
+      "blocker": true
+    },
+    {
+      "id": "F06",
+      "severity": "HIGH",
+      "category": "Risk",
+      "title": "drawdown_at_entry always 0.0 \u2014 drawdown risk guard non-functional",
+      "claim": "Drawdown guard code exists in strategy router but is unreachable because the tracker never reports non-zero drawdown.",
+      "raw_evidence": "645/645 rows: drawdown_at_entry=0.0; strategy_router/service.py:405-410 thresholds configured but never triggered",
+      "confidence": "HIGH",
+      "verified": true,
+      "blocker": true
+    },
+    {
+      "id": "F07",
+      "severity": "HIGH",
+      "category": "Performance",
+      "title": "5m and 4h timeframes structurally net-negative across 645-trade soak",
+      "claim": "5m: -$10.15, 4h: -$3.65. Both negative since soak inception. Not a transient effect.",
+      "raw_evidence": "Computed from all 645 trades: tf_pnl[5m]=-10.15, tf_pnl[4h]=-3.65",
+      "confidence": "HIGH",
+      "verified": true,
+      "blocker": true
+    },
+    {
+      "id": "F08",
+      "severity": "HIGH",
+      "category": "Performance",
+      "title": "Global WR 30.39% is below 35% gate threshold",
+      "claim": "After 645 trades, WR has not recovered to 35%. WR was 29.56% at 504 trades, now 30.39% \u2014 marginal improvement.",
+      "raw_evidence": "wins=196, total=645, wr=0.3039",
+      "confidence": "HIGH",
+      "verified": true,
+      "blocker": true
+    },
+    {
+      "id": "F09",
+      "severity": "MEDIUM",
+      "category": "Model",
+      "title": "trend_mode captures 91.5% of trades due to PPO/MASA short-direction alignment",
+      "claim": "Strategy router assigns trend_mode when higher_direction==action. Since PPO always outputs short and MASA tends to agree, trend_mode fires on almost every trade.",
+      "raw_evidence": "590/645 trades strategy_selected_mode='trend_mode'",
+      "confidence": "HIGH",
+      "verified": true,
+      "blocker": false
+    },
+    {
+      "id": "F10",
+      "severity": "MEDIUM",
+      "category": "Risk",
+      "title": "Zero-WR symbols still receiving allocations",
+      "claim": "NIGHTUSDT (0/5, -$5.64), TIAUSDT (0/3, -$2.85), TRUMPUSDT (0/3, -$2.21), PUMPUSDT (0/3, -$2.53) have persistent zero win rates.",
+      "raw_evidence": "Per-symbol aggregates from 645 closed trades",
+      "confidence": "HIGH",
+      "verified": true,
+      "blocker": false
+    },
+    {
+      "id": "F11",
+      "severity": "MEDIUM",
+      "category": "Feature",
+      "title": "Slippage is simulated at fees/2 \u2014 not market-observed",
+      "claim": "For all sampled trades: slippage = fees \u00d7 0.5 exactly. This is a simulation constant, not real market microstructure data.",
+      "raw_evidence": "Sample: fees=0.0466, slip=0.0233 \u2192 slip/fees=0.500; pattern repeats across 5 samples",
+      "confidence": "MEDIUM",
+      "verified": true,
+      "blocker": false
+    },
+    {
+      "id": "F12",
+      "severity": "MEDIUM",
+      "category": "Risk",
+      "title": "LONG paper trade path is entirely untested code",
+      "claim": "Entry gate, trailing stop, profit bank, and close logic for LONG positions have zero coverage in closed trade record.",
+      "raw_evidence": "0 LONG trades in 645-trade ledger",
+      "confidence": "HIGH",
+      "verified": true,
+      "blocker": true
+    },
+    {
+      "id": "F13",
+      "severity": "MEDIUM",
+      "category": "Feature",
+      "title": "No MFE/MAE stored per trade \u2014 counterfactual analysis limited",
+      "claim": "Optimal trailing stop distance cannot be computed without intra-trade high/low. Cannot determine if wider stop would convert TS-losses to TP-wins.",
+      "raw_evidence": "No mfe_usd, mae_usd, intra_trade_high, intra_trade_low fields in closed trade records",
+      "confidence": "HIGH",
+      "verified": true,
+      "blocker": false
+    },
+    {
+      "id": "F14",
+      "severity": "INFORMATIONAL",
+      "category": "Performance",
+      "title": "TIER_4_MAX_HOLD_TIME exits are most profitable (avg +$3.47 per trade)",
+      "claim": "3 max-hold-time exits average +$3.47 each. Suggests letting positions run longer may benefit some symbols.",
+      "raw_evidence": "TIER_4_MAX_HOLD_TIME: count=3, total_pnl=+$10.39, avg=+$3.47",
+      "confidence": "HIGH",
+      "verified": true,
+      "blocker": false
+    },
+    {
+      "id": "F15",
+      "severity": "INFORMATIONAL",
+      "category": "Performance",
+      "title": "AEROUSDT, ESPORTSUSDT, BNBUSDT, BSBUSDT are reliable positive performers",
+      "claim": "Combined: AEROUSDT +$8.55 (39% WR, 18 trades), ESPORTSUSDT +$7.24 (48% WR, 40 trades), BNBUSDT +$7.39 (67% WR, 3 trades), BSBUSDT +$8.04 (41% WR, 22 trades).",
+      "raw_evidence": "Per-symbol aggregates from 645 closed trades",
+      "confidence": "HIGH",
+      "verified": true,
+      "blocker": false
+    }
+  ]
+}

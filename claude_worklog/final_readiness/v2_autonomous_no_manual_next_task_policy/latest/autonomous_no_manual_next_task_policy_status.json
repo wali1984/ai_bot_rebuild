@@ -1,0 +1,164 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "automatable_now_count": 2,
+  "blockers": [
+    "ELIGIBLE_AUTOMATABLE_WORK_NOT_LEASED_BY_IDLE_WORKERS",
+    "PROTECTED_AUTOMATION_UNIT_NOT_ACTIVE"
+  ],
+  "calls_exchange_mutation": false,
+  "checkpoint_deserialization_requires_operator_approval": true,
+  "classification_counts": {
+    "AUTOMATABLE_NOW": 2,
+    "EVENT_DEPENDENT": 2,
+    "EXTERNAL_SOURCE_REQUIRED": 2,
+    "OPERATOR_DECISION_REQUIRED": 17,
+    "POSITION_DEPENDENT": 0,
+    "UNSAFE_TO_AUTOMATE": 1
+  },
+  "creates_approval_tokens": false,
+  "descriptor_only_progress_counted": false,
+  "generated_utc": "2026-06-22T00:28:53.696702Z",
+  "go_no_go": "V2_AUTONOMOUS_NO_MANUAL_NEXT_TASK_POLICY_BLOCKED",
+  "lane_id": "v2_autonomous_no_manual_next_task_policy",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "mission_categories_supported": [
+    "runtime stability",
+    "observation completeness",
+    "model/policy readiness",
+    "checkpoint readiness",
+    "decision match",
+    "paper edge",
+    "risk control",
+    "symbol selection",
+    "live-readiness gate"
+  ],
+  "next_automatic_action": {
+    "allowed_classification": true,
+    "classification": "AUTOMATABLE_NOW",
+    "classification_protocol": "AUTOMATABLE_NOW",
+    "classification_reason": "CURRENT_BLOCKING_WORK_IS_SAFE_TO_AUTOMATE",
+    "current_blockers": [],
+    "mission_category": "runtime_stability",
+    "next_action": null,
+    "owner": "CODEX",
+    "report_id": "codex_24h_parallel_recovery_war_room_governor",
+    "source": "top_blockers",
+    "source_key": "top_blockers_codex_24h_parallel_recovery_war_room_governor_blocked_codex_24h_parallel_recovery_w",
+    "status": "BLOCKED",
+    "title": "Codex 24H Parallel Recovery War-Room Governor"
+  },
+  "next_operator_only_action": {
+    "allowed_classification": true,
+    "classification": "OPERATOR_DECISION_REQUIRED",
+    "classification_protocol": "AUTOMATABLE_NOW",
+    "classification_reason": "PRIOR_CODEX_FAIL_MAPPED_TO_OPERATOR_REQUIRED",
+    "current_blockers": [],
+    "mission_category": "runtime_stability",
+    "next_action": null,
+    "owner": "CODEX",
+    "report_id": "current_v2_migration_audit",
+    "source": "top_blockers",
+    "source_key": "top_blockers_current_v2_migration_audit_blocked_current_v2_migration_audit",
+    "status": "BLOCKED",
+    "title": "Current V2 Migration Audit"
+  },
+  "paid_feed_activation_requires_operator_approval": true,
+  "protected_worker_status": {
+    "protected_unit_count": 6,
+    "protected_units": {
+      "codex_runtime_soak_governor": "inactive",
+      "event_watchers": "active",
+      "replay_miner": "inactive",
+      "report_center": "active",
+      "spark_worker_pool": "active",
+      "v2_paper_runtime": "active"
+    },
+    "stopped_or_failed_units": {
+      "codex_runtime_soak_governor": "inactive",
+      "replay_miner": "inactive"
+    },
+    "workers_must_not_stop_policy": true
+  },
+  "protocol_classification_counts": {
+    "AUTOMATABLE_NOW": 17,
+    "EXTERNAL_REQUIRED": 2,
+    "OPERATOR_REQUIRED": 4,
+    "UNSAFE_TO_AUTOMATE": 1
+  },
+  "queue_empty_with_blockers_reason": null,
+  "ready": false,
+  "remaining_event_dependent": 2,
+  "remaining_external_source_required": 2,
+  "remaining_operator_decisions": 19,
+  "remaining_position_dependent": 0,
+  "report_center_action_count": 24,
+  "report_center_generated_at": "2026-06-22T00:28:30Z",
+  "report_only_progress_counted": false,
+  "schema_version": "v2_autonomous_no_manual_next_task_policy_v1",
+  "seed_status": {
+    "blocked_automatable_seed_items": [],
+    "blocked_seed_count": 0,
+    "duplicate_suppressed_count": 2,
+    "duplicate_suppressed_existing_tasks": [
+      {
+        "implementation_task_id": "codex_review_no_manual_codex_24h_parallel_recovery_war_room_governor_top_blockers_codex_24h_parallel_recovery_war_room_gove",
+        "implementation_task_status": "pending",
+        "source_key": "top_blockers_codex_24h_parallel_recovery_war_room_governor_blocked_codex_24h_parallel_recovery_w",
+        "status": "DUPLICATE_SUPPRESSED_EXISTING_TASK_REFERENCED"
+      },
+      {
+        "implementation_task_id": "codex_review_no_manual_codex_24h_parallel_recovery_war_room_governor_next_automatable_actions_codex_24h_parallel_recovery_w",
+        "implementation_task_status": "pending",
+        "source_key": "next_automatable_actions_codex_24h_parallel_recovery_war_room_governor_blocked_codex_24h_paralle",
+        "status": "DUPLICATE_SUPPRESSED_EXISTING_TASK_REFERENCED"
+      }
+    ],
+    "generated_pair_count": 0,
+    "generated_pairs": []
+  },
+  "unsafe_to_automate_count": 1,
+  "worker_execution_status": {
+    "Codex_FAIL_count_last_hour": 0,
+    "Codex_PASS_count_last_hour": 0,
+    "Codex_reviews_completed_last_hour": 0,
+    "active_lease_rows": [],
+    "active_leases": 0,
+    "automation_executing": false,
+    "busy_workers": 0,
+    "idle_workers": 6,
+    "implementation_tasks_completed_last_hour": 0,
+    "metrics": {
+      "v2_closed_loop_active_leases": 0.0,
+      "v2_closed_loop_burndown_blockers": 0.0,
+      "v2_closed_loop_busy_workers": 28.0,
+      "v2_closed_loop_codex_fail_map_total": 27.0,
+      "v2_closed_loop_duplicate_lease_conflicts_total": 15.0,
+      "v2_closed_loop_executor_unavailable": 0.0,
+      "v2_closed_loop_idle_workers": 0.0,
+      "v2_closed_loop_lease_heartbeat_age_seconds": 551498.6024448872,
+      "v2_closed_loop_payload_age_seconds": 551498.6024448872,
+      "v2_closed_loop_queue_eligible_tasks": 2.0,
+      "v2_closed_loop_queue_oldest_task_age_seconds": 551743.852011919,
+      "v2_closed_loop_task_completions_total": 44.0,
+      "v2_closed_loop_worker_heartbeat_age_seconds": 0.10421299934387207
+    },
+    "queued_automatable_tasks": 2,
+    "reconcile": {
+      "duplicate_active_task_leases": 0,
+      "duplicate_active_task_leases_detail": [],
+      "duplicate_file_lock_active_leases": 0,
+      "duplicate_file_lock_active_leases_detail": [],
+      "tasks_missing_safe_envelope": 0,
+      "tasks_missing_safe_envelope_detail": []
+    },
+    "remediations_created_last_hour": 0,
+    "tasks_completed_last_hour": 0,
+    "unmapped_codex_fail_count": 0
+  },
+  "worker_heartbeat_counted_as_progress": false,
+  "writes_old_redis": false
+}

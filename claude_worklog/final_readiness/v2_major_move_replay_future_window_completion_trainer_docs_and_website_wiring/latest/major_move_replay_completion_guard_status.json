@@ -1,0 +1,11 @@
+{
+  "feedback_fields_missing_before": true,
+  "future_window_missing_before": true,
+  "generated_est": "2026-06-15T21:44:08-04:00",
+  "previous_blocker": "MAJOR_MOVE_REPLAY_FUTURE_WINDOW_MISSING",
+  "previous_gate": "V2_MAJOR_MOVE_FALSE_NEGATIVE_REPLAY_DURABLE_TRAINER_AND_PAPER_ROUTING_REMEDIATION_BLOCKED",
+  "runtime_behavior_changed": true,
+  "soak_supersession_required": true,
+  "trainer_docs_empty_before": false,
+  "website_wiring_pending_before": true
+}

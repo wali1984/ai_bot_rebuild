@@ -95,7 +95,7 @@ export function TradingViewWidget({ symbol = 'BINANCE:BTCUSDT', fallback }: Trad
       />
       {!failed && !ready ? (
         <div className="tradingview-widget-loading" role="status">
-          TradingView primary chart loading for {symbol}. If the external widget is blocked, the local read-only fallback appears automatically.
+          TradingView primary chart loading for {symbol}. If the external widget is unavailable, the local market chart appears automatically.
         </div>
       ) : null}
       {failed

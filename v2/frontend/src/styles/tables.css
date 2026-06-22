@@ -1,0 +1,376 @@
+.pro-table,
+.market-table,
+.signal-stream-table,
+.realtime-signal-table,
+.realtime-source-table,
+.prediction-table,
+.ledger-table,
+.signal-table,
+.signal-log,
+.operator-proof-table,
+.cockpit-market-table {
+  display: block;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg-panel);
+  min-width: 0;
+}
+
+.pro-table__row,
+.market-table__row,
+.signal-stream-table .signal-stream-row,
+.cockpit-table-row,
+.operator-proof-table .operator-proof-table__row,
+.ledger-row,
+.signal-stream-table__row,
+.realtime-source-row {
+  display: grid;
+  align-items: center;
+  min-height: var(--table-row-height);
+  padding: 0 12px;
+  gap: 12px;
+  border-bottom: 1px solid var(--line-soft);
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+}
+
+.pro-table__row:last-child,
+.market-table__row:last-child,
+.signal-stream-table .signal-stream-row:last-child,
+.cockpit-table-row:last-child,
+.operator-proof-table .operator-proof-table__row:last-child,
+.ledger-row:last-child,
+.signal-stream-table__row:last-child,
+.realtime-source-row:last-child {
+  border-bottom: 0;
+}
+
+.pro-table__row--head,
+.market-table__row--head,
+.signal-stream-table__head,
+.cockpit-table-row--head,
+.operator-proof-table__header,
+.ledger-header,
+.signal-stream-header,
+.realtime-source-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  min-height: 38px;
+  background: color-mix(in oklch, var(--bg-elevated) 93%, transparent);
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--line-strong);
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  font-size: 11px;
+}
+
+.pro-table__row > span,
+.market-table__row > span,
+.market-table__row > div,
+.signal-stream-table .signal-stream-row > span,
+.realtime-signal-table span,
+.realtime-signal-table .cell,
+.cockpit-table-row > span,
+.operator-proof-table__row > span,
+.ledger-row > span,
+.signal-stream-table__row > span,
+.realtime-source-table > span,
+.vision-provenance-table > span,
+.realtime-source-table > div {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.pro-table__row > span:nth-child(1),
+.market-table__row > span:nth-child(1),
+.market-table .cell-symbol,
+.signal-stream-table .signal-stream-row > span:first-child,
+.cockpit-table-row > span:first-child,
+.operator-proof-table__row > span:first-child,
+.ledger-row > span:first-child,
+.realtime-signal-table .symbol,
+.realtime-source-table .symbol {
+  justify-self: start;
+}
+
+.pro-table__row > span:not(:first-child),
+.market-table__row > span:not(:first-child),
+.signal-stream-table .signal-stream-row > span:not(:first-child),
+.cockpit-table-row > span:not(:first-child),
+.operator-proof-table__row > span:not(:first-child),
+.ledger-row > span:not(:first-child),
+.signal-stream-table__row > span,
+.realtime-source-table > span {
+  justify-self: end;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+}
+
+.pro-table__row--head > span,
+.market-table__row--head > span,
+.signal-stream-table .signal-stream-table__head,
+.cockpit-table-row--head > span,
+.operator-proof-table__header > span,
+.ledger-header > span,
+.realtime-source-header > span {
+  color: var(--text-secondary);
+  font-weight: 700;
+  font-size: 11px;
+}
+
+.pro-table__row:nth-child(even):not(.pro-table__row--head),
+.market-table__row:nth-child(even):not(.market-table__row--head),
+.signal-stream-table .signal-stream-row:nth-child(even),
+.cockpit-table-row:nth-child(even),
+.operator-proof-table__row:nth-child(even),
+.ledger-row:nth-child(even),
+.signal-stream-table__row:nth-child(even),
+.realtime-source-table > div:nth-child(even) {
+  background: color-mix(in oklch, var(--bg-elevated) 72%, transparent);
+}
+
+.pro-table__row--head {
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.market-table {
+  overflow: auto;
+}
+
+.market-table__row {
+  grid-template-columns: minmax(80px, 1.2fr) minmax(60px, 0.7fr) minmax(70px, 0.8fr) minmax(70px, 0.9fr) minmax(70px, 0.7fr) minmax(70px, 0.8fr) minmax(70px, 1fr) minmax(80px, 1fr) minmax(75px, 1fr) minmax(65px, 0.9fr);
+}
+
+.pro-table--wide,
+.market-table--wide {
+  overflow: auto;
+}
+
+.pro-table--wide .pro-table__row,
+.market-table--wide .market-table__row {
+  grid-template-columns: repeat(9, minmax(120px, 1fr));
+}
+
+.market-table--wide .pro-table__row,
+.market-table--wide .market-table__row {
+  padding: 0 8px;
+}
+
+.market-table--professional {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.market-table--professional .market-table__row {
+  min-width: 2180px;
+  grid-template-columns:
+    52px
+    minmax(96px, 1fr)
+    minmax(104px, 1fr)
+    minmax(82px, 0.8fr)
+    minmax(96px, 0.9fr)
+    minmax(90px, 0.9fr)
+    minmax(116px, 1.1fr)
+    minmax(116px, 1.1fr)
+    minmax(96px, 0.95fr)
+    minmax(104px, 1fr)
+    minmax(118px, 1.1fr)
+    minmax(88px, 0.8fr)
+    minmax(88px, 0.8fr)
+    minmax(90px, 0.8fr)
+    minmax(100px, 0.95fr)
+    minmax(106px, 1fr)
+    minmax(102px, 0.95fr)
+    minmax(112px, 1fr)
+    minmax(108px, 1fr)
+    minmax(112px, 1.05fr)
+    minmax(112px, 1fr)
+    minmax(180px, 1.7fr)
+    minmax(180px, 1.7fr);
+}
+
+.market-table--professional .market-table__row--empty {
+  min-width: 0;
+  grid-template-columns: 1fr;
+}
+
+.market-favorite-cell {
+  color: var(--paper);
+}
+
+.market-table__row > .is-positive {
+  color: var(--buy);
+}
+
+.market-table__row > .is-negative {
+  color: var(--sell);
+}
+
+.market-table__row > .is-warning {
+  color: var(--warn);
+}
+
+.table-scroll,
+.market-table-shell,
+.operators-table-shell,
+.exchange-matrix-shell {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-radius: 10px;
+}
+
+.signal-stream-table,
+.realtime-signal-table {
+  width: 100%;
+}
+
+.signal-stream-table .signal-stream-row,
+.signal-stream-table__row {
+  grid-template-columns: 2fr 1.3fr 1fr 1fr 1fr 1fr;
+  padding-inline: 10px;
+}
+
+.operator-proof-table {
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg-panel);
+}
+
+.operator-proof-table__header,
+.operator-proof-table__row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr 1fr;
+}
+
+.ledger-table,
+.ledger-row {
+  display: grid;
+}
+
+.ledger-table {
+  background: var(--bg-panel);
+}
+
+.ledger-header,
+.ledger-row {
+  display: grid;
+  grid-template-columns: 0.7fr 1fr 1fr 1fr;
+}
+
+.cockpit-market-table,
+.cockpit-table-row {
+  display: grid;
+}
+
+.cockpit-market-table {
+  border: 1px solid var(--line-soft);
+}
+
+.cockpit-table-row {
+  grid-template-columns: 1.8fr 2fr 2fr 1.7fr;
+}
+
+.realtime-source-table {
+  display: grid;
+}
+
+.realtime-source-table > div,
+.realtime-source-table > span {
+  display: contents;
+}
+
+.realtime-signal-table {
+  display: grid;
+  gap: 0;
+}
+
+.realtime-signal-table .realtime-signal-row {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1.6fr 1fr 1fr 1fr 1fr 1fr;
+  min-height: var(--table-row-height);
+  align-items: center;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.pro-table .col-number,
+.market-table .col-number,
+.metric-number,
+.market-table__row .metric-number {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.pro-table .col-symbol,
+.market-table .col-symbol {
+  justify-self: start;
+  font-weight: 600;
+}
+
+@media (max-width: 1024px) {
+  .pro-table__row,
+  .market-table__row,
+  .signal-stream-table .signal-stream-row {
+    min-height: var(--table-row-height-compact);
+    gap: 8px;
+  }
+
+  .pro-table__row > span,
+  .market-table__row > span,
+  .signal-stream-table .signal-stream-row > span {
+    white-space: normal;
+    overflow: visible;
+  }
+}
+
+@media (max-width: 768px) {
+  .pro-table,
+  .market-table,
+  .ledger-table,
+  .signal-stream-table,
+  .realtime-signal-table,
+  .operator-proof-table {
+    border-radius: 8px;
+  }
+
+  .pro-table__row,
+  .market-table__row,
+  .signal-stream-table .signal-stream-row,
+  .cockpit-table-row,
+  .operator-proof-table__row,
+  .ledger-row,
+  .realtime-signal-table .realtime-signal-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    align-items: start;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .pro-table__row > span,
+  .market-table__row > span,
+  .signal-stream-table .signal-stream-row > span,
+  .cockpit-table-row > span,
+  .operator-proof-table__row > span,
+  .ledger-row > span {
+    grid-column: span 1;
+  }
+
+  .pro-table__row--head,
+  .market-table__row--head,
+  .operator-proof-table__header,
+  .ledger-header,
+  .cockpit-table-row--head,
+  .realtime-source-header,
+  .signal-stream-table .signal-stream-header {
+    display: none;
+  }
+}

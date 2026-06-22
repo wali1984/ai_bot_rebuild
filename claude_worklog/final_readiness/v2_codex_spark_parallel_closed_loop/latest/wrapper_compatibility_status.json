@@ -1,0 +1,13 @@
+{
+  "status": "done",
+  "wrappers": [
+    "v2_closed_loop_worker_pool.py",
+    "v2_closed_loop_claude_worker.py",
+    "v2_closed_loop_codex_worker.py",
+    "v2_autonomous_mission_backlog_autoseed.py",
+    "v2_autonomous_mission_execution_burndown.py",
+    "v2_burndown_fail_to_remediation_mapper.py"
+  ],
+  "compatibility": "delegates_to_v2_backend_app_closed_loop",
+  "generated_utc": "2026-05-24T00:00:00Z"
+}

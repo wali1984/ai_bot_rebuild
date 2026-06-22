@@ -1,0 +1,20 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "did_not_call_exchange": true,
+  "did_not_claim_codex_pass": true,
+  "did_not_touch_legacy": true,
+  "did_not_write_redis": true,
+  "generated_utc": "2026-05-23T01:37:45Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "retired_count": 4,
+  "retired_task_paths": [
+    "claude_worklog/agent_supervisor/tasks/codex_takeover_069B_decision_lineage_evidence_packet_builder.json",
+    "claude_worklog/agent_supervisor/tasks/codex_takeover_069C_decision_lineage_dashboard_payload_integration.json",
+    "claude_worklog/agent_supervisor/tasks/codex_takeover_069C2_decision_lineage_dashboard_contract_remediation.json",
+    "claude_worklog/agent_supervisor/tasks/codex_takeover_069D2_decision_lineage_validation_rerun_after_069C2.json"
+  ]
+}

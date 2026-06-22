@@ -1,0 +1,25 @@
+{
+  "freshness_seconds": 104.34243440628052,
+  "go_no_go": null,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "owner": "CODEX",
+  "redaction_applied": false,
+  "report_id": "latest_codex_failures",
+  "sanitized_summary": {
+    "go_no_go": null,
+    "pruned": {
+      "automatable_issue_count": 47,
+      "generated_utc": "2026-06-22T00:26:45Z",
+      "operator_owned_issue_count": 7,
+      "schema_version": "v2_autonomous_full_rebuild_self_healing_issues_v1",
+      "summary_by_category": {}
+    },
+    "redaction_applied": false,
+    "redaction_token": null,
+    "status": "INFO"
+  },
+  "stale": false,
+  "status": "INFO",
+  "title": "Latest Codex Failures"
+}

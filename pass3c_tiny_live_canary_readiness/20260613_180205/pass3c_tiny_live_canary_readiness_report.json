@@ -1,0 +1,380 @@
+{
+  "activation_sequence_not_run": [
+    "Do not run until every go condition is true and operator acknowledgements are recorded by an approved manual workflow.",
+    "Fund futures account externally if needed; the bot must not transfer or borrow funds.",
+    "Rerun ./run_pass3c_tiny_live_canary_readiness_check and require PASS3C_READY_FOR_OPERATOR_REVIEW.",
+    "Run strict verifier and recorded-state verifier one final time.",
+    "Use the approved operator workflow to arm live_canary_enabled=true, release_mode=LIVE_CANARY_APPROVED, and order_transport_submit_enabled=true only for the tiny canary window.",
+    "Run one tiny allowlisted canary order through the existing live transport.",
+    "Immediately verify exchange order status, open position, fees, and lifecycle record.",
+    "Disarm live submit after the canary window."
+  ],
+  "blockers": [
+    {
+      "reason": "PASS2B_EDGE_INSUFFICIENT_SAMPLE_ACK_REQUIRED",
+      "status": "PASS3C_BLOCKED_EDGE_INSUFFICIENT_SAMPLE"
+    },
+    {
+      "reason": "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER",
+      "status": "PASS3C_BLOCKED_INSUFFICIENT_BALANCE"
+    },
+    {
+      "reason": "HUMAN_OPERATOR_ARM_REQUIRED",
+      "status": "PASS3C_BLOCKED_LIVE_CONTROL_NOT_ARMED"
+    },
+    {
+      "reason": "RELEASE_MODE_NOT_LIVE_CANARY_APPROVED",
+      "status": "PASS3C_BLOCKED_LIVE_CONTROL_NOT_ARMED"
+    },
+    {
+      "reason": "ORDER_TRANSPORT_SUBMIT_DISABLED",
+      "status": "PASS3C_BLOCKED_LIVE_CONTROL_NOT_ARMED"
+    },
+    {
+      "reason": "LIVE_TRADING_DISABLED",
+      "status": "PASS3C_BLOCKED_LIVE_CONTROL_NOT_ARMED"
+    },
+    {
+      "reason": "LIVE_CANARY_DISABLED",
+      "status": "PASS3C_BLOCKED_LIVE_CONTROL_NOT_ARMED"
+    }
+  ],
+  "canary_caps": {
+    "allowed": false,
+    "blockers": [
+      "LIVE_CANARY_DISABLED",
+      "HUMAN_OPERATOR_ARM_REQUIRED"
+    ]
+  },
+  "canary_config": {
+    "allow_leverage_mutation": false,
+    "allow_margin_mode_mutation": false,
+    "allowed_symbols": [
+      "BNBUSDT",
+      "BTCUSDT",
+      "ETHUSDT",
+      "PAXGUSDT",
+      "XAUTUSDT",
+      "ZECUSDT"
+    ],
+    "live_canary_enabled": false,
+    "max_daily_loss_usd": 10.0,
+    "max_daily_orders": 3,
+    "max_notional_usd": 10.0,
+    "max_open_positions": 1
+  },
+  "canary_intent": "EXECUTION_PATH_VALIDATION_ONLY",
+  "candidate": {
+    "action": "long",
+    "notional_usd": 5.0,
+    "order_type": "MARKET",
+    "quantity": 0.001,
+    "reduce_only": false,
+    "side": "BUY",
+    "symbol": "BTCUSDT"
+  },
+  "exchange_action_taken": false,
+  "exchange_local_reconciliation": {
+    "blockers": [],
+    "exchange_position": {
+      "margin_mode": "cross",
+      "quantity": 0.0,
+      "side": "FLAT",
+      "symbol": "BTCUSDT"
+    },
+    "local_position": {
+      "quantity": 0.0,
+      "side": "FLAT",
+      "symbol": "BTCUSDT"
+    },
+    "mismatch_reason": null,
+    "open_orders": [],
+    "reconciled": true,
+    "signed_read_age_ms": 1556
+  },
+  "execution_validation_canary_acknowledged": false,
+  "futures_balance": {
+    "available_balance_usdt": 0.0,
+    "insufficient": true,
+    "min_notional_usdt": 5.0,
+    "minimum_required_usdt": 5.0,
+    "signed_read_available": true
+  },
+  "generated_at": "2026-06-13T18:02:07Z",
+  "go_conditions": [
+    "strict verifier exit = 0",
+    "recorded-state verifier exit = 0",
+    "critical failures = 0",
+    "active-stale count = 0",
+    "trusted prediction/replay/MTF evidence present",
+    "live position state machine passes",
+    "exchange/local reconciliation passes",
+    "no open position",
+    "no unexpected open orders",
+    "futures available balance >= required minimum",
+    "symbol is allowlisted",
+    "notional <= tiny cap",
+    "daily orders below cap",
+    "daily loss below cap",
+    "kill switch clear",
+    "human operator arm present",
+    "release mode explicitly changed from NON_LIVE only during activation",
+    "order_transport_submit_enabled explicitly true only during activation",
+    "live_canary_enabled explicitly true only during activation",
+    "no leverage mutation",
+    "no margin mode mutation"
+  ],
+  "human_operator_arm_status": {
+    "armed": false,
+    "operator_approved": false
+  },
+  "kill_switch_status": {
+    "active": false,
+    "enabled": true
+  },
+  "leverage_changed": false,
+  "live_control_state": {
+    "exchange_action_taken": false,
+    "live_blocked": true,
+    "live_canary_enabled": null,
+    "live_gate": "blocked_human_only",
+    "live_trading_enabled": false,
+    "operator_approved": false,
+    "order_transport_submit_enabled": false,
+    "places_real_order": false,
+    "release_mode": "NON_LIVE",
+    "transport_order_submitted": false,
+    "transport_writes_exchange_orders": false
+  },
+  "live_order_submitted": false,
+  "margin_mode_changed": false,
+  "no_go_conditions": [
+    "Pass 2B still insufficient and execution-validation acknowledgement missing",
+    "insufficient futures available balance",
+    "strict verifier nonzero",
+    "recorded-state verifier nonzero",
+    "active-stale > 0",
+    "missing replay snapshot",
+    "missing MTF snapshot",
+    "exchange/local drift",
+    "stale signed read",
+    "unexpected open order",
+    "existing open position",
+    "unsupported symbol",
+    "min notional/filter failure",
+    "kill switch active",
+    "human arm missing",
+    "leverage mutation required",
+    "margin mutation required",
+    "any submit-enabled key unexpectedly armed before activation sequence"
+  ],
+  "not_strategy_profitability_launch": true,
+  "output_dir": "pass3c_tiny_live_canary_readiness/20260613_180205",
+  "pass2b_summary": {
+    "_report_path": "pass2b_edge_proof/20260613_024915/pass2b_edge_proof.json",
+    "actionable_predictions": 0,
+    "closed_paper_trades": 0,
+    "invalid_feedback_count": 0,
+    "total_trusted_predictions": 10,
+    "verdict": "INSUFFICIENT_SAMPLE"
+  },
+  "pass_status": {
+    "pass1a_live_submit_disarmed": true,
+    "pass2a_trusted_prediction_replay_mtf": true,
+    "pass2b_edge_framework": true,
+    "pass2b_verdict": "INSUFFICIENT_SAMPLE",
+    "pass3a_live_canary_safety": true,
+    "pass3b_exact_live_path": "PASS3B_BLOCKED_INSUFFICIENT_AVAILABLE_BALANCE"
+  },
+  "places_real_order": false,
+  "read_only": true,
+  "readiness_preflight": {
+    "audit_payload": {
+      "mtf_snapshot_exists": true,
+      "notional_usd": 5.0,
+      "pass2a_trusted_decision_ok": true,
+      "quantity": 0.001,
+      "replay_snapshot_exists": true,
+      "requested_action": "long",
+      "strict_pipeline_trust_ok": true,
+      "symbol": "BTCUSDT"
+    },
+    "blockers": [
+      "RELEASE_MODE_NON_LIVE",
+      "ORDER_TRANSPORT_SUBMIT_DISABLED",
+      "LIVE_TRADING_DISABLED",
+      "LIVE_CANARY_DISABLED",
+      "HUMAN_OPERATOR_ARM_REQUIRED"
+    ],
+    "canary_caps": {
+      "allowed": false,
+      "blockers": [
+        "LIVE_CANARY_DISABLED",
+        "HUMAN_OPERATOR_ARM_REQUIRED"
+      ]
+    },
+    "config": {
+      "allow_averaging_down": false,
+      "allow_direct_flip": false,
+      "allow_hedge_mode": false,
+      "allow_leverage_mutation": false,
+      "allow_margin_mode_mutation": false,
+      "allowed_symbols": [
+        "BNBUSDT",
+        "BTCUSDT",
+        "ETHUSDT",
+        "PAXGUSDT",
+        "XAUTUSDT",
+        "ZECUSDT"
+      ],
+      "expected_hedge_mode": false,
+      "expected_margin_mode": "cross",
+      "live_canary_enabled": false,
+      "max_daily_loss_usd": 10.0,
+      "max_daily_orders": 3,
+      "max_notional_usd": 10.0,
+      "max_open_positions": 1,
+      "max_signed_read_age_ms": 5000,
+      "quantity_tolerance": 1e-08,
+      "require_human_operator_arm": true,
+      "require_kill_switch_clear": true,
+      "require_mtf_snapshot": true,
+      "require_pass2a_trusted_decision": true,
+      "require_reduce_only_for_closes": true,
+      "require_replay_snapshot": true,
+      "require_strict_pipeline_trust": true
+    },
+    "exchange_local_reconciliation": {
+      "blockers": [],
+      "exchange_position": {
+        "margin_mode": "cross",
+        "quantity": 0.0,
+        "side": "FLAT",
+        "symbol": "BTCUSDT"
+      },
+      "local_position": {
+        "quantity": 0.0,
+        "side": "FLAT",
+        "symbol": "BTCUSDT"
+      },
+      "mismatch_reason": null,
+      "open_orders": [],
+      "reconciled": true,
+      "signed_read_age_ms": 1556
+    },
+    "live_canary_enabled": false,
+    "order_lifecycle": {
+      "status": "READY"
+    },
+    "reason_code": "RELEASE_MODE_NON_LIVE",
+    "state_machine": {
+      "allowed": true,
+      "audit_fields": {
+        "exchange_quantity": 0.0,
+        "exchange_side": "FLAT",
+        "local_quantity": 0.0,
+        "local_side": "FLAT",
+        "notional_usd": 5.0,
+        "quantity": 0.001,
+        "requested_action": "long",
+        "symbol": "BTCUSDT"
+      },
+      "blockers": [],
+      "expected_position_after": {
+        "quantity": 0.001,
+        "side": "LONG",
+        "symbol": "BTCUSDT"
+      },
+      "reason_code": "ALLOW",
+      "required_order_flags": {
+        "reduce_only": false
+      },
+      "transition_type": "FLAT_TO_LONG_OPEN"
+    },
+    "submit_allowed": false,
+    "trust_contract": {
+      "allowed": true,
+      "blockers": []
+    }
+  },
+  "recorded_state_status": {
+    "_recorded_run": "recorded_state_verification_pass3c/20260613_180137",
+    "_report_path": "recorded_state_verification_pass3c/20260613_180137/recorded_state_verification_report.json",
+    "decisions_loaded": 22,
+    "execution_records_loaded": 723,
+    "features_loaded": 675,
+    "future_feature_leak_count": 0,
+    "invalid_state_count": 18,
+    "invalid_state_rate": 0.012676,
+    "masa_ppo_cutoff_mismatch_count": 0,
+    "position_transition_reject_count": 0,
+    "records_loaded": 9032,
+    "trades_blocked_by_data_quality": 0,
+    "training_samples_loaded": 0,
+    "training_samples_rejected_count": 0
+  },
+  "redis_url": "redis://127.0.0.1:6379/0",
+  "required_human_acknowledgements": [
+    "I understand Pass 2B did not prove trading edge.",
+    "I understand this is an execution-path validation canary only.",
+    "I accept that the tiny order can lose money.",
+    "I confirm the notional cap.",
+    "I confirm max daily loss.",
+    "I confirm no leverage or margin mutation.",
+    "I confirm kill switch tested.",
+    "I confirm manual disarm command is ready."
+  ],
+  "rollback_disarm_checklist": [
+    "cd v2 && ../.venv/bin/python -m v2.backend.app.cli.v2_live_submit_disarm --redis-url redis://127.0.0.1:6379/0 --reason pass3c_manual_disarm",
+    "./run_pass3c_tiny_live_canary_readiness_check --redis-url redis://127.0.0.1:6379/0 --output-dir pass3c_tiny_live_canary_readiness",
+    "Use Binance read-only open-orders check for the canary symbol; do not cancel from this readiness command.",
+    "Use Binance read-only positions/account check for the canary symbol.",
+    "./export_pipeline_trust_evidence --redis-url redis://127.0.0.1:6379/0 --output-dir pipeline_trust_evidence_pass3c",
+    "./verify_pipeline_trust --input pipeline_trust_evidence_pass3c/<run> --output-dir pipeline_trust_evidence_pass3c/<run>/report --strict-unknown",
+    ".venv/bin/python -m v2.backend.app.cli.run_recorded_state_verification --input pipeline_trust_evidence_pass3c/<run> --output-dir recorded_state_verification_pass3c/<run>",
+    "Inspect v2:live_order_transport:status, v2:live_gate:state, and v2:trader:execution_state."
+  ],
+  "run_id": "20260613_180205",
+  "state_machine": {
+    "allowed": true,
+    "audit_fields": {
+      "exchange_quantity": 0.0,
+      "exchange_side": "FLAT",
+      "local_quantity": 0.0,
+      "local_side": "FLAT",
+      "notional_usd": 5.0,
+      "quantity": 0.001,
+      "requested_action": "long",
+      "symbol": "BTCUSDT"
+    },
+    "blockers": [],
+    "expected_position_after": {
+      "quantity": 0.001,
+      "side": "LONG",
+      "symbol": "BTCUSDT"
+    },
+    "reason_code": "ALLOW",
+    "required_order_flags": {
+      "reduce_only": false
+    },
+    "transition_type": "FLAT_TO_LONG_OPEN"
+  },
+  "status": "PASS3C_BLOCKED_EDGE_INSUFFICIENT_SAMPLE",
+  "strict_status": {
+    "_evidence_run": "pipeline_trust_evidence_pass3c/20260613_180137",
+    "_report_path": "pipeline_trust_evidence_pass3c/20260613_180137/report/pipeline_trust_report.json",
+    "critical_failures": 0,
+    "failures": 181,
+    "passes": 4,
+    "total_findings": 185,
+    "warnings": 0
+  },
+  "submit_allowed": false,
+  "trusted_evidence": {
+    "missing_replay_or_mtf": false,
+    "mtf_snapshot_count": 12,
+    "replay_snapshot_count": 12,
+    "trusted_linked_prediction_count": 10,
+    "trusted_prediction_count": 10
+  }
+}

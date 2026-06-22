@@ -1,0 +1,126 @@
+{
+  "baseline_source": "previous_burndown_status",
+  "blocker_count_after": 4,
+  "blocker_count_before": 4,
+  "blockers_after": [
+    {
+      "external_event_position_dependent": false,
+      "go_no_go": "CODEX_24H_PARALLEL_RECOVERY_WAR_ROOM_GOVERNOR_BLOCKED",
+      "mission_categories": [
+        "runtime stability"
+      ],
+      "operator_gated": false,
+      "report_id": "codex_24h_parallel_recovery_war_room_governor",
+      "status": "BLOCKED",
+      "title": "Codex 24H Parallel Recovery War-Room Governor"
+    },
+    {
+      "external_event_position_dependent": false,
+      "go_no_go": "CODEX_RUNTIME_SOAK_AND_PRODUCTION_EQUIVALENCE_GOVERNOR_BLOCKED",
+      "mission_categories": [
+        "runtime stability"
+      ],
+      "operator_gated": false,
+      "report_id": "runtime_soak_and_production_equivalence",
+      "status": "BLOCKED",
+      "title": "Runtime Soak + Production-Equivalence"
+    },
+    {
+      "external_event_position_dependent": false,
+      "go_no_go": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+      "mission_categories": [
+        "observation completeness"
+      ],
+      "operator_gated": false,
+      "report_id": "full_observation_builder",
+      "status": "BLOCKED",
+      "title": "Full Observation Builder Status"
+    },
+    {
+      "external_event_position_dependent": false,
+      "go_no_go": "V2_CHECKPOINT_PROMOTION_OPERATOR_REQUIRED",
+      "mission_categories": [
+        "checkpoint readiness"
+      ],
+      "operator_gated": true,
+      "report_id": "checkpoint_promotion",
+      "status": "OPERATOR_DECISION_REQUIRED",
+      "title": "Checkpoint Promotion"
+    }
+  ],
+  "blockers_before": [
+    {
+      "external_event_position_dependent": false,
+      "go_no_go": "CODEX_24H_PARALLEL_RECOVERY_WAR_ROOM_GOVERNOR_BLOCKED",
+      "mission_categories": [
+        "runtime stability"
+      ],
+      "operator_gated": false,
+      "report_id": "codex_24h_parallel_recovery_war_room_governor",
+      "status": "BLOCKED",
+      "title": "Codex 24H Parallel Recovery War-Room Governor"
+    },
+    {
+      "external_event_position_dependent": false,
+      "go_no_go": "CODEX_RUNTIME_SOAK_AND_PRODUCTION_EQUIVALENCE_GOVERNOR_BLOCKED",
+      "mission_categories": [
+        "runtime stability"
+      ],
+      "operator_gated": false,
+      "report_id": "runtime_soak_and_production_equivalence",
+      "status": "BLOCKED",
+      "title": "Runtime Soak + Production-Equivalence"
+    },
+    {
+      "external_event_position_dependent": false,
+      "go_no_go": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+      "mission_categories": [
+        "observation completeness"
+      ],
+      "operator_gated": false,
+      "report_id": "full_observation_builder",
+      "status": "BLOCKED",
+      "title": "Full Observation Builder Status"
+    },
+    {
+      "external_event_position_dependent": false,
+      "go_no_go": "V2_CHECKPOINT_PROMOTION_OPERATOR_REQUIRED",
+      "mission_categories": [
+        "checkpoint readiness"
+      ],
+      "operator_gated": true,
+      "report_id": "checkpoint_promotion",
+      "status": "OPERATOR_DECISION_REQUIRED",
+      "title": "Checkpoint Promotion"
+    }
+  ],
+  "blockers_burned_down": [],
+  "blockers_newly_discovered": [],
+  "external_event_position_dependent_blockers": [],
+  "generated_utc": "2026-05-25T00:02:21Z",
+  "operator_gated_blockers": [
+    {
+      "external_event_position_dependent": false,
+      "go_no_go": "V2_CHECKPOINT_PROMOTION_OPERATOR_REQUIRED",
+      "mission_categories": [
+        "checkpoint readiness"
+      ],
+      "operator_gated": true,
+      "report_id": "checkpoint_promotion",
+      "status": "OPERATOR_DECISION_REQUIRED",
+      "title": "Checkpoint Promotion"
+    }
+  ],
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "schema_version": "v2_autonomous_mission_blocker_burndown_matrix_v1"
+}

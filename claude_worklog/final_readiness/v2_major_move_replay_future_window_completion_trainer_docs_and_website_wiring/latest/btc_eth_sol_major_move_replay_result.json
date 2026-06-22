@@ -1,0 +1,54 @@
+{
+  "btc_would_have_created_paper_candidate": true,
+  "candidate_direction": {
+    "BTCUSDT": "long",
+    "ETHUSDT": "long",
+    "SOLUSDT": "long"
+  },
+  "candidate_time": {
+    "BTCUSDT": "2026-06-14T21:19:00Z",
+    "ETHUSDT": "2026-06-15T15:47:00Z",
+    "SOLUSDT": "2026-06-15T15:39:00Z"
+  },
+  "eth_would_have_created_paper_candidate": true,
+  "expected_move_after_cost_bps": {
+    "BTCUSDT": 85.198333,
+    "ETHUSDT": 39.6233,
+    "SOLUSDT": 100.505972
+  },
+  "expected_paper_pnl_after_cost": {
+    "BTCUSDT": 374.57529432437184,
+    "ETHUSDT": 874.039416178775,
+    "SOLUSDT": 861.5898177610654
+  },
+  "generated_est": "2026-06-15T21:44:08-04:00",
+  "paper_entry_allowed": true,
+  "paper_entry_block_reason": [],
+  "remaining_blockers": [],
+  "root_cause_after_fix": {
+    "btc_root_cause": [
+      "CONFIDENCE_TOO_LOW",
+      "EXPECTED_MOVE_NEGATIVE",
+      "WRONG_DIRECTION"
+    ],
+    "common_root_cause": [
+      "CONFIDENCE_TOO_LOW",
+      "EXPECTED_MOVE_NEGATIVE",
+      "WRONG_DIRECTION"
+    ],
+    "eth_root_cause": [
+      "CONFIDENCE_TOO_LOW",
+      "EXPECTED_MOVE_NEGATIVE",
+      "WRONG_DIRECTION"
+    ],
+    "fix_required": [],
+    "future_window_evidence_complete": true,
+    "root_cause_confidence": "HIGH",
+    "sol_root_cause": [
+      "CONFIDENCE_TOO_LOW",
+      "EXPECTED_MOVE_NEGATIVE",
+      "WRONG_DIRECTION"
+    ]
+  },
+  "sol_would_have_created_paper_candidate": true
+}

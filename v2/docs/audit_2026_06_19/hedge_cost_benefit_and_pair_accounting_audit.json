@@ -1,0 +1,38 @@
+{
+  "audit_utc": "2026-06-19T00:15:00Z",
+  "finding": "HEDGING_NEVER_ACTIVATED",
+  "severity": "MEDIUM",
+  "total_trades": 645,
+  "hedge_state_distribution": {
+    "NO_HEDGE": 645
+  },
+  "hedge_reason_distribution": {
+    "NO_HEDGE_CONTEXT": 645
+  },
+  "analysis": {
+    "no_hedge_pct": 100.0,
+    "hedge_activated": false,
+    "root_cause": "All 645 trades have hedge_state='NO_HEDGE' and hedge_reason='NO_HEDGE_CONTEXT'. Since the system exclusively executes SHORT positions, there is no natural hedge opportunity (would need a LONG position to hedge against). The hedge system is structurally unreachable until LONG trades are enabled.",
+    "hedging_code_location": "v2/backend/app/services/paper_trade_management/hedging.py",
+    "activation_requirement": "Hedging requires LONG position to pair with SHORT position (or vice versa). With 100% SHORT positions, no hedge pairs can form.",
+    "cost_benefit": {
+      "hedge_cost_incurred": 0.0,
+      "hedge_benefit_realized": 0.0,
+      "hedge_would_cost": "Estimated 2x round-trip cost (~12 bps) per hedge pair if activated",
+      "hedge_potential_benefit": "Tail loss protection on high-volatility events (PORTALUSDT -$7.36 would be partially covered)"
+    }
+  },
+  "rare_event_exposure": {
+    "portalusdt_loss": -7.36,
+    "nightusdt_loss": -5.64,
+    "note": "Without hedging and without LONG positions, the system has no mechanism to offset tail losses on individual symbols. Stop loss is the only floor.",
+    "fat_tail_risk": "PORTALUSDT: single trade -$7.36 (33% of total $22.23 net PnL). One tail loss can erase significant accumulated profit."
+  },
+  "tests_required": [
+    "test: inject LONG + SHORT on same symbol, verify hedge_lock.py activates properly",
+    "test: verify hedge accounting is correct when one leg wins and other loses",
+    "test: verify hedge_state transitions from NO_HEDGE \u2192 HEDGED \u2192 CLOSED"
+  ],
+  "blocker": false,
+  "confidence": "CONFIRMED \u2014 645/645 trades have NO_HEDGE"
+}

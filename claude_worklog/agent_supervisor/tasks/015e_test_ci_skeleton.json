@@ -1,15 +1,75 @@
 {
-  "task_id": "015e_test_ci_skeleton",
   "agent": "claude",
-  "risk_level": "L2",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "v2/ops/",
     "v2/.github/",
     "v2/Makefile",
     "claude_worklog/v2_build/"
   ],
+  "approval_required": true,
+  "audit_evidence": {
+    "audit_events_required": [
+      "governance.task_dispatched",
+      "governance.task_validated",
+      "ci.workflow_authored",
+      "ci.import_cycle_check_passed",
+      "ci.secrets_scan_passed"
+    ],
+    "hash_chain_link": "prior_event_hash + this_event_payload -> event_hash"
+  },
+  "auto_commit": false,
+  "blocked_reason": "Implementation scaffold task remains blocked until scaffold queue Codex review passes and user explicitly approves unblocking this individual task.",
+  "commit_message": "Materialize V2 test/CI skeleton (lint, type, import-cycle, schema-drift, secrets, orphan-path)",
+  "completed_at": "2026-05-02T03:49:11.969601+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": [
+    "015a_repo_package_skeleton"
+  ],
+  "do_not_autorun": true,
+  "emit_files": true,
+  "gate_evidence_ref": [
+    "claude_worklog/v2_scaffold_planning/07_TEST_AND_CI_PLAN.md",
+    "claude_worklog/v2_scaffold_planning/02_PACKAGE_AND_MODULE_MAP.md",
+    "claude_worklog/v2_build/B_SCAFFOLD_VALIDATION.md",
+    "claude_worklog/v2_scaffold_queue/05_SCAFFOLD_QUEUE_GO_NO_GO.md",
+    "claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_GO_NO_GO.md"
+  ],
+  "gates_required": [
+    "V2_SCAFFOLD_QUEUE_CODEX_PASS",
+    "HUMAN_APPROVAL_FOR_THIS_TASK"
+  ],
+  "go_no_go_marker": "B_TEST_CI_VALIDATION_READY",
+  "max_attempts": 1,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_recommended_action": "Do not run automatically. Wait for Codex queue pass and explicit human approval.",
+  "next_tasks_on_failure": [],
+  "next_tasks_on_success": [],
+  "normalized_from_artifact": false,
+  "observability": {
+    "dashboard_surfaces": [
+      "Build/Validation Status page (after 015D)",
+      "Codex Review Center (after 015D)"
+    ],
+    "events_emitted": [
+      "task.start",
+      "task.adapter_call",
+      "task.complete",
+      "ci.workflow_authored",
+      "ci.import_cycle_check_passed",
+      "ci.secrets_scan_passed"
+    ],
+    "logs_written": [
+      "claude_worklog/agent_supervisor/runs/015e_test_ci_skeleton/<ts>/stdout.log"
+    ],
+    "metrics_emitted": [
+      "v2.ci.stages_count (lint, type, import-cycle, schema-drift, unit, integration, contract, frontend-unit, e2e, a11y, coverage, security-audit, secrets-scan)",
+      "v2.ci.required_stages_pass_count",
+      "v2.ci.gitleaks_findings_count (must be 0)"
+    ]
+  },
+  "priority": 0,
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. CI MUST run local-native; Docker must not be required. CI MUST NOT target legacy Redis, legacy DB, the trainer venv, or any real exchange. Materialize the test/CI skeleton per claude_worklog/v2_scaffold_planning/07_TEST_AND_CI_PLAN.md: ops/ci/lint.sh, type_check.sh, test.sh, import_cycle_check.py (grimp + madge), schema_drift_check.py (Alembic head vs SQLAlchemy metadata), secrets_scan.sh (gitleaks), orphan_path_check.py, .github/workflows/ci.yml wiring those stages, and a top-level Makefile target `make ci`. Required stages: lint, type, import-cycle, schema-drift (advisory until 015B), unit, integration, contract, frontend-unit, e2e, a11y, coverage, security-audit, secrets-scan. Produce claude_worklog/v2_build/B_TEST_CI_VALIDATION.md ending in exactly B_TEST_CI_VALIDATION_READY or B_TEST_CI_VALIDATION_BLOCKED. Output BEGIN_FILE blocks only.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "v2/ops/ci/lint.sh",
     "v2/ops/ci/type_check.sh",
@@ -22,79 +82,9 @@
     "v2/Makefile",
     "claude_worklog/v2_build/B_TEST_CI_VALIDATION.md"
   ],
-  "depends_on": [
-    "015a_repo_package_skeleton"
-  ],
-  "next_tasks_on_success": [],
-  "next_tasks_on_failure": [],
-  "max_attempts": 1,
-  "priority": 0,
-  "auto_commit": false,
-  "commit_message": "Materialize V2 test/CI skeleton (lint, type, import-cycle, schema-drift, secrets, orphan-path)",
-  "gate_evidence_ref": [
-    "claude_worklog/v2_scaffold_planning/07_TEST_AND_CI_PLAN.md",
-    "claude_worklog/v2_scaffold_planning/02_PACKAGE_AND_MODULE_MAP.md",
-    "claude_worklog/v2_build/B_SCAFFOLD_VALIDATION.md",
-    "claude_worklog/v2_scaffold_queue/05_SCAFFOLD_QUEUE_GO_NO_GO.md",
-    "claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_GO_NO_GO.md"
-  ],
-  "safety_boundary": {
-    "forbidden_writes": [
-      "legacy_reference/**",
-      "../AI BOT/**",
-      "**/.env",
-      "**/secrets/**",
-      "v2/backend/app/**",
-      "v2/backend/migrations/**",
-      "v2/frontend/src/**"
-    ],
-    "forbidden_reads": [],
-    "forbidden_runtime_actions": [
-      "ci_target_legacy_redis",
-      "ci_target_legacy_db",
-      "ci_invoke_trainer_venv",
-      "ci_call_real_exchange",
-      "place_or_cancel_orders",
-      "enable_live_trading",
-      "docker_required_in_pipeline"
-    ],
-    "live_trading_default": "BLOCKED",
-    "ci_runtime_constraint": "local_native_first_per_CLAUDE.md_local-native_first_runtime_constraints; docker optional and must not be required to pass CI"
-  },
-  "observability": {
-    "events_emitted": [
-      "task.start",
-      "task.adapter_call",
-      "task.complete",
-      "ci.workflow_authored",
-      "ci.import_cycle_check_passed",
-      "ci.secrets_scan_passed"
-    ],
-    "metrics_emitted": [
-      "v2.ci.stages_count (lint, type, import-cycle, schema-drift, unit, integration, contract, frontend-unit, e2e, a11y, coverage, security-audit, secrets-scan)",
-      "v2.ci.required_stages_pass_count",
-      "v2.ci.gitleaks_findings_count (must be 0)"
-    ],
-    "logs_written": [
-      "claude_worklog/agent_supervisor/runs/015e_test_ci_skeleton/<ts>/stdout.log"
-    ],
-    "dashboard_surfaces": [
-      "Build/Validation Status page (after 015D)",
-      "Codex Review Center (after 015D)"
-    ]
-  },
-  "tests": {
-    "unit": [],
-    "integration": [],
-    "contract": [],
-    "e2e": [],
-    "static": [
-      "make ci runs lint + type + import-cycle + schema-drift + (empty) test suites and exits 0",
-      "ops/ci/import_cycle_check.py refuses any forbidden edge listed in 02_PACKAGE_AND_MODULE_MAP.md \u00a73",
-      "ops/ci/orphan_path_check.py refuses any unreachable file under v2/**",
-      "ops/ci/secrets_scan.sh runs gitleaks over the diff and refuses any hit"
-    ]
-  },
+  "requires_human_approval": true,
+  "resolved_from_source_truth": true,
+  "risk_level": "L2",
   "rollback": {
     "procedure": [
       "remove every file materialized under v2/ops/, v2/.github/, v2/Makefile by this task",
@@ -105,27 +95,46 @@
       "git status shows no orphan files under v2/ops/ or v2/.github/"
     ]
   },
-  "audit_evidence": {
-    "audit_events_required": [
-      "governance.task_dispatched",
-      "governance.task_validated",
-      "ci.workflow_authored",
-      "ci.import_cycle_check_passed",
-      "ci.secrets_scan_passed"
+  "safety_boundary": {
+    "ci_runtime_constraint": "local_native_first_per_CLAUDE.md_local-native_first_runtime_constraints; docker optional and must not be required to pass CI",
+    "forbidden_reads": [],
+    "forbidden_runtime_actions": [
+      "ci_target_legacy_redis",
+      "ci_target_legacy_db",
+      "ci_invoke_trainer_venv",
+      "ci_call_real_exchange",
+      "place_or_cancel_orders",
+      "enable_live_trading",
+      "docker_required_in_pipeline"
     ],
-    "hash_chain_link": "prior_event_hash + this_event_payload -> event_hash"
+    "forbidden_writes": [
+      "legacy_reference/**",
+      "../AI BOT/**",
+      "**/.env",
+      "**/secrets/**",
+      "v2/backend/app/**",
+      "v2/backend/migrations/**",
+      "v2/frontend/src/**"
+    ],
+    "live_trading_default": "BLOCKED"
   },
-  "go_no_go_marker": "B_TEST_CI_VALIDATION_READY",
-  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. CI MUST run local-native; Docker must not be required. CI MUST NOT target legacy Redis, legacy DB, the trainer venv, or any real exchange. Materialize the test/CI skeleton per claude_worklog/v2_scaffold_planning/07_TEST_AND_CI_PLAN.md: ops/ci/lint.sh, type_check.sh, test.sh, import_cycle_check.py (grimp + madge), schema_drift_check.py (Alembic head vs SQLAlchemy metadata), secrets_scan.sh (gitleaks), orphan_path_check.py, .github/workflows/ci.yml wiring those stages, and a top-level Makefile target `make ci`. Required stages: lint, type, import-cycle, schema-drift (advisory until 015B), unit, integration, contract, frontend-unit, e2e, a11y, coverage, security-audit, secrets-scan. Produce claude_worklog/v2_build/B_TEST_CI_VALIDATION.md ending in exactly B_TEST_CI_VALIDATION_READY or B_TEST_CI_VALIDATION_BLOCKED. Output BEGIN_FILE blocks only.",
-  "next_recommended_action": "Do not run automatically. Wait for Codex queue pass and explicit human approval.",
-  "normalized_from_artifact": false,
-  "status": "blocked_approval",
-  "approval_required": true,
-  "requires_human_approval": true,
-  "do_not_autorun": true,
-  "blocked_reason": "Implementation scaffold task remains blocked until scaffold queue Codex review passes and user explicitly approves unblocking this individual task.",
-  "gates_required": [
-    "V2_SCAFFOLD_QUEUE_CODEX_PASS",
-    "HUMAN_APPROVAL_FOR_THIS_TASK"
-  ]
+  "source_truth_completed_at": "2026-05-02T03:49:11.969601+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/015e_test_ci_skeleton.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "015e_test_ci_skeleton",
+  "tests": {
+    "contract": [],
+    "e2e": [],
+    "integration": [],
+    "static": [
+      "make ci runs lint + type + import-cycle + schema-drift + (empty) test suites and exits 0",
+      "ops/ci/import_cycle_check.py refuses any forbidden edge listed in 02_PACKAGE_AND_MODULE_MAP.md \u00a73",
+      "ops/ci/orphan_path_check.py refuses any unreachable file under v2/**",
+      "ops/ci/secrets_scan.sh runs gitleaks over the diff and refuses any hit"
+    ],
+    "unit": []
+  },
+  "updated_at": "2026-06-15T19:54:42Z"
 }

@@ -1,0 +1,224 @@
+{
+  "streams": {
+    "1000BONKUSDT": {
+      "connect_attempts": 8,
+      "fallback_snapshots": 0,
+      "last_error": null,
+      "last_event": "native_frame",
+      "last_frame_at": "2026-06-19T04:14:01.445426Z",
+      "native_frames": 79353,
+      "source": "binance_usdm_public_websocket_adapter",
+      "symbol": "1000BONKUSDT",
+      "updated_at": "2026-06-19T04:14:01.445426Z"
+    },
+    "1000FLOKIUSDT": {
+      "connect_attempts": 3,
+      "fallback_snapshots": 0,
+      "last_error": null,
+      "last_event": "native_frame",
+      "last_frame_at": "2026-06-19T01:46:20.952722Z",
+      "native_frames": 48329,
+      "source": "binance_usdm_public_websocket_adapter",
+      "symbol": "1000FLOKIUSDT",
+      "updated_at": "2026-06-19T01:46:20.952722Z"
+    },
+    "1000PEPEUSDT": {
+      "connect_attempts": 2,
+      "fallback_snapshots": 0,
+      "last_error": null,
+      "last_event": "native_frame",
+      "last_frame_at": "2026-06-19T01:53:02.620528Z",
+      "native_frames": 15052,
+      "source": "binance_usdm_public_websocket_adapter",
+      "symbol": "1000PEPEUSDT",
+      "updated_at": "2026-06-19T01:53:02.620528Z"
+    },
+    "1000SHIBUSDT": {
+      "connect_attempts": 8,
+      "fallback_snapshots": 0,
+      "last_error": null,
+      "last_event": "native_frame",
+      "last_frame_at": "2026-06-20T05:05:30.697252Z",
+      "native_frames": 16428,
+      "source": "binance_usdm_public_websocket_adapter",
+      "symbol": "1000SHIBUSDT",
+      "updated_at": "2026-06-20T05:05:30.697252Z"
+    },
+    "AAVEUSDT": {
+      "connect_attempts": 34,
+      "fallback_snapshots": 0,
+      "last_error": null,
+      "last_event": "native_frame",
+      "last_frame_at": "2026-06-19T12:27:56.144970Z",
+      "native_frames": 628891,
+      "source": "binance_usdm_public_websocket_adapter",
+      "symbol": "AAVEUSDT",
+      "updated_at": "2026-06-19T12:27:56.144970Z"
+    },
+    "ADAUSDT": {
+      "connect_attempts": 11,
+      "fallback_snapshots": 0,
+      "last_error": null,
+      "last_event": "native_frame",
+      "last_frame_at": "2026-06-19T17:45:59.904909Z",
+      "native_frames": 367083,
+      "source": "binance_usdm_public_websocket_adapter",
+      "symbol": "ADAUSDT",
+      "updated_at": "2026-06-19T17:45:59.904909Z"
+    },
+    "AEROUSDT": {
+      "connect_attempts": 2,
+      "fallback_snapshots": 0,
+      "last_error": null,
+      "last_event": "native_frame",
+      "last_frame_at": "2026-06-18T20:06:59.257630Z",
+      "native_frames": 4336,
+      "source": "binance_usdm_public_websocket_adapter",
+      "symbol": "AEROUSDT",
+      "updated_at": "2026-06-18T20:06:59.257630Z"
+    },
+    "ALGOUSDT": {
+      "connect_attempts": 4,
+      "fallback_snapshots": 0,
+      "last_error": null,
+      "last_event": "native_frame",
+      "last_frame_at": "2026-06-19T12:54:08.048069Z",
+      "native_frames": 31883,
+      "source": "binance_usdm_public_websocket_adapter",
+      "symbol": "ALGOUSDT",
+      "updated_at": "2026-06-19T12:54:08.048069Z"
+    },
+    "ARBUSDT": {
+      "connect_attempts": 1,
+      "fallback_snapshots": 0,
+      "last_error": null,
+      "last_event": "native_frame",
+      "last_frame_at": "2026-06-19T16:56:38.700571Z",
+      "native_frames": 12655,
+      "source": "binance_usdm_public_websocket_adapter",
+      "symbol": "ARBUSDT",
+      "updated_at": "2026-06-19T16:56:38.700571Z"
+    },
+    "ASTERUSDT": {
+      "connect_attempts": 1,
+      "fallback_snapshots": 0,
+      "last_error": null,
+      "last_event": "native_frame",
+      "last_frame_at": "2026-06-19T17:11:25.495651Z",
+      "native_frames": 20083,
+      "source": "binance_usdm_public_websocket_adapter",
+      "symbol": "ASTERUSDT",
+      "updated_at": "2026-06-19T17:11:25.495651Z"
+    },
+    "ATOMUSDT": {
+      "connect_attempts": 4,
+      "fallback_snapshots": 0,
+      "last_error": null,
+      "last_event": "native_frame",
+      "last_frame_at": "2026-06-19T10:06:39.882012Z",
+      "native_frames": 75043,
+      "source": "binance_usdm_public_websocket_adapter",
+      "symbol": "ATOMUSDT",
+      "updated_at": "2026-06-19T10:06:39.882012Z"
+    },
+    "AUCTIONUSDT": {
+      "connect_attempts": 4,
+      "fallback_snapshots": 0,
+      "last_error": null,
+      "last_event": "native_frame",
+      "last_frame_at": "2026-06-19T05:12:07.195758Z",
+      "native_frames": 229,
+      "source": "binance_usdm_public_websocket_adapter",
+      "symbol": "AUCTIONUSDT",
+      "updated_at": "2026-06-19T05:12:07.195758Z"
+    },
+    "AVAXUSDT": {
+      "connect_attempts": 1,
+      "fallback_snapshots": 0,
+      "last_error": null,
+      "last_event": "native_frame",
+      "last_frame_at": "2026-06-19T14:01:04.120937Z",
+      "native_frames": 12870,
+      "source": "binance_usdm_public_websocket_adapter",
+      "symbol": "AVAXUSDT",
+      "updated_at": "2026-06-19T14:01:04.120937Z"
+    },
+    "BANKUSDT": {
+      "connect_attempts": 2,
+      "fallback_snapshots": 0,
+      "last_error": null,
+      "last_event": "native_frame",
+      "last_frame_at": "2026-06-19T05:14:52.612694Z",
+      "native_frames": 308,
+      "source": "binance_usdm_public_websocket_adapter",
+      "symbol": "BANKUSDT",
+      "updated_at": "2026-06-19T05:14:52.612694Z"
+    },
+    "BEATUSDT": {
+      "connect_attempts": 1,
+      "fallback_snapshots": 0,
+      "last_error": null,
+      "last_event": "native_frame",
+      "last_frame_at": "2026-06-19T14:03:12.907440Z",
+      "native_frames": 11245,
+      "source": "binance_usdm_public_websocket_adapter",
+      "symbol": "BEATUSDT",
+      "updated_at": "2026-06-19T14:03:12.907440Z"
+    },
+    "BIOUSDT": {
+      "connect_attempts": 1,
+      "fallback_snapshots": 0,
+      "last_error": null,
+      "last_event": "native_frame",
+      "last_frame_at": "2026-06-19T14:03:53.056965Z",
+      "native_frames": 533,
+      "source": "binance_usdm_public_websocket_adapter",
+      "symbol": "BIOUSDT",
+      "updated_at": "2026-06-19T14:03:53.056965Z"
+    },
+    "BNBUSDT": {
+      "connect_attempts": 32,
+      "fallback_snapshots": 1,
+      "last_error": "TimeoutError",
+      "last_event": "native_frame",
+      "last_frame_at": "2026-06-21T22:18:54.343280Z",
+      "native_frames": 90169,
+      "source": "binance_usdm_public_websocket_adapter",
+      "symbol": "BNBUSDT",
+      "updated_at": "2026-06-21T22:18:54.343280Z"
+    },
+    "BTCUSDT": {
+      "connect_attempts": 118,
+      "fallback_snapshots": 40,
+      "last_error": "TimeoutError",
+      "last_event": "native_frame",
+      "last_frame_at": "2026-06-21T23:14:14.140559Z",
+      "native_frames": 8921143,
+      "source": "binance_usdm_public_websocket_adapter",
+      "symbol": "BTCUSDT",
+      "updated_at": "2026-06-21T23:14:14.140559Z"
+    },
+    "ETHUSDT": {
+      "connect_attempts": 10,
+      "fallback_snapshots": 0,
+      "last_error": null,
+      "last_event": "native_frame",
+      "last_frame_at": "2026-06-19T21:40:21.875031Z",
+      "native_frames": 492058,
+      "source": "binance_usdm_public_websocket_adapter",
+      "symbol": "ETHUSDT",
+      "updated_at": "2026-06-19T21:40:21.875031Z"
+    },
+    "SOLUSDT": {
+      "connect_attempts": 4,
+      "fallback_snapshots": 0,
+      "last_error": null,
+      "last_event": "native_frame",
+      "last_frame_at": "2026-06-16T04:38:22.016600Z",
+      "native_frames": 67731,
+      "source": "binance_usdm_public_websocket_adapter",
+      "symbol": "SOLUSDT",
+      "updated_at": "2026-06-16T04:38:22.016600Z"
+    }
+  }
+}

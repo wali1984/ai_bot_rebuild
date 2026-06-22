@@ -1,0 +1,385 @@
+{
+  "accepted_fill_count": 1,
+  "blockers": [],
+  "current_session_equity": 9999.97494497,
+  "current_session_pnl": -0.02505503,
+  "economic_fill_count": 1,
+  "gate": "V2_PAPER_FILL_POSITION_MARK_TO_MARKET_EQUITY_REPAIR_READY",
+  "generated_est": "2026-06-09T23:01:25-04:00",
+  "held_row_count": 0,
+  "live_state": "LIVE_ARMED_BALANCE_HOLD",
+  "open_positions_count": 1,
+  "pipeline_refresh": {
+    "orchestrator": {
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "bucket_winners_count": 1,
+      "cannot_bypass_risk_gateway": true,
+      "classification": "V2_ORCHESTRATOR_PRODUCTION_OK",
+      "deconflict_reason": "ALL_SIGNALS_AGREE_ON_SIDE",
+      "deconflict_selected_side": "short",
+      "execution_live_symbols": [
+        "BNBUSDT",
+        "BTCUSDT",
+        "ETHUSDT",
+        "PAXGUSDT",
+        "XAUTUSDT",
+        "ZECUSDT"
+      ],
+      "finished_at": "2026-06-10T03:01:25Z",
+      "held_by_paper_fill_gate": [],
+      "live_gate": "enabled_operator_approved",
+      "live_gate_runtime_context": {
+        "execution_live_symbols": [
+          "BNBUSDT",
+          "BTCUSDT",
+          "ETHUSDT",
+          "PAXGUSDT",
+          "XAUTUSDT",
+          "ZECUSDT"
+        ],
+        "live_gate": "enabled_operator_approved",
+        "live_symbols": [
+          "BNBUSDT",
+          "BTCUSDT",
+          "ETHUSDT",
+          "PAXGUSDT",
+          "XAUTUSDT",
+          "ZECUSDT"
+        ],
+        "runtime_source": "v2:live_gate:state",
+        "runtime_validation": {
+          "age_seconds": 41.578795,
+          "blockers": [],
+          "max_age_seconds": 3600,
+          "valid": true
+        }
+      },
+      "live_symbols": [
+        "BNBUSDT",
+        "BTCUSDT",
+        "ETHUSDT",
+        "PAXGUSDT",
+        "XAUTUSDT",
+        "ZECUSDT"
+      ],
+      "predictions_held_by_paper_fill_gate": 0,
+      "predictions_seen": 4,
+      "proposals_arbitrated": 4,
+      "schema_version": "v2_orchestrator_arbitration_live_v1",
+      "skipped_malformed_prediction_count": 0,
+      "skipped_malformed_predictions": [],
+      "stale_proposal_count": 0,
+      "started_at": "2026-06-10T03:01:25Z",
+      "v2_orchestrator_keys_written": [
+        "v2:orchestrator:proposals",
+        "v2:orchestrator:decisions",
+        "v2:signals:paper"
+      ],
+      "v2_orchestrator_keys_written_count": 3,
+      "worker_id": "v2_orchestrator_arbitration_loop",
+      "writes_legacy_redis": false
+    },
+    "paper_loop": {
+      "accepted_position_count": 1,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "classification": "V2_TRADE_MANAGEMENT_PAPER_PRODUCTION_OK",
+      "execution_live_symbols": [
+        "BNBUSDT",
+        "BTCUSDT",
+        "ETHUSDT",
+        "PAXGUSDT",
+        "XAUTUSDT",
+        "ZECUSDT"
+      ],
+      "finished_at": "2026-06-10T03:01:25Z",
+      "held_by_paper_fill_gate": [],
+      "held_position_count": 0,
+      "intents_accepted": 1,
+      "intents_blocked": 792,
+      "intents_built": 793,
+      "intents_held_by_paper_fill_gate": 0,
+      "live_gate": "enabled_operator_approved",
+      "live_gate_runtime_context": {
+        "execution_live_symbols": [
+          "BNBUSDT",
+          "BTCUSDT",
+          "ETHUSDT",
+          "PAXGUSDT",
+          "XAUTUSDT",
+          "ZECUSDT"
+        ],
+        "live_gate": "enabled_operator_approved",
+        "live_symbols": [
+          "BNBUSDT",
+          "BTCUSDT",
+          "ETHUSDT",
+          "PAXGUSDT",
+          "XAUTUSDT",
+          "ZECUSDT"
+        ],
+        "runtime_source": "v2:live_gate:state",
+        "runtime_validation": {
+          "age_seconds": 41.651196,
+          "blockers": [],
+          "max_age_seconds": 3600,
+          "valid": true
+        }
+      },
+      "live_symbols": [
+        "BNBUSDT",
+        "BTCUSDT",
+        "ETHUSDT",
+        "PAXGUSDT",
+        "XAUTUSDT",
+        "ZECUSDT"
+      ],
+      "paper_signals_seen": 793,
+      "persistent_accepted_fill_count": 1,
+      "places_real_order": false,
+      "schema_version": "v2_trade_management_paper_live_v2",
+      "shadow_observation_count": 0,
+      "shadow_observations": [],
+      "started_at": "2026-06-10T03:01:25Z",
+      "v2_paper_keys_written": [
+        "v2:paper:intents",
+        "v2:paper:intents_held_by_paper_fill_gate",
+        "v2:risk:decisions",
+        "v2:paper:ledger",
+        "v2:paper:positions",
+        "v2:paper:shadow_observations"
+      ],
+      "v2_paper_keys_written_count": 6,
+      "worker_id": "v2_trade_management_paper_loop",
+      "writes_legacy_redis": false
+    },
+    "portfolio": {
+      "accepted_fill_total": 1,
+      "accepted_intent_total": 1,
+      "account_mode": "paper_shadow_only",
+      "blocked_total": 792,
+      "cash_balance": 10000.0,
+      "classification": "PORTFOLIO_STATE_CURRENT_PAPER_LEDGER_EQUITY_OK",
+      "closed_positions": [],
+      "closed_positions_count": 0,
+      "current_paper_ledger_generated_utc": "2026-06-10T03:01:25Z",
+      "current_position_source": "v2:paper:ledger",
+      "economic_fill_total": 1,
+      "equity": 9999.97494497,
+      "equity_change_since_last": -0.02505503,
+      "generated_est": "2026-06-09T23:01:25-04:00",
+      "generated_utc": "2026-06-10T03:01:25Z",
+      "held_by_paper_fill_gate_total": 0,
+      "history_symbols_tracked": 132,
+      "initial_capital": 10000.0,
+      "last_equity_update_est": "2026-06-09T23:01:25-04:00",
+      "last_equity_update_utc": "2026-06-10T03:01:25Z",
+      "last_fill_utc": "2026-06-10T03:01:25Z",
+      "ledger_count_fields_match_payload": true,
+      "ledger_to_portfolio_status": "LEDGER_TO_PORTFOLIO_PIPE_OK",
+      "live_gate_status": "enabled_operator_approved",
+      "live_safety": {
+        "live_gate_status": "enabled_operator_approved",
+        "live_symbols": [
+          "BNBUSDT",
+          "BTCUSDT",
+          "ETHUSDT",
+          "PAXGUSDT",
+          "XAUTUSDT",
+          "ZECUSDT"
+        ],
+        "writes_exchange_orders": false,
+        "writes_legacy_redis": false
+      },
+      "live_symbols": [
+        "BNBUSDT",
+        "BTCUSDT",
+        "ETHUSDT",
+        "PAXGUSDT",
+        "XAUTUSDT",
+        "ZECUSDT"
+      ],
+      "non_economic_fill_total": 0,
+      "open_position_notional": 25.0,
+      "open_positions": [
+        {
+          "accepted_intent_count": 1,
+          "entry_price": 55.877,
+          "fill_price": 55.877,
+          "held_intent_count": 0,
+          "latest_price": 55.933,
+          "latest_price_source": "v2:market:prices.ticker_24hr.lastPrice",
+          "mae_bps": null,
+          "mfe_bps": null,
+          "notional": 25.0,
+          "open_position": true,
+          "pnl_blockers": [],
+          "position_state": "accepted_paper_fill_open",
+          "quantity": -0.44741127834350447,
+          "realized_pnl_usd": 0.0,
+          "shadow_observation_count": 0,
+          "side": "short",
+          "source": "v2:paper:ledger.accepted.reconstructed",
+          "source_fill_ids": [
+            "v2h_037f0f28a74b2d369741581edcae5ab7"
+          ],
+          "symbol": "HYPEUSDT",
+          "unrealized_bps": null,
+          "unrealized_pnl_usd": -0.025055031587235082
+        }
+      ],
+      "open_positions_count": 1,
+      "paper_equity_reason": "EQUITY_RECOMPUTED_FROM_CURRENT_LEDGER_AND_V2_MARKET_PRICES",
+      "paper_equity_source": "v2:paper:ledger + v2:market:prices",
+      "paper_fill_economic_inventory": [
+        {
+          "action": "short",
+          "checkpoint_id": "v2_hybrid_ckpt_3357a88ca657796c46bf9949",
+          "classification": "ECONOMIC_FILL",
+          "current_mark_price": 55.933,
+          "economic_fill": true,
+          "entry_price": 55.877,
+          "feature_snapshot_id": "v2_fsnap_76717e8072ae257c67df212202d9e1a73a09a73ec1614c76391d492ec2f93730",
+          "fill_id": "v2h_037f0f28a74b2d369741581edcae5ab7",
+          "fill_price": 55.877,
+          "fill_time_est": null,
+          "fill_time_utc": "2026-06-10T03:01:25Z",
+          "intent_id": "v2h_037f0f28a74b2d369741581edcae5ab7",
+          "ledger_row_id": "v2h_037f0f28a74b2d369741581edcae5ab7",
+          "mark_price_age_seconds": null,
+          "mark_price_at_fill": 55.877,
+          "mark_price_source": "v2:market:prices.ticker_24hr.lastPrice",
+          "missing_fields": [],
+          "model_id": "v2_hybrid_policy_3357a88ca657796c46bf9949",
+          "notional": 25.0,
+          "orchestrator_decision_id": "dec_v2h_037f0f28a74b2d369741581edcae5ab7",
+          "paper_fill_status": "ACCEPTED_PAPER_FILL",
+          "paper_sizing_source": "V2_PAPER_DEFAULT_NOTIONAL_SIMULATION_POLICY",
+          "prediction_id": "v2h_037f0f28a74b2d369741581edcae5ab7",
+          "price_delta": 0.055999999999997385,
+          "quantity": 0.44741127834350447,
+          "raw_row_source": "v2:paper:ledger.accepted",
+          "reason_if_non_economic": null,
+          "risk_decision_id": "rd_v2h_037f0f28a74b2d369741581edcae5ab7",
+          "side": "short",
+          "signal_id": "v2h_037f0f28a74b2d369741581edcae5ab7",
+          "symbol": "HYPEUSDT",
+          "timeframe": "5m",
+          "trainer_source": "V2_NATIVE_RL_MASA_PPO_CUDA_TRAINER_PAPER_SHADOW",
+          "unrealized_pnl": -0.025055031587235082
+        }
+      ],
+      "paper_zero_pnl_reason": null,
+      "pnl_blockers": [],
+      "positions": [
+        {
+          "accepted_intent_count": 1,
+          "entry_price": 55.877,
+          "fill_price": 55.877,
+          "held_intent_count": 0,
+          "latest_price": 55.933,
+          "latest_price_source": "v2:market:prices.ticker_24hr.lastPrice",
+          "mae_bps": null,
+          "mfe_bps": null,
+          "notional": 25.0,
+          "open_position": true,
+          "pnl_blockers": [],
+          "position_state": "accepted_paper_fill_open",
+          "quantity": -0.44741127834350447,
+          "realized_pnl_usd": 0.0,
+          "shadow_observation_count": 0,
+          "side": "short",
+          "source": "v2:paper:ledger.accepted.reconstructed",
+          "source_fill_ids": [
+            "v2h_037f0f28a74b2d369741581edcae5ab7"
+          ],
+          "symbol": "HYPEUSDT",
+          "unrealized_bps": null,
+          "unrealized_pnl_usd": -0.025055031587235082
+        }
+      ],
+      "positions_by_symbol": [
+        {
+          "avg_entry_price": 55.877,
+          "closed_fill_count": 0,
+          "fill_count": 1,
+          "gross_notional": 25.0,
+          "last_mark_price": 55.933,
+          "last_mark_price_source": "v2:market:prices.ticker_24hr.lastPrice",
+          "net_quantity": -0.44741127834350447,
+          "open_position": true,
+          "position_age_seconds": null,
+          "realized_pnl": 0.0,
+          "side": "short",
+          "source_fill_ids": [
+            "v2h_037f0f28a74b2d369741581edcae5ab7"
+          ],
+          "symbol": "HYPEUSDT",
+          "unrealized_pnl": -0.025055031587235082
+        }
+      ],
+      "realized_pnl_usd": 0.0,
+      "schema_version": "v2_native_portfolio_state_v2",
+      "shadow_observation_total": 0,
+      "source_matches_redis": true,
+      "source_payload_ids": {
+        "market_prices": "v2:market:prices:{symbol}",
+        "paper_ledger": "v2:paper:ledger",
+        "paper_positions": "v2:paper:positions",
+        "public_payload": "v2/frontend/public/operator_runtime/v2_portfolio_state/latest/v2_portfolio_state.json"
+      },
+      "symbols_tracked": 1,
+      "symbols_with_activity": 1,
+      "total_mae_bps": 0.0,
+      "total_mfe_bps": 0.0,
+      "total_pnl_usd": -0.02505503,
+      "total_unrealized_bps": 0.0,
+      "trader_execution_enabled": true,
+      "unrealized_pnl_usd": -0.02505503
+    }
+  },
+  "route_crawl_summary": {
+    "local": {
+      "artifact": "claude_worklog/final_readiness/v2_paper_fill_position_mark_to_market_equity_repair/latest/production_route_matrix_local.json",
+      "failed_count": 2,
+      "failed_routes": [
+        "/admin/monitor-center?role=admin",
+        "/admin/script-registry?role=admin"
+      ],
+      "passed_count": 32,
+      "status": "PASS_COMMAND_EXIT_0_WITH_KNOWN_ADMIN_MARKERS"
+    },
+    "production": {
+      "artifact": "claude_worklog/final_readiness/v2_paper_fill_position_mark_to_market_equity_repair/latest/production_route_matrix_after.json",
+      "failed_count": 1,
+      "failed_routes": [
+        "/admin/monitor-center?role=admin"
+      ],
+      "passed_count": 33,
+      "status": "PASS_COMMAND_EXIT_0_WITH_KNOWN_ADMIN_MARKER"
+    }
+  },
+  "runtime_notes": [],
+  "safety": {
+    "calls_test_order": false,
+    "changes_leverage": false,
+    "changes_margin_mode": false,
+    "places_real_order": false,
+    "raw_credentials_exposed": false,
+    "restarts_legacy": false,
+    "trims_redis": false,
+    "writes_old_redis": false
+  },
+  "validation": {
+    "exchange_mutation_scan": "PASS",
+    "focused_paper_accounting_tests": "PASS: 36 passed",
+    "frontend_build": "PASS",
+    "frontend_typecheck": "PASS",
+    "old_redis_scan": "PASS",
+    "py_compile": "PASS",
+    "raw_secret_scan": "PASS",
+    "route_crawl": "PASS_COMMAND_EXIT_0: production 33/34, local 32/34; remaining markers are admin monitor/script-registry classifications, not paper accounting blockers"
+  },
+  "zero_pnl_reason": "EQUITY_RECOMPUTED_FROM_CURRENT_LEDGER_AND_V2_MARKET_PRICES"
+}

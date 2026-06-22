@@ -1,0 +1,1313 @@
+{
+  "blocked_confidence_rows": 635,
+  "current_active_paper_signals": 0,
+  "generated_est": "2026-06-14T17:01:46-04:00",
+  "native_cuda_primary_rows": 680,
+  "non_actionable_expected_move_rows": 26,
+  "paper_overlay_promoted_signals": 15,
+  "raw_block_reasons_visible_as_primary_labels": false,
+  "rl_core_sidecar_rows": 0,
+  "sample_rows": [
+    {
+      "action": "short",
+      "confidence": 0.4877802281022895,
+      "expected_move_after_cost_bps": -68.8812255859375,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.4870638847351,
+      "readable_block_reasons": [
+        "confidence below current paper threshold",
+        "data coverage below threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1000BONKUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4825286543534442,
+      "expected_move_after_cost_bps": -68.15907669067383,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.48707509040833,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1000BONKUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.47995661866938705,
+      "expected_move_after_cost_bps": -62.416778564453125,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.48707795143127,
+      "readable_block_reasons": [
+        "confidence below current paper threshold",
+        "data coverage below threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1000BONKUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4681382136354582,
+      "expected_move_after_cost_bps": -46.326377868652344,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.4870810508728,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1000BONKUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "action": "short",
+      "confidence": 0.46060846374049164,
+      "expected_move_after_cost_bps": -32.26811218261719,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.48708391189575,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1000BONKUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "action": "short",
+      "confidence": 0.48736796073170396,
+      "expected_move_after_cost_bps": -24.763004302978516,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.48708605766296,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1000FLOKIUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.48711956888526736,
+      "expected_move_after_cost_bps": -39.05782699584961,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.4870889186859,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1000FLOKIUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.46955271361772394,
+      "expected_move_after_cost_bps": -46.94731521606445,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.48709201812744,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1000FLOKIUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4663219925518165,
+      "expected_move_after_cost_bps": -40.283294677734375,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.48709392547607,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1000FLOKIUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4584509221475378,
+      "expected_move_after_cost_bps": -31.650270462036133,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.4870970249176,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1000FLOKIUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "action": "short",
+      "confidence": 0.490784650925942,
+      "expected_move_after_cost_bps": -81.06775665283203,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48709893226624,
+      "readable_block_reasons": [
+        "confidence below current paper threshold",
+        "data coverage below threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1000LUNCUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4872272451543879,
+      "expected_move_after_cost_bps": -84.95101165771484,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48710107803345,
+      "readable_block_reasons": [
+        "confidence below current paper threshold",
+        "data coverage below threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1000LUNCUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4761229015119556,
+      "expected_move_after_cost_bps": -59.61935806274414,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48710298538208,
+      "readable_block_reasons": [
+        "confidence below current paper threshold",
+        "data coverage below threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1000LUNCUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.47146043503028795,
+      "expected_move_after_cost_bps": -46.86265563964844,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.4871060848236,
+      "readable_block_reasons": [
+        "confidence below current paper threshold",
+        "data coverage below threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1000LUNCUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "action": "short",
+      "confidence": 0.46839915496446094,
+      "expected_move_after_cost_bps": -42.52675437927246,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.4872488975525,
+      "readable_block_reasons": [
+        "confidence below current paper threshold",
+        "data coverage below threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1000LUNCUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "action": "short",
+      "confidence": 0.46950775912729414,
+      "expected_move_after_cost_bps": -37.55630111694336,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.48725295066833,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1000PEPEUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.46018377886187767,
+      "expected_move_after_cost_bps": -37.69961357116699,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.48725509643555,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1000PEPEUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4550017221805234,
+      "expected_move_after_cost_bps": -30.799015045166016,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.4872579574585,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1000PEPEUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.45285874586207003,
+      "expected_move_after_cost_bps": -27.19971752166748,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.48726105690002,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1000PEPEUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "action": "short",
+      "confidence": 0.45785458737886064,
+      "expected_move_after_cost_bps": -20.784384727478027,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.48726391792297,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1000PEPEUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4663408167827676,
+      "expected_move_after_cost_bps": -47.928287506103516,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.48726606369019,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1000SHIBUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4614900479038576,
+      "expected_move_after_cost_bps": -42.64603614807129,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.48726797103882,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1000SHIBUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4600327218803725,
+      "expected_move_after_cost_bps": -24.089259147644043,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.48727011680603,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1000SHIBUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.448014477748537,
+      "expected_move_after_cost_bps": -16.95868968963623,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.48727202415466,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1000SHIBUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4449097665014849,
+      "expected_move_after_cost_bps": -19.070127964019775,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.4872739315033,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1000SHIBUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "action": "long",
+      "confidence": 0.48294490123636374,
+      "expected_move_after_cost_bps": 50.20155715942383,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48727703094482,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1INCHUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4838776044933983,
+      "expected_move_after_cost_bps": -33.50650978088379,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48727893829346,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1INCHUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4759235087433549,
+      "expected_move_after_cost_bps": -51.01020812988281,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48728203773499,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1INCHUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4703906385266756,
+      "expected_move_after_cost_bps": -40.78358268737793,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48728394508362,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1INCHUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "action": "short",
+      "confidence": 0.464700205925851,
+      "expected_move_after_cost_bps": -45.07957458496094,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48728609085083,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "1INCHUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "action": "long",
+      "confidence": 0.4988758493258479,
+      "expected_move_after_cost_bps": 10.797096252441406,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48728799819946,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "AAVEUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "action": "long",
+      "confidence": 0.49555578765142855,
+      "expected_move_after_cost_bps": 4.645662307739258,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.4872899055481,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "AAVEUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "action": "long",
+      "confidence": 0.4896738927759501,
+      "expected_move_after_cost_bps": -5.948053359985352,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.487291097641,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "AAVEUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "action": "long",
+      "confidence": 0.47544715893435885,
+      "expected_move_after_cost_bps": -2.7839174270629883,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48729395866394,
+      "readable_block_reasons": [
+        "confidence below current paper threshold",
+        "expected move is not positive enough after costs"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "AAVEUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "action": "short",
+      "confidence": 0.47258485485152574,
+      "expected_move_after_cost_bps": -18.416817665100098,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48729610443115,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "AAVEUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "action": "hold",
+      "confidence": 0.4775639430058436,
+      "expected_move_after_cost_bps": -9.65127182006836,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.4872989654541,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ADAUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "action": "hold",
+      "confidence": 0.47887073730533064,
+      "expected_move_after_cost_bps": -12.279377490282059,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.4873011112213,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ADAUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "action": "hold",
+      "confidence": 0.48112299888778665,
+      "expected_move_after_cost_bps": -11.34054309129715,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48730301856995,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ADAUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "action": "long",
+      "confidence": 0.4440223503853121,
+      "expected_move_after_cost_bps": -3.339353561401367,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48730492591858,
+      "readable_block_reasons": [
+        "confidence below current paper threshold",
+        "expected move is not positive enough after costs"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ADAUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "action": "long",
+      "confidence": 0.43856594995905,
+      "expected_move_after_cost_bps": -6.813050746917725,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48730611801147,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ADAUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4827756020466473,
+      "expected_move_after_cost_bps": -35.935407638549805,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48730897903442,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ALGOUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.48108637744834376,
+      "expected_move_after_cost_bps": -37.84216499328613,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48731207847595,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ALGOUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.47499229550450867,
+      "expected_move_after_cost_bps": -61.0146484375,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48731303215027,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ALGOUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4662002471495157,
+      "expected_move_after_cost_bps": -37.644453048706055,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.4873149394989,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ALGOUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4581157089767374,
+      "expected_move_after_cost_bps": -32.7393684387207,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.4873170852661,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ALGOUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4755118796361834,
+      "expected_move_after_cost_bps": -23.513659477233887,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.48731899261475,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ALICEUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4652387224517454,
+      "expected_move_after_cost_bps": -35.166683197021484,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.48731994628906,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ALICEUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.46202012036230405,
+      "expected_move_after_cost_bps": -30.495548248291016,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.48732209205627,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ALICEUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4598091353673601,
+      "expected_move_after_cost_bps": -31.632898330688477,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.4873239994049,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ALICEUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4622278695020226,
+      "expected_move_after_cost_bps": -37.17794227600098,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.48732590675354,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ALICEUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4687331219684235,
+      "expected_move_after_cost_bps": -29.40302085876465,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48732900619507,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ALLOUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.46647058523829715,
+      "expected_move_after_cost_bps": -38.46064376831055,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.4873309135437,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ALLOUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.46423499331884993,
+      "expected_move_after_cost_bps": -37.75834083557129,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.4873330593109,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ALLOUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4610904920897312,
+      "expected_move_after_cost_bps": -33.596927642822266,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48733496665955,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ALLOUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "action": "short",
+      "confidence": 0.45926168886005536,
+      "expected_move_after_cost_bps": -29.543109893798828,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48733711242676,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ALLOUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "action": "long",
+      "confidence": 0.47246100525385654,
+      "expected_move_after_cost_bps": -7.2476701736450195,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48733806610107,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "APTUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4735300572205343,
+      "expected_move_after_cost_bps": -28.193862915039062,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48734092712402,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "APTUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4722837832534469,
+      "expected_move_after_cost_bps": -48.0882682800293,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48734402656555,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "APTUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4581614208344784,
+      "expected_move_after_cost_bps": -23.90661907196045,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48734593391418,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "APTUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "action": "short",
+      "confidence": 0.45619629773936465,
+      "expected_move_after_cost_bps": -23.714216232299805,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.4873480796814,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "APTUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "action": "short",
+      "confidence": 0.47555573980623284,
+      "expected_move_after_cost_bps": -46.39183807373047,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48734998703003,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ARBUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4725758611971142,
+      "expected_move_after_cost_bps": -53.298828125,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48735189437866,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ARBUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.47018703798762324,
+      "expected_move_after_cost_bps": -60.3434944152832,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48735404014587,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ARBUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4628467329879698,
+      "expected_move_after_cost_bps": -45.83271408081055,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48735690116882,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ARBUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4578833969851587,
+      "expected_move_after_cost_bps": -36.6685791015625,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48735904693604,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ARBUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "action": "long",
+      "confidence": 0.47659830704987033,
+      "expected_move_after_cost_bps": -5.595513820648193,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48736095428467,
+      "readable_block_reasons": [
+        "confidence below current paper threshold",
+        "data coverage below threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ARUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "action": "hold",
+      "confidence": 0.47742976591029096,
+      "expected_move_after_cost_bps": -11.095211029052734,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48736310005188,
+      "readable_block_reasons": [
+        "confidence below current paper threshold",
+        "data coverage below threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ARUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4725103128100523,
+      "expected_move_after_cost_bps": -23.472826957702637,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.4873650074005,
+      "readable_block_reasons": [
+        "confidence below current paper threshold",
+        "data coverage below threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ARUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4713918421819594,
+      "expected_move_after_cost_bps": -21.164735794067383,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48736691474915,
+      "readable_block_reasons": [
+        "confidence below current paper threshold",
+        "data coverage below threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ARUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "action": "short",
+      "confidence": 0.46899242860546025,
+      "expected_move_after_cost_bps": -28.08982276916504,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48736810684204,
+      "readable_block_reasons": [
+        "confidence below current paper threshold",
+        "data coverage below threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ARUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4890178342632342,
+      "expected_move_after_cost_bps": -37.736921310424805,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.487370967865,
+      "readable_block_reasons": [
+        "confidence below current paper threshold",
+        "data coverage below threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ASRUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4823927927579524,
+      "expected_move_after_cost_bps": -32.04213333129883,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48737406730652,
+      "readable_block_reasons": [
+        "confidence below current paper threshold",
+        "data coverage below threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ASRUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4761008774158835,
+      "expected_move_after_cost_bps": -21.885498046875,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48737692832947,
+      "readable_block_reasons": [
+        "confidence below current paper threshold",
+        "data coverage below threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ASRUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.47350771610126674,
+      "expected_move_after_cost_bps": -30.578155517578125,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.48737788200378,
+      "readable_block_reasons": [
+        "confidence below current paper threshold",
+        "data coverage below threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ASRUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4735860514987289,
+      "expected_move_after_cost_bps": -30.893362045288086,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 152.487380027771,
+      "readable_block_reasons": [
+        "confidence below current paper threshold",
+        "data coverage below threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ASRUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "action": "short",
+      "confidence": 0.475844743628827,
+      "expected_move_after_cost_bps": -30.920194625854492,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.48738193511963,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ASTERUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4702099573275174,
+      "expected_move_after_cost_bps": -36.13961219787598,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.48738408088684,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ASTERUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4632293401057559,
+      "expected_move_after_cost_bps": -44.60520553588867,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.4873869419098,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ASTERUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4569186589909089,
+      "expected_move_after_cost_bps": -27.77971649169922,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.48739004135132,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ASTERUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "action": "short",
+      "confidence": 0.4451593568919574,
+      "expected_move_after_cost_bps": -22.140620231628418,
+      "ledger_status": "no ledger row for held signal",
+      "market_state_integrity_score": 96.25,
+      "orchestrator_status": "ready for arbitration",
+      "paper_status": "paper signal held",
+      "payload_age": 153.48739194869995,
+      "readable_block_reasons": [
+        "confidence below current paper threshold"
+      ],
+      "risk_status": "ready for paper",
+      "symbol": "ASTERUSDT",
+      "timeframe": "4h"
+    }
+  ],
+  "schema_version": "signals_runtime_truth_status_v1",
+  "source_payload": "operator_runtime/v2_signals/latest/all_symbol_all_timeframe_cuda_prediction_status.json"
+}

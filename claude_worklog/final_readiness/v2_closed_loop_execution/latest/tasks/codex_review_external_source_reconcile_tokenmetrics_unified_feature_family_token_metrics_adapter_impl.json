@@ -1,0 +1,27 @@
+{
+  "agent": "codex",
+  "depends_on_task_id": "external_source_reconcile_tokenmetrics_unified_feature_family_token_metrics_adapter_impl",
+  "file_lock_group": "external_source_reconcile_tokenmetrics_unified_feature_family_token_metrics",
+  "lane_group": "proof-codex",
+  "lane_type": "CODEX_REVIEW",
+  "mission_category": "observation_completeness",
+  "owner": "CODEX",
+  "paired_task_id": "external_source_reconcile_tokenmetrics_unified_feature_family_token_metrics_adapter_impl",
+  "prompt": "Review external_source_reconcile_tokenmetrics_unified_feature_family_token_metrics_adapter_impl. Verify no raw credential values, no paid-feed activation, no old Redis writes, no exchange mutation, no live/canary/shutdown approvals, and no fake external-source completion without real payload/data.",
+  "safe_envelope": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "scope_paths": [
+    "v2/backend/app",
+    "v2/backend/tests",
+    "claude_worklog/final_readiness"
+  ],
+  "status": "pending",
+  "task_id": "codex_review_external_source_reconcile_tokenmetrics_unified_feature_family_token_metrics_adapter_impl",
+  "task_type": "CODEX_REVIEW"
+}

@@ -1,0 +1,151 @@
+{
+  "schema_version": "v2_full_observation_position_history_tracker_only_consumption_status_v1",
+  "generated_utc": "2026-05-21T17:30:00Z",
+  "go_no_go": "V2_FULL_OBSERVATION_POSITION_HISTORY_TRACKER_ONLY_CONSUMPTION_REMEDIATION_READY",
+  "addresses_codex_fail": "V2_FULL_OBSERVATION_POSITION_HISTORY_CONSUMPTION_CODEX_FAIL",
+  "addresses_fail_blocker": "POSITION_HISTORY_CONSUMPTION_STILL_USES_RAW_V2_PAPER_INPUTS",
+  "prerequisite_codex_passes": [
+    "V2_POSITION_HISTORY_TRACKER_DAEMON_REMEDIATION_CODEX_PASS",
+    "V2_POSITION_HISTORY_TRACKER_GOVERNOR_REGISTRATION_CODEX_PASS"
+  ],
+  "live_state": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "live_enabled": false,
+    "writes_legacy_redis": false,
+    "writes_exchange_orders": false,
+    "places_real_order": false,
+    "leverage_changed": false,
+    "margin_mode_changed": false,
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "raw_credential_in_payload": "NEVER",
+    "checkpoint_compatibility_claimed": false,
+    "policy_architecture_parity_claimed": false,
+    "no_zero_fill_for_unknown_fields": true,
+    "zero_filled_field_count": 0
+  },
+  "patched_files": [
+    {
+      "path": "v2/backend/app/services/rl_core/full_observation_builder.py",
+      "sha256": "65f4223b0487bfe6e5207638d2a79faef42330b6563782230ad3d105c6749f7e",
+      "bytes": 82107,
+      "lines": 1816
+    },
+    {
+      "path": "v2/backend/tests/integration/cli/test_v2_full_observation_position_history_tracker_only_consumption.py",
+      "sha256": "8f6c89317c46c06ff9e9d2cde3b41606ca5810aa5a369d5a750f4742bb1a92ec",
+      "bytes": 17074,
+      "lines": 431,
+      "new_file": true
+    },
+    {
+      "path": "v2/backend/tests/integration/cli/test_v2_full_observation_position_history_consumption.py",
+      "sha256": "f6f6fce7d30a9e1d6656537ab093607fe235ee7bf38c98ab7eeb271c45bfb6eb",
+      "bytes": 14489,
+      "lines": 353
+    },
+    {
+      "path": "v2/backend/tests/integration/cli/test_v2_full_observation_ta_position_history_burndown.py",
+      "sha256": "6eba923934d4bec3e77d5aae159c08fdab931e6d591f69622a5c949b9ba5f4d3",
+      "bytes": 20704,
+      "lines": 559
+    }
+  ],
+  "tracker_only_boundary_enforcement": {
+    "tracker_history_derived_fields": [
+      "v2_position_history_present",
+      "v2_hold_time_seconds_current",
+      "v2_intents_accepted_count",
+      "v2_intents_held_count",
+      "v2_intents_blocked_count",
+      "v2_mfe_bps",
+      "v2_mae_bps",
+      "v2_roe_bps",
+      "v2_position_age_seconds",
+      "v2_hold_time_proxy_seconds"
+    ],
+    "tracker_history_derived_inputs_allowed": [
+      "v2:paper:position_history:{symbol}",
+      "v2:paper:position_price_track:{symbol}",
+      "v2:paper:position_history:heartbeat"
+    ],
+    "tracker_history_derived_inputs_forbidden": [
+      "v2:paper:positions",
+      "v2:paper:ledger",
+      "v2:paper:intents",
+      "v2:paper:intents_held_by_paper_fill_gate"
+    ],
+    "raw_paper_context_fields": [
+      "v2_pre_trade_allowed_rate",
+      "v2_fee_gate_allowed_rate",
+      "v2_churn_blocked_rate",
+      "v2_block_reason_negative_expected_move_count",
+      "v2_block_reason_edge_below_threshold_count",
+      "v2_block_reason_feature_freshness_count",
+      "v2_block_reason_checkpoint_required_count",
+      "v2_block_reason_trainer_malformed_count",
+      "v2_block_reason_other_count"
+    ],
+    "raw_paper_context_source_label": "V2_RAW_PAPER_CONTEXT_NOT_TRACKER_HISTORY",
+    "retired_conflated_source_label": "V2_POSITION_HISTORY_AGGREGATOR",
+    "extractor_function_tracker": "_extract_tracker_history_fields",
+    "extractor_function_raw_paper": "_extract_raw_paper_context_fields"
+  },
+  "source_attribution_constants": {
+    "tracker_value_present": "V2_POSITION_HISTORY_TRACKER",
+    "tracker_no_open_position_for_excursion_fields": "V2_POSITION_HISTORY_TRACKER_NO_OPEN_POSITION",
+    "tracker_payload_missing": "V2_POSITION_HISTORY_TRACKER_PAYLOAD_MISSING",
+    "tracker_payload_field_missing": "V2_POSITION_HISTORY_TRACKER_PAYLOAD_FIELD_MISSING",
+    "tracker_consumption_blocked_format": "V2_POSITION_HISTORY_TRACKER_CONSUMPTION_BLOCKED:<reason>",
+    "raw_paper_context": "V2_RAW_PAPER_CONTEXT_NOT_TRACKER_HISTORY",
+    "raw_paper_context_missing": "MISSING_V2_RAW_PAPER_CONTEXT"
+  },
+  "regression_tests_added": [
+    "test_tracker_no_open_position_overrides_raw_ledger_accepted_row",
+    "test_tracker_counts_win_when_raw_ledger_is_empty",
+    "test_stale_heartbeat_masks_tracker_fields_even_with_open_tracker_payload",
+    "test_raw_held_and_shadow_intents_do_not_inflate_tracker_accepted_count",
+    "test_mfe_mae_roe_remain_null_when_tracker_has_no_open_position_evidence",
+    "test_raw_paper_context_fields_are_explicitly_labeled_not_tracker_history",
+    "test_zero_fill_count_stays_zero_and_no_aggregator_source_on_status_payload",
+    "test_builder_does_not_import_torch_or_read_legacy_filesystem",
+    "test_status_payload_pins_legacy_safety_invariants",
+    "test_every_position_context_source_belongs_to_known_disjoint_set"
+  ],
+  "live_status_evidence": {
+    "captured_via": "python3 -m v2.backend.app.cli.v2_full_observation_builder_status --once",
+    "captured_utc": "2026-05-21T17:30:00Z",
+    "state": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+    "position_history_consumption_allowed": true,
+    "position_history_consumption_state": "ALLOWED_AFTER_CODEX_PASS_AND_FRESH_HEARTBEAT",
+    "zero_filled_field_count": 0,
+    "checkpoint_compatibility_claimed": false,
+    "policy_architecture_parity_claimed": false,
+    "per_symbol_generated_full_observation_dim": {
+      "BTCUSDT": 157,
+      "ETHUSDT": 157,
+      "SOLUSDT": 151
+    },
+    "legacy_aggregator_source_label_in_sample_present_fields": "ABSENT"
+  },
+  "validation": {
+    "py_compile_full_observation_builder": "PASS",
+    "new_tracker_only_regression_tests": "PASS (10 of 10)",
+    "previously_failing_burndown_tests_updated_and_passing": "PASS (3 tests rebound to tracker-payload contract)",
+    "previously_failing_consumption_test_updated_and_passing": "PASS",
+    "full_focused_test_sweep": "PASS (104 of 104)",
+    "json_validation": "PASS",
+    "old_redis_write_scan_on_builder": "PASS (0 hits)",
+    "exchange_mutation_scan_on_builder": "PASS (0 hits)",
+    "approval_token_scan_on_builder": "PASS (0 hits)",
+    "live_status_refresh": "PASS"
+  },
+  "refreshed_full_observation_payload_paths": [
+    "claude_worklog/final_readiness/v2_full_observation_builder/latest/full_observation_builder_status.json",
+    "v2/frontend/public/operator_runtime/v2_rl_core/latest/full_observation_builder_status.json",
+    "v2/frontend/public/v2_full_observation_builder/latest/operator_dashboard_payload.json"
+  ]
+}

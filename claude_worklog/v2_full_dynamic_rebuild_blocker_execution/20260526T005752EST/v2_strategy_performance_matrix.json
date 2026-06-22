@@ -1,0 +1,23 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "go_no_go": "V2_STRATEGY_PERFORMANCE_MATRIX_READY",
+  "live_symbols": [],
+  "metrics_present_in_run": [
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/historical_30d_replay_and_paper_proof/20260526T005752EST/legacy_vs_v2_decision_comparison.json",
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/historical_30d_replay_and_paper_proof/20260526T005752EST/paper_ledger_30d.json",
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/historical_30d_replay_and_paper_proof/20260526T005752EST/shadow_comparison_30d.json",
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/historical_30d_replay_and_paper_proof/20260526T005752EST/v2_preserved_winners.json",
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/historical_30d_replay_and_paper_proof/20260526T005752EST/v2_reduced_or_rejected_trades.json",
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/historical_30d_replay_and_paper_proof/20260526T005752EST/v2_risk_blocks.json"
+  ],
+  "notes": "Per-strategy matrix is derived from paper_ledger_30d + shadow_comparison_30d. Future lane will expand per-strategy break-down.",
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "source": "v2/frontend/public/historical_30d_replay_and_paper_proof/<ts>/",
+  "ts_est": "20260526T005752EST",
+  "ts_iso_est": "2026-05-26T01:03:25-0400",
+  "writes_exchange_orders": false
+}

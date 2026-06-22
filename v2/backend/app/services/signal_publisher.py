@@ -39,6 +39,25 @@ def now_ms() -> int:
     return int(time.time() * 1000)
 
 
+def _present(value: Any) -> bool:
+    return value is not None and value != ""
+
+
+def _first_present(*values: Any) -> Any:
+    for value in values:
+        if _present(value):
+            return value
+    return None
+
+
+def _float_or_none(value: Any) -> Optional[float]:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    return numeric
+
+
 def cite_evidence(
     *,
     field_name: str,
@@ -118,11 +137,18 @@ def required_signal_record_fields() -> Tuple[str, ...]:
         "service_id",
         "generated_at",
         "symbol",
+        "timeframe",
         "prediction_id",
         "feature_snapshot_id",
         "proposed_action",
         "side",
         "confidence_calibrated",
+        "expected_move_bps",
+        "expected_move_after_cost_bps",
+        "expected_net_edge_bps",
+        "available_at",
+        "decision_time",
+        "feature_cutoff",
         "confidence_floor",
         "actionable",
         "actionable_reason_code",
@@ -168,6 +194,33 @@ def build_signal_record(
     except (TypeError, ValueError):
         confidence_calibrated = None
     symbol = str(prediction.get("symbol") or feature_snapshot.get("symbol") or "")
+    timeframe = str(prediction.get("timeframe") or feature_snapshot.get("timeframe") or "")
+    expected_move_bps = _float_or_none(prediction.get("expected_move_bps"))
+    expected_move_after_cost_bps = _float_or_none(
+        prediction.get("expected_move_after_cost_bps")
+    )
+    available_at = _first_present(
+        prediction.get("available_at"),
+        prediction.get("generated_at"),
+        feature_snapshot.get("available_at"),
+    )
+    decision_time = _first_present(
+        prediction.get("decision_time"),
+        prediction.get("decision_time_est"),
+        prediction.get("generated_at"),
+    )
+    feature_cutoff = _first_present(
+        prediction.get("feature_cutoff"),
+        feature_snapshot.get("feature_cutoff"),
+        feature_snapshot.get("generated_at"),
+    )
+    masa_feature_cutoff = prediction.get("masa_feature_cutoff")
+    last_price = _first_present(
+        prediction.get("last_price"),
+        prediction.get("mark_price"),
+        feature_snapshot.get("last_price"),
+        feature_snapshot.get("price"),
+    )
 
     citations = [
         cite_evidence(
@@ -201,6 +254,38 @@ def build_signal_record(
             value=market_age_seconds,
         ),
     ]
+    optional_citations = [
+        cite_evidence(
+            field_name="timeframe",
+            source="trainer_prediction.timeframe or feature_snapshot.timeframe",
+            value=timeframe or None,
+        ),
+        cite_evidence(
+            field_name="expected_move_bps",
+            source="trainer_prediction.expected_move_bps",
+            value=expected_move_bps,
+        ),
+        cite_evidence(
+            field_name="expected_move_after_cost_bps",
+            source="trainer_prediction.expected_move_after_cost_bps",
+            value=expected_move_after_cost_bps,
+        ),
+        cite_evidence(
+            field_name="available_at",
+            source="trainer_prediction.available_at",
+            value=available_at,
+        ),
+        cite_evidence(
+            field_name="decision_time",
+            source="trainer_prediction.decision_time",
+            value=decision_time,
+        ),
+        cite_evidence(
+            field_name="feature_cutoff",
+            source="trainer_prediction.feature_cutoff or feature_snapshot.feature_cutoff",
+            value=feature_cutoff,
+        ),
+    ]
     actionable, reason_code = is_signal_actionable(
         side=side,
         confidence_calibrated=confidence_calibrated,
@@ -219,21 +304,48 @@ def build_signal_record(
         "service_id": SIGNAL_SERVICE_ID,
         "generated_at": ts,
         "symbol": symbol,
+        "timeframe": timeframe or None,
         "prediction_id": prediction_id,
         "feature_snapshot_id": feature_snapshot_id,
         "proposed_action": proposed_action,
         "side": side or None,
+        "selected_action": side or None,
         "confidence_calibrated": confidence_calibrated,
+        "expected_move_bps": expected_move_bps,
+        "expected_move_after_cost_bps": expected_move_after_cost_bps,
+        "expected_net_edge_bps": expected_move_after_cost_bps,
+        "last_price": last_price,
+        "price_target": prediction.get("price_target"),
+        "price_target_after_cost": prediction.get("price_target_after_cost"),
+        "price_target_low": prediction.get("price_target_low"),
+        "price_target_high": prediction.get("price_target_high"),
+        "stop_reference": prediction.get("stop_reference"),
+        "take_profit_reference": prediction.get("take_profit_reference"),
+        "available_at": available_at,
+        "decision_time": decision_time,
+        "feature_cutoff": feature_cutoff,
+        "masa_feature_cutoff": masa_feature_cutoff,
         "confidence_floor": confidence_floor,
         "actionable": actionable,
         "actionable_reason_code": reason_code,
         "source_freshness": market_freshness_state or None,
         "market_age_seconds": market_age_seconds,
-        "evidence_citations": citations,
+        "evidence_citations": citations + optional_citations,
         "explanation": explain_or_missing(
             explanation=explanation,
             citations=citations,
         ),
+        "source_lineage": {
+            "prediction_id_source_field": "trainer_prediction.prediction_id",
+            "feature_snapshot_id_source_field": "feature_snapshot.feature_snapshot_id",
+            "confidence_calibrated_source_field": "trainer_prediction.confidence_calibrated",
+            "expected_move_bps_source_field": "trainer_prediction.expected_move_bps",
+            "expected_move_after_cost_bps_source_field": "trainer_prediction.expected_move_after_cost_bps",
+            "timeframe_source_field": "trainer_prediction.timeframe or feature_snapshot.timeframe",
+            "available_at_source_field": "trainer_prediction.available_at",
+            "decision_time_source_field": "trainer_prediction.decision_time",
+            "feature_cutoff_source_field": "trainer_prediction.feature_cutoff or feature_snapshot.feature_cutoff",
+        },
         "live_gate": LIVE_GATE_STATUS,
         "exchange_call_invariant": EXCHANGE_CALL_INVARIANT,
         "exchange_action_taken": False,
@@ -271,6 +383,7 @@ def build_paper_runtime_lineage(
     orchestrator_decision_id = f"orch_{tick_id}"
     risk_decision_id = f"risk_{tick_id}"
     execution_intent_id = f"pei_{tick_id}"
+    paper_ledger_entry_id = f"pledger_{tick_id}"
     proposed_action = signal_record["proposed_action"]
     orchestrator = {
         "orchestrator_decision_id": orchestrator_decision_id,
@@ -377,6 +490,7 @@ def build_paper_runtime_lineage(
             "orchestrator_decision_id": orchestrator_decision_id,
             "risk_decision_id": risk_decision_id,
             "execution_intent_id": execution_intent_id,
+            "paper_ledger_entry_id": paper_ledger_entry_id,
         },
     }
 

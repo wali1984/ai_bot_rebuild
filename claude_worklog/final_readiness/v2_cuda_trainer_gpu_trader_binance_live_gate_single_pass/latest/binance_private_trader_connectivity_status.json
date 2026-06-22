@@ -1,0 +1,89 @@
+{
+  "account_read_status": "OK",
+  "account_summary_redacted": {
+    "asset_count": 11,
+    "balances_redacted": true,
+    "can_deposit": null,
+    "can_trade": null,
+    "can_withdraw": null,
+    "raw_balance_values_redacted": true
+  },
+  "allowed_private_readonly_actions": [
+    "account status",
+    "balances redacted",
+    "positions",
+    "open orders read-only",
+    "permissions",
+    "exchange filters",
+    "account mode",
+    "margin mode read-only",
+    "leverage read-only"
+  ],
+  "env_source": "v2/.env.local",
+  "exchange_info_status": "OK",
+  "execution_live_symbols": [],
+  "fail_blockers": [],
+  "forbidden_until_live_gate_passes": [
+    "new order",
+    "test order",
+    "cancel",
+    "modify",
+    "change leverage",
+    "change margin mode",
+    "change position mode",
+    "transfer",
+    "withdrawal"
+  ],
+  "generated_est": "2026-06-05T00:54:38-04:00",
+  "key_names_used": {
+    "api_key": "BINANCE_API_KEY",
+    "api_secret": "BINANCE_API_SECRET"
+  },
+  "key_present_by_name": {
+    "BINANCE_API_KEY": true,
+    "BINANCE_API_SECRET": true,
+    "BINANCE_FUTURES_TESTNET_API_KEY": true,
+    "BINANCE_FUTURES_TESTNET_API_SECRET": true,
+    "BINANCE_FUT_API_KEY": true,
+    "BINANCE_FUT_API_SECRET": true,
+    "BINANCE_SECRET_KEY": true
+  },
+  "leverage_changed": false,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "margin_mode_changed": false,
+  "network_probe_enabled": true,
+  "position_read_status": "OK",
+  "position_summary": {
+    "leverage_values_observed": [
+      "10",
+      "11",
+      "12",
+      "13",
+      "14",
+      "15",
+      "16",
+      "17",
+      "19",
+      "20",
+      "21",
+      "22"
+    ],
+    "margin_modes_observed": [
+      "cross"
+    ],
+    "open_positions_count": 0,
+    "positions_read": 1534,
+    "symbols_with_open_positions": []
+  },
+  "raw_credential_in_payload": "NEVER",
+  "readonly_endpoints_called": [
+    "/fapi/v1/exchangeInfo",
+    "/fapi/v3/account",
+    "/fapi/v2/positionRisk"
+  ],
+  "real_order_attempted": false,
+  "schema_version": "v2_cuda_trainer_gpu_trader_binance_live_gate_single_pass_v1_binance_private_connectivity",
+  "status": "BINANCE_PRIVATE_READONLY_CONNECTIVITY_READY",
+  "test_order_endpoint_attempted": false
+}

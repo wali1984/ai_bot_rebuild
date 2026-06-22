@@ -1,0 +1,11 @@
+{
+  "binance_451_scope": "LIVE_SIGNED_PRIVATE_EXECUTION_ONLY_NOT_PUBLIC_DATA_TRAINING",
+  "future_leakage_still_rejects": true,
+  "generated_est": "2026-06-09T15:07:22-04:00",
+  "generated_utc": "2026-06-09T19:07:22Z",
+  "masked_optional_feature_counts": {},
+  "missing_core_ohlc_still_rejects": true,
+  "schema_version": "integrity_optional_feature_calibration_status_v1",
+  "training_rule": "core OHLC/current feature snapshots required; optional/event-dependent fields are masked and score-penalized",
+  "unclosed_candle_still_rejects": true
+}

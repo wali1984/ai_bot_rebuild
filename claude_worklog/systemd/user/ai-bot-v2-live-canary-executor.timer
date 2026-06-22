@@ -1,0 +1,12 @@
+[Unit]
+Description=AI BOT V2 live-canary executor timer (every 60s, DRY-RUN-ONLY; NOT enabled by default)
+
+[Timer]
+OnBootSec=45s
+OnUnitActiveSec=60s
+Persistent=true
+AccuracySec=10s
+Unit=ai-bot-v2-live-canary-executor.service
+
+[Install]
+WantedBy=timers.target

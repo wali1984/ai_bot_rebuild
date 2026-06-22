@@ -1,0 +1,23 @@
+{
+  "status": "PAPER_ADAPTIVE_SIZING_ACTIVE",
+  "generated_est": "2026-06-11T16:19:38-04:00",
+  "source_runtime_file": "/operator_runtime/v2_paper_trade_management/latest/paper_adaptive_sizing_runtime_status.json",
+  "paper_candidates_with_allocation": 1440,
+  "accepted_allocation_count": 412,
+  "blocked_allocation_count": 1028,
+  "allocator_decision_counts": {
+    "ALLOW_WITH_SIZE": 412,
+    "BLOCK_BAD_MARKET_STATE": 10,
+    "BLOCK_NO_EDGE": 782,
+    "BLOCK_SPREAD_SLIPPAGE": 236
+  },
+  "paper_loop_run": true,
+  "paper_loop_result": {
+    "classification": "V2_TRADE_MANAGEMENT_PAPER_PRODUCTION_OK",
+    "intents_built": 720,
+    "intents_accepted": 0,
+    "v2_paper_keys_written_count": 11
+  },
+  "fixed_runtime_notional_removed": true,
+  "paper_only": true
+}

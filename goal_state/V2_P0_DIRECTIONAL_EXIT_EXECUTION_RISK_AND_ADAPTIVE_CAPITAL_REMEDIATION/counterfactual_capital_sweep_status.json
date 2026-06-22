@@ -1,0 +1,4738 @@
+{
+  "schema_version": "v2_adaptive_capital_productivity_status_v1",
+  "goal_id": "V2_ADAPTIVE_CAPITAL_PRODUCTIVITY_COMPOUNDING_AND_1000X_FEASIBILITY",
+  "generated_utc": "2026-06-20T18:00:27Z",
+  "status": "NO_GO_COUNTERFACTUAL_REPLAY_NOT_COMPLETE",
+  "counterfactual_blocker_reasons": [
+    "NO_A_GRADE_SIGNALS"
+  ],
+  "counterfactual_replay_progress": {
+    "source_coverage_status": "PASSED",
+    "source_coverage_ratio": 1.0,
+    "counterfactual_source_row_count": 1559,
+    "source_symbol_count": 151,
+    "required_symbol_timeframe_cell_count": 755,
+    "observed_required_symbol_timeframe_cell_count": 755,
+    "missing_required_symbol_timeframe_cell_count": 0,
+    "minimum_a_grade_replay_evidence_count": 1,
+    "historical_a_grade_signal_count": 0,
+    "a_grade_replay_evidence_deficit": 1,
+    "a_grade_replay_progress_pct": 0.0,
+    "a_grade_before_temporal_count": 0,
+    "event_time_valid_candidate_count": 0,
+    "best_configuration_count": 0,
+    "best_configuration_deficit_to_frontier": 1,
+    "efficient_frontier_ready": false,
+    "configuration_count_reconciled": true,
+    "feasible_plus_pruned_reconciled": true,
+    "theoretical_configuration_count": 0,
+    "configurations_considered_count": 0,
+    "feasible_configuration_count": 0,
+    "pruned_configuration_count": 0,
+    "not_a_grade_reason_counts": {
+      "ALLOCATOR_BLOCK_DRAWDOWN_GUARD": 19,
+      "ALLOCATOR_BLOCK_LOW_CONFIDENCE": 3,
+      "ALLOCATOR_BLOCK_NO_EDGE": 199,
+      "ALLOCATOR_BLOCK_SPREAD_SLIPPAGE": 9,
+      "LOW_CONFIDENCE": 985,
+      "MISSING_AFTER_COST_EDGE": 575,
+      "MISSING_CONFIDENCE": 574,
+      "NON_DIRECTIONAL_ACTION": 536,
+      "NON_POSITIVE_AFTER_COST_EDGE": 564
+    },
+    "a_grade_source_kind_counts": {
+      "__unspecified__": 2,
+      "paper_ledger": 802,
+      "paper_signal": 755
+    },
+    "a_grade_source_kind_readiness": {
+      "__unspecified__": {
+        "row_count": 2,
+        "directional_row_count": 2,
+        "confidence_present_count": 0,
+        "confidence_at_or_above_threshold_count": 0,
+        "edge_present_count": 0,
+        "positive_after_cost_edge_count": 0,
+        "positive_edge_below_confidence_count": 0,
+        "a_grade_before_temporal_count": 0,
+        "event_time_valid_candidate_count": 0,
+        "best_configuration_count": 0,
+        "no_feasible_configuration_count": 0,
+        "temporal_invalid_count": 0,
+        "not_a_grade_reason_counts": {
+          "MISSING_AFTER_COST_EDGE": 2,
+          "MISSING_CONFIDENCE": 2
+        },
+        "max_confidence": null,
+        "max_after_cost_edge_bps": null,
+        "closest_near_a_grade": {
+          "symbol": "HUSDT",
+          "timeframe": "15m",
+          "side": "long",
+          "confidence": null,
+          "confidence_threshold": 0.75,
+          "confidence_gap_to_a_grade": null,
+          "after_cost_edge_bps": null,
+          "minimum_after_cost_edge_bps": 0.0,
+          "edge_gap_to_positive_bps": null,
+          "allocator_decision": "ACCEPTED_PAPER_FILL",
+          "allocator_blocked": false,
+          "reasons": [
+            "MISSING_AFTER_COST_EDGE",
+            "MISSING_CONFIDENCE"
+          ],
+          "eligibility_gap_score": 2.0
+        },
+        "confidence_threshold": 0.75,
+        "after_cost_edge_bps_min_exclusive": 0.0,
+        "confidence_gap_to_threshold": null,
+        "positive_edge_but_below_confidence_count": 0
+      },
+      "paper_ledger": {
+        "row_count": 802,
+        "directional_row_count": 604,
+        "confidence_present_count": 230,
+        "confidence_at_or_above_threshold_count": 0,
+        "edge_present_count": 230,
+        "positive_after_cost_edge_count": 28,
+        "positive_edge_below_confidence_count": 28,
+        "a_grade_before_temporal_count": 0,
+        "event_time_valid_candidate_count": 0,
+        "best_configuration_count": 0,
+        "no_feasible_configuration_count": 0,
+        "temporal_invalid_count": 0,
+        "not_a_grade_reason_counts": {
+          "ALLOCATOR_BLOCK_DRAWDOWN_GUARD": 19,
+          "ALLOCATOR_BLOCK_LOW_CONFIDENCE": 3,
+          "ALLOCATOR_BLOCK_NO_EDGE": 199,
+          "ALLOCATOR_BLOCK_SPREAD_SLIPPAGE": 9,
+          "LOW_CONFIDENCE": 230,
+          "MISSING_AFTER_COST_EDGE": 572,
+          "MISSING_CONFIDENCE": 572,
+          "NON_DIRECTIONAL_ACTION": 198,
+          "NON_POSITIVE_AFTER_COST_EDGE": 202
+        },
+        "max_confidence": 0.66685771,
+        "max_after_cost_edge_bps": 107.99996185,
+        "closest_near_a_grade": {
+          "symbol": "FILUSDT",
+          "timeframe": "15m",
+          "side": "short",
+          "confidence": 0.65952148,
+          "confidence_threshold": 0.75,
+          "confidence_gap_to_a_grade": 0.09047852,
+          "after_cost_edge_bps": 3.53922462,
+          "minimum_after_cost_edge_bps": 0.0,
+          "edge_gap_to_positive_bps": 0.0,
+          "allocator_decision": "BLOCK_SPREAD_SLIPPAGE",
+          "allocator_blocked": true,
+          "reasons": [
+            "ALLOCATOR_BLOCK_SPREAD_SLIPPAGE",
+            "LOW_CONFIDENCE"
+          ],
+          "eligibility_gap_score": 1.09047852
+        },
+        "confidence_threshold": 0.75,
+        "after_cost_edge_bps_min_exclusive": 0.0,
+        "confidence_gap_to_threshold": 0.08314229,
+        "positive_edge_but_below_confidence_count": 28
+      },
+      "paper_signal": {
+        "row_count": 755,
+        "directional_row_count": 417,
+        "confidence_present_count": 755,
+        "confidence_at_or_above_threshold_count": 0,
+        "edge_present_count": 754,
+        "positive_after_cost_edge_count": 392,
+        "positive_edge_below_confidence_count": 392,
+        "a_grade_before_temporal_count": 0,
+        "event_time_valid_candidate_count": 0,
+        "best_configuration_count": 0,
+        "no_feasible_configuration_count": 0,
+        "temporal_invalid_count": 0,
+        "not_a_grade_reason_counts": {
+          "LOW_CONFIDENCE": 755,
+          "MISSING_AFTER_COST_EDGE": 1,
+          "NON_DIRECTIONAL_ACTION": 338,
+          "NON_POSITIVE_AFTER_COST_EDGE": 362
+        },
+        "max_confidence": 0.71638437,
+        "max_after_cost_edge_bps": 132.0,
+        "closest_near_a_grade": {
+          "symbol": "ETHUSDT",
+          "timeframe": "1m",
+          "side": "short",
+          "confidence": 0.67241402,
+          "confidence_threshold": 0.75,
+          "confidence_gap_to_a_grade": 0.07758598,
+          "after_cost_edge_bps": 60.327034,
+          "minimum_after_cost_edge_bps": 0.0,
+          "edge_gap_to_positive_bps": 0.0,
+          "allocator_decision": null,
+          "allocator_blocked": false,
+          "reasons": [
+            "LOW_CONFIDENCE"
+          ],
+          "eligibility_gap_score": 0.07758598
+        },
+        "confidence_threshold": 0.75,
+        "after_cost_edge_bps_min_exclusive": 0.0,
+        "confidence_gap_to_threshold": 0.03361563,
+        "positive_edge_but_below_confidence_count": 392
+      }
+    },
+    "closest_near_a_grade_by_source_kind": {
+      "__unspecified__": {
+        "symbol": "HUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "confidence": null,
+        "confidence_threshold": 0.75,
+        "confidence_gap_to_a_grade": null,
+        "after_cost_edge_bps": null,
+        "minimum_after_cost_edge_bps": 0.0,
+        "edge_gap_to_positive_bps": null,
+        "allocator_decision": "ACCEPTED_PAPER_FILL",
+        "allocator_blocked": false,
+        "reasons": [
+          "MISSING_AFTER_COST_EDGE",
+          "MISSING_CONFIDENCE"
+        ],
+        "eligibility_gap_score": 2.0
+      },
+      "paper_ledger": {
+        "symbol": "FILUSDT",
+        "timeframe": "15m",
+        "side": "short",
+        "confidence": 0.65952148,
+        "confidence_threshold": 0.75,
+        "confidence_gap_to_a_grade": 0.09047852,
+        "after_cost_edge_bps": 3.53922462,
+        "minimum_after_cost_edge_bps": 0.0,
+        "edge_gap_to_positive_bps": 0.0,
+        "allocator_decision": "BLOCK_SPREAD_SLIPPAGE",
+        "allocator_blocked": true,
+        "reasons": [
+          "ALLOCATOR_BLOCK_SPREAD_SLIPPAGE",
+          "LOW_CONFIDENCE"
+        ],
+        "eligibility_gap_score": 1.09047852
+      },
+      "paper_signal": {
+        "symbol": "ETHUSDT",
+        "timeframe": "1m",
+        "side": "short",
+        "confidence": 0.67241402,
+        "confidence_threshold": 0.75,
+        "confidence_gap_to_a_grade": 0.07758598,
+        "after_cost_edge_bps": 60.327034,
+        "minimum_after_cost_edge_bps": 0.0,
+        "edge_gap_to_positive_bps": 0.0,
+        "allocator_decision": null,
+        "allocator_blocked": false,
+        "reasons": [
+          "LOW_CONFIDENCE"
+        ],
+        "eligibility_gap_score": 0.07758598
+      }
+    },
+    "prediction_a_grade_readiness": {
+      "confidence_threshold": 0.75,
+      "after_cost_edge_bps_min_exclusive": 0.0,
+      "source_row_count": 755,
+      "source_kind_counts": {
+        "prediction": 755
+      },
+      "source_kind_readiness": {
+        "prediction": {
+          "row_count": 755,
+          "directional_row_count": 413,
+          "confidence_present_count": 755,
+          "confidence_at_or_above_threshold_count": 0,
+          "edge_present_count": 755,
+          "positive_after_cost_edge_count": 391,
+          "positive_edge_below_confidence_count": 391,
+          "a_grade_before_temporal_count": 0,
+          "event_time_valid_candidate_count": 0,
+          "best_configuration_count": 0,
+          "no_feasible_configuration_count": 0,
+          "temporal_invalid_count": 0,
+          "not_a_grade_reason_counts": {
+            "LOW_CONFIDENCE": 755,
+            "NON_DIRECTIONAL_ACTION": 342,
+            "NON_POSITIVE_AFTER_COST_EDGE": 364
+          },
+          "max_confidence": 0.71638437,
+          "max_after_cost_edge_bps": 132.0,
+          "closest_near_a_grade": {
+            "symbol": "ETHUSDT",
+            "timeframe": "1m",
+            "side": null,
+            "confidence": 0.67241402,
+            "confidence_threshold": 0.75,
+            "confidence_gap_to_a_grade": 0.07758598,
+            "after_cost_edge_bps": 60.327034,
+            "minimum_after_cost_edge_bps": 0.0,
+            "edge_gap_to_positive_bps": 0.0,
+            "allocator_decision": null,
+            "allocator_blocked": false,
+            "reasons": [
+              "LOW_CONFIDENCE"
+            ],
+            "eligibility_gap_score": 0.07758598
+          },
+          "confidence_threshold": 0.75,
+          "after_cost_edge_bps_min_exclusive": 0.0,
+          "confidence_gap_to_threshold": 0.03361563,
+          "positive_edge_but_below_confidence_count": 391
+        }
+      },
+      "closest_near_a_grade_by_source_kind": {
+        "prediction": {
+          "symbol": "ETHUSDT",
+          "timeframe": "1m",
+          "side": null,
+          "confidence": 0.67241402,
+          "confidence_threshold": 0.75,
+          "confidence_gap_to_a_grade": 0.07758598,
+          "after_cost_edge_bps": 60.327034,
+          "minimum_after_cost_edge_bps": 0.0,
+          "edge_gap_to_positive_bps": 0.0,
+          "allocator_decision": null,
+          "allocator_blocked": false,
+          "reasons": [
+            "LOW_CONFIDENCE"
+          ],
+          "eligibility_gap_score": 0.07758598
+        }
+      },
+      "a_grade_before_temporal_count": 0,
+      "event_time_valid_candidate_count": 0,
+      "best_configuration_count": 0,
+      "readiness_blocker_reasons": [
+        "NO_A_GRADE_SIGNALS"
+      ]
+    },
+    "prediction_counterfactual_probe": {
+      "status": "NO_GO_COUNTERFACTUAL_REPLAY_NOT_COMPLETE",
+      "prediction_row_count": 755,
+      "prediction_feature_market_cost_enriched_count": 56,
+      "prediction_feature_market_cost_enrichment_sample": [
+        {
+          "symbol": "CHIPUSDT",
+          "timeframe": "4h",
+          "prediction_id": "v2h_a76da20871942ccb59011d5630339e70",
+          "filled_fields": [
+            "actual_observed_spread_entry_bps",
+            "expected_funding_bps",
+            "orderbook_depth_usd"
+          ],
+          "market_cost_evidence_status": "PARTIAL_EXPLICIT_MARKET_COST_EVIDENCE",
+          "pit_reject_reasons": []
+        },
+        {
+          "symbol": "BABYUSDT",
+          "timeframe": "4h",
+          "prediction_id": "v2h_b50a4a3598c8ea1542178532daac61a9",
+          "filled_fields": [
+            "actual_observed_spread_entry_bps",
+            "expected_funding_bps",
+            "orderbook_depth_usd"
+          ],
+          "market_cost_evidence_status": "PARTIAL_EXPLICIT_MARKET_COST_EVIDENCE",
+          "pit_reject_reasons": []
+        },
+        {
+          "symbol": "BILLUSDT",
+          "timeframe": "5m",
+          "prediction_id": "v2h_d7fd14cb7200a451bafeffc5a7abf33c",
+          "filled_fields": [
+            "actual_observed_spread_entry_bps",
+            "expected_funding_bps",
+            "orderbook_depth_usd"
+          ],
+          "market_cost_evidence_status": "PARTIAL_EXPLICIT_MARKET_COST_EVIDENCE",
+          "pit_reject_reasons": []
+        },
+        {
+          "symbol": "BILLUSDT",
+          "timeframe": "4h",
+          "prediction_id": "v2h_b2fe7076b6e51cc0dd5193018b51f34c",
+          "filled_fields": [
+            "actual_observed_spread_entry_bps",
+            "expected_funding_bps",
+            "orderbook_depth_usd"
+          ],
+          "market_cost_evidence_status": "PARTIAL_EXPLICIT_MARKET_COST_EVIDENCE",
+          "pit_reject_reasons": []
+        },
+        {
+          "symbol": "BILLUSDT",
+          "timeframe": "1h",
+          "prediction_id": "v2h_424a8311e9658fc513967fb4fba240ad",
+          "filled_fields": [
+            "actual_observed_spread_entry_bps",
+            "expected_funding_bps",
+            "orderbook_depth_usd"
+          ],
+          "market_cost_evidence_status": "PARTIAL_EXPLICIT_MARKET_COST_EVIDENCE",
+          "pit_reject_reasons": []
+        },
+        {
+          "symbol": "ATOMUSDT",
+          "timeframe": "1h",
+          "prediction_id": "v2h_a732b543adf9679bcf0adb56c221a9a2",
+          "filled_fields": [
+            "actual_observed_spread_entry_bps",
+            "expected_funding_bps",
+            "orderbook_depth_usd"
+          ],
+          "market_cost_evidence_status": "PARTIAL_EXPLICIT_MARKET_COST_EVIDENCE",
+          "pit_reject_reasons": []
+        },
+        {
+          "symbol": "COAIUSDT",
+          "timeframe": "15m",
+          "prediction_id": "v2h_cdb53f771656e52888f327b68dcbc7b5",
+          "filled_fields": [
+            "actual_observed_spread_entry_bps",
+            "expected_funding_bps",
+            "orderbook_depth_usd"
+          ],
+          "market_cost_evidence_status": "PARTIAL_EXPLICIT_MARKET_COST_EVIDENCE",
+          "pit_reject_reasons": []
+        },
+        {
+          "symbol": "ALGOUSDT",
+          "timeframe": "1h",
+          "prediction_id": "v2h_af4398f73ce0c62c727aa5098e7cbdeb",
+          "filled_fields": [
+            "actual_observed_spread_entry_bps",
+            "expected_funding_bps",
+            "orderbook_depth_usd"
+          ],
+          "market_cost_evidence_status": "PARTIAL_EXPLICIT_MARKET_COST_EVIDENCE",
+          "pit_reject_reasons": []
+        },
+        {
+          "symbol": "CHIPUSDT",
+          "timeframe": "5m",
+          "prediction_id": "v2h_8ad6b48bd935f9db1020045662c0ea7e",
+          "filled_fields": [
+            "actual_observed_spread_entry_bps",
+            "expected_funding_bps",
+            "orderbook_depth_usd"
+          ],
+          "market_cost_evidence_status": "PARTIAL_EXPLICIT_MARKET_COST_EVIDENCE",
+          "pit_reject_reasons": []
+        },
+        {
+          "symbol": "ESPORTSUSDT",
+          "timeframe": "1h",
+          "prediction_id": "v2h_afdcdc595f0b36541f5bf52210385134",
+          "filled_fields": [
+            "actual_observed_spread_entry_bps",
+            "expected_funding_bps",
+            "orderbook_depth_usd"
+          ],
+          "market_cost_evidence_status": "PARTIAL_EXPLICIT_MARKET_COST_EVIDENCE",
+          "pit_reject_reasons": []
+        }
+      ],
+      "probe_participates_in_counterfactual_pass_gate": false,
+      "source_coverage_required_for_pass": false,
+      "a_grade_before_temporal_count": 0,
+      "event_time_valid_candidate_count": 0,
+      "best_configuration_count": 0,
+      "skipped_not_a_grade_count": 755,
+      "skipped_not_a_grade_reason_counts": {
+        "LOW_CONFIDENCE": 755,
+        "NON_DIRECTIONAL_ACTION": 342,
+        "NON_POSITIVE_AFTER_COST_EDGE": 364
+      },
+      "skipped_temporal_invalid_count": 0,
+      "skipped_no_feasible_configuration_count": 0,
+      "skipped_no_feasible_configuration_reason_counts": {},
+      "market_cost_evidence_coverage_status": {
+        "status": "NO_CANDIDATES",
+        "scope": "prediction_probe_a_grade_rows",
+        "source_row_count": 755,
+        "candidate_row_count": 0,
+        "complete_candidate_count": 0,
+        "incomplete_candidate_count": 0,
+        "complete_candidate_coverage": 0.0,
+        "confidence_threshold": 0.75,
+        "required_evidence": {
+          "spread_bps": {
+            "missing_reason": "MISSING_ACTUAL_SPREAD",
+            "accepted_fields": [
+              "actual_observed_spread_entry_bps",
+              "actual_spread_bps",
+              "entry_spread_bps",
+              "spread_bps"
+            ]
+          },
+          "slippage_bps": {
+            "missing_reason": "MISSING_SLIPPAGE",
+            "accepted_fields": [
+              "actual_observed_slippage_bps",
+              "actual_slippage_bps",
+              "realized_slippage_bps",
+              "expected_slippage_bps",
+              "slippage_bps",
+              "actual_slippage_usd",
+              "expected_slippage_usd"
+            ]
+          },
+          "fee_bps": {
+            "missing_reason": "MISSING_FEES",
+            "accepted_fields": [
+              "actual_fee_bps",
+              "fee_bps",
+              "taker_fee_bps",
+              "expected_fee_bps",
+              "actual_fees_usd",
+              "expected_fees_usd"
+            ]
+          },
+          "funding_bps": {
+            "missing_reason": "MISSING_FUNDING",
+            "accepted_fields": [
+              "actual_funding_bps",
+              "funding_bps",
+              "funding_rate_bps",
+              "expected_funding_bps",
+              "actual_funding_usd",
+              "expected_funding_usd"
+            ]
+          },
+          "market_depth_usd": {
+            "missing_reason": "MISSING_MARKET_DEPTH",
+            "accepted_fields": [
+              "market_depth_usd",
+              "orderbook_depth_usd",
+              "entry_orderbook_depth_usd",
+              "depth_usd",
+              "depth_usdt",
+              "depth_notional_usd",
+              "available_depth_usd",
+              "one_percent_depth_usd",
+              "depth_1pct_usd",
+              "depth_50bps_usd",
+              "depth_25bps_usd",
+              "top_of_book_depth_usd"
+            ]
+          }
+        },
+        "field_present_counts": {
+          "spread_bps": 0,
+          "slippage_bps": 0,
+          "fee_bps": 0,
+          "funding_bps": 0,
+          "market_depth_usd": 0
+        },
+        "missing_reason_counts": {},
+        "source_kind_counts": {},
+        "complete_by_source_kind": {},
+        "pit_reject_reason_counts": {},
+        "incomplete_candidate_sample": [],
+        "requirement": "explicit spread, market depth, fees, slippage, and funding evidence is required before replay can choose a feasible configuration"
+      },
+      "a_grade_readiness": {
+        "confidence_threshold": 0.75,
+        "after_cost_edge_bps_min_exclusive": 0.0,
+        "source_row_count": 755,
+        "source_kind_counts": {
+          "prediction": 755
+        },
+        "source_kind_readiness": {
+          "prediction": {
+            "row_count": 755,
+            "directional_row_count": 413,
+            "confidence_present_count": 755,
+            "confidence_at_or_above_threshold_count": 0,
+            "edge_present_count": 755,
+            "positive_after_cost_edge_count": 391,
+            "positive_edge_below_confidence_count": 391,
+            "a_grade_before_temporal_count": 0,
+            "event_time_valid_candidate_count": 0,
+            "best_configuration_count": 0,
+            "no_feasible_configuration_count": 0,
+            "temporal_invalid_count": 0,
+            "not_a_grade_reason_counts": {
+              "LOW_CONFIDENCE": 755,
+              "NON_DIRECTIONAL_ACTION": 342,
+              "NON_POSITIVE_AFTER_COST_EDGE": 364
+            },
+            "max_confidence": 0.71638437,
+            "max_after_cost_edge_bps": 132.0,
+            "closest_near_a_grade": {
+              "symbol": "ETHUSDT",
+              "timeframe": "1m",
+              "side": null,
+              "confidence": 0.67241402,
+              "confidence_threshold": 0.75,
+              "confidence_gap_to_a_grade": 0.07758598,
+              "after_cost_edge_bps": 60.327034,
+              "minimum_after_cost_edge_bps": 0.0,
+              "edge_gap_to_positive_bps": 0.0,
+              "allocator_decision": null,
+              "allocator_blocked": false,
+              "reasons": [
+                "LOW_CONFIDENCE"
+              ],
+              "eligibility_gap_score": 0.07758598
+            },
+            "confidence_threshold": 0.75,
+            "after_cost_edge_bps_min_exclusive": 0.0,
+            "confidence_gap_to_threshold": 0.03361563,
+            "positive_edge_but_below_confidence_count": 391
+          }
+        },
+        "closest_near_a_grade_by_source_kind": {
+          "prediction": {
+            "symbol": "ETHUSDT",
+            "timeframe": "1m",
+            "side": null,
+            "confidence": 0.67241402,
+            "confidence_threshold": 0.75,
+            "confidence_gap_to_a_grade": 0.07758598,
+            "after_cost_edge_bps": 60.327034,
+            "minimum_after_cost_edge_bps": 0.0,
+            "edge_gap_to_positive_bps": 0.0,
+            "allocator_decision": null,
+            "allocator_blocked": false,
+            "reasons": [
+              "LOW_CONFIDENCE"
+            ],
+            "eligibility_gap_score": 0.07758598
+          }
+        },
+        "a_grade_before_temporal_count": 0,
+        "event_time_valid_candidate_count": 0,
+        "best_configuration_count": 0,
+        "readiness_blocker_reasons": [
+          "NO_A_GRADE_SIGNALS"
+        ]
+      },
+      "notes": "Prediction rows are probed for A-grade readiness and PIT-safe feasibility visibility only. They do not participate in the actionable paper-signal counterfactual pass gate."
+    },
+    "near_a_grade_counterfactual_probe": {
+      "status": "NO_GO_COUNTERFACTUAL_REPLAY_NOT_COMPLETE",
+      "probe_participates_in_counterfactual_pass_gate": false,
+      "source_coverage_required_for_pass": true,
+      "confidence_threshold": 0.65,
+      "a_grade_thresholds": {
+        "confidence_min": 0.65,
+        "after_cost_edge_bps_min_exclusive": 0.0,
+        "allocator_blocked_decisions_excluded": true
+      },
+      "a_grade_before_temporal_count": 17,
+      "event_time_valid_candidate_count": 17,
+      "best_configuration_count": 0,
+      "sweep_result_count": 0,
+      "efficient_frontier_ready": false,
+      "total_expected_log_growth": 0,
+      "counterfactual_blocker_reasons": [
+        "NO_FEASIBLE_CONFIGURATION_FOR_SOME_CANDIDATES",
+        "NO_BEST_CONFIGURATIONS"
+      ],
+      "source_coverage": {
+        "required_all_observed_symbols_all_timeframes": true,
+        "required_timeframes": [
+          "1m",
+          "5m",
+          "15m",
+          "1h",
+          "4h"
+        ],
+        "source_row_count": 1559,
+        "source_symbol_count": 151,
+        "source_symbol_sample": [
+          "1000BONKUSDT",
+          "1000FLOKIUSDT",
+          "1000LUNCUSDT",
+          "1000PEPEUSDT",
+          "1000SHIBUSDT",
+          "1INCHUSDT",
+          "AAVEUSDT",
+          "ADAUSDT",
+          "AEROUSDT",
+          "ALGOUSDT",
+          "ALICEUSDT",
+          "ALLOUSDT",
+          "APTUSDT",
+          "ARBUSDT",
+          "ARUSDT",
+          "ASRUSDT",
+          "ASTERUSDT",
+          "ATOMUSDT",
+          "AUCTIONUSDT",
+          "AVAXUSDT",
+          "AVNTUSDT",
+          "AXLUSDT",
+          "BABYUSDT",
+          "BANANAS31USDT",
+          "BANKUSDT",
+          "BARDUSDT",
+          "BCHUSDT",
+          "BEATUSDT",
+          "BILLUSDT",
+          "BIOUSDT",
+          "BNBUSDT",
+          "BSBUSDT",
+          "BTCUSDT",
+          "CAKEUSDT",
+          "CELRUSDT",
+          "CHIPUSDT",
+          "CHZUSDT",
+          "COAIUSDT",
+          "CRVUSDT",
+          "DASHUSDT",
+          "DEXEUSDT",
+          "DOGEUSDT",
+          "DOTUSDT",
+          "EDENUSDT",
+          "EIGENUSDT",
+          "ENAUSDT",
+          "ENJUSDT",
+          "EPICUSDT",
+          "ESPORTSUSDT",
+          "ETCUSDT"
+        ],
+        "source_timeframe_counts": {
+          "15m": 359,
+          "1h": 514,
+          "1m": 286,
+          "4h": 202,
+          "5m": 198
+        },
+        "source_kind_counts": {
+          "__unspecified__": 2,
+          "paper_ledger": 802,
+          "paper_signal": 755
+        },
+        "required_symbol_timeframe_cell_count": 755,
+        "observed_required_symbol_timeframe_cell_count": 755,
+        "observed_symbol_timeframe_cell_count": 755,
+        "missing_required_symbol_timeframe_cell_count": 0,
+        "missing_required_symbol_timeframe_cells_sample": [],
+        "source_coverage": 1.0,
+        "source_coverage_status": "PASSED"
+      },
+      "a_grade_readiness": {
+        "confidence_threshold": 0.65,
+        "after_cost_edge_bps_min_exclusive": 0.0,
+        "source_row_count": 1559,
+        "source_kind_counts": {
+          "__unspecified__": 2,
+          "paper_ledger": 802,
+          "paper_signal": 755
+        },
+        "source_kind_readiness": {
+          "__unspecified__": {
+            "row_count": 2,
+            "directional_row_count": 2,
+            "confidence_present_count": 0,
+            "confidence_at_or_above_threshold_count": 0,
+            "edge_present_count": 0,
+            "positive_after_cost_edge_count": 0,
+            "positive_edge_below_confidence_count": 0,
+            "a_grade_before_temporal_count": 0,
+            "event_time_valid_candidate_count": 0,
+            "best_configuration_count": 0,
+            "no_feasible_configuration_count": 0,
+            "temporal_invalid_count": 0,
+            "not_a_grade_reason_counts": {
+              "MISSING_AFTER_COST_EDGE": 2,
+              "MISSING_CONFIDENCE": 2
+            },
+            "max_confidence": null,
+            "max_after_cost_edge_bps": null,
+            "closest_near_a_grade": {
+              "symbol": "HUSDT",
+              "timeframe": "15m",
+              "side": "long",
+              "confidence": null,
+              "confidence_threshold": 0.65,
+              "confidence_gap_to_a_grade": null,
+              "after_cost_edge_bps": null,
+              "minimum_after_cost_edge_bps": 0.0,
+              "edge_gap_to_positive_bps": null,
+              "allocator_decision": "ACCEPTED_PAPER_FILL",
+              "allocator_blocked": false,
+              "reasons": [
+                "MISSING_AFTER_COST_EDGE",
+                "MISSING_CONFIDENCE"
+              ],
+              "eligibility_gap_score": 2.0
+            },
+            "confidence_threshold": 0.65,
+            "after_cost_edge_bps_min_exclusive": 0.0,
+            "confidence_gap_to_threshold": null,
+            "positive_edge_but_below_confidence_count": 0
+          },
+          "paper_ledger": {
+            "row_count": 802,
+            "directional_row_count": 604,
+            "confidence_present_count": 230,
+            "confidence_at_or_above_threshold_count": 32,
+            "edge_present_count": 230,
+            "positive_after_cost_edge_count": 28,
+            "positive_edge_below_confidence_count": 25,
+            "a_grade_before_temporal_count": 0,
+            "event_time_valid_candidate_count": 0,
+            "best_configuration_count": 0,
+            "no_feasible_configuration_count": 0,
+            "temporal_invalid_count": 0,
+            "not_a_grade_reason_counts": {
+              "ALLOCATOR_BLOCK_DRAWDOWN_GUARD": 19,
+              "ALLOCATOR_BLOCK_LOW_CONFIDENCE": 3,
+              "ALLOCATOR_BLOCK_NO_EDGE": 199,
+              "ALLOCATOR_BLOCK_SPREAD_SLIPPAGE": 9,
+              "LOW_CONFIDENCE": 198,
+              "MISSING_AFTER_COST_EDGE": 572,
+              "MISSING_CONFIDENCE": 572,
+              "NON_DIRECTIONAL_ACTION": 198,
+              "NON_POSITIVE_AFTER_COST_EDGE": 202
+            },
+            "max_confidence": 0.66685771,
+            "max_after_cost_edge_bps": 107.99996185,
+            "closest_near_a_grade": {
+              "symbol": "ADAUSDT",
+              "timeframe": "1m",
+              "side": "short",
+              "confidence": 0.65113572,
+              "confidence_threshold": 0.65,
+              "confidence_gap_to_a_grade": 0.0,
+              "after_cost_edge_bps": 5.17175102,
+              "minimum_after_cost_edge_bps": 0.0,
+              "edge_gap_to_positive_bps": 0.0,
+              "allocator_decision": "BLOCK_SPREAD_SLIPPAGE",
+              "allocator_blocked": true,
+              "reasons": [
+                "ALLOCATOR_BLOCK_SPREAD_SLIPPAGE"
+              ],
+              "eligibility_gap_score": 1.0
+            },
+            "confidence_threshold": 0.65,
+            "after_cost_edge_bps_min_exclusive": 0.0,
+            "confidence_gap_to_threshold": 0.0,
+            "positive_edge_but_below_confidence_count": 25
+          },
+          "paper_signal": {
+            "row_count": 755,
+            "directional_row_count": 417,
+            "confidence_present_count": 755,
+            "confidence_at_or_above_threshold_count": 88,
+            "edge_present_count": 754,
+            "positive_after_cost_edge_count": 392,
+            "positive_edge_below_confidence_count": 375,
+            "a_grade_before_temporal_count": 17,
+            "event_time_valid_candidate_count": 17,
+            "best_configuration_count": 0,
+            "no_feasible_configuration_count": 17,
+            "temporal_invalid_count": 0,
+            "not_a_grade_reason_counts": {
+              "LOW_CONFIDENCE": 667,
+              "MISSING_AFTER_COST_EDGE": 1,
+              "NON_DIRECTIONAL_ACTION": 338,
+              "NON_POSITIVE_AFTER_COST_EDGE": 362
+            },
+            "max_confidence": 0.71638437,
+            "max_after_cost_edge_bps": 132.0,
+            "closest_near_a_grade": {
+              "symbol": "1000SHIBUSDT",
+              "timeframe": "4h",
+              "side": "short",
+              "confidence": 0.6483235,
+              "confidence_threshold": 0.65,
+              "confidence_gap_to_a_grade": 0.0016765,
+              "after_cost_edge_bps": 29.45905304,
+              "minimum_after_cost_edge_bps": 0.0,
+              "edge_gap_to_positive_bps": 0.0,
+              "allocator_decision": null,
+              "allocator_blocked": false,
+              "reasons": [
+                "LOW_CONFIDENCE"
+              ],
+              "eligibility_gap_score": 0.0016765
+            },
+            "confidence_threshold": 0.65,
+            "after_cost_edge_bps_min_exclusive": 0.0,
+            "confidence_gap_to_threshold": 0.0,
+            "positive_edge_but_below_confidence_count": 375
+          }
+        },
+        "closest_near_a_grade_by_source_kind": {
+          "__unspecified__": {
+            "symbol": "HUSDT",
+            "timeframe": "15m",
+            "side": "long",
+            "confidence": null,
+            "confidence_threshold": 0.65,
+            "confidence_gap_to_a_grade": null,
+            "after_cost_edge_bps": null,
+            "minimum_after_cost_edge_bps": 0.0,
+            "edge_gap_to_positive_bps": null,
+            "allocator_decision": "ACCEPTED_PAPER_FILL",
+            "allocator_blocked": false,
+            "reasons": [
+              "MISSING_AFTER_COST_EDGE",
+              "MISSING_CONFIDENCE"
+            ],
+            "eligibility_gap_score": 2.0
+          },
+          "paper_ledger": {
+            "symbol": "ADAUSDT",
+            "timeframe": "1m",
+            "side": "short",
+            "confidence": 0.65113572,
+            "confidence_threshold": 0.65,
+            "confidence_gap_to_a_grade": 0.0,
+            "after_cost_edge_bps": 5.17175102,
+            "minimum_after_cost_edge_bps": 0.0,
+            "edge_gap_to_positive_bps": 0.0,
+            "allocator_decision": "BLOCK_SPREAD_SLIPPAGE",
+            "allocator_blocked": true,
+            "reasons": [
+              "ALLOCATOR_BLOCK_SPREAD_SLIPPAGE"
+            ],
+            "eligibility_gap_score": 1.0
+          },
+          "paper_signal": {
+            "symbol": "1000SHIBUSDT",
+            "timeframe": "4h",
+            "side": "short",
+            "confidence": 0.6483235,
+            "confidence_threshold": 0.65,
+            "confidence_gap_to_a_grade": 0.0016765,
+            "after_cost_edge_bps": 29.45905304,
+            "minimum_after_cost_edge_bps": 0.0,
+            "edge_gap_to_positive_bps": 0.0,
+            "allocator_decision": null,
+            "allocator_blocked": false,
+            "reasons": [
+              "LOW_CONFIDENCE"
+            ],
+            "eligibility_gap_score": 0.0016765
+          }
+        },
+        "a_grade_before_temporal_count": 17,
+        "event_time_valid_candidate_count": 17,
+        "best_configuration_count": 0,
+        "readiness_blocker_reasons": [
+          "NO_FEASIBLE_CONFIGURATION_FOR_SOME_CANDIDATES",
+          "NO_BEST_CONFIGURATIONS"
+        ]
+      },
+      "skipped_temporal_invalid_count": 0,
+      "skipped_temporal_invalid_sample": [],
+      "skipped_not_a_grade_reason_counts": {
+        "ALLOCATOR_BLOCK_DRAWDOWN_GUARD": 19,
+        "ALLOCATOR_BLOCK_LOW_CONFIDENCE": 3,
+        "ALLOCATOR_BLOCK_NO_EDGE": 199,
+        "ALLOCATOR_BLOCK_SPREAD_SLIPPAGE": 9,
+        "LOW_CONFIDENCE": 865,
+        "MISSING_AFTER_COST_EDGE": 575,
+        "MISSING_CONFIDENCE": 574,
+        "NON_DIRECTIONAL_ACTION": 536,
+        "NON_POSITIVE_AFTER_COST_EDGE": 564
+      },
+      "skipped_no_feasible_configuration_count": 17,
+      "skipped_no_feasible_configuration_reason_counts": {
+        "MISSING_ACTUAL_SPREAD": 17,
+        "MISSING_FEES": 17,
+        "MISSING_FUNDING": 17,
+        "MISSING_MARKET_DEPTH": 17,
+        "MISSING_SLIPPAGE": 17
+      },
+      "skipped_no_feasible_configuration_sample": [
+        {
+          "symbol": "MONUSDT",
+          "timeframe": "1h",
+          "source_kind": "paper_signal",
+          "reasons": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH",
+            "MISSING_SLIPPAGE"
+          ]
+        },
+        {
+          "symbol": "LINKUSDT",
+          "timeframe": "1h",
+          "source_kind": "paper_signal",
+          "reasons": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH",
+            "MISSING_SLIPPAGE"
+          ]
+        },
+        {
+          "symbol": "ZROUSDT",
+          "timeframe": "1h",
+          "source_kind": "paper_signal",
+          "reasons": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH",
+            "MISSING_SLIPPAGE"
+          ]
+        },
+        {
+          "symbol": "ZROUSDT",
+          "timeframe": "1m",
+          "source_kind": "paper_signal",
+          "reasons": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH",
+            "MISSING_SLIPPAGE"
+          ]
+        },
+        {
+          "symbol": "ADAUSDT",
+          "timeframe": "1m",
+          "source_kind": "paper_signal",
+          "reasons": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH",
+            "MISSING_SLIPPAGE"
+          ]
+        },
+        {
+          "symbol": "ZROUSDT",
+          "timeframe": "15m",
+          "source_kind": "paper_signal",
+          "reasons": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH",
+            "MISSING_SLIPPAGE"
+          ]
+        },
+        {
+          "symbol": "LTCUSDT",
+          "timeframe": "15m",
+          "source_kind": "paper_signal",
+          "reasons": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH",
+            "MISSING_SLIPPAGE"
+          ]
+        },
+        {
+          "symbol": "MONUSDT",
+          "timeframe": "1m",
+          "source_kind": "paper_signal",
+          "reasons": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH",
+            "MISSING_SLIPPAGE"
+          ]
+        },
+        {
+          "symbol": "ICPUSDT",
+          "timeframe": "1m",
+          "source_kind": "paper_signal",
+          "reasons": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH",
+            "MISSING_SLIPPAGE"
+          ]
+        },
+        {
+          "symbol": "ZROUSDT",
+          "timeframe": "5m",
+          "source_kind": "paper_signal",
+          "reasons": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH",
+            "MISSING_SLIPPAGE"
+          ]
+        },
+        {
+          "symbol": "MONUSDT",
+          "timeframe": "15m",
+          "source_kind": "paper_signal",
+          "reasons": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH",
+            "MISSING_SLIPPAGE"
+          ]
+        },
+        {
+          "symbol": "ETHUSDT",
+          "timeframe": "1m",
+          "source_kind": "paper_signal",
+          "reasons": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH",
+            "MISSING_SLIPPAGE"
+          ]
+        },
+        {
+          "symbol": "AAVEUSDT",
+          "timeframe": "4h",
+          "source_kind": "paper_signal",
+          "reasons": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH",
+            "MISSING_SLIPPAGE"
+          ]
+        },
+        {
+          "symbol": "ETHUSDT",
+          "timeframe": "4h",
+          "source_kind": "paper_signal",
+          "reasons": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH",
+            "MISSING_SLIPPAGE"
+          ]
+        },
+        {
+          "symbol": "MONUSDT",
+          "timeframe": "5m",
+          "source_kind": "paper_signal",
+          "reasons": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH",
+            "MISSING_SLIPPAGE"
+          ]
+        },
+        {
+          "symbol": "ZROUSDT",
+          "timeframe": "4h",
+          "source_kind": "paper_signal",
+          "reasons": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH",
+            "MISSING_SLIPPAGE"
+          ]
+        },
+        {
+          "symbol": "FILUSDT",
+          "timeframe": "15m",
+          "source_kind": "paper_signal",
+          "reasons": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH",
+            "MISSING_SLIPPAGE"
+          ]
+        }
+      ],
+      "market_cost_evidence_coverage_status": {
+        "status": "NO_GO_MARKET_COST_EVIDENCE_INCOMPLETE",
+        "scope": "near_a_grade_diagnostic_counterfactual_rows",
+        "source_row_count": 1559,
+        "candidate_row_count": 17,
+        "complete_candidate_count": 0,
+        "incomplete_candidate_count": 17,
+        "complete_candidate_coverage": 0.0,
+        "confidence_threshold": 0.65,
+        "required_evidence": {
+          "spread_bps": {
+            "missing_reason": "MISSING_ACTUAL_SPREAD",
+            "accepted_fields": [
+              "actual_observed_spread_entry_bps",
+              "actual_spread_bps",
+              "entry_spread_bps",
+              "spread_bps"
+            ]
+          },
+          "slippage_bps": {
+            "missing_reason": "MISSING_SLIPPAGE",
+            "accepted_fields": [
+              "actual_observed_slippage_bps",
+              "actual_slippage_bps",
+              "realized_slippage_bps",
+              "expected_slippage_bps",
+              "slippage_bps",
+              "actual_slippage_usd",
+              "expected_slippage_usd"
+            ]
+          },
+          "fee_bps": {
+            "missing_reason": "MISSING_FEES",
+            "accepted_fields": [
+              "actual_fee_bps",
+              "fee_bps",
+              "taker_fee_bps",
+              "expected_fee_bps",
+              "actual_fees_usd",
+              "expected_fees_usd"
+            ]
+          },
+          "funding_bps": {
+            "missing_reason": "MISSING_FUNDING",
+            "accepted_fields": [
+              "actual_funding_bps",
+              "funding_bps",
+              "funding_rate_bps",
+              "expected_funding_bps",
+              "actual_funding_usd",
+              "expected_funding_usd"
+            ]
+          },
+          "market_depth_usd": {
+            "missing_reason": "MISSING_MARKET_DEPTH",
+            "accepted_fields": [
+              "market_depth_usd",
+              "orderbook_depth_usd",
+              "entry_orderbook_depth_usd",
+              "depth_usd",
+              "depth_usdt",
+              "depth_notional_usd",
+              "available_depth_usd",
+              "one_percent_depth_usd",
+              "depth_1pct_usd",
+              "depth_50bps_usd",
+              "depth_25bps_usd",
+              "top_of_book_depth_usd"
+            ]
+          }
+        },
+        "field_present_counts": {
+          "spread_bps": 0,
+          "slippage_bps": 0,
+          "fee_bps": 0,
+          "funding_bps": 0,
+          "market_depth_usd": 0
+        },
+        "missing_reason_counts": {
+          "MISSING_ACTUAL_SPREAD": 17,
+          "MISSING_FEES": 17,
+          "MISSING_FUNDING": 17,
+          "MISSING_MARKET_DEPTH": 17,
+          "MISSING_SLIPPAGE": 17
+        },
+        "source_kind_counts": {
+          "paper_signal": 17
+        },
+        "complete_by_source_kind": {},
+        "pit_reject_reason_counts": {
+          "FEATURE_SNAPSHOT_MISMATCH_FOR_MARKET_COST_EVIDENCE": 8,
+          "MISSING_FEATURE_PAYLOAD_FOR_MARKET_COST_EVIDENCE": 8
+        },
+        "incomplete_candidate_sample": [
+          {
+            "symbol": "MONUSDT",
+            "timeframe": "1h",
+            "source_kind": "paper_signal",
+            "missing_market_cost_evidence": [
+              "MISSING_ACTUAL_SPREAD",
+              "MISSING_SLIPPAGE",
+              "MISSING_FEES",
+              "MISSING_FUNDING",
+              "MISSING_MARKET_DEPTH"
+            ],
+            "present_market_cost_evidence_fields": {}
+          },
+          {
+            "symbol": "LINKUSDT",
+            "timeframe": "1h",
+            "source_kind": "paper_signal",
+            "missing_market_cost_evidence": [
+              "MISSING_ACTUAL_SPREAD",
+              "MISSING_SLIPPAGE",
+              "MISSING_FEES",
+              "MISSING_FUNDING",
+              "MISSING_MARKET_DEPTH"
+            ],
+            "present_market_cost_evidence_fields": {}
+          },
+          {
+            "symbol": "ZROUSDT",
+            "timeframe": "1h",
+            "source_kind": "paper_signal",
+            "missing_market_cost_evidence": [
+              "MISSING_ACTUAL_SPREAD",
+              "MISSING_SLIPPAGE",
+              "MISSING_FEES",
+              "MISSING_FUNDING",
+              "MISSING_MARKET_DEPTH"
+            ],
+            "present_market_cost_evidence_fields": {}
+          },
+          {
+            "symbol": "ZROUSDT",
+            "timeframe": "1m",
+            "source_kind": "paper_signal",
+            "missing_market_cost_evidence": [
+              "MISSING_ACTUAL_SPREAD",
+              "MISSING_SLIPPAGE",
+              "MISSING_FEES",
+              "MISSING_FUNDING",
+              "MISSING_MARKET_DEPTH"
+            ],
+            "present_market_cost_evidence_fields": {}
+          },
+          {
+            "symbol": "ADAUSDT",
+            "timeframe": "1m",
+            "source_kind": "paper_signal",
+            "missing_market_cost_evidence": [
+              "MISSING_ACTUAL_SPREAD",
+              "MISSING_SLIPPAGE",
+              "MISSING_FEES",
+              "MISSING_FUNDING",
+              "MISSING_MARKET_DEPTH"
+            ],
+            "present_market_cost_evidence_fields": {}
+          },
+          {
+            "symbol": "ZROUSDT",
+            "timeframe": "15m",
+            "source_kind": "paper_signal",
+            "missing_market_cost_evidence": [
+              "MISSING_ACTUAL_SPREAD",
+              "MISSING_SLIPPAGE",
+              "MISSING_FEES",
+              "MISSING_FUNDING",
+              "MISSING_MARKET_DEPTH"
+            ],
+            "present_market_cost_evidence_fields": {}
+          },
+          {
+            "symbol": "LTCUSDT",
+            "timeframe": "15m",
+            "source_kind": "paper_signal",
+            "missing_market_cost_evidence": [
+              "MISSING_ACTUAL_SPREAD",
+              "MISSING_SLIPPAGE",
+              "MISSING_FEES",
+              "MISSING_FUNDING",
+              "MISSING_MARKET_DEPTH"
+            ],
+            "present_market_cost_evidence_fields": {}
+          },
+          {
+            "symbol": "MONUSDT",
+            "timeframe": "1m",
+            "source_kind": "paper_signal",
+            "missing_market_cost_evidence": [
+              "MISSING_ACTUAL_SPREAD",
+              "MISSING_SLIPPAGE",
+              "MISSING_FEES",
+              "MISSING_FUNDING",
+              "MISSING_MARKET_DEPTH"
+            ],
+            "present_market_cost_evidence_fields": {}
+          },
+          {
+            "symbol": "ICPUSDT",
+            "timeframe": "1m",
+            "source_kind": "paper_signal",
+            "missing_market_cost_evidence": [
+              "MISSING_ACTUAL_SPREAD",
+              "MISSING_SLIPPAGE",
+              "MISSING_FEES",
+              "MISSING_FUNDING",
+              "MISSING_MARKET_DEPTH"
+            ],
+            "present_market_cost_evidence_fields": {}
+          },
+          {
+            "symbol": "ZROUSDT",
+            "timeframe": "5m",
+            "source_kind": "paper_signal",
+            "missing_market_cost_evidence": [
+              "MISSING_ACTUAL_SPREAD",
+              "MISSING_SLIPPAGE",
+              "MISSING_FEES",
+              "MISSING_FUNDING",
+              "MISSING_MARKET_DEPTH"
+            ],
+            "present_market_cost_evidence_fields": {}
+          }
+        ],
+        "requirement": "explicit spread, market depth, fees, slippage, and funding evidence is required before replay can choose a feasible configuration"
+      },
+      "config_space_audit": {
+        "axis_count": 6,
+        "per_candidate_theoretical_configuration_count": 540,
+        "candidate_count": 17,
+        "event_time_valid_candidate_count": 17,
+        "theoretical_configuration_count": 9180,
+        "considered_count": 9180,
+        "configurations_considered_count": 9180,
+        "feasible_count": 0,
+        "feasible_configuration_count": 0,
+        "pruned_count": 9180,
+        "pruned_configuration_count": 9180,
+        "configuration_count_reconciled": true,
+        "feasible_plus_pruned_reconciled": true,
+        "pruned_reason_counts": {
+          "MISSING_MARKET_DEPTH": 9180
+        },
+        "candidate_configuration_audit_sample": [
+          {
+            "symbol": "MONUSDT",
+            "timeframe": "1h",
+            "theoretical_configuration_count": 540,
+            "configurations_considered_count": 540,
+            "feasible_configuration_count": 0,
+            "pruned_configuration_count": 540,
+            "pruned_reason_counts": {
+              "MISSING_MARKET_DEPTH": 540
+            },
+            "base_notional_usd": 3532.19306905,
+            "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+            "axis_count": 6,
+            "considered_count": 540,
+            "feasible_count": 0,
+            "pruned_count": 540,
+            "configuration_count_reconciled": true,
+            "feasible_plus_pruned_reconciled": true
+          },
+          {
+            "symbol": "LINKUSDT",
+            "timeframe": "1h",
+            "theoretical_configuration_count": 540,
+            "configurations_considered_count": 540,
+            "feasible_configuration_count": 0,
+            "pruned_configuration_count": 540,
+            "pruned_reason_counts": {
+              "MISSING_MARKET_DEPTH": 540
+            },
+            "base_notional_usd": 3532.19306905,
+            "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+            "axis_count": 6,
+            "considered_count": 540,
+            "feasible_count": 0,
+            "pruned_count": 540,
+            "configuration_count_reconciled": true,
+            "feasible_plus_pruned_reconciled": true
+          },
+          {
+            "symbol": "ZROUSDT",
+            "timeframe": "1h",
+            "theoretical_configuration_count": 540,
+            "configurations_considered_count": 540,
+            "feasible_configuration_count": 0,
+            "pruned_configuration_count": 540,
+            "pruned_reason_counts": {
+              "MISSING_MARKET_DEPTH": 540
+            },
+            "base_notional_usd": 3532.19306905,
+            "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+            "axis_count": 6,
+            "considered_count": 540,
+            "feasible_count": 0,
+            "pruned_count": 540,
+            "configuration_count_reconciled": true,
+            "feasible_plus_pruned_reconciled": true
+          },
+          {
+            "symbol": "ZROUSDT",
+            "timeframe": "1m",
+            "theoretical_configuration_count": 540,
+            "configurations_considered_count": 540,
+            "feasible_configuration_count": 0,
+            "pruned_configuration_count": 540,
+            "pruned_reason_counts": {
+              "MISSING_MARKET_DEPTH": 540
+            },
+            "base_notional_usd": 3532.19306905,
+            "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+            "axis_count": 6,
+            "considered_count": 540,
+            "feasible_count": 0,
+            "pruned_count": 540,
+            "configuration_count_reconciled": true,
+            "feasible_plus_pruned_reconciled": true
+          },
+          {
+            "symbol": "ADAUSDT",
+            "timeframe": "1m",
+            "theoretical_configuration_count": 540,
+            "configurations_considered_count": 540,
+            "feasible_configuration_count": 0,
+            "pruned_configuration_count": 540,
+            "pruned_reason_counts": {
+              "MISSING_MARKET_DEPTH": 540
+            },
+            "base_notional_usd": 3532.19306905,
+            "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+            "axis_count": 6,
+            "considered_count": 540,
+            "feasible_count": 0,
+            "pruned_count": 540,
+            "configuration_count_reconciled": true,
+            "feasible_plus_pruned_reconciled": true
+          },
+          {
+            "symbol": "ZROUSDT",
+            "timeframe": "15m",
+            "theoretical_configuration_count": 540,
+            "configurations_considered_count": 540,
+            "feasible_configuration_count": 0,
+            "pruned_configuration_count": 540,
+            "pruned_reason_counts": {
+              "MISSING_MARKET_DEPTH": 540
+            },
+            "base_notional_usd": 3532.19306905,
+            "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+            "axis_count": 6,
+            "considered_count": 540,
+            "feasible_count": 0,
+            "pruned_count": 540,
+            "configuration_count_reconciled": true,
+            "feasible_plus_pruned_reconciled": true
+          },
+          {
+            "symbol": "LTCUSDT",
+            "timeframe": "15m",
+            "theoretical_configuration_count": 540,
+            "configurations_considered_count": 540,
+            "feasible_configuration_count": 0,
+            "pruned_configuration_count": 540,
+            "pruned_reason_counts": {
+              "MISSING_MARKET_DEPTH": 540
+            },
+            "base_notional_usd": 3532.19306905,
+            "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+            "axis_count": 6,
+            "considered_count": 540,
+            "feasible_count": 0,
+            "pruned_count": 540,
+            "configuration_count_reconciled": true,
+            "feasible_plus_pruned_reconciled": true
+          },
+          {
+            "symbol": "MONUSDT",
+            "timeframe": "1m",
+            "theoretical_configuration_count": 540,
+            "configurations_considered_count": 540,
+            "feasible_configuration_count": 0,
+            "pruned_configuration_count": 540,
+            "pruned_reason_counts": {
+              "MISSING_MARKET_DEPTH": 540
+            },
+            "base_notional_usd": 3532.19306905,
+            "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+            "axis_count": 6,
+            "considered_count": 540,
+            "feasible_count": 0,
+            "pruned_count": 540,
+            "configuration_count_reconciled": true,
+            "feasible_plus_pruned_reconciled": true
+          },
+          {
+            "symbol": "ICPUSDT",
+            "timeframe": "1m",
+            "theoretical_configuration_count": 540,
+            "configurations_considered_count": 540,
+            "feasible_configuration_count": 0,
+            "pruned_configuration_count": 540,
+            "pruned_reason_counts": {
+              "MISSING_MARKET_DEPTH": 540
+            },
+            "base_notional_usd": 3532.19306905,
+            "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+            "axis_count": 6,
+            "considered_count": 540,
+            "feasible_count": 0,
+            "pruned_count": 540,
+            "configuration_count_reconciled": true,
+            "feasible_plus_pruned_reconciled": true
+          },
+          {
+            "symbol": "ZROUSDT",
+            "timeframe": "5m",
+            "theoretical_configuration_count": 540,
+            "configurations_considered_count": 540,
+            "feasible_configuration_count": 0,
+            "pruned_configuration_count": 540,
+            "pruned_reason_counts": {
+              "MISSING_MARKET_DEPTH": 540
+            },
+            "base_notional_usd": 3532.19306905,
+            "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+            "axis_count": 6,
+            "considered_count": 540,
+            "feasible_count": 0,
+            "pruned_count": 540,
+            "configuration_count_reconciled": true,
+            "feasible_plus_pruned_reconciled": true
+          },
+          {
+            "symbol": "MONUSDT",
+            "timeframe": "15m",
+            "theoretical_configuration_count": 540,
+            "configurations_considered_count": 540,
+            "feasible_configuration_count": 0,
+            "pruned_configuration_count": 540,
+            "pruned_reason_counts": {
+              "MISSING_MARKET_DEPTH": 540
+            },
+            "base_notional_usd": 3532.19306905,
+            "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+            "axis_count": 6,
+            "considered_count": 540,
+            "feasible_count": 0,
+            "pruned_count": 540,
+            "configuration_count_reconciled": true,
+            "feasible_plus_pruned_reconciled": true
+          },
+          {
+            "symbol": "ETHUSDT",
+            "timeframe": "1m",
+            "theoretical_configuration_count": 540,
+            "configurations_considered_count": 540,
+            "feasible_configuration_count": 0,
+            "pruned_configuration_count": 540,
+            "pruned_reason_counts": {
+              "MISSING_MARKET_DEPTH": 540
+            },
+            "base_notional_usd": 3532.19306905,
+            "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+            "axis_count": 6,
+            "considered_count": 540,
+            "feasible_count": 0,
+            "pruned_count": 540,
+            "configuration_count_reconciled": true,
+            "feasible_plus_pruned_reconciled": true
+          },
+          {
+            "symbol": "AAVEUSDT",
+            "timeframe": "4h",
+            "theoretical_configuration_count": 540,
+            "configurations_considered_count": 540,
+            "feasible_configuration_count": 0,
+            "pruned_configuration_count": 540,
+            "pruned_reason_counts": {
+              "MISSING_MARKET_DEPTH": 540
+            },
+            "base_notional_usd": 3532.19306905,
+            "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+            "axis_count": 6,
+            "considered_count": 540,
+            "feasible_count": 0,
+            "pruned_count": 540,
+            "configuration_count_reconciled": true,
+            "feasible_plus_pruned_reconciled": true
+          },
+          {
+            "symbol": "ETHUSDT",
+            "timeframe": "4h",
+            "theoretical_configuration_count": 540,
+            "configurations_considered_count": 540,
+            "feasible_configuration_count": 0,
+            "pruned_configuration_count": 540,
+            "pruned_reason_counts": {
+              "MISSING_MARKET_DEPTH": 540
+            },
+            "base_notional_usd": 3532.19306905,
+            "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+            "axis_count": 6,
+            "considered_count": 540,
+            "feasible_count": 0,
+            "pruned_count": 540,
+            "configuration_count_reconciled": true,
+            "feasible_plus_pruned_reconciled": true
+          },
+          {
+            "symbol": "MONUSDT",
+            "timeframe": "5m",
+            "theoretical_configuration_count": 540,
+            "configurations_considered_count": 540,
+            "feasible_configuration_count": 0,
+            "pruned_configuration_count": 540,
+            "pruned_reason_counts": {
+              "MISSING_MARKET_DEPTH": 540
+            },
+            "base_notional_usd": 3532.19306905,
+            "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+            "axis_count": 6,
+            "considered_count": 540,
+            "feasible_count": 0,
+            "pruned_count": 540,
+            "configuration_count_reconciled": true,
+            "feasible_plus_pruned_reconciled": true
+          },
+          {
+            "symbol": "ZROUSDT",
+            "timeframe": "4h",
+            "theoretical_configuration_count": 540,
+            "configurations_considered_count": 540,
+            "feasible_configuration_count": 0,
+            "pruned_configuration_count": 540,
+            "pruned_reason_counts": {
+              "MISSING_MARKET_DEPTH": 540
+            },
+            "base_notional_usd": 3532.19306905,
+            "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+            "axis_count": 6,
+            "considered_count": 540,
+            "feasible_count": 0,
+            "pruned_count": 540,
+            "configuration_count_reconciled": true,
+            "feasible_plus_pruned_reconciled": true
+          },
+          {
+            "symbol": "FILUSDT",
+            "timeframe": "15m",
+            "theoretical_configuration_count": 540,
+            "configurations_considered_count": 540,
+            "feasible_configuration_count": 0,
+            "pruned_configuration_count": 540,
+            "pruned_reason_counts": {
+              "MISSING_MARKET_DEPTH": 540
+            },
+            "base_notional_usd": 3532.19306905,
+            "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+            "axis_count": 6,
+            "considered_count": 540,
+            "feasible_count": 0,
+            "pruned_count": 540,
+            "configuration_count_reconciled": true,
+            "feasible_plus_pruned_reconciled": true
+          }
+        ]
+      },
+      "hedge_accounting_audit": {
+        "status": "NO_GO_HEDGE_ACCOUNTING_INCOMPLETE",
+        "configuration_count": 0,
+        "hedge_enabled_configuration_count": 0,
+        "hedge_disabled_configuration_count": 0,
+        "hedge_budget_positive_count": 0,
+        "hedge_cost_positive_count": 0,
+        "expected_shortfall_reduced_count": 0,
+        "max_hedge_budget_usd": 0.0,
+        "max_hedge_cost_usd": 0.0,
+        "hedge_tail_loss_reduction_factors": [],
+        "missing_field_counts": {},
+        "hedge_cost_bps_when_enabled": 3.0,
+        "tail_loss_reduction_factor_when_enabled": 0.75,
+        "hedge_budget_usd_formula": "unhedged_expected_shortfall_usd - expected_shortfall_usd"
+      },
+      "best_configurations_sample": [],
+      "notes": "Near-A-grade replay lowers only the diagnostic replay confidence threshold. It does not satisfy the A-grade counterfactual pass gate, which remains at 0.75."
+    },
+    "market_cost_evidence_coverage_status": {
+      "status": "NO_CANDIDATES",
+      "scope": "actionable_a_grade_counterfactual_rows",
+      "source_row_count": 1559,
+      "candidate_row_count": 0,
+      "complete_candidate_count": 0,
+      "incomplete_candidate_count": 0,
+      "complete_candidate_coverage": 0.0,
+      "confidence_threshold": 0.75,
+      "required_evidence": {
+        "spread_bps": {
+          "missing_reason": "MISSING_ACTUAL_SPREAD",
+          "accepted_fields": [
+            "actual_observed_spread_entry_bps",
+            "actual_spread_bps",
+            "entry_spread_bps",
+            "spread_bps"
+          ]
+        },
+        "slippage_bps": {
+          "missing_reason": "MISSING_SLIPPAGE",
+          "accepted_fields": [
+            "actual_observed_slippage_bps",
+            "actual_slippage_bps",
+            "realized_slippage_bps",
+            "expected_slippage_bps",
+            "slippage_bps",
+            "actual_slippage_usd",
+            "expected_slippage_usd"
+          ]
+        },
+        "fee_bps": {
+          "missing_reason": "MISSING_FEES",
+          "accepted_fields": [
+            "actual_fee_bps",
+            "fee_bps",
+            "taker_fee_bps",
+            "expected_fee_bps",
+            "actual_fees_usd",
+            "expected_fees_usd"
+          ]
+        },
+        "funding_bps": {
+          "missing_reason": "MISSING_FUNDING",
+          "accepted_fields": [
+            "actual_funding_bps",
+            "funding_bps",
+            "funding_rate_bps",
+            "expected_funding_bps",
+            "actual_funding_usd",
+            "expected_funding_usd"
+          ]
+        },
+        "market_depth_usd": {
+          "missing_reason": "MISSING_MARKET_DEPTH",
+          "accepted_fields": [
+            "market_depth_usd",
+            "orderbook_depth_usd",
+            "entry_orderbook_depth_usd",
+            "depth_usd",
+            "depth_usdt",
+            "depth_notional_usd",
+            "available_depth_usd",
+            "one_percent_depth_usd",
+            "depth_1pct_usd",
+            "depth_50bps_usd",
+            "depth_25bps_usd",
+            "top_of_book_depth_usd"
+          ]
+        }
+      },
+      "field_present_counts": {
+        "spread_bps": 0,
+        "slippage_bps": 0,
+        "fee_bps": 0,
+        "funding_bps": 0,
+        "market_depth_usd": 0
+      },
+      "missing_reason_counts": {},
+      "source_kind_counts": {},
+      "complete_by_source_kind": {},
+      "pit_reject_reason_counts": {},
+      "incomplete_candidate_sample": [],
+      "requirement": "explicit spread, market depth, fees, slippage, and funding evidence is required before replay can choose a feasible configuration"
+    },
+    "near_a_grade_market_cost_evidence_coverage_status": {
+      "status": "NO_GO_MARKET_COST_EVIDENCE_INCOMPLETE",
+      "scope": "near_a_grade_diagnostic_counterfactual_rows",
+      "source_row_count": 1559,
+      "candidate_row_count": 17,
+      "complete_candidate_count": 0,
+      "incomplete_candidate_count": 17,
+      "complete_candidate_coverage": 0.0,
+      "confidence_threshold": 0.65,
+      "required_evidence": {
+        "spread_bps": {
+          "missing_reason": "MISSING_ACTUAL_SPREAD",
+          "accepted_fields": [
+            "actual_observed_spread_entry_bps",
+            "actual_spread_bps",
+            "entry_spread_bps",
+            "spread_bps"
+          ]
+        },
+        "slippage_bps": {
+          "missing_reason": "MISSING_SLIPPAGE",
+          "accepted_fields": [
+            "actual_observed_slippage_bps",
+            "actual_slippage_bps",
+            "realized_slippage_bps",
+            "expected_slippage_bps",
+            "slippage_bps",
+            "actual_slippage_usd",
+            "expected_slippage_usd"
+          ]
+        },
+        "fee_bps": {
+          "missing_reason": "MISSING_FEES",
+          "accepted_fields": [
+            "actual_fee_bps",
+            "fee_bps",
+            "taker_fee_bps",
+            "expected_fee_bps",
+            "actual_fees_usd",
+            "expected_fees_usd"
+          ]
+        },
+        "funding_bps": {
+          "missing_reason": "MISSING_FUNDING",
+          "accepted_fields": [
+            "actual_funding_bps",
+            "funding_bps",
+            "funding_rate_bps",
+            "expected_funding_bps",
+            "actual_funding_usd",
+            "expected_funding_usd"
+          ]
+        },
+        "market_depth_usd": {
+          "missing_reason": "MISSING_MARKET_DEPTH",
+          "accepted_fields": [
+            "market_depth_usd",
+            "orderbook_depth_usd",
+            "entry_orderbook_depth_usd",
+            "depth_usd",
+            "depth_usdt",
+            "depth_notional_usd",
+            "available_depth_usd",
+            "one_percent_depth_usd",
+            "depth_1pct_usd",
+            "depth_50bps_usd",
+            "depth_25bps_usd",
+            "top_of_book_depth_usd"
+          ]
+        }
+      },
+      "field_present_counts": {
+        "spread_bps": 0,
+        "slippage_bps": 0,
+        "fee_bps": 0,
+        "funding_bps": 0,
+        "market_depth_usd": 0
+      },
+      "missing_reason_counts": {
+        "MISSING_ACTUAL_SPREAD": 17,
+        "MISSING_FEES": 17,
+        "MISSING_FUNDING": 17,
+        "MISSING_MARKET_DEPTH": 17,
+        "MISSING_SLIPPAGE": 17
+      },
+      "source_kind_counts": {
+        "paper_signal": 17
+      },
+      "complete_by_source_kind": {},
+      "pit_reject_reason_counts": {
+        "FEATURE_SNAPSHOT_MISMATCH_FOR_MARKET_COST_EVIDENCE": 8,
+        "MISSING_FEATURE_PAYLOAD_FOR_MARKET_COST_EVIDENCE": 8
+      },
+      "incomplete_candidate_sample": [
+        {
+          "symbol": "MONUSDT",
+          "timeframe": "1h",
+          "source_kind": "paper_signal",
+          "missing_market_cost_evidence": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_SLIPPAGE",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH"
+          ],
+          "present_market_cost_evidence_fields": {}
+        },
+        {
+          "symbol": "LINKUSDT",
+          "timeframe": "1h",
+          "source_kind": "paper_signal",
+          "missing_market_cost_evidence": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_SLIPPAGE",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH"
+          ],
+          "present_market_cost_evidence_fields": {}
+        },
+        {
+          "symbol": "ZROUSDT",
+          "timeframe": "1h",
+          "source_kind": "paper_signal",
+          "missing_market_cost_evidence": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_SLIPPAGE",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH"
+          ],
+          "present_market_cost_evidence_fields": {}
+        },
+        {
+          "symbol": "ZROUSDT",
+          "timeframe": "1m",
+          "source_kind": "paper_signal",
+          "missing_market_cost_evidence": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_SLIPPAGE",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH"
+          ],
+          "present_market_cost_evidence_fields": {}
+        },
+        {
+          "symbol": "ADAUSDT",
+          "timeframe": "1m",
+          "source_kind": "paper_signal",
+          "missing_market_cost_evidence": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_SLIPPAGE",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH"
+          ],
+          "present_market_cost_evidence_fields": {}
+        },
+        {
+          "symbol": "ZROUSDT",
+          "timeframe": "15m",
+          "source_kind": "paper_signal",
+          "missing_market_cost_evidence": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_SLIPPAGE",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH"
+          ],
+          "present_market_cost_evidence_fields": {}
+        },
+        {
+          "symbol": "LTCUSDT",
+          "timeframe": "15m",
+          "source_kind": "paper_signal",
+          "missing_market_cost_evidence": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_SLIPPAGE",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH"
+          ],
+          "present_market_cost_evidence_fields": {}
+        },
+        {
+          "symbol": "MONUSDT",
+          "timeframe": "1m",
+          "source_kind": "paper_signal",
+          "missing_market_cost_evidence": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_SLIPPAGE",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH"
+          ],
+          "present_market_cost_evidence_fields": {}
+        },
+        {
+          "symbol": "ICPUSDT",
+          "timeframe": "1m",
+          "source_kind": "paper_signal",
+          "missing_market_cost_evidence": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_SLIPPAGE",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH"
+          ],
+          "present_market_cost_evidence_fields": {}
+        },
+        {
+          "symbol": "ZROUSDT",
+          "timeframe": "5m",
+          "source_kind": "paper_signal",
+          "missing_market_cost_evidence": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_SLIPPAGE",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH"
+          ],
+          "present_market_cost_evidence_fields": {}
+        }
+      ],
+      "requirement": "explicit spread, market depth, fees, slippage, and funding evidence is required before replay can choose a feasible configuration"
+    },
+    "counterfactual_market_cost_enriched_paper_signal_count": 3,
+    "counterfactual_feature_market_cost_enriched_paper_signal_count": 3,
+    "closest_near_a_grade": {
+      "symbol": "ETHUSDT",
+      "timeframe": "1m",
+      "side": "short",
+      "confidence": 0.67241402,
+      "confidence_threshold": 0.75,
+      "confidence_gap_to_a_grade": 0.07758598,
+      "after_cost_edge_bps": 60.327034,
+      "minimum_after_cost_edge_bps": 0.0,
+      "edge_gap_to_positive_bps": 0.0,
+      "allocator_decision": null,
+      "allocator_blocked": false,
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ],
+      "eligibility_gap_score": 0.07758598
+    },
+    "closest_confidence_gap_to_a_grade": 0.07758598,
+    "closest_edge_gap_to_positive_bps": 0.0
+  },
+  "engine_scope": "all_universe_symbols_all_five_timeframes_required",
+  "event_time_valid_required": true,
+  "counterfactual_source_row_count": 1559,
+  "ledger_runtime_row_count": 574,
+  "paper_signal_row_count": 755,
+  "counterfactual_temporal_enriched_paper_signal_count": 754,
+  "counterfactual_temporal_enrichment_sample": [
+    {
+      "symbol": "BANKUSDT",
+      "timeframe": "5m",
+      "prediction_id": "v2h_fdacee5e7e21a74877ad192927738799",
+      "filled_fields": [
+        "available_at",
+        "decision_time",
+        "feature_cutoff",
+        "feature_snapshot_id",
+        "generated_at"
+      ]
+    },
+    {
+      "symbol": "MONUSDT",
+      "timeframe": "1h",
+      "prediction_id": "v2h_188599dd546454a3573c610e5b566b62",
+      "filled_fields": [
+        "available_at",
+        "decision_time",
+        "feature_cutoff",
+        "feature_snapshot_id",
+        "generated_at"
+      ]
+    },
+    {
+      "symbol": "ALICEUSDT",
+      "timeframe": "4h",
+      "prediction_id": "v2h_bd4fbf6785540b8ef0f3f44ffc2ed3e2",
+      "filled_fields": [
+        "available_at",
+        "decision_time",
+        "feature_cutoff",
+        "feature_snapshot_id",
+        "generated_at"
+      ]
+    },
+    {
+      "symbol": "XLMUSDT",
+      "timeframe": "1h",
+      "prediction_id": "v2h_8330ddaf1ca845e1cf23ea05e35ded5a",
+      "filled_fields": [
+        "available_at",
+        "decision_time",
+        "feature_cutoff",
+        "feature_snapshot_id",
+        "generated_at"
+      ]
+    },
+    {
+      "symbol": "1000PEPEUSDT",
+      "timeframe": "1h",
+      "prediction_id": "v2h_8129327f25e4fd0422692d4499fdb785",
+      "filled_fields": [
+        "available_at",
+        "decision_time",
+        "feature_cutoff",
+        "feature_snapshot_id",
+        "generated_at"
+      ]
+    },
+    {
+      "symbol": "GRASSUSDT",
+      "timeframe": "4h",
+      "prediction_id": "v2h_4fe22ac7dc55e4db221284b152fabb9e",
+      "filled_fields": [
+        "available_at",
+        "decision_time",
+        "feature_cutoff",
+        "feature_snapshot_id",
+        "generated_at"
+      ]
+    },
+    {
+      "symbol": "DASHUSDT",
+      "timeframe": "1h",
+      "prediction_id": "v2h_5910dcd7d5691fd91a001870ff1719fd",
+      "filled_fields": [
+        "available_at",
+        "decision_time",
+        "feature_cutoff",
+        "feature_snapshot_id",
+        "generated_at"
+      ]
+    },
+    {
+      "symbol": "STOUSDT",
+      "timeframe": "5m",
+      "prediction_id": "v2h_f933cf92874874bbe6b966b02544aa39",
+      "filled_fields": [
+        "available_at",
+        "decision_time",
+        "feature_cutoff",
+        "feature_snapshot_id",
+        "generated_at"
+      ]
+    },
+    {
+      "symbol": "CELRUSDT",
+      "timeframe": "1m",
+      "prediction_id": "v2h_5d3e334229aceb0145408b2e1caaed16",
+      "filled_fields": [
+        "available_at",
+        "decision_time",
+        "feature_cutoff",
+        "feature_snapshot_id",
+        "generated_at"
+      ]
+    },
+    {
+      "symbol": "BILLUSDT",
+      "timeframe": "4h",
+      "prediction_id": "v2h_b2fe7076b6e51cc0dd5193018b51f34c",
+      "filled_fields": [
+        "available_at",
+        "decision_time",
+        "feature_cutoff",
+        "feature_snapshot_id",
+        "generated_at"
+      ]
+    }
+  ],
+  "counterfactual_market_cost_enriched_paper_signal_count": 3,
+  "counterfactual_market_cost_enrichment_sample": [
+    {
+      "symbol": "TIAUSDT",
+      "timeframe": "15m",
+      "prediction_id": "v2h_ab890e618ca64f76657b1c9265a127fc",
+      "filled_fields": [
+        "actual_observed_spread_entry_bps",
+        "expected_funding_bps",
+        "orderbook_depth_usd"
+      ],
+      "market_cost_evidence_status": "PARTIAL_EXPLICIT_MARKET_COST_EVIDENCE"
+    },
+    {
+      "symbol": "TIAUSDT",
+      "timeframe": "5m",
+      "prediction_id": "v2h_87768f9928a6e36da2252eaac3ffe06f",
+      "filled_fields": [
+        "actual_observed_spread_entry_bps",
+        "expected_funding_bps",
+        "orderbook_depth_usd"
+      ],
+      "market_cost_evidence_status": "PARTIAL_EXPLICIT_MARKET_COST_EVIDENCE"
+    },
+    {
+      "symbol": "TIAUSDT",
+      "timeframe": "1h",
+      "prediction_id": "v2h_4883ecf3e0e590bd4294e68d046f4a5a",
+      "filled_fields": [
+        "actual_observed_spread_entry_bps",
+        "expected_funding_bps",
+        "orderbook_depth_usd"
+      ],
+      "market_cost_evidence_status": "PARTIAL_EXPLICIT_MARKET_COST_EVIDENCE"
+    }
+  ],
+  "counterfactual_feature_market_cost_enriched_paper_signal_count": 3,
+  "counterfactual_feature_market_cost_enrichment_sample": [
+    {
+      "symbol": "TIAUSDT",
+      "timeframe": "15m",
+      "prediction_id": "v2h_ab890e618ca64f76657b1c9265a127fc",
+      "filled_fields": [
+        "actual_observed_spread_entry_bps",
+        "expected_funding_bps",
+        "orderbook_depth_usd"
+      ],
+      "market_cost_evidence_status": "PARTIAL_EXPLICIT_MARKET_COST_EVIDENCE",
+      "pit_reject_reasons": []
+    },
+    {
+      "symbol": "TIAUSDT",
+      "timeframe": "5m",
+      "prediction_id": "v2h_87768f9928a6e36da2252eaac3ffe06f",
+      "filled_fields": [
+        "actual_observed_spread_entry_bps",
+        "expected_funding_bps",
+        "orderbook_depth_usd"
+      ],
+      "market_cost_evidence_status": "PARTIAL_EXPLICIT_MARKET_COST_EVIDENCE",
+      "pit_reject_reasons": []
+    },
+    {
+      "symbol": "TIAUSDT",
+      "timeframe": "1h",
+      "prediction_id": "v2h_4883ecf3e0e590bd4294e68d046f4a5a",
+      "filled_fields": [
+        "actual_observed_spread_entry_bps",
+        "expected_funding_bps",
+        "orderbook_depth_usd"
+      ],
+      "market_cost_evidence_status": "PARTIAL_EXPLICIT_MARKET_COST_EVIDENCE",
+      "pit_reject_reasons": []
+    }
+  ],
+  "paper_intent_row_count": 230,
+  "feature_row_count": 491,
+  "latest_feature_row_count": 435,
+  "archived_feature_row_count": 56,
+  "feature_snapshot_archive_lookup_enabled": true,
+  "prediction_row_count": 755,
+  "prediction_counterfactual_probe": {
+    "status": "NO_GO_COUNTERFACTUAL_REPLAY_NOT_COMPLETE",
+    "prediction_row_count": 755,
+    "prediction_feature_market_cost_enriched_count": 56,
+    "prediction_feature_market_cost_enrichment_sample": [
+      {
+        "symbol": "CHIPUSDT",
+        "timeframe": "4h",
+        "prediction_id": "v2h_a76da20871942ccb59011d5630339e70",
+        "filled_fields": [
+          "actual_observed_spread_entry_bps",
+          "expected_funding_bps",
+          "orderbook_depth_usd"
+        ],
+        "market_cost_evidence_status": "PARTIAL_EXPLICIT_MARKET_COST_EVIDENCE",
+        "pit_reject_reasons": []
+      },
+      {
+        "symbol": "BABYUSDT",
+        "timeframe": "4h",
+        "prediction_id": "v2h_b50a4a3598c8ea1542178532daac61a9",
+        "filled_fields": [
+          "actual_observed_spread_entry_bps",
+          "expected_funding_bps",
+          "orderbook_depth_usd"
+        ],
+        "market_cost_evidence_status": "PARTIAL_EXPLICIT_MARKET_COST_EVIDENCE",
+        "pit_reject_reasons": []
+      },
+      {
+        "symbol": "BILLUSDT",
+        "timeframe": "5m",
+        "prediction_id": "v2h_d7fd14cb7200a451bafeffc5a7abf33c",
+        "filled_fields": [
+          "actual_observed_spread_entry_bps",
+          "expected_funding_bps",
+          "orderbook_depth_usd"
+        ],
+        "market_cost_evidence_status": "PARTIAL_EXPLICIT_MARKET_COST_EVIDENCE",
+        "pit_reject_reasons": []
+      },
+      {
+        "symbol": "BILLUSDT",
+        "timeframe": "4h",
+        "prediction_id": "v2h_b2fe7076b6e51cc0dd5193018b51f34c",
+        "filled_fields": [
+          "actual_observed_spread_entry_bps",
+          "expected_funding_bps",
+          "orderbook_depth_usd"
+        ],
+        "market_cost_evidence_status": "PARTIAL_EXPLICIT_MARKET_COST_EVIDENCE",
+        "pit_reject_reasons": []
+      },
+      {
+        "symbol": "BILLUSDT",
+        "timeframe": "1h",
+        "prediction_id": "v2h_424a8311e9658fc513967fb4fba240ad",
+        "filled_fields": [
+          "actual_observed_spread_entry_bps",
+          "expected_funding_bps",
+          "orderbook_depth_usd"
+        ],
+        "market_cost_evidence_status": "PARTIAL_EXPLICIT_MARKET_COST_EVIDENCE",
+        "pit_reject_reasons": []
+      },
+      {
+        "symbol": "ATOMUSDT",
+        "timeframe": "1h",
+        "prediction_id": "v2h_a732b543adf9679bcf0adb56c221a9a2",
+        "filled_fields": [
+          "actual_observed_spread_entry_bps",
+          "expected_funding_bps",
+          "orderbook_depth_usd"
+        ],
+        "market_cost_evidence_status": "PARTIAL_EXPLICIT_MARKET_COST_EVIDENCE",
+        "pit_reject_reasons": []
+      },
+      {
+        "symbol": "COAIUSDT",
+        "timeframe": "15m",
+        "prediction_id": "v2h_cdb53f771656e52888f327b68dcbc7b5",
+        "filled_fields": [
+          "actual_observed_spread_entry_bps",
+          "expected_funding_bps",
+          "orderbook_depth_usd"
+        ],
+        "market_cost_evidence_status": "PARTIAL_EXPLICIT_MARKET_COST_EVIDENCE",
+        "pit_reject_reasons": []
+      },
+      {
+        "symbol": "ALGOUSDT",
+        "timeframe": "1h",
+        "prediction_id": "v2h_af4398f73ce0c62c727aa5098e7cbdeb",
+        "filled_fields": [
+          "actual_observed_spread_entry_bps",
+          "expected_funding_bps",
+          "orderbook_depth_usd"
+        ],
+        "market_cost_evidence_status": "PARTIAL_EXPLICIT_MARKET_COST_EVIDENCE",
+        "pit_reject_reasons": []
+      },
+      {
+        "symbol": "CHIPUSDT",
+        "timeframe": "5m",
+        "prediction_id": "v2h_8ad6b48bd935f9db1020045662c0ea7e",
+        "filled_fields": [
+          "actual_observed_spread_entry_bps",
+          "expected_funding_bps",
+          "orderbook_depth_usd"
+        ],
+        "market_cost_evidence_status": "PARTIAL_EXPLICIT_MARKET_COST_EVIDENCE",
+        "pit_reject_reasons": []
+      },
+      {
+        "symbol": "ESPORTSUSDT",
+        "timeframe": "1h",
+        "prediction_id": "v2h_afdcdc595f0b36541f5bf52210385134",
+        "filled_fields": [
+          "actual_observed_spread_entry_bps",
+          "expected_funding_bps",
+          "orderbook_depth_usd"
+        ],
+        "market_cost_evidence_status": "PARTIAL_EXPLICIT_MARKET_COST_EVIDENCE",
+        "pit_reject_reasons": []
+      }
+    ],
+    "probe_participates_in_counterfactual_pass_gate": false,
+    "source_coverage_required_for_pass": false,
+    "a_grade_before_temporal_count": 0,
+    "event_time_valid_candidate_count": 0,
+    "best_configuration_count": 0,
+    "skipped_not_a_grade_count": 755,
+    "skipped_not_a_grade_reason_counts": {
+      "LOW_CONFIDENCE": 755,
+      "NON_DIRECTIONAL_ACTION": 342,
+      "NON_POSITIVE_AFTER_COST_EDGE": 364
+    },
+    "skipped_temporal_invalid_count": 0,
+    "skipped_no_feasible_configuration_count": 0,
+    "skipped_no_feasible_configuration_reason_counts": {},
+    "market_cost_evidence_coverage_status": {
+      "status": "NO_CANDIDATES",
+      "scope": "prediction_probe_a_grade_rows",
+      "source_row_count": 755,
+      "candidate_row_count": 0,
+      "complete_candidate_count": 0,
+      "incomplete_candidate_count": 0,
+      "complete_candidate_coverage": 0.0,
+      "confidence_threshold": 0.75,
+      "required_evidence": {
+        "spread_bps": {
+          "missing_reason": "MISSING_ACTUAL_SPREAD",
+          "accepted_fields": [
+            "actual_observed_spread_entry_bps",
+            "actual_spread_bps",
+            "entry_spread_bps",
+            "spread_bps"
+          ]
+        },
+        "slippage_bps": {
+          "missing_reason": "MISSING_SLIPPAGE",
+          "accepted_fields": [
+            "actual_observed_slippage_bps",
+            "actual_slippage_bps",
+            "realized_slippage_bps",
+            "expected_slippage_bps",
+            "slippage_bps",
+            "actual_slippage_usd",
+            "expected_slippage_usd"
+          ]
+        },
+        "fee_bps": {
+          "missing_reason": "MISSING_FEES",
+          "accepted_fields": [
+            "actual_fee_bps",
+            "fee_bps",
+            "taker_fee_bps",
+            "expected_fee_bps",
+            "actual_fees_usd",
+            "expected_fees_usd"
+          ]
+        },
+        "funding_bps": {
+          "missing_reason": "MISSING_FUNDING",
+          "accepted_fields": [
+            "actual_funding_bps",
+            "funding_bps",
+            "funding_rate_bps",
+            "expected_funding_bps",
+            "actual_funding_usd",
+            "expected_funding_usd"
+          ]
+        },
+        "market_depth_usd": {
+          "missing_reason": "MISSING_MARKET_DEPTH",
+          "accepted_fields": [
+            "market_depth_usd",
+            "orderbook_depth_usd",
+            "entry_orderbook_depth_usd",
+            "depth_usd",
+            "depth_usdt",
+            "depth_notional_usd",
+            "available_depth_usd",
+            "one_percent_depth_usd",
+            "depth_1pct_usd",
+            "depth_50bps_usd",
+            "depth_25bps_usd",
+            "top_of_book_depth_usd"
+          ]
+        }
+      },
+      "field_present_counts": {
+        "spread_bps": 0,
+        "slippage_bps": 0,
+        "fee_bps": 0,
+        "funding_bps": 0,
+        "market_depth_usd": 0
+      },
+      "missing_reason_counts": {},
+      "source_kind_counts": {},
+      "complete_by_source_kind": {},
+      "pit_reject_reason_counts": {},
+      "incomplete_candidate_sample": [],
+      "requirement": "explicit spread, market depth, fees, slippage, and funding evidence is required before replay can choose a feasible configuration"
+    },
+    "a_grade_readiness": {
+      "confidence_threshold": 0.75,
+      "after_cost_edge_bps_min_exclusive": 0.0,
+      "source_row_count": 755,
+      "source_kind_counts": {
+        "prediction": 755
+      },
+      "source_kind_readiness": {
+        "prediction": {
+          "row_count": 755,
+          "directional_row_count": 413,
+          "confidence_present_count": 755,
+          "confidence_at_or_above_threshold_count": 0,
+          "edge_present_count": 755,
+          "positive_after_cost_edge_count": 391,
+          "positive_edge_below_confidence_count": 391,
+          "a_grade_before_temporal_count": 0,
+          "event_time_valid_candidate_count": 0,
+          "best_configuration_count": 0,
+          "no_feasible_configuration_count": 0,
+          "temporal_invalid_count": 0,
+          "not_a_grade_reason_counts": {
+            "LOW_CONFIDENCE": 755,
+            "NON_DIRECTIONAL_ACTION": 342,
+            "NON_POSITIVE_AFTER_COST_EDGE": 364
+          },
+          "max_confidence": 0.71638437,
+          "max_after_cost_edge_bps": 132.0,
+          "closest_near_a_grade": {
+            "symbol": "ETHUSDT",
+            "timeframe": "1m",
+            "side": null,
+            "confidence": 0.67241402,
+            "confidence_threshold": 0.75,
+            "confidence_gap_to_a_grade": 0.07758598,
+            "after_cost_edge_bps": 60.327034,
+            "minimum_after_cost_edge_bps": 0.0,
+            "edge_gap_to_positive_bps": 0.0,
+            "allocator_decision": null,
+            "allocator_blocked": false,
+            "reasons": [
+              "LOW_CONFIDENCE"
+            ],
+            "eligibility_gap_score": 0.07758598
+          },
+          "confidence_threshold": 0.75,
+          "after_cost_edge_bps_min_exclusive": 0.0,
+          "confidence_gap_to_threshold": 0.03361563,
+          "positive_edge_but_below_confidence_count": 391
+        }
+      },
+      "closest_near_a_grade_by_source_kind": {
+        "prediction": {
+          "symbol": "ETHUSDT",
+          "timeframe": "1m",
+          "side": null,
+          "confidence": 0.67241402,
+          "confidence_threshold": 0.75,
+          "confidence_gap_to_a_grade": 0.07758598,
+          "after_cost_edge_bps": 60.327034,
+          "minimum_after_cost_edge_bps": 0.0,
+          "edge_gap_to_positive_bps": 0.0,
+          "allocator_decision": null,
+          "allocator_blocked": false,
+          "reasons": [
+            "LOW_CONFIDENCE"
+          ],
+          "eligibility_gap_score": 0.07758598
+        }
+      },
+      "a_grade_before_temporal_count": 0,
+      "event_time_valid_candidate_count": 0,
+      "best_configuration_count": 0,
+      "readiness_blocker_reasons": [
+        "NO_A_GRADE_SIGNALS"
+      ]
+    },
+    "notes": "Prediction rows are probed for A-grade readiness and PIT-safe feasibility visibility only. They do not participate in the actionable paper-signal counterfactual pass gate."
+  },
+  "near_a_grade_counterfactual_probe": {
+    "status": "NO_GO_COUNTERFACTUAL_REPLAY_NOT_COMPLETE",
+    "probe_participates_in_counterfactual_pass_gate": false,
+    "source_coverage_required_for_pass": true,
+    "confidence_threshold": 0.65,
+    "a_grade_thresholds": {
+      "confidence_min": 0.65,
+      "after_cost_edge_bps_min_exclusive": 0.0,
+      "allocator_blocked_decisions_excluded": true
+    },
+    "a_grade_before_temporal_count": 17,
+    "event_time_valid_candidate_count": 17,
+    "best_configuration_count": 0,
+    "sweep_result_count": 0,
+    "efficient_frontier_ready": false,
+    "total_expected_log_growth": 0,
+    "counterfactual_blocker_reasons": [
+      "NO_FEASIBLE_CONFIGURATION_FOR_SOME_CANDIDATES",
+      "NO_BEST_CONFIGURATIONS"
+    ],
+    "source_coverage": {
+      "required_all_observed_symbols_all_timeframes": true,
+      "required_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "source_row_count": 1559,
+      "source_symbol_count": 151,
+      "source_symbol_sample": [
+        "1000BONKUSDT",
+        "1000FLOKIUSDT",
+        "1000LUNCUSDT",
+        "1000PEPEUSDT",
+        "1000SHIBUSDT",
+        "1INCHUSDT",
+        "AAVEUSDT",
+        "ADAUSDT",
+        "AEROUSDT",
+        "ALGOUSDT",
+        "ALICEUSDT",
+        "ALLOUSDT",
+        "APTUSDT",
+        "ARBUSDT",
+        "ARUSDT",
+        "ASRUSDT",
+        "ASTERUSDT",
+        "ATOMUSDT",
+        "AUCTIONUSDT",
+        "AVAXUSDT",
+        "AVNTUSDT",
+        "AXLUSDT",
+        "BABYUSDT",
+        "BANANAS31USDT",
+        "BANKUSDT",
+        "BARDUSDT",
+        "BCHUSDT",
+        "BEATUSDT",
+        "BILLUSDT",
+        "BIOUSDT",
+        "BNBUSDT",
+        "BSBUSDT",
+        "BTCUSDT",
+        "CAKEUSDT",
+        "CELRUSDT",
+        "CHIPUSDT",
+        "CHZUSDT",
+        "COAIUSDT",
+        "CRVUSDT",
+        "DASHUSDT",
+        "DEXEUSDT",
+        "DOGEUSDT",
+        "DOTUSDT",
+        "EDENUSDT",
+        "EIGENUSDT",
+        "ENAUSDT",
+        "ENJUSDT",
+        "EPICUSDT",
+        "ESPORTSUSDT",
+        "ETCUSDT"
+      ],
+      "source_timeframe_counts": {
+        "15m": 359,
+        "1h": 514,
+        "1m": 286,
+        "4h": 202,
+        "5m": 198
+      },
+      "source_kind_counts": {
+        "__unspecified__": 2,
+        "paper_ledger": 802,
+        "paper_signal": 755
+      },
+      "required_symbol_timeframe_cell_count": 755,
+      "observed_required_symbol_timeframe_cell_count": 755,
+      "observed_symbol_timeframe_cell_count": 755,
+      "missing_required_symbol_timeframe_cell_count": 0,
+      "missing_required_symbol_timeframe_cells_sample": [],
+      "source_coverage": 1.0,
+      "source_coverage_status": "PASSED"
+    },
+    "a_grade_readiness": {
+      "confidence_threshold": 0.65,
+      "after_cost_edge_bps_min_exclusive": 0.0,
+      "source_row_count": 1559,
+      "source_kind_counts": {
+        "__unspecified__": 2,
+        "paper_ledger": 802,
+        "paper_signal": 755
+      },
+      "source_kind_readiness": {
+        "__unspecified__": {
+          "row_count": 2,
+          "directional_row_count": 2,
+          "confidence_present_count": 0,
+          "confidence_at_or_above_threshold_count": 0,
+          "edge_present_count": 0,
+          "positive_after_cost_edge_count": 0,
+          "positive_edge_below_confidence_count": 0,
+          "a_grade_before_temporal_count": 0,
+          "event_time_valid_candidate_count": 0,
+          "best_configuration_count": 0,
+          "no_feasible_configuration_count": 0,
+          "temporal_invalid_count": 0,
+          "not_a_grade_reason_counts": {
+            "MISSING_AFTER_COST_EDGE": 2,
+            "MISSING_CONFIDENCE": 2
+          },
+          "max_confidence": null,
+          "max_after_cost_edge_bps": null,
+          "closest_near_a_grade": {
+            "symbol": "HUSDT",
+            "timeframe": "15m",
+            "side": "long",
+            "confidence": null,
+            "confidence_threshold": 0.65,
+            "confidence_gap_to_a_grade": null,
+            "after_cost_edge_bps": null,
+            "minimum_after_cost_edge_bps": 0.0,
+            "edge_gap_to_positive_bps": null,
+            "allocator_decision": "ACCEPTED_PAPER_FILL",
+            "allocator_blocked": false,
+            "reasons": [
+              "MISSING_AFTER_COST_EDGE",
+              "MISSING_CONFIDENCE"
+            ],
+            "eligibility_gap_score": 2.0
+          },
+          "confidence_threshold": 0.65,
+          "after_cost_edge_bps_min_exclusive": 0.0,
+          "confidence_gap_to_threshold": null,
+          "positive_edge_but_below_confidence_count": 0
+        },
+        "paper_ledger": {
+          "row_count": 802,
+          "directional_row_count": 604,
+          "confidence_present_count": 230,
+          "confidence_at_or_above_threshold_count": 32,
+          "edge_present_count": 230,
+          "positive_after_cost_edge_count": 28,
+          "positive_edge_below_confidence_count": 25,
+          "a_grade_before_temporal_count": 0,
+          "event_time_valid_candidate_count": 0,
+          "best_configuration_count": 0,
+          "no_feasible_configuration_count": 0,
+          "temporal_invalid_count": 0,
+          "not_a_grade_reason_counts": {
+            "ALLOCATOR_BLOCK_DRAWDOWN_GUARD": 19,
+            "ALLOCATOR_BLOCK_LOW_CONFIDENCE": 3,
+            "ALLOCATOR_BLOCK_NO_EDGE": 199,
+            "ALLOCATOR_BLOCK_SPREAD_SLIPPAGE": 9,
+            "LOW_CONFIDENCE": 198,
+            "MISSING_AFTER_COST_EDGE": 572,
+            "MISSING_CONFIDENCE": 572,
+            "NON_DIRECTIONAL_ACTION": 198,
+            "NON_POSITIVE_AFTER_COST_EDGE": 202
+          },
+          "max_confidence": 0.66685771,
+          "max_after_cost_edge_bps": 107.99996185,
+          "closest_near_a_grade": {
+            "symbol": "ADAUSDT",
+            "timeframe": "1m",
+            "side": "short",
+            "confidence": 0.65113572,
+            "confidence_threshold": 0.65,
+            "confidence_gap_to_a_grade": 0.0,
+            "after_cost_edge_bps": 5.17175102,
+            "minimum_after_cost_edge_bps": 0.0,
+            "edge_gap_to_positive_bps": 0.0,
+            "allocator_decision": "BLOCK_SPREAD_SLIPPAGE",
+            "allocator_blocked": true,
+            "reasons": [
+              "ALLOCATOR_BLOCK_SPREAD_SLIPPAGE"
+            ],
+            "eligibility_gap_score": 1.0
+          },
+          "confidence_threshold": 0.65,
+          "after_cost_edge_bps_min_exclusive": 0.0,
+          "confidence_gap_to_threshold": 0.0,
+          "positive_edge_but_below_confidence_count": 25
+        },
+        "paper_signal": {
+          "row_count": 755,
+          "directional_row_count": 417,
+          "confidence_present_count": 755,
+          "confidence_at_or_above_threshold_count": 88,
+          "edge_present_count": 754,
+          "positive_after_cost_edge_count": 392,
+          "positive_edge_below_confidence_count": 375,
+          "a_grade_before_temporal_count": 17,
+          "event_time_valid_candidate_count": 17,
+          "best_configuration_count": 0,
+          "no_feasible_configuration_count": 17,
+          "temporal_invalid_count": 0,
+          "not_a_grade_reason_counts": {
+            "LOW_CONFIDENCE": 667,
+            "MISSING_AFTER_COST_EDGE": 1,
+            "NON_DIRECTIONAL_ACTION": 338,
+            "NON_POSITIVE_AFTER_COST_EDGE": 362
+          },
+          "max_confidence": 0.71638437,
+          "max_after_cost_edge_bps": 132.0,
+          "closest_near_a_grade": {
+            "symbol": "1000SHIBUSDT",
+            "timeframe": "4h",
+            "side": "short",
+            "confidence": 0.6483235,
+            "confidence_threshold": 0.65,
+            "confidence_gap_to_a_grade": 0.0016765,
+            "after_cost_edge_bps": 29.45905304,
+            "minimum_after_cost_edge_bps": 0.0,
+            "edge_gap_to_positive_bps": 0.0,
+            "allocator_decision": null,
+            "allocator_blocked": false,
+            "reasons": [
+              "LOW_CONFIDENCE"
+            ],
+            "eligibility_gap_score": 0.0016765
+          },
+          "confidence_threshold": 0.65,
+          "after_cost_edge_bps_min_exclusive": 0.0,
+          "confidence_gap_to_threshold": 0.0,
+          "positive_edge_but_below_confidence_count": 375
+        }
+      },
+      "closest_near_a_grade_by_source_kind": {
+        "__unspecified__": {
+          "symbol": "HUSDT",
+          "timeframe": "15m",
+          "side": "long",
+          "confidence": null,
+          "confidence_threshold": 0.65,
+          "confidence_gap_to_a_grade": null,
+          "after_cost_edge_bps": null,
+          "minimum_after_cost_edge_bps": 0.0,
+          "edge_gap_to_positive_bps": null,
+          "allocator_decision": "ACCEPTED_PAPER_FILL",
+          "allocator_blocked": false,
+          "reasons": [
+            "MISSING_AFTER_COST_EDGE",
+            "MISSING_CONFIDENCE"
+          ],
+          "eligibility_gap_score": 2.0
+        },
+        "paper_ledger": {
+          "symbol": "ADAUSDT",
+          "timeframe": "1m",
+          "side": "short",
+          "confidence": 0.65113572,
+          "confidence_threshold": 0.65,
+          "confidence_gap_to_a_grade": 0.0,
+          "after_cost_edge_bps": 5.17175102,
+          "minimum_after_cost_edge_bps": 0.0,
+          "edge_gap_to_positive_bps": 0.0,
+          "allocator_decision": "BLOCK_SPREAD_SLIPPAGE",
+          "allocator_blocked": true,
+          "reasons": [
+            "ALLOCATOR_BLOCK_SPREAD_SLIPPAGE"
+          ],
+          "eligibility_gap_score": 1.0
+        },
+        "paper_signal": {
+          "symbol": "1000SHIBUSDT",
+          "timeframe": "4h",
+          "side": "short",
+          "confidence": 0.6483235,
+          "confidence_threshold": 0.65,
+          "confidence_gap_to_a_grade": 0.0016765,
+          "after_cost_edge_bps": 29.45905304,
+          "minimum_after_cost_edge_bps": 0.0,
+          "edge_gap_to_positive_bps": 0.0,
+          "allocator_decision": null,
+          "allocator_blocked": false,
+          "reasons": [
+            "LOW_CONFIDENCE"
+          ],
+          "eligibility_gap_score": 0.0016765
+        }
+      },
+      "a_grade_before_temporal_count": 17,
+      "event_time_valid_candidate_count": 17,
+      "best_configuration_count": 0,
+      "readiness_blocker_reasons": [
+        "NO_FEASIBLE_CONFIGURATION_FOR_SOME_CANDIDATES",
+        "NO_BEST_CONFIGURATIONS"
+      ]
+    },
+    "skipped_temporal_invalid_count": 0,
+    "skipped_temporal_invalid_sample": [],
+    "skipped_not_a_grade_reason_counts": {
+      "ALLOCATOR_BLOCK_DRAWDOWN_GUARD": 19,
+      "ALLOCATOR_BLOCK_LOW_CONFIDENCE": 3,
+      "ALLOCATOR_BLOCK_NO_EDGE": 199,
+      "ALLOCATOR_BLOCK_SPREAD_SLIPPAGE": 9,
+      "LOW_CONFIDENCE": 865,
+      "MISSING_AFTER_COST_EDGE": 575,
+      "MISSING_CONFIDENCE": 574,
+      "NON_DIRECTIONAL_ACTION": 536,
+      "NON_POSITIVE_AFTER_COST_EDGE": 564
+    },
+    "skipped_no_feasible_configuration_count": 17,
+    "skipped_no_feasible_configuration_reason_counts": {
+      "MISSING_ACTUAL_SPREAD": 17,
+      "MISSING_FEES": 17,
+      "MISSING_FUNDING": 17,
+      "MISSING_MARKET_DEPTH": 17,
+      "MISSING_SLIPPAGE": 17
+    },
+    "skipped_no_feasible_configuration_sample": [
+      {
+        "symbol": "MONUSDT",
+        "timeframe": "1h",
+        "source_kind": "paper_signal",
+        "reasons": [
+          "MISSING_ACTUAL_SPREAD",
+          "MISSING_FEES",
+          "MISSING_FUNDING",
+          "MISSING_MARKET_DEPTH",
+          "MISSING_SLIPPAGE"
+        ]
+      },
+      {
+        "symbol": "LINKUSDT",
+        "timeframe": "1h",
+        "source_kind": "paper_signal",
+        "reasons": [
+          "MISSING_ACTUAL_SPREAD",
+          "MISSING_FEES",
+          "MISSING_FUNDING",
+          "MISSING_MARKET_DEPTH",
+          "MISSING_SLIPPAGE"
+        ]
+      },
+      {
+        "symbol": "ZROUSDT",
+        "timeframe": "1h",
+        "source_kind": "paper_signal",
+        "reasons": [
+          "MISSING_ACTUAL_SPREAD",
+          "MISSING_FEES",
+          "MISSING_FUNDING",
+          "MISSING_MARKET_DEPTH",
+          "MISSING_SLIPPAGE"
+        ]
+      },
+      {
+        "symbol": "ZROUSDT",
+        "timeframe": "1m",
+        "source_kind": "paper_signal",
+        "reasons": [
+          "MISSING_ACTUAL_SPREAD",
+          "MISSING_FEES",
+          "MISSING_FUNDING",
+          "MISSING_MARKET_DEPTH",
+          "MISSING_SLIPPAGE"
+        ]
+      },
+      {
+        "symbol": "ADAUSDT",
+        "timeframe": "1m",
+        "source_kind": "paper_signal",
+        "reasons": [
+          "MISSING_ACTUAL_SPREAD",
+          "MISSING_FEES",
+          "MISSING_FUNDING",
+          "MISSING_MARKET_DEPTH",
+          "MISSING_SLIPPAGE"
+        ]
+      },
+      {
+        "symbol": "ZROUSDT",
+        "timeframe": "15m",
+        "source_kind": "paper_signal",
+        "reasons": [
+          "MISSING_ACTUAL_SPREAD",
+          "MISSING_FEES",
+          "MISSING_FUNDING",
+          "MISSING_MARKET_DEPTH",
+          "MISSING_SLIPPAGE"
+        ]
+      },
+      {
+        "symbol": "LTCUSDT",
+        "timeframe": "15m",
+        "source_kind": "paper_signal",
+        "reasons": [
+          "MISSING_ACTUAL_SPREAD",
+          "MISSING_FEES",
+          "MISSING_FUNDING",
+          "MISSING_MARKET_DEPTH",
+          "MISSING_SLIPPAGE"
+        ]
+      },
+      {
+        "symbol": "MONUSDT",
+        "timeframe": "1m",
+        "source_kind": "paper_signal",
+        "reasons": [
+          "MISSING_ACTUAL_SPREAD",
+          "MISSING_FEES",
+          "MISSING_FUNDING",
+          "MISSING_MARKET_DEPTH",
+          "MISSING_SLIPPAGE"
+        ]
+      },
+      {
+        "symbol": "ICPUSDT",
+        "timeframe": "1m",
+        "source_kind": "paper_signal",
+        "reasons": [
+          "MISSING_ACTUAL_SPREAD",
+          "MISSING_FEES",
+          "MISSING_FUNDING",
+          "MISSING_MARKET_DEPTH",
+          "MISSING_SLIPPAGE"
+        ]
+      },
+      {
+        "symbol": "ZROUSDT",
+        "timeframe": "5m",
+        "source_kind": "paper_signal",
+        "reasons": [
+          "MISSING_ACTUAL_SPREAD",
+          "MISSING_FEES",
+          "MISSING_FUNDING",
+          "MISSING_MARKET_DEPTH",
+          "MISSING_SLIPPAGE"
+        ]
+      },
+      {
+        "symbol": "MONUSDT",
+        "timeframe": "15m",
+        "source_kind": "paper_signal",
+        "reasons": [
+          "MISSING_ACTUAL_SPREAD",
+          "MISSING_FEES",
+          "MISSING_FUNDING",
+          "MISSING_MARKET_DEPTH",
+          "MISSING_SLIPPAGE"
+        ]
+      },
+      {
+        "symbol": "ETHUSDT",
+        "timeframe": "1m",
+        "source_kind": "paper_signal",
+        "reasons": [
+          "MISSING_ACTUAL_SPREAD",
+          "MISSING_FEES",
+          "MISSING_FUNDING",
+          "MISSING_MARKET_DEPTH",
+          "MISSING_SLIPPAGE"
+        ]
+      },
+      {
+        "symbol": "AAVEUSDT",
+        "timeframe": "4h",
+        "source_kind": "paper_signal",
+        "reasons": [
+          "MISSING_ACTUAL_SPREAD",
+          "MISSING_FEES",
+          "MISSING_FUNDING",
+          "MISSING_MARKET_DEPTH",
+          "MISSING_SLIPPAGE"
+        ]
+      },
+      {
+        "symbol": "ETHUSDT",
+        "timeframe": "4h",
+        "source_kind": "paper_signal",
+        "reasons": [
+          "MISSING_ACTUAL_SPREAD",
+          "MISSING_FEES",
+          "MISSING_FUNDING",
+          "MISSING_MARKET_DEPTH",
+          "MISSING_SLIPPAGE"
+        ]
+      },
+      {
+        "symbol": "MONUSDT",
+        "timeframe": "5m",
+        "source_kind": "paper_signal",
+        "reasons": [
+          "MISSING_ACTUAL_SPREAD",
+          "MISSING_FEES",
+          "MISSING_FUNDING",
+          "MISSING_MARKET_DEPTH",
+          "MISSING_SLIPPAGE"
+        ]
+      },
+      {
+        "symbol": "ZROUSDT",
+        "timeframe": "4h",
+        "source_kind": "paper_signal",
+        "reasons": [
+          "MISSING_ACTUAL_SPREAD",
+          "MISSING_FEES",
+          "MISSING_FUNDING",
+          "MISSING_MARKET_DEPTH",
+          "MISSING_SLIPPAGE"
+        ]
+      },
+      {
+        "symbol": "FILUSDT",
+        "timeframe": "15m",
+        "source_kind": "paper_signal",
+        "reasons": [
+          "MISSING_ACTUAL_SPREAD",
+          "MISSING_FEES",
+          "MISSING_FUNDING",
+          "MISSING_MARKET_DEPTH",
+          "MISSING_SLIPPAGE"
+        ]
+      }
+    ],
+    "market_cost_evidence_coverage_status": {
+      "status": "NO_GO_MARKET_COST_EVIDENCE_INCOMPLETE",
+      "scope": "near_a_grade_diagnostic_counterfactual_rows",
+      "source_row_count": 1559,
+      "candidate_row_count": 17,
+      "complete_candidate_count": 0,
+      "incomplete_candidate_count": 17,
+      "complete_candidate_coverage": 0.0,
+      "confidence_threshold": 0.65,
+      "required_evidence": {
+        "spread_bps": {
+          "missing_reason": "MISSING_ACTUAL_SPREAD",
+          "accepted_fields": [
+            "actual_observed_spread_entry_bps",
+            "actual_spread_bps",
+            "entry_spread_bps",
+            "spread_bps"
+          ]
+        },
+        "slippage_bps": {
+          "missing_reason": "MISSING_SLIPPAGE",
+          "accepted_fields": [
+            "actual_observed_slippage_bps",
+            "actual_slippage_bps",
+            "realized_slippage_bps",
+            "expected_slippage_bps",
+            "slippage_bps",
+            "actual_slippage_usd",
+            "expected_slippage_usd"
+          ]
+        },
+        "fee_bps": {
+          "missing_reason": "MISSING_FEES",
+          "accepted_fields": [
+            "actual_fee_bps",
+            "fee_bps",
+            "taker_fee_bps",
+            "expected_fee_bps",
+            "actual_fees_usd",
+            "expected_fees_usd"
+          ]
+        },
+        "funding_bps": {
+          "missing_reason": "MISSING_FUNDING",
+          "accepted_fields": [
+            "actual_funding_bps",
+            "funding_bps",
+            "funding_rate_bps",
+            "expected_funding_bps",
+            "actual_funding_usd",
+            "expected_funding_usd"
+          ]
+        },
+        "market_depth_usd": {
+          "missing_reason": "MISSING_MARKET_DEPTH",
+          "accepted_fields": [
+            "market_depth_usd",
+            "orderbook_depth_usd",
+            "entry_orderbook_depth_usd",
+            "depth_usd",
+            "depth_usdt",
+            "depth_notional_usd",
+            "available_depth_usd",
+            "one_percent_depth_usd",
+            "depth_1pct_usd",
+            "depth_50bps_usd",
+            "depth_25bps_usd",
+            "top_of_book_depth_usd"
+          ]
+        }
+      },
+      "field_present_counts": {
+        "spread_bps": 0,
+        "slippage_bps": 0,
+        "fee_bps": 0,
+        "funding_bps": 0,
+        "market_depth_usd": 0
+      },
+      "missing_reason_counts": {
+        "MISSING_ACTUAL_SPREAD": 17,
+        "MISSING_FEES": 17,
+        "MISSING_FUNDING": 17,
+        "MISSING_MARKET_DEPTH": 17,
+        "MISSING_SLIPPAGE": 17
+      },
+      "source_kind_counts": {
+        "paper_signal": 17
+      },
+      "complete_by_source_kind": {},
+      "pit_reject_reason_counts": {
+        "FEATURE_SNAPSHOT_MISMATCH_FOR_MARKET_COST_EVIDENCE": 8,
+        "MISSING_FEATURE_PAYLOAD_FOR_MARKET_COST_EVIDENCE": 8
+      },
+      "incomplete_candidate_sample": [
+        {
+          "symbol": "MONUSDT",
+          "timeframe": "1h",
+          "source_kind": "paper_signal",
+          "missing_market_cost_evidence": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_SLIPPAGE",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH"
+          ],
+          "present_market_cost_evidence_fields": {}
+        },
+        {
+          "symbol": "LINKUSDT",
+          "timeframe": "1h",
+          "source_kind": "paper_signal",
+          "missing_market_cost_evidence": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_SLIPPAGE",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH"
+          ],
+          "present_market_cost_evidence_fields": {}
+        },
+        {
+          "symbol": "ZROUSDT",
+          "timeframe": "1h",
+          "source_kind": "paper_signal",
+          "missing_market_cost_evidence": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_SLIPPAGE",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH"
+          ],
+          "present_market_cost_evidence_fields": {}
+        },
+        {
+          "symbol": "ZROUSDT",
+          "timeframe": "1m",
+          "source_kind": "paper_signal",
+          "missing_market_cost_evidence": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_SLIPPAGE",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH"
+          ],
+          "present_market_cost_evidence_fields": {}
+        },
+        {
+          "symbol": "ADAUSDT",
+          "timeframe": "1m",
+          "source_kind": "paper_signal",
+          "missing_market_cost_evidence": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_SLIPPAGE",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH"
+          ],
+          "present_market_cost_evidence_fields": {}
+        },
+        {
+          "symbol": "ZROUSDT",
+          "timeframe": "15m",
+          "source_kind": "paper_signal",
+          "missing_market_cost_evidence": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_SLIPPAGE",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH"
+          ],
+          "present_market_cost_evidence_fields": {}
+        },
+        {
+          "symbol": "LTCUSDT",
+          "timeframe": "15m",
+          "source_kind": "paper_signal",
+          "missing_market_cost_evidence": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_SLIPPAGE",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH"
+          ],
+          "present_market_cost_evidence_fields": {}
+        },
+        {
+          "symbol": "MONUSDT",
+          "timeframe": "1m",
+          "source_kind": "paper_signal",
+          "missing_market_cost_evidence": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_SLIPPAGE",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH"
+          ],
+          "present_market_cost_evidence_fields": {}
+        },
+        {
+          "symbol": "ICPUSDT",
+          "timeframe": "1m",
+          "source_kind": "paper_signal",
+          "missing_market_cost_evidence": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_SLIPPAGE",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH"
+          ],
+          "present_market_cost_evidence_fields": {}
+        },
+        {
+          "symbol": "ZROUSDT",
+          "timeframe": "5m",
+          "source_kind": "paper_signal",
+          "missing_market_cost_evidence": [
+            "MISSING_ACTUAL_SPREAD",
+            "MISSING_SLIPPAGE",
+            "MISSING_FEES",
+            "MISSING_FUNDING",
+            "MISSING_MARKET_DEPTH"
+          ],
+          "present_market_cost_evidence_fields": {}
+        }
+      ],
+      "requirement": "explicit spread, market depth, fees, slippage, and funding evidence is required before replay can choose a feasible configuration"
+    },
+    "config_space_audit": {
+      "axis_count": 6,
+      "per_candidate_theoretical_configuration_count": 540,
+      "candidate_count": 17,
+      "event_time_valid_candidate_count": 17,
+      "theoretical_configuration_count": 9180,
+      "considered_count": 9180,
+      "configurations_considered_count": 9180,
+      "feasible_count": 0,
+      "feasible_configuration_count": 0,
+      "pruned_count": 9180,
+      "pruned_configuration_count": 9180,
+      "configuration_count_reconciled": true,
+      "feasible_plus_pruned_reconciled": true,
+      "pruned_reason_counts": {
+        "MISSING_MARKET_DEPTH": 9180
+      },
+      "candidate_configuration_audit_sample": [
+        {
+          "symbol": "MONUSDT",
+          "timeframe": "1h",
+          "theoretical_configuration_count": 540,
+          "configurations_considered_count": 540,
+          "feasible_configuration_count": 0,
+          "pruned_configuration_count": 540,
+          "pruned_reason_counts": {
+            "MISSING_MARKET_DEPTH": 540
+          },
+          "base_notional_usd": 3532.19306905,
+          "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+          "axis_count": 6,
+          "considered_count": 540,
+          "feasible_count": 0,
+          "pruned_count": 540,
+          "configuration_count_reconciled": true,
+          "feasible_plus_pruned_reconciled": true
+        },
+        {
+          "symbol": "LINKUSDT",
+          "timeframe": "1h",
+          "theoretical_configuration_count": 540,
+          "configurations_considered_count": 540,
+          "feasible_configuration_count": 0,
+          "pruned_configuration_count": 540,
+          "pruned_reason_counts": {
+            "MISSING_MARKET_DEPTH": 540
+          },
+          "base_notional_usd": 3532.19306905,
+          "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+          "axis_count": 6,
+          "considered_count": 540,
+          "feasible_count": 0,
+          "pruned_count": 540,
+          "configuration_count_reconciled": true,
+          "feasible_plus_pruned_reconciled": true
+        },
+        {
+          "symbol": "ZROUSDT",
+          "timeframe": "1h",
+          "theoretical_configuration_count": 540,
+          "configurations_considered_count": 540,
+          "feasible_configuration_count": 0,
+          "pruned_configuration_count": 540,
+          "pruned_reason_counts": {
+            "MISSING_MARKET_DEPTH": 540
+          },
+          "base_notional_usd": 3532.19306905,
+          "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+          "axis_count": 6,
+          "considered_count": 540,
+          "feasible_count": 0,
+          "pruned_count": 540,
+          "configuration_count_reconciled": true,
+          "feasible_plus_pruned_reconciled": true
+        },
+        {
+          "symbol": "ZROUSDT",
+          "timeframe": "1m",
+          "theoretical_configuration_count": 540,
+          "configurations_considered_count": 540,
+          "feasible_configuration_count": 0,
+          "pruned_configuration_count": 540,
+          "pruned_reason_counts": {
+            "MISSING_MARKET_DEPTH": 540
+          },
+          "base_notional_usd": 3532.19306905,
+          "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+          "axis_count": 6,
+          "considered_count": 540,
+          "feasible_count": 0,
+          "pruned_count": 540,
+          "configuration_count_reconciled": true,
+          "feasible_plus_pruned_reconciled": true
+        },
+        {
+          "symbol": "ADAUSDT",
+          "timeframe": "1m",
+          "theoretical_configuration_count": 540,
+          "configurations_considered_count": 540,
+          "feasible_configuration_count": 0,
+          "pruned_configuration_count": 540,
+          "pruned_reason_counts": {
+            "MISSING_MARKET_DEPTH": 540
+          },
+          "base_notional_usd": 3532.19306905,
+          "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+          "axis_count": 6,
+          "considered_count": 540,
+          "feasible_count": 0,
+          "pruned_count": 540,
+          "configuration_count_reconciled": true,
+          "feasible_plus_pruned_reconciled": true
+        },
+        {
+          "symbol": "ZROUSDT",
+          "timeframe": "15m",
+          "theoretical_configuration_count": 540,
+          "configurations_considered_count": 540,
+          "feasible_configuration_count": 0,
+          "pruned_configuration_count": 540,
+          "pruned_reason_counts": {
+            "MISSING_MARKET_DEPTH": 540
+          },
+          "base_notional_usd": 3532.19306905,
+          "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+          "axis_count": 6,
+          "considered_count": 540,
+          "feasible_count": 0,
+          "pruned_count": 540,
+          "configuration_count_reconciled": true,
+          "feasible_plus_pruned_reconciled": true
+        },
+        {
+          "symbol": "LTCUSDT",
+          "timeframe": "15m",
+          "theoretical_configuration_count": 540,
+          "configurations_considered_count": 540,
+          "feasible_configuration_count": 0,
+          "pruned_configuration_count": 540,
+          "pruned_reason_counts": {
+            "MISSING_MARKET_DEPTH": 540
+          },
+          "base_notional_usd": 3532.19306905,
+          "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+          "axis_count": 6,
+          "considered_count": 540,
+          "feasible_count": 0,
+          "pruned_count": 540,
+          "configuration_count_reconciled": true,
+          "feasible_plus_pruned_reconciled": true
+        },
+        {
+          "symbol": "MONUSDT",
+          "timeframe": "1m",
+          "theoretical_configuration_count": 540,
+          "configurations_considered_count": 540,
+          "feasible_configuration_count": 0,
+          "pruned_configuration_count": 540,
+          "pruned_reason_counts": {
+            "MISSING_MARKET_DEPTH": 540
+          },
+          "base_notional_usd": 3532.19306905,
+          "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+          "axis_count": 6,
+          "considered_count": 540,
+          "feasible_count": 0,
+          "pruned_count": 540,
+          "configuration_count_reconciled": true,
+          "feasible_plus_pruned_reconciled": true
+        },
+        {
+          "symbol": "ICPUSDT",
+          "timeframe": "1m",
+          "theoretical_configuration_count": 540,
+          "configurations_considered_count": 540,
+          "feasible_configuration_count": 0,
+          "pruned_configuration_count": 540,
+          "pruned_reason_counts": {
+            "MISSING_MARKET_DEPTH": 540
+          },
+          "base_notional_usd": 3532.19306905,
+          "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+          "axis_count": 6,
+          "considered_count": 540,
+          "feasible_count": 0,
+          "pruned_count": 540,
+          "configuration_count_reconciled": true,
+          "feasible_plus_pruned_reconciled": true
+        },
+        {
+          "symbol": "ZROUSDT",
+          "timeframe": "5m",
+          "theoretical_configuration_count": 540,
+          "configurations_considered_count": 540,
+          "feasible_configuration_count": 0,
+          "pruned_configuration_count": 540,
+          "pruned_reason_counts": {
+            "MISSING_MARKET_DEPTH": 540
+          },
+          "base_notional_usd": 3532.19306905,
+          "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+          "axis_count": 6,
+          "considered_count": 540,
+          "feasible_count": 0,
+          "pruned_count": 540,
+          "configuration_count_reconciled": true,
+          "feasible_plus_pruned_reconciled": true
+        },
+        {
+          "symbol": "MONUSDT",
+          "timeframe": "15m",
+          "theoretical_configuration_count": 540,
+          "configurations_considered_count": 540,
+          "feasible_configuration_count": 0,
+          "pruned_configuration_count": 540,
+          "pruned_reason_counts": {
+            "MISSING_MARKET_DEPTH": 540
+          },
+          "base_notional_usd": 3532.19306905,
+          "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+          "axis_count": 6,
+          "considered_count": 540,
+          "feasible_count": 0,
+          "pruned_count": 540,
+          "configuration_count_reconciled": true,
+          "feasible_plus_pruned_reconciled": true
+        },
+        {
+          "symbol": "ETHUSDT",
+          "timeframe": "1m",
+          "theoretical_configuration_count": 540,
+          "configurations_considered_count": 540,
+          "feasible_configuration_count": 0,
+          "pruned_configuration_count": 540,
+          "pruned_reason_counts": {
+            "MISSING_MARKET_DEPTH": 540
+          },
+          "base_notional_usd": 3532.19306905,
+          "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+          "axis_count": 6,
+          "considered_count": 540,
+          "feasible_count": 0,
+          "pruned_count": 540,
+          "configuration_count_reconciled": true,
+          "feasible_plus_pruned_reconciled": true
+        },
+        {
+          "symbol": "AAVEUSDT",
+          "timeframe": "4h",
+          "theoretical_configuration_count": 540,
+          "configurations_considered_count": 540,
+          "feasible_configuration_count": 0,
+          "pruned_configuration_count": 540,
+          "pruned_reason_counts": {
+            "MISSING_MARKET_DEPTH": 540
+          },
+          "base_notional_usd": 3532.19306905,
+          "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+          "axis_count": 6,
+          "considered_count": 540,
+          "feasible_count": 0,
+          "pruned_count": 540,
+          "configuration_count_reconciled": true,
+          "feasible_plus_pruned_reconciled": true
+        },
+        {
+          "symbol": "ETHUSDT",
+          "timeframe": "4h",
+          "theoretical_configuration_count": 540,
+          "configurations_considered_count": 540,
+          "feasible_configuration_count": 0,
+          "pruned_configuration_count": 540,
+          "pruned_reason_counts": {
+            "MISSING_MARKET_DEPTH": 540
+          },
+          "base_notional_usd": 3532.19306905,
+          "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+          "axis_count": 6,
+          "considered_count": 540,
+          "feasible_count": 0,
+          "pruned_count": 540,
+          "configuration_count_reconciled": true,
+          "feasible_plus_pruned_reconciled": true
+        },
+        {
+          "symbol": "MONUSDT",
+          "timeframe": "5m",
+          "theoretical_configuration_count": 540,
+          "configurations_considered_count": 540,
+          "feasible_configuration_count": 0,
+          "pruned_configuration_count": 540,
+          "pruned_reason_counts": {
+            "MISSING_MARKET_DEPTH": 540
+          },
+          "base_notional_usd": 3532.19306905,
+          "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+          "axis_count": 6,
+          "considered_count": 540,
+          "feasible_count": 0,
+          "pruned_count": 540,
+          "configuration_count_reconciled": true,
+          "feasible_plus_pruned_reconciled": true
+        },
+        {
+          "symbol": "ZROUSDT",
+          "timeframe": "4h",
+          "theoretical_configuration_count": 540,
+          "configurations_considered_count": 540,
+          "feasible_configuration_count": 0,
+          "pruned_configuration_count": 540,
+          "pruned_reason_counts": {
+            "MISSING_MARKET_DEPTH": 540
+          },
+          "base_notional_usd": 3532.19306905,
+          "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+          "axis_count": 6,
+          "considered_count": 540,
+          "feasible_count": 0,
+          "pruned_count": 540,
+          "configuration_count_reconciled": true,
+          "feasible_plus_pruned_reconciled": true
+        },
+        {
+          "symbol": "FILUSDT",
+          "timeframe": "15m",
+          "theoretical_configuration_count": 540,
+          "configurations_considered_count": 540,
+          "feasible_configuration_count": 0,
+          "pruned_configuration_count": 540,
+          "pruned_reason_counts": {
+            "MISSING_MARKET_DEPTH": 540
+          },
+          "base_notional_usd": 3532.19306905,
+          "base_notional_source": "risk_envelope_seed_max_portfolio_exposure",
+          "axis_count": 6,
+          "considered_count": 540,
+          "feasible_count": 0,
+          "pruned_count": 540,
+          "configuration_count_reconciled": true,
+          "feasible_plus_pruned_reconciled": true
+        }
+      ]
+    },
+    "hedge_accounting_audit": {
+      "status": "NO_GO_HEDGE_ACCOUNTING_INCOMPLETE",
+      "configuration_count": 0,
+      "hedge_enabled_configuration_count": 0,
+      "hedge_disabled_configuration_count": 0,
+      "hedge_budget_positive_count": 0,
+      "hedge_cost_positive_count": 0,
+      "expected_shortfall_reduced_count": 0,
+      "max_hedge_budget_usd": 0.0,
+      "max_hedge_cost_usd": 0.0,
+      "hedge_tail_loss_reduction_factors": [],
+      "missing_field_counts": {},
+      "hedge_cost_bps_when_enabled": 3.0,
+      "tail_loss_reduction_factor_when_enabled": 0.75,
+      "hedge_budget_usd_formula": "unhedged_expected_shortfall_usd - expected_shortfall_usd"
+    },
+    "best_configurations_sample": [],
+    "notes": "Near-A-grade replay lowers only the diagnostic replay confidence threshold. It does not satisfy the A-grade counterfactual pass gate, which remains at 0.75."
+  },
+  "source_coverage_required_for_pass": true,
+  "source_coverage": {
+    "required_all_observed_symbols_all_timeframes": true,
+    "required_timeframes": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "source_row_count": 1559,
+    "source_symbol_count": 151,
+    "source_symbol_sample": [
+      "1000BONKUSDT",
+      "1000FLOKIUSDT",
+      "1000LUNCUSDT",
+      "1000PEPEUSDT",
+      "1000SHIBUSDT",
+      "1INCHUSDT",
+      "AAVEUSDT",
+      "ADAUSDT",
+      "AEROUSDT",
+      "ALGOUSDT",
+      "ALICEUSDT",
+      "ALLOUSDT",
+      "APTUSDT",
+      "ARBUSDT",
+      "ARUSDT",
+      "ASRUSDT",
+      "ASTERUSDT",
+      "ATOMUSDT",
+      "AUCTIONUSDT",
+      "AVAXUSDT",
+      "AVNTUSDT",
+      "AXLUSDT",
+      "BABYUSDT",
+      "BANANAS31USDT",
+      "BANKUSDT",
+      "BARDUSDT",
+      "BCHUSDT",
+      "BEATUSDT",
+      "BILLUSDT",
+      "BIOUSDT",
+      "BNBUSDT",
+      "BSBUSDT",
+      "BTCUSDT",
+      "CAKEUSDT",
+      "CELRUSDT",
+      "CHIPUSDT",
+      "CHZUSDT",
+      "COAIUSDT",
+      "CRVUSDT",
+      "DASHUSDT",
+      "DEXEUSDT",
+      "DOGEUSDT",
+      "DOTUSDT",
+      "EDENUSDT",
+      "EIGENUSDT",
+      "ENAUSDT",
+      "ENJUSDT",
+      "EPICUSDT",
+      "ESPORTSUSDT",
+      "ETCUSDT"
+    ],
+    "source_timeframe_counts": {
+      "15m": 359,
+      "1h": 514,
+      "1m": 286,
+      "4h": 202,
+      "5m": 198
+    },
+    "source_kind_counts": {
+      "__unspecified__": 2,
+      "paper_ledger": 802,
+      "paper_signal": 755
+    },
+    "required_symbol_timeframe_cell_count": 755,
+    "observed_required_symbol_timeframe_cell_count": 755,
+    "observed_symbol_timeframe_cell_count": 755,
+    "missing_required_symbol_timeframe_cell_count": 0,
+    "missing_required_symbol_timeframe_cells_sample": [],
+    "source_coverage": 1.0,
+    "source_coverage_status": "PASSED"
+  },
+  "source_coverage_status": "PASSED",
+  "source_coverage_ratio": 1.0,
+  "market_cost_evidence_coverage_status": {
+    "status": "NO_CANDIDATES",
+    "scope": "actionable_a_grade_counterfactual_rows",
+    "source_row_count": 1559,
+    "candidate_row_count": 0,
+    "complete_candidate_count": 0,
+    "incomplete_candidate_count": 0,
+    "complete_candidate_coverage": 0.0,
+    "confidence_threshold": 0.75,
+    "required_evidence": {
+      "spread_bps": {
+        "missing_reason": "MISSING_ACTUAL_SPREAD",
+        "accepted_fields": [
+          "actual_observed_spread_entry_bps",
+          "actual_spread_bps",
+          "entry_spread_bps",
+          "spread_bps"
+        ]
+      },
+      "slippage_bps": {
+        "missing_reason": "MISSING_SLIPPAGE",
+        "accepted_fields": [
+          "actual_observed_slippage_bps",
+          "actual_slippage_bps",
+          "realized_slippage_bps",
+          "expected_slippage_bps",
+          "slippage_bps",
+          "actual_slippage_usd",
+          "expected_slippage_usd"
+        ]
+      },
+      "fee_bps": {
+        "missing_reason": "MISSING_FEES",
+        "accepted_fields": [
+          "actual_fee_bps",
+          "fee_bps",
+          "taker_fee_bps",
+          "expected_fee_bps",
+          "actual_fees_usd",
+          "expected_fees_usd"
+        ]
+      },
+      "funding_bps": {
+        "missing_reason": "MISSING_FUNDING",
+        "accepted_fields": [
+          "actual_funding_bps",
+          "funding_bps",
+          "funding_rate_bps",
+          "expected_funding_bps",
+          "actual_funding_usd",
+          "expected_funding_usd"
+        ]
+      },
+      "market_depth_usd": {
+        "missing_reason": "MISSING_MARKET_DEPTH",
+        "accepted_fields": [
+          "market_depth_usd",
+          "orderbook_depth_usd",
+          "entry_orderbook_depth_usd",
+          "depth_usd",
+          "depth_usdt",
+          "depth_notional_usd",
+          "available_depth_usd",
+          "one_percent_depth_usd",
+          "depth_1pct_usd",
+          "depth_50bps_usd",
+          "depth_25bps_usd",
+          "top_of_book_depth_usd"
+        ]
+      }
+    },
+    "field_present_counts": {
+      "spread_bps": 0,
+      "slippage_bps": 0,
+      "fee_bps": 0,
+      "funding_bps": 0,
+      "market_depth_usd": 0
+    },
+    "missing_reason_counts": {},
+    "source_kind_counts": {},
+    "complete_by_source_kind": {},
+    "pit_reject_reason_counts": {},
+    "incomplete_candidate_sample": [],
+    "requirement": "explicit spread, market depth, fees, slippage, and funding evidence is required before replay can choose a feasible configuration"
+  },
+  "a_grade_readiness": {
+    "confidence_threshold": 0.75,
+    "after_cost_edge_bps_min_exclusive": 0.0,
+    "source_row_count": 1559,
+    "source_kind_counts": {
+      "__unspecified__": 2,
+      "paper_ledger": 802,
+      "paper_signal": 755
+    },
+    "source_kind_readiness": {
+      "__unspecified__": {
+        "row_count": 2,
+        "directional_row_count": 2,
+        "confidence_present_count": 0,
+        "confidence_at_or_above_threshold_count": 0,
+        "edge_present_count": 0,
+        "positive_after_cost_edge_count": 0,
+        "positive_edge_below_confidence_count": 0,
+        "a_grade_before_temporal_count": 0,
+        "event_time_valid_candidate_count": 0,
+        "best_configuration_count": 0,
+        "no_feasible_configuration_count": 0,
+        "temporal_invalid_count": 0,
+        "not_a_grade_reason_counts": {
+          "MISSING_AFTER_COST_EDGE": 2,
+          "MISSING_CONFIDENCE": 2
+        },
+        "max_confidence": null,
+        "max_after_cost_edge_bps": null,
+        "closest_near_a_grade": {
+          "symbol": "HUSDT",
+          "timeframe": "15m",
+          "side": "long",
+          "confidence": null,
+          "confidence_threshold": 0.75,
+          "confidence_gap_to_a_grade": null,
+          "after_cost_edge_bps": null,
+          "minimum_after_cost_edge_bps": 0.0,
+          "edge_gap_to_positive_bps": null,
+          "allocator_decision": "ACCEPTED_PAPER_FILL",
+          "allocator_blocked": false,
+          "reasons": [
+            "MISSING_AFTER_COST_EDGE",
+            "MISSING_CONFIDENCE"
+          ],
+          "eligibility_gap_score": 2.0
+        },
+        "confidence_threshold": 0.75,
+        "after_cost_edge_bps_min_exclusive": 0.0,
+        "confidence_gap_to_threshold": null,
+        "positive_edge_but_below_confidence_count": 0
+      },
+      "paper_ledger": {
+        "row_count": 802,
+        "directional_row_count": 604,
+        "confidence_present_count": 230,
+        "confidence_at_or_above_threshold_count": 0,
+        "edge_present_count": 230,
+        "positive_after_cost_edge_count": 28,
+        "positive_edge_below_confidence_count": 28,
+        "a_grade_before_temporal_count": 0,
+        "event_time_valid_candidate_count": 0,
+        "best_configuration_count": 0,
+        "no_feasible_configuration_count": 0,
+        "temporal_invalid_count": 0,
+        "not_a_grade_reason_counts": {
+          "ALLOCATOR_BLOCK_DRAWDOWN_GUARD": 19,
+          "ALLOCATOR_BLOCK_LOW_CONFIDENCE": 3,
+          "ALLOCATOR_BLOCK_NO_EDGE": 199,
+          "ALLOCATOR_BLOCK_SPREAD_SLIPPAGE": 9,
+          "LOW_CONFIDENCE": 230,
+          "MISSING_AFTER_COST_EDGE": 572,
+          "MISSING_CONFIDENCE": 572,
+          "NON_DIRECTIONAL_ACTION": 198,
+          "NON_POSITIVE_AFTER_COST_EDGE": 202
+        },
+        "max_confidence": 0.66685771,
+        "max_after_cost_edge_bps": 107.99996185,
+        "closest_near_a_grade": {
+          "symbol": "FILUSDT",
+          "timeframe": "15m",
+          "side": "short",
+          "confidence": 0.65952148,
+          "confidence_threshold": 0.75,
+          "confidence_gap_to_a_grade": 0.09047852,
+          "after_cost_edge_bps": 3.53922462,
+          "minimum_after_cost_edge_bps": 0.0,
+          "edge_gap_to_positive_bps": 0.0,
+          "allocator_decision": "BLOCK_SPREAD_SLIPPAGE",
+          "allocator_blocked": true,
+          "reasons": [
+            "ALLOCATOR_BLOCK_SPREAD_SLIPPAGE",
+            "LOW_CONFIDENCE"
+          ],
+          "eligibility_gap_score": 1.09047852
+        },
+        "confidence_threshold": 0.75,
+        "after_cost_edge_bps_min_exclusive": 0.0,
+        "confidence_gap_to_threshold": 0.08314229,
+        "positive_edge_but_below_confidence_count": 28
+      },
+      "paper_signal": {
+        "row_count": 755,
+        "directional_row_count": 417,
+        "confidence_present_count": 755,
+        "confidence_at_or_above_threshold_count": 0,
+        "edge_present_count": 754,
+        "positive_after_cost_edge_count": 392,
+        "positive_edge_below_confidence_count": 392,
+        "a_grade_before_temporal_count": 0,
+        "event_time_valid_candidate_count": 0,
+        "best_configuration_count": 0,
+        "no_feasible_configuration_count": 0,
+        "temporal_invalid_count": 0,
+        "not_a_grade_reason_counts": {
+          "LOW_CONFIDENCE": 755,
+          "MISSING_AFTER_COST_EDGE": 1,
+          "NON_DIRECTIONAL_ACTION": 338,
+          "NON_POSITIVE_AFTER_COST_EDGE": 362
+        },
+        "max_confidence": 0.71638437,
+        "max_after_cost_edge_bps": 132.0,
+        "closest_near_a_grade": {
+          "symbol": "ETHUSDT",
+          "timeframe": "1m",
+          "side": "short",
+          "confidence": 0.67241402,
+          "confidence_threshold": 0.75,
+          "confidence_gap_to_a_grade": 0.07758598,
+          "after_cost_edge_bps": 60.327034,
+          "minimum_after_cost_edge_bps": 0.0,
+          "edge_gap_to_positive_bps": 0.0,
+          "allocator_decision": null,
+          "allocator_blocked": false,
+          "reasons": [
+            "LOW_CONFIDENCE"
+          ],
+          "eligibility_gap_score": 0.07758598
+        },
+        "confidence_threshold": 0.75,
+        "after_cost_edge_bps_min_exclusive": 0.0,
+        "confidence_gap_to_threshold": 0.03361563,
+        "positive_edge_but_below_confidence_count": 392
+      }
+    },
+    "closest_near_a_grade_by_source_kind": {
+      "__unspecified__": {
+        "symbol": "HUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "confidence": null,
+        "confidence_threshold": 0.75,
+        "confidence_gap_to_a_grade": null,
+        "after_cost_edge_bps": null,
+        "minimum_after_cost_edge_bps": 0.0,
+        "edge_gap_to_positive_bps": null,
+        "allocator_decision": "ACCEPTED_PAPER_FILL",
+        "allocator_blocked": false,
+        "reasons": [
+          "MISSING_AFTER_COST_EDGE",
+          "MISSING_CONFIDENCE"
+        ],
+        "eligibility_gap_score": 2.0
+      },
+      "paper_ledger": {
+        "symbol": "FILUSDT",
+        "timeframe": "15m",
+        "side": "short",
+        "confidence": 0.65952148,
+        "confidence_threshold": 0.75,
+        "confidence_gap_to_a_grade": 0.09047852,
+        "after_cost_edge_bps": 3.53922462,
+        "minimum_after_cost_edge_bps": 0.0,
+        "edge_gap_to_positive_bps": 0.0,
+        "allocator_decision": "BLOCK_SPREAD_SLIPPAGE",
+        "allocator_blocked": true,
+        "reasons": [
+          "ALLOCATOR_BLOCK_SPREAD_SLIPPAGE",
+          "LOW_CONFIDENCE"
+        ],
+        "eligibility_gap_score": 1.09047852
+      },
+      "paper_signal": {
+        "symbol": "ETHUSDT",
+        "timeframe": "1m",
+        "side": "short",
+        "confidence": 0.67241402,
+        "confidence_threshold": 0.75,
+        "confidence_gap_to_a_grade": 0.07758598,
+        "after_cost_edge_bps": 60.327034,
+        "minimum_after_cost_edge_bps": 0.0,
+        "edge_gap_to_positive_bps": 0.0,
+        "allocator_decision": null,
+        "allocator_blocked": false,
+        "reasons": [
+          "LOW_CONFIDENCE"
+        ],
+        "eligibility_gap_score": 0.07758598
+      }
+    },
+    "a_grade_before_temporal_count": 0,
+    "event_time_valid_candidate_count": 0,
+    "best_configuration_count": 0,
+    "readiness_blocker_reasons": [
+      "NO_A_GRADE_SIGNALS"
+    ]
+  },
+  "required_symbol_timeframe_cell_count": 755,
+  "observed_required_symbol_timeframe_cell_count": 755,
+  "missing_required_symbol_timeframe_cell_count": 0,
+  "a_grade_thresholds": {
+    "confidence_min": 0.75,
+    "after_cost_edge_bps_min_exclusive": 0.0,
+    "allocator_blocked_decisions_excluded": true
+  },
+  "simulated_configuration_axes": [
+    "notional",
+    "leverage",
+    "isolated_margin",
+    "cross_margin",
+    "stop_distance",
+    "take_profit_plan",
+    "hedge_or_no_hedge",
+    "spread_depth_fees_slippage_funding"
+  ],
+  "historical_a_grade_signal_count": 0,
+  "a_grade_before_temporal_count": 0,
+  "event_time_valid_candidate_count": 0,
+  "skipped_not_a_grade_count": 1559,
+  "skipped_not_a_grade_reason_counts": {
+    "ALLOCATOR_BLOCK_DRAWDOWN_GUARD": 19,
+    "ALLOCATOR_BLOCK_LOW_CONFIDENCE": 3,
+    "ALLOCATOR_BLOCK_NO_EDGE": 199,
+    "ALLOCATOR_BLOCK_SPREAD_SLIPPAGE": 9,
+    "LOW_CONFIDENCE": 985,
+    "MISSING_AFTER_COST_EDGE": 575,
+    "MISSING_CONFIDENCE": 574,
+    "NON_DIRECTIONAL_ACTION": 536,
+    "NON_POSITIVE_AFTER_COST_EDGE": 564
+  },
+  "skipped_not_a_grade_sample": [
+    {
+      "symbol": "BANKUSDT",
+      "timeframe": "5m",
+      "source_kind": "paper_signal",
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ]
+    },
+    {
+      "symbol": "MONUSDT",
+      "timeframe": "1h",
+      "source_kind": "paper_signal",
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ]
+    },
+    {
+      "symbol": "ALICEUSDT",
+      "timeframe": "4h",
+      "source_kind": "paper_signal",
+      "reasons": [
+        "LOW_CONFIDENCE",
+        "NON_DIRECTIONAL_ACTION",
+        "NON_POSITIVE_AFTER_COST_EDGE"
+      ]
+    },
+    {
+      "symbol": "XLMUSDT",
+      "timeframe": "1h",
+      "source_kind": "paper_signal",
+      "reasons": [
+        "LOW_CONFIDENCE",
+        "NON_DIRECTIONAL_ACTION",
+        "NON_POSITIVE_AFTER_COST_EDGE"
+      ]
+    },
+    {
+      "symbol": "1000PEPEUSDT",
+      "timeframe": "1h",
+      "source_kind": "paper_signal",
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ]
+    },
+    {
+      "symbol": "GRASSUSDT",
+      "timeframe": "4h",
+      "source_kind": "paper_signal",
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ]
+    },
+    {
+      "symbol": "DASHUSDT",
+      "timeframe": "1h",
+      "source_kind": "paper_signal",
+      "reasons": [
+        "LOW_CONFIDENCE",
+        "NON_DIRECTIONAL_ACTION",
+        "NON_POSITIVE_AFTER_COST_EDGE"
+      ]
+    },
+    {
+      "symbol": "STOUSDT",
+      "timeframe": "5m",
+      "source_kind": "paper_signal",
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ]
+    },
+    {
+      "symbol": "CELRUSDT",
+      "timeframe": "1m",
+      "source_kind": "paper_signal",
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ]
+    },
+    {
+      "symbol": "BILLUSDT",
+      "timeframe": "4h",
+      "source_kind": "paper_signal",
+      "reasons": [
+        "LOW_CONFIDENCE",
+        "NON_DIRECTIONAL_ACTION",
+        "NON_POSITIVE_AFTER_COST_EDGE"
+      ]
+    },
+    {
+      "symbol": "LINKUSDT",
+      "timeframe": "1h",
+      "source_kind": "paper_signal",
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ]
+    },
+    {
+      "symbol": "JSTUSDT",
+      "timeframe": "15m",
+      "source_kind": "paper_signal",
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ]
+    },
+    {
+      "symbol": "PIPPINUSDT",
+      "timeframe": "4h",
+      "source_kind": "paper_signal",
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ]
+    },
+    {
+      "symbol": "DOGEUSDT",
+      "timeframe": "15m",
+      "source_kind": "paper_signal",
+      "reasons": [
+        "LOW_CONFIDENCE",
+        "NON_DIRECTIONAL_ACTION",
+        "NON_POSITIVE_AFTER_COST_EDGE"
+      ]
+    },
+    {
+      "symbol": "BCHUSDT",
+      "timeframe": "15m",
+      "source_kind": "paper_signal",
+      "reasons": [
+        "LOW_CONFIDENCE",
+        "NON_DIRECTIONAL_ACTION",
+        "NON_POSITIVE_AFTER_COST_EDGE"
+      ]
+    },
+    {
+      "symbol": "AAVEUSDT",
+      "timeframe": "5m",
+      "source_kind": "paper_signal",
+      "reasons": [
+        "LOW_CONFIDENCE",
+        "NON_DIRECTIONAL_ACTION",
+        "NON_POSITIVE_AFTER_COST_EDGE"
+      ]
+    },
+    {
+      "symbol": "IPUSDT",
+      "timeframe": "4h",
+      "source_kind": "paper_signal",
+      "reasons": [
+        "LOW_CONFIDENCE",
+        "NON_DIRECTIONAL_ACTION",
+        "NON_POSITIVE_AFTER_COST_EDGE"
+      ]
+    },
+    {
+      "symbol": "1000PEPEUSDT",
+      "timeframe": "15m",
+      "source_kind": "paper_signal",
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ]
+    },
+    {
+      "symbol": "ADAUSDT",
+      "timeframe": "4h",
+      "source_kind": "paper_signal",
+      "reasons": [
+        "LOW_CONFIDENCE",
+        "NON_DIRECTIONAL_ACTION",
+        "NON_POSITIVE_AFTER_COST_EDGE"
+      ]
+    },
+    {
+      "symbol": "STRKUSDT",
+      "timeframe": "4h",
+      "source_kind": "paper_signal",
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ]
+    }
+  ],
+  "near_a_grade_sample": [
+    {
+      "symbol": "ETHUSDT",
+      "timeframe": "1m",
+      "side": "short",
+      "confidence": 0.67241402,
+      "confidence_threshold": 0.75,
+      "confidence_gap_to_a_grade": 0.07758598,
+      "after_cost_edge_bps": 60.327034,
+      "minimum_after_cost_edge_bps": 0.0,
+      "edge_gap_to_positive_bps": 0.0,
+      "allocator_decision": null,
+      "allocator_blocked": false,
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ],
+      "eligibility_gap_score": 0.07758598
+    },
+    {
+      "symbol": "LTCUSDT",
+      "timeframe": "15m",
+      "side": "short",
+      "confidence": 0.67140239,
+      "confidence_threshold": 0.75,
+      "confidence_gap_to_a_grade": 0.07859761,
+      "after_cost_edge_bps": 31.25725937,
+      "minimum_after_cost_edge_bps": 0.0,
+      "edge_gap_to_positive_bps": 0.0,
+      "allocator_decision": null,
+      "allocator_blocked": false,
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ],
+      "eligibility_gap_score": 0.07859761
+    },
+    {
+      "symbol": "LINKUSDT",
+      "timeframe": "1h",
+      "side": "short",
+      "confidence": 0.6660356,
+      "confidence_threshold": 0.75,
+      "confidence_gap_to_a_grade": 0.0839644,
+      "after_cost_edge_bps": 18.29203606,
+      "minimum_after_cost_edge_bps": 0.0,
+      "edge_gap_to_positive_bps": 0.0,
+      "allocator_decision": null,
+      "allocator_blocked": false,
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ],
+      "eligibility_gap_score": 0.0839644
+    },
+    {
+      "symbol": "MONUSDT",
+      "timeframe": "15m",
+      "side": "short",
+      "confidence": 0.65978074,
+      "confidence_threshold": 0.75,
+      "confidence_gap_to_a_grade": 0.09021926,
+      "after_cost_edge_bps": 132.0,
+      "minimum_after_cost_edge_bps": 0.0,
+      "edge_gap_to_positive_bps": 0.0,
+      "allocator_decision": null,
+      "allocator_blocked": false,
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ],
+      "eligibility_gap_score": 0.09021926
+    },
+    {
+      "symbol": "MONUSDT",
+      "timeframe": "1h",
+      "side": "short",
+      "confidence": 0.65978074,
+      "confidence_threshold": 0.75,
+      "confidence_gap_to_a_grade": 0.09021926,
+      "after_cost_edge_bps": 132.0,
+      "minimum_after_cost_edge_bps": 0.0,
+      "edge_gap_to_positive_bps": 0.0,
+      "allocator_decision": null,
+      "allocator_blocked": false,
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ],
+      "eligibility_gap_score": 0.09021926
+    },
+    {
+      "symbol": "MONUSDT",
+      "timeframe": "5m",
+      "side": "short",
+      "confidence": 0.65978074,
+      "confidence_threshold": 0.75,
+      "confidence_gap_to_a_grade": 0.09021926,
+      "after_cost_edge_bps": 132.0,
+      "minimum_after_cost_edge_bps": 0.0,
+      "edge_gap_to_positive_bps": 0.0,
+      "allocator_decision": null,
+      "allocator_blocked": false,
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ],
+      "eligibility_gap_score": 0.09021926
+    },
+    {
+      "symbol": "ZROUSDT",
+      "timeframe": "15m",
+      "side": "short",
+      "confidence": 0.65977466,
+      "confidence_threshold": 0.75,
+      "confidence_gap_to_a_grade": 0.09022534,
+      "after_cost_edge_bps": 132.0,
+      "minimum_after_cost_edge_bps": 0.0,
+      "edge_gap_to_positive_bps": 0.0,
+      "allocator_decision": null,
+      "allocator_blocked": false,
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ],
+      "eligibility_gap_score": 0.09022534
+    },
+    {
+      "symbol": "ZROUSDT",
+      "timeframe": "1m",
+      "side": "short",
+      "confidence": 0.65977343,
+      "confidence_threshold": 0.75,
+      "confidence_gap_to_a_grade": 0.09022657,
+      "after_cost_edge_bps": 132.0,
+      "minimum_after_cost_edge_bps": 0.0,
+      "edge_gap_to_positive_bps": 0.0,
+      "allocator_decision": null,
+      "allocator_blocked": false,
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ],
+      "eligibility_gap_score": 0.09022657
+    },
+    {
+      "symbol": "ZROUSDT",
+      "timeframe": "1h",
+      "side": "short",
+      "confidence": 0.65976651,
+      "confidence_threshold": 0.75,
+      "confidence_gap_to_a_grade": 0.09023349,
+      "after_cost_edge_bps": 132.0,
+      "minimum_after_cost_edge_bps": 0.0,
+      "edge_gap_to_positive_bps": 0.0,
+      "allocator_decision": null,
+      "allocator_blocked": false,
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ],
+      "eligibility_gap_score": 0.09023349
+    },
+    {
+      "symbol": "ZROUSDT",
+      "timeframe": "4h",
+      "side": "short",
+      "confidence": 0.65976016,
+      "confidence_threshold": 0.75,
+      "confidence_gap_to_a_grade": 0.09023984,
+      "after_cost_edge_bps": 132.0,
+      "minimum_after_cost_edge_bps": 0.0,
+      "edge_gap_to_positive_bps": 0.0,
+      "allocator_decision": null,
+      "allocator_blocked": false,
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ],
+      "eligibility_gap_score": 0.09023984
+    },
+    {
+      "symbol": "ZROUSDT",
+      "timeframe": "5m",
+      "side": "short",
+      "confidence": 0.65975423,
+      "confidence_threshold": 0.75,
+      "confidence_gap_to_a_grade": 0.09024577,
+      "after_cost_edge_bps": 132.0,
+      "minimum_after_cost_edge_bps": 0.0,
+      "edge_gap_to_positive_bps": 0.0,
+      "allocator_decision": null,
+      "allocator_blocked": false,
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ],
+      "eligibility_gap_score": 0.09024577
+    },
+    {
+      "symbol": "FILUSDT",
+      "timeframe": "15m",
+      "side": "short",
+      "confidence": 0.65952148,
+      "confidence_threshold": 0.75,
+      "confidence_gap_to_a_grade": 0.09047852,
+      "after_cost_edge_bps": 3.53922462,
+      "minimum_after_cost_edge_bps": 0.0,
+      "edge_gap_to_positive_bps": 0.0,
+      "allocator_decision": null,
+      "allocator_blocked": false,
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ],
+      "eligibility_gap_score": 0.09047852
+    },
+    {
+      "symbol": "ADAUSDT",
+      "timeframe": "1m",
+      "side": "short",
+      "confidence": 0.65870253,
+      "confidence_threshold": 0.75,
+      "confidence_gap_to_a_grade": 0.09129747,
+      "after_cost_edge_bps": 0.68869495,
+      "minimum_after_cost_edge_bps": 0.0,
+      "edge_gap_to_positive_bps": 0.0,
+      "allocator_decision": null,
+      "allocator_blocked": false,
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ],
+      "eligibility_gap_score": 0.09129747
+    },
+    {
+      "symbol": "AAVEUSDT",
+      "timeframe": "4h",
+      "side": "short",
+      "confidence": 0.65818688,
+      "confidence_threshold": 0.75,
+      "confidence_gap_to_a_grade": 0.09181312,
+      "after_cost_edge_bps": 6.36741161,
+      "minimum_after_cost_edge_bps": 0.0,
+      "edge_gap_to_positive_bps": 0.0,
+      "allocator_decision": null,
+      "allocator_blocked": false,
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ],
+      "eligibility_gap_score": 0.09181312
+    },
+    {
+      "symbol": "ETHUSDT",
+      "timeframe": "4h",
+      "side": "short",
+      "confidence": 0.65537945,
+      "confidence_threshold": 0.75,
+      "confidence_gap_to_a_grade": 0.09462055,
+      "after_cost_edge_bps": 53.17266846,
+      "minimum_after_cost_edge_bps": 0.0,
+      "edge_gap_to_positive_bps": 0.0,
+      "allocator_decision": null,
+      "allocator_blocked": false,
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ],
+      "eligibility_gap_score": 0.09462055
+    },
+    {
+      "symbol": "MONUSDT",
+      "timeframe": "1m",
+      "side": "short",
+      "confidence": 0.65280512,
+      "confidence_threshold": 0.75,
+      "confidence_gap_to_a_grade": 0.09719488,
+      "after_cost_edge_bps": 132.0,
+      "minimum_after_cost_edge_bps": 0.0,
+      "edge_gap_to_positive_bps": 0.0,
+      "allocator_decision": null,
+      "allocator_blocked": false,
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ],
+      "eligibility_gap_score": 0.09719488
+    },
+    {
+      "symbol": "ICPUSDT",
+      "timeframe": "1m",
+      "side": "long",
+      "confidence": 0.65280512,
+      "confidence_threshold": 0.75,
+      "confidence_gap_to_a_grade": 0.09719488,
+      "after_cost_edge_bps": 107.96682739,
+      "minimum_after_cost_edge_bps": 0.0,
+      "edge_gap_to_positive_bps": 0.0,
+      "allocator_decision": null,
+      "allocator_blocked": false,
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ],
+      "eligibility_gap_score": 0.09719488
+    },
+    {
+      "symbol": "1000SHIBUSDT",
+      "timeframe": "4h",
+      "side": "short",
+      "confidence": 0.6483235,
+      "confidence_threshold": 0.75,
+      "confidence_gap_to_a_grade": 0.1016765,
+      "after_cost_edge_bps": 29.45905304,
+      "minimum_after_cost_edge_bps": 0.0,
+      "edge_gap_to_positive_bps": 0.0,
+      "allocator_decision": null,
+      "allocator_blocked": false,
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ],
+      "eligibility_gap_score": 0.1016765
+    },
+    {
+      "symbol": "SPACEUSDT",
+      "timeframe": "1h",
+      "side": "short",
+      "confidence": 0.64593083,
+      "confidence_threshold": 0.75,
+      "confidence_gap_to_a_grade": 0.10406917,
+      "after_cost_edge_bps": 132.0,
+      "minimum_after_cost_edge_bps": 0.0,
+      "edge_gap_to_positive_bps": 0.0,
+      "allocator_decision": null,
+      "allocator_blocked": false,
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ],
+      "eligibility_gap_score": 0.10406917
+    },
+    {
+      "symbol": "SPACEUSDT",
+      "timeframe": "4h",
+      "side": "short",
+      "confidence": 0.64593083,
+      "confidence_threshold": 0.75,
+      "confidence_gap_to_a_grade": 0.10406917,
+      "after_cost_edge_bps": 132.0,
+      "minimum_after_cost_edge_bps": 0.0,
+      "edge_gap_to_positive_bps": 0.0,
+      "allocator_decision": null,
+      "allocator_blocked": false,
+      "reasons": [
+        "LOW_CONFIDENCE"
+      ],
+      "eligibility_gap_score": 0.10406917
+    }
+  ],
+  "skipped_temporal_invalid_count": 0,
+  "skipped_temporal_invalid_sample": [],
+  "skipped_no_feasible_configuration_count": 0,
+  "skipped_no_feasible_configuration_reason_counts": {},
+  "skipped_no_feasible_configuration_sample": [],
+  "sweep_result_count": 0,
+  "config_space_audit": {
+    "axis_count": 6,
+    "per_candidate_theoretical_configuration_count": 540,
+    "candidate_count": 0,
+    "event_time_valid_candidate_count": 0,
+    "theoretical_configuration_count": 0,
+    "considered_count": 0,
+    "configurations_considered_count": 0,
+    "feasible_count": 0,
+    "feasible_configuration_count": 0,
+    "pruned_count": 0,
+    "pruned_configuration_count": 0,
+    "configuration_count_reconciled": true,
+    "feasible_plus_pruned_reconciled": true,
+    "pruned_reason_counts": {},
+    "candidate_configuration_audit_sample": []
+  },
+  "hedge_accounting_audit": {
+    "status": "NO_GO_HEDGE_ACCOUNTING_INCOMPLETE",
+    "configuration_count": 0,
+    "hedge_enabled_configuration_count": 0,
+    "hedge_disabled_configuration_count": 0,
+    "hedge_budget_positive_count": 0,
+    "hedge_cost_positive_count": 0,
+    "expected_shortfall_reduced_count": 0,
+    "max_hedge_budget_usd": 0.0,
+    "max_hedge_cost_usd": 0.0,
+    "hedge_tail_loss_reduction_factors": [],
+    "missing_field_counts": {},
+    "hedge_cost_bps_when_enabled": 3.0,
+    "tail_loss_reduction_factor_when_enabled": 0.75,
+    "hedge_budget_usd_formula": "unhedged_expected_shortfall_usd - expected_shortfall_usd"
+  },
+  "best_configuration_count": 0,
+  "efficient_frontier_ready": false,
+  "objective": "maximize_expected_log_final_equity",
+  "total_expected_log_growth": 0,
+  "worst_expected_shortfall_usd": 0.0,
+  "max_liquidation_probability": 0.0,
+  "best_configurations_sample": [],
+  "config_axes": {
+    "notional_multipliers": [
+      0.25,
+      0.5,
+      1.0,
+      1.5,
+      2.0
+    ],
+    "leverage_values": [
+      1.0,
+      2.0,
+      3.0
+    ],
+    "margin_modes": [
+      "isolated",
+      "cross"
+    ],
+    "stop_multipliers": [
+      0.75,
+      1.0,
+      1.5
+    ],
+    "take_profit_plans": [
+      "none",
+      "one_r",
+      "two_r"
+    ],
+    "hedge_flags": [
+      false,
+      true
+    ],
+    "hedge_budget_model": {
+      "hedge_cost_bps_when_enabled": 3.0,
+      "tail_loss_reduction_factor_when_enabled": 0.75,
+      "hedge_budget_usd_formula": "unhedged_expected_shortfall_usd - expected_shortfall_usd"
+    },
+    "market_depth_capacity": "required_actual_depth_usd_or_orderbook_levels",
+    "market_cost_evidence": "required_explicit_spread_slippage_fee_funding_bps_or_usd"
+  },
+  "market_depth_capacity_requirement": "required_actual_depth_usd_or_orderbook_levels",
+  "market_cost_evidence_requirement": "required_explicit_spread_slippage_fee_funding_bps_or_usd",
+  "notes": "Counterfactual engine executed on currently available rows. Overall pass still requires all-universe/five-timeframe replay coverage and sufficient post-allocator evidence."
+}

@@ -1,0 +1,11 @@
+{
+  "approval_true_hits": [],
+  "exchange_mutation_hits": [],
+  "files_scanned": 22,
+  "json_parse_failures": [],
+  "legacy_redis_hits": [],
+  "missing_files": [],
+  "schema_version": "v2_24h_live_canary_validation_sweep_v1",
+  "secret_hits": [],
+  "status": "PASS"
+}

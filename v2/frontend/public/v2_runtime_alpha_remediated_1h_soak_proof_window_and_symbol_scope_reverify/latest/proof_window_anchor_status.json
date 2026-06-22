@@ -1,0 +1,14 @@
+{
+  "active_observer_latest_observation": false,
+  "completion_window_complete": false,
+  "completion_window_elapsed_seconds": 0,
+  "completion_window_required_seconds": 3600,
+  "first_observation_utc": "2026-06-15T19:00:24Z",
+  "latest_material_change_utc": "2026-06-15T19:00:11Z",
+  "latest_observation_utc": "2026-06-15T19:00:24Z",
+  "observer_pid": null,
+  "proof_window_started_after_latest_material_change": true,
+  "remediation_id": "runtime_alpha_1h_reverify_scope_20260615",
+  "schema_version": "proof_window_anchor_status_v1",
+  "status": "PROOF_WINDOW_ANCHORED"
+}

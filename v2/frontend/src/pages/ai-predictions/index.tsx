@@ -1,8 +1,27 @@
-import { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { FreshnessBadge } from '../../components/data/FreshnessBadge';
 import { SourceBadge } from '../../components/data/SourceBadge';
 import { LoadingSkeleton } from '../../components/ui/LoadingSkeleton';
+import { AdaptiveCapitalTelemetryPanel } from '../../components/trading/AdaptiveCapitalTelemetryPanel';
+import {
+  publicRuntimeId,
+  runtimeAgeSeconds,
+  runtimeNumber,
+  runtimeRecord,
+  runtimeText,
+  type CurrentRuntimeLineagePayload,
+  useCurrentRuntimeLineage,
+} from '../../data/currentRuntimeLineage';
+import {
+  accuracyCell as lookupAccuracyCell,
+  adaptiveStatusColor,
+  formatAdaptiveMoney,
+  formatAdaptivePercent,
+  missingAccuracyCellCount,
+  type SignalPredictionAccuracyCell,
+  useAdaptiveCapitalDashboard,
+} from '../../data/adaptiveCapitalProductivity';
 import meta from './meta';
 import rbac from './rbac';
 import route from './route';
@@ -94,6 +113,8 @@ interface TrainerSummary {
 const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h'] as const;
 type TF = typeof TIMEFRAMES[number];
 const DEFAULT_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'DOGEUSDT', 'AVAXUSDT', 'ADAUSDT'];
+// BTC/ETH/SOL are always pinned; additional symbols come from liquidation volume ranking
+const PINNED_CORE = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'] as const;
 const ACTION_COLORS: Record<string, string> = {
   long: '#26c281', long_strong: '#0fa86a', long_scaled: '#4ade80',
   short: '#ef5350', short_strong: '#d32f2f', short_scaled: '#ff7875',
@@ -135,6 +156,69 @@ function fmtAge(s: number | null | undefined): string {
 function fmtPrice(p: number | null | undefined): string {
   if (p == null) return '—';
   return `$${p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function predictionRowFromLineage(payload: CurrentRuntimeLineagePayload | null | undefined): PredRow | null {
+  if (!payload) return null;
+  const trainer = runtimeRecord(payload.trainer_prediction);
+  const signal = runtimeRecord(payload.signal);
+  const risk = runtimeRecord(payload.risk_decision);
+  const rawOutput = runtimeRecord(trainer.raw_output);
+  const drivers = runtimeRecord(trainer.reasoning_drivers);
+  const generatedAt = runtimeText(trainer.generated_at, signal.generated_at, risk.generated_at, payload.generated_at);
+  const symbol = runtimeText(trainer.symbol, signal.symbol);
+  if (!symbol) return null;
+  const topAction = runtimeText(rawOutput.side, signal.side, trainer.direction);
+  const topProb = runtimeNumber(trainer.confidence_raw, drivers.confidence_raw);
+  return {
+    symbol,
+    timeframe: runtimeText(trainer.timeframe) ?? '1m',
+    action: runtimeText(rawOutput.side, signal.side, trainer.direction),
+    confidence_calibrated: runtimeNumber(trainer.confidence_calibrated, signal.confidence_calibrated, drivers.confidence_calibrated),
+    confidence_raw: topProb,
+    data_coverage_percent: runtimeNumber(trainer.data_coverage_pct, drivers.data_coverage_pct),
+    market_state_integrity_score: runtimeNumber(drivers.market_state_integrity_score),
+    missing_feature_count: runtimeNumber(drivers.missing_feature_count),
+    top_action: topAction,
+    top_prob: topProb,
+    second_action: null,
+    second_prob: null,
+    cuda_available: null,
+    checkpoint_id: runtimeText(trainer.model_checkpoint, trainer.model_version),
+    generated_at: generatedAt,
+    age_seconds: runtimeNumber(trainer.market_age_seconds, signal.market_age_seconds, runtimeAgeSeconds(generatedAt)),
+    action_probs: null,
+    masa_signal: runtimeNumber(drivers.masa_signal),
+    policy_value: runtimeNumber(drivers.policy_value),
+    temperature: null,
+    coverage_factor: null,
+    price_target: null,
+    expected_move_bps: runtimeNumber(risk.expected_move_after_cost_bps, risk.expected_move_bps, trainer.expected_move_bps),
+  };
+}
+
+function AccuracyBadge({ cell }: { cell: SignalPredictionAccuracyCell | null }): JSX.Element {
+  if (!cell || !cell.evaluated_count) {
+    return (
+      <div style={{ fontFamily: 'var(--font-mono)' }}>
+        <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)' }}>—</span>
+        <span style={{ display: 'block', fontSize: 9, color: 'var(--text-muted)' }}>no outcomes</span>
+      </div>
+    );
+  }
+  return (
+    <div style={{ fontFamily: 'var(--font-mono)' }}>
+      <span style={{ display: 'block', fontSize: 12, fontWeight: 800, color: adaptiveStatusColor(cell.status) }}>
+        {formatAdaptivePercent(cell.accuracy)}
+      </span>
+      <span style={{ display: 'block', fontSize: 9, color: 'var(--text-muted)' }}>
+        {cell.correct_count ?? 0}/{cell.evaluated_count} hits
+      </span>
+      <span style={{ display: 'block', fontSize: 9, color: (cell.realized_pnl_usd ?? 0) >= 0 ? 'var(--buy)' : 'var(--sell)' }}>
+        {formatAdaptiveMoney(cell.realized_pnl_usd)} pnl
+      </span>
+    </div>
+  );
 }
 
 // ─── Prob bars ────────────────────────────────────────────────────────────
@@ -265,7 +349,7 @@ function PredExpandedRow({ row }: { row: PredRow }): JSX.Element {
   const maxProb = Math.max(...Object.values(probs), 0.01);
   return (
     <tr>
-      <td colSpan={10} style={{ padding: 0 }}>
+      <td colSpan={11} style={{ padding: 0 }}>
         <div style={{ background: 'rgba(10,10,18,0.95)', borderBottom: '2px solid var(--border)', padding: '16px 20px' }}>
           <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: 12 }}>
             {([['probs', '📊 Action Probs'], ['calibration', '🎯 Calibration'], ['reasoning', '🧠 AI Reasoning']] as const).map(([t, label]) => (
@@ -277,7 +361,7 @@ function PredExpandedRow({ row }: { row: PredRow }): JSX.Element {
               }}>{label}</button>
             ))}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center' }}>
-              {row.checkpoint_id && <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>ckpt: {row.checkpoint_id.slice(0, 16)}…</span>}
+              {row.checkpoint_id && <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>ckpt: {publicRuntimeId(row.checkpoint_id)?.slice(0, 16)}…</span>}
               {row.cuda_available != null && <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 4, border: `1px solid ${row.cuda_available ? '#26c28140' : 'var(--border)'}`, color: row.cuda_available ? '#26c281' : 'var(--text-muted)' }}>{row.cuda_available ? '⚡ CUDA' : '🖥 CPU'}</span>}
             </div>
           </div>
@@ -410,6 +494,8 @@ export default function AIPredictionsPage(): JSX.Element {
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [showAllSymbols, setShowAllSymbols] = useState(false);
   const [symbolSearch, setSymbolSearch] = useState('');
+  const adaptiveCapital = useAdaptiveCapitalDashboard(30_000);
+  const currentLineage = useCurrentRuntimeLineage(10_000);
 
   const symbolsParam = Array.from(selectedSymbols).join(',');
   const tfsParam = Array.from(selectedTFs).join(',');
@@ -422,8 +508,35 @@ export default function AIPredictionsPage(): JSX.Element {
     url: '/api/v2/predictions/matrix', source: '/api/v2/predictions/matrix', pollIntervalMs: 60_000, mode: 'read_only',
   });
 
-  const allSymbols = useMemo(() => allEnv.data?.symbols ?? [], [allEnv.data]);
-  const rows = envelope.data?.rows ?? [];
+  // Fetch liquidation heatmap once to derive top-liquidity symbol defaults (BTC/ETH/SOL + top 2)
+  const { envelope: liqHeatmapEnv } = useRealtimeResource<{ pinned_defaults?: string[] }>({
+    url: '/api/v2/liquidation/levels-heatmap', source: '/api/v2/liquidation/levels-heatmap',
+    pollIntervalMs: 10_000, staleThresholdMs: 30_000, mode: 'read_only', initialFetch: true,
+  });
+  useEffect(() => {
+    const pinned = liqHeatmapEnv.data?.pinned_defaults;
+    if (!pinned || pinned.length === 0) return;
+    // Only auto-select if user hasn't deviated from core defaults
+    setSelectedSymbols(prev => {
+      const hasCustom = Array.from(prev).some(s => !DEFAULT_SYMBOLS.includes(s));
+      if (hasCustom) return prev;
+      const next = new Set([...PINNED_CORE, ...pinned.slice(0, 5)]);
+      return next;
+    });
+  }, [liqHeatmapEnv.data?.pinned_defaults?.join(',')]);
+
+  const lineagePredictionRow = useMemo(() => predictionRowFromLineage(currentLineage.envelope.data), [currentLineage.envelope.data]);
+  const matrixRows = envelope.data?.rows ?? [];
+  const rows = useMemo(
+    () => matrixRows.length ? matrixRows : lineagePredictionRow ? [lineagePredictionRow] : [],
+    [lineagePredictionRow, matrixRows],
+  );
+  const usingLineageFallback = matrixRows.length === 0 && rows.length > 0;
+  const allSymbols = useMemo(() => {
+    const next = new Set(allEnv.data?.symbols ?? []);
+    if (lineagePredictionRow?.symbol) next.add(lineagePredictionRow.symbol);
+    return Array.from(next);
+  }, [allEnv.data?.symbols, lineagePredictionRow?.symbol]);
 
   const sorted = useMemo(() => {
     const copy = [...rows];
@@ -455,6 +568,14 @@ export default function AIPredictionsPage(): JSX.Element {
 
   const avgCal = rows.length > 0 ? rows.reduce((s, r) => s + (r.confidence_calibrated ?? 0), 0) / rows.length : null;
   const coverageAvg = rows.length > 0 ? rows.reduce((s, r) => s + (r.data_coverage_percent ?? 0), 0) / rows.length : null;
+  const predictionFeedReady = rows.length > 0;
+  const accuracyStatus = adaptiveCapital.data?.signal_prediction_accuracy_status
+    ?? adaptiveCapital.data?.capital_productivity_runtime_status?.signal_prediction_accuracy_status
+    ?? null;
+  const evaluatedAccuracyCells = accuracyStatus?.evaluated_symbol_timeframe_cell_count;
+  const totalAccuracyCells = accuracyStatus?.symbol_timeframe_cell_count
+    ?? accuracyStatus?.required_symbol_timeframe_cell_count;
+  const missingAccuracyCells = missingAccuracyCellCount(accuracyStatus);
 
   return (
     <div data-testid="page-ai-predictions" data-page-id={meta.id} data-page-path={route.path} data-page-min-role={rbac.minRole}
@@ -470,7 +591,8 @@ export default function AIPredictionsPage(): JSX.Element {
               <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700, background: 'rgba(99,102,241,0.12)', color: '#6366f1', border: '1px solid rgba(99,102,241,0.3)', fontFamily: 'var(--font-mono)' }}>RAW MODEL OUTPUT</span>
             </div>
             <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>
-              Action probability distributions · Softmax output · Confidence calibration (temperature + coverage) · MASA/policy signals · {rows.length} active predictions
+              Action probability distributions · Softmax output · Confidence calibration (temperature + coverage) · MASA/policy signals · {predictionFeedReady ? rows.length : '—'} active predictions
+              {usingLineageFallback ? ' · current runtime lineage' : ''}
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -485,13 +607,17 @@ export default function AIPredictionsPage(): JSX.Element {
         {/* KPI strip */}
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
           {[
-            { label: 'Total Predictions', value: rows.length, color: 'var(--text-primary)' },
+            { label: 'Total Predictions', value: predictionFeedReady ? rows.length : '—', color: 'var(--text-primary)' },
             { label: 'Avg Calibrated Conf', value: avgCal != null ? fmtConf(avgCal) : '—', color: confColor(avgCal) },
             { label: 'Avg Feature Coverage', value: coverageAvg != null ? `${coverageAvg.toFixed(1)}%` : '—', color: (coverageAvg ?? 0) >= 80 ? '#26c281' : '#f59e0b' },
-            { label: 'Long Bias', value: rows.filter(r => (r.action ?? '').includes('long')).length, color: '#26c281' },
-            { label: 'Short Bias', value: rows.filter(r => (r.action ?? '').includes('short')).length, color: '#ef5350' },
-            { label: 'Hold', value: rows.filter(r => r.action === 'hold').length, color: '#f59e0b' },
-            { label: 'In Universe', value: allSymbols.length, color: 'var(--text-muted)' },
+            { label: 'Long Bias', value: predictionFeedReady ? rows.filter(r => (r.action ?? '').includes('long')).length : '—', color: '#26c281' },
+            { label: 'Short Bias', value: predictionFeedReady ? rows.filter(r => (r.action ?? '').includes('short')).length : '—', color: '#ef5350' },
+            { label: 'Hold', value: predictionFeedReady ? rows.filter(r => r.action === 'hold').length : '—', color: '#f59e0b' },
+            { label: 'Accuracy', value: formatAdaptivePercent(accuracyStatus?.overall_accuracy), color: adaptiveStatusColor(accuracyStatus?.status) },
+            { label: 'Evaluated', value: accuracyStatus?.evaluated_row_count ?? '—', color: 'var(--text-primary)' },
+            { label: 'In Universe', value: allSymbols.length || '—', color: 'var(--text-muted)' },
+            { label: 'TF Cells', value: evaluatedAccuracyCells != null || totalAccuracyCells != null ? `${evaluatedAccuracyCells ?? 0}/${totalAccuracyCells ?? 0}` : '—', color: 'var(--text-primary)' },
+            { label: 'Missing Cells', value: missingAccuracyCells ?? '—', color: (missingAccuracyCells ?? 0) > 0 ? '#ef5350' : '#26c281' },
           ].map(k => (
             <div key={k.label} style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px', display: 'flex', gap: 8, alignItems: 'center' }}>
               <span style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{k.label}</span>
@@ -506,7 +632,7 @@ export default function AIPredictionsPage(): JSX.Element {
             <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Symbols</span>
             <input value={symbolSearch} onChange={e => setSymbolSearch(e.target.value)} placeholder="Filter..." style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-base)', color: 'var(--text-primary)', fontSize: 11, width: 90, outline: 'none' }} />
             <button onClick={() => setShowAllSymbols(s => !s)} style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 10, cursor: 'pointer' }}>
-              {showAllSymbols ? `Default (${DEFAULT_SYMBOLS.length})` : `All (${allSymbols.length})`}
+              {showAllSymbols ? `Default (${DEFAULT_SYMBOLS.length})` : `All (${allSymbols.length || '—'})`}
             </button>
           </div>
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', maxHeight: 64, overflowY: 'auto' }}>
@@ -532,13 +658,23 @@ export default function AIPredictionsPage(): JSX.Element {
         </div>
       </div>
 
+      <div style={{ padding: '12px 16px 0' }}>
+        <AdaptiveCapitalTelemetryPanel
+          payload={adaptiveCapital.data}
+          title="Prediction Accuracy + Capital Productivity"
+          compact
+          showMatrix
+          maxMatrixHeight={260}
+        />
+      </div>
+
       {/* Table */}
       <div style={{ padding: 16 }}>
         {loading && sorted.length === 0 && <LoadingSkeleton rows={8} />}
         {!loading && sorted.length === 0 && (
           <div style={{ padding: 40, textAlign: 'center', background: 'var(--bg-panel)', borderRadius: 12, border: '1px solid var(--border)' }}>
             <div style={{ fontSize: 32, marginBottom: 10 }}>🧠</div>
-            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>No predictions in Redis (v2:prediction:*). Check trainer publishing status above.</p>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>Awaiting live prediction stream. Existing panels stay mounted while WebSocket and HTTP fallback connect.</p>
           </div>
         )}
         {sorted.length > 0 && (
@@ -551,6 +687,7 @@ export default function AIPredictionsPage(): JSX.Element {
                     <SortTh label="TF" col="timeframe" current={sortKey} dir={sortDir} onSort={handleSort} />
                     <SortTh label="Prediction" col="action" current={sortKey} dir={sortDir} onSort={handleSort} />
                     <SortTh label="Conf Cal." col="confidence_calibrated" current={sortKey} dir={sortDir} onSort={handleSort} />
+                    <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em', background: 'var(--bg-panel)', whiteSpace: 'nowrap' }}>Accuracy / PnL</th>
                     <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em', background: 'var(--bg-panel)', whiteSpace: 'nowrap' }}>Top Probs</th>
                     <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em', background: 'var(--bg-panel)', whiteSpace: 'nowrap' }}>Price Target</th>
                     <SortTh label="Coverage" col="data_coverage_percent" current={sortKey} dir={sortDir} onSort={handleSort} />
@@ -565,9 +702,10 @@ export default function AIPredictionsPage(): JSX.Element {
                     const expanded = expandedRow === rowKey;
                     const topColor = actionColor(row.top_action);
                     const secondColor = actionColor(row.second_action);
+                    const accuracy = lookupAccuracyCell(accuracyStatus, row.symbol, row.timeframe);
                     return (
-                      <>
-                        <tr key={rowKey} onClick={() => setExpandedRow(expanded ? null : rowKey)}
+                      <React.Fragment key={rowKey}>
+                        <tr onClick={() => setExpandedRow(expanded ? null : rowKey)}
                           style={{ cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.04)', background: expanded ? 'rgba(99,102,241,0.04)' : 'transparent' }}
                           onMouseEnter={e => { if (!expanded) (e.currentTarget as HTMLTableRowElement).style.background = 'rgba(255,255,255,0.02)'; }}
                           onMouseLeave={e => { if (!expanded) (e.currentTarget as HTMLTableRowElement).style.background = 'transparent'; }}>
@@ -593,6 +731,7 @@ export default function AIPredictionsPage(): JSX.Element {
                               <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>/{fmtConf(row.confidence_raw)}</span>
                             </div>
                           </td>
+                          <td style={{ padding: '10px 12px' }}><AccuracyBadge cell={accuracy} /></td>
                           <td style={{ padding: '10px 12px' }}>
                             <div style={{ display: 'flex', gap: 4 }}>
                               {row.top_action && <span style={{ padding: '2px 7px', borderRadius: 4, fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-mono)', color: topColor, background: `${topColor}18`, border: `1px solid ${topColor}30` }}>{row.top_action.replace(/_/g, ' ')} {row.top_prob != null ? `${(row.top_prob * 100).toFixed(0)}%` : ''}</span>}
@@ -618,8 +757,8 @@ export default function AIPredictionsPage(): JSX.Element {
                           </td>
                           <td style={{ padding: '10px 12px', color: 'var(--text-muted)', fontSize: 11 }}>{expanded ? '▲' : '▶'}</td>
                         </tr>
-                        {expanded && <PredExpandedRow key={`${rowKey}-exp`} row={row} />}
-                      </>
+                        {expanded && <PredExpandedRow row={row} />}
+                      </React.Fragment>
                     );
                   })}
                 </tbody>
@@ -629,7 +768,7 @@ export default function AIPredictionsPage(): JSX.Element {
         )}
         <div style={{ marginTop: 12, padding: '8px 0', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
           <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>
-            Prediction source: Redis v2:prediction:* · Raw model output · {sorted.length} rows · LIVE TRADING BLOCKED
+            Prediction source: Redis v2:prediction:* · Raw model output · {sorted.length} rows
           </p>
         </div>
       </div>

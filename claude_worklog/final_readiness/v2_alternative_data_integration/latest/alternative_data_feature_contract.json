@@ -1,0 +1,144 @@
+{
+  "schema_version": "v2_alternative_data_feature_contract_v2",
+  "purpose": "Feature contract for the V2 alternative-data feature family. PLAN ONLY; not wired into full_observation_builder in this packet.",
+  "feature_family_name": "altdata",
+  "feature_family_is_separate_from_current_1911_legacy_observation_parity": true,
+  "feature_family_target_dim_within_full_observation_v1": "OPERATOR_DECISION_REQUIRED",
+  "feature_family_target_dim_rationale": "Legacy V3 observation (1430 unified_features + 401 portfolio_state + 15 onchain_btc + 15 onchain_eth + 50 position_context = 1911) does not allocate a dedicated altdata slice. Until operator approves a slot allocation and Codex maps it to a legacy-compatible dim contract, altdata stays outside the 1911-dim target and feeds only symbol-universe + risk/score-modifier paths.",
+  "checkpoint_compatibility_claimed": false,
+  "policy_architecture_parity_claimed": false,
+  "no_fake_compatibility_claim": true,
+  "fields_per_provider": {
+    "nansen": [
+      {
+        "name": "smart_money_net_flow_usd_24h",
+        "dtype": "float",
+        "source": "v2:altdata:nansen:symbol:{symbol}.smart_money_net_flow_usd_24h",
+        "missing_flag": "smart_money_net_flow_usd_24h_missing",
+        "stale_flag": "smart_money_net_flow_usd_24h_stale"
+      },
+      {
+        "name": "smart_money_buy_count_24h",
+        "dtype": "float",
+        "source": "v2:altdata:nansen:symbol:{symbol}.smart_money_buy_count_24h",
+        "missing_flag": "smart_money_buy_count_24h_missing",
+        "stale_flag": "smart_money_buy_count_24h_stale"
+      },
+      {
+        "name": "smart_money_sell_count_24h",
+        "dtype": "float",
+        "source": "v2:altdata:nansen:symbol:{symbol}.smart_money_sell_count_24h",
+        "missing_flag": "smart_money_sell_count_24h_missing",
+        "stale_flag": "smart_money_sell_count_24h_stale"
+      },
+      {
+        "name": "smart_money_score",
+        "dtype": "float",
+        "source": "v2:altdata:nansen:symbol:{symbol}.smart_money_score",
+        "missing_flag": "smart_money_score_missing",
+        "stale_flag": "smart_money_score_stale"
+      }
+    ],
+    "lunarcrush": [
+      {
+        "name": "social_volume_score",
+        "dtype": "float",
+        "source": "v2:altdata:lunarcrush:symbol:{symbol}.social_volume_score",
+        "missing_flag": "social_volume_score_missing",
+        "stale_flag": "social_volume_score_stale"
+      },
+      {
+        "name": "social_sentiment_score",
+        "dtype": "float",
+        "source": "v2:altdata:lunarcrush:symbol:{symbol}.social_sentiment_score",
+        "missing_flag": "social_sentiment_score_missing",
+        "stale_flag": "social_sentiment_score_stale"
+      },
+      {
+        "name": "social_momentum_score",
+        "dtype": "float",
+        "source": "v2:altdata:lunarcrush:symbol:{symbol}.social_momentum_score",
+        "missing_flag": "social_momentum_score_missing",
+        "stale_flag": "social_momentum_score_stale"
+      },
+      {
+        "name": "social_volume_velocity",
+        "dtype": "float",
+        "source": "v2:altdata:lunarcrush:symbol:{symbol}.social_volume_velocity",
+        "missing_flag": "social_volume_velocity_missing",
+        "stale_flag": "social_volume_velocity_stale"
+      }
+    ],
+    "arkham_future": [
+      {
+        "name": "entity_flow_score",
+        "dtype": "float",
+        "source": "v2:altdata:arkham:symbol:{symbol}.entity_flow_score (FUTURE_ONLY)",
+        "missing_flag": "entity_flow_score_missing",
+        "stale_flag": "entity_flow_score_stale"
+      },
+      {
+        "name": "entity_flow_direction",
+        "dtype": "float",
+        "source": "v2:altdata:arkham:symbol:{symbol}.entity_flow_direction (FUTURE_ONLY)",
+        "missing_flag": "entity_flow_direction_missing",
+        "stale_flag": "entity_flow_direction_stale"
+      },
+      {
+        "name": "entity_known_label_present",
+        "dtype": "float",
+        "source": "v2:altdata:arkham:symbol:{symbol}.entity_known_label_present (FUTURE_ONLY)",
+        "missing_flag": "entity_known_label_present_missing",
+        "stale_flag": "entity_known_label_present_stale"
+      }
+    ],
+    "binance_existing": "ALREADY_INTEGRATED_NATIVE_V2_NO_NEW_FIELDS_HERE",
+    "coinank_existing": "ALREADY_INTEGRATED_NATIVE_V2_NO_NEW_FIELDS_HERE",
+    "liquidation_wss_existing": "ALREADY_INTEGRATED_PAPER_SHADOW_DAEMON_NO_NEW_FIELDS_HERE"
+  },
+  "aggregated_symbol_score_fields": [
+    {
+      "name": "altdata_symbol_score",
+      "dtype": "float",
+      "source": "v2:altdata:symbol_score:{symbol}.altdata_symbol_score",
+      "missing_flag": "altdata_symbol_score_missing",
+      "stale_flag": "altdata_symbol_score_stale"
+    },
+    {
+      "name": "altdata_freshness_score",
+      "dtype": "float",
+      "source": "derived from min(freshness_seconds across providers)",
+      "missing_flag": "altdata_freshness_score_missing",
+      "stale_flag": null
+    },
+    {
+      "name": "provider_availability_score",
+      "dtype": "float",
+      "source": "derived from sum(provider_available bool) / providers_in_scope",
+      "missing_flag": null,
+      "stale_flag": null
+    }
+  ],
+  "missing_and_stale_flag_rules": {
+    "missing_flag_when_redis_key_absent": true,
+    "missing_flag_when_field_value_is_None": true,
+    "stale_flag_when_freshness_seconds_greater_than_cache_ttl": true,
+    "no_silent_zero_fill_for_missing_fields": true,
+    "no_silent_zero_fill_for_stale_fields": true
+  },
+  "trainer_trader_risk_orchestrator_constraints": {
+    "paper_shadow_only": true,
+    "may_score_filter_or_annotate_decisions": true,
+    "may_not_override_strict_paper_fill_gate": true,
+    "may_not_authorize_live_or_canary": true,
+    "may_not_place_orders": true,
+    "may_not_modify_legacy": true
+  },
+  "full_observation_builder_integration_state": "NOT_YET_WIRED_PENDING_CODEX_DIMENSION_CONTRACT_REVIEW",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false
+}

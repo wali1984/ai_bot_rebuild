@@ -1,0 +1,17 @@
+{
+  "blocked_automatable_seed_items": [],
+  "blocked_seed_count": 0,
+  "duplicate_suppressed_count": 1,
+  "duplicate_suppressed_existing_tasks": [
+    {
+      "implementation_task_id": "no_manual_v2_no_status_change_sla_watchdog_v2_no_status_change_sla_watchdog_replay_miner_stale_20260526205008_implementation",
+      "implementation_task_status": "completed",
+      "source_key": "v2_no_status_change_sla_watchdog_replay_miner_stale",
+      "status": "DUPLICATE_SUPPRESSED_EXISTING_TASK_REFERENCED"
+    }
+  ],
+  "generated_pair_count": 0,
+  "generated_pairs": [],
+  "reason": "SEEDED_IF_NOT_DUPLICATE_FOR_REPLAY_MINER_STALE",
+  "remediation_seeded": false
+}

@@ -373,7 +373,7 @@ export default function BacktestsPage(): JSX.Element {
               <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Backtest Engine</h1>
             </div>
             <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>
-              Historical replay of AI signals against real OHLCV data · Equity curves · Trade journal · Paper only
+              Historical replay of AI signals against real OHLCV data · Equity curves · Trade journal · Live execution research
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -434,7 +434,7 @@ export default function BacktestsPage(): JSX.Element {
 
         <div style={{ marginTop: 20, padding: '10px 14px', background: 'var(--bg-panel)', borderRadius: 8, border: '1px solid var(--border)' }}>
           <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>
-            Backtest reads: Redis OHLCV (v2:market:ohlcv:binance:*) + signal direction (v2:signals:paper:*) · Fees: 0.05% per side · No exchange orders placed · Results TTL 7 days
+            Backtest reads: Redis OHLCV + signal direction · Fees: 0.05% per side · No exchange orders placed · Results TTL 7 days
           </p>
         </div>
       </div>

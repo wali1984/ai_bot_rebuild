@@ -1,0 +1,35 @@
+{
+  "schema_version": "v2_24h_live_canary_bringup_current_truth_v1",
+  "generated_utc": "2026-05-19T02:00:00Z",
+  "runtime_ready": true,
+  "website_ready": true,
+  "shadow_metrics_ready": true,
+  "full_observation_partial": true,
+  "checkpoint_parity": false,
+  "policy_parity": false,
+  "accepted_paper_fills": 0,
+  "legacy_shutdown_allowed": false,
+  "live_canary_possible_only_with_operator_approval": true,
+  "default_live_gate": "blocked_human_only",
+  "default_live_symbols": [],
+  "all_non_approved_states_fail_closed": true,
+  "evidence_pointers": {
+    "soak": "claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/soak_status.json",
+    "continuous_remediation_governor": "claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/continuous_remediation/codex_review/codex_5m_status.json",
+    "website_codex_pass": "claude_worklog/final_readiness/v2_realtime_user_website_from_real_payloads/latest/codex_review/CODEX_GO_NO_GO.md",
+    "shadow_metrics_codex_pass": "claude_worklog/final_readiness/v2_shadow_observation_outcome_metrics/latest/GO_NO_GO.md",
+    "full_observation_state": "v2/frontend/public/operator_runtime/v2_rl_core/latest/full_observation_builder_status.json"
+  },
+  "non_approvals_in_this_packet": [
+    "real_trading",
+    "canary_trading",
+    "exchange_mutation",
+    "leverage_change",
+    "margin_mode_change",
+    "legacy_shutdown",
+    "redis_trim",
+    "paper_only_shutdown_acceptance",
+    "checkpoint_compatibility_claim",
+    "policy_architecture_parity_claim"
+  ]
+}

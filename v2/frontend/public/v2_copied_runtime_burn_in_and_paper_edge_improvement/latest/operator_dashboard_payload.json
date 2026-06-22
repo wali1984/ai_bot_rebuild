@@ -1,0 +1,225 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "artifact_index": {
+    "burn_in_status": "v2_copied_runtime_burn_in_status.json",
+    "dynamic_symbols": "v2_dynamic_symbol_runtime_evidence.json",
+    "feature_ta_trainer": "v2_feature_ta_trainer_runtime_impact.json",
+    "go_no_go": "GO_NO_GO.md",
+    "liquidation_impact": "v2_liquidation_bridge_levels_runtime_impact.json",
+    "paper_edge": "v2_post_copied_runtime_paper_edge_status.json",
+    "remediation": "v2_copied_runtime_burn_in_remediation_status.json",
+    "report": "V2_COPIED_RUNTIME_BURN_IN_AND_PAPER_EDGE_IMPROVEMENT_REPORT.md",
+    "trading_platform_ui": "v2_trading_platform_runtime_ui_verification.json"
+  },
+  "block_reasons": [
+    "required_runtime_services_missing",
+    "required_runtime_services_inactive",
+    "burn_in_12h_window_not_complete",
+    "dynamic_symbol_baseline_not_held",
+    "v2_market_liquidation_levels_zero_keys",
+    "paper_edge_not_proven",
+    "operator_edge_thresholds_not_set"
+  ],
+  "blockers": [
+    "required_runtime_services_missing",
+    "required_runtime_services_inactive",
+    "burn_in_12h_window_not_complete",
+    "dynamic_symbol_baseline_not_held",
+    "v2_market_liquidation_levels_zero_keys",
+    "paper_edge_not_proven",
+    "operator_edge_thresholds_not_set"
+  ],
+  "calls_exchange_mutation": false,
+  "edge_summary": {
+    "canary_recommendation": "BLOCK_LIVE_PAPER_EDGE_NOT_PROVEN",
+    "expected_move_after_cost_bps": -4.879330541891545,
+    "live_recommendation": "BLOCK_LIVE_PAPER_EDGE_NOT_PROVEN",
+    "minimum_sample_satisfied": false,
+    "paper_edge_proven": false,
+    "paper_pnl_current_usdt": 0.0,
+    "post_hoc_verdict": "EDGE_NOT_CLAIMED_OPERATOR_THRESHOLDS_REQUIRED",
+    "profitability_proof_status": "PROFITABILITY_PROOF_AVAILABLE",
+    "sample_count": 113682
+  },
+  "feature_ta_trainer_summary": {
+    "feature_snapshot_fresh": false,
+    "trainer_fresh": false,
+    "trainer_role_label": "copied_parity_baseline_bridge",
+    "v2_features_keys": 8214,
+    "v2_market_keys": 3544,
+    "v2_predictions_keys": 755,
+    "v2_unified_features_keys": 1000
+  },
+  "generated_est": "2026-06-21T19:31:44-0400",
+  "generated_utc": "2026-06-21T23:31:44Z",
+  "git_head": "d36df906b7e57e4d5515416af79f68af18af3bcf",
+  "go_no_go": "V2_COPIED_RUNTIME_BURN_IN_AND_PAPER_EDGE_IMPROVEMENT_BLOCKED",
+  "leverage_changed": false,
+  "liquidation_summary": {
+    "bridge_active": false,
+    "events_received": 599,
+    "events_written": 360,
+    "levels_active": true,
+    "operational_proof_status": "MEASURED_EVENTS_OBSERVED",
+    "v2_liquidations_events_xlen": 10004,
+    "v2_market_liquidation_levels_key_count": 0,
+    "wss_active": true
+  },
+  "live_gate": "blocked_human_only",
+  "live_safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "exchange_action_taken": false,
+    "legacy_root_runtime_active": false,
+    "leverage_change": false,
+    "live_binance_liquidations_active": false,
+    "live_gate": "blocked_human_only",
+    "live_gate_status": "blocked_human_only",
+    "live_symbols": [],
+    "margin_mode_change": false,
+    "old_redis_writes_detected": false,
+    "places_real_order": false,
+    "v2_canary": 0,
+    "v2_live": 0
+  },
+  "live_symbols": [],
+  "margin_mode_changed": false,
+  "milestone": "v2_copied_runtime_burn_in_and_paper_edge_improvement",
+  "next_action": "Continue paper/shadow burn-in, diagnose liquidation event absence, improve paper edge, and wait for operator edge thresholds.",
+  "places_real_order": false,
+  "remediation_summary": {
+    "tasks_block": 2,
+    "tasks_info": 1,
+    "tasks_operator_required": 1,
+    "tasks_total": 5,
+    "tasks_warn": 1
+  },
+  "runtime_summary": {
+    "active_ai_bot_v2_user_services_count": 58,
+    "active_ai_bot_v2_user_timers_count": 33,
+    "burn_in_windows": {
+      "12h": false,
+      "1h": false,
+      "6h": false
+    },
+    "inactive_required_units": [
+      "ai-bot-v2-rl-core-inference-loop.service",
+      "ai-bot-v2-liquidation-bridge.service",
+      "ai-bot-v2-parallel-spark-automation.service"
+    ],
+    "loaded_ai_bot_v2_user_services_count": 93,
+    "min_copied_component_uptime_hours": 0.19,
+    "min_copied_component_uptime_seconds": 694,
+    "min_required_runtime_uptime_hours": 0.19,
+    "min_required_runtime_uptime_seconds": 694,
+    "missing_required_units": [
+      "ai-bot-v2-trainer-bridge.service"
+    ],
+    "required_runtime_units": [
+      "ai-bot-v2-native-ingestors-live-loop.service",
+      "ai-bot-v2-feature-pipeline-native-loop.service",
+      "ai-bot-v2-rl-core-inference-loop.service",
+      "ai-bot-v2-trainer-bridge.service",
+      "ai-bot-v2-orchestrator-arbitration-loop.service",
+      "ai-bot-v2-paper-online-runtime.service",
+      "ai-bot-v2-trade-management-paper-loop.service",
+      "ai-bot-v2-paper-shadow-observation.service",
+      "ai-bot-v2-feature-snapshot-builder.service",
+      "ai-bot-v2-liquidation-bridge.service",
+      "ai-bot-v2-liquidation-levels-engine.service",
+      "ai-bot-v2-liquidation-wss-paper-shadow.service",
+      "ai-bot-v2-public-website-backend.service",
+      "ai-bot-v2-parallel-spark-automation.service"
+    ],
+    "required_unit_error_counts_last_1h": {
+      "ai-bot-v2-feature-pipeline-native-loop.service": 0,
+      "ai-bot-v2-feature-snapshot-builder.service": 0,
+      "ai-bot-v2-liquidation-bridge.service": 0,
+      "ai-bot-v2-liquidation-levels-engine.service": 0,
+      "ai-bot-v2-liquidation-wss-paper-shadow.service": 0,
+      "ai-bot-v2-native-ingestors-live-loop.service": 0,
+      "ai-bot-v2-orchestrator-arbitration-loop.service": 0,
+      "ai-bot-v2-paper-online-runtime.service": 0,
+      "ai-bot-v2-paper-shadow-observation.service": 0,
+      "ai-bot-v2-parallel-spark-automation.service": 0,
+      "ai-bot-v2-public-website-backend.service": 0,
+      "ai-bot-v2-rl-core-inference-loop.service": 0,
+      "ai-bot-v2-trade-management-paper-loop.service": 0
+    },
+    "services_with_nonzero_restart": [
+      {
+        "active_state": "active",
+        "expected_cycle": false,
+        "n_restarts": 1,
+        "sub_state": "running",
+        "unit": "ai-bot-v2-closed-loop-claude-worker@1.service",
+        "uptime_seconds": 467
+      },
+      {
+        "active_state": "active",
+        "expected_cycle": false,
+        "n_restarts": 1,
+        "sub_state": "running",
+        "unit": "ai-bot-v2-closed-loop-claude-worker@2.service",
+        "uptime_seconds": 465
+      },
+      {
+        "active_state": "active",
+        "expected_cycle": false,
+        "n_restarts": 1,
+        "sub_state": "running",
+        "unit": "ai-bot-v2-coinank-global-aggregator-direct.service",
+        "uptime_seconds": 685
+      },
+      {
+        "active_state": "active",
+        "expected_cycle": false,
+        "n_restarts": 1,
+        "sub_state": "running",
+        "unit": "ai-bot-v2-coinank-live-direct.service",
+        "uptime_seconds": 680
+      },
+      {
+        "active_state": "active",
+        "expected_cycle": false,
+        "n_restarts": 1,
+        "sub_state": "running",
+        "unit": "ai-bot-v2-liquidation-levels-engine.service",
+        "uptime_seconds": 694
+      },
+      {
+        "active_state": "active",
+        "expected_cycle": "position_history_600s_session",
+        "n_restarts": 1,
+        "sub_state": "running",
+        "unit": "ai-bot-v2-position-history-persistent-tracker.service",
+        "uptime_seconds": 97
+      }
+    ]
+  },
+  "schema_version": "operator_dashboard_payload_v3",
+  "status": "BLOCKED",
+  "symbol_summary": {
+    "baseline_25_retained": false,
+    "btc_eth_sol_only_default_in_active_runtime_lanes": false,
+    "btc_only_default_in_active_runtime_lanes": false,
+    "dynamic_discovered_count": 89,
+    "live_symbols_count": 0,
+    "profile": "dynamic_or_baseline",
+    "resolved_count": 86
+  },
+  "ui_summary": {
+    "current_route_probe_passed_count": 9,
+    "current_route_probe_total_count": 9,
+    "execution_adapter_default": "v2_default_blocked_execution_adapter",
+    "prior_rendered_failed_count": 0,
+    "prior_rendered_route_count": 34
+  },
+  "verdict_one_line": "Burn-in runtime is fresh enough for observation, but live/canary stays blocked: paper edge proven=False, liquidation events=10004, after-cost bps=-4.879330541891545, paper PnL=0.0.",
+  "writes_old_redis": false
+}

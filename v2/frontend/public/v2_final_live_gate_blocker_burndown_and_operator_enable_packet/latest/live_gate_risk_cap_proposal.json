@@ -1,0 +1,119 @@
+{
+  "accepted_profile": null,
+  "auto_accept": false,
+  "does_not_change_exchange_leverage_or_margin": true,
+  "exchange_mutation_required": false,
+  "execution_live_symbols": [],
+  "generated_est": "2026-06-05T01:20:08-04:00",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "operator_acceptance_required": true,
+  "profiles": {
+    "aggressive": {
+      "accepted": false,
+      "cooldown_seconds": 600,
+      "kill_switch_conditions": [
+        "any real_order/test_order/cancel/modify attempted before final gate",
+        "live_gate != approved_live_operator_accepted",
+        "live_symbols or execution_live_symbols differ from accepted proposal",
+        "raw credential appears in payload/log",
+        "daily loss or drawdown cap breached",
+        "spread or slippage exceeds cap",
+        "exchange connectivity/read-only probe fails",
+        "risk gateway fails closed or returns no decision",
+        "manual/external position appears without quarantine",
+        "old Redis write, Redis trim, leverage change, margin change, or legacy restart detected"
+      ],
+      "max_churn_rate": 6.0,
+      "max_daily_loss": 75.0,
+      "max_drawdown": 300.0,
+      "max_leverage": 3.0,
+      "max_notional_per_trade": 150.0,
+      "max_open_positions": 5,
+      "max_slippage_bps": 5.0,
+      "max_spread_bps": 8.0,
+      "max_symbol_exposure": 300.0,
+      "max_total_exposure": 600.0,
+      "min_confidence_calibrated": 0.55,
+      "min_expected_move_after_cost_bps": 7.5,
+      "profile": "aggressive"
+    },
+    "balanced": {
+      "accepted": false,
+      "cooldown_seconds": 900,
+      "kill_switch_conditions": [
+        "any real_order/test_order/cancel/modify attempted before final gate",
+        "live_gate != approved_live_operator_accepted",
+        "live_symbols or execution_live_symbols differ from accepted proposal",
+        "raw credential appears in payload/log",
+        "daily loss or drawdown cap breached",
+        "spread or slippage exceeds cap",
+        "exchange connectivity/read-only probe fails",
+        "risk gateway fails closed or returns no decision",
+        "manual/external position appears without quarantine",
+        "old Redis write, Redis trim, leverage change, margin change, or legacy restart detected"
+      ],
+      "max_churn_rate": 3.0,
+      "max_daily_loss": 35.0,
+      "max_drawdown": 150.0,
+      "max_leverage": 2.0,
+      "max_notional_per_trade": 75.0,
+      "max_open_positions": 3,
+      "max_slippage_bps": 3.0,
+      "max_spread_bps": 5.0,
+      "max_symbol_exposure": 150.0,
+      "max_total_exposure": 300.0,
+      "min_confidence_calibrated": 0.58,
+      "min_expected_move_after_cost_bps": 10.0,
+      "profile": "balanced"
+    },
+    "conservative": {
+      "accepted": false,
+      "cooldown_seconds": 1800,
+      "kill_switch_conditions": [
+        "any real_order/test_order/cancel/modify attempted before final gate",
+        "live_gate != approved_live_operator_accepted",
+        "live_symbols or execution_live_symbols differ from accepted proposal",
+        "raw credential appears in payload/log",
+        "daily loss or drawdown cap breached",
+        "spread or slippage exceeds cap",
+        "exchange connectivity/read-only probe fails",
+        "risk gateway fails closed or returns no decision",
+        "manual/external position appears without quarantine",
+        "old Redis write, Redis trim, leverage change, margin change, or legacy restart detected"
+      ],
+      "max_churn_rate": 1.0,
+      "max_daily_loss": 15.0,
+      "max_drawdown": 75.0,
+      "max_leverage": 1.0,
+      "max_notional_per_trade": 25.0,
+      "max_open_positions": 1,
+      "max_slippage_bps": 2.0,
+      "max_spread_bps": 3.0,
+      "max_symbol_exposure": 50.0,
+      "max_total_exposure": 100.0,
+      "min_confidence_calibrated": 0.62,
+      "min_expected_move_after_cost_bps": 15.0,
+      "profile": "conservative"
+    }
+  },
+  "schema_version": "live_gate_risk_cap_proposal_v1",
+  "service_id": "v2_final_live_gate_blocker_burndown_and_operator_enable_packet",
+  "status": "RISK_CAP_PROPOSAL_OPERATOR_ACCEPTANCE_REQUIRED",
+  "units": {
+    "expected_move_spread_slippage": "basis_points",
+    "max_churn_rate": "position_opens_per_hour",
+    "max_drawdown": "basis_points",
+    "max_leverage": "logical cap only; no exchange leverage mutation",
+    "notional_exposure_loss": "USDT"
+  },
+  "website": {
+    "enable_requires_operator_selection": true,
+    "must_display_selectable_profile": true,
+    "selectable_profiles": [
+      "conservative",
+      "balanced",
+      "aggressive"
+    ]
+  }
+}

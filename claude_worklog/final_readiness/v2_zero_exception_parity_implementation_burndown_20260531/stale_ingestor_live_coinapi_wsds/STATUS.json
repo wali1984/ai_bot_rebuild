@@ -1,0 +1,32 @@
+{
+  "claim": "CoinAPI WSDS compatibility surface is implemented as an operator-gated V2 normalizer/status module; it does not construct the paid streaming client by default.",
+  "completed_by": "codex_takeover",
+  "confidence": "MEDIUM_HIGH",
+  "files_modified": [
+    "v2/backend/app/services/native_ingestors/coinapi_wsds.py",
+    "v2/frontend/public/operator_runtime/v2_coinapi_wsds/latest/v2_coinapi_wsds_status.json"
+  ],
+  "generated_est": "2026-06-03T22:44:59-04:00",
+  "generated_utc": "2026-06-04T02:44:59Z",
+  "implementation_marker": "V2_ZERO_EXCEPTION_PARITY_STALE_INGESTOR_LIVE_COINAPI_WSDS_CODEX_TAKEOVER_DONE",
+  "live_safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "exchange_action_taken": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "places_real_order": false,
+    "trader_execution_enabled": false,
+    "writes_exchange_orders": false,
+    "writes_legacy_redis": false
+  },
+  "milestone": "v2_zero_exception_parity_implementation_burndown_20260531",
+  "missing_evidence": "No paid CoinAPI WSDS stream was started; live microstructure stream remains operator-gated.",
+  "raw_evidence": "v2/backend/app/services/native_ingestors/coinapi_wsds.py exposes target V2 key patterns and normalize_wsds_snapshot(); status classification is V2_COINAPI_WSDS_OPERATOR_GATED.",
+  "schema_version": "zero_exception_task_status_v1",
+  "status": "DONE_VERIFIED",
+  "task_slug": "stale_ingestor_live_coinapi_wsds",
+  "verification_command": "python -m py_compile v2/backend/app/services/native_ingestors/coinapi_wsds.py"
+}

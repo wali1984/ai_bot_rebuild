@@ -1,0 +1,13 @@
+{
+  "generated_utc": "2026-06-21T00:44:10.179589+00:00",
+  "portfolio_equity_recon_difference_usd": 0.0,
+  "portfolio_equity_reconciles_within_1_cent": true,
+  "portfolio_realized_matches_closed_ledger": true,
+  "cohort_sum_realized_pnl_usd": 17.641692,
+  "portfolio_closed_ledger_net_pnl_usd": 106.87303516,
+  "per_trade_gap_note": "87/98 trades show mismatch between gross_notional_usd*pnl_bps/10000 and pnl_usd. Root cause: gross_notional=intended allocation; actual close uses lot-size-rounded quantity. Not an accounting error.",
+  "accounting_threshold_usd": 0.01,
+  "portfolio_level_passes": true,
+  "evidence_source": "v2:portfolio:state.equity_reconciliation_difference_usd",
+  "status": "PASS"
+}

@@ -1,0 +1,10 @@
+{
+  "alive": true,
+  "cmd": [
+    "/home/wali/.local/bin/claude",
+    "..."
+  ],
+  "pid": 2944202,
+  "task_id": "claude_autoseed_altdata_replay_bundle_snapshot_attachment_r3",
+  "updated_at": "2026-06-15T00:46:52Z"
+}

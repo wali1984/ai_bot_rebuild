@@ -1,10 +1,19 @@
 import type { Page } from '@playwright/test';
-import type { Role } from '../../src/auth/rbac';
+import type { RoleLike } from '../../src/auth/rbac';
 
-export async function gotoAs(page: Page, path: string, role: Role): Promise<void> {
+export async function gotoAs(
+  page: Page,
+  path: string,
+  role?: RoleLike,
+  options?: Parameters<Page['goto']>[1],
+): Promise<void> {
   const url = new URL(path, 'http://127.0.0.1');
-  url.searchParams.set('role', role);
-  await page.goto(url.pathname + url.search);
+  // 'public' and 'guest' are the unauthenticated default; don't add a query param that would
+  // change the URL and break URL-assertion tests expecting a clean canonical path.
+  if (role && role !== 'public' && role !== 'guest') {
+    url.searchParams.set('role', role);
+  }
+  await page.goto(url.pathname + url.search, options);
 }
 
 export const ADMIN_PAGE_PATHS = [

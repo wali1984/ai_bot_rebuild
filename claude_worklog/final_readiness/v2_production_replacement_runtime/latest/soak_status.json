@@ -1,0 +1,22 @@
+{
+  "all_v2_processes_uninterrupted": true,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "first_observed_utc": "2026-05-17T01:49:16Z",
+  "generated_utc": "2026-05-26T02:09:57Z",
+  "last_observed_utc": "2026-05-26T02:09:57Z",
+  "legacy_still_owns_production_observed": true,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "minutes_observed": 12980.68,
+  "observation_count": 2589,
+  "paper_intent_accepted_count_max": 3,
+  "paper_intent_accepted_count_min": 0,
+  "schema_version": "v2_production_replacement_soak_status_v1",
+  "soak_1h_ready": true,
+  "soak_6h_ready": true,
+  "v2_namespaces_never_empty": true,
+  "v2_total_key_count_last": 258
+}

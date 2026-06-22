@@ -1,0 +1,3303 @@
+{
+  "schema_version": "legacy_hedge_to_v2_hedge_parity_status.v1",
+  "generated_at_utc": "2026-06-14T04:39:16.608987+00:00",
+  "scope": "Phase 7 hedge parity static evidence. No live/order/margin/leverage behavior changed.",
+  "status_counts": {
+    "V2_RUNTIME_OWNER_IMPLEMENTED_NEEDS_SEMANTIC_REVIEW": 9,
+    "V2_MISSING_REQUIRED": 2,
+    "V2_PARTIAL_REQUIRED": 1
+  },
+  "row_count": 12,
+  "rows": [
+    {
+      "hedge_behavior_id": "hedge_intent_required",
+      "required": true,
+      "status": "V2_RUNTIME_OWNER_IMPLEMENTED_NEEDS_SEMANTIC_REVIEW",
+      "legacy_evidence": [
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/hybrid_trainer.py",
+          "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+          "matched_terms": [
+            "hedge_intent",
+            "hedge intent",
+            "intent",
+            "hedge"
+          ],
+          "score": 16
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/orchestrator_worker.py",
+          "sha256": "a7ff83f992c6b0add14e4563241080cce431906642c0de6aa778d3fb9eb217c6",
+          "matched_terms": [
+            "hedge_intent",
+            "intent",
+            "hedge"
+          ],
+          "score": 16
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/hybrid_trainer.py",
+          "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+          "matched_terms": [
+            "hedge_intent",
+            "hedge intent",
+            "intent",
+            "hedge"
+          ],
+          "score": 16
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/orchestrator_worker.py",
+          "sha256": "a7ff83f992c6b0add14e4563241080cce431906642c0de6aa778d3fb9eb217c6",
+          "matched_terms": [
+            "hedge_intent",
+            "intent",
+            "hedge"
+          ],
+          "score": 16
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/hedge_manager_v3.py",
+          "sha256": "8cc0c991bcace41853ec5304a27767d30ee332f669474c27a3d606c38f746edf",
+          "matched_terms": [
+            "hedge_intent",
+            "intent",
+            "hedge"
+          ],
+          "score": 11
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/tradeplan_orchestrator.py",
+          "sha256": "1e4ad19faed9dc3498f15401dc1065f1e1eedb400a662fc7272bed7df12fa4d0",
+          "matched_terms": [
+            "hedge_intent",
+            "intent",
+            "hedge"
+          ],
+          "score": 11
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/hedge_manager_v3.py",
+          "sha256": "8cc0c991bcace41853ec5304a27767d30ee332f669474c27a3d606c38f746edf",
+          "matched_terms": [
+            "hedge_intent",
+            "intent",
+            "hedge"
+          ],
+          "score": 11
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/tradeplan_orchestrator.py",
+          "sha256": "1e4ad19faed9dc3498f15401dc1065f1e1eedb400a662fc7272bed7df12fa4d0",
+          "matched_terms": [
+            "hedge_intent",
+            "intent",
+            "hedge"
+          ],
+          "score": 11
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/Audit enhacements.md",
+          "sha256": "439deca06230ce1f22adfae7e9b081595e391283e5f3c2af3020ff0c3a2b6b84",
+          "matched_terms": [
+            "intent",
+            "hedge"
+          ],
+          "score": 10
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/IssuesImplementationplan.md",
+          "sha256": "58c27d37ea8aa80e59cbdfd13fba70dce4e5cc809440ac16cbaea994fefbe213",
+          "matched_terms": [
+            "intent",
+            "hedge"
+          ],
+          "score": 10
+        }
+      ],
+      "v2_owner_evidence": {
+        "live_state_machine": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/live_gate/single_pass.py",
+            "sha256": "43ca571c308232af960d9f77d380577171090de14d1b706062228db9b8c2210b",
+            "matched_terms": [
+              "intent"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/live_gate/binance_live_order_transport.py",
+            "sha256": "831f4ecdecdccf900dead2d068d5f885f1856f5af62d7e5dbda6565aa322e2d8",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/live_gate/live_position_state_machine.py",
+            "sha256": "6515a1ceebf74eeb29634317158d5647b380b5dfbb0a60c24d229b5e83756395",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 5
+          }
+        ],
+        "paper_trade_management": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/lifecycle.py",
+            "sha256": "2e3c2fc7efc461f0d4a08c4db07577e8a4a048ef3cc54e7e65e7ef779f5ae599",
+            "matched_terms": [
+              "intent",
+              "hedge"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/__init__.py",
+            "sha256": "ffa74fdfe7099c75797db5f990327cbbbe5c373b0f694922ec4f0652cac74b64",
+            "matched_terms": [
+              "intent"
+            ],
+            "score": 2
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/outcomes.py",
+            "sha256": "85a42ddbe77c197987cf0e6fbf69bb0b6db77d564cc795385ff677fef7431ac4",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 2
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/position_state.py",
+            "sha256": "7980f74335a15f2214de0601e28bbf1856a5564c3a63f1917cb7e0f82b7465eb",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 2
+          }
+        ],
+        "risk_gateway": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/risk_gateway/service.py",
+            "sha256": "8f05df6f309ad16a56404e233f49d960a18fbc2fdce14c9199e96913e3994fb4",
+            "matched_terms": [
+              "intent"
+            ],
+            "score": 8
+          }
+        ],
+        "adaptive_allocator": [],
+        "native_trainer": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/cuda_trainer_live_gate.py",
+            "sha256": "b6adceb48b327602018b452aa6261ee5dc0b86aa49e16df49cbeaa77177e309e",
+            "matched_terms": [
+              "intent"
+            ],
+            "score": 9
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/runtime_truth.py",
+            "sha256": "fef2e485c0347f410f0a6dca831be37da202e94bc715ec0bd30fe3f22ea68471",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/cuda_trainer_edge_burn_in.py",
+            "sha256": "b65116fd942d369a766c3bc6e9d78a4009d8a4df19b5c4bafadf8428914d8f8b",
+            "matched_terms": [
+              "intent"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/publisher.py",
+            "sha256": "da323b1febe0a5d92c8d365578043c9ea3abd8f76bdbb44a0652c183931f805c",
+            "matched_terms": [
+              "intent"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/cuda_false_negative_actionability.py",
+            "sha256": "158bbccc40d4b70cfb47481a9aaa54acf1ba48526cdbeaed87d9b4994cd3e10a",
+            "matched_terms": [
+              "intent"
+            ],
+            "score": 6
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/config.py",
+            "sha256": "f225f3fbc552a6385ec016d92bf988f3d8ca71fa65cc934b53af3e131709934e",
+            "matched_terms": [
+              "intent",
+              "hedge"
+            ],
+            "score": 5
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/paper_confidence_threshold_trial.py",
+            "sha256": "f3a91366884163f66db25d75ef5a656ef7b4a06c666f1e07e2731a5c07785d12",
+            "matched_terms": [
+              "intent"
+            ],
+            "score": 5
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/persistent_cuda_trainer_runtime.py",
+            "sha256": "9e460e69ae370ec5ac77b97c3c394761f3d1dc7445f5bc3f4c2b43ffadcf3f0f",
+            "matched_terms": [
+              "intent"
+            ],
+            "score": 5
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/baseline_model.py",
+            "sha256": "6aef7daafc74b83ee45b0eb9e97cf482f357ac061ae79f866fb7f0f403f9443e",
+            "matched_terms": [
+              "intent"
+            ],
+            "score": 4
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/environment.py",
+            "sha256": "301701313ff5dee8fae12b4a91abc4efd8464d8e48b082fde191ceb92e092624",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 3
+          }
+        ],
+        "orchestrator": [],
+        "tests": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_live_canary_execution_adapter_operator_gated.py",
+            "sha256": "7123f2110e8cc8369081aca6fc1b556b4831b3677f6ac824e67bf3ec054d01a9",
+            "matched_terms": [
+              "intent"
+            ],
+            "score": 9
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_24h_parallel_recovery_war_room.py",
+            "sha256": "49ce46da64fd0c760078b1fec46cfb670a1c474193381138c66f1ac06b68bd22",
+            "matched_terms": [
+              "intent"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_alt_data_symbol_candidate_publisher.py",
+            "sha256": "57bbd650b703ad78a9bd0f92ec917a26d3fb675163f1cdda9dbbf8586eeae41b",
+            "matched_terms": [
+              "intent"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_alternative_data_status.py",
+            "sha256": "eba631496db3e8d6cd45b6e34c9198fd54f060f4aba79c4768282ca1ca40c9d7",
+            "matched_terms": [
+              "intent"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_cuda_trainer_false_negative_reduction_actionability.py",
+            "sha256": "d03d147243a527c8d701ed207c1321d5d9fc915b55c92d31bec7d15596f06817",
+            "matched_terms": [
+              "intent",
+              "hedge"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_full_observation_ta_position_history_burndown.py",
+            "sha256": "6eba923934d4bec3e77d5aae159c08fdab931e6d591f69622a5c949b9ba5f4d3",
+            "matched_terms": [
+              "intent"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_native_rl_masa_ppo_cuda_trainer.py",
+            "sha256": "a132cebdba7d546118b8bdc388f223346600d0d877d640c0aee4b81ae03b0ad8",
+            "matched_terms": [
+              "intent"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_paper_ledger_fill_price_provenance.py",
+            "sha256": "77f5b4659b1f5d88edd91f9a8f71fba2ad07d71756effa0232239b137b9fa1db",
+            "matched_terms": [
+              "intent"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_position_history_persistent_tracker.py",
+            "sha256": "44a8e25f2386fef7ea87eb7a4ad4aa32cb298d45ed4ae7cb6b14de47d9d91701",
+            "matched_terms": [
+              "intent"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_post_hoc_replay_outcome_miner.py",
+            "sha256": "065eab067415f09e019778c81e48b59e5e84e58f10fdf0812885152f6e724d1a",
+            "matched_terms": [
+              "intent"
+            ],
+            "score": 8
+          }
+        ]
+      },
+      "gap_if_any": "Static evidence exists; runtime/adaptive safety still requires semantic validation.",
+      "failure_rule": "Fail if same-symbol opposite exposure appears without hedge intent, hedge has no exit, hedge cost is not tracked, or hedge is static always-on.",
+      "implementation_required": "Continue semantic runtime validation."
+    },
+    {
+      "hedge_behavior_id": "hedge_budget_required",
+      "required": true,
+      "status": "V2_RUNTIME_OWNER_IMPLEMENTED_NEEDS_SEMANTIC_REVIEW",
+      "legacy_evidence": [
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/orchestrator_worker.py",
+          "sha256": "a7ff83f992c6b0add14e4563241080cce431906642c0de6aa778d3fb9eb217c6",
+          "matched_terms": [
+            "budget",
+            "max_hedge",
+            "hedge"
+          ],
+          "score": 16
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/orchestrator_worker.py",
+          "sha256": "a7ff83f992c6b0add14e4563241080cce431906642c0de6aa778d3fb9eb217c6",
+          "matched_terms": [
+            "budget",
+            "max_hedge",
+            "hedge"
+          ],
+          "score": 16
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/hybrid_trainer.py",
+          "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+          "matched_terms": [
+            "budget",
+            "hedge"
+          ],
+          "score": 14
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/hybrid_trainer.py",
+          "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+          "matched_terms": [
+            "budget",
+            "hedge"
+          ],
+          "score": 14
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/hedge_manager_v3.py",
+          "sha256": "8cc0c991bcace41853ec5304a27767d30ee332f669474c27a3d606c38f746edf",
+          "matched_terms": [
+            "hedge_budget",
+            "budget",
+            "hedge"
+          ],
+          "score": 11
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/hedge_manager_v3.py",
+          "sha256": "8cc0c991bcace41853ec5304a27767d30ee332f669474c27a3d606c38f746edf",
+          "matched_terms": [
+            "hedge_budget",
+            "budget",
+            "hedge"
+          ],
+          "score": 11
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/tradeplan_orchestrator.py",
+          "sha256": "1e4ad19faed9dc3498f15401dc1065f1e1eedb400a662fc7272bed7df12fa4d0",
+          "matched_terms": [
+            "budget",
+            "hedge"
+          ],
+          "score": 10
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/tradeplan_orchestrator.py",
+          "sha256": "1e4ad19faed9dc3498f15401dc1065f1e1eedb400a662fc7272bed7df12fa4d0",
+          "matched_terms": [
+            "budget",
+            "hedge"
+          ],
+          "score": 10
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/Audit enhacements.md",
+          "sha256": "439deca06230ce1f22adfae7e9b081595e391283e5f3c2af3020ff0c3a2b6b84",
+          "matched_terms": [
+            "hedge"
+          ],
+          "score": 9
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/IssuesImplementationplan.md",
+          "sha256": "58c27d37ea8aa80e59cbdfd13fba70dce4e5cc809440ac16cbaea994fefbe213",
+          "matched_terms": [
+            "hedge"
+          ],
+          "score": 9
+        }
+      ],
+      "v2_owner_evidence": {
+        "live_state_machine": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/live_gate/binance_live_order_transport.py",
+            "sha256": "831f4ecdecdccf900dead2d068d5f885f1856f5af62d7e5dbda6565aa322e2d8",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/live_gate/live_position_state_machine.py",
+            "sha256": "6515a1ceebf74eeb29634317158d5647b380b5dfbb0a60c24d229b5e83756395",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 5
+          }
+        ],
+        "paper_trade_management": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/lifecycle.py",
+            "sha256": "2e3c2fc7efc461f0d4a08c4db07577e8a4a048ef3cc54e7e65e7ef779f5ae599",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 6
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/outcomes.py",
+            "sha256": "85a42ddbe77c197987cf0e6fbf69bb0b6db77d564cc795385ff677fef7431ac4",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 2
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/position_state.py",
+            "sha256": "7980f74335a15f2214de0601e28bbf1856a5564c3a63f1917cb7e0f82b7465eb",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 2
+          }
+        ],
+        "risk_gateway": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/risk_gateway/service.py",
+            "sha256": "8f05df6f309ad16a56404e233f49d960a18fbc2fdce14c9199e96913e3994fb4",
+            "matched_terms": [
+              "budget"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/risk_gateway/evaluators.py",
+            "sha256": "14cbd41b4f3f5e6efff5e905aa9551fe972f777711e04209b7d63b7f6d987ef1",
+            "matched_terms": [
+              "budget"
+            ],
+            "score": 5
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/risk_gateway/shared_risk_gate.py",
+            "sha256": "cb8a5847670cfb387627d7d2125b0a15582a21680bdb5b835534498f49b05055",
+            "matched_terms": [
+              "budget"
+            ],
+            "score": 2
+          }
+        ],
+        "adaptive_allocator": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/adaptive_capital_allocator/allocator.py",
+            "sha256": "46d6bd64adb043960dfc5c373285de7706f630d70e32a8d2c113062853b0eedc",
+            "matched_terms": [
+              "budget"
+            ],
+            "score": 4
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/adaptive_capital_allocator/contracts.py",
+            "sha256": "4cd2798b8f87de1ea6660d683734862a0526b06809ee213961aec4435896b7a1",
+            "matched_terms": [
+              "budget"
+            ],
+            "score": 4
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/adaptive_capital_allocator/explanation.py",
+            "sha256": "ded8e59535318762187983f7583de394a75c995b9502fd3fbf84260b37f4bd53",
+            "matched_terms": [
+              "budget"
+            ],
+            "score": 3
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/adaptive_capital_allocator/sizing_model.py",
+            "sha256": "342685919e0b227758570f69ae70e898343d2f585f2deffb07b7039f6be49cc5",
+            "matched_terms": [
+              "budget"
+            ],
+            "score": 3
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/adaptive_capital_allocator/risk_budget.py",
+            "sha256": "e96347b18031dc2af17f7e9d5e26f0a50776c43e9872b6af8a57d92fa1813f9a",
+            "matched_terms": [
+              "budget"
+            ],
+            "score": 2
+          }
+        ],
+        "native_trainer": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/runtime_truth.py",
+            "sha256": "fef2e485c0347f410f0a6dca831be37da202e94bc715ec0bd30fe3f22ea68471",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/config.py",
+            "sha256": "f225f3fbc552a6385ec016d92bf988f3d8ca71fa65cc934b53af3e131709934e",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 4
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/environment.py",
+            "sha256": "301701313ff5dee8fae12b4a91abc4efd8464d8e48b082fde191ceb92e092624",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 3
+          }
+        ],
+        "orchestrator": [],
+        "tests": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_risk_trader_action_parity_deny_paths.py",
+            "sha256": "ddaf93f4f7f5b80d3041407253ec33ea1a2a1af0ee44fff6542b0b496c537061",
+            "matched_terms": [
+              "budget"
+            ],
+            "score": 9
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_trade_management_paper_hedge_engine.py",
+            "sha256": "0c2914b34c7ba2abbf6108c4e5be442903a901dd2b674bc13a5d005fa7924f70",
+            "matched_terms": [
+              "hedge_budget",
+              "budget",
+              "max_hedge",
+              "hedge"
+            ],
+            "score": 9
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_alt_data_symbol_candidate_publisher.py",
+            "sha256": "57bbd650b703ad78a9bd0f92ec917a26d3fb675163f1cdda9dbbf8586eeae41b",
+            "matched_terms": [
+              "budget"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_alternative_data_status.py",
+            "sha256": "eba631496db3e8d6cd45b6e34c9198fd54f060f4aba79c4768282ca1ca40c9d7",
+            "matched_terms": [
+              "budget"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_lunarcrush_altdata_ingestor.py",
+            "sha256": "e2e3d64cdeb3b3cb1d460cfa696da8b1fd78ec8f7ef87905e09a211a0cda73ab",
+            "matched_terms": [
+              "budget"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_nansen_altdata_ingestor.py",
+            "sha256": "da5b0732a61c925fa3905d3c9d482a2880d01f1a2e5652bbdcc7e158e98f4954",
+            "matched_terms": [
+              "budget"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/cli/test_v2_adaptive_allocation_trade_lifecycle_24h_paper_soak.py",
+            "sha256": "302f3dff3237b3006f27367200963a5c59be88ed014b65136a722dfca26fb429",
+            "matched_terms": [
+              "budget",
+              "hedge"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_alt_data_symbol_universe_scoring.py",
+            "sha256": "e61f6a89179e889d86b83fe7514cb4a250f2102c137ce990ce222da28e51caeb",
+            "matched_terms": [
+              "budget"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_cuda_trainer_false_negative_reduction_actionability.py",
+            "sha256": "d03d147243a527c8d701ed207c1321d5d9fc915b55c92d31bec7d15596f06817",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_full_observation_unified_features_burndown.py",
+            "sha256": "b4f5d662aac0780b42a137c121a9f1ae27eadd0a04d3c5e5165f6559c36cb3f9",
+            "matched_terms": [
+              "budget"
+            ],
+            "score": 7
+          }
+        ]
+      },
+      "gap_if_any": "Static evidence exists; runtime/adaptive safety still requires semantic validation.",
+      "failure_rule": "Fail if same-symbol opposite exposure appears without hedge intent, hedge has no exit, hedge cost is not tracked, or hedge is static always-on.",
+      "implementation_required": "Continue semantic runtime validation."
+    },
+    {
+      "hedge_behavior_id": "hedge_entry_reason",
+      "required": true,
+      "status": "V2_MISSING_REQUIRED",
+      "legacy_evidence": [
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/hybrid_trainer.py",
+          "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+          "matched_terms": [
+            "entry_reason"
+          ],
+          "score": 13
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/hybrid_trainer.py",
+          "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+          "matched_terms": [
+            "entry_reason"
+          ],
+          "score": 13
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/contract_enrichment.py",
+          "sha256": "889b9348b9a490bb2cefafa9965712614d45babcf642a7fedefe28a682b4fed5",
+          "matched_terms": [
+            "hedge reason"
+          ],
+          "score": 3
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/contract_enrichment.py",
+          "sha256": "889b9348b9a490bb2cefafa9965712614d45babcf642a7fedefe28a682b4fed5",
+          "matched_terms": [
+            "hedge reason"
+          ],
+          "score": 3
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/updatedplan.md",
+          "sha256": "e045f1031975d2305faaf62c0ee1c87a4715412b355d0bfebf0839ed419ce8ee",
+          "matched_terms": [
+            "entry_reason"
+          ],
+          "score": 3
+        }
+      ],
+      "v2_owner_evidence": {
+        "live_state_machine": [],
+        "paper_trade_management": [],
+        "risk_gateway": [],
+        "adaptive_allocator": [],
+        "native_trainer": [],
+        "orchestrator": [],
+        "tests": []
+      },
+      "gap_if_any": "Required hedge behavior has no V2 owner evidence.",
+      "failure_rule": "Fail if same-symbol opposite exposure appears without hedge intent, hedge has no exit, hedge cost is not tracked, or hedge is static always-on.",
+      "implementation_required": "Implement explicit hedge intent/budget/entry/exit/cost-benefit tracking with tests, or document fail-closed/not-required proof."
+    },
+    {
+      "hedge_behavior_id": "hedge_exit_reason",
+      "required": true,
+      "status": "V2_PARTIAL_REQUIRED",
+      "legacy_evidence": [
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/hybrid_trainer.py",
+          "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+          "matched_terms": [
+            "hedge exit"
+          ],
+          "score": 13
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/hybrid_trainer.py",
+          "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+          "matched_terms": [
+            "hedge exit"
+          ],
+          "score": 13
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/underwater_recovery_controller.py",
+          "sha256": "341b3f3ca4b5b9059a4a76a3969a4e32e7a67dd07f2c232d6596965091fd55e5",
+          "matched_terms": [
+            "unhedge"
+          ],
+          "score": 4
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/underwater_recovery_controller.py",
+          "sha256": "341b3f3ca4b5b9059a4a76a3969a4e32e7a67dd07f2c232d6596965091fd55e5",
+          "matched_terms": [
+            "unhedge"
+          ],
+          "score": 4
+        }
+      ],
+      "v2_owner_evidence": {
+        "live_state_machine": [],
+        "paper_trade_management": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/outcomes.py",
+            "sha256": "85a42ddbe77c197987cf0e6fbf69bb0b6db77d564cc795385ff677fef7431ac4",
+            "matched_terms": [
+              "exit_reason"
+            ],
+            "score": 2
+          }
+        ],
+        "risk_gateway": [],
+        "adaptive_allocator": [],
+        "native_trainer": [],
+        "orchestrator": [],
+        "tests": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/cli/test_paper_online_runtime_weekly_loss.py",
+            "sha256": "1f15681d32c9016c8112cfb0f076c1e9a873ed27ce1041c49e208284a8581bef",
+            "matched_terms": [
+              "exit_reason"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/services/profit_target_monitor/test_service.py",
+            "sha256": "15f4f35e03dc3173c68bf60e37643d322157a717318caddb416ab3074c7ae24a",
+            "matched_terms": [
+              "exit_reason"
+            ],
+            "score": 7
+          }
+        ]
+      },
+      "gap_if_any": "Required hedge behavior is not proven across lifecycle/risk/paper/trainer owners.",
+      "failure_rule": "Fail if same-symbol opposite exposure appears without hedge intent, hedge has no exit, hedge cost is not tracked, or hedge is static always-on.",
+      "implementation_required": "Implement explicit hedge intent/budget/entry/exit/cost-benefit tracking with tests, or document fail-closed/not-required proof."
+    },
+    {
+      "hedge_behavior_id": "hedge_cost_tracking",
+      "required": true,
+      "status": "V2_RUNTIME_OWNER_IMPLEMENTED_NEEDS_SEMANTIC_REVIEW",
+      "legacy_evidence": [
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/orchestrator_worker.py",
+          "sha256": "a7ff83f992c6b0add14e4563241080cce431906642c0de6aa778d3fb9eb217c6",
+          "matched_terms": [
+            "fee",
+            "slippage",
+            "hedge"
+          ],
+          "score": 16
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/orchestrator_worker.py",
+          "sha256": "a7ff83f992c6b0add14e4563241080cce431906642c0de6aa778d3fb9eb217c6",
+          "matched_terms": [
+            "fee",
+            "slippage",
+            "hedge"
+          ],
+          "score": 16
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/hybrid_trainer.py",
+          "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+          "matched_terms": [
+            "fee",
+            "funding",
+            "hedge"
+          ],
+          "score": 15
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/hybrid_trainer.py",
+          "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+          "matched_terms": [
+            "fee",
+            "funding",
+            "hedge"
+          ],
+          "score": 15
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/hedge_manager_v3.py",
+          "sha256": "8cc0c991bcace41853ec5304a27767d30ee332f669474c27a3d606c38f746edf",
+          "matched_terms": [
+            "fee",
+            "slippage",
+            "funding",
+            "hedge"
+          ],
+          "score": 12
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/hedge_manager_v3.py",
+          "sha256": "8cc0c991bcace41853ec5304a27767d30ee332f669474c27a3d606c38f746edf",
+          "matched_terms": [
+            "fee",
+            "slippage",
+            "funding",
+            "hedge"
+          ],
+          "score": 12
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/tradeplan_orchestrator.py",
+          "sha256": "1e4ad19faed9dc3498f15401dc1065f1e1eedb400a662fc7272bed7df12fa4d0",
+          "matched_terms": [
+            "fee",
+            "slippage",
+            "hedge"
+          ],
+          "score": 11
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/Audit enhacements.md",
+          "sha256": "439deca06230ce1f22adfae7e9b081595e391283e5f3c2af3020ff0c3a2b6b84",
+          "matched_terms": [
+            "fee",
+            "slippage",
+            "hedge"
+          ],
+          "score": 11
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/production TA for trainer.md",
+          "sha256": "d1a163633f23533e9b33ece525383f83b6b68ca1f05130961555768da3086ebd",
+          "matched_terms": [
+            "fee",
+            "slippage",
+            "funding",
+            "hedge"
+          ],
+          "score": 11
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/tradeplan_orchestrator.py",
+          "sha256": "1e4ad19faed9dc3498f15401dc1065f1e1eedb400a662fc7272bed7df12fa4d0",
+          "matched_terms": [
+            "fee",
+            "slippage",
+            "hedge"
+          ],
+          "score": 11
+        }
+      ],
+      "v2_owner_evidence": {
+        "live_state_machine": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/live_gate/binance_live_order_transport.py",
+            "sha256": "831f4ecdecdccf900dead2d068d5f885f1856f5af62d7e5dbda6565aa322e2d8",
+            "matched_terms": [
+              "slippage",
+              "hedge"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/live_gate/single_pass.py",
+            "sha256": "43ca571c308232af960d9f77d380577171090de14d1b706062228db9b8c2210b",
+            "matched_terms": [
+              "funding"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/live_gate/live_position_state_machine.py",
+            "sha256": "6515a1ceebf74eeb29634317158d5647b380b5dfbb0a60c24d229b5e83756395",
+            "matched_terms": [
+              "fee",
+              "hedge"
+            ],
+            "score": 6
+          }
+        ],
+        "paper_trade_management": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/lifecycle.py",
+            "sha256": "2e3c2fc7efc461f0d4a08c4db07577e8a4a048ef3cc54e7e65e7ef779f5ae599",
+            "matched_terms": [
+              "fee",
+              "slippage",
+              "hedge"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/outcomes.py",
+            "sha256": "85a42ddbe77c197987cf0e6fbf69bb0b6db77d564cc795385ff677fef7431ac4",
+            "matched_terms": [
+              "fee",
+              "slippage",
+              "hedge"
+            ],
+            "score": 4
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/accounting.py",
+            "sha256": "eaf53bbac2533983cc77ed9301234c8d929b5a85c7fee527057c2d963b2de3dc",
+            "matched_terms": [
+              "fee",
+              "slippage"
+            ],
+            "score": 3
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/position_state.py",
+            "sha256": "7980f74335a15f2214de0601e28bbf1856a5564c3a63f1917cb7e0f82b7465eb",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 2
+          }
+        ],
+        "risk_gateway": [],
+        "adaptive_allocator": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/adaptive_capital_allocator/allocator.py",
+            "sha256": "46d6bd64adb043960dfc5c373285de7706f630d70e32a8d2c113062853b0eedc",
+            "matched_terms": [
+              "slippage"
+            ],
+            "score": 4
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/adaptive_capital_allocator/contracts.py",
+            "sha256": "4cd2798b8f87de1ea6660d683734862a0526b06809ee213961aec4435896b7a1",
+            "matched_terms": [
+              "slippage"
+            ],
+            "score": 4
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/adaptive_capital_allocator/sizing_model.py",
+            "sha256": "342685919e0b227758570f69ae70e898343d2f585f2deffb07b7039f6be49cc5",
+            "matched_terms": [
+              "slippage"
+            ],
+            "score": 3
+          }
+        ],
+        "native_trainer": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/runtime_truth.py",
+            "sha256": "fef2e485c0347f410f0a6dca831be37da202e94bc715ec0bd30fe3f22ea68471",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/data_loader.py",
+            "sha256": "a878cec714442c2b2d3cb56c64e6d8ee874a7bcd7c30622189e42b2a093e7c8c",
+            "matched_terms": [
+              "fee",
+              "funding"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/runtime.py",
+            "sha256": "4aec9d6b75ae6c6927c00da7d097677be9203721a1de26731f9c1433fbe81bf6",
+            "matched_terms": [
+              "fee",
+              "slippage"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/cuda_false_negative_actionability.py",
+            "sha256": "158bbccc40d4b70cfb47481a9aaa54acf1ba48526cdbeaed87d9b4994cd3e10a",
+            "matched_terms": [
+              "funding"
+            ],
+            "score": 6
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/config.py",
+            "sha256": "f225f3fbc552a6385ec016d92bf988f3d8ca71fa65cc934b53af3e131709934e",
+            "matched_terms": [
+              "fee",
+              "slippage",
+              "hedge"
+            ],
+            "score": 6
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/persistent_cuda_trainer_runtime.py",
+            "sha256": "9e460e69ae370ec5ac77b97c3c394761f3d1dc7445f5bc3f4c2b43ffadcf3f0f",
+            "matched_terms": [
+              "fee",
+              "slippage"
+            ],
+            "score": 6
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/environment.py",
+            "sha256": "301701313ff5dee8fae12b4a91abc4efd8464d8e48b082fde191ceb92e092624",
+            "matched_terms": [
+              "fee",
+              "slippage",
+              "hedge"
+            ],
+            "score": 5
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/rewards.py",
+            "sha256": "962e366a0ca26a2d97ea70e5c05285c0e78aeef1b635a4bc74cd9166b62be666",
+            "matched_terms": [
+              "fee",
+              "slippage"
+            ],
+            "score": 5
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/tensor_builder.py",
+            "sha256": "7b64fecf9507341865db5e0a8e40f4bae3f59e9744b5dfe13571a26b2dd2bd74",
+            "matched_terms": [
+              "funding"
+            ],
+            "score": 3
+          }
+        ],
+        "orchestrator": [],
+        "tests": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/aggregate_evidence_rollup_harness/test_aggregate_evidence_rollup_harness.py",
+            "sha256": "c3bfb69b015b4a09071c3e9a6108a5b370404a2763635580831b843c9916b733",
+            "matched_terms": [
+              "fee",
+              "slippage",
+              "funding",
+              "hedge"
+            ],
+            "score": 10
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/cli/test_paper_online_runtime_weekly_loss.py",
+            "sha256": "1f15681d32c9016c8112cfb0f076c1e9a873ed27ce1041c49e208284a8581bef",
+            "matched_terms": [
+              "fee",
+              "slippage",
+              "funding"
+            ],
+            "score": 10
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/test_pipeline_trust_runtime_enforcement.py",
+            "sha256": "98bcc1eb046e829ab2a5d693c7309c51f282be45d8ecb5f645e342af4f720eae",
+            "matched_terms": [
+              "fee",
+              "slippage",
+              "funding"
+            ],
+            "score": 10
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_paper_shadow_outcome_observer.py",
+            "sha256": "ff491d44462a46b4aef55e4053a360495b0c525252f569610c0d5e46573c3ec1",
+            "matched_terms": [
+              "fee",
+              "slippage",
+              "funding"
+            ],
+            "score": 9
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_paper_execution_worker.py",
+            "sha256": "6866854fb18fdd156f0419da504870bf58fd86e05da47b83144ab15030b0c36e",
+            "matched_terms": [
+              "fee",
+              "slippage",
+              "funding"
+            ],
+            "score": 9
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_post_hoc_replay_outcome_miner.py",
+            "sha256": "065eab067415f09e019778c81e48b59e5e84e58f10fdf0812885152f6e724d1a",
+            "matched_terms": [
+              "fee",
+              "slippage"
+            ],
+            "score": 9
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_risk_trader_action_parity_deny_paths.py",
+            "sha256": "ddaf93f4f7f5b80d3041407253ec33ea1a2a1af0ee44fff6542b0b496c537061",
+            "matched_terms": [
+              "fee"
+            ],
+            "score": 9
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_rl_core_p0_2a.py",
+            "sha256": "64e0409d04e668e3cfeddf683d11b2740a881a37195cfa6c05771c500ca72dfb",
+            "matched_terms": [
+              "fee",
+              "slippage",
+              "funding",
+              "hedge"
+            ],
+            "score": 9
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/cli/test_paper_strategy_edge_tightening.py",
+            "sha256": "81439b9bca35d58cbbf5d60109cfa4c0e8095e19a8999b31ba0f6fcfeed64493",
+            "matched_terms": [
+              "fee",
+              "slippage",
+              "funding"
+            ],
+            "score": 9
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/decision_explainability_data_contract/test_decision_explainability_data_contract.py",
+            "sha256": "65a3f3237382d0179f27325eb76184ee5d089752f9f7e4eaaba71749db4519d2",
+            "matched_terms": [
+              "fee",
+              "slippage",
+              "funding",
+              "hedge"
+            ],
+            "score": 9
+          }
+        ]
+      },
+      "gap_if_any": "Static evidence exists; runtime/adaptive safety still requires semantic validation.",
+      "failure_rule": "Fail if same-symbol opposite exposure appears without hedge intent, hedge has no exit, hedge cost is not tracked, or hedge is static always-on.",
+      "implementation_required": "Continue semantic runtime validation."
+    },
+    {
+      "hedge_behavior_id": "hedge_benefit_tracking",
+      "required": true,
+      "status": "V2_RUNTIME_OWNER_IMPLEMENTED_NEEDS_SEMANTIC_REVIEW",
+      "legacy_evidence": [
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/orchestrator_worker.py",
+          "sha256": "a7ff83f992c6b0add14e4563241080cce431906642c0de6aa778d3fb9eb217c6",
+          "matched_terms": [
+            "pnl",
+            "hedge"
+          ],
+          "score": 15
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/orchestrator_worker.py",
+          "sha256": "a7ff83f992c6b0add14e4563241080cce431906642c0de6aa778d3fb9eb217c6",
+          "matched_terms": [
+            "pnl",
+            "hedge"
+          ],
+          "score": 15
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/hybrid_trainer.py",
+          "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+          "matched_terms": [
+            "pnl",
+            "hedge"
+          ],
+          "score": 14
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/hybrid_trainer.py",
+          "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+          "matched_terms": [
+            "pnl",
+            "hedge"
+          ],
+          "score": 14
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/hedge_manager_v3.py",
+          "sha256": "8cc0c991bcace41853ec5304a27767d30ee332f669474c27a3d606c38f746edf",
+          "matched_terms": [
+            "pnl",
+            "hedge"
+          ],
+          "score": 10
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/tradeplan_orchestrator.py",
+          "sha256": "1e4ad19faed9dc3498f15401dc1065f1e1eedb400a662fc7272bed7df12fa4d0",
+          "matched_terms": [
+            "pnl",
+            "hedge"
+          ],
+          "score": 10
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/hedge_manager_v3.py",
+          "sha256": "8cc0c991bcace41853ec5304a27767d30ee332f669474c27a3d606c38f746edf",
+          "matched_terms": [
+            "pnl",
+            "hedge"
+          ],
+          "score": 10
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/tradeplan_orchestrator.py",
+          "sha256": "1e4ad19faed9dc3498f15401dc1065f1e1eedb400a662fc7272bed7df12fa4d0",
+          "matched_terms": [
+            "pnl",
+            "hedge"
+          ],
+          "score": 10
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/Audit enhacements.md",
+          "sha256": "439deca06230ce1f22adfae7e9b081595e391283e5f3c2af3020ff0c3a2b6b84",
+          "matched_terms": [
+            "hedge"
+          ],
+          "score": 9
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/ISSUES TO FIX.md",
+          "sha256": "dc2e7906f3ac86f16f7ff6d3a632badaaf5e577fcfba7df4ab355ee6fac75b96",
+          "matched_terms": [
+            "pnl",
+            "hedge"
+          ],
+          "score": 9
+        }
+      ],
+      "v2_owner_evidence": {
+        "live_state_machine": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/live_gate/binance_live_order_transport.py",
+            "sha256": "831f4ecdecdccf900dead2d068d5f885f1856f5af62d7e5dbda6565aa322e2d8",
+            "matched_terms": [
+              "pnl",
+              "hedge"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/live_gate/live_position_state_machine.py",
+            "sha256": "6515a1ceebf74eeb29634317158d5647b380b5dfbb0a60c24d229b5e83756395",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 5
+          }
+        ],
+        "paper_trade_management": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/lifecycle.py",
+            "sha256": "2e3c2fc7efc461f0d4a08c4db07577e8a4a048ef3cc54e7e65e7ef779f5ae599",
+            "matched_terms": [
+              "pnl",
+              "hedge"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/exits.py",
+            "sha256": "ad21856d5b71d0ba0445e119aedd9327c4dfba924500fab659f3e4891cf81bea",
+            "matched_terms": [
+              "pnl"
+            ],
+            "score": 3
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/outcomes.py",
+            "sha256": "85a42ddbe77c197987cf0e6fbf69bb0b6db77d564cc795385ff677fef7431ac4",
+            "matched_terms": [
+              "pnl",
+              "hedge"
+            ],
+            "score": 3
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/position_state.py",
+            "sha256": "7980f74335a15f2214de0601e28bbf1856a5564c3a63f1917cb7e0f82b7465eb",
+            "matched_terms": [
+              "pnl",
+              "hedge"
+            ],
+            "score": 3
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/accounting.py",
+            "sha256": "eaf53bbac2533983cc77ed9301234c8d929b5a85c7fee527057c2d963b2de3dc",
+            "matched_terms": [
+              "pnl"
+            ],
+            "score": 2
+          }
+        ],
+        "risk_gateway": [],
+        "adaptive_allocator": [],
+        "native_trainer": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/cuda_trainer_live_gate.py",
+            "sha256": "b6adceb48b327602018b452aa6261ee5dc0b86aa49e16df49cbeaa77177e309e",
+            "matched_terms": [
+              "pnl"
+            ],
+            "score": 9
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/runtime_truth.py",
+            "sha256": "fef2e485c0347f410f0a6dca831be37da202e94bc715ec0bd30fe3f22ea68471",
+            "matched_terms": [
+              "pnl",
+              "hedge"
+            ],
+            "score": 9
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/cuda_trainer_edge_burn_in.py",
+            "sha256": "b65116fd942d369a766c3bc6e9d78a4009d8a4df19b5c4bafadf8428914d8f8b",
+            "matched_terms": [
+              "pnl"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/publisher.py",
+            "sha256": "da323b1febe0a5d92c8d365578043c9ea3abd8f76bdbb44a0652c183931f805c",
+            "matched_terms": [
+              "pnl"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/data_loader.py",
+            "sha256": "a878cec714442c2b2d3cb56c64e6d8ee874a7bcd7c30622189e42b2a093e7c8c",
+            "matched_terms": [
+              "pnl"
+            ],
+            "score": 6
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/paper_confidence_threshold_trial.py",
+            "sha256": "f3a91366884163f66db25d75ef5a656ef7b4a06c666f1e07e2731a5c07785d12",
+            "matched_terms": [
+              "pnl"
+            ],
+            "score": 5
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/persistent_cuda_trainer_runtime.py",
+            "sha256": "9e460e69ae370ec5ac77b97c3c394761f3d1dc7445f5bc3f4c2b43ffadcf3f0f",
+            "matched_terms": [
+              "pnl"
+            ],
+            "score": 5
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/baseline_model.py",
+            "sha256": "6aef7daafc74b83ee45b0eb9e97cf482f357ac061ae79f866fb7f0f403f9443e",
+            "matched_terms": [
+              "pnl"
+            ],
+            "score": 4
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/confidence_actionability_calibration.py",
+            "sha256": "58e7138cb5bba149af77942629b0fdbf13f826bfd94a4a529223633d437cf2ab",
+            "matched_terms": [
+              "pnl"
+            ],
+            "score": 4
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/config.py",
+            "sha256": "f225f3fbc552a6385ec016d92bf988f3d8ca71fa65cc934b53af3e131709934e",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 4
+          }
+        ],
+        "orchestrator": [],
+        "tests": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_24h_parallel_recovery_war_room.py",
+            "sha256": "49ce46da64fd0c760078b1fec46cfb670a1c474193381138c66f1ac06b68bd22",
+            "matched_terms": [
+              "pnl"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_native_cuda_trainer_runtime_signal_burn_in_live_gate.py",
+            "sha256": "0341f3cdd9c1fca1d336a9ee28915d58fb933bf16c99d305741453a163f359d7",
+            "matched_terms": [
+              "pnl",
+              "hedge"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_paper_ledger_fill_price_provenance.py",
+            "sha256": "77f5b4659b1f5d88edd91f9a8f71fba2ad07d71756effa0232239b137b9fa1db",
+            "matched_terms": [
+              "pnl"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/aggregate_evidence_rollup_harness/test_aggregate_evidence_rollup_harness.py",
+            "sha256": "c3bfb69b015b4a09071c3e9a6108a5b370404a2763635580831b843c9916b733",
+            "matched_terms": [
+              "pnl",
+              "hedge"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/cli/test_paper_online_runtime_weekly_loss.py",
+            "sha256": "1f15681d32c9016c8112cfb0f076c1e9a873ed27ce1041c49e208284a8581bef",
+            "matched_terms": [
+              "pnl"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/cli/test_v2_adaptive_allocation_trade_lifecycle_24h_paper_soak.py",
+            "sha256": "302f3dff3237b3006f27367200963a5c59be88ed014b65136a722dfca26fb429",
+            "matched_terms": [
+              "pnl",
+              "hedge"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/decision_explainability_paper_ledger_projection/test_decision_explainability_paper_ledger_projection.py",
+            "sha256": "16138dfd6becd8c11cc5c581762cde55f786b43a33388a8ec95e0ed81e23e6dd",
+            "matched_terms": [
+              "pnl",
+              "hedge"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/decision_explainability_replay_backtest_projection/test_decision_explainability_replay_backtest_projection.py",
+            "sha256": "9b516409696c156a3def1ea2793ab4c1127e6eaba7198a49acee5c35c87feb13",
+            "matched_terms": [
+              "pnl",
+              "hedge"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/proof/test_non_live_operational_proof_artifacts.py",
+            "sha256": "0b8fbe0264eb8bb8b89173f1692bae5b693149921354be58af224b816c3454ee",
+            "matched_terms": [
+              "pnl",
+              "hedge"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/services/paper_trade_management/test_lifecycle.py",
+            "sha256": "be3366d205ec02336aedeffbd0e313ebca1565844176b7dc0d47cca51992ddbe",
+            "matched_terms": [
+              "pnl",
+              "hedge"
+            ],
+            "score": 8
+          }
+        ]
+      },
+      "gap_if_any": "Static evidence exists; runtime/adaptive safety still requires semantic validation.",
+      "failure_rule": "Fail if same-symbol opposite exposure appears without hedge intent, hedge has no exit, hedge cost is not tracked, or hedge is static always-on.",
+      "implementation_required": "Continue semantic runtime validation."
+    },
+    {
+      "hedge_behavior_id": "same_symbol_accidental_hedge_block",
+      "required": true,
+      "status": "V2_RUNTIME_OWNER_IMPLEMENTED_NEEDS_SEMANTIC_REVIEW",
+      "legacy_evidence": [
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/hybrid_trainer.py",
+          "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+          "matched_terms": [
+            "opposite",
+            "hedge_mode",
+            "flip"
+          ],
+          "score": 15
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/orchestrator_worker.py",
+          "sha256": "a7ff83f992c6b0add14e4563241080cce431906642c0de6aa778d3fb9eb217c6",
+          "matched_terms": [
+            "opposite",
+            "flip"
+          ],
+          "score": 15
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/hybrid_trainer.py",
+          "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+          "matched_terms": [
+            "opposite",
+            "hedge_mode",
+            "flip"
+          ],
+          "score": 15
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/orchestrator_worker.py",
+          "sha256": "a7ff83f992c6b0add14e4563241080cce431906642c0de6aa778d3fb9eb217c6",
+          "matched_terms": [
+            "opposite",
+            "flip"
+          ],
+          "score": 15
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/hedge_manager_v3.py",
+          "sha256": "8cc0c991bcace41853ec5304a27767d30ee332f669474c27a3d606c38f746edf",
+          "matched_terms": [
+            "opposite",
+            "hedge_mode",
+            "flip"
+          ],
+          "score": 11
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/hedge_manager_v3.py",
+          "sha256": "8cc0c991bcace41853ec5304a27767d30ee332f669474c27a3d606c38f746edf",
+          "matched_terms": [
+            "opposite",
+            "hedge_mode",
+            "flip"
+          ],
+          "score": 11
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/Audit enhacements.md",
+          "sha256": "439deca06230ce1f22adfae7e9b081595e391283e5f3c2af3020ff0c3a2b6b84",
+          "matched_terms": [
+            "opposite",
+            "flip"
+          ],
+          "score": 10
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/tradeplan_orchestrator.py",
+          "sha256": "1e4ad19faed9dc3498f15401dc1065f1e1eedb400a662fc7272bed7df12fa4d0",
+          "matched_terms": [
+            "flip"
+          ],
+          "score": 9
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/ISSUES TO FIX.md",
+          "sha256": "dc2e7906f3ac86f16f7ff6d3a632badaaf5e577fcfba7df4ab355ee6fac75b96",
+          "matched_terms": [
+            "opposite",
+            "flip"
+          ],
+          "score": 9
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/IssuesImplementationplan.md",
+          "sha256": "58c27d37ea8aa80e59cbdfd13fba70dce4e5cc809440ac16cbaea994fefbe213",
+          "matched_terms": [
+            "opposite"
+          ],
+          "score": 9
+        }
+      ],
+      "v2_owner_evidence": {
+        "live_state_machine": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/live_gate/binance_live_order_transport.py",
+            "sha256": "831f4ecdecdccf900dead2d068d5f885f1856f5af62d7e5dbda6565aa322e2d8",
+            "matched_terms": [
+              "hedge_mode",
+              "dual_side"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/live_gate/live_position_state_machine.py",
+            "sha256": "6515a1ceebf74eeb29634317158d5647b380b5dfbb0a60c24d229b5e83756395",
+            "matched_terms": [
+              "hedge_mode",
+              "flip"
+            ],
+            "score": 6
+          }
+        ],
+        "paper_trade_management": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/lifecycle.py",
+            "sha256": "2e3c2fc7efc461f0d4a08c4db07577e8a4a048ef3cc54e7e65e7ef779f5ae599",
+            "matched_terms": [
+              "opposite"
+            ],
+            "score": 6
+          }
+        ],
+        "risk_gateway": [],
+        "adaptive_allocator": [],
+        "native_trainer": [],
+        "orchestrator": [],
+        "tests": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/cli/test_run_pass3b_exact_live_path_dry_run.py",
+            "sha256": "4fec0f577c420e3c5facfe44a1591b5f71a990ca8b99a4478090a93c8f9b4ff6",
+            "matched_terms": [
+              "flip",
+              "dual_side"
+            ],
+            "score": 9
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_paper_execution_worker.py",
+            "sha256": "6866854fb18fdd156f0419da504870bf58fd86e05da47b83144ab15030b0c36e",
+            "matched_terms": [
+              "same_symbol",
+              "flip"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_risk_gateway_runtime_worker.py",
+            "sha256": "49ec23142533715d19534eea7d96833d731c8562ce8404a8a551672143128588",
+            "matched_terms": [
+              "flip"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/cli/test_v2_adaptive_allocation_trade_lifecycle_24h_paper_soak.py",
+            "sha256": "302f3dff3237b3006f27367200963a5c59be88ed014b65136a722dfca26fb429",
+            "matched_terms": [
+              "same_symbol",
+              "opposite"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/services/live_gate/test_binance_live_order_transport.py",
+            "sha256": "a7ea788c59519c988b15156592bbe4da3b3413e63c040bda3405eb29680033d5",
+            "matched_terms": [
+              "hedge_mode",
+              "dual_side"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/services/live_gate/test_live_position_state_machine.py",
+            "sha256": "5379900a4c40baa6ffca1164b97e5ab5175c303d1cc0847ab5f6c25209d85eef",
+            "matched_terms": [
+              "hedge_mode",
+              "flip"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/services/paper_trade_management/test_lifecycle.py",
+            "sha256": "be3366d205ec02336aedeffbd0e313ebca1565844176b7dc0d47cca51992ddbe",
+            "matched_terms": [
+              "same_symbol",
+              "opposite"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_default_blocked_execution_adapter_stub.py",
+            "sha256": "a8d68c9936b4c247e739c278b77beb4e266215b48a38271cf6eba59a0cded4d9",
+            "matched_terms": [
+              "flip"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_full_observation_unified_features_burndown.py",
+            "sha256": "b4f5d662aac0780b42a137c121a9f1ae27eadd0a04d3c5e5165f6559c36cb3f9",
+            "matched_terms": [
+              "opposite"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_live_canary_executor.py",
+            "sha256": "3c479310f16e508ca6f345b65891484ae719e49af219adcc3609b1f62765ce0a",
+            "matched_terms": [
+              "flip"
+            ],
+            "score": 7
+          }
+        ]
+      },
+      "gap_if_any": "Static evidence exists; runtime/adaptive safety still requires semantic validation.",
+      "failure_rule": "Fail if same-symbol opposite exposure appears without hedge intent, hedge has no exit, hedge cost is not tracked, or hedge is static always-on.",
+      "implementation_required": "Continue semantic runtime validation."
+    },
+    {
+      "hedge_behavior_id": "cross_symbol_correlation_hedge",
+      "required": false,
+      "status": "V2_RUNTIME_OWNER_IMPLEMENTED_NEEDS_SEMANTIC_REVIEW",
+      "legacy_evidence": [
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/hybrid_trainer.py",
+          "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+          "matched_terms": [
+            "correlation",
+            "hedge"
+          ],
+          "score": 14
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/orchestrator_worker.py",
+          "sha256": "a7ff83f992c6b0add14e4563241080cce431906642c0de6aa778d3fb9eb217c6",
+          "matched_terms": [
+            "hedge"
+          ],
+          "score": 14
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/hybrid_trainer.py",
+          "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+          "matched_terms": [
+            "correlation",
+            "hedge"
+          ],
+          "score": 14
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/orchestrator_worker.py",
+          "sha256": "a7ff83f992c6b0add14e4563241080cce431906642c0de6aa778d3fb9eb217c6",
+          "matched_terms": [
+            "hedge"
+          ],
+          "score": 14
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/IssuesImplementationplan.md",
+          "sha256": "58c27d37ea8aa80e59cbdfd13fba70dce4e5cc809440ac16cbaea994fefbe213",
+          "matched_terms": [
+            "correlation",
+            "hedge"
+          ],
+          "score": 10
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/hedge_manager_v3.py",
+          "sha256": "8cc0c991bcace41853ec5304a27767d30ee332f669474c27a3d606c38f746edf",
+          "matched_terms": [
+            "hedge"
+          ],
+          "score": 9
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/tradeplan_orchestrator.py",
+          "sha256": "1e4ad19faed9dc3498f15401dc1065f1e1eedb400a662fc7272bed7df12fa4d0",
+          "matched_terms": [
+            "hedge"
+          ],
+          "score": 9
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/Audit enhacements.md",
+          "sha256": "439deca06230ce1f22adfae7e9b081595e391283e5f3c2af3020ff0c3a2b6b84",
+          "matched_terms": [
+            "hedge"
+          ],
+          "score": 9
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/hedge_manager_v3.py",
+          "sha256": "8cc0c991bcace41853ec5304a27767d30ee332f669474c27a3d606c38f746edf",
+          "matched_terms": [
+            "hedge"
+          ],
+          "score": 9
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/production TA for trainer.md",
+          "sha256": "d1a163633f23533e9b33ece525383f83b6b68ca1f05130961555768da3086ebd",
+          "matched_terms": [
+            "correlation",
+            "hedge"
+          ],
+          "score": 9
+        }
+      ],
+      "v2_owner_evidence": {
+        "live_state_machine": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/live_gate/binance_live_order_transport.py",
+            "sha256": "831f4ecdecdccf900dead2d068d5f885f1856f5af62d7e5dbda6565aa322e2d8",
+            "matched_terms": [
+              "correlation",
+              "hedge"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/live_gate/live_position_state_machine.py",
+            "sha256": "6515a1ceebf74eeb29634317158d5647b380b5dfbb0a60c24d229b5e83756395",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 5
+          }
+        ],
+        "paper_trade_management": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/lifecycle.py",
+            "sha256": "2e3c2fc7efc461f0d4a08c4db07577e8a4a048ef3cc54e7e65e7ef779f5ae599",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 6
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/outcomes.py",
+            "sha256": "85a42ddbe77c197987cf0e6fbf69bb0b6db77d564cc795385ff677fef7431ac4",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 2
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/position_state.py",
+            "sha256": "7980f74335a15f2214de0601e28bbf1856a5564c3a63f1917cb7e0f82b7465eb",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 2
+          }
+        ],
+        "risk_gateway": [],
+        "adaptive_allocator": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/adaptive_capital_allocator/allocator.py",
+            "sha256": "46d6bd64adb043960dfc5c373285de7706f630d70e32a8d2c113062853b0eedc",
+            "matched_terms": [
+              "correlation"
+            ],
+            "score": 4
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/adaptive_capital_allocator/contracts.py",
+            "sha256": "4cd2798b8f87de1ea6660d683734862a0526b06809ee213961aec4435896b7a1",
+            "matched_terms": [
+              "correlation"
+            ],
+            "score": 4
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/adaptive_capital_allocator/explanation.py",
+            "sha256": "ded8e59535318762187983f7583de394a75c995b9502fd3fbf84260b37f4bd53",
+            "matched_terms": [
+              "correlation"
+            ],
+            "score": 3
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/adaptive_capital_allocator/sizing_model.py",
+            "sha256": "342685919e0b227758570f69ae70e898343d2f585f2deffb07b7039f6be49cc5",
+            "matched_terms": [
+              "correlation"
+            ],
+            "score": 3
+          }
+        ],
+        "native_trainer": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/runtime_truth.py",
+            "sha256": "fef2e485c0347f410f0a6dca831be37da202e94bc715ec0bd30fe3f22ea68471",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/config.py",
+            "sha256": "f225f3fbc552a6385ec016d92bf988f3d8ca71fa65cc934b53af3e131709934e",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 4
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/environment.py",
+            "sha256": "301701313ff5dee8fae12b4a91abc4efd8464d8e48b082fde191ceb92e092624",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 3
+          }
+        ],
+        "orchestrator": [],
+        "tests": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_cuda_trainer_false_negative_reduction_actionability.py",
+            "sha256": "d03d147243a527c8d701ed207c1321d5d9fc915b55c92d31bec7d15596f06817",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_feature_pipeline_and_ta_worker.py",
+            "sha256": "070e09bde0e81c820f7b34e60ebfa7d9e9313341d9fdad2c093ffd420a34b08c",
+            "matched_terms": [
+              "correlation"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_native_cuda_trainer_runtime_signal_burn_in_live_gate.py",
+            "sha256": "0341f3cdd9c1fca1d336a9ee28915d58fb933bf16c99d305741453a163f359d7",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/aggregate_evidence_rollup_harness/test_aggregate_evidence_rollup_harness.py",
+            "sha256": "c3bfb69b015b4a09071c3e9a6108a5b370404a2763635580831b843c9916b733",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/cli/test_v2_adaptive_allocation_trade_lifecycle_24h_paper_soak.py",
+            "sha256": "302f3dff3237b3006f27367200963a5c59be88ed014b65136a722dfca26fb429",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/decision_explainability_paper_ledger_projection/test_decision_explainability_paper_ledger_projection.py",
+            "sha256": "16138dfd6becd8c11cc5c581762cde55f786b43a33388a8ec95e0ed81e23e6dd",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/decision_explainability_replay_backtest_projection/test_decision_explainability_replay_backtest_projection.py",
+            "sha256": "9b516409696c156a3def1ea2793ab4c1127e6eaba7198a49acee5c35c87feb13",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/proof/test_non_live_operational_proof_artifacts.py",
+            "sha256": "0b8fbe0264eb8bb8b89173f1692bae5b693149921354be58af224b816c3454ee",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/services/live_gate/test_binance_live_order_transport.py",
+            "sha256": "a7ea788c59519c988b15156592bbe4da3b3413e63c040bda3405eb29680033d5",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/services/live_gate/test_live_position_state_machine.py",
+            "sha256": "5379900a4c40baa6ffca1164b97e5ab5175c303d1cc0847ab5f6c25209d85eef",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 7
+          }
+        ]
+      },
+      "gap_if_any": "Static evidence exists; runtime/adaptive safety still requires semantic validation.",
+      "failure_rule": "Fail if same-symbol opposite exposure appears without hedge intent, hedge has no exit, hedge cost is not tracked, or hedge is static always-on.",
+      "implementation_required": "Continue semantic runtime validation."
+    },
+    {
+      "hedge_behavior_id": "liquidation_risk_hedge",
+      "required": false,
+      "status": "V2_RUNTIME_OWNER_IMPLEMENTED_NEEDS_SEMANTIC_REVIEW",
+      "legacy_evidence": [
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/orchestrator_worker.py",
+          "sha256": "a7ff83f992c6b0add14e4563241080cce431906642c0de6aa778d3fb9eb217c6",
+          "matched_terms": [
+            "liquidation",
+            "liq",
+            "hedge"
+          ],
+          "score": 16
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/orchestrator_worker.py",
+          "sha256": "a7ff83f992c6b0add14e4563241080cce431906642c0de6aa778d3fb9eb217c6",
+          "matched_terms": [
+            "liquidation",
+            "liq",
+            "hedge"
+          ],
+          "score": 16
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/hybrid_trainer.py",
+          "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+          "matched_terms": [
+            "liquidation",
+            "liq",
+            "hedge"
+          ],
+          "score": 15
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/hybrid_trainer.py",
+          "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+          "matched_terms": [
+            "liquidation",
+            "liq",
+            "hedge"
+          ],
+          "score": 15
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/hedge_manager_v3.py",
+          "sha256": "8cc0c991bcace41853ec5304a27767d30ee332f669474c27a3d606c38f746edf",
+          "matched_terms": [
+            "liquidation",
+            "liq",
+            "hedge"
+          ],
+          "score": 11
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/tradeplan_orchestrator.py",
+          "sha256": "1e4ad19faed9dc3498f15401dc1065f1e1eedb400a662fc7272bed7df12fa4d0",
+          "matched_terms": [
+            "liquidation",
+            "liq",
+            "hedge"
+          ],
+          "score": 11
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/Audit enhacements.md",
+          "sha256": "439deca06230ce1f22adfae7e9b081595e391283e5f3c2af3020ff0c3a2b6b84",
+          "matched_terms": [
+            "liquidation",
+            "liq",
+            "hedge"
+          ],
+          "score": 11
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/IssuesImplementationplan.md",
+          "sha256": "58c27d37ea8aa80e59cbdfd13fba70dce4e5cc809440ac16cbaea994fefbe213",
+          "matched_terms": [
+            "liquidation",
+            "liq",
+            "hedge"
+          ],
+          "score": 11
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/hedge_manager_v3.py",
+          "sha256": "8cc0c991bcace41853ec5304a27767d30ee332f669474c27a3d606c38f746edf",
+          "matched_terms": [
+            "liquidation",
+            "liq",
+            "hedge"
+          ],
+          "score": 11
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/tradeplan_orchestrator.py",
+          "sha256": "1e4ad19faed9dc3498f15401dc1065f1e1eedb400a662fc7272bed7df12fa4d0",
+          "matched_terms": [
+            "liquidation",
+            "liq",
+            "hedge"
+          ],
+          "score": 11
+        }
+      ],
+      "v2_owner_evidence": {
+        "live_state_machine": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/live_gate/single_pass.py",
+            "sha256": "43ca571c308232af960d9f77d380577171090de14d1b706062228db9b8c2210b",
+            "matched_terms": [
+              "liquidation",
+              "liq"
+            ],
+            "score": 9
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/live_gate/binance_live_order_transport.py",
+            "sha256": "831f4ecdecdccf900dead2d068d5f885f1856f5af62d7e5dbda6565aa322e2d8",
+            "matched_terms": [
+              "liq",
+              "hedge"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/live_gate/live_position_state_machine.py",
+            "sha256": "6515a1ceebf74eeb29634317158d5647b380b5dfbb0a60c24d229b5e83756395",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 5
+          }
+        ],
+        "paper_trade_management": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/lifecycle.py",
+            "sha256": "2e3c2fc7efc461f0d4a08c4db07577e8a4a048ef3cc54e7e65e7ef779f5ae599",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 6
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/exits.py",
+            "sha256": "ad21856d5b71d0ba0445e119aedd9327c4dfba924500fab659f3e4891cf81bea",
+            "matched_terms": [
+              "liquidation",
+              "liq"
+            ],
+            "score": 4
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/outcomes.py",
+            "sha256": "85a42ddbe77c197987cf0e6fbf69bb0b6db77d564cc795385ff677fef7431ac4",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 2
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/position_state.py",
+            "sha256": "7980f74335a15f2214de0601e28bbf1856a5564c3a63f1917cb7e0f82b7465eb",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 2
+          }
+        ],
+        "risk_gateway": [],
+        "adaptive_allocator": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/adaptive_capital_allocator/allocator.py",
+            "sha256": "46d6bd64adb043960dfc5c373285de7706f630d70e32a8d2c113062853b0eedc",
+            "matched_terms": [
+              "liq"
+            ],
+            "score": 4
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/adaptive_capital_allocator/contracts.py",
+            "sha256": "4cd2798b8f87de1ea6660d683734862a0526b06809ee213961aec4435896b7a1",
+            "matched_terms": [
+              "liq"
+            ],
+            "score": 4
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/adaptive_capital_allocator/explanation.py",
+            "sha256": "ded8e59535318762187983f7583de394a75c995b9502fd3fbf84260b37f4bd53",
+            "matched_terms": [
+              "liq"
+            ],
+            "score": 3
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/adaptive_capital_allocator/sizing_model.py",
+            "sha256": "342685919e0b227758570f69ae70e898343d2f585f2deffb07b7039f6be49cc5",
+            "matched_terms": [
+              "liq"
+            ],
+            "score": 3
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/adaptive_capital_allocator/__init__.py",
+            "sha256": "2b9ed968fea921084357ea506c9bb86e06ce3544040c77a4854c19ed9269c8c3",
+            "matched_terms": [
+              "liq"
+            ],
+            "score": 1
+          }
+        ],
+        "native_trainer": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/runtime_truth.py",
+            "sha256": "fef2e485c0347f410f0a6dca831be37da202e94bc715ec0bd30fe3f22ea68471",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/cuda_false_negative_actionability.py",
+            "sha256": "158bbccc40d4b70cfb47481a9aaa54acf1ba48526cdbeaed87d9b4994cd3e10a",
+            "matched_terms": [
+              "liquidation",
+              "liq"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/data_loader.py",
+            "sha256": "a878cec714442c2b2d3cb56c64e6d8ee874a7bcd7c30622189e42b2a093e7c8c",
+            "matched_terms": [
+              "liquidation",
+              "liq"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/runtime.py",
+            "sha256": "4aec9d6b75ae6c6927c00da7d097677be9203721a1de26731f9c1433fbe81bf6",
+            "matched_terms": [
+              "liquidation",
+              "liq"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/dataset_builder.py",
+            "sha256": "168248ef87871528ef97476e2024cf7d40c266f589678fd9cd7bd1e5d60ac41a",
+            "matched_terms": [
+              "liquidation",
+              "liq"
+            ],
+            "score": 6
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/config.py",
+            "sha256": "f225f3fbc552a6385ec016d92bf988f3d8ca71fa65cc934b53af3e131709934e",
+            "matched_terms": [
+              "liquidation",
+              "liq",
+              "hedge"
+            ],
+            "score": 6
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/environment.py",
+            "sha256": "301701313ff5dee8fae12b4a91abc4efd8464d8e48b082fde191ceb92e092624",
+            "matched_terms": [
+              "liquidation",
+              "liq",
+              "hedge"
+            ],
+            "score": 5
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/rewards.py",
+            "sha256": "962e366a0ca26a2d97ea70e5c05285c0e78aeef1b635a4bc74cd9166b62be666",
+            "matched_terms": [
+              "liquidation",
+              "liq"
+            ],
+            "score": 5
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/tensor_builder.py",
+            "sha256": "7b64fecf9507341865db5e0a8e40f4bae3f59e9744b5dfe13571a26b2dd2bd74",
+            "matched_terms": [
+              "liquidation",
+              "liq"
+            ],
+            "score": 4
+          }
+        ],
+        "orchestrator": [],
+        "tests": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_24h_parallel_recovery_war_room.py",
+            "sha256": "49ce46da64fd0c760078b1fec46cfb670a1c474193381138c66f1ac06b68bd22",
+            "matched_terms": [
+              "liquidation",
+              "liq"
+            ],
+            "score": 9
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_alternative_data_status.py",
+            "sha256": "eba631496db3e8d6cd45b6e34c9198fd54f060f4aba79c4768282ca1ca40c9d7",
+            "matched_terms": [
+              "liquidation",
+              "liq"
+            ],
+            "score": 9
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_native_rl_masa_ppo_cuda_trainer.py",
+            "sha256": "a132cebdba7d546118b8bdc388f223346600d0d877d640c0aee4b81ae03b0ad8",
+            "matched_terms": [
+              "liquidation",
+              "liq"
+            ],
+            "score": 9
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/aggregate_evidence_rollup_harness/test_aggregate_evidence_rollup_harness.py",
+            "sha256": "c3bfb69b015b4a09071c3e9a6108a5b370404a2763635580831b843c9916b733",
+            "matched_terms": [
+              "liquidation",
+              "liq",
+              "hedge"
+            ],
+            "score": 9
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/decision_explainability_replay_backtest_projection/test_decision_explainability_replay_backtest_projection.py",
+            "sha256": "9b516409696c156a3def1ea2793ab4c1127e6eaba7198a49acee5c35c87feb13",
+            "matched_terms": [
+              "liquidation",
+              "liq",
+              "hedge"
+            ],
+            "score": 9
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/test_pipeline_trust_runtime_enforcement.py",
+            "sha256": "98bcc1eb046e829ab2a5d693c7309c51f282be45d8ecb5f645e342af4f720eae",
+            "matched_terms": [
+              "liquidation",
+              "liq"
+            ],
+            "score": 9
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_market_ingestor.py",
+            "sha256": "90df48336bf6b98d763bc560dd1ca4ea2e40007736707cb5b14061bca4950ada",
+            "matched_terms": [
+              "liquidation",
+              "liq"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_native_runtime_bridge_exit_and_dynamic_symbol_migration.py",
+            "sha256": "0caedf27982e6f0bd9e78f2c2b5a31433ee66ec376320201da1a2822ad7973ad",
+            "matched_terms": [
+              "liquidation",
+              "liq"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_orchestrator_adapter.py",
+            "sha256": "2bf8d5ae73a9100200dd44dc282270909ea94b0215f89df0780964cc5b00465d",
+            "matched_terms": [
+              "liq"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_risk_gateway_runtime_worker.py",
+            "sha256": "49ec23142533715d19534eea7d96833d731c8562ce8404a8a551672143128588",
+            "matched_terms": [
+              "liq"
+            ],
+            "score": 8
+          }
+        ]
+      },
+      "gap_if_any": "Static evidence exists; runtime/adaptive safety still requires semantic validation.",
+      "failure_rule": "Fail if same-symbol opposite exposure appears without hedge intent, hedge has no exit, hedge cost is not tracked, or hedge is static always-on.",
+      "implementation_required": "Continue semantic runtime validation."
+    },
+    {
+      "hedge_behavior_id": "volatility_spike_hedge",
+      "required": false,
+      "status": "V2_RUNTIME_OWNER_IMPLEMENTED_NEEDS_SEMANTIC_REVIEW",
+      "legacy_evidence": [
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/orchestrator_worker.py",
+          "sha256": "a7ff83f992c6b0add14e4563241080cce431906642c0de6aa778d3fb9eb217c6",
+          "matched_terms": [
+            "volatility",
+            "spike",
+            "hedge"
+          ],
+          "score": 16
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/orchestrator_worker.py",
+          "sha256": "a7ff83f992c6b0add14e4563241080cce431906642c0de6aa778d3fb9eb217c6",
+          "matched_terms": [
+            "volatility",
+            "spike",
+            "hedge"
+          ],
+          "score": 16
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/hybrid_trainer.py",
+          "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+          "matched_terms": [
+            "volatility",
+            "spike",
+            "hedge"
+          ],
+          "score": 15
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/hybrid_trainer.py",
+          "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+          "matched_terms": [
+            "volatility",
+            "spike",
+            "hedge"
+          ],
+          "score": 15
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/Audit enhacements.md",
+          "sha256": "439deca06230ce1f22adfae7e9b081595e391283e5f3c2af3020ff0c3a2b6b84",
+          "matched_terms": [
+            "volatility",
+            "spike",
+            "hedge"
+          ],
+          "score": 11
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/IssuesImplementationplan.md",
+          "sha256": "58c27d37ea8aa80e59cbdfd13fba70dce4e5cc809440ac16cbaea994fefbe213",
+          "matched_terms": [
+            "volatility",
+            "spike",
+            "hedge"
+          ],
+          "score": 11
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/hedge_manager_v3.py",
+          "sha256": "8cc0c991bcace41853ec5304a27767d30ee332f669474c27a3d606c38f746edf",
+          "matched_terms": [
+            "volatility",
+            "hedge"
+          ],
+          "score": 10
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/ISSUES TO FIX.md",
+          "sha256": "dc2e7906f3ac86f16f7ff6d3a632badaaf5e577fcfba7df4ab355ee6fac75b96",
+          "matched_terms": [
+            "volatility",
+            "spike",
+            "hedge"
+          ],
+          "score": 10
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/hedge_manager_v3.py",
+          "sha256": "8cc0c991bcace41853ec5304a27767d30ee332f669474c27a3d606c38f746edf",
+          "matched_terms": [
+            "volatility",
+            "hedge"
+          ],
+          "score": 10
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/production TA for trainer.md",
+          "sha256": "d1a163633f23533e9b33ece525383f83b6b68ca1f05130961555768da3086ebd",
+          "matched_terms": [
+            "volatility",
+            "spike",
+            "hedge"
+          ],
+          "score": 10
+        }
+      ],
+      "v2_owner_evidence": {
+        "live_state_machine": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/live_gate/binance_live_order_transport.py",
+            "sha256": "831f4ecdecdccf900dead2d068d5f885f1856f5af62d7e5dbda6565aa322e2d8",
+            "matched_terms": [
+              "volatility",
+              "hedge"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/live_gate/single_pass.py",
+            "sha256": "43ca571c308232af960d9f77d380577171090de14d1b706062228db9b8c2210b",
+            "matched_terms": [
+              "volatility"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/live_gate/live_position_state_machine.py",
+            "sha256": "6515a1ceebf74eeb29634317158d5647b380b5dfbb0a60c24d229b5e83756395",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 5
+          }
+        ],
+        "paper_trade_management": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/lifecycle.py",
+            "sha256": "2e3c2fc7efc461f0d4a08c4db07577e8a4a048ef3cc54e7e65e7ef779f5ae599",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 6
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/outcomes.py",
+            "sha256": "85a42ddbe77c197987cf0e6fbf69bb0b6db77d564cc795385ff677fef7431ac4",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 2
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/position_state.py",
+            "sha256": "7980f74335a15f2214de0601e28bbf1856a5564c3a63f1917cb7e0f82b7465eb",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 2
+          }
+        ],
+        "risk_gateway": [],
+        "adaptive_allocator": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/adaptive_capital_allocator/allocator.py",
+            "sha256": "46d6bd64adb043960dfc5c373285de7706f630d70e32a8d2c113062853b0eedc",
+            "matched_terms": [
+              "volatility"
+            ],
+            "score": 4
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/adaptive_capital_allocator/contracts.py",
+            "sha256": "4cd2798b8f87de1ea6660d683734862a0526b06809ee213961aec4435896b7a1",
+            "matched_terms": [
+              "volatility"
+            ],
+            "score": 4
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/adaptive_capital_allocator/explanation.py",
+            "sha256": "ded8e59535318762187983f7583de394a75c995b9502fd3fbf84260b37f4bd53",
+            "matched_terms": [
+              "volatility"
+            ],
+            "score": 3
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/adaptive_capital_allocator/sizing_model.py",
+            "sha256": "342685919e0b227758570f69ae70e898343d2f585f2deffb07b7039f6be49cc5",
+            "matched_terms": [
+              "volatility"
+            ],
+            "score": 3
+          }
+        ],
+        "native_trainer": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/runtime_truth.py",
+            "sha256": "fef2e485c0347f410f0a6dca831be37da202e94bc715ec0bd30fe3f22ea68471",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/config.py",
+            "sha256": "f225f3fbc552a6385ec016d92bf988f3d8ca71fa65cc934b53af3e131709934e",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 4
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/environment.py",
+            "sha256": "301701313ff5dee8fae12b4a91abc4efd8464d8e48b082fde191ceb92e092624",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 3
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/tensor_builder.py",
+            "sha256": "7b64fecf9507341865db5e0a8e40f4bae3f59e9744b5dfe13571a26b2dd2bd74",
+            "matched_terms": [
+              "volatility"
+            ],
+            "score": 3
+          }
+        ],
+        "orchestrator": [],
+        "tests": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_alternative_data_status.py",
+            "sha256": "eba631496db3e8d6cd45b6e34c9198fd54f060f4aba79c4768282ca1ca40c9d7",
+            "matched_terms": [
+              "volatility"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_cuda_trainer_false_negative_reduction_actionability.py",
+            "sha256": "d03d147243a527c8d701ed207c1321d5d9fc915b55c92d31bec7d15596f06817",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_default_blocked_execution_adapter_stub.py",
+            "sha256": "a8d68c9936b4c247e739c278b77beb4e266215b48a38271cf6eba59a0cded4d9",
+            "matched_terms": [
+              "volatility"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_feature_pipeline_and_ta_worker.py",
+            "sha256": "070e09bde0e81c820f7b34e60ebfa7d9e9313341d9fdad2c093ffd420a34b08c",
+            "matched_terms": [
+              "volatility"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_market_ingestor.py",
+            "sha256": "90df48336bf6b98d763bc560dd1ca4ea2e40007736707cb5b14061bca4950ada",
+            "matched_terms": [
+              "volatility"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_native_cuda_trainer_runtime_signal_burn_in_live_gate.py",
+            "sha256": "0341f3cdd9c1fca1d336a9ee28915d58fb933bf16c99d305741453a163f359d7",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/aggregate_evidence_rollup_harness/test_aggregate_evidence_rollup_harness.py",
+            "sha256": "c3bfb69b015b4a09071c3e9a6108a5b370404a2763635580831b843c9916b733",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/cli/test_v2_adaptive_allocation_trade_lifecycle_24h_paper_soak.py",
+            "sha256": "302f3dff3237b3006f27367200963a5c59be88ed014b65136a722dfca26fb429",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/decision_explainability_paper_ledger_projection/test_decision_explainability_paper_ledger_projection.py",
+            "sha256": "16138dfd6becd8c11cc5c581762cde55f786b43a33388a8ec95e0ed81e23e6dd",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/decision_explainability_replay_backtest_projection/test_decision_explainability_replay_backtest_projection.py",
+            "sha256": "9b516409696c156a3def1ea2793ab4c1127e6eaba7198a49acee5c35c87feb13",
+            "matched_terms": [
+              "hedge"
+            ],
+            "score": 7
+          }
+        ]
+      },
+      "gap_if_any": "Static evidence exists; runtime/adaptive safety still requires semantic validation.",
+      "failure_rule": "Fail if same-symbol opposite exposure appears without hedge intent, hedge has no exit, hedge cost is not tracked, or hedge is static always-on.",
+      "implementation_required": "Continue semantic runtime validation."
+    },
+    {
+      "hedge_behavior_id": "drawdown_hedge",
+      "required": false,
+      "status": "V2_RUNTIME_OWNER_IMPLEMENTED_NEEDS_SEMANTIC_REVIEW",
+      "legacy_evidence": [
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/orchestrator_worker.py",
+          "sha256": "a7ff83f992c6b0add14e4563241080cce431906642c0de6aa778d3fb9eb217c6",
+          "matched_terms": [
+            "drawdown",
+            "hedge",
+            "loss"
+          ],
+          "score": 16
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/orchestrator_worker.py",
+          "sha256": "a7ff83f992c6b0add14e4563241080cce431906642c0de6aa778d3fb9eb217c6",
+          "matched_terms": [
+            "drawdown",
+            "hedge",
+            "loss"
+          ],
+          "score": 16
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/hybrid_trainer.py",
+          "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+          "matched_terms": [
+            "hedge",
+            "loss"
+          ],
+          "score": 14
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/hybrid_trainer.py",
+          "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+          "matched_terms": [
+            "hedge",
+            "loss"
+          ],
+          "score": 14
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/hedge_manager_v3.py",
+          "sha256": "8cc0c991bcace41853ec5304a27767d30ee332f669474c27a3d606c38f746edf",
+          "matched_terms": [
+            "drawdown",
+            "hedge",
+            "loss"
+          ],
+          "score": 11
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/Audit enhacements.md",
+          "sha256": "439deca06230ce1f22adfae7e9b081595e391283e5f3c2af3020ff0c3a2b6b84",
+          "matched_terms": [
+            "drawdown",
+            "hedge",
+            "loss"
+          ],
+          "score": 11
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/IssuesImplementationplan.md",
+          "sha256": "58c27d37ea8aa80e59cbdfd13fba70dce4e5cc809440ac16cbaea994fefbe213",
+          "matched_terms": [
+            "drawdown",
+            "hedge",
+            "loss"
+          ],
+          "score": 11
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/hedge_manager_v3.py",
+          "sha256": "8cc0c991bcace41853ec5304a27767d30ee332f669474c27a3d606c38f746edf",
+          "matched_terms": [
+            "drawdown",
+            "hedge",
+            "loss"
+          ],
+          "score": 11
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/tradeplan_orchestrator.py",
+          "sha256": "1e4ad19faed9dc3498f15401dc1065f1e1eedb400a662fc7272bed7df12fa4d0",
+          "matched_terms": [
+            "hedge",
+            "loss"
+          ],
+          "score": 10
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/ISSUES TO FIX.md",
+          "sha256": "dc2e7906f3ac86f16f7ff6d3a632badaaf5e577fcfba7df4ab355ee6fac75b96",
+          "matched_terms": [
+            "drawdown",
+            "hedge",
+            "loss"
+          ],
+          "score": 10
+        }
+      ],
+      "v2_owner_evidence": {
+        "live_state_machine": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/live_gate/binance_live_order_transport.py",
+            "sha256": "831f4ecdecdccf900dead2d068d5f885f1856f5af62d7e5dbda6565aa322e2d8",
+            "matched_terms": [
+              "drawdown",
+              "hedge",
+              "loss"
+            ],
+            "score": 9
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/live_gate/single_pass.py",
+            "sha256": "43ca571c308232af960d9f77d380577171090de14d1b706062228db9b8c2210b",
+            "matched_terms": [
+              "drawdown"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/live_gate/live_position_state_machine.py",
+            "sha256": "6515a1ceebf74eeb29634317158d5647b380b5dfbb0a60c24d229b5e83756395",
+            "matched_terms": [
+              "hedge",
+              "loss"
+            ],
+            "score": 6
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/trade_lifecycle_guard/contracts.py",
+            "sha256": "cf25fceecccdf7e0341c46a303e8015904c1f8583f5fbedcb52378708ac01e20",
+            "matched_terms": [
+              "drawdown"
+            ],
+            "score": 3
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/trade_lifecycle_guard/guard.py",
+            "sha256": "99987acb8714c8ee71adbf495b1fdd12e8bb8ec9e049daa8c2ff09518d9a873f",
+            "matched_terms": [
+              "drawdown"
+            ],
+            "score": 3
+          }
+        ],
+        "paper_trade_management": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/lifecycle.py",
+            "sha256": "2e3c2fc7efc461f0d4a08c4db07577e8a4a048ef3cc54e7e65e7ef779f5ae599",
+            "matched_terms": [
+              "hedge",
+              "loss"
+            ],
+            "score": 7
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/exits.py",
+            "sha256": "ad21856d5b71d0ba0445e119aedd9327c4dfba924500fab659f3e4891cf81bea",
+            "matched_terms": [
+              "drawdown",
+              "loss"
+            ],
+            "score": 4
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/outcomes.py",
+            "sha256": "85a42ddbe77c197987cf0e6fbf69bb0b6db77d564cc795385ff677fef7431ac4",
+            "matched_terms": [
+              "drawdown",
+              "hedge"
+            ],
+            "score": 3
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/paper_trade_management/position_state.py",
+            "sha256": "7980f74335a15f2214de0601e28bbf1856a5564c3a63f1917cb7e0f82b7465eb",
+            "matched_terms": [
+              "drawdown",
+              "hedge"
+            ],
+            "score": 3
+          }
+        ],
+        "risk_gateway": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/risk_gateway/service.py",
+            "sha256": "8f05df6f309ad16a56404e233f49d960a18fbc2fdce14c9199e96913e3994fb4",
+            "matched_terms": [
+              "loss"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/risk_gateway/evaluators.py",
+            "sha256": "14cbd41b4f3f5e6efff5e905aa9551fe972f777711e04209b7d63b7f6d987ef1",
+            "matched_terms": [
+              "loss"
+            ],
+            "score": 5
+          }
+        ],
+        "adaptive_allocator": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/adaptive_capital_allocator/allocator.py",
+            "sha256": "46d6bd64adb043960dfc5c373285de7706f630d70e32a8d2c113062853b0eedc",
+            "matched_terms": [
+              "drawdown",
+              "loss"
+            ],
+            "score": 5
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/adaptive_capital_allocator/contracts.py",
+            "sha256": "4cd2798b8f87de1ea6660d683734862a0526b06809ee213961aec4435896b7a1",
+            "matched_terms": [
+              "drawdown",
+              "loss"
+            ],
+            "score": 5
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/adaptive_capital_allocator/sizing_model.py",
+            "sha256": "342685919e0b227758570f69ae70e898343d2f585f2deffb07b7039f6be49cc5",
+            "matched_terms": [
+              "drawdown",
+              "loss"
+            ],
+            "score": 4
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/adaptive_capital_allocator/explanation.py",
+            "sha256": "ded8e59535318762187983f7583de394a75c995b9502fd3fbf84260b37f4bd53",
+            "matched_terms": [
+              "drawdown"
+            ],
+            "score": 3
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/adaptive_capital_allocator/__init__.py",
+            "sha256": "2b9ed968fea921084357ea506c9bb86e06ce3544040c77a4854c19ed9269c8c3",
+            "matched_terms": [
+              "drawdown"
+            ],
+            "score": 1
+          }
+        ],
+        "native_trainer": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/cuda_trainer_live_gate.py",
+            "sha256": "b6adceb48b327602018b452aa6261ee5dc0b86aa49e16df49cbeaa77177e309e",
+            "matched_terms": [
+              "drawdown",
+              "loss"
+            ],
+            "score": 10
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/runtime_truth.py",
+            "sha256": "fef2e485c0347f410f0a6dca831be37da202e94bc715ec0bd30fe3f22ea68471",
+            "matched_terms": [
+              "drawdown",
+              "hedge",
+              "loss"
+            ],
+            "score": 10
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/cuda_trainer_edge_burn_in.py",
+            "sha256": "b65116fd942d369a766c3bc6e9d78a4009d8a4df19b5c4bafadf8428914d8f8b",
+            "matched_terms": [
+              "drawdown",
+              "loss"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/cuda_false_negative_actionability.py",
+            "sha256": "158bbccc40d4b70cfb47481a9aaa54acf1ba48526cdbeaed87d9b4994cd3e10a",
+            "matched_terms": [
+              "drawdown"
+            ],
+            "score": 6
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/runtime.py",
+            "sha256": "4aec9d6b75ae6c6927c00da7d097677be9203721a1de26731f9c1433fbe81bf6",
+            "matched_terms": [
+              "loss"
+            ],
+            "score": 6
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/persistent_cuda_trainer_runtime.py",
+            "sha256": "9e460e69ae370ec5ac77b97c3c394761f3d1dc7445f5bc3f4c2b43ffadcf3f0f",
+            "matched_terms": [
+              "drawdown",
+              "loss"
+            ],
+            "score": 6
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/baseline_model.py",
+            "sha256": "6aef7daafc74b83ee45b0eb9e97cf482f357ac061ae79f866fb7f0f403f9443e",
+            "matched_terms": [
+              "drawdown",
+              "loss"
+            ],
+            "score": 5
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/dataset_builder.py",
+            "sha256": "168248ef87871528ef97476e2024cf7d40c266f589678fd9cd7bd1e5d60ac41a",
+            "matched_terms": [
+              "loss"
+            ],
+            "score": 5
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/ppo_trainer.py",
+            "sha256": "2b8753c59195d387ce0b56caec9021bd2c0f4cabebaee64b48e9ffe77026eabb",
+            "matched_terms": [
+              "loss"
+            ],
+            "score": 5
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/paper_confidence_threshold_trial.py",
+            "sha256": "f3a91366884163f66db25d75ef5a656ef7b4a06c666f1e07e2731a5c07785d12",
+            "matched_terms": [
+              "drawdown"
+            ],
+            "score": 5
+          }
+        ],
+        "orchestrator": [],
+        "tests": [
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_risk_trader_action_parity_deny_paths.py",
+            "sha256": "ddaf93f4f7f5b80d3041407253ec33ea1a2a1af0ee44fff6542b0b496c537061",
+            "matched_terms": [
+              "drawdown",
+              "loss"
+            ],
+            "score": 10
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_live_canary_execution_adapter_operator_gated.py",
+            "sha256": "7123f2110e8cc8369081aca6fc1b556b4831b3677f6ac824e67bf3ec054d01a9",
+            "matched_terms": [
+              "loss"
+            ],
+            "score": 9
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/cli/test_v2_adaptive_allocation_trade_lifecycle_24h_paper_soak.py",
+            "sha256": "302f3dff3237b3006f27367200963a5c59be88ed014b65136a722dfca26fb429",
+            "matched_terms": [
+              "drawdown",
+              "hedge",
+              "loss"
+            ],
+            "score": 9
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/services/profit_target_monitor/test_service.py",
+            "sha256": "15f4f35e03dc3173c68bf60e37643d322157a717318caddb416ab3074c7ae24a",
+            "matched_terms": [
+              "drawdown",
+              "hedge",
+              "loss"
+            ],
+            "score": 9
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_24h_parallel_recovery_war_room.py",
+            "sha256": "49ce46da64fd0c760078b1fec46cfb670a1c474193381138c66f1ac06b68bd22",
+            "matched_terms": [
+              "drawdown"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_cuda_trainer_false_negative_reduction_actionability.py",
+            "sha256": "d03d147243a527c8d701ed207c1321d5d9fc915b55c92d31bec7d15596f06817",
+            "matched_terms": [
+              "drawdown",
+              "hedge"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_native_cuda_trainer_runtime_signal_burn_in_live_gate.py",
+            "sha256": "0341f3cdd9c1fca1d336a9ee28915d58fb933bf16c99d305741453a163f359d7",
+            "matched_terms": [
+              "hedge",
+              "loss"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/integration/cli/test_v2_post_hoc_replay_outcome_miner.py",
+            "sha256": "065eab067415f09e019778c81e48b59e5e84e58f10fdf0812885152f6e724d1a",
+            "matched_terms": [
+              "drawdown"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/cli/test_paper_online_runtime_weekly_loss.py",
+            "sha256": "1f15681d32c9016c8112cfb0f076c1e9a873ed27ce1041c49e208284a8581bef",
+            "matched_terms": [
+              "loss"
+            ],
+            "score": 8
+          },
+          {
+            "path": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/tests/unit/services/live_gate/test_binance_live_order_transport.py",
+            "sha256": "a7ea788c59519c988b15156592bbe4da3b3413e63c040bda3405eb29680033d5",
+            "matched_terms": [
+              "hedge",
+              "loss"
+            ],
+            "score": 8
+          }
+        ]
+      },
+      "gap_if_any": "Static evidence exists; runtime/adaptive safety still requires semantic validation.",
+      "failure_rule": "Fail if same-symbol opposite exposure appears without hedge intent, hedge has no exit, hedge cost is not tracked, or hedge is static always-on.",
+      "implementation_required": "Continue semantic runtime validation."
+    },
+    {
+      "hedge_behavior_id": "unhedge_condition",
+      "required": true,
+      "status": "V2_MISSING_REQUIRED",
+      "legacy_evidence": [
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/hybrid_trainer.py",
+          "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+          "matched_terms": [
+            "hedge_exit",
+            "exit hedge"
+          ],
+          "score": 14
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/orchestrator_worker.py",
+          "sha256": "a7ff83f992c6b0add14e4563241080cce431906642c0de6aa778d3fb9eb217c6",
+          "matched_terms": [
+            "close_hedge"
+          ],
+          "score": 14
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/hybrid_trainer.py",
+          "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+          "matched_terms": [
+            "hedge_exit",
+            "exit hedge"
+          ],
+          "score": 14
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/orchestrator_worker.py",
+          "sha256": "a7ff83f992c6b0add14e4563241080cce431906642c0de6aa778d3fb9eb217c6",
+          "matched_terms": [
+            "close_hedge"
+          ],
+          "score": 14
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/hedge_position_manager.py",
+          "sha256": "e30064a51e2fc7ffa1f1d7beb1a23396b8799e0455b9c8eaf031d1c3ec1e5913",
+          "matched_terms": [
+            "close_hedge"
+          ],
+          "score": 4
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/legacy_owned_runtime/rl/underwater_recovery_controller.py",
+          "sha256": "341b3f3ca4b5b9059a4a76a3969a4e32e7a67dd07f2c232d6596965091fd55e5",
+          "matched_terms": [
+            "unhedge"
+          ],
+          "score": 4
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/hedge_position_manager.py",
+          "sha256": "e30064a51e2fc7ffa1f1d7beb1a23396b8799e0455b9c8eaf031d1c3ec1e5913",
+          "matched_terms": [
+            "close_hedge"
+          ],
+          "score": 4
+        },
+        {
+          "path": "/home/wali/Desktop/AI BOT/rl/underwater_recovery_controller.py",
+          "sha256": "341b3f3ca4b5b9059a4a76a3969a4e32e7a67dd07f2c232d6596965091fd55e5",
+          "matched_terms": [
+            "unhedge"
+          ],
+          "score": 4
+        }
+      ],
+      "v2_owner_evidence": {
+        "live_state_machine": [],
+        "paper_trade_management": [],
+        "risk_gateway": [],
+        "adaptive_allocator": [],
+        "native_trainer": [],
+        "orchestrator": [],
+        "tests": []
+      },
+      "gap_if_any": "Required hedge behavior has no V2 owner evidence.",
+      "failure_rule": "Fail if same-symbol opposite exposure appears without hedge intent, hedge has no exit, hedge cost is not tracked, or hedge is static always-on.",
+      "implementation_required": "Implement explicit hedge intent/budget/entry/exit/cost-benefit tracking with tests, or document fail-closed/not-required proof."
+    }
+  ]
+}

@@ -88,3 +88,26 @@ v2/secrets/
 *.local.env
 *.secret.local
 *.secrets.local
+
+# ML model checkpoints — binary/large, not for git
+.local_models/
+
+# Test Python venvs
+.venv-pytsst/
+
+# Codex test run scratch directories
+.codex/test_*/
+
+# Claude worktrees and ephemeral runtime markers
+.claude/worktrees/
+.claude/guardian-session-started
+.claude/guardian-goal.txt
+
+# Root-level adaptive runtime status JSON files (regenerated at runtime)
+adaptive_hedging_runtime_status.json
+adaptive_strategy_selection_runtime_status.json
+adaptive_strategy_weight_runtime_status.json
+
+# Oversized root-level audit JSON files (>100 MB, exceed GitHub hard limit)
+legacy_hybrid_trainer_behavior_parity_matrix.json
+legacy_trainer_design_requirements_from_docs.json

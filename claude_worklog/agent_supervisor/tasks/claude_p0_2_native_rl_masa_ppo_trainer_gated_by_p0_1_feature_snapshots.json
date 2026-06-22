@@ -1,0 +1,45 @@
+{
+  "agent": "claude",
+  "allowed_paths": [
+    "v2/**",
+    "claude_worklog/**"
+  ],
+  "blocked_until_cleared": [
+    "v2/frontend/public/operator_runtime/v2_feature_pipeline_native/latest/latest_feature_snapshot.json exists",
+    "feature_snapshot_id present",
+    "feature_count >= 25",
+    "categories_present includes ohlcv_derived, ta_indicators, multi_timeframe, microstructure, funding_oi_liquidation, portfolio_aware, freshness",
+    "feature_freshness_state/current or stale_feature_flags empty for sample",
+    "Codex P0.1 review passes native non-bridge snapshot output"
+  ],
+  "created_utc": "2026-05-16T02:25:19Z",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": [
+    "claude_p0_1_native_feature_pipeline_worker_from_legacy"
+  ],
+  "forbidden": [
+    "modify_legacy_root",
+    "old_redis_write",
+    "exchange_mutation",
+    "leverage_or_margin_change",
+    "live_enable",
+    "approval_token",
+    "live_symbols_non_empty",
+    "wrapper_only_marked_migrated",
+    "p0_2_completion_without_p0_1_snapshot"
+  ],
+  "lane": "native_core_p0_true_migration",
+  "live_gate": "blocked_human_only",
+  "p0_1_gate_cleared_by": "V2_NATIVE_FEATURE_PIPELINE_P0_1_TRAINER_CONSUMABLE_SNAPSHOT_CODEX_PASS",
+  "p0_1_gate_cleared_utc": "2026-05-16T02:47:06Z",
+  "prompt": "Implement P0.2 native RL/MASA/PPO/reward trainer stack only after P0.1 native feature snapshots are available and Codex verifies them. Required legacy sources: environment.py, gymnasium_wrapper.py, obs_schema.py, unified_feature_builder.py, masa_agent.py, enhanced_architectures.py, gpu_cnn_policy.py, reward_functions.py, constrained_reward.py, fee_ratio_reward_shaping.py, hedge_reward_functions.py, checkpoint_manager.py, confidence_gates.py, calibrated_confidence.py, hybrid_trainer.py. Do not call existing rl_core partial service migrated. Do not use subprocess wrapper parity. Do not enable live. Output must include implementation, tests, public payload, Codex review packet, and honest GO/NO-GO.",
+  "ready_to_dispatch": true,
+  "required_output_files": [
+    "claude_worklog/final_readiness/native_rl_masa_ppo_p0_2/latest/GO_NO_GO.md",
+    "claude_worklog/final_readiness/native_rl_masa_ppo_p0_2/latest/NATIVE_RL_MASA_PPO_TRAINER_REPORT.md",
+    "v2/frontend/public/native_rl_masa_ppo_p0_2/latest/operator_dashboard_payload.json"
+  ],
+  "risk_level": "L2",
+  "status": "pending",
+  "task_id": "claude_p0_2_native_rl_masa_ppo_trainer_gated_by_p0_1_feature_snapshots"
+}

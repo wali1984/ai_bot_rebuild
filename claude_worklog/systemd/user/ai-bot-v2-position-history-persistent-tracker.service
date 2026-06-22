@@ -1,0 +1,18 @@
+[Unit]
+Description=AI BOT V2 paper position-history persistent tracker (paper/shadow only; V2-only Redis writes)
+After=ai-bot-v2-native-ingestors-live-loop.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+Environment="LIVE_GATE=blocked_human_only"
+Environment="V2_LIVE_GATE_OVERRIDE=blocked_human_only"
+ExecStart=/usr/bin/env bash -lc 'exec /home/wali/Desktop/AI\\ BOT\\ REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_position_history_persistent_tracker --loop --total-seconds 86400 --max-seconds-per-session 600 --cycle-interval-seconds 60 --heartbeat-ttl-seconds 300 --track-ttl-seconds 900'
+StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_position_history_persistent_tracker.log
+StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_position_history_persistent_tracker.err
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=default.target

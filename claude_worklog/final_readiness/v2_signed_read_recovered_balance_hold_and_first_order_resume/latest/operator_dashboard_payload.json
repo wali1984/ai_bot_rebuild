@@ -1,0 +1,42 @@
+{
+  "accepted_symbols": [
+    "BNBUSDT",
+    "BTCUSDT",
+    "ETHUSDT",
+    "PAXGUSDT",
+    "XAUTUSDT",
+    "ZECUSDT"
+  ],
+  "active_risk_profile": "conservative_min_executable",
+  "available_margin": 0.0,
+  "blockers": [
+    "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER"
+  ],
+  "critical_account_read_gate": "CRITICAL_ACCOUNT_READ_GATE_READY",
+  "generated_est": "2026-06-09T16:40:28-04:00",
+  "go_no_go": "V2_SIGNED_READ_RECOVERED_BALANCE_HOLD_AND_FIRST_ORDER_RESUME_READY",
+  "live_gate": "enabled_operator_approved",
+  "live_submit_allowed": false,
+  "margin_sufficient": false,
+  "order_submitted": false,
+  "required_initial_margin": 64.86,
+  "retry_allowed": false,
+  "safety": {
+    "no_legacy_restart": true,
+    "no_leverage_margin_mutation": true,
+    "no_old_redis_write": true,
+    "no_order_test_order_cancel_modify": true,
+    "no_redis_trim": true,
+    "no_transfer_or_withdrawal": true,
+    "raw_account_payload_exposed": false,
+    "raw_credentials_exposed": false
+  },
+  "schema_version": "operator_dashboard_payload_v1",
+  "service_id": "v2_signed_read_recovered_balance_hold_and_first_order_resume",
+  "signed_read_classification": "NO_451_DETECTED",
+  "signed_read_recovery_network_path_compliant": "operator_attested",
+  "trader_execution_enabled": true,
+  "trader_state": "LIVE_ARMED_BALANCE_HOLD",
+  "transport_bound": true,
+  "wallet_balance": 1e-08
+}

@@ -1,0 +1,18 @@
+I'm hitting a write permission prompt for `v2/backend/app/services/rl_core/liquidation_observation_aggregator.py` (within my allowed write boundary per CLAUDE.md). The prompt has appeared three times without resolution — I'll stop retrying.
+
+Plan to wire the burndown (waiting on your approval for V2 file edits):
+
+**Selected feature family: `liquidations`** — the operator-blessed `next_required_family` per `v2/frontend/public/operator_runtime/v2_rl_core/latest/full_observation_builder_status.json`. 4 fields × 3 symbols = 12 currently-missing dims, all marked `MISSING_FROM_V2_LIQUIDATION_AGGREGATOR`.
+
+**Root cause (verified in code)**: V2 already owns the source path — `liquidations_wss.py` writes `v2:market:liquidations:latest:{sym}` / `:aggregate:{sym}` and `liquidation_observation_aggregator.build_liquidation_subfamily` accepts a `v2_liquidation_per_symbol` argument that consumes those keys. But `full_observation_builder._project_liquidations` (line 988) calls `build_liquidation_subfamily(symbol="", v2_features, coinank_intel)` and **never passes** `v2_liquidation_per_symbol`. So even after operator opt-in, the 4 fields stay missing.
+
+**Surgical wiring (3 files, ~60 LOC)**:
+1. `liquidation_observation_aggregator.py` — add public `read_v2_liquidation_per_symbol_from(redis_client, symbol)` so the builder can reuse its existing Redis client (no double-connect).
+2. `full_observation_builder.py` — thread `symbol` + optional `liquidation_per_symbol` through `_project_liquidations` → `_build_unified_features_slice` → `build_full_observation_for_symbol` → `build_full_observation_status` (which reads the two Redis keys per symbol). When the WSS opt-in is OFF, the 4 fields **remain explicitly MISSING** (evidence-honest, no fabrication).
+3. `test_v2_liquidation_observation_aggregator.py` — add a test confirming: (a) when `v2_liquidation_per_symbol` is provided with `any_populated=True`, the 4 wired fields fill with `V2_MARKET_LIQUIDATIONS_LATEST` / `V2_MARKET_LIQUIDATIONS_AGGREGATE` source labels; (b) when absent, they stay `MISSING_FROM_V2_LIQUIDATION_AGGREGATOR`.
+
+Plus emit a per-task implementation report at `claude_worklog/v2_observation_completeness_burndown/liquidations_per_symbol_wiring/REPORT.md` with raw evidence pointers.
+
+All writes V2-scoped, public-payload scoped, no live gate touched, no legacy mutation, no torch/pickle/zero-fill introduced.
+
+Please approve the pending V2 file write so I can proceed — or tell me to abort.

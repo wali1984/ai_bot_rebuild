@@ -18,8 +18,7 @@ struct PaperTradingView: View {
                     paperContent(summary)
                 }
             }
-            .navigationTitle("Paper Trading")
-            .safeAreaInset(edge: .top) { LiveBlockBanner() }
+            .navigationTitle("NERVYX EXECUTE")
             .toolbar { refreshButton }
             .refreshable { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) }
         }
@@ -42,7 +41,7 @@ struct PaperTradingView: View {
 
     private func pnlSection(_ pnl: PaperPnL) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("PnL Summary", systemImage: "dollarsign.circle").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+            Label("NERVYX EXECUTE · PnL Summary", systemImage: "dollarsign.circle").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
             HStack(spacing: 12) {
                 MetricCard(
                     title: "Total PnL",
@@ -78,7 +77,7 @@ struct PaperTradingView: View {
 
     private func loopSection(_ loop: PaperLoop) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Paper Loop", systemImage: "arrow.clockwise.circle").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+            Label("NERVYX EXECUTE · Runtime Loop", systemImage: "arrow.clockwise.circle").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
             VStack(spacing: 8) {
                 MetricRow(label: "Signals seen", value: "\(loop.signals_seen)", systemImage: "antenna.radiowaves.left.and.right")
                 MetricRow(label: "Intents built", value: "\(loop.intents_built)", systemImage: "list.bullet")
@@ -105,7 +104,7 @@ struct PaperTradingView: View {
 
     private func positionsSection(_ positions: PaperPositions) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Positions", systemImage: "chart.line.uptrend.xyaxis").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+            Label("NERVYX EXECUTE · Positions", systemImage: "chart.line.uptrend.xyaxis").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
             HStack(spacing: 12) {
                 MetricCard(title: "Open", value: "\(positions.open_count)", icon: "chart.line.uptrend.xyaxis")
                 MetricCard(title: "Closed", value: "\(positions.closed_count)", icon: "checkmark.circle.fill")
@@ -129,7 +128,7 @@ struct PaperTradingView: View {
 
     private func feedbackSection(_ fb: TrainerFeedback) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Trainer Feedback", systemImage: "brain").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+            Label("NERVYX CORE · Trainer Feedback", systemImage: "brain").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
             VStack(spacing: 8) {
                 MetricRow(label: "Outcome labels", value: "\(fb.outcome_labels)")
                 MetricRow(label: "Consumable rows", value: "\(fb.consumable_rows)", valueColor: fb.consumable_rows > 0 ? .green : .secondary)

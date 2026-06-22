@@ -1,0 +1,28 @@
+{
+  "codex_pair_task_id": "closed_loop_takeover_claude_priority_paper_decision_lineage_missing_20260531",
+  "created_at": "2026-05-31T06:24:53Z",
+  "fail_blockers": [
+    "1. **Author a 12B \u00a71.3.1 contract-amendment proposal** that picks one path:",
+    "BLOCKER: The paired Claude task did not emit the required `old_redis_writer_proof_missing` evidence triplet (`REPORT.md`, `STATUS.json`, `GO_NO_GO.md`) under `claude_worklog/final_readiness/priority_autoseed_20260531/old_redis_writer_proof_missing`, so V2-side canary/liveness proof evidence is incomplete and cannot be independently verified.",
+    "BLOCKER: the paired Claude task did not land any V2-side lineage/lineage-projection closure artifacts and the V2 code remains internally inconsistent with the requested `signal_id` / `execution_intent_id` / `shadow_decision_id` contract. Key issues remain:",
+    "BLOCKER: the paired Claude task did not land any V2-side lineage/lineage-projection closure artifacts and the V2 code remains internally inconsistent with the requested `signal_id` / `execution_intent_id` / `shadow_decision_id` contract. Key issues remain:"
+  ],
+  "file_lock_group": "claude_priority_paper_decision_lineage_missing_20260531",
+  "next_action": "Remediate the safe V2-side fail blockers listed in fail_blockers. Do not touch legacy. Do not call exchange mutation. Keep live_gate=blocked_human_only and live_symbols=[].",
+  "owner": "CLAUDE",
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "status": "pending",
+  "task_id": "closed_loop_remediation_closed_loop_takeover_claude_priority_paper_decision_lineage_missing_20260531",
+  "task_type": "REMEDIATION",
+  "updated_at": "2026-05-31T06:24:53Z"
+}

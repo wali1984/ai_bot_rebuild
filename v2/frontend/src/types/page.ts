@@ -1,7 +1,7 @@
 import type { Role } from '../auth/rbac';
 import type { DangerousControlId } from '../constants/dangerousControls';
 
-export type Surface = 'admin' | 'public';
+export type Surface = 'admin' | 'public' | 'app' | 'system';
 
 export interface PageMeta {
   id: string;
@@ -10,6 +10,12 @@ export interface PageMeta {
   description: string;
   navCategory: string;
   dangerousControlIds: ReadonlyArray<DangerousControlId>;
+  /** Optional display label override for navigation menus */
+  navLabel?: string;
+  /** Optional sort order within navCategory */
+  navOrder?: number;
+  /** Exclude from auto-generated navigation lists */
+  hideFromNav?: boolean;
 }
 
 export interface PageRbac {

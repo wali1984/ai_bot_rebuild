@@ -1,0 +1,195 @@
+{
+  "IS_AUTOMATION_STALLED": true,
+  "IS_THIS_EXPECTED": false,
+  "STATUS_FLAT_DURATION": "1.0h",
+  "WHY_STATUS_IS_FLAT": "the automation control plane reported REPLAY_MINER_STALE",
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "blockers": [
+    "AUTOMATABLE_NOW_WITHOUT_ACTIVE_LEASE",
+    "REPLAY_MINER_STALE"
+  ],
+  "calls_exchange_mutation": false,
+  "comparison": {
+    "comparison_windows": {
+      "12h": {
+        "available": true,
+        "changed_fields": [
+          "production_score"
+        ],
+        "flat": false,
+        "observed_signal_changed_fields": [
+          "production_score",
+          "replay_miner_sample_count",
+          "replay_miner_windows_filled"
+        ],
+        "prior_snapshot_utc": "2026-06-21T12:22:14.996003Z"
+      },
+      "1h": {
+        "available": true,
+        "changed_fields": [],
+        "flat": true,
+        "observed_signal_changed_fields": [
+          "replay_miner_sample_count"
+        ],
+        "prior_snapshot_utc": "2026-06-21T23:25:58.910125Z"
+      },
+      "30m": {
+        "available": true,
+        "changed_fields": [],
+        "flat": true,
+        "observed_signal_changed_fields": [],
+        "prior_snapshot_utc": "2026-06-21T23:55:59.788234Z"
+      },
+      "6h": {
+        "available": true,
+        "changed_fields": [
+          "production_score"
+        ],
+        "flat": false,
+        "observed_signal_changed_fields": [
+          "production_score",
+          "replay_miner_sample_count",
+          "replay_miner_windows_filled"
+        ],
+        "prior_snapshot_utc": "2026-06-21T18:22:41.500541Z"
+      }
+    },
+    "history_snapshot_count": 500,
+    "observed_signal_flat_duration_human": "50m",
+    "observed_signal_flat_duration_seconds": 3001.297967,
+    "operator_reported_no_change_synthetic_present": false,
+    "status_flat_duration_human": "1.0h",
+    "status_flat_duration_seconds": 3602.06957
+  },
+  "creates_approval_tokens": false,
+  "generated_utc": "2026-06-22T00:26:01.018218Z",
+  "go_no_go": "V2_NO_STATUS_CHANGE_SLA_WATCHDOG_BLOCKED",
+  "lane_id": "v2_no_status_change_sla_watchdog",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "operator_reported_no_change_hours": 0.0,
+  "ready": false,
+  "root_cause": "REPLAY_MINER_STALE",
+  "root_cause_is_allowed": false,
+  "schema_version": "v2_no_status_change_sla_watchdog_v1",
+  "sla_state": "BLOCKED",
+  "snapshot": {
+    "automatable_now_count": 2,
+    "blocked_automatable_seed_count": 0,
+    "canary_ready": false,
+    "codex_reviews_last_hour": 0,
+    "disallowed_classification_count": 0,
+    "event_watcher_count": 2,
+    "event_watcher_generated_at": "2026-06-22T00:21:44Z",
+    "event_watcher_last_observed_at_values": [
+      "2026-06-04T19:18:06Z",
+      "2026-06-21T23:34:59Z"
+    ],
+    "event_watchers_completed": 0,
+    "executive_generated_at": "2026-06-22T00:25:29Z",
+    "external_source_generated_at": "2026-06-22T00:21:44Z",
+    "external_source_reconciliation": {
+      "alias_mappings_checked": true,
+      "generated_utc": "2026-05-25T19:15:42Z",
+      "go_no_go": "V2_EXTERNAL_SOURCE_WAIT_CREDENTIAL_RECONCILIATION_READY",
+      "providers_with_key_present_client_missing": [
+        "tokenmetrics"
+      ],
+      "raw_key_values_exposed": false,
+      "raw_values_read": false,
+      "seeded_or_referenced_count": 1
+    },
+    "external_source_state": [
+      {
+        "blocker_id": "full_observation_builder.external_sources",
+        "classification": "SOURCE_MISSING_KEY_OPERATOR_REQUIRED",
+        "implementation_task_seed_status": "NOT_SEEDED_OPERATOR_OR_SOURCE_BLOCKED",
+        "missing_env_var_names": [
+          "CRYPTOQUANT_API_KEY",
+          "GLASSNODE_API_KEY",
+          "SANTIMENT_API_KEY",
+          "TM_API_KEY",
+          "TOKENMETRICS_API_KEY"
+        ]
+      }
+    ],
+    "global_blocker_count": 9,
+    "implementation_completions_last_hour": 0,
+    "live_ready": false,
+    "migration_complete": false,
+    "next_action_classification_counts": {
+      "AUTOMATABLE_NOW": 2,
+      "EVENT_DEPENDENT": 2,
+      "EXTERNAL_SOURCE_REQUIRED": 2,
+      "OPERATOR_DECISION_REQUIRED": 17,
+      "POSITION_DEPENDENT": 0,
+      "UNSAFE_TO_AUTOMATE": 1
+    },
+    "no_manual_generated_at": "2026-06-22T00:25:57.061590Z",
+    "operator_accepted_count": 0,
+    "operator_decision_count": 6,
+    "operator_decision_generated_at": "2026-06-22T00:21:44Z",
+    "paper_edge_proven": false,
+    "production_score": 19.9,
+    "queue_empty_with_blockers_reason": null,
+    "remaining_event_blockers": [
+      "full_observation_builder.event_dependent",
+      "paper_edge_not_proven"
+    ],
+    "remaining_external_blockers": [
+      "full_observation_builder.external_sources"
+    ],
+    "remaining_operator_blockers": [
+      "full_observation_builder.operator_decision_families",
+      "checkpoint_promotion",
+      "legacy_shutdown.legacy_runtime_owner",
+      "legacy_shutdown.legacy_redis_keys_active",
+      "risk_caps_canary_hard_gates_unset",
+      "capital_recovery_gate_unset"
+    ],
+    "remaining_technical_blockers": [],
+    "remediations_last_hour": 0,
+    "replay_miner_expected_move_after_cost_bps": -4.879330541891545,
+    "replay_miner_false_negative_count": 0,
+    "replay_miner_generated_at": "2026-06-21T23:34:59Z",
+    "replay_miner_sample_count": 113917,
+    "replay_miner_windows_filled": {
+      "15m": 1163,
+      "1h": 1090,
+      "1m": 660,
+      "5m": 1248
+    },
+    "report_center_blocked_count": 13,
+    "report_center_generated_at": "2026-06-22T00:25:29Z",
+    "safety": {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "calls_exchange_mutation": false,
+      "creates_approval_tokens": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "writes_old_redis": false
+    },
+    "shutdown_ready": false,
+    "snapshot_utc": "2026-06-22T00:26:00.979695Z",
+    "systemd_units": {
+      "codex_governor": "inactive",
+      "event_watcher": "active",
+      "no_manual_policy": "active",
+      "replay_miner": "inactive",
+      "report_center": "active",
+      "spark_worker_pool": "active"
+    },
+    "task_completions_last_hour": 0,
+    "unmapped_codex_fail_count": 0,
+    "worker_active_leases": 0,
+    "worker_busy_workers": 0,
+    "worker_queued_automatable_tasks": 2
+  },
+  "writes_old_redis": false
+}

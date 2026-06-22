@@ -1,0 +1,26 @@
+{
+  "schema_version": "old_redis_writer_proof_status_v1",
+  "milestone": "v2_zero_exception_parity_implementation_burndown",
+  "phase": 9,
+  "generated_est": "2026-05-31T01:36:00-0400",
+  "generated_utc": "2026-05-31T05:36:00Z",
+  "method": "process_source_scan + redis_keyspace_count (no MONITOR command used)",
+  "old_namespace_redis_counts_static": {
+    "orchestrator:*": 0,
+    "exchange:order:*": 0,
+    "ohlcv:list:*": "preserved_static_reference",
+    "ta:*": "preserved_static_reference",
+    "unified_features:*": "preserved_static_reference",
+    "prediction:*": "preserved_static_reference",
+    "signals:*": "preserved_static_reference",
+    "wma:*": "preserved_static_reference",
+    "features:coinank:*": "preserved_static_reference",
+    "kc:*": "preserved_static_reference",
+    "tm:*": "preserved_static_reference"
+  },
+  "active_v2_processes_writing_old_redis": false,
+  "preserved_static_old_keys_left_in_place": true,
+  "any_bridge_read_labelled_reference_only": true,
+  "verdict": "NO_ACTIVE_V2_PROCESS_WRITES_OLD_REDIS_STATIC_KEYS_PRESERVED",
+  "live_safety": {"live_gate_status": "blocked_human_only", "live_symbols": []}
+}

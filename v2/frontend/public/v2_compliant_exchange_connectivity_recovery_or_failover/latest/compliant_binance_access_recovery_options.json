@@ -1,0 +1,20 @@
+{
+  "allowed_options": [
+    "use a legally permitted Binance account/entity/location",
+    "correct account/API access with Binance support",
+    "continue Binance public data only",
+    "switch execution to another legally available exchange through audited failover"
+  ],
+  "disallowed_options": [
+    "VPN/proxy/evasion",
+    "hidden routing workaround",
+    "ignoring HTTP 451",
+    "submitting orders without signed account proof"
+  ],
+  "generated_est": "2026-06-21T20:28:07-04:00",
+  "operator_action_required_for_recovery": true,
+  "order_submission_allowed": false,
+  "raw_credentials_exposed": false,
+  "schema_version": "compliant_binance_access_recovery_options_v1",
+  "status": "COMPLIANT_BINANCE_RECOVERY_OPTIONS_READY"
+}

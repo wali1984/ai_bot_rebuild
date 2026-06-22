@@ -1,0 +1,1310 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "by_status": {
+    "blocked_credential_count": 4,
+    "missing_replacement_count": 9,
+    "running_count": 26,
+    "v2_native_replacement_exists_count": 36
+  },
+  "credentials_values_exposed": false,
+  "go_no_go": "V2_FULL_RUNTIME_COMPONENT_INVENTORY_READY",
+  "items": [
+    {
+      "blocker_if_not_running": null,
+      "component": "binance_realtime_prices",
+      "copied_path_count": 1,
+      "copied_paths": [
+        "v2/legacy_owned_runtime/ingest/realtime_price_provider.py"
+      ],
+      "copied_paths_exist": [
+        "v2/legacy_owned_runtime/ingest/realtime_price_provider.py"
+      ],
+      "credential_env_names": [
+        "BINANCE_API_KEY",
+        "BINANCE_API_SECRET"
+      ],
+      "credential_env_present_by_name": {
+        "BINANCE_API_KEY": true,
+        "BINANCE_API_SECRET": true
+      },
+      "gnome_terminal_title": "V2 Paper Online Runtime",
+      "log_path": "v2/runtime/binance_realtime_prices.log",
+      "old_redis_write_patterns": [
+        "price:realtime:*",
+        "price:last:*",
+        "orderbook:top:*"
+      ],
+      "safe_to_start_now": true,
+      "started": true,
+      "started_via_systemd_active": true,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": true,
+      "uses_live_credentials_env": true,
+      "v2_adapter_needed_for_redis": true,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/paper_online_runtime.py",
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-paper-online-runtime.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "binance_ohlcv",
+      "copied_path_count": 1,
+      "copied_paths": [
+        "v2/legacy_owned_runtime/ingest/live_binance.py"
+      ],
+      "copied_paths_exist": [
+        "v2/legacy_owned_runtime/ingest/live_binance.py"
+      ],
+      "credential_env_names": [
+        "BINANCE_API_KEY",
+        "BINANCE_API_SECRET"
+      ],
+      "credential_env_present_by_name": {
+        "BINANCE_API_KEY": true,
+        "BINANCE_API_SECRET": true
+      },
+      "gnome_terminal_title": "V2 Market Data Monitor",
+      "log_path": "v2/runtime/binance_ohlcv.log",
+      "old_redis_write_patterns": [
+        "ohlcv:list:binance:*",
+        "latest:binance:ohlcv:*"
+      ],
+      "safe_to_start_now": true,
+      "started": true,
+      "started_via_systemd_active": true,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": true,
+      "uses_live_credentials_env": true,
+      "v2_adapter_needed_for_redis": true,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_market_ingestor.py",
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-paper-online-runtime.service"
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "binance_mark_price",
+      "copied_path_count": 1,
+      "copied_paths": [
+        "v2/legacy_owned_runtime/ingest/live_binance.py"
+      ],
+      "copied_paths_exist": [
+        "v2/legacy_owned_runtime/ingest/live_binance.py"
+      ],
+      "credential_env_names": [
+        "BINANCE_API_KEY",
+        "BINANCE_API_SECRET"
+      ],
+      "credential_env_present_by_name": {
+        "BINANCE_API_KEY": true,
+        "BINANCE_API_SECRET": true
+      },
+      "gnome_terminal_title": null,
+      "log_path": null,
+      "old_redis_write_patterns": [
+        "latest:binance:mark_price:*"
+      ],
+      "safe_to_start_now": true,
+      "started": false,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": false,
+      "uses_live_credentials_env": true,
+      "v2_adapter_needed_for_redis": true,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_binance_public_metadata_ingestor.py",
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "binance_funding",
+      "copied_path_count": 1,
+      "copied_paths": [
+        "v2/legacy_owned_runtime/ingest/live_binance.py"
+      ],
+      "copied_paths_exist": [
+        "v2/legacy_owned_runtime/ingest/live_binance.py"
+      ],
+      "credential_env_names": [
+        "BINANCE_API_KEY",
+        "BINANCE_API_SECRET"
+      ],
+      "credential_env_present_by_name": {
+        "BINANCE_API_KEY": true,
+        "BINANCE_API_SECRET": true
+      },
+      "gnome_terminal_title": null,
+      "log_path": null,
+      "old_redis_write_patterns": [
+        "latest:binance:funding:*"
+      ],
+      "safe_to_start_now": true,
+      "started": false,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": false,
+      "uses_live_credentials_env": true,
+      "v2_adapter_needed_for_redis": true,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_binance_public_metadata_ingestor.py",
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "binance_open_interest",
+      "copied_path_count": 1,
+      "copied_paths": [
+        "v2/legacy_owned_runtime/ingest/live_binance.py"
+      ],
+      "copied_paths_exist": [
+        "v2/legacy_owned_runtime/ingest/live_binance.py"
+      ],
+      "credential_env_names": [
+        "BINANCE_API_KEY",
+        "BINANCE_API_SECRET"
+      ],
+      "credential_env_present_by_name": {
+        "BINANCE_API_KEY": true,
+        "BINANCE_API_SECRET": true
+      },
+      "gnome_terminal_title": null,
+      "log_path": null,
+      "old_redis_write_patterns": [
+        "latest:binance:open_interest:*"
+      ],
+      "safe_to_start_now": true,
+      "started": false,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": false,
+      "uses_live_credentials_env": true,
+      "v2_adapter_needed_for_redis": true,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_binance_public_metadata_ingestor.py",
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "binance_orderbook",
+      "copied_path_count": 1,
+      "copied_paths": [
+        "v2/legacy_owned_runtime/ingest/realtime_price_provider.py"
+      ],
+      "copied_paths_exist": [
+        "v2/legacy_owned_runtime/ingest/realtime_price_provider.py"
+      ],
+      "credential_env_names": [
+        "BINANCE_API_KEY",
+        "BINANCE_API_SECRET"
+      ],
+      "credential_env_present_by_name": {
+        "BINANCE_API_KEY": true,
+        "BINANCE_API_SECRET": true
+      },
+      "gnome_terminal_title": null,
+      "log_path": null,
+      "old_redis_write_patterns": [
+        "orderbook:top:*",
+        "orderbook:depth:*",
+        "orderbook:bids:*",
+        "orderbook:asks:*"
+      ],
+      "safe_to_start_now": true,
+      "started": false,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": false,
+      "uses_live_credentials_env": true,
+      "v2_adapter_needed_for_redis": true,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_binance_public_metadata_ingestor.py",
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "binance_liquidation_stream",
+      "copied_path_count": 1,
+      "copied_paths": [
+        "v2/legacy_owned_runtime/ingest/live_binance_liquidations.py"
+      ],
+      "copied_paths_exist": [
+        "v2/legacy_owned_runtime/ingest/live_binance_liquidations.py"
+      ],
+      "credential_env_names": [
+        "BINANCE_API_KEY",
+        "BINANCE_API_SECRET"
+      ],
+      "credential_env_present_by_name": {
+        "BINANCE_API_KEY": true,
+        "BINANCE_API_SECRET": true
+      },
+      "gnome_terminal_title": "V2 Liquidation WSS (paper-shadow)",
+      "log_path": "v2/runtime/binance_liquidation_stream.log",
+      "old_redis_write_patterns": [
+        "binance:force"
+      ],
+      "safe_to_start_now": true,
+      "started": true,
+      "started_via_systemd_active": true,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": true,
+      "uses_live_credentials_env": true,
+      "v2_adapter_needed_for_redis": true,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_liquidation_wss_loop.py",
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-liquidation-wss-paper-shadow.service"
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "liquidation_bridge",
+      "copied_path_count": 1,
+      "copied_paths": [
+        "v2/legacy_owned_runtime/ingest/liquidation_bridge.py"
+      ],
+      "copied_paths_exist": [
+        "v2/legacy_owned_runtime/ingest/liquidation_bridge.py"
+      ],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": null,
+      "log_path": null,
+      "old_redis_write_patterns": [
+        "cursor:liq_bridge:*"
+      ],
+      "safe_to_start_now": true,
+      "started": false,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": false,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": true,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_coinank_and_liquidation_bridge.py",
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "liquidation_levels_engine",
+      "copied_path_count": 1,
+      "copied_paths": [
+        "v2/legacy_owned_runtime/ingest/liquidation_levels_engine.py"
+      ],
+      "copied_paths_exist": [
+        "v2/legacy_owned_runtime/ingest/liquidation_levels_engine.py"
+      ],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": null,
+      "log_path": null,
+      "old_redis_write_patterns": [],
+      "safe_to_start_now": true,
+      "started": false,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": false,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": false,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_liquidation_observation_aggregator_status.py",
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "coinank_full_poller",
+      "copied_path_count": 2,
+      "copied_paths": [
+        "v2/legacy_owned_runtime/ingest/live_coinank.py",
+        "v2/legacy_preserved/ingestors/live_coinank.py"
+      ],
+      "copied_paths_exist": [
+        "v2/legacy_owned_runtime/ingest/live_coinank.py",
+        "v2/legacy_preserved/ingestors/live_coinank.py"
+      ],
+      "credential_env_names": [
+        "COINANK_API_KEY"
+      ],
+      "credential_env_present_by_name": {
+        "COINANK_API_KEY": true
+      },
+      "gnome_terminal_title": null,
+      "log_path": null,
+      "old_redis_write_patterns": [
+        "coinank:*",
+        "features:coinank:*",
+        "raw:coinank:*"
+      ],
+      "safe_to_start_now": true,
+      "started": false,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": false,
+      "uses_live_credentials_env": true,
+      "v2_adapter_needed_for_redis": true,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_coinank_and_liquidation_bridge.py",
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "coinank_global_aggregator",
+      "copied_path_count": 1,
+      "copied_paths": [
+        "v2/legacy_owned_runtime/ingest/live_coinank_global_aggregator.py"
+      ],
+      "copied_paths_exist": [
+        "v2/legacy_owned_runtime/ingest/live_coinank_global_aggregator.py"
+      ],
+      "credential_env_names": [
+        "COINANK_API_KEY"
+      ],
+      "credential_env_present_by_name": {
+        "COINANK_API_KEY": true
+      },
+      "gnome_terminal_title": null,
+      "log_path": null,
+      "old_redis_write_patterns": [
+        "features:global_coinank:*"
+      ],
+      "safe_to_start_now": true,
+      "started": false,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": false,
+      "uses_live_credentials_env": true,
+      "v2_adapter_needed_for_redis": true,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_coinank_and_liquidation_bridge.py",
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "kucoin_ingestor",
+      "copied_path_count": 1,
+      "copied_paths": [
+        "v2/legacy_owned_runtime/ingest/live_kucoin.py"
+      ],
+      "copied_paths_exist": [
+        "v2/legacy_owned_runtime/ingest/live_kucoin.py"
+      ],
+      "credential_env_names": [
+        "KUCOIN_API_KEY",
+        "KUCOIN_API_SECRET"
+      ],
+      "credential_env_present_by_name": {
+        "KUCOIN_API_KEY": false,
+        "KUCOIN_API_SECRET": false
+      },
+      "gnome_terminal_title": null,
+      "log_path": null,
+      "old_redis_write_patterns": [
+        "kc:kline:*",
+        "kc:orderbook20:*",
+        "features:kucoin:*"
+      ],
+      "safe_to_start_now": false,
+      "started": false,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": false,
+      "uses_live_credentials_env": true,
+      "v2_adapter_needed_for_redis": true,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_kucoin_ingestor_worker.py",
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "copied legacy file exists but no V2 wrapper yet; do not start raw legacy (writes old Redis)",
+      "component": "coinapi_rest",
+      "copied_path_count": 2,
+      "copied_paths": [
+        "v2/legacy_owned_runtime/ingest/live_coinapi_rest.py",
+        "v2/legacy_owned_runtime/ingest/live_coinapi_v1.py"
+      ],
+      "copied_paths_exist": [
+        "v2/legacy_owned_runtime/ingest/live_coinapi_rest.py",
+        "v2/legacy_owned_runtime/ingest/live_coinapi_v1.py"
+      ],
+      "credential_env_names": [
+        "COINAPI_API_KEY"
+      ],
+      "credential_env_present_by_name": {
+        "COINAPI_API_KEY": true
+      },
+      "gnome_terminal_title": null,
+      "log_path": null,
+      "old_redis_write_patterns": [
+        "ohlcv:list:coinapi:*",
+        "latest:coinapi:ohlcv:*"
+      ],
+      "safe_to_start_now": false,
+      "started": false,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": false,
+      "uses_live_credentials_env": true,
+      "v2_adapter_needed_for_redis": true,
+      "v2_native_replacement_exists": false,
+      "v2_native_replacement_path": null,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "copied legacy file exists but no V2 wrapper yet; do not start raw legacy (writes old Redis)",
+      "component": "coinapi_wsds",
+      "copied_path_count": 1,
+      "copied_paths": [
+        "v2/legacy_owned_runtime/ingest/live_coinapi_wsds.py"
+      ],
+      "copied_paths_exist": [
+        "v2/legacy_owned_runtime/ingest/live_coinapi_wsds.py"
+      ],
+      "credential_env_names": [
+        "COINAPI_API_KEY"
+      ],
+      "credential_env_present_by_name": {
+        "COINAPI_API_KEY": true
+      },
+      "gnome_terminal_title": null,
+      "log_path": null,
+      "old_redis_write_patterns": [
+        "microfeat:*",
+        "msnap:coinapi_wsds:*",
+        "normalized:ohlcv:*"
+      ],
+      "safe_to_start_now": false,
+      "started": false,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": false,
+      "uses_live_credentials_env": true,
+      "v2_adapter_needed_for_redis": true,
+      "v2_native_replacement_exists": false,
+      "v2_native_replacement_path": null,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "realtime_price_provider",
+      "copied_path_count": 1,
+      "copied_paths": [
+        "v2/legacy_owned_runtime/ingest/realtime_price_provider.py"
+      ],
+      "copied_paths_exist": [
+        "v2/legacy_owned_runtime/ingest/realtime_price_provider.py"
+      ],
+      "credential_env_names": [
+        "BINANCE_API_KEY",
+        "COINAPI_API_KEY"
+      ],
+      "credential_env_present_by_name": {
+        "BINANCE_API_KEY": true,
+        "COINAPI_API_KEY": true
+      },
+      "gnome_terminal_title": "V2 Paper Online Runtime",
+      "log_path": "v2/runtime/realtime_price_provider.log",
+      "old_redis_write_patterns": [
+        "price:*",
+        "orderbook:*",
+        "metrics:price_provider:*"
+      ],
+      "safe_to_start_now": true,
+      "started": true,
+      "started_via_systemd_active": true,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": true,
+      "uses_live_credentials_env": true,
+      "v2_adapter_needed_for_redis": true,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/paper_online_runtime.py",
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-paper-online-runtime.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "technical_analysis",
+      "copied_path_count": 1,
+      "copied_paths": [
+        "v2/legacy_owned_runtime/ingest/live_technical_analysis.py"
+      ],
+      "copied_paths_exist": [
+        "v2/legacy_owned_runtime/ingest/live_technical_analysis.py"
+      ],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": "V2 TA Worker (periodic rerun)",
+      "log_path": null,
+      "old_redis_write_patterns": [
+        "ta:*",
+        "latest:ta:*",
+        "regime:structural:*"
+      ],
+      "safe_to_start_now": true,
+      "started": true,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": true,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": true,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_feature_pipeline_and_ta_worker.py",
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "feature_pipeline",
+      "copied_path_count": 1,
+      "copied_paths": [
+        "v2/legacy_owned_runtime/feature_pipeline.py"
+      ],
+      "copied_paths_exist": [
+        "v2/legacy_owned_runtime/feature_pipeline.py"
+      ],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": "V2 Feature Snapshot Builder",
+      "log_path": "v2/runtime/feature_pipeline.log",
+      "old_redis_write_patterns": [
+        "unified_features:*",
+        "features:fast_lane",
+        "features:slow_lane"
+      ],
+      "safe_to_start_now": true,
+      "started": true,
+      "started_via_systemd_active": true,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": true,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": true,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_feature_pipeline_native_loop.py",
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-feature-pipeline-native-loop.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "symbol_universe",
+      "copied_path_count": 0,
+      "copied_paths": [],
+      "copied_paths_exist": [],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": "V2 Symbol Universe Publisher",
+      "log_path": "v2/runtime/symbol_universe.log",
+      "old_redis_write_patterns": [
+        "tm:universe",
+        "tokenmetrics:universe"
+      ],
+      "safe_to_start_now": true,
+      "started": true,
+      "started_via_systemd_active": true,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": true,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": true,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/symbol_universe_public_payload.py",
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-symbol-universe-publisher.service"
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "nansen_ingestor",
+      "copied_path_count": 0,
+      "copied_paths": [],
+      "copied_paths_exist": [],
+      "credential_env_names": [
+        "NANSEN_API_KEY"
+      ],
+      "credential_env_present_by_name": {
+        "NANSEN_API_KEY": false
+      },
+      "gnome_terminal_title": null,
+      "log_path": null,
+      "old_redis_write_patterns": [],
+      "safe_to_start_now": false,
+      "started": false,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": false,
+      "uses_live_credentials_env": true,
+      "v2_adapter_needed_for_redis": false,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_nansen_altdata_ingestor.py",
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "lunarcrush_ingestor",
+      "copied_path_count": 0,
+      "copied_paths": [],
+      "copied_paths_exist": [],
+      "credential_env_names": [
+        "LUNARCRUSH_API_KEY"
+      ],
+      "credential_env_present_by_name": {
+        "LUNARCRUSH_API_KEY": false
+      },
+      "gnome_terminal_title": null,
+      "log_path": null,
+      "old_redis_write_patterns": [],
+      "safe_to_start_now": false,
+      "started": false,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": false,
+      "uses_live_credentials_env": true,
+      "v2_adapter_needed_for_redis": false,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_lunarcrush_altdata_ingestor.py",
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "arkham_ingestor",
+      "copied_path_count": 0,
+      "copied_paths": [],
+      "copied_paths_exist": [],
+      "credential_env_names": [
+        "ARKHAM_API_KEY"
+      ],
+      "credential_env_present_by_name": {
+        "ARKHAM_API_KEY": true
+      },
+      "gnome_terminal_title": null,
+      "log_path": null,
+      "old_redis_write_patterns": [],
+      "safe_to_start_now": true,
+      "started": false,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": false,
+      "uses_live_credentials_env": true,
+      "v2_adapter_needed_for_redis": false,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_arkham_presence_only_worker.py",
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "credential(s) absent by name: ['ALPHAVANTAGE_API_KEY']",
+      "component": "alphavantage_news",
+      "copied_path_count": 1,
+      "copied_paths": [
+        "v2/legacy_owned_runtime/ingest/live_alphavantage_news.py"
+      ],
+      "copied_paths_exist": [
+        "v2/legacy_owned_runtime/ingest/live_alphavantage_news.py"
+      ],
+      "credential_env_names": [
+        "ALPHAVANTAGE_API_KEY"
+      ],
+      "credential_env_present_by_name": {
+        "ALPHAVANTAGE_API_KEY": false
+      },
+      "gnome_terminal_title": null,
+      "log_path": null,
+      "old_redis_write_patterns": [
+        "alphavantage:*"
+      ],
+      "safe_to_start_now": false,
+      "started": false,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": false,
+      "uses_live_credentials_env": true,
+      "v2_adapter_needed_for_redis": true,
+      "v2_native_replacement_exists": false,
+      "v2_native_replacement_path": null,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "copied legacy file exists but no V2 wrapper yet; do not start raw legacy (writes old Redis)",
+      "component": "ccxt_aggregator",
+      "copied_path_count": 1,
+      "copied_paths": [
+        "v2/legacy_owned_runtime/ingest/live_ccxt.py"
+      ],
+      "copied_paths_exist": [
+        "v2/legacy_owned_runtime/ingest/live_ccxt.py"
+      ],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": null,
+      "log_path": null,
+      "old_redis_write_patterns": [
+        "ccxt:*"
+      ],
+      "safe_to_start_now": false,
+      "started": false,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": false,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": true,
+      "v2_native_replacement_exists": false,
+      "v2_native_replacement_path": null,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "trainer_prediction_publisher",
+      "copied_path_count": 1,
+      "copied_paths": [
+        "v2/legacy_owned_runtime/rl/hybrid_trainer.py"
+      ],
+      "copied_paths_exist": [
+        "v2/legacy_owned_runtime/rl/hybrid_trainer.py"
+      ],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": "V2 Trainer Bridge / Prediction Publisher",
+      "log_path": "v2/runtime/trainer_prediction_publisher.log",
+      "old_redis_write_patterns": [
+        "prediction:*",
+        "trainer:intent:*",
+        "rl:metrics:*"
+      ],
+      "safe_to_start_now": true,
+      "started": true,
+      "started_via_systemd_active": true,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": true,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": true,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_native_trainer_prediction_publisher.py",
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-trainer-bridge.service"
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "dataset_builder",
+      "copied_path_count": 0,
+      "copied_paths": [],
+      "copied_paths_exist": [],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": null,
+      "log_path": null,
+      "old_redis_write_patterns": [],
+      "safe_to_start_now": true,
+      "started": false,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": false,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": false,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_native_trainer_dataset_builder.py",
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "copied legacy file exists but no V2 wrapper yet; do not start raw legacy (writes old Redis)",
+      "component": "strategy_engine",
+      "copied_path_count": 1,
+      "copied_paths": [
+        "v2/legacy_owned_runtime/trading/opportunity_tracker.py"
+      ],
+      "copied_paths_exist": [
+        "v2/legacy_owned_runtime/trading/opportunity_tracker.py"
+      ],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": null,
+      "log_path": null,
+      "old_redis_write_patterns": [
+        "opportunity:latest",
+        "signals:overlay:intents"
+      ],
+      "safe_to_start_now": false,
+      "started": false,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": false,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": true,
+      "v2_native_replacement_exists": false,
+      "v2_native_replacement_path": null,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "backtest_engine",
+      "copied_path_count": 0,
+      "copied_paths": [],
+      "copied_paths_exist": [],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": null,
+      "log_path": null,
+      "old_redis_write_patterns": [],
+      "safe_to_start_now": true,
+      "started": false,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": false,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": false,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/historical_30d_replay_and_paper_proof.py",
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "risk_gateway",
+      "copied_path_count": 0,
+      "copied_paths": [],
+      "copied_paths_exist": [],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": "V2 Risk Gateway (periodic rerun)",
+      "log_path": null,
+      "old_redis_write_patterns": [],
+      "safe_to_start_now": true,
+      "started": true,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": true,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": false,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_risk_gateway_runtime_worker.py",
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "orchestrator",
+      "copied_path_count": 1,
+      "copied_paths": [
+        "v2/legacy_owned_runtime/rl/orchestrator_worker.py"
+      ],
+      "copied_paths_exist": [
+        "v2/legacy_owned_runtime/rl/orchestrator_worker.py"
+      ],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": "V2 Orchestrator Arbitration Loop",
+      "log_path": "v2/runtime/orchestrator.log",
+      "old_redis_write_patterns": [
+        "orchestrator:leader_lock",
+        "signals:trading:primary",
+        "wma:proposals"
+      ],
+      "safe_to_start_now": true,
+      "started": true,
+      "started_via_systemd_active": true,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": true,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": true,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_orchestrator_arbitration_loop.py",
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-orchestrator-arbitration-loop.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "paper_trade_management",
+      "copied_path_count": 0,
+      "copied_paths": [],
+      "copied_paths_exist": [],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": "V2 Paper Trade Management",
+      "log_path": "v2/runtime/paper_trade_management.log",
+      "old_redis_write_patterns": [],
+      "safe_to_start_now": true,
+      "started": true,
+      "started_via_systemd_active": true,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": true,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": false,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-trade-management-paper-loop.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "paper_ledger",
+      "copied_path_count": 0,
+      "copied_paths": [],
+      "copied_paths_exist": [],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": "V2 Paper Shadow Observation",
+      "log_path": "v2/runtime/paper_ledger.log",
+      "old_redis_write_patterns": [],
+      "safe_to_start_now": true,
+      "started": true,
+      "started_via_systemd_active": true,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": true,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": false,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/paper_shadow_observation.py",
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-paper-shadow-observation.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "position_history",
+      "copied_path_count": 0,
+      "copied_paths": [],
+      "copied_paths_exist": [],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": "V2 Position History Tracker",
+      "log_path": "v2/runtime/position_history.log",
+      "old_redis_write_patterns": [],
+      "safe_to_start_now": true,
+      "started": true,
+      "started_via_systemd_active": true,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": true,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": false,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_position_history_persistent_tracker.py",
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-position-history-persistent-tracker.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "replay_miner",
+      "copied_path_count": 0,
+      "copied_paths": [],
+      "copied_paths_exist": [],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": "V2 Replay Outcome Miner",
+      "log_path": "v2/runtime/replay_miner.log",
+      "old_redis_write_patterns": [],
+      "safe_to_start_now": true,
+      "started": true,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": true,
+      "started_via_visible_gnome_terminal": true,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": false,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_post_hoc_replay_outcome_miner.py",
+      "v2_systemd_active": false,
+      "v2_systemd_unit": "ai-bot-v2-post-hoc-replay-outcome-miner.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "report_center",
+      "copied_path_count": 0,
+      "copied_paths": [],
+      "copied_paths_exist": [],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": "V2 Report Center Indexer",
+      "log_path": "v2/runtime/report_center.log",
+      "old_redis_write_patterns": [],
+      "safe_to_start_now": true,
+      "started": true,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": true,
+      "started_via_visible_gnome_terminal": true,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": false,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_report_center_indexer.py",
+      "v2_systemd_active": false,
+      "v2_systemd_unit": "ai-bot-v2-report-center-indexer.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "website_backend",
+      "copied_path_count": 0,
+      "copied_paths": [],
+      "copied_paths_exist": [],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": null,
+      "log_path": "v2/runtime/website_backend.log",
+      "old_redis_write_patterns": [],
+      "safe_to_start_now": true,
+      "started": true,
+      "started_via_systemd_active": true,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": false,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": false,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/main.py",
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-public-website-backend.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "spark_worker_pool",
+      "copied_path_count": 0,
+      "copied_paths": [],
+      "copied_paths_exist": [],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": "V2 Spark Worker Pool",
+      "log_path": "v2/runtime/spark_worker_pool.log",
+      "old_redis_write_patterns": [],
+      "safe_to_start_now": true,
+      "started": true,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": true,
+      "started_via_visible_gnome_terminal": true,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": false,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_full_paper_only_startup_manifest_runtime.py",
+      "v2_systemd_active": false,
+      "v2_systemd_unit": "ai-bot-v2-closed-loop-worker-pool.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "claude_workers",
+      "copied_path_count": 0,
+      "copied_paths": [],
+      "copied_paths_exist": [],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": "V2 Claude Closed-Loop Workers (1-3)",
+      "log_path": "v2/runtime/claude_workers.log",
+      "old_redis_write_patterns": [],
+      "safe_to_start_now": false,
+      "started": true,
+      "started_via_systemd_active": true,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": true,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": false,
+      "v2_native_replacement_exists": false,
+      "v2_native_replacement_path": null,
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-closed-loop-claude-worker@1.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "codex_workers",
+      "copied_path_count": 0,
+      "copied_paths": [],
+      "copied_paths_exist": [],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": "V2 Codex Closed-Loop Workers (1-3)",
+      "log_path": "v2/runtime/codex_workers.log",
+      "old_redis_write_patterns": [],
+      "safe_to_start_now": false,
+      "started": true,
+      "started_via_systemd_active": true,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": true,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": false,
+      "v2_native_replacement_exists": false,
+      "v2_native_replacement_path": null,
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-closed-loop-codex-worker@1.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "event_watchers",
+      "copied_path_count": 0,
+      "copied_paths": [],
+      "copied_paths_exist": [],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": "V2 Final-Operator-Decision Event Watcher",
+      "log_path": "v2/runtime/event_watchers.log",
+      "old_redis_write_patterns": [],
+      "safe_to_start_now": false,
+      "started": true,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": true,
+      "started_via_visible_gnome_terminal": true,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": false,
+      "v2_native_replacement_exists": false,
+      "v2_native_replacement_path": null,
+      "v2_systemd_active": false,
+      "v2_systemd_unit": "ai-bot-v2-final-operator-decision-event-watcher.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "runtime_watchdog",
+      "copied_path_count": 0,
+      "copied_paths": [],
+      "copied_paths_exist": [],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": "V2 Automation Liveness Watchdog",
+      "log_path": "v2/runtime/runtime_watchdog.log",
+      "old_redis_write_patterns": [],
+      "safe_to_start_now": false,
+      "started": true,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": true,
+      "started_via_visible_gnome_terminal": true,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": false,
+      "v2_native_replacement_exists": false,
+      "v2_native_replacement_path": null,
+      "v2_systemd_active": false,
+      "v2_systemd_unit": "ai-bot-v2-automation-liveness-watchdog.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "redis_monitor",
+      "copied_path_count": 0,
+      "copied_paths": [],
+      "copied_paths_exist": [],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": "V2 Redis Key Monitor",
+      "log_path": null,
+      "old_redis_write_patterns": [],
+      "safe_to_start_now": true,
+      "started": true,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": true,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": false,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "claude_worklog/tools/v2_legacy_style_monitors.py",
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "memory_gpu_monitor",
+      "copied_path_count": 0,
+      "copied_paths": [],
+      "copied_paths_exist": [],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": "V2 Memory/GPU Monitor",
+      "log_path": null,
+      "old_redis_write_patterns": [],
+      "safe_to_start_now": true,
+      "started": true,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": true,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": false,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "claude_worklog/tools/v2_legacy_style_monitors.py",
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "error_alert_monitor",
+      "copied_path_count": 0,
+      "copied_paths": [],
+      "copied_paths_exist": [],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": "V2 Error/Alert Monitor",
+      "log_path": null,
+      "old_redis_write_patterns": [],
+      "safe_to_start_now": true,
+      "started": true,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": true,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": false,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "claude_worklog/tools/v2_legacy_style_monitors.py",
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "trainer_predictions_monitors",
+      "copied_path_count": 0,
+      "copied_paths": [],
+      "copied_paths_exist": [],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": "V2 Predictions Monitor",
+      "log_path": null,
+      "old_redis_write_patterns": [],
+      "safe_to_start_now": true,
+      "started": true,
+      "started_via_systemd_active": false,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": true,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": false,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "claude_worklog/tools/v2_legacy_style_monitors.py",
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "trainer_predicted_price_all_tfs",
+      "copied_path_count": 0,
+      "copied_paths": [],
+      "copied_paths_exist": [],
+      "credential_env_names": [],
+      "credential_env_present_by_name": {},
+      "gnome_terminal_title": "V2 Trainer Bridge / Prediction Publisher",
+      "log_path": "v2/runtime/trainer_predicted_price_all_tfs.log",
+      "old_redis_write_patterns": [],
+      "safe_to_start_now": true,
+      "started": true,
+      "started_via_systemd_active": true,
+      "started_via_systemd_timer": false,
+      "started_via_visible_gnome_terminal": true,
+      "uses_live_credentials_env": false,
+      "v2_adapter_needed_for_redis": false,
+      "v2_native_replacement_exists": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_native_trainer_prediction_publisher.py",
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-trainer-bridge.service"
+    }
+  ],
+  "live_symbols": [],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "rules": [
+    "If copied safe component exists, use V2 wrapper before creating a new scaffold.",
+    "If copied component writes old Redis, patch/wrap before starting.",
+    "If copied component can mutate exchange, freeze mutation or block it.",
+    "If missing safe implementation, register Claude + Codex tasks (auto-seed)."
+  ],
+  "ts_est": "20260526T003358EST",
+  "ts_human_est": "2026-05-26 00:49:11 EDT",
+  "ts_iso_est": "2026-05-26T00:49:11-0400",
+  "writes_exchange_orders": false
+}

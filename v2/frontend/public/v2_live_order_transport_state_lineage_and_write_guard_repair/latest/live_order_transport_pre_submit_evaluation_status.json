@@ -1,0 +1,117 @@
+{
+  "accepted_symbols": [
+    "BNBUSDT",
+    "BTCUSDT",
+    "ETHUSDT",
+    "PAXGUSDT",
+    "XAUTUSDT",
+    "ZECUSDT"
+  ],
+  "blockers": [
+    "ORDER_QUANTITY_ROUNDS_TO_ZERO",
+    "RISK_MAX_NOTIONAL_BELOW_EXCHANGE_MIN_NOTIONAL"
+  ],
+  "credential_status": {
+    "api_key_present": true,
+    "api_secret_present": true,
+    "env_source": "/home/wali/Desktop/AI BOT REBUILD/v2/.env.local",
+    "key_names_used": {
+      "api_key": "BINANCE_API_KEY",
+      "api_secret": "BINANCE_API_SECRET"
+    },
+    "raw_credential_in_payload": "NEVER"
+  },
+  "dry_run": true,
+  "generated_est": "2026-06-07T19:32:06-04:00",
+  "kill_switch_active": false,
+  "kill_switch_source": "unset",
+  "legacy_restart_attempted": false,
+  "leverage_changed": false,
+  "live_order_transport_bound": true,
+  "margin_mode_changed": false,
+  "order_submitted": false,
+  "places_real_order": false,
+  "position_read_status": "OK",
+  "raw_credentials_exposed": false,
+  "real_order_endpoint": null,
+  "redis_trim_attempted": false,
+  "required_lineage_fields": [
+    "prediction_id",
+    "risk_decision_id",
+    "orchestrator_decision_id",
+    "signal_id",
+    "live_gate_audit_id",
+    "risk_profile_audit_id",
+    "symbols_audit_id"
+  ],
+  "runtime_state_source": "v2:live_gate:state",
+  "runtime_state_validation": {
+    "age_seconds": 0.296531,
+    "blockers": [],
+    "max_age_seconds": 3600,
+    "valid": true
+  },
+  "runtime_submit_enabled": true,
+  "runtime_write_guard_enabled": true,
+  "schema_version": "v2_binance_live_order_transport_binding_v1",
+  "selected_candidate": {
+    "confidence": 0.6809434355382293,
+    "expected_move_after_cost_bps": 108.56573370692621,
+    "final_approval_audit_id": "live_gate_final_badf7f3cf3874dd9b347e7c3266d2573",
+    "lineage": {
+      "live_gate_audit_id": "live_gate_enable_7eb4403699a14bc8aecd29fcf7f2431c",
+      "orchestrator_decision_id": "v2_native_pred_97b3ef0aa9346d4868b406f0a00ed1dd_219a2190e2b0ebb8",
+      "prediction_id": "v2_native_pred_97b3ef0aa9346d4868b406f0a00ed1dd_219a2190e2b0ebb8",
+      "risk_decision_id": "rd_dec_v2_native_pred_97b3ef0aa9346d4868b406f0a00ed1dd_219a2190e2b0ebb8",
+      "risk_profile_audit_id": "live_gate_risk_bf7f2431a82a41d0997dad5f668e7996",
+      "signal_id": "v2_native_pred_97b3ef0aa9346d4868b406f0a00ed1dd_219a2190e2b0ebb8",
+      "symbols_audit_id": "live_gate_symbols_aca7a192fba941b8873df0cf864f5c52"
+    },
+    "price_reference": 63870.97258842722,
+    "quantity": 0.0003914141117138672,
+    "requested_notional_usdt": 25.0,
+    "risk_gateway_record": {
+      "legacy_live_blocked_label": "LEGACY_LIVE_PATH_BLOCKED_NOT_V2",
+      "live_blocked": true,
+      "risk_action": "allow",
+      "risk_decision_id": "rd_dec_v2_native_pred_97b3ef0aa9346d4868b406f0a00ed1dd_219a2190e2b0ebb8",
+      "risk_reason_code": "allow_proceed_long"
+    },
+    "side": "BUY",
+    "source_generated_est": "2026-06-07T19:31:55-04:00",
+    "source_signal_live_gate": "enabled_operator_approved",
+    "source_signal_live_symbols": [
+      "BNBUSDT",
+      "BTCUSDT",
+      "ETHUSDT",
+      "PAXGUSDT",
+      "XAUTUSDT",
+      "ZECUSDT"
+    ],
+    "symbol": "BTCUSDT",
+    "symbol_filter_status": {
+      "endpoint": "GET /fapi/v1/exchangeInfo",
+      "error_type": null,
+      "max_qty": "120",
+      "min_notional": "50",
+      "min_qty": "0.001",
+      "ok": true,
+      "quantity_precision": 3,
+      "status": "TRADING",
+      "step_size": "0.001",
+      "symbol": "BTCUSDT"
+    }
+  },
+  "status": "LIVE_ORDER_TRANSPORT_BLOCKED",
+  "submit_result": null,
+  "test_order_endpoint_attempted": false,
+  "transfer_or_withdrawal_attempted": false,
+  "transport_force_disabled": false,
+  "transport_submit_enabled": true,
+  "warnings": [
+    "RISK_GATEWAY_LEGACY_LIVE_BLOCKED_TRUE_PRESENT"
+  ],
+  "would_submit": false,
+  "writes_exchange_orders": false,
+  "writes_old_redis": false
+}

@@ -2,7 +2,7 @@ import type { PageMeta } from '../../types/page';
 
 const meta: PageMeta = {
   id: 'mission-control',
-  title: 'Mission Control',
+  title: 'NERVYX OBSERVE',
   surface: 'admin',
   description: 'Global health, alerts, and readiness across the V2 control plane.',
   navCategory: 'overview',

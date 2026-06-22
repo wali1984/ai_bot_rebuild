@@ -1,0 +1,33 @@
+{
+  "amp_enabled": false,
+  "batch_size": 2048,
+  "bottleneck_reason": "MODEL_TOO_SMALL_TO_SATURATE_GPU",
+  "cpu_utilization_percent": 20.82,
+  "dataloader_workers": 0,
+  "generated_est": "2026-06-21T20:21:45-04:00",
+  "gpu_name": "NVIDIA GeForce RTX 5080",
+  "gpu_utilization_percent": 1.0,
+  "persistent_cycles_total": 5497,
+  "pinned_memory": false,
+  "predictions_per_second": 0.0,
+  "prefetch_factor": null,
+  "ram_total_gb": 123.379,
+  "ram_used_gb": 43.235,
+  "resource_target_logic": {
+    "action": "KEEP_CURRENT_SAFE_CUDA_SETTINGS",
+    "cpu_ram_available": true,
+    "dataloader_workers_after": 0,
+    "dataloader_workers_before": 0,
+    "target_batch_size_after": 2048,
+    "target_batch_size_before": 2048,
+    "throughput_improved": null,
+    "vram_under_25_percent": true
+  },
+  "samples_per_second": null,
+  "schema_version": "native_cuda_trainer_resource_utilization_status_v1",
+  "target_batch_size": 2048,
+  "training_blocker_reason": null,
+  "training_steps_per_minute": null,
+  "vram_total_mb": 16303.0,
+  "vram_used_mb": 912.0
+}

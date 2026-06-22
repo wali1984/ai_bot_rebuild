@@ -1,0 +1,75 @@
+{
+  "api_route_count": 49,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "backend_active": true,
+  "backend_enabled": true,
+  "backend_service": "ai-bot-v2-public-website-backend.service",
+  "checkpoint_compatibility_claimed": false,
+  "domain_dns_status": "OPERATOR_MANAGED",
+  "dry_run": true,
+  "endpoints_reachable_count": 7,
+  "endpoints_total_count": 7,
+  "frontend_dist_built": true,
+  "frontend_dist_dir": "v2/frontend/dist",
+  "generated_utc": "2026-05-20T17:01:47Z",
+  "go_no_go": "V2_PUBLIC_WEBSITE_BACKEND_ONLINE_READY",
+  "health_probes": [
+    {
+      "endpoint": "/",
+      "status": 200
+    },
+    {
+      "endpoint": "/market",
+      "status": 200
+    },
+    {
+      "endpoint": "/admin/war-room",
+      "status": 200
+    },
+    {
+      "endpoint": "/api/v1/_meta/agent-health",
+      "status": 200
+    },
+    {
+      "endpoint": "/api/v1/_meta/queue-status",
+      "status": 200
+    },
+    {
+      "endpoint": "/assets/index-bQWIz72d.js",
+      "status": 200
+    },
+    {
+      "endpoint": "/public/v2_live_canary_dry_run_service/latest/operator_dashboard_payload.json",
+      "status": 200
+    }
+  ],
+  "leverage_changed": false,
+  "live_enabled": false,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "margin_mode_changed": false,
+  "no_live_enablement_endpoints_exposed": true,
+  "no_order_buttons_in_spa": true,
+  "policy_architecture_parity_claimed": false,
+  "public_payload_mirror_mount": "/public",
+  "raw_credential_in_payload": "NEVER",
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "reverse_proxy_template": "v2/backend/scripts/nginx.dashboard.wajidali.us.conf.template",
+  "reverse_proxy_template_status": "OPERATOR_ACTION_REQUIRED_TO_INSTALL",
+  "schema_version": "v2_public_website_backend_online_dashboard_v2",
+  "spa_assets_mount": "/assets",
+  "spa_routes_served_by_backend": [
+    "/",
+    "/market",
+    "/admin/war-room"
+  ],
+  "uvicorn_factory": "app.main:create_app",
+  "uvicorn_host": "127.0.0.1",
+  "uvicorn_port": 8000,
+  "writes_exchange_orders": false,
+  "writes_legacy_redis": false
+}

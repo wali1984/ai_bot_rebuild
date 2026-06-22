@@ -1,0 +1,618 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "blocked_count": 13,
+  "codex_fail_count": 3,
+  "codex_pass_count": 1,
+  "current_autonomous_controller_state": {
+    "automatable_issue_count": 47,
+    "go_no_go": "V2_AUTONOMOUS_FULL_REBUILD_SELF_HEALING_CONTROLLER_READY",
+    "operator_owned_issue_count": 7,
+    "selected_work": {
+      "category": "RUNTIME_PROCESS_DOWN",
+      "duplicate_key": "4d972e8257fcbbf9",
+      "evidence": {
+        "pattern": "v2_continuous_legacy_log_to_rebuild_remediation",
+        "running": false
+      },
+      "owner": "CLAUDE",
+      "remediation": "investigate or restart per its start script; do not stop legacy",
+      "severity": "P1",
+      "source": "continuous_legacy_log_remediation"
+    },
+    "selector_status": "AUTOMATABLE_WORK_SELECTED"
+  },
+  "current_codex_failures": 3,
+  "current_pending_tasks": {
+    "claude": 0,
+    "codex": 18
+  },
+  "current_scorecard": {
+    "categories": {
+      "checkpoint_readiness": {
+        "blockers": [
+          "checkpoint not loaded; blob deserialization forbidden without operator approval"
+        ],
+        "next_action": "operator gate; do not deserialize checkpoint blobs",
+        "score": 0
+      },
+      "data_ingestion_completeness": {
+        "blockers": [
+          "alt-data lane payload absent",
+          "liquidation WSS publisher event-dependent"
+        ],
+        "next_action": "operator decides external feeds; wait for event/position-dependent publishers",
+        "score": 45
+      },
+      "decision_match_readiness": {
+        "blockers": [
+          "decision-match rate not yet certified against operator threshold"
+        ],
+        "next_action": "certify after observation/policy/checkpoint gates",
+        "score": 10
+      },
+      "frontend_truth_readiness": {
+        "blockers": [
+          "surface every BLOCKED state explicitly; avoid hidden readiness claim"
+        ],
+        "next_action": "monitor wording; refresh after every lane action",
+        "score": 70
+      },
+      "live_canary_readiness": {
+        "blockers": [
+          "live and canary remain blocked human-only"
+        ],
+        "next_action": "no autonomous action; human only",
+        "score": 0
+      },
+      "model_policy_readiness": {
+        "blockers": [
+          "policy architecture not started; operator gate required after observation gate"
+        ],
+        "next_action": "blocked by operator gate; do not start autonomously",
+        "score": 0
+      },
+      "observation_completeness": {
+        "blockers": [
+          "worst symbol still missing 1721 dims; many are external/operator/event/position dependent"
+        ],
+        "next_action": "advance only after operator-approved next gates; do not claim completion",
+        "score": 19
+      },
+      "paper_edge_readiness": {
+        "blockers": [
+          "no statistically significant positive after-cost edge yet"
+        ],
+        "next_action": "extend paper soak; require minimum trade count and after-cost positive expectancy",
+        "score": 0
+      },
+      "risk_readiness": {
+        "blockers": [
+          "operator caps unset (daily/weekly loss, position notional, consecutive losses, canary size)"
+        ],
+        "next_action": "operator sets numeric caps; risk gateway enforces strictly",
+        "score": 10
+      },
+      "runtime_stability": {
+        "blockers": [],
+        "next_action": "ensure controller cadence (systemd timer or manual --once); investigate stale controllers",
+        "score": 60
+      },
+      "symbol_universe_readiness": {
+        "blockers": [
+          "candidate-only; operator approval required for adoption"
+        ],
+        "next_action": "remain candidate-only until operator approval",
+        "score": 5
+      }
+    },
+    "overall_score": 19.9
+  },
+  "current_stalled_tasks": {
+    "claude": 0,
+    "codex": 18
+  },
+  "executive_summary": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "big_state_banner": [
+      {
+        "key": "MIGRATION_COMPLETE",
+        "plain_english": "V2 has not fully replaced legacy yet. Production-equivalence is still blocked.",
+        "value": "NO"
+      },
+      {
+        "key": "LEGACY_SHUTDOWN_READY",
+        "plain_english": "Legacy bot must keep running. Shutdown is blocked until V2 is a verified replacement.",
+        "value": "NO"
+      },
+      {
+        "key": "LIVE_READY",
+        "plain_english": "V2 is not approved for live trading. Live gate is blocked human-only and the live symbol list is empty.",
+        "value": "NO"
+      },
+      {
+        "key": "PAPER_EDGE_PROVEN",
+        "plain_english": "Paper trading has not yet produced a statistically significant positive after-cost edge.",
+        "value": "NO"
+      },
+      {
+        "evidence": {
+          "active_leases_count": 1,
+          "note": "AUTOMATION_EXECUTING is derived from active worker leases, NOT from worker heartbeats. Idle daemons do not count as execution.",
+          "source": "claude_worklog/final_readiness/v2_worker_pool_mission_progress/latest/worker_pool_mission_progress_status.json",
+          "worker_count_busy": 1,
+          "worker_count_idle_ready": 5
+        },
+        "key": "AUTOMATION_EXECUTING",
+        "plain_english": "Workers are currently leasing tasks.",
+        "value": "YES"
+      }
+    ],
+    "current_progress": {
+      "dataset_baseline_model": {
+        "claimed_trainer_native_readiness": false,
+        "plain_english": "A baseline model exists but is not certified as production trainer-native. Edge has not been demonstrated."
+      },
+      "dynamic_market_coverage": {
+        "active_symbol_count": 3,
+        "active_symbols": [
+          "BTCUSDT",
+          "ETHUSDT",
+          "SOLUSDT"
+        ],
+        "family_count": 10,
+        "plain_english": "Dynamic market data covers 3 symbols across 10 feature families. Symbol adoption beyond this list still requires operator approval."
+      },
+      "prediction_publisher": {
+        "old_redis_write_attempts": 0,
+        "plain_english": "V2 prediction publisher is writing payloads to v2:* Redis keys only. It is not approved as a live trading source.",
+        "redis_connected": true,
+        "writes_failed": 0,
+        "writes_succeeded": 52
+      },
+      "symbol_universe": {
+        "binance_usdm_confirmed_count": 86,
+        "coinank_symbols_directly_tradable": false,
+        "discovered_symbol_count": 89,
+        "plain_english": "Discovered symbols are intelligence-only until Binance USD-M confirms tradability AND an operator approves adoption."
+      },
+      "worker_pool": {
+        "active_leases_count": 1,
+        "current_automatable_queue_size": 3,
+        "mission_progress_state": "execution_active",
+        "plain_english": "Worker daemons are running. With 1 active leases right now, this is active execution.",
+        "worker_count_busy": 1,
+        "worker_count_idle_ready": 5
+      }
+    },
+    "headline": "MIGRATION_COMPLETE=NO, LEGACY_SHUTDOWN_READY=NO, LIVE_READY=NO, PAPER_EDGE_PROVEN=NO, AUTOMATION_EXECUTING=YES",
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "marker_glossary": {
+      "BLOCKED": "This lane is blocked by an open issue.",
+      "MISSING_PAYLOAD": "We expected a status file for this lane but did not find one.",
+      "OPERATOR_DECISION_REQUIRED": "A human decision is required before this lane can advance.",
+      "PASS": "This lane has passed its own gate.",
+      "READY": "This lane is ready (in its narrow sense; does not imply live readiness).",
+      "approves_canary=false": "This report does not approve enabling a canary (single-order live) run.",
+      "approves_legacy_shutdown=false": "Legacy bot must keep running. We are not approving its shutdown.",
+      "approves_live=false": "This report does not approve enabling live trading.",
+      "approves_redis_trim=false": "We are not approving deletion of legacy Redis keys.",
+      "automation_executing": "True only when a worker is actively holding a lease on a task right now.",
+      "legacy_shutdown_ready": "It is safe to turn off the legacy bot. Currently NO.",
+      "live_gate=blocked_human_only": "Live trading switch is off. Only a human operator can enable it.",
+      "live_ready": "V2 is safe to enable for live trading. Currently NO.",
+      "live_symbols=[]": "No symbol is approved for live trading. The live universe is empty.",
+      "migration_complete": "V2 fully replaces legacy in production. Currently NO.",
+      "paper_edge_proven": "Paper trading has produced a statistically significant positive after-cost edge.",
+      "production_equivalence_blocked=true": "V2 has not yet been proven to match legacy in production behavior.",
+      "shutdown_blocked=true": "Legacy shutdown is blocked because V2 is not yet a production replacement.",
+      "worker_capacity_ready": "Daemon workers are running but they may have zero active leases."
+    },
+    "next_required_actions": [
+      {
+        "blocks": [
+          "migration_complete",
+          "legacy_shutdown_ready"
+        ],
+        "key": "queue_consumption_remediation",
+        "owner": "AUTOMATION",
+        "plain_english": "Get the automatable queue actually consumed by workers so that AUTOMATION_EXECUTING flips to YES."
+      },
+      {
+        "blocks": [
+          "paper_edge_proven",
+          "live_ready"
+        ],
+        "key": "model_improvement_and_baseline_edge_proof",
+        "owner": "AUTOMATION",
+        "plain_english": "Improve the native model and prove a positive, after-cost, statistically significant paper edge."
+      },
+      {
+        "blocks": [
+          "paper_edge_proven"
+        ],
+        "key": "threshold_decision_packet",
+        "owner": "OPERATOR",
+        "plain_english": "Operator decides the numeric thresholds that count as 'edge' (min trades, min after-cost expectancy, max drawdown)."
+      },
+      {
+        "blocks": [
+          "live_ready"
+        ],
+        "key": "checkpoint_and_operator_decisions_later",
+        "owner": "OPERATOR",
+        "plain_english": "Later, the operator decides whether to load the legacy checkpoint and set risk caps. Do not act on these yet."
+      }
+    ],
+    "plain_english_truth": "V2 has dynamic market data coverage, a working prediction publisher, and a baseline model, but the model is not production-ready and paper trading has not yet proven a positive after-cost edge. Legacy must stay on. Live trading and legacy shutdown both remain blocked and require explicit human approval.",
+    "safety_invariants_plain_english": [
+      "Live trading stays off until a human turns it on.",
+      "Legacy keeps running.",
+      "No symbol is auto-adopted into live trading.",
+      "This page is a clarity layer only; it cannot approve anything."
+    ],
+    "schema_version": "v2_report_center_executive_summary_v1",
+    "top_blockers_plain": [
+      {
+        "evidence": {
+          "decision_match_score": 10,
+          "model_policy_score": 0
+        },
+        "key": "native_trainer_model_not_production_ready",
+        "plain_english": "The native V2 trainer/model is not production-ready. Policy architecture has not started; baseline model has no positive after-cost expectancy yet."
+      },
+      {
+        "evidence": {
+          "paper_edge_score": 0
+        },
+        "key": "paper_edge_not_proven",
+        "plain_english": "Paper trading has not produced a positive, statistically significant after-cost edge."
+      },
+      {
+        "evidence": {
+          "checkpoint_score": 0
+        },
+        "key": "checkpoint_not_loaded",
+        "plain_english": "Legacy checkpoint is not loaded. Deserialization is forbidden without operator approval."
+      },
+      {
+        "evidence": {
+          "risk_readiness_score": 10
+        },
+        "key": "risk_caps_unset",
+        "plain_english": "Operator risk caps (daily/weekly loss, position notional, consecutive losses, canary size) are not set."
+      },
+      {
+        "key": "legacy_shutdown_blocked",
+        "plain_english": "Legacy bot must keep running. V2 has not been certified as a production replacement."
+      },
+      {
+        "evidence": {
+          "active_leases_count": 1,
+          "automatable_queue_size": 3
+        },
+        "key": "worker_queue_executing_or_idle",
+        "plain_english": "Workers are leasing tasks."
+      }
+    ]
+  },
+  "fail_count": 3,
+  "generated_at": "2026-06-22T00:28:30Z",
+  "go_no_go": "V2_REPORT_CENTER_EXECUTIVE_CLARITY_REMEDIATION_READY",
+  "honesty_invariants": [
+    "missing payloads are shown with status MISSING_PAYLOAD and stale=true",
+    "no fake ready state when underlying lanes are blocked",
+    "secrets are redacted"
+  ],
+  "live_blocked": true,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "next_automatable_actions": [
+    {
+      "next_action": null,
+      "owner": "CODEX",
+      "report_id": "current_v2_migration_audit",
+      "status": "BLOCKED",
+      "title": "Current V2 Migration Audit"
+    },
+    {
+      "next_action": null,
+      "owner": "CLAUDE",
+      "report_id": "v2_full_dynamic_rebuild_implementation",
+      "status": "BLOCKED",
+      "title": "V2 Full Dynamic Rebuild Implementation"
+    },
+    {
+      "next_action": null,
+      "owner": "CODEX",
+      "report_id": "codex_24h_parallel_recovery_war_room_governor",
+      "status": "BLOCKED",
+      "title": "Codex 24H Parallel Recovery War-Room Governor"
+    },
+    {
+      "next_action": null,
+      "owner": "CODEX",
+      "report_id": "v2_legacy_production_service_parity_repair",
+      "status": "INFO",
+      "title": "Legacy Production Service Parity Repair"
+    },
+    {
+      "next_action": null,
+      "owner": "CODEX",
+      "report_id": "continuous_remediation_governor",
+      "status": "BLOCKED",
+      "title": "Continuous Remediation Governor"
+    },
+    {
+      "next_action": null,
+      "owner": "CLAUDE",
+      "report_id": "runtime_soak_and_production_equivalence",
+      "status": "BLOCKED",
+      "title": "Runtime Soak + Production-Equivalence"
+    },
+    {
+      "next_action": null,
+      "owner": "CLAUDE",
+      "report_id": "full_observation_builder",
+      "status": "BLOCKED",
+      "title": "Full Observation Builder Status"
+    },
+    {
+      "next_action": null,
+      "owner": "CLAUDE",
+      "report_id": "checkpoint_promotion",
+      "status": "OPERATOR_DECISION_REQUIRED",
+      "title": "Checkpoint Promotion"
+    }
+  ],
+  "next_operator_decisions": [],
+  "operator_decision_required_count": 1,
+  "production_equivalence_blocked": true,
+  "report_count": 73,
+  "required_visible_text": [
+    "Live trading is blocked.",
+    "Legacy shutdown is blocked.",
+    "Candidate symbols are not adopted automatically.",
+    "Recovery requires proof of edge before scaling.",
+    "No fake readiness."
+  ],
+  "schema_version": "v2_report_center_operator_dashboard_v1",
+  "shutdown_blocked": true,
+  "stale_report_count": 53,
+  "top_blockers": [
+    {
+      "blocks_live": true,
+      "blocks_production_equivalence": true,
+      "blocks_recovery": false,
+      "blocks_shutdown": true,
+      "current_blockers": [],
+      "go_no_go": "V2_CURRENT_MIGRATION_AUDIT_BLOCKED",
+      "next_action": null,
+      "owner": "CODEX",
+      "report_id": "current_v2_migration_audit",
+      "status": "BLOCKED",
+      "title": "Current V2 Migration Audit"
+    },
+    {
+      "blocks_live": true,
+      "blocks_production_equivalence": true,
+      "blocks_recovery": false,
+      "blocks_shutdown": true,
+      "current_blockers": [],
+      "go_no_go": "V2_FULL_DYNAMIC_REBUILD_IMPLEMENTATION_BLOCKED",
+      "next_action": null,
+      "owner": "CLAUDE",
+      "report_id": "v2_full_dynamic_rebuild_implementation",
+      "status": "BLOCKED",
+      "title": "V2 Full Dynamic Rebuild Implementation"
+    },
+    {
+      "blocks_live": true,
+      "blocks_production_equivalence": true,
+      "blocks_recovery": false,
+      "blocks_shutdown": true,
+      "current_blockers": [],
+      "go_no_go": "V2_FULL_DYNAMIC_REBUILD_BLOCKER_EXECUTION_CODEX_FAIL",
+      "next_action": null,
+      "owner": "CLAUDE+CODEX",
+      "report_id": "v2_full_dynamic_rebuild_blocker_execution",
+      "status": "FAIL",
+      "title": "V2 Full Dynamic Rebuild Blocker Execution"
+    },
+    {
+      "blocks_live": true,
+      "blocks_production_equivalence": true,
+      "blocks_recovery": false,
+      "blocks_shutdown": true,
+      "current_blockers": [],
+      "go_no_go": "V2_DYNAMIC_SYMBOL_COPIED_COMPONENT_RUNTIME_REMEDIATION_CODEX_FAIL",
+      "next_action": null,
+      "owner": "CLAUDE+CODEX",
+      "report_id": "v2_dynamic_symbol_remediation",
+      "status": "FAIL",
+      "title": "V2 Dynamic Symbol + Copied Component Runtime Remediation"
+    },
+    {
+      "blocks_live": true,
+      "blocks_production_equivalence": true,
+      "blocks_recovery": false,
+      "blocks_shutdown": true,
+      "current_blockers": [],
+      "go_no_go": "V2_FULL_COPIED_RUNTIME_TRADING_PLATFORM_RESTART_CODEX_FAIL",
+      "next_action": null,
+      "owner": "CLAUDE+CODEX",
+      "report_id": "v2_full_copied_runtime_restart",
+      "status": "FAIL",
+      "title": "V2 Full Copied Runtime + Trading Platform Restart"
+    },
+    {
+      "blocks_live": true,
+      "blocks_production_equivalence": true,
+      "blocks_recovery": false,
+      "blocks_shutdown": true,
+      "current_blockers": [
+        "required_runtime_services_missing",
+        "required_runtime_services_inactive",
+        "burn_in_12h_window_not_complete",
+        "dynamic_symbol_baseline_not_held",
+        "v2_market_liquidation_levels_zero_keys",
+        "paper_edge_not_proven",
+        "operator_edge_thresholds_not_set"
+      ],
+      "go_no_go": "V2_COPIED_RUNTIME_BURN_IN_AND_PAPER_EDGE_IMPROVEMENT_BLOCKED",
+      "next_action": "Continue paper/shadow burn-in, diagnose liquidation event absence, improve paper edge, and wait for operator edge thresholds.",
+      "owner": "CLAUDE+CODEX+SPARK",
+      "report_id": "v2_copied_runtime_burn_in_and_paper_edge_improvement",
+      "status": "BLOCKED",
+      "title": "V2 Copied Runtime Burn-In And Paper Edge Improvement"
+    },
+    {
+      "blocks_live": true,
+      "blocks_production_equivalence": true,
+      "blocks_recovery": true,
+      "blocks_shutdown": true,
+      "current_blockers": [],
+      "go_no_go": "CODEX_24H_PARALLEL_RECOVERY_WAR_ROOM_GOVERNOR_BLOCKED",
+      "next_action": null,
+      "owner": "CODEX",
+      "report_id": "codex_24h_parallel_recovery_war_room_governor",
+      "status": "BLOCKED",
+      "title": "Codex 24H Parallel Recovery War-Room Governor"
+    },
+    {
+      "blocks_live": false,
+      "blocks_production_equivalence": true,
+      "blocks_recovery": false,
+      "blocks_shutdown": false,
+      "current_blockers": [],
+      "go_no_go": "V2_CONTINUOUS_LEGACY_LOG_TO_REBUILD_REMEDIATION_BLOCKED",
+      "next_action": null,
+      "owner": "CODEX",
+      "report_id": "continuous_remediation_governor",
+      "status": "BLOCKED",
+      "title": "Continuous Remediation Governor"
+    },
+    {
+      "blocks_live": false,
+      "blocks_production_equivalence": true,
+      "blocks_recovery": false,
+      "blocks_shutdown": false,
+      "current_blockers": [],
+      "go_no_go": "CODEX_RUNTIME_SOAK_AND_PRODUCTION_EQUIVALENCE_GOVERNOR_BLOCKED",
+      "next_action": null,
+      "owner": "CLAUDE",
+      "report_id": "runtime_soak_and_production_equivalence",
+      "status": "BLOCKED",
+      "title": "Runtime Soak + Production-Equivalence"
+    },
+    {
+      "blocks_live": false,
+      "blocks_production_equivalence": true,
+      "blocks_recovery": false,
+      "blocks_shutdown": false,
+      "current_blockers": [],
+      "go_no_go": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+      "next_action": null,
+      "owner": "CLAUDE",
+      "report_id": "full_observation_builder",
+      "status": "BLOCKED",
+      "title": "Full Observation Builder Status"
+    },
+    {
+      "blocks_live": true,
+      "blocks_production_equivalence": true,
+      "blocks_recovery": false,
+      "blocks_shutdown": false,
+      "current_blockers": [],
+      "go_no_go": "V2_CHECKPOINT_PROMOTION_OPERATOR_REQUIRED",
+      "next_action": null,
+      "owner": "CLAUDE",
+      "report_id": "checkpoint_promotion",
+      "status": "OPERATOR_DECISION_REQUIRED",
+      "title": "Checkpoint Promotion"
+    },
+    {
+      "blocks_live": true,
+      "blocks_production_equivalence": true,
+      "blocks_recovery": true,
+      "blocks_shutdown": true,
+      "current_blockers": [],
+      "go_no_go": "V2_FINAL_PRODUCTION_EQUIVALENCE_BLOCKER_RESOLUTION_SPRINT_BLOCKED",
+      "next_action": null,
+      "owner": "SYSTEM",
+      "report_id": "v2_final_production_equivalence_blocker_resolution_sprint",
+      "status": "BLOCKED",
+      "title": "V2 Final Production Equivalence Blocker Resolution Sprint"
+    },
+    {
+      "blocks_live": true,
+      "blocks_production_equivalence": true,
+      "blocks_recovery": true,
+      "blocks_shutdown": true,
+      "current_blockers": [
+        "FLAT_BLOCKER_COUNT_REASON_BLOCKS_READY:BLOCKER_UNCHANGED_DUE_FAILED_REMEDIATION"
+      ],
+      "go_no_go": "V2_AUTONOMOUS_MISSION_EXECUTION_BURNDOWN_BLOCKED",
+      "next_action": null,
+      "owner": "SYSTEM",
+      "report_id": "v2_autonomous_mission_execution_burndown",
+      "status": "BLOCKED",
+      "title": "V2 Autonomous Mission Execution Burndown"
+    },
+    {
+      "blocks_live": true,
+      "blocks_production_equivalence": true,
+      "blocks_recovery": true,
+      "blocks_shutdown": true,
+      "current_blockers": [
+        "ELIGIBLE_AUTOMATABLE_WORK_NOT_LEASED_BY_IDLE_WORKERS",
+        "PROTECTED_AUTOMATION_UNIT_NOT_ACTIVE"
+      ],
+      "go_no_go": "V2_AUTONOMOUS_NO_MANUAL_NEXT_TASK_POLICY_BLOCKED",
+      "next_action": null,
+      "owner": "SYSTEM",
+      "report_id": "v2_autonomous_no_manual_next_task_policy",
+      "status": "BLOCKED",
+      "title": "V2 Autonomous No-Manual Next-Task Policy"
+    },
+    {
+      "blocks_live": true,
+      "blocks_production_equivalence": true,
+      "blocks_recovery": true,
+      "blocks_shutdown": true,
+      "current_blockers": [
+        "AUTOMATABLE_NOW_WITHOUT_ACTIVE_LEASE",
+        "REPLAY_MINER_STALE"
+      ],
+      "go_no_go": "V2_NO_STATUS_CHANGE_SLA_WATCHDOG_BLOCKED",
+      "next_action": null,
+      "owner": "SYSTEM",
+      "report_id": "v2_no_status_change_sla_watchdog",
+      "status": "BLOCKED",
+      "title": "V2 No Status Change SLA Watchdog"
+    },
+    {
+      "blocks_live": true,
+      "blocks_production_equivalence": true,
+      "blocks_recovery": true,
+      "blocks_shutdown": false,
+      "current_blockers": [
+        "SYMBOL_COUNT_NOT_93: symbol_count=86",
+        "PAPER_BACKTEST_EDGE_NOT_PROVEN: EDGE_NOT_CLAIMED_OPERATOR_THRESHOLDS_REQUIRED",
+        "WEBSITE_SYMBOLS_PAGE_NOT_WIRED: Symbols page does not read the dynamic 93 payload."
+      ],
+      "go_no_go": "V2_DYNAMIC_93_SYMBOL_RUNTIME_BURN_IN_EDGE_AND_WEBSITE_SYNC_BLOCKED",
+      "next_action": null,
+      "owner": "CODEX",
+      "report_id": "v2_dynamic_93_symbol_runtime_burn_in_edge_and_website_sync",
+      "status": "BLOCKED",
+      "title": "V2 Dynamic 93-Symbol Burn-In, Edge, and Website Sync"
+    }
+  ]
+}

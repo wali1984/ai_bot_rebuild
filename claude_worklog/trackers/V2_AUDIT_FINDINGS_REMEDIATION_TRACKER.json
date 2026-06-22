@@ -1,0 +1,94 @@
+{
+  "schema_version": "v2_audit_findings_remediation_tracker_v1",
+  "tracker_packet": "V2_AUDIT_FINDINGS_REMEDIATION_TRACKER_READY",
+  "generated_utc": "2026-05-20",
+  "source_audit": "INDEPENDENT_FULL_AUDIT.md",
+  "tracker_rules": [
+    "Append-mostly; incorrect findings move to WontFix with superseding evidence linked.",
+    "A finding is Done only after a corresponding V2_*_READY packet ships and Codex passes.",
+    "Codex reviewers must read this tracker before any live-canary or production-equivalence approval.",
+    "No date is promised for any Open finding; cadence is determined by operator + Codex review queue."
+  ],
+  "tracker_invariants": [
+    "Never auto-installs pip packages.",
+    "Never auto-enables a credentialed systemd timer.",
+    "Never claims a finding closed without V2_*_READY + Codex pass.",
+    "Never modifies /home/wali/Desktop/AI BOT.",
+    "Never touches legacy Redis keyspace.",
+    "Never issues live-trading or canary approvals.",
+    "Never promises a date for any Open finding."
+  ],
+  "lanes": [
+    {
+      "lane": 1,
+      "name": "native ingestors missing",
+      "findings": ["AUD-001", "AUD-007"],
+      "next_concrete_task": "V2_NATIVE_INGESTOR_BINANCE_USDM_OHLCV_READY (one ingestor per packet; resist suite-style mega-packets)"
+    },
+    {
+      "lane": 2,
+      "name": "trainer / checkpoint missing",
+      "findings": ["AUD-002", "AUD-004", "AUD-020"],
+      "next_concrete_task": "V2_RL_TRAINER_PORT_PHASE_1_READY"
+    },
+    {
+      "lane": 3,
+      "name": "trader / stops / TP / hedge missing",
+      "findings": ["AUD-003", "AUD-005", "AUD-006"],
+      "next_concrete_task": "V2_LIVE_CANARY_FIRST_REAL_ORDER_READY (operator + Codex final approval required; out of scope for tracker)"
+    },
+    {
+      "lane": 4,
+      "name": "dependency parity",
+      "findings": ["AUD-014", "AUD-015", "AUD-016", "AUD-017", "AUD-018", "AUD-019"],
+      "next_concrete_task": "V2_DEPENDENCY_MATRIX_AND_FREEZE_READY (publish the matrix first; do NOT install packages ad-hoc)"
+    },
+    {
+      "lane": 5,
+      "name": "Telegram alerts",
+      "findings": ["AUD-011"],
+      "next_concrete_task": "V2_TELEGRAM_ALERTS_NATIVE_READY"
+    },
+    {
+      "lane": 6,
+      "name": "watchdog / restart policy",
+      "findings": ["AUD-010"],
+      "next_concrete_task": "V2_CONTROL_PLANE_WATCHDOG_AUTORESTART_READY (convert hand-rolled monitor into systemd Restart=on-failure for all V2 units)"
+    },
+    {
+      "lane": 7,
+      "name": "config parity",
+      "findings": ["AUD-021"],
+      "next_concrete_task": "V2_RUNTIME_CONFIG_PARITY_PHASE_1_READY (port one config section per packet)"
+    },
+    {
+      "lane": 8,
+      "name": "DB decision",
+      "findings": ["AUD-012"],
+      "next_concrete_task": "V2_PERSISTENCE_DB_DECISION_READY (SQLite vs Postgres choice + constraints document BEFORE migrations)"
+    }
+  ],
+  "findings": [
+    {"id": "AUD-001", "lane": 1, "title": "Zero live ingestors running", "owner": "Claude/Codex queue", "status": "Open", "priority": "P0", "evidence": "INDEPENDENT_FULL_AUDIT.md §2"},
+    {"id": "AUD-002", "lane": 2, "title": "RL trainer not ported", "owner": "Claude/Codex queue", "status": "Open", "priority": "P0", "evidence": "INDEPENDENT_FULL_AUDIT.md §3"},
+    {"id": "AUD-003", "lane": 3, "title": "Live trader not ported", "owner": "Claude/Codex queue", "status": "Open", "priority": "P0", "evidence": "INDEPENDENT_FULL_AUDIT.md §4"},
+    {"id": "AUD-004", "lane": 2, "title": "AI checkpoint not loaded in paper loop", "owner": "Claude/Codex queue", "status": "Open", "priority": "P0", "evidence": "INDEPENDENT_FULL_AUDIT.md §8.I"},
+    {"id": "AUD-005", "lane": 3, "title": "Live-canary scaffold remains dry-run only", "owner": "Claude/Codex queue", "status": "Open by design", "priority": "P0", "evidence": "claude_worklog/final_readiness/v2_live_canary_dry_run_service/latest/"},
+    {"id": "AUD-006", "lane": 3, "title": "Trader sub-components missing", "owner": "Claude/Codex queue", "status": "Open", "priority": "P1", "evidence": "INDEPENDENT_FULL_AUDIT.md §4"},
+    {"id": "AUD-007", "lane": 1, "title": "Feature pipeline reads snapshots not live feeds", "owner": "Claude/Codex queue", "status": "Open (blocked by AUD-001)", "priority": "P1", "evidence": "INDEPENDENT_FULL_AUDIT.md §5"},
+    {"id": "AUD-008", "lane": 2, "title": "FastAPI backend not running", "owner": "Claude/Codex queue", "status": "Done", "completed_utc": "2026-05-20", "priority": "P1", "closing_gate": "V2_PUBLIC_WEBSITE_BACKEND_ONLINE_READY", "evidence": "claude_worklog/final_readiness/v2_public_website_backend_online/latest/V2_PUBLIC_WEBSITE_BACKEND_ONLINE_REPORT.md"},
+    {"id": "AUD-009", "lane": 2, "title": "REDIS_URL / LEGACY_REDIS_URL unset", "owner": "Claude/Codex queue", "status": "Done", "completed_utc": "2026-05-20", "priority": "P1", "closing_gate": "V2_PUBLIC_WEBSITE_BACKEND_ONLINE_READY", "evidence": "claude_worklog/systemd/user/ai-bot-v2-public-website-backend.service"},
+    {"id": "AUD-010", "lane": 6, "title": "No auto-restart watchdog for V2 services", "owner": "Claude/Codex queue", "status": "Open", "priority": "P1", "evidence": "INDEPENDENT_FULL_AUDIT.md §8.H"},
+    {"id": "AUD-011", "lane": 5, "title": "No Telegram alerts in V2", "owner": "Claude/Codex queue", "status": "Open", "priority": "P1", "evidence": "INDEPENDENT_FULL_AUDIT.md §8.E"},
+    {"id": "AUD-012", "lane": 8, "title": "No database / alembic migrations not run", "owner": "Claude/Codex queue", "status": "Open", "priority": "P1", "evidence": "INDEPENDENT_FULL_AUDIT.md §8.L"},
+    {"id": "AUD-013", "lane": "live-canary approval binding", "title": "Dry-run approval binding broken on prose file", "owner": "Claude/Codex queue", "status": "Done", "completed_utc": "2026-05-20", "priority": "P1", "closing_gate": "V2_LIVE_CANARY_PERMISSION_PROBE_FRESHNESS_AND_MIRROR_REMEDIATION_READY", "evidence": "claude_worklog/final_readiness/v2_live_canary_permission_probe_freshness_and_mirror_remediation/latest/V2_LIVE_CANARY_PERMISSION_PROBE_FRESHNESS_AND_MIRROR_REMEDIATION_REPORT.md", "close_reason": "Probe transitioned to READY in both mirrors at 2026-05-20T19:53:49Z. GATE_3 cleared from the dry-run executor's gate cascade. Approval parser correctness + mirror-consistency invariant + probe-READY transition all satisfied. The original prose-parsing fix stands; the credentialed-probe path is now wired via EnvironmentFile=- on the dry-run service so the inline probe can verify account-read against /fapi/v2/account."},
+    {"id": "AUD-014", "lane": 4, "title": "11+ critical pip packages missing in V2 venv", "owner": "Claude/Codex queue", "status": "Open", "priority": "P2", "evidence": "INDEPENDENT_FULL_AUDIT.md §6"},
+    {"id": "AUD-015", "lane": 4, "title": "pandas 3.0.2 (V2) vs 2.3.3 (legacy)", "owner": "Claude/Codex queue", "status": "Open", "priority": "P2", "evidence": "INDEPENDENT_FULL_AUDIT.md §6"},
+    {"id": "AUD-016", "lane": 4, "title": "pydantic 2.9.2 vs 2.12.5", "owner": "Claude/Codex queue", "status": "Open", "priority": "P2", "evidence": "INDEPENDENT_FULL_AUDIT.md §6"},
+    {"id": "AUD-017", "lane": 4, "title": "redis-py 5.0.8 vs 7.1.0", "owner": "Claude/Codex queue", "status": "Open", "priority": "P2", "evidence": "INDEPENDENT_FULL_AUDIT.md §6"},
+    {"id": "AUD-018", "lane": 4, "title": "fastapi 0.115.0 vs 0.128.0", "owner": "Claude/Codex queue", "status": "Open", "priority": "P2", "evidence": "INDEPENDENT_FULL_AUDIT.md §6"},
+    {"id": "AUD-019", "lane": 4, "title": "uvicorn 0.30.6 vs 0.40.0", "owner": "Claude/Codex queue", "status": "Open", "priority": "P2", "evidence": "INDEPENDENT_FULL_AUDIT.md §6"},
+    {"id": "AUD-020", "lane": 2, "title": "Torch nightly vs stable mismatch", "owner": "Claude/Codex queue", "status": "Open", "priority": "P2", "evidence": "INDEPENDENT_FULL_AUDIT.md §8.F"},
+    {"id": "AUD-021", "lane": 7, "title": "config.py (6,006 lines) has no V2 equivalent", "owner": "Claude/Codex queue", "status": "Open", "priority": "P2", "evidence": "INDEPENDENT_FULL_AUDIT.md §8.K"}
+  ]
+}

@@ -1,8 +1,8 @@
 # Codex Production URL Review
 
-Generated at: 2026-05-12T03:01:49.223Z
+Generated at: 2026-06-15T22:16:00.819Z
 
-Result: PRODUCTION_DASHBOARD_WAJIDALI_US_CODEX_PASS
+Result: PRODUCTION_DASHBOARD_WAJIDALI_US_CODEX_FAIL
 
 Reviewed artifacts:
 
@@ -15,8 +15,8 @@ Checks:
 - Any route 404: no
 - Placeholder-only route: no
 - Mission Control proof-dump-heavy: no
-- TradingView primary/fallback broken: no
+- TradingView primary/fallback broken: yes
 - Static proof presented as current runtime: no
 - Stale payloads hidden: no, stale payloads are visible when present
-- Live block hidden: no
+- Live block hidden: yes
 - Live/Redis/exchange mutation: none observed or performed

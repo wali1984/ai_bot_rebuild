@@ -1,0 +1,49 @@
+{
+  "status": "done",
+  "lane_registry": {
+    "runtime-claude": {
+      "worker_kind": "claude",
+      "mission_categories": [
+        "runtime_stability",
+        "production_equivalence",
+        "ingestor"
+      ],
+      "max_parallel": 2
+    },
+    "model-claude": {
+      "worker_kind": "claude",
+      "mission_categories": [
+        "trainer_model",
+        "checkpoint_contract",
+        "model_policy_readiness"
+      ],
+      "max_parallel": 1
+    },
+    "proof-claude": {
+      "worker_kind": "claude",
+      "mission_categories": [
+        "paper_edge",
+        "observation_completeness",
+        "decision_match",
+        "risk_control"
+      ],
+      "max_parallel": 1
+    },
+    "runtime-codex": {
+      "worker_kind": "codex",
+      "review_of": "runtime-claude",
+      "max_parallel": 2
+    },
+    "model-codex": {
+      "worker_kind": "codex",
+      "review_of": "model-claude",
+      "max_parallel": 1
+    },
+    "proof-codex": {
+      "worker_kind": "codex",
+      "review_of": "proof-claude",
+      "max_parallel": 1
+    }
+  },
+  "generated_utc": "2026-05-24T00:00:00Z"
+}

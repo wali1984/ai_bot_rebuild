@@ -1,0 +1,25 @@
+{
+  "gate": "V2_ONE_HOUR_TRAINER_RISK_ORCHESTRATOR_DATA_WEBSITE_MONITOR_AND_EXPLAINABILITY_READY",
+  "generated_est": "2026-06-10T00:43:45-04:00",
+  "ready": true,
+  "live_gate": "enabled_operator_approved",
+  "trader_state": "LIVE_ARMED_BALANCE_HOLD",
+  "live_submit_blocker": "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER",
+  "native_cuda_primary_predictions": 655,
+  "paper_accepted_fills": 5,
+  "paper_open_positions": 5,
+  "paper_equity": 9999.97223741,
+  "paper_pnl": -0.02776259,
+  "website_local_routes": "32/32",
+  "website_production_routes": "32/34",
+  "prediction_explainability_payload": "/operator_runtime/v2_prediction_signal_explanations/latest/prediction_signal_explanations.json",
+  "final_monitor_issues": [],
+  "safety": {
+    "real_order_mutation": false,
+    "test_order_called": false,
+    "leverage_or_margin_mutation": false,
+    "old_redis_write": false,
+    "legacy_restart": false,
+    "raw_credentials_emitted": false
+  }
+}

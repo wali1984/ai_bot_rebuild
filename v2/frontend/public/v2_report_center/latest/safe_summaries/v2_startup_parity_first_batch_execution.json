@@ -1,0 +1,26 @@
+{
+  "freshness_seconds": 2513478.0905406475,
+  "go_no_go": "V2_STARTUP_PARITY_FIRST_BATCH_EXECUTION_READY",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "owner": "CLAUDE",
+  "redaction_applied": false,
+  "report_id": "v2_startup_parity_first_batch_execution",
+  "sanitized_summary": {
+    "go_no_go": "V2_STARTUP_PARITY_FIRST_BATCH_EXECUTION_READY",
+    "pruned": {
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "go_no_go": "V2_STARTUP_PARITY_FIRST_BATCH_EXECUTION_READY",
+      "live_blocked": true,
+      "schema_version": "v2_startup_parity_first_batch_execution_v1_operator_dashboard_payload",
+      "shutdown_blocked": true,
+      "summary": {}
+    },
+    "redaction_applied": false,
+    "redaction_token": null,
+    "status": "READY"
+  },
+  "stale": true,
+  "status": "READY",
+  "title": "Startup Parity First-Batch Execution"
+}

@@ -1,0 +1,26 @@
+{
+  "schema_version": "v2_loss_recovery_v1",
+  "generated_at": "2026-06-21T23:02:29Z",
+  "symbol": "ALL",
+  "timeframe": "all",
+  "windows_evaluated": 3,
+  "losing_windows": 0,
+  "clean_windows": 3,
+  "tightening_applied": false,
+  "tightening_cleared": false,
+  "tightening_active": false,
+  "tightening_reason": null,
+  "consecutive_clean_windows": 0,
+  "recovery_required_windows": 3,
+  "actions": [],
+  "gate_overrides_active": false,
+  "min_confidence_if_tightened": 0.82,
+  "min_edge_bps_if_tightened": 25.0,
+  "allowed_timeframes_if_tightened": [
+    "1h",
+    "4h"
+  ],
+  "live_gate": "blocked_human_only",
+  "mutates_exchange": false,
+  "writes_old_redis": false
+}

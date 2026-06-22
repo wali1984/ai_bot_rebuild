@@ -1,0 +1,85 @@
+{
+  "schema_version": "v2_runtime_soak_6h_status_v1",
+  "generated_utc": "2026-05-17T16:58:30Z",
+  "go_no_go": "V2_RUNTIME_SOAK_6H_READY",
+  "evaluation_method": "Read raw soak_status.json + scoreboard + comparison + continuous_remediation_status; no wall-clock inference.",
+  "soak_authoritative_facts": {
+    "minutes_observed": 895.22,
+    "soak_15m_ready": true,
+    "soak_1h_ready": true,
+    "soak_6h_ready": true,
+    "all_v2_processes_uninterrupted": true,
+    "v2_namespaces_never_empty": true,
+    "observation_count": 184,
+    "first_observed_utc": "2026-05-17T02:00:21Z",
+    "last_observed_utc": "2026-05-17T16:55:34Z",
+    "soak_status_generated_utc": "2026-05-17T16:55:35Z",
+    "legacy_still_owns_production_observed": true
+  },
+  "runtime_authoritative_facts": {
+    "v2_runtime_running": true,
+    "v2_writes_v2_redis": true,
+    "v2_total_redis_key_count": 36,
+    "legacy_still_running": true,
+    "legacy_still_writes_production_redis": true,
+    "legacy_redis_key_counts": {
+      "prediction:*": 151,
+      "signals:*": 8
+    },
+    "shutdown_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",
+    "scoreboard_generated_utc": "2026-05-17T16:58:20Z"
+  },
+  "passthrough_authoritative_facts": {
+    "v2_orchestrator_decisions_schema_version": "v2_orchestrator_decisions_v2",
+    "v2_orchestrator_decisions_held_by_paper_fill_gate_count": 1,
+    "held_symbol": "SOLUSDT",
+    "held_block_reasons": ["NEGATIVE_EXPECTED_MOVE_AFTER_COST_BLOCK"],
+    "places_real_order_for_held_intent": false,
+    "v2_paper_intents_held_by_paper_fill_gate_count": 1,
+    "v2_paper_intents_held_decision": "HELD_BY_PAPER_FILL_GATE",
+    "production_equivalence_comparison_schema": "v2_production_equivalence_comparison_v2",
+    "passthrough_codex_decision": "PAPER_FILL_GATE_BLOCK_REASON_PASSTHROUGH_CODEX_PASS",
+    "prediction_paper_fill_allowed_by_symbol": {
+      "BTCUSDT": true,
+      "ETHUSDT": true,
+      "SOLUSDT": false
+    },
+    "no_solusdt_fill_created_from_held_signal": true
+  },
+  "remediation_authoritative_facts": {
+    "go_no_go": "V2_CONTINUOUS_LEGACY_LOG_TO_REBUILD_REMEDIATION_READY",
+    "gaps_severity_counts": {
+      "BLOCKS_PRODUCTION_EQUIVALENCE": 3,
+      "NO_ACTION_REQUIRED_SAFE_BLOCK": 4,
+      "OPERATOR_DECISION_REQUIRED": 3
+    },
+    "p1_fix_count": 0,
+    "production_equivalence_gaps_open": 3,
+    "remediation_tasks_created_count": 0,
+    "duplicate_task_suppression_count": 3,
+    "codex_5m_decision": "CODEX_CONTINUOUS_REMEDIATION_REVIEW_GOVERNOR_READY",
+    "codex_5m_fail_blockers": []
+  },
+  "honesty_record": {
+    "active_runtime_refresh_recorded_in": "claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/continuous_remediation/ACTIVE_RUNTIME_REFRESH_AUDIT.json",
+    "rolling_restart_event": "Phase 1 + Phase 2 rolling restart of comparator + continuous remediation + orchestrator + paper loops; <2s atomic burst for soak-impacting daemons; soak observer at 300s cadence did not catch the window so soak_status remained continuous",
+    "no_unrecorded_restart_windows": true
+  },
+  "next_required_fix": "CHECKPOINT_WEIGHT_BLOB_OPERATOR_REQUIRED. 6h paper-only soak is complete. Production-equivalence still blocked by missing approved checkpoint weight blob and by legacy still owning production Redis namespaces. Shutdown remains blocked. Live remains blocked_human_only.",
+  "next_gate_state": {
+    "v2_runtime_soak_6h": "READY",
+    "production_equivalence": "BLOCKED_BY_CHECKPOINT_WEIGHT_AND_LEGACY_OWNERSHIP",
+    "legacy_shutdown": "BLOCKED",
+    "live_trading": "blocked_human_only"
+  },
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "no_old_redis_writes": true,
+  "no_exchange_mutation": true,
+  "no_approval_tokens_created": true,
+  "no_paper_only_shutdown_acceptance_file_created": true
+}

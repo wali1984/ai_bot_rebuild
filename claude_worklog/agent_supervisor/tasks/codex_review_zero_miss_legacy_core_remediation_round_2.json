@@ -1,0 +1,39 @@
+{
+  "agent": "codex",
+  "allowed_paths": [
+    "v2/**",
+    "claude_worklog/**"
+  ],
+  "codex_governor_disposition": {
+    "disposition": "superseded_obsolete_not_a_pass",
+    "does_not_approve_canary": true,
+    "does_not_approve_live": true,
+    "does_not_approve_shutdown": true,
+    "does_not_claim_codex_pass": true,
+    "reason": "stale historical Codex review descriptor retired by full-rebuild self-healing governor; current final_readiness/codex packets supersede this descriptor",
+    "set_at_utc": "2026-05-23T01:34:32Z"
+  },
+  "forbidden": [
+    "old_redis_write",
+    "exchange_mutation",
+    "live_gate_change",
+    "live_symbols_non_empty",
+    "live_or_canary_approval",
+    "legacy_shutdown_approval",
+    "fake_empty_tools_shim",
+    "strict_smoke_pass_with_unresolved_imports",
+    "frontend_hides_no_go"
+  ],
+  "lane": "zero_miss_legacy_core_remediation_round_2_review",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "prompt": "Review ZERO_MISS_LEGACY_CORE_REMEDIATION_ROUND_2_READY. Independently verify the exact previous blockers are cleared: tools import resolved without fake shim, ingest.technical_analysis exists in v2/legacy_owned_runtime with SHA, monitoring.* copied/classified with SHA, dependency closure unresolved_local=0 and parse_errors=0, ingestor and monitoring strict smokes pass, no legacy-root imports, no old Redis writes, no exchange mutation, live_gate blocked_human_only, live_symbols empty, and frontend does not claim shutdown/live readiness. CODEX_GO_NO_GO.md must contain exactly ZERO_MISS_LEGACY_CORE_REMEDIATION_ROUND_2_CODEX_PASS or ZERO_MISS_LEGACY_CORE_REMEDIATION_ROUND_2_CODEX_FAIL.",
+  "required_output_files": [
+    "claude_worklog/final_readiness/zero_miss_legacy_core_lift_remediation/latest/codex_review/CODEX_ZERO_MISS_REMEDIATION_ROUND_2_REVIEW.md",
+    "claude_worklog/final_readiness/zero_miss_legacy_core_lift_remediation/latest/codex_review/CODEX_GO_NO_GO.md"
+  ],
+  "risk_level": "L2",
+  "status": "superseded_obsolete",
+  "task_id": "codex_review_zero_miss_legacy_core_remediation_round_2",
+  "task_timeout_seconds": 3600
+}

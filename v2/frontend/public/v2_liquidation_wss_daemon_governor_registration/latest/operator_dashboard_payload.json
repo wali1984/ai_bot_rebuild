@@ -1,0 +1,68 @@
+{
+  "schema_version": "v2_liquidation_wss_daemon_governor_registration_dashboard_v1",
+  "generated_utc": "2026-05-21T03:30:30Z",
+  "go_no_go": "V2_LIQUIDATION_WSS_DAEMON_GOVERNOR_REGISTRATION_READY",
+  "headline": "Persistent liquidation WSS daemon is now monitored by both the continuous remediation governor and the 8h war-room governor. Future cycles fail if the daemon dies or heartbeat drifts.",
+  "live_state": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "live_enabled": false,
+    "writes_legacy_redis": false,
+    "writes_exchange_orders": false,
+    "real_order_attempted": false,
+    "real_order_submitted": false,
+    "leverage_changed": false,
+    "margin_mode_changed": false,
+    "raw_credential_in_payload": "NEVER"
+  },
+  "monitored_process": {
+    "pattern": "v2_liquidation_wss_loop",
+    "registered_in_continuous_remediation_review_governor": true,
+    "registered_in_war_room_8h_review_governor": true
+  },
+  "monitored_systemd_service": {
+    "unit": "ai-bot-v2-liquidation-wss-paper-shadow.service",
+    "registered_in_war_room_8h_review_governor": true
+  },
+  "heartbeat_freshness_contract": {
+    "key": "v2:market:liquidations:heartbeat",
+    "must_exist": true,
+    "must_have_positive_ttl": true,
+    "process_mode_must_be": "persistent_daemon",
+    "live_gate_must_be": "blocked_human_only",
+    "live_symbols_must_be": [],
+    "writes_legacy_redis_must_be": false,
+    "writes_exchange_orders_must_be": false,
+    "no_synthetic_liquidation_events_must_be": true,
+    "continuous_remediation_max_age_seconds": 180,
+    "war_room_8h_max_age_seconds": 240
+  },
+  "per_symbol_keys_policy": {
+    "required_for_readiness": false,
+    "rationale": "No liquidation events means no per-symbol keys. Readiness only requires the heartbeat."
+  },
+  "drift_blockers_introduced": [
+    "LIQUIDATION_WSS_DAEMON_PROCESS_MODE_NOT_PERSISTENT_DAEMON",
+    "LIQUIDATION_WSS_DAEMON_LIVE_GATE_DRIFT",
+    "LIQUIDATION_WSS_DAEMON_LIVE_SYMBOLS_DRIFT"
+  ],
+  "preexisting_drift_blockers": [
+    "LIQUIDATION_WSS_HEARTBEAT_MISSING",
+    "LIQUIDATION_WSS_HEARTBEAT_TTL_NOT_POSITIVE",
+    "LIQUIDATION_WSS_HEARTBEAT_STALE",
+    "LIQUIDATION_WSS_HEARTBEAT_NOT_FRESH",
+    "LIQUIDATION_WSS_DAEMON_WRITES_LEGACY_REDIS_DRIFT",
+    "LIQUIDATION_WSS_DAEMON_WRITES_EXCHANGE_ORDERS_DRIFT",
+    "LIQUIDATION_WSS_DAEMON_SYNTHETIC_EVENT_DRIFT",
+    "LIQUIDATION_WSS_OLD_REDIS_WRITE_DRIFT",
+    "LIQUIDATION_WSS_EXCHANGE_MUTATION_DRIFT",
+    "LIQUIDATION_SYNTHETIC_EVENT_DRIFT",
+    "V2_OR_REMEDIATION_PROCESS_MISSING",
+    "V2_RUNTIME_PROCESS_MISSING",
+    "SYSTEMD_SERVICE_INACTIVE"
+  ],
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false
+}

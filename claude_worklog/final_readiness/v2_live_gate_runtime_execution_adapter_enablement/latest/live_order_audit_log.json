@@ -1,0 +1,9 @@
+{
+  "entries": [],
+  "generated_est": "2026-06-05T16:55:14-04:00",
+  "note": "Trader runtime state is enabled; this observer loop still has no live order transport bound.",
+  "orders_attempted_observed_by_this_flow": 0,
+  "orders_submitted_observed_by_this_flow": 0,
+  "schema_version": "live_order_audit_log_v1",
+  "service_id": "v2_live_gate_runtime_execution_adapter_enablement"
+}

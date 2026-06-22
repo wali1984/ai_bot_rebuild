@@ -1,0 +1,91 @@
+{
+  "external_source_blocker_count": 1,
+  "generated_utc": "2026-06-22T00:26:47Z",
+  "items": [
+    {
+      "blocker_id": "full_observation_builder.external_sources",
+      "classification": "SOURCE_MISSING_KEY_OPERATOR_REQUIRED",
+      "codex_review_task_id": null,
+      "defer_path": "keep legacy running and leave full observation/model edge blocked",
+      "family_key_presence": [
+        {
+          "env_var_names_checked": [
+            "GLASSNODE_API_KEY",
+            "CRYPTOQUANT_API_KEY",
+            "SANTIMENT_API_KEY"
+          ],
+          "missing_env_var_names": [
+            "GLASSNODE_API_KEY",
+            "CRYPTOQUANT_API_KEY",
+            "SANTIMENT_API_KEY"
+          ],
+          "present_env_var_names": [],
+          "raw_values_printed": false,
+          "raw_values_read": false,
+          "source_family": "onchain_btc"
+        },
+        {
+          "env_var_names_checked": [
+            "GLASSNODE_API_KEY",
+            "CRYPTOQUANT_API_KEY",
+            "SANTIMENT_API_KEY"
+          ],
+          "missing_env_var_names": [
+            "GLASSNODE_API_KEY",
+            "CRYPTOQUANT_API_KEY",
+            "SANTIMENT_API_KEY"
+          ],
+          "present_env_var_names": [],
+          "raw_values_printed": false,
+          "raw_values_read": false,
+          "source_family": "onchain_eth"
+        },
+        {
+          "env_var_names_checked": [
+            "TOKENMETRICS_API_KEY",
+            "TM_API_KEY"
+          ],
+          "missing_env_var_names": [
+            "TOKENMETRICS_API_KEY",
+            "TM_API_KEY"
+          ],
+          "present_env_var_names": [],
+          "raw_values_printed": false,
+          "raw_values_read": false,
+          "source_family": "unified_feature_family.token_metrics"
+        }
+      ],
+      "free_path": "defer external source and keep blocker visible",
+      "free_tier_codex_safe_confirmed_by_env_name_presence": false,
+      "free_tier_confirmation_env_names": [
+        "V2_EXTERNAL_SOURCE_FREE_TIER_CONFIRMED",
+        "V2_EXTERNAL_SOURCE_CODEX_SAFE_CONFIRMED"
+      ],
+      "implementation_task_id": null,
+      "implementation_task_seed_blocker": "OPERATOR_APPROVAL_REQUIRED_BEFORE_EXTERNAL_SOURCE_ADOPTION",
+      "implementation_task_seed_status": "NOT_SEEDED_OPERATOR_OR_SOURCE_BLOCKED",
+      "implementation_task_seeded": false,
+      "operator_accepted": false,
+      "paid_path": "operator approves source/tier and provides local secret by name only",
+      "raw_key_values_exposed": false,
+      "source_requirement": "Operator must approve adoption of external sources: onchain_btc, onchain_eth, unified_feature_family.token_metrics"
+    }
+  ],
+  "raw_key_values_exposed": false,
+  "raw_values_read": false,
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "creates_approval_tokens": false,
+    "fabricates_edge": false,
+    "fabricates_missing_observations": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "schema_version": "v2_external_source_decision_execution_status_v1"
+}

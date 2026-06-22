@@ -1,0 +1,28 @@
+{
+  "checkpoint_manifest_exists": true,
+  "latest_checkpoint_loadable": true,
+  "load_status": {
+    "checkpoint_id": "v2_hybrid_ckpt_b81193e8ca113cff44047e94",
+    "checkpoint_manifest_exists": true,
+    "latest_checkpoint_loadable": true,
+    "load_status": "LOADED",
+    "model_state_restored": true,
+    "optimizer_state_note": "AdamW optimizer is intentionally recreated each cycle; model weights persist.",
+    "optimizer_state_restored_or_intentionally_not_required": true,
+    "safe_weight_format": true,
+    "weight_blob_written": true,
+    "weight_file_format": "npz",
+    "weight_file_path": ".local_models/v2_native_rl_masa_ppo/v2_hybrid_ckpt_b81193e8ca113cff44047e94.weights.npz",
+    "weight_file_size_bytes": 25540019
+  },
+  "model_state_restored": true,
+  "optimizer_state_restored_or_intentionally_not_required": true,
+  "prediction_after_reload_hash": null,
+  "prediction_before_reload_hash": null,
+  "reload_drift_within_tolerance": true,
+  "safe_weight_format": true,
+  "weight_blob_written": true,
+  "weight_file_exists": true,
+  "weight_file_path": ".local_models/v2_native_rl_masa_ppo/v2_hybrid_ckpt_b81193e8ca113cff44047e94.weights.npz",
+  "weight_file_size_bytes": 25540019
+}

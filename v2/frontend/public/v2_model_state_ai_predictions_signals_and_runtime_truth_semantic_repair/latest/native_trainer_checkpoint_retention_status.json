@@ -1,0 +1,24 @@
+{
+  "best_checkpoint": null,
+  "checkpoint_count": 7,
+  "checkpoint_dir": ".local_models/v2_native_rl_masa_ppo",
+  "checkpoint_dir_size_bytes": 3622,
+  "checkpoint_rollover_limit_bytes": 322122547200,
+  "checkpoint_rollover_limit_gb": 300,
+  "checkpoint_rollover_status": "BELOW_LIMIT_NO_ACTION",
+  "checkpoint_total_size_gb": 3e-06,
+  "deleted_checkpoints": [],
+  "generated_est": "2026-06-14T17:00:30-04:00",
+  "latest_checkpoint": "v2_hybrid_ckpt_b81193e8ca113cff44047e94.json",
+  "latest_checkpoint_id": "v2_hybrid_ckpt_b81193e8ca113cff44047e94",
+  "never_delete_latest_checkpoint": true,
+  "never_delete_pinned_high_performing_checkpoint": true,
+  "oldest_checkpoint": "v2_hybrid_ckpt_8614a725d910bda7139a3c2f.json",
+  "pinned_checkpoints": [
+    "v2_hybrid_ckpt_b81193e8ca113cff44047e94.json"
+  ],
+  "rollover_action_taken": "NONE",
+  "rollover_limit_gb": 300,
+  "schema_version": "native_cuda_trainer_checkpoint_retention_manifest_v1",
+  "total_size_gb": 3e-06
+}

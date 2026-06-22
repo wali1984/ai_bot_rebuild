@@ -1,0 +1,219 @@
+{
+  "canary_cap_result": {
+    "allowed": false,
+    "blockers": [
+      "LIVE_CANARY_DISABLED",
+      "HUMAN_OPERATOR_ARM_REQUIRED"
+    ]
+  },
+  "exchange_action_taken": false,
+  "exchange_local_reconciliation_result": {
+    "blockers": [
+      "SIGNED_READ_TIMESTAMP_MISSING",
+      "HEDGE_MODE_MISMATCH",
+      "HEDGE_MODE_DISABLED",
+      "MARGIN_MODE_UNKNOWN"
+    ],
+    "exchange_position": {},
+    "local_position": {},
+    "mismatch_reason": "SIGNED_READ_TIMESTAMP_MISSING",
+    "open_orders": [],
+    "reconciled": false,
+    "signed_read_age_ms": null
+  },
+  "generated_at": "2026-06-13T03:04:32Z",
+  "lifecycle_safety_result": {
+    "status": "READY"
+  },
+  "live_canary_enabled": false,
+  "live_control_state": {
+    "exchange_action_taken": false,
+    "live_gate": "blocked_human_only",
+    "live_trading_enabled": false,
+    "order_transport_submit_enabled": false,
+    "places_real_order": false,
+    "release_mode": "NON_LIVE",
+    "transport_order_submitted": false
+  },
+  "live_order_submitted": false,
+  "live_trading_enabled": false,
+  "mtf_snapshot_count": 12,
+  "order_transport_submit_enabled": false,
+  "output_dir": "pass3a_live_canary_safety/20260613_030432",
+  "places_real_order": false,
+  "preflight": {
+    "audit_payload": {
+      "mtf_snapshot_exists": true,
+      "notional_usd": 0.0,
+      "pass2a_trusted_decision_ok": true,
+      "quantity": 0.0,
+      "replay_snapshot_exists": true,
+      "requested_action": "hold",
+      "strict_pipeline_trust_ok": true,
+      "symbol": "ALICEUSDT"
+    },
+    "blockers": [
+      "RELEASE_MODE_NON_LIVE",
+      "ORDER_TRANSPORT_SUBMIT_DISABLED",
+      "LIVE_TRADING_DISABLED",
+      "LIVE_CANARY_DISABLED",
+      "HUMAN_OPERATOR_ARM_REQUIRED",
+      "QUANTITY_NOT_POSITIVE",
+      "NOTIONAL_NOT_POSITIVE",
+      "ACTION_NOT_SUPPORTED",
+      "SIGNED_READ_TIMESTAMP_MISSING",
+      "HEDGE_MODE_MISMATCH",
+      "HEDGE_MODE_DISABLED",
+      "MARGIN_MODE_UNKNOWN"
+    ],
+    "canary_caps": {
+      "allowed": false,
+      "blockers": [
+        "LIVE_CANARY_DISABLED",
+        "HUMAN_OPERATOR_ARM_REQUIRED"
+      ]
+    },
+    "config": {
+      "allow_averaging_down": false,
+      "allow_direct_flip": false,
+      "allow_hedge_mode": false,
+      "allow_leverage_mutation": false,
+      "allow_margin_mode_mutation": false,
+      "allowed_symbols": [],
+      "expected_hedge_mode": false,
+      "expected_margin_mode": "cross",
+      "live_canary_enabled": false,
+      "max_daily_loss_usd": 10.0,
+      "max_daily_orders": 3,
+      "max_notional_usd": 10.0,
+      "max_open_positions": 1,
+      "max_signed_read_age_ms": 5000,
+      "quantity_tolerance": 1e-08,
+      "require_human_operator_arm": true,
+      "require_kill_switch_clear": true,
+      "require_mtf_snapshot": true,
+      "require_pass2a_trusted_decision": true,
+      "require_reduce_only_for_closes": true,
+      "require_replay_snapshot": true,
+      "require_strict_pipeline_trust": true
+    },
+    "exchange_local_reconciliation": {
+      "blockers": [
+        "SIGNED_READ_TIMESTAMP_MISSING",
+        "HEDGE_MODE_MISMATCH",
+        "HEDGE_MODE_DISABLED",
+        "MARGIN_MODE_UNKNOWN"
+      ],
+      "exchange_position": {},
+      "local_position": {},
+      "mismatch_reason": "SIGNED_READ_TIMESTAMP_MISSING",
+      "open_orders": [],
+      "reconciled": false,
+      "signed_read_age_ms": null
+    },
+    "live_canary_enabled": false,
+    "order_lifecycle": {
+      "status": "READY"
+    },
+    "reason_code": "RELEASE_MODE_NON_LIVE",
+    "state_machine": {
+      "allowed": false,
+      "audit_fields": {
+        "exchange_quantity": 0.0,
+        "exchange_side": "FLAT",
+        "local_quantity": 0.0,
+        "local_side": "FLAT",
+        "notional_usd": 0.0,
+        "quantity": 0.0,
+        "requested_action": "hold",
+        "symbol": "ALICEUSDT"
+      },
+      "blockers": [
+        "QUANTITY_NOT_POSITIVE",
+        "NOTIONAL_NOT_POSITIVE",
+        "ACTION_NOT_SUPPORTED"
+      ],
+      "expected_position_after": {
+        "quantity": 0.0,
+        "side": "FLAT",
+        "symbol": "ALICEUSDT"
+      },
+      "reason_code": "QUANTITY_NOT_POSITIVE",
+      "required_order_flags": {
+        "reduce_only": false
+      },
+      "transition_type": "UNKNOWN"
+    },
+    "submit_allowed": false,
+    "trust_contract": {
+      "allowed": true,
+      "blockers": []
+    }
+  },
+  "recorded_state_verifier_status": {
+    "decisions_loaded": 22,
+    "execution_records_loaded": 720,
+    "features_loaded": 660,
+    "future_feature_leak_count": 0,
+    "invalid_state_count": 18,
+    "invalid_state_rate": 0.012839,
+    "masa_ppo_cutoff_mismatch_count": 0,
+    "position_transition_reject_count": 0,
+    "records_loaded": 8916,
+    "trades_blocked_by_data_quality": 0,
+    "training_samples_loaded": 0,
+    "training_samples_rejected_count": 0
+  },
+  "redis_url": "redis://127.0.0.1:6379/0",
+  "replay_snapshot_count": 12,
+  "run_id": "20260613_030432",
+  "selected_candidate_decision": {
+    "decision_id": "decision_7f4d38e5336c588ace29c5f0",
+    "live_order_allowed": false,
+    "mtf_snapshot_id": "mtf_7f4d38e5336c588ace29c5f0",
+    "prediction_id": "v2h_9928573238c493093f4edd7d51919a8c",
+    "replay_snapshot_id": "decision_7f4d38e5336c588ace29c5f0",
+    "routes_to_live": false,
+    "selected_action": "hold",
+    "symbol": "ALICEUSDT",
+    "trust_schema_version": "pipeline_trust_v3"
+  },
+  "state_machine_result": {
+    "allowed": false,
+    "audit_fields": {
+      "exchange_quantity": 0.0,
+      "exchange_side": "FLAT",
+      "local_quantity": 0.0,
+      "local_side": "FLAT",
+      "notional_usd": 0.0,
+      "quantity": 0.0,
+      "requested_action": "hold",
+      "symbol": "ALICEUSDT"
+    },
+    "blockers": [
+      "QUANTITY_NOT_POSITIVE",
+      "NOTIONAL_NOT_POSITIVE",
+      "ACTION_NOT_SUPPORTED"
+    ],
+    "expected_position_after": {
+      "quantity": 0.0,
+      "side": "FLAT",
+      "symbol": "ALICEUSDT"
+    },
+    "reason_code": "QUANTITY_NOT_POSITIVE",
+    "required_order_flags": {
+      "reduce_only": false
+    },
+    "transition_type": "UNKNOWN"
+  },
+  "strict_verifier_status": {
+    "critical_failures": 0,
+    "failures": 183,
+    "passes": 4,
+    "total_findings": 187,
+    "warnings": 0
+  },
+  "submit_allowed": false,
+  "submit_block_reason": "RELEASE_MODE_NON_LIVE",
+  "trusted_prediction_count": 10
+}

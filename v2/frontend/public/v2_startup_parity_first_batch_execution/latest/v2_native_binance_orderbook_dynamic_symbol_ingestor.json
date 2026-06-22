@@ -1,0 +1,39 @@
+{
+  "blocked_reason": "v2 binance orderbook ingestor scaffold present; no live websocket started from the planner; operator decision required before connecting depth feeds for symbol expansion.",
+  "broad_audit": false,
+  "codex_review_required": true,
+  "does_not_fake_data": true,
+  "envelope_summary": {
+    "freshness_state_counts": {
+      "MISSING_SOURCE": 25
+    },
+    "gap_or_bridge": 25,
+    "publishable": 0,
+    "source_label_counts": {
+      "PLACEHOLDER_NOT_READY": 25
+    },
+    "total": 25
+  },
+  "file_lock_group": "v2_native_ingestor_binance_orderbook",
+  "forbidden_actions": [
+    "no_exchange_mutation",
+    "no_live_network_feed_started_from_planner",
+    "no_old_redis_writes",
+    "no_credential_load",
+    "no_v2_native_label_for_bridge_data"
+  ],
+  "go_no_go_marker": "V2_NATIVE_BINANCE_ORDERBOOK_DYNAMIC_SYMBOL_INGESTOR_SCAFFOLDED",
+  "implementation_artifact": "v2/backend/app/services/native_runtime_migration/first_batch_executor.py::task_b_binance_orderbook",
+  "implementation_status": "SCAFFOLDED_AWAITING_OPERATOR_CLIENT_DECISION",
+  "missing_source_policy": "Emit explicit MISSING_SOURCE, NO_CLIENT_PRESENT, BRIDGE_ONLY, or OPERATOR_DECISION_REQUIRED envelopes instead of fabricating V2-native payloads.",
+  "status": "SCAFFOLDED_AWAITING_OPERATOR_CLIENT_DECISION",
+  "target_redis_key_patterns": [
+    "v2:market:orderbook:binance:{symbol}",
+    "v2:market:orderbook:binance:heartbeat"
+  ],
+  "target_v2_keys": [
+    "v2:market:orderbook:binance:{symbol}",
+    "v2:market:orderbook:binance:heartbeat"
+  ],
+  "task_id": "v2_native_binance_orderbook_dynamic_symbol_ingestor"
+}

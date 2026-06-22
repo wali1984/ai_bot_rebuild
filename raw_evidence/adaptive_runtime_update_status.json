@@ -1,0 +1,38 @@
+{
+  "schema_version": "v2_continuous_hourly_monitor_v1",
+  "generated_at": "2026-06-21T23:02:29Z",
+  "outcome_memory_update": {
+    "schema_version": "v2_outcome_memory_updater_v1",
+    "generated_at": "2026-06-21T23:02:29Z",
+    "events_processed": 7,
+    "buckets_updated": 1,
+    "bucket_keys": [
+      "v2:paper:outcome_memory:BTCUSDT:1m"
+    ],
+    "trade_counts_per_bucket": {
+      "v2:paper:outcome_memory:BTCUSDT:1m": 7
+    },
+    "errors": [],
+    "live_gate": "blocked_human_only",
+    "mutates_exchange": false,
+    "writes_old_redis": false
+  },
+  "stores_updated": 12,
+  "store_types": [
+    "total_trades",
+    "win_count",
+    "loss_count",
+    "rolling_win_rate",
+    "rolling_ev_bps",
+    "avg_winner_bps",
+    "avg_loser_bps",
+    "max_drawdown_bps",
+    "consecutive_losses",
+    "last_trade_ts",
+    "degraded",
+    "soak_count"
+  ],
+  "gate_status": "blocked_human_only",
+  "mutates_exchange": false,
+  "writes_old_redis": false
+}

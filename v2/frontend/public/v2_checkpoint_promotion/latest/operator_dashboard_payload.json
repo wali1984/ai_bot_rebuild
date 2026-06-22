@@ -1,0 +1,139 @@
+{
+  "approved_root": ".local_models",
+  "approved_root_status": "ABSENT",
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "candidate_count": 0,
+  "candidates": [],
+  "codex_go_no_go": "V2_CHECKPOINT_PROMOTION_SHAPE_CONTRACT_TORCH_NATIVE_REMEDIATION_CODEX_PASS",
+  "codex_review_generated_utc": "2026-05-26T18:12:55Z",
+  "codex_shape_contract_review": {
+    "generated_utc": "2026-05-26T18:12:55Z",
+    "go_no_go": "V2_CHECKPOINT_PROMOTION_SHAPE_CONTRACT_TORCH_NATIVE_REMEDIATION_CODEX_PASS",
+    "public_review_path": "v2/frontend/public/v2_checkpoint_promotion/latest/codex_review/CODEX_REVIEW.md",
+    "review_path": "claude_worklog/final_readiness/v2_checkpoint_promotion/latest/codex_review/CODEX_REVIEW.md",
+    "safety": {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "calls_exchange_mutation": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "writes_old_redis": false
+    },
+    "schema_version": "codex_review_status_v1",
+    "tests_run": [
+      {
+        "command": "PYTHONPATH=. .venv/bin/python -m pytest v2/backend/tests/integration/cli/test_v2_checkpoint_promotion_status.py v2/backend/tests/integration/cli/test_v2_rl_core_p0_2c_checkpoint.py -q",
+        "result": "28 passed in 0.09s"
+      }
+    ],
+    "verdict": "V2_CHECKPOINT_PROMOTION_SHAPE_CONTRACT_TORCH_NATIVE_REMEDIATION_CODEX_PASS",
+    "verified_contract": {
+      "approved_root": ".local_models",
+      "flat_counts_unchanged": true,
+      "input_first_requires_explicit_marker": true,
+      "no_legacy_checkpoint_path_read": true,
+      "no_pickle_deserialization": true,
+      "no_torch_import": true,
+      "torch_output_first_supported": true
+    }
+  },
+  "generated_utc": "2026-05-26T17:53:09Z",
+  "go_no_go": "V2_CHECKPOINT_PROMOTION_OPERATOR_REQUIRED",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "no_git_commit_of_checkpoint_blob": true,
+  "no_legacy_filesystem_read": true,
+  "no_pickle_deserialization_attempted": true,
+  "no_torch_imported": true,
+  "no_weights_loaded": true,
+  "operator_instruction": "Place approved checkpoint + metadata under .local_models/ and rerun checkpoint promotion status.",
+  "orientation_counts": {
+    "METADATA_INPUT_FIRST_NORMALIZED": 0,
+    "NOT_EVALUATED": 0,
+    "SHAPE_MISMATCH": 0,
+    "TORCH_OUTPUT_FIRST": 0
+  },
+  "overall_state": "CHECKPOINT_OPERATOR_REQUIRED",
+  "schema_version": "v2_checkpoint_promotion_status_v2_torch_native_shape_contract",
+  "state_counts": {
+    "CHECKPOINT_BLOB_MISSING": 0,
+    "CHECKPOINT_METADATA_MISSING": 0,
+    "CHECKPOINT_METADATA_PRESENT_SHAPE_MISMATCH": 0,
+    "CHECKPOINT_OPERATOR_REQUIRED": 0,
+    "CHECKPOINT_PROMOTION_READY_FOR_CODEX_SHAPE_REVIEW": 0
+  },
+  "tensor_shape_layout_convention": "TORCH_NATIVE_OUTPUT_FIRST_OUT_IN",
+  "v2_policy_shape_contract": {
+    "action_count": 5,
+    "action_labels": [
+      "hold",
+      "long",
+      "short",
+      "close",
+      "hedge"
+    ],
+    "hidden_dim": 16,
+    "obs_dim": 26,
+    "tensor_flat_counts": {
+      "b1": 16,
+      "b2": 5,
+      "b_exp": 1,
+      "w1": 416,
+      "w2": 80,
+      "w_exp": 16
+    },
+    "tensor_shape_layout_convention": "TORCH_NATIVE_OUTPUT_FIRST_OUT_IN",
+    "tensor_shape_layout_rationale": "policy._linear indexes flat weights as w[j*in_dim+i] (output-first), matching torch nn.Linear(in,out).weight shape of [out, in].",
+    "tensor_shapes_per_layer": {
+      "b1": [
+        16
+      ],
+      "b2": [
+        5
+      ],
+      "b_exp": [
+        1
+      ],
+      "w1": [
+        16,
+        26
+      ],
+      "w2": [
+        5,
+        16
+      ],
+      "w_exp": [
+        1,
+        16
+      ]
+    },
+    "tensor_shapes_per_layer_input_first_legacy_normalizable_form": {
+      "b1": [
+        16
+      ],
+      "b2": [
+        5
+      ],
+      "b_exp": [
+        1
+      ],
+      "w1": [
+        26,
+        16
+      ],
+      "w2": [
+        16,
+        5
+      ],
+      "w_exp": [
+        16,
+        1
+      ]
+    }
+  }
+}

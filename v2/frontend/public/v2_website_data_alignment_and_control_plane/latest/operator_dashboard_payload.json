@@ -1,0 +1,46 @@
+{
+  "controls_present": false,
+  "dashboard_verification_summary": {
+    "all_reachable": true,
+    "any_failed": false,
+    "dashboard_base": "https://dashboard.wajidali.us"
+  },
+  "fake_readiness": false,
+  "generated_utc": "2026-06-04T03:30:09Z",
+  "go_no_go": "V2_WEBSITE_DATA_ALIGNMENT_AND_CONTROL_PLANE_READY",
+  "safety_scoreboard": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "did_not_call_exchange_mutation": true,
+    "did_not_enable_any_control": true,
+    "did_not_expose_raw_api_keys": true,
+    "did_not_modify_legacy_tree": true,
+    "did_not_mutate_cloudflare_configuration": true,
+    "did_not_render_live_or_order_or_shutdown_or_adopt_button": true,
+    "did_not_start_or_stop_frontend_build": true,
+    "did_not_stop_codex_governors": true,
+    "did_not_stop_legacy_runtime": true,
+    "did_not_stop_replay_miner": true,
+    "did_not_stop_report_center": true,
+    "did_not_stop_v2_runtime": true,
+    "did_not_write_old_redis_keys": true,
+    "frontend_does_not_read_redis_directly": true,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "no_fake_readiness": true,
+    "no_v2_native_label_for_bridge_data": true
+  },
+  "schema_version": "v2_website_data_alignment_and_control_plane_v1_operator_dashboard_payload",
+  "summary": {
+    "any_control_enabled": false,
+    "bridge_pages": 2,
+    "controls_count": 9,
+    "future_placeholders_count": 12,
+    "missing_payload_pages": 8,
+    "native_pages": 19,
+    "page_count": 22,
+    "placeholder_pages": 1
+  }
+}

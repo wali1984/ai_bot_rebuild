@@ -1,0 +1,131 @@
+{
+  "started_at_est": "2026-05-26T00:58:39-0400",
+  "finished_at_est": "2026-05-26T00:58:52-0400",
+  "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+  ],
+  "redis_available": true,
+  "redis_keys_written_total": 9,
+  "errors": 0,
+  "per_symbol": {
+    "BTCUSDT": {
+      "symbol": "BTCUSDT",
+      "premium_index": {
+        "symbol": "BTCUSDT",
+        "mark_price": 76731.9268913,
+        "index_price": 76771.66152174,
+        "estimated_settle_price": 76767.29114339,
+        "last_funding_rate": 7.112e-05,
+        "next_funding_time_ms": 1779782400000,
+        "interest_rate": 0.0001,
+        "binance_time_ms": 1779771520007
+      },
+      "open_interest": {
+        "symbol": "BTCUSDT",
+        "open_interest_contracts": 99507.579,
+        "binance_time_ms": 1779771516624
+      },
+      "orderbook_top": {
+        "symbol": "BTCUSDT",
+        "best_bid": 76721.8,
+        "best_ask": 76721.9,
+        "mid": 76721.85,
+        "spread_bps": 0.013034096543718489,
+        "bid_levels": 20,
+        "ask_levels": 20,
+        "update_id": 10631836347701,
+        "ev_time_ms": 1779771523573
+      },
+      "redis_keys_written": {
+        "v2:market:mark_price:BTCUSDT": 1,
+        "v2:market:open_interest:BTCUSDT": 1,
+        "v2:market:orderbook_top:BTCUSDT": 1
+      }
+    },
+    "ETHUSDT": {
+      "symbol": "ETHUSDT",
+      "premium_index": {
+        "symbol": "ETHUSDT",
+        "mark_price": 2093.6507907,
+        "index_price": 2094.68651163,
+        "estimated_settle_price": 2094.71047167,
+        "last_funding_rate": 2.293e-05,
+        "next_funding_time_ms": 1779782400000,
+        "interest_rate": 0.0001,
+        "binance_time_ms": 1779771525000
+      },
+      "open_interest": {
+        "symbol": "ETHUSDT",
+        "open_interest_contracts": 2148834.476,
+        "binance_time_ms": 1779771521427
+      },
+      "orderbook_top": {
+        "symbol": "ETHUSDT",
+        "best_bid": 2093.6,
+        "best_ask": 2093.61,
+        "mid": 2093.605,
+        "spread_bps": 0.04776450190087566,
+        "bid_levels": 20,
+        "ask_levels": 20,
+        "update_id": 10631836548718,
+        "ev_time_ms": 1779771528069
+      },
+      "redis_keys_written": {
+        "v2:market:mark_price:ETHUSDT": 1,
+        "v2:market:open_interest:ETHUSDT": 1,
+        "v2:market:orderbook_top:ETHUSDT": 1
+      }
+    },
+    "SOLUSDT": {
+      "symbol": "SOLUSDT",
+      "premium_index": {
+        "symbol": "SOLUSDT",
+        "mark_price": 84.34154837,
+        "index_price": 84.39314673,
+        "estimated_settle_price": 84.41828082,
+        "last_funding_rate": -0.00013859,
+        "next_funding_time_ms": 1779782400000,
+        "interest_rate": 0.0001,
+        "binance_time_ms": 1779771529011
+      },
+      "open_interest": {
+        "symbol": "SOLUSDT",
+        "open_interest_contracts": 9468027.68,
+        "binance_time_ms": 1779771526357
+      },
+      "orderbook_top": {
+        "symbol": "SOLUSDT",
+        "best_bid": 84.33,
+        "best_ask": 84.34,
+        "mid": 84.33500000000001,
+        "spread_bps": 1.1857473172473012,
+        "bid_levels": 20,
+        "ask_levels": 20,
+        "update_id": 10631836746864,
+        "ev_time_ms": 1779771532510
+      },
+      "redis_keys_written": {
+        "v2:market:mark_price:SOLUSDT": 1,
+        "v2:market:open_interest:SOLUSDT": 1,
+        "v2:market:orderbook_top:SOLUSDT": 1
+      }
+    }
+  },
+  "live_gate": "blocked_human_only",
+  "writes_exchange_orders": false,
+  "endpoints_used": [
+    "/fapi/v1/premiumIndex",
+    "/fapi/v1/openInterest",
+    "/fapi/v1/depth"
+  ],
+  "endpoints_never_called": [
+    "/fapi/v1/order",
+    "/fapi/v1/order/test",
+    "/fapi/v1/leverage",
+    "/fapi/v1/marginType",
+    "/sapi/v1/futures/transfer",
+    "/sapi/v1/capital/withdraw"
+  ]
+}

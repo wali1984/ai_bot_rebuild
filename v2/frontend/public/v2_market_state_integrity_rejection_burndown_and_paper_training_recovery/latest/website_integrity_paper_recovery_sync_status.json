@@ -1,0 +1,138 @@
+{
+  "canonical_payload": "operator_runtime/v2_runtime_truth/latest/runtime_pages_payload.json",
+  "generated_est": "2026-06-09T15:07:22-04:00",
+  "generated_utc": "2026-06-09T19:07:22Z",
+  "routes": [
+    {
+      "generated_est": "2026-06-09T15:07:21-04:00",
+      "route": "/dashboard",
+      "shows_binance_451_live_hold": true,
+      "shows_current_session_pnl": true,
+      "shows_integrity_rejection_reasons": true,
+      "shows_lifetime_stale_pnl_separately": true,
+      "shows_training_acceptance": true,
+      "source_endpoint": "/operator_runtime/v2_runtime_truth/latest/runtime_pages_payload.json"
+    },
+    {
+      "generated_est": "2026-06-09T15:07:21-04:00",
+      "route": "/landing",
+      "shows_binance_451_live_hold": true,
+      "shows_current_session_pnl": true,
+      "shows_integrity_rejection_reasons": true,
+      "shows_lifetime_stale_pnl_separately": true,
+      "shows_training_acceptance": true,
+      "source_endpoint": "/operator_runtime/v2_runtime_truth/latest/runtime_pages_payload.json"
+    },
+    {
+      "generated_est": "2026-06-09T15:07:21-04:00",
+      "route": "/trade/paper",
+      "shows_binance_451_live_hold": true,
+      "shows_current_session_pnl": true,
+      "shows_integrity_rejection_reasons": true,
+      "shows_lifetime_stale_pnl_separately": true,
+      "shows_training_acceptance": true,
+      "source_endpoint": "/operator_runtime/v2_runtime_truth/latest/runtime_pages_payload.json"
+    },
+    {
+      "generated_est": "2026-06-09T15:07:21-04:00",
+      "route": "/paper-trading",
+      "shows_binance_451_live_hold": true,
+      "shows_current_session_pnl": true,
+      "shows_integrity_rejection_reasons": true,
+      "shows_lifetime_stale_pnl_separately": true,
+      "shows_training_acceptance": true,
+      "source_endpoint": "/operator_runtime/v2_runtime_truth/latest/runtime_pages_payload.json"
+    },
+    {
+      "generated_est": "2026-06-09T15:07:21-04:00",
+      "route": "/portfolio",
+      "shows_binance_451_live_hold": true,
+      "shows_current_session_pnl": true,
+      "shows_integrity_rejection_reasons": true,
+      "shows_lifetime_stale_pnl_separately": true,
+      "shows_training_acceptance": true,
+      "source_endpoint": "/operator_runtime/v2_runtime_truth/latest/runtime_pages_payload.json"
+    },
+    {
+      "generated_est": "2026-06-09T15:07:21-04:00",
+      "route": "/signals",
+      "shows_binance_451_live_hold": true,
+      "shows_current_session_pnl": true,
+      "shows_integrity_rejection_reasons": true,
+      "shows_lifetime_stale_pnl_separately": true,
+      "shows_training_acceptance": true,
+      "source_endpoint": "/operator_runtime/v2_runtime_truth/latest/runtime_pages_payload.json"
+    },
+    {
+      "generated_est": "2026-06-09T15:07:21-04:00",
+      "route": "/ai-predictions",
+      "shows_binance_451_live_hold": true,
+      "shows_current_session_pnl": true,
+      "shows_integrity_rejection_reasons": true,
+      "shows_lifetime_stale_pnl_separately": true,
+      "shows_training_acceptance": true,
+      "source_endpoint": "/operator_runtime/v2_runtime_truth/latest/runtime_pages_payload.json"
+    },
+    {
+      "generated_est": "2026-06-09T15:07:21-04:00",
+      "route": "/system/trainer",
+      "shows_binance_451_live_hold": true,
+      "shows_current_session_pnl": true,
+      "shows_integrity_rejection_reasons": true,
+      "shows_lifetime_stale_pnl_separately": true,
+      "shows_training_acceptance": true,
+      "source_endpoint": "/operator_runtime/v2_runtime_truth/latest/runtime_pages_payload.json"
+    },
+    {
+      "generated_est": "2026-06-09T15:07:21-04:00",
+      "route": "/system/risk-controllers",
+      "shows_binance_451_live_hold": true,
+      "shows_current_session_pnl": true,
+      "shows_integrity_rejection_reasons": true,
+      "shows_lifetime_stale_pnl_separately": true,
+      "shows_training_acceptance": true,
+      "source_endpoint": "/operator_runtime/v2_runtime_truth/latest/runtime_pages_payload.json"
+    },
+    {
+      "generated_est": "2026-06-09T15:07:21-04:00",
+      "route": "/system/orchestrator",
+      "shows_binance_451_live_hold": true,
+      "shows_current_session_pnl": true,
+      "shows_integrity_rejection_reasons": true,
+      "shows_lifetime_stale_pnl_separately": true,
+      "shows_training_acceptance": true,
+      "source_endpoint": "/operator_runtime/v2_runtime_truth/latest/runtime_pages_payload.json"
+    },
+    {
+      "generated_est": "2026-06-09T15:07:21-04:00",
+      "route": "/system/execution",
+      "shows_binance_451_live_hold": true,
+      "shows_current_session_pnl": true,
+      "shows_integrity_rejection_reasons": true,
+      "shows_lifetime_stale_pnl_separately": true,
+      "shows_training_acceptance": true,
+      "source_endpoint": "/operator_runtime/v2_runtime_truth/latest/runtime_pages_payload.json"
+    },
+    {
+      "generated_est": "2026-06-09T15:07:21-04:00",
+      "route": "/system/readiness",
+      "shows_binance_451_live_hold": true,
+      "shows_current_session_pnl": true,
+      "shows_integrity_rejection_reasons": true,
+      "shows_lifetime_stale_pnl_separately": true,
+      "shows_training_acceptance": true,
+      "source_endpoint": "/operator_runtime/v2_runtime_truth/latest/runtime_pages_payload.json"
+    },
+    {
+      "generated_est": "2026-06-09T15:07:21-04:00",
+      "route": "/system/evidence",
+      "shows_binance_451_live_hold": true,
+      "shows_current_session_pnl": true,
+      "shows_integrity_rejection_reasons": true,
+      "shows_lifetime_stale_pnl_separately": true,
+      "shows_training_acceptance": true,
+      "source_endpoint": "/operator_runtime/v2_runtime_truth/latest/runtime_pages_payload.json"
+    }
+  ],
+  "schema_version": "website_integrity_paper_recovery_sync_status_v1"
+}

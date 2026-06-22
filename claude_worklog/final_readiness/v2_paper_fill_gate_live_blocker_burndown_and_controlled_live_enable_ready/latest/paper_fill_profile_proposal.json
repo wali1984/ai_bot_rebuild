@@ -1,0 +1,73 @@
+{
+  "apply_scope": "PAPER_SHADOW_ONLY",
+  "apply_to_live": false,
+  "expected_recovered_fills": 0,
+  "generated_est": "2026-06-05T14:16:19-04:00",
+  "introduced_false_positive_risk": "MEDIUM",
+  "operator_acceptance_required_for_live": true,
+  "profiles": {
+    "aggressive": {
+      "allowed_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "cooldown_seconds": 300,
+      "max_missing_features": 4,
+      "max_paper_positions": 5,
+      "max_slippage_bps": 4.5,
+      "max_spread_bps": 8.0,
+      "max_stale_features": 2,
+      "max_symbol_concentration": 0.7,
+      "min_confidence_calibrated": 0.55,
+      "min_data_coverage_percent": 70.0,
+      "min_expected_move_after_cost_bps": 5.0,
+      "min_liquidity_score": 0.5,
+      "profile": "aggressive"
+    },
+    "balanced": {
+      "allowed_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h"
+      ],
+      "cooldown_seconds": 600,
+      "max_missing_features": 2,
+      "max_paper_positions": 3,
+      "max_slippage_bps": 3.0,
+      "max_spread_bps": 5.0,
+      "max_stale_features": 1,
+      "max_symbol_concentration": 0.55,
+      "min_confidence_calibrated": 0.6,
+      "min_data_coverage_percent": 82.0,
+      "min_expected_move_after_cost_bps": 8.0,
+      "min_liquidity_score": 0.65,
+      "profile": "balanced"
+    },
+    "conservative": {
+      "allowed_timeframes": [
+        "1m",
+        "5m",
+        "15m"
+      ],
+      "cooldown_seconds": 1200,
+      "max_missing_features": 1,
+      "max_paper_positions": 2,
+      "max_slippage_bps": 2.0,
+      "max_spread_bps": 3.5,
+      "max_stale_features": 0,
+      "max_symbol_concentration": 0.45,
+      "min_confidence_calibrated": 0.66,
+      "min_data_coverage_percent": 90.0,
+      "min_expected_move_after_cost_bps": 12.0,
+      "min_liquidity_score": 0.75,
+      "profile": "conservative"
+    }
+  },
+  "schema_version": "paper_fill_profile_proposal_v1",
+  "selected_paper_profile": "balanced",
+  "service_id": "v2_paper_fill_gate_live_blocker_burndown_and_controlled_live_enable_ready"
+}

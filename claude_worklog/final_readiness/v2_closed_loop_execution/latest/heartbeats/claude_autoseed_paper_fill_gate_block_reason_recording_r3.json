@@ -1,0 +1,10 @@
+{
+  "alive": true,
+  "cmd": [
+    "/home/wali/.local/bin/claude",
+    "..."
+  ],
+  "pid": 2118862,
+  "task_id": "claude_autoseed_paper_fill_gate_block_reason_recording_r3",
+  "updated_at": "2026-05-25T02:03:28Z"
+}

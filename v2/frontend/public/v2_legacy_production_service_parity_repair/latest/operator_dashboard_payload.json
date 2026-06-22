@@ -1,0 +1,483 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "exchange_action_taken": false,
+  "execution_live_symbols": [],
+  "gate": "V2_LEGACY_PRODUCTION_SERVICE_PARITY_REPAIR_READY",
+  "generated_est": "2026-06-04T22:08:00-04:00",
+  "ingestors_status": {
+    "active_count": 15,
+    "classification": "INGESTORS_OK",
+    "total_count": 18
+  },
+  "legacy_restart_attempted": false,
+  "legacy_roles_total": 24,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "read_only_data_grid_ok": true,
+  "recommendation": "READONLY_PAPER_PARITY_REPAIRED_LIVE_REMAINS_BLOCKED",
+  "redis_counts": {
+    "features_latest": {
+      "by_timeframe": {
+        "15m": 101,
+        "1h": 101,
+        "1m": 101,
+        "4h": 101,
+        "5m": 101
+      },
+      "heartbeat_keys": 0,
+      "total": 505
+    },
+    "liquidation_levels": {
+      "by_timeframe": {
+        "15m": 101,
+        "1h": 101,
+        "1m": 101,
+        "4h": 101,
+        "5m": 101
+      },
+      "heartbeat_keys": 1,
+      "total": 505
+    },
+    "ohlcv": {
+      "by_timeframe": {
+        "15m": 101,
+        "1h": 101,
+        "1m": 101,
+        "4h": 101,
+        "5m": 101
+      },
+      "heartbeat_keys": 1,
+      "total": 505
+    },
+    "predictions": {
+      "by_timeframe": {
+        "15m": 101,
+        "1h": 101,
+        "1m": 202,
+        "4h": 101,
+        "5m": 101
+      },
+      "heartbeat_keys": 0,
+      "total": 606
+    },
+    "ta": {
+      "by_timeframe": {
+        "15m": 101,
+        "1h": 101,
+        "1m": 101,
+        "4h": 101,
+        "5m": 101
+      },
+      "heartbeat_keys": 1,
+      "total": 505
+    },
+    "ta_full": {
+      "by_timeframe": {
+        "15m": 101,
+        "1h": 101,
+        "1m": 101,
+        "4h": 101,
+        "5m": 101
+      },
+      "heartbeat_keys": 0,
+      "total": 505
+    },
+    "technical_analysis": {
+      "by_timeframe": {
+        "15m": 101,
+        "1h": 101,
+        "1m": 101,
+        "4h": 101,
+        "5m": 101
+      },
+      "heartbeat_keys": 0,
+      "total": 505
+    },
+    "unified_features": {
+      "by_timeframe": {
+        "15m": 101,
+        "1h": 101,
+        "1m": 101,
+        "4h": 101,
+        "5m": 101,
+        "latest": 505
+      },
+      "heartbeat_keys": 0,
+      "total": 1010
+    }
+  },
+  "redis_trim_attempted": false,
+  "required_readonly_roles_blocking": [],
+  "schema_version": "v2_legacy_production_service_parity_repair_v1",
+  "service_rows": [
+    {
+      "exchange_mutation_allowed": false,
+      "expected_systemd_unit": null,
+      "legacy_script": "vpn_monitor.py",
+      "legacy_service": "VPN Monitor",
+      "old_redis_write_allowed": false,
+      "real_reason_if_not_active": "VPN reconnect remains operator-only",
+      "required_for_readonly_parity": false,
+      "status": "REAL_REASON_NOT_ACTIVE",
+      "systemd_state": null,
+      "v2_equivalent": "v2_system_observability_status_publisher route/interface probe"
+    },
+    {
+      "exchange_mutation_allowed": false,
+      "expected_systemd_unit": null,
+      "legacy_script": "system_telegram_monitor.py",
+      "legacy_service": "Telegram System Monitor",
+      "old_redis_write_allowed": false,
+      "real_reason_if_not_active": "Telegram send remains operator-only",
+      "required_for_readonly_parity": false,
+      "status": "REAL_REASON_NOT_ACTIVE",
+      "systemd_state": null,
+      "v2_equivalent": "v2_system_observability_status_publisher Telegram config probe"
+    },
+    {
+      "exchange_mutation_allowed": false,
+      "expected_systemd_unit": null,
+      "legacy_script": "monitor_system_memory.py",
+      "legacy_service": "Memory / OOM Monitor",
+      "old_redis_write_allowed": false,
+      "real_reason_if_not_active": null,
+      "required_for_readonly_parity": true,
+      "status": "V2_STATUS_PAYLOAD_READY",
+      "systemd_state": null,
+      "v2_equivalent": "v2_system_observability_status_publisher memory/Redis telemetry"
+    },
+    {
+      "exchange_mutation_allowed": false,
+      "expected_systemd_unit": null,
+      "legacy_script": "scripts/memory_monitor.py",
+      "legacy_service": "Enhanced Memory Leak Detector",
+      "old_redis_write_allowed": false,
+      "real_reason_if_not_active": null,
+      "required_for_readonly_parity": true,
+      "status": "V2_STATUS_PAYLOAD_READY",
+      "systemd_state": null,
+      "v2_equivalent": "v2_system_observability_status_publisher process/memory telemetry"
+    },
+    {
+      "exchange_mutation_allowed": false,
+      "expected_systemd_unit": "ai-bot-v2-trainer-bridge.service",
+      "legacy_script": "scripts/monitor_trainer_predictions.py",
+      "legacy_service": "Trainer Predictions Monitor",
+      "old_redis_write_allowed": false,
+      "real_reason_if_not_active": null,
+      "required_for_readonly_parity": true,
+      "status": "V2_SERVICE_ACTIVE",
+      "systemd_state": {
+        "active": "active",
+        "load": "loaded",
+        "sub": "running"
+      },
+      "v2_equivalent": "v2_trainer_bridge + v2_system_observability trainer prediction count"
+    },
+    {
+      "exchange_mutation_allowed": false,
+      "expected_systemd_unit": "ai-bot-v2-native-ingestors-live-loop.service",
+      "legacy_script": "ingest/live_binance.py",
+      "legacy_service": "Binance Live",
+      "old_redis_write_allowed": false,
+      "real_reason_if_not_active": null,
+      "required_for_readonly_parity": true,
+      "status": "V2_SERVICE_ACTIVE",
+      "systemd_state": {
+        "active": "active",
+        "load": "loaded",
+        "sub": "running"
+      },
+      "v2_equivalent": "v2_native_ingestors_live_loop"
+    },
+    {
+      "exchange_mutation_allowed": false,
+      "expected_systemd_unit": "ai-bot-v2-kucoin-public-rest-loop.service",
+      "legacy_script": "ingest/live_kucoin.py",
+      "legacy_service": "KuCoin Live",
+      "old_redis_write_allowed": false,
+      "real_reason_if_not_active": null,
+      "required_for_readonly_parity": true,
+      "status": "V2_SERVICE_ACTIVE",
+      "systemd_state": {
+        "active": "active",
+        "load": "loaded",
+        "sub": "running"
+      },
+      "v2_equivalent": "v2_kucoin_ingestor_worker"
+    },
+    {
+      "exchange_mutation_allowed": false,
+      "expected_systemd_unit": "ai-bot-v2-coinank-global-bridge-loop.service",
+      "legacy_script": "ingest/live_coinank.py",
+      "legacy_service": "CoinAnk Live",
+      "old_redis_write_allowed": false,
+      "real_reason_if_not_active": null,
+      "required_for_readonly_parity": true,
+      "status": "V2_SERVICE_ACTIVE",
+      "systemd_state": {
+        "active": "active",
+        "load": "loaded",
+        "sub": "running"
+      },
+      "v2_equivalent": "v2_coinank_and_liquidation_bridge"
+    },
+    {
+      "exchange_mutation_allowed": false,
+      "expected_systemd_unit": "ai-bot-v2-coinank-global-bridge-loop.service",
+      "legacy_script": "ingest/live_coinank_global_aggregator.py",
+      "legacy_service": "CoinAnk Global Aggregator",
+      "old_redis_write_allowed": false,
+      "real_reason_if_not_active": null,
+      "required_for_readonly_parity": true,
+      "status": "V2_SERVICE_ACTIVE",
+      "systemd_state": {
+        "active": "active",
+        "load": "loaded",
+        "sub": "running"
+      },
+      "v2_equivalent": "v2_coinank_and_liquidation_bridge global aggregate"
+    },
+    {
+      "exchange_mutation_allowed": false,
+      "expected_systemd_unit": "ai-bot-v2-liquidation-wss-paper-shadow.service",
+      "legacy_script": "ingest/live_binance_liquidations.py",
+      "legacy_service": "Binance Liquidations WS",
+      "old_redis_write_allowed": false,
+      "real_reason_if_not_active": null,
+      "required_for_readonly_parity": true,
+      "status": "V2_SERVICE_ACTIVE",
+      "systemd_state": {
+        "active": "active",
+        "load": "loaded",
+        "sub": "running"
+      },
+      "v2_equivalent": "v2_liquidation_wss_loop"
+    },
+    {
+      "exchange_mutation_allowed": false,
+      "expected_systemd_unit": "ai-bot-v2-liquidation-levels-engine.service",
+      "legacy_script": "ingest/liquidation_bridge.py",
+      "legacy_service": "Liquidation Bridge",
+      "old_redis_write_allowed": false,
+      "real_reason_if_not_active": null,
+      "required_for_readonly_parity": true,
+      "status": "V2_SERVICE_ACTIVE",
+      "systemd_state": {
+        "active": "active",
+        "load": "loaded",
+        "sub": "running"
+      },
+      "v2_equivalent": "v2 liquidation WSS aggregate + levels engine"
+    },
+    {
+      "exchange_mutation_allowed": false,
+      "expected_systemd_unit": "ai-bot-v2-liquidation-levels-engine.service",
+      "legacy_script": "ingest/liquidation_levels_engine.py",
+      "legacy_service": "Liquidation Levels Engine",
+      "old_redis_write_allowed": false,
+      "real_reason_if_not_active": null,
+      "required_for_readonly_parity": true,
+      "status": "V2_SERVICE_ACTIVE",
+      "systemd_state": {
+        "active": "active",
+        "load": "loaded",
+        "sub": "running"
+      },
+      "v2_equivalent": "v2_liquidation_levels_engine"
+    },
+    {
+      "exchange_mutation_allowed": false,
+      "expected_systemd_unit": "ai-bot-v2-native-ingestors-live-loop.service",
+      "legacy_script": "ingest/realtime_price_provider.py",
+      "legacy_service": "Realtime Price Provider",
+      "old_redis_write_allowed": false,
+      "real_reason_if_not_active": null,
+      "required_for_readonly_parity": true,
+      "status": "V2_SERVICE_ACTIVE",
+      "systemd_state": {
+        "active": "active",
+        "load": "loaded",
+        "sub": "running"
+      },
+      "v2_equivalent": "v2_native_ingestors_live_loop prices"
+    },
+    {
+      "exchange_mutation_allowed": false,
+      "expected_systemd_unit": "ai-bot-v2-coinapi-wsds-loop.service",
+      "legacy_script": "ingest/live_coinapi_wsds.py",
+      "legacy_service": "CoinAPI WSDS",
+      "old_redis_write_allowed": false,
+      "real_reason_if_not_active": null,
+      "required_for_readonly_parity": true,
+      "status": "V2_SERVICE_ACTIVE",
+      "systemd_state": {
+        "active": "active",
+        "load": "loaded",
+        "sub": "running"
+      },
+      "v2_equivalent": "v2_coinapi_wsds_loop"
+    },
+    {
+      "exchange_mutation_allowed": false,
+      "expected_systemd_unit": "ai-bot-v2-coinapi-rest-fallback-loop.service",
+      "legacy_script": "ingest/live_coinapi_v1.py",
+      "legacy_service": "CoinAPI V1 WS",
+      "old_redis_write_allowed": false,
+      "real_reason_if_not_active": null,
+      "required_for_readonly_parity": true,
+      "status": "V2_SERVICE_ACTIVE",
+      "systemd_state": {
+        "active": "active",
+        "load": "loaded",
+        "sub": "running"
+      },
+      "v2_equivalent": "v2_coinapi_rest_ingestor_worker"
+    },
+    {
+      "exchange_mutation_allowed": false,
+      "expected_systemd_unit": "ai-bot-v2-native-ingestors-live-loop.service",
+      "legacy_script": "ohlcv_resampler_hotfix.py",
+      "legacy_service": "OHLCV Resampler",
+      "old_redis_write_allowed": false,
+      "real_reason_if_not_active": null,
+      "required_for_readonly_parity": true,
+      "status": "V2_SERVICE_ACTIVE",
+      "systemd_state": {
+        "active": "active",
+        "load": "loaded",
+        "sub": "running"
+      },
+      "v2_equivalent": "v2 native OHLCV five-timeframe keys"
+    },
+    {
+      "exchange_mutation_allowed": false,
+      "expected_systemd_unit": "ai-bot-v2-feature-pipeline-native-loop.service",
+      "legacy_script": "feature_pipeline.py",
+      "legacy_service": "Feature Pipeline",
+      "old_redis_write_allowed": false,
+      "real_reason_if_not_active": null,
+      "required_for_readonly_parity": true,
+      "status": "V2_SERVICE_ACTIVE",
+      "systemd_state": {
+        "active": "active",
+        "load": "loaded",
+        "sub": "running"
+      },
+      "v2_equivalent": "v2_feature_pipeline_native_loop 101 x 5"
+    },
+    {
+      "exchange_mutation_allowed": false,
+      "expected_systemd_unit": "ai-bot-v2-full-talib-ta-loop.service",
+      "legacy_script": "ingest/live_technical_analysis.py",
+      "legacy_service": "Technical Analysis Service",
+      "old_redis_write_allowed": false,
+      "real_reason_if_not_active": null,
+      "required_for_readonly_parity": true,
+      "status": "V2_SERVICE_ACTIVE",
+      "systemd_state": {
+        "active": "active",
+        "load": "loaded",
+        "sub": "running"
+      },
+      "v2_equivalent": "v2_full_talib_ta_loop + v2:technical_analysis:*"
+    },
+    {
+      "exchange_mutation_allowed": false,
+      "expected_systemd_unit": "ai-bot-v2-trainer-bridge.service",
+      "legacy_script": "rl/hybrid_trainer.py",
+      "legacy_service": "Hybrid Trainer",
+      "old_redis_write_allowed": false,
+      "real_reason_if_not_active": null,
+      "required_for_readonly_parity": true,
+      "status": "V2_SERVICE_ACTIVE",
+      "systemd_state": {
+        "active": "active",
+        "load": "loaded",
+        "sub": "running"
+      },
+      "v2_equivalent": "v2 CUDA trainer + rl-core sidecar + trainer bridge"
+    },
+    {
+      "exchange_mutation_allowed": false,
+      "expected_systemd_unit": "ai-bot-v2-orchestrator-arbitration-loop.service",
+      "legacy_script": "rl/orchestrator_worker.py",
+      "legacy_service": "Orchestrator Worker",
+      "old_redis_write_allowed": false,
+      "real_reason_if_not_active": null,
+      "required_for_readonly_parity": true,
+      "status": "V2_SERVICE_ACTIVE",
+      "systemd_state": {
+        "active": "active",
+        "load": "loaded",
+        "sub": "running"
+      },
+      "v2_equivalent": "v2_orchestrator_arbitration_loop"
+    },
+    {
+      "exchange_mutation_allowed": false,
+      "expected_systemd_unit": "ai-bot-v2-trade-management-paper-loop.service",
+      "legacy_script": "trading/trader.py",
+      "legacy_service": "Primary Trader",
+      "old_redis_write_allowed": false,
+      "real_reason_if_not_active": null,
+      "required_for_readonly_parity": true,
+      "status": "V2_SERVICE_ACTIVE",
+      "systemd_state": {
+        "active": "active",
+        "load": "loaded",
+        "sub": "running"
+      },
+      "v2_equivalent": "v2_trade_management_paper_loop paper-only"
+    },
+    {
+      "exchange_mutation_allowed": false,
+      "expected_systemd_unit": null,
+      "legacy_script": "trading/trader-asjad.py",
+      "legacy_service": "Asjad Trader",
+      "old_redis_write_allowed": false,
+      "real_reason_if_not_active": "multi-account live execution requires separate operator approval and audit contract",
+      "required_for_readonly_parity": false,
+      "status": "REAL_REASON_NOT_ACTIVE",
+      "systemd_state": null,
+      "v2_equivalent": "not ported to live multi-account; paper/live gate blocks execution"
+    },
+    {
+      "exchange_mutation_allowed": false,
+      "expected_systemd_unit": "ai-bot-v2-portfolio-state-publisher.service",
+      "legacy_script": "monitor_portfolio_primary.py",
+      "legacy_service": "Primary Portfolio Monitor",
+      "old_redis_write_allowed": false,
+      "real_reason_if_not_active": null,
+      "required_for_readonly_parity": true,
+      "status": "V2_SERVICE_ACTIVE",
+      "systemd_state": {
+        "active": "active",
+        "load": "loaded",
+        "sub": "running"
+      },
+      "v2_equivalent": "v2_portfolio_state_publisher"
+    },
+    {
+      "exchange_mutation_allowed": false,
+      "expected_systemd_unit": null,
+      "legacy_script": "monitor_portfolio_asjad.py",
+      "legacy_service": "Asjad Portfolio Monitor",
+      "old_redis_write_allowed": false,
+      "real_reason_if_not_active": "multi-account portfolio requires operator account contract",
+      "required_for_readonly_parity": false,
+      "status": "REAL_REASON_NOT_ACTIVE",
+      "systemd_state": null,
+      "v2_equivalent": "not ported to live multi-account; V2 account monitor remains read-only/operator-gated"
+    }
+  ],
+  "system_observability_status": {
+    "classification": "V2_SYSTEM_OBSERVABILITY_OK",
+    "degraded_sections": []
+  },
+  "worker_id": "v2_legacy_production_service_parity_repair",
+  "writes_legacy_redis": false
+}

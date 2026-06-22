@@ -1,0 +1,9 @@
+{
+  "accepted_fill_count": 0,
+  "current_session_equity": 10000.0,
+  "current_session_pnl": 0.0,
+  "generated_est": "2026-06-08T23:21:50-04:00",
+  "held_row_count": 122,
+  "reason": "NO_ACCEPTED_PAPER_FILL_IN_CURRENT_V2_LEDGER",
+  "schema_version": "paper_session_equity_status_v1"
+}

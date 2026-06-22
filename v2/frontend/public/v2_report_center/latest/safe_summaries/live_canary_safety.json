@@ -1,0 +1,34 @@
+{
+  "freshness_seconds": 2927942.1675093174,
+  "go_no_go": "V2_LIVE_CANARY_EXECUTION_ADAPTER_OPERATOR_GATED_READY",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "owner": "OPERATOR",
+  "redaction_applied": true,
+  "report_id": "live_canary_safety",
+  "sanitized_summary": {
+    "go_no_go": "V2_LIVE_CANARY_EXECUTION_ADAPTER_OPERATOR_GATED_READY",
+    "pruned": {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "checkpoint_compatibility_claimed": false,
+      "generated_utc": "2026-05-19T03:09:28Z",
+      "go_no_go": "V2_LIVE_CANARY_EXECUTION_ADAPTER_OPERATOR_GATED_READY",
+      "leverage_changed": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "margin_mode_changed": false,
+      "places_real_order": false,
+      "policy_architecture_parity_claimed": false,
+      "schema_version": "v2_live_canary_execution_adapter_operator_gated_dashboard_v1"
+    },
+    "redaction_applied": true,
+    "redaction_token": "***REDACTED***",
+    "status": "READY"
+  },
+  "stale": true,
+  "status": "READY",
+  "title": "Live / Canary Safety"
+}

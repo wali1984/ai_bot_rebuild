@@ -1,0 +1,8 @@
+{
+  "max_hold_seconds": 21600,
+  "min_hold_seconds": 0,
+  "stop_loss_bps": 80.0,
+  "take_profit_bps": 120.0,
+  "trailing_stop_bps": 60.0,
+  "triggered_count": 0
+}

@@ -1,0 +1,12 @@
+[Unit]
+Description=AI BOT V2 Closed-Loop Codex Review Runner (every 2 minutes)
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=2min
+AccuracySec=30s
+Persistent=true
+Unit=ai-bot-v2-codex-review-runner.service
+
+[Install]
+WantedBy=timers.target

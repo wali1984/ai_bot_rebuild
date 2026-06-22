@@ -1,0 +1,699 @@
+{
+  "by_symbol_edge": [
+    {
+      "after_cost_ci_lower_bps": -67.03279861450196,
+      "after_cost_expectancy_bps": -52.81629753112793,
+      "sample_count": 2,
+      "symbol": "1000BONKUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -69.39317764282227,
+      "after_cost_expectancy_bps": -68.97245025634766,
+      "sample_count": 2,
+      "symbol": "1000FLOKIUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -35.70404541015625,
+      "after_cost_expectancy_bps": -11.263958930969238,
+      "sample_count": 2,
+      "symbol": "1000PEPEUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -53.19961486816406,
+      "after_cost_expectancy_bps": -38.32059955596924,
+      "sample_count": 2,
+      "symbol": "1000SHIBUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -113.5816015625,
+      "after_cost_expectancy_bps": -78.00898551940918,
+      "sample_count": 2,
+      "symbol": "1INCHUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -45.30055526733398,
+      "after_cost_expectancy_bps": -44.36478805541992,
+      "sample_count": 2,
+      "symbol": "AAVEUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -29.183531913757324,
+      "after_cost_expectancy_bps": -19.235256791114807,
+      "sample_count": 2,
+      "symbol": "ADAUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -35.46082633972168,
+      "after_cost_expectancy_bps": -8.17335319519043,
+      "sample_count": 2,
+      "symbol": "ALGOUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -108.23175842285156,
+      "after_cost_expectancy_bps": -73.90902519226074,
+      "sample_count": 2,
+      "symbol": "ALICEUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -52.44869277954101,
+      "after_cost_expectancy_bps": -46.77381896972656,
+      "sample_count": 2,
+      "symbol": "APTUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -44.920577659606934,
+      "after_cost_expectancy_bps": -3.935347080230713,
+      "sample_count": 2,
+      "symbol": "ARBUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -72.67813583374023,
+      "after_cost_expectancy_bps": -57.780643463134766,
+      "sample_count": 2,
+      "symbol": "ARUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -48.63803802490234,
+      "after_cost_expectancy_bps": -45.564059257507324,
+      "sample_count": 2,
+      "symbol": "ASTERUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -92.83454223632813,
+      "after_cost_expectancy_bps": -76.63571166992188,
+      "sample_count": 2,
+      "symbol": "AUCTIONUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -59.22040985107422,
+      "after_cost_expectancy_bps": -45.75535774230957,
+      "sample_count": 2,
+      "symbol": "AVAXUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -116.31404815673828,
+      "after_cost_expectancy_bps": -76.38544082641602,
+      "sample_count": 2,
+      "symbol": "AVNTUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -115.10903900146485,
+      "after_cost_expectancy_bps": -65.88556098937988,
+      "sample_count": 2,
+      "symbol": "BANKUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -111.53975555419922,
+      "after_cost_expectancy_bps": -80.40720748901367,
+      "sample_count": 2,
+      "symbol": "BARDUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -87.16430252075196,
+      "after_cost_expectancy_bps": -46.2951979637146,
+      "sample_count": 2,
+      "symbol": "BCHUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -97.48078338623047,
+      "after_cost_expectancy_bps": -66.36165618896484,
+      "sample_count": 2,
+      "symbol": "BNBUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -107.64359771728516,
+      "after_cost_expectancy_bps": -97.64641189575195,
+      "sample_count": 2,
+      "symbol": "BTCUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -88.38693618774414,
+      "after_cost_expectancy_bps": -46.63880777359009,
+      "sample_count": 2,
+      "symbol": "CELRUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -37.031129035949704,
+      "after_cost_expectancy_bps": -7.016594409942627,
+      "sample_count": 2,
+      "symbol": "CHZUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -49.17427055358886,
+      "after_cost_expectancy_bps": -8.353799819946289,
+      "sample_count": 2,
+      "symbol": "CRVUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -33.538499183654785,
+      "after_cost_expectancy_bps": -17.385918974876404,
+      "sample_count": 2,
+      "symbol": "DASHUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -25.090449447631833,
+      "after_cost_expectancy_bps": -20.315147161483765,
+      "sample_count": 2,
+      "symbol": "DOGEUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -26.78446912765503,
+      "after_cost_expectancy_bps": -17.98167711496353,
+      "sample_count": 2,
+      "symbol": "DOTUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -89.46341064453125,
+      "after_cost_expectancy_bps": -50.68057346343994,
+      "sample_count": 2,
+      "symbol": "ENAUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -17.922515115737916,
+      "after_cost_expectancy_bps": -13.762755364179611,
+      "sample_count": 2,
+      "symbol": "EPICUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -13.790890235900878,
+      "after_cost_expectancy_bps": -0.5914301872253418,
+      "sample_count": 2,
+      "symbol": "ETHUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -8.450808868408203,
+      "after_cost_expectancy_bps": 1.0097179412841797,
+      "sample_count": 2,
+      "symbol": "FARTCOINUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -32.37076694488525,
+      "after_cost_expectancy_bps": -8.547175884246826,
+      "sample_count": 2,
+      "symbol": "FETUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -29.15297034263611,
+      "after_cost_expectancy_bps": -18.16414985060692,
+      "sample_count": 2,
+      "symbol": "FILUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -37.09890251159668,
+      "after_cost_expectancy_bps": -10.769949436187744,
+      "sample_count": 2,
+      "symbol": "GALAUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -66.7652687072754,
+      "after_cost_expectancy_bps": -47.27091598510742,
+      "sample_count": 2,
+      "symbol": "HBARUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -90.30161346435547,
+      "after_cost_expectancy_bps": -56.95508575439453,
+      "sample_count": 2,
+      "symbol": "HIGHUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -78.76161140441894,
+      "after_cost_expectancy_bps": -36.438502073287964,
+      "sample_count": 2,
+      "symbol": "HOMEUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -39.70586791992187,
+      "after_cost_expectancy_bps": -5.845941543579102,
+      "sample_count": 2,
+      "symbol": "HOTUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -58.930533752441406,
+      "after_cost_expectancy_bps": -44.26072883605957,
+      "sample_count": 2,
+      "symbol": "HUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -61.1116909790039,
+      "after_cost_expectancy_bps": -46.69189739227295,
+      "sample_count": 2,
+      "symbol": "HYPEUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -34.6514208984375,
+      "after_cost_expectancy_bps": -25.25061321258545,
+      "sample_count": 2,
+      "symbol": "ICPUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -41.74576965332031,
+      "after_cost_expectancy_bps": -40.746548652648926,
+      "sample_count": 2,
+      "symbol": "INJUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -97.0066534423828,
+      "after_cost_expectancy_bps": -63.46292495727539,
+      "sample_count": 2,
+      "symbol": "INUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -42.796692771911616,
+      "after_cost_expectancy_bps": -6.7037835121154785,
+      "sample_count": 2,
+      "symbol": "IRYSUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -77.78223892211913,
+      "after_cost_expectancy_bps": -57.51649284362793,
+      "sample_count": 2,
+      "symbol": "JSTUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -72.77359817504882,
+      "after_cost_expectancy_bps": -50.8594274520874,
+      "sample_count": 2,
+      "symbol": "JTOUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -39.534000091552734,
+      "after_cost_expectancy_bps": -38.47311973571777,
+      "sample_count": 2,
+      "symbol": "LABUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -82.71877059936523,
+      "after_cost_expectancy_bps": -51.39079189300537,
+      "sample_count": 2,
+      "symbol": "LDOUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -57.10092514038086,
+      "after_cost_expectancy_bps": -43.54634761810303,
+      "sample_count": 2,
+      "symbol": "LINKUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -57.01587860107422,
+      "after_cost_expectancy_bps": -45.22957706451416,
+      "sample_count": 2,
+      "symbol": "LITUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -21.02226917266846,
+      "after_cost_expectancy_bps": -20.519169807434082,
+      "sample_count": 2,
+      "symbol": "LTCUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -79.18649108886719,
+      "after_cost_expectancy_bps": -49.231136322021484,
+      "sample_count": 2,
+      "symbol": "MEMEUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -37.96638172149658,
+      "after_cost_expectancy_bps": -7.081197261810303,
+      "sample_count": 2,
+      "symbol": "MINAUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -68.4120915222168,
+      "after_cost_expectancy_bps": -46.20603561401367,
+      "sample_count": 2,
+      "symbol": "MONUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -80.22854705810546,
+      "after_cost_expectancy_bps": -54.058226585388184,
+      "sample_count": 2,
+      "symbol": "MOVRUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -107.09768920898438,
+      "after_cost_expectancy_bps": -81.56086921691895,
+      "sample_count": 2,
+      "symbol": "MYXUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -29.79087146759033,
+      "after_cost_expectancy_bps": -16.973870873451233,
+      "sample_count": 2,
+      "symbol": "NEARUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -75.06385177612304,
+      "after_cost_expectancy_bps": -51.22954177856445,
+      "sample_count": 2,
+      "symbol": "NEOUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -28.2371524810791,
+      "after_cost_expectancy_bps": -20.968079566955566,
+      "sample_count": 2,
+      "symbol": "NIGHTUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -81.33043365478515,
+      "after_cost_expectancy_bps": -51.01916980743408,
+      "sample_count": 2,
+      "symbol": "ONDOUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -73.30630493164062,
+      "after_cost_expectancy_bps": -53.46720600128174,
+      "sample_count": 2,
+      "symbol": "OPNUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -90.6390217590332,
+      "after_cost_expectancy_bps": -48.585530281066895,
+      "sample_count": 2,
+      "symbol": "OPUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -111.18869201660155,
+      "after_cost_expectancy_bps": -81.41174507141113,
+      "sample_count": 2,
+      "symbol": "PAXGUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -69.44518478393555,
+      "after_cost_expectancy_bps": -40.95441961288452,
+      "sample_count": 2,
+      "symbol": "PENDLEUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -46.69369857788086,
+      "after_cost_expectancy_bps": -39.44538688659668,
+      "sample_count": 2,
+      "symbol": "PENGUUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -37.174724960327154,
+      "after_cost_expectancy_bps": -8.619417190551758,
+      "sample_count": 2,
+      "symbol": "PEOPLEUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -92.55352890014649,
+      "after_cost_expectancy_bps": -55.284223556518555,
+      "sample_count": 2,
+      "symbol": "PIPPINUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -85.2833494567871,
+      "after_cost_expectancy_bps": -53.6681604385376,
+      "sample_count": 2,
+      "symbol": "POLUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -92.61033203125,
+      "after_cost_expectancy_bps": -55.38819599151611,
+      "sample_count": 2,
+      "symbol": "PORTALUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -88.28024505615234,
+      "after_cost_expectancy_bps": -49.07622814178467,
+      "sample_count": 2,
+      "symbol": "PUMPUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -83.61716567993163,
+      "after_cost_expectancy_bps": -60.847537994384766,
+      "sample_count": 2,
+      "symbol": "RAVEUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -21.302153949737548,
+      "after_cost_expectancy_bps": -14.166792273521423,
+      "sample_count": 2,
+      "symbol": "RENDERUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -75.40617706298828,
+      "after_cost_expectancy_bps": -73.94191551208496,
+      "sample_count": 2,
+      "symbol": "RIVERUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -33.65723342895508,
+      "after_cost_expectancy_bps": -15.6967031955719,
+      "sample_count": 2,
+      "symbol": "SAHARAUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -71.53163513183594,
+      "after_cost_expectancy_bps": -44.42110061645508,
+      "sample_count": 2,
+      "symbol": "SEIUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -17.7024192237854,
+      "after_cost_expectancy_bps": -16.275450348854065,
+      "sample_count": 2,
+      "symbol": "SIRENUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -83.77243057250976,
+      "after_cost_expectancy_bps": -63.024112701416016,
+      "sample_count": 2,
+      "symbol": "SKYAIUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -105.79732666015624,
+      "after_cost_expectancy_bps": -85.5639476776123,
+      "sample_count": 2,
+      "symbol": "SLXUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -6.385430030822754,
+      "after_cost_expectancy_bps": -6.0689826011657715,
+      "sample_count": 2,
+      "symbol": "SOLUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -98.82383605957031,
+      "after_cost_expectancy_bps": -78.68453025817871,
+      "sample_count": 2,
+      "symbol": "SSVUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -38.007660446166994,
+      "after_cost_expectancy_bps": -7.445959091186523,
+      "sample_count": 2,
+      "symbol": "STOUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -33.21512142181396,
+      "after_cost_expectancy_bps": -22.04337787628174,
+      "sample_count": 2,
+      "symbol": "SUIUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -78.85594985961913,
+      "after_cost_expectancy_bps": -56.81518745422363,
+      "sample_count": 2,
+      "symbol": "SUNUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -84.16420837402345,
+      "after_cost_expectancy_bps": -47.995808601379395,
+      "sample_count": 2,
+      "symbol": "SUSHIUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -80.42368408203126,
+      "after_cost_expectancy_bps": -59.631757736206055,
+      "sample_count": 2,
+      "symbol": "TAOUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -55.10089340209961,
+      "after_cost_expectancy_bps": -48.02402114868164,
+      "sample_count": 2,
+      "symbol": "TONUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -33.71048805236816,
+      "after_cost_expectancy_bps": -23.19094681739807,
+      "sample_count": 2,
+      "symbol": "TRUMPUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -56.36764617919922,
+      "after_cost_expectancy_bps": -50.927940368652344,
+      "sample_count": 2,
+      "symbol": "TRXUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -20.434192943573,
+      "after_cost_expectancy_bps": -18.99871850013733,
+      "sample_count": 2,
+      "symbol": "UNIUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -56.112596893310545,
+      "after_cost_expectancy_bps": -46.25692272186279,
+      "sample_count": 2,
+      "symbol": "VIRTUALUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -38.29015068054199,
+      "after_cost_expectancy_bps": -36.1015043258667,
+      "sample_count": 2,
+      "symbol": "VVVUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -32.54595321655273,
+      "after_cost_expectancy_bps": -9.782018184661865,
+      "sample_count": 2,
+      "symbol": "WIFUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -85.60125823974609,
+      "after_cost_expectancy_bps": -42.69520425796509,
+      "sample_count": 2,
+      "symbol": "WLDUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -67.62832550048827,
+      "after_cost_expectancy_bps": -47.49777317047119,
+      "sample_count": 2,
+      "symbol": "WLFIUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -110.1996499633789,
+      "after_cost_expectancy_bps": -80.23102760314941,
+      "sample_count": 2,
+      "symbol": "XAUTUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -23.89294691562652,
+      "after_cost_expectancy_bps": -0.9045243859291077,
+      "sample_count": 2,
+      "symbol": "XLMUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -75.28394607543945,
+      "after_cost_expectancy_bps": -38.853861808776855,
+      "sample_count": 2,
+      "symbol": "XMRUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -73.06293914794921,
+      "after_cost_expectancy_bps": -40.57340955734253,
+      "sample_count": 2,
+      "symbol": "XPLUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -29.084100646972658,
+      "after_cost_expectancy_bps": -26.964772701263428,
+      "sample_count": 2,
+      "symbol": "XRPUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -113.3527914428711,
+      "after_cost_expectancy_bps": -59.29265880584717,
+      "sample_count": 2,
+      "symbol": "ZECUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -65.26108917236328,
+      "after_cost_expectancy_bps": -52.436302185058594,
+      "sample_count": 2,
+      "symbol": "ZROUSDT"
+    }
+  ],
+  "confidence_calibration": {
+    "mean_confidence_calibrated": 0.5039949293997669,
+    "outcome_labels_available": false,
+    "verdict": "OUTCOMES_PENDING_BURN_IN"
+  },
+  "drawdown": null,
+  "edge_proven": false,
+  "false_negatives": null,
+  "false_positives": null,
+  "forbidden_claims_absent": {
+    "canary_ready_claim": true,
+    "live_ready_claim": true,
+    "profitable_edge_claim": true
+  },
+  "generated_est": "2026-06-04T16:41:37-04:00",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "new_cuda_trainer": {
+    "after_cost_ci_lower_bps": -44.72233303670349,
+    "after_cost_expectancy_bps": -41.03400662452868,
+    "prediction_count": 202,
+    "sample_count": 202
+  },
+  "old_wrapper_baseline": {
+    "edge_proven": false,
+    "status": "BASELINE_COMPARISON_NOT_AVAILABLE_IN_CURRENT_SOURCE_PAYLOAD"
+  },
+  "overconfidence_examples": [
+    {
+      "confidence_calibrated": 0.5283518584460636,
+      "expected_move_after_cost_bps": -39.33485984802246,
+      "prediction_id": "v2h_8edf42796079fef8fcbecc3a3bce8595",
+      "symbol": "HYPEUSDT"
+    },
+    {
+      "confidence_calibrated": 0.5271847396246154,
+      "expected_move_after_cost_bps": -56.013702392578125,
+      "prediction_id": "v2h_95c4e992bc70f09e05522b58f8ca9cde",
+      "symbol": "AVNTUSDT"
+    },
+    {
+      "confidence_calibrated": 0.5253670872703368,
+      "expected_move_after_cost_bps": -68.40937423706055,
+      "prediction_id": "v2h_33f346bf665f47eb706c2e4af45b7db9",
+      "symbol": "SSVUSDT"
+    },
+    {
+      "confidence_calibrated": 0.5241879115620154,
+      "expected_move_after_cost_bps": -56.39742660522461,
+      "prediction_id": "v2h_cd8d203fa04509df5c776fe30893be09",
+      "symbol": "ALICEUSDT"
+    },
+    {
+      "confidence_calibrated": 0.5237896329329792,
+      "expected_move_after_cost_bps": -43.99570274353027,
+      "prediction_id": "v2h_fe305bb1399e8b96436a1bdd66027fd4",
+      "symbol": "ASTERUSDT"
+    },
+    {
+      "confidence_calibrated": 0.5233917168666828,
+      "expected_move_after_cost_bps": -68.75779342651367,
+      "prediction_id": "v2h_0a8f4823fab1acbc4292bdbd835dfb36",
+      "symbol": "1000FLOKIUSDT"
+    },
+    {
+      "confidence_calibrated": 0.5230746092057249,
+      "expected_move_after_cost_bps": -64.52325439453125,
+      "prediction_id": "v2h_01a8b6ce0d1b5a140dac686a91ee55f3",
+      "symbol": "BARDUSDT"
+    },
+    {
+      "confidence_calibrated": 0.523068949770455,
+      "expected_move_after_cost_bps": -39.678728103637695,
+      "prediction_id": "v2h_10256d9138bbb247921632675113bf26",
+      "symbol": "JTOUSDT"
+    }
+  ],
+  "primary_recommendation": "BLOCK_LIVE_PAPER_EDGE_NOT_PROVEN",
+  "recommendations": [
+    "BLOCK_LIVE_PAPER_EDGE_NOT_PROVEN",
+    "BLOCK_LIVE_MODEL_SIGNAL_QUALITY_NOT_READY",
+    "BLOCK_LIVE_RISK_CAPS_OPERATOR_REQUIRED"
+  ],
+  "schema_version": "v2_native_cuda_trainer_runtime_signal_burn_in_live_gate_v1_edge_recompute",
+  "status": "EDGE_RECOMPUTE_READY_BLOCK_LIVE_EDGE_NOT_PROVEN",
+  "strategy_fallback": {
+    "no_trade_preservation": true,
+    "status": "NO_TRADE_PRESERVATION_REMAINS_ACTIVE"
+  }
+}

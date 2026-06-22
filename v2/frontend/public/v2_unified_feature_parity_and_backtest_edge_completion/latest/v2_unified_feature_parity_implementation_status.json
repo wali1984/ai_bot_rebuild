@@ -1,0 +1,156 @@
+{
+  "available_prior_blocked_field_rows_count": 6260,
+  "blocked_rows_reduced_from_available_prior": 691,
+  "blocked_rows_reduced_from_operator_reported_prior": 8119,
+  "current_blocked_field_rows_count": 5569,
+  "execution_live_symbols": [],
+  "fallback_policy": "fallback_allowed=false for blocked rows; missing values remain masked, not zero-filled as truth",
+  "generated_est": "2026-06-04T22:10:00-04:00",
+  "implemented_now": [
+    "V2OnlyJsonIO now reads Redis hash payloads for V2 feature keys.",
+    "Hybrid data loader merges V2 microstructure and liquidation fallback keys instead of stopping at a partial payload.",
+    "Tensor builder maps Binance funding, open interest, OI history, mark/index basis, liquidation distance/strength, and last liquidation bps from real V2 payloads.",
+    "Tensor builder maps full TA-Lib Bollinger/MACD field names emitted by v2_full_talib_ta_loop.",
+    "Tensor builder computes volatility/range/body/log-return fields from real OHLCV when the feature snapshot is absent.",
+    "Tensor builder maps CoinAPI WSDS imbalance into toxicity_proxy as a real computed microstructure proxy.",
+    "All-timeframe backtest lane now reads native edge-proof metrics instead of reporting worker metrics missing.",
+    "V2 RL-core inference loop writes sidecar v2:prediction:rl_core:* keys and no longer overwrites existing CUDA primary prediction keys."
+  ],
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "no_silent_zero_fill": true,
+  "operator_reported_prior_blocked_field_rows_count": 13688,
+  "remaining_implementation_rows": {
+    "by_classification": {
+      "IMPLEMENT_NOW": 514
+    },
+    "by_family": {
+      "microstructure": 505,
+      "ohlcv": 2,
+      "ta": 7
+    },
+    "by_status": {
+      "PROVIDER_BLOCKED": 514
+    },
+    "count": 514,
+    "top_fields": [
+      {
+        "count": 505,
+        "field_name": "micro_volatility"
+      },
+      {
+        "count": 1,
+        "field_name": "taker_buy_ratio"
+      },
+      {
+        "count": 1,
+        "field_name": "taker_sell_ratio"
+      },
+      {
+        "count": 1,
+        "field_name": "MACD"
+      },
+      {
+        "count": 1,
+        "field_name": "MACD_signal"
+      },
+      {
+        "count": 1,
+        "field_name": "MACD_hist"
+      },
+      {
+        "count": 1,
+        "field_name": "EMA_26"
+      },
+      {
+        "count": 1,
+        "field_name": "bollinger_upper"
+      },
+      {
+        "count": 1,
+        "field_name": "bollinger_middle"
+      },
+      {
+        "count": 1,
+        "field_name": "bollinger_lower"
+      }
+    ]
+  },
+  "remaining_provider_event_rows": {
+    "by_classification": {
+      "PROVIDER_EVENT_DEPENDENT": 1870
+    },
+    "by_family": {
+      "microstructure": 1365,
+      "orderbook": 505
+    },
+    "by_status": {
+      "EVENT_DEPENDENT": 1010,
+      "PROVIDER_BLOCKED": 860
+    },
+    "count": 1870,
+    "top_fields": [
+      {
+        "count": 505,
+        "field_name": "depth_vs_tape_divergence"
+      },
+      {
+        "count": 505,
+        "field_name": "tape_imbalance"
+      },
+      {
+        "count": 505,
+        "field_name": "order_flow_imbalance"
+      },
+      {
+        "count": 355,
+        "field_name": "microprice"
+      }
+    ]
+  },
+  "remaining_provider_plan_rows": {
+    "by_classification": {
+      "PROVIDER_PLAN_BLOCKED": 3185
+    },
+    "by_family": {
+      "altdata": 3185
+    },
+    "by_status": {
+      "PROVIDER_BLOCKED": 3185
+    },
+    "count": 3185,
+    "top_fields": [
+      {
+        "count": 505,
+        "field_name": "nansen_score"
+      },
+      {
+        "count": 505,
+        "field_name": "lunarcrush_score"
+      },
+      {
+        "count": 505,
+        "field_name": "aicoin_score"
+      },
+      {
+        "count": 505,
+        "field_name": "coingecko_score"
+      },
+      {
+        "count": 505,
+        "field_name": "surf_score"
+      },
+      {
+        "count": 500,
+        "field_name": "mempool_context"
+      },
+      {
+        "count": 160,
+        "field_name": "defillama_score"
+      }
+    ]
+  },
+  "schema_version": "v2_unified_feature_parity_implementation_status_v1",
+  "service_id": "v2_unified_feature_parity_and_backtest_edge_completion",
+  "status": "UNIFIED_FEATURE_PARITY_BLOCKED_OR_PARTIAL"
+}

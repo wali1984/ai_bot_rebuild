@@ -1,0 +1,30 @@
+{
+  "freshness_seconds": 2505478.832648754,
+  "go_no_go": "V2_NATIVE_DYNAMIC_RUNTIME_AND_TRAINER_BRIDGE_EXIT_EXECUTION_READY",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "owner": "CLAUDE",
+  "redaction_applied": false,
+  "report_id": "v2_native_dynamic_runtime_and_trainer_bridge_exit_execution",
+  "sanitized_summary": {
+    "go_no_go": "V2_NATIVE_DYNAMIC_RUNTIME_AND_TRAINER_BRIDGE_EXIT_EXECUTION_READY",
+    "pruned": {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "generated_utc": "2026-05-24T00:30:31Z",
+      "go_no_go": "V2_NATIVE_DYNAMIC_RUNTIME_AND_TRAINER_BRIDGE_EXIT_EXECUTION_READY",
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "schema_version": "v2_native_dynamic_runtime_trainer_bridge_exit_execution_v1_operator_dashboard_payload",
+      "summary": {}
+    },
+    "redaction_applied": false,
+    "redaction_token": null,
+    "status": "READY"
+  },
+  "stale": true,
+  "status": "READY",
+  "title": "V2 Native Dynamic Runtime + Trainer Bridge-Exit Execution"
+}

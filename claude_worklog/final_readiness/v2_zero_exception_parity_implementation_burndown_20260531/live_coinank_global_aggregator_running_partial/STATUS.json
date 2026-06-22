@@ -1,0 +1,31 @@
+{
+  "schema_version": "zero_exception_task_status_v1",
+  "task_id": "claude_v2_zero_exception_parity_live_coinank_global_aggregator_running_partial_20260531",
+  "status": "done",
+  "generated_est": "2026-06-03T18:32:40-0400",
+  "generated_utc": "2026-06-03T22:32:40Z",
+  "implemented_files": [
+    "v2/backend/app/cli/v2_coinank_and_liquidation_bridge.py",
+    "v2/backend/app/services/coinank_bridge/service.py"
+  ],
+  "public_payload": "v2/frontend/public/operator_runtime/coinank_market_intelligence/latest/coinank_market_intelligence_status.json",
+  "verification_commands": [
+    "PYTHONPATH=$PWD ./.venv/bin/python3 -m pytest -q v2/backend/tests/integration/cli/test_v2_coinank_and_liquidation_bridge.py v2/backend/tests/integration/cli/test_v2_kucoin_ingestor_worker.py",
+    "PYTHONPATH=$PWD ./.venv/bin/python3 -m v2.backend.app.cli.v2_coinank_and_liquidation_bridge --once --symbols BTCUSDT ETHUSDT SOLUSDT XRPUSDT --tf 1m --write-v2-redis"
+  ],
+  "live_safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "writes_legacy_redis": false
+  },
+  "evidence": {
+    "v2_redis_global_keys_written_count": 34,
+    "symbols_with_any_input": 4,
+    "total_oi": 330218796.53,
+    "total_volume": 3711223040.671856,
+    "market_sentiment": 0.0
+  }
+}

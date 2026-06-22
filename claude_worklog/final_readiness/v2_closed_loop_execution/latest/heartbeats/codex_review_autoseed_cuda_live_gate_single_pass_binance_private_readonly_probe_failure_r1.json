@@ -1,0 +1,9 @@
+{
+  "alive": true,
+  "file_lock_group": "cuda_live_gate_single_pass_binance_readonly_probe",
+  "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/codex_review_autoseed_cuda_live_gate_single_pass_binance_private_readonly_probe_failure_r1_codex.log",
+  "pid": 421863,
+  "task_id": "codex_review_autoseed_cuda_live_gate_single_pass_binance_private_readonly_probe_failure_r1",
+  "task_type": "CODEX_REVIEW",
+  "updated_at": "2026-06-05T04:51:51Z"
+}

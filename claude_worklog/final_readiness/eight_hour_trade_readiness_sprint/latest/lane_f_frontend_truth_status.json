@@ -1,0 +1,41 @@
+{
+  "lane": "F",
+  "go_no_go": "LANE_F_FRONTEND_TRUTH_PAGE_READY",
+  "route_added": "/status-simple",
+  "page_id": "user-status",
+  "surface": "public",
+  "min_role": "viewer",
+  "typecheck_status": "clean",
+  "typecheck_command": "cd v2/frontend && npx tsc -b --noEmit",
+  "typecheck_exit_code": 0,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false,
+  "consumes_payloads": [
+    "v2/frontend/public/operator_runtime/frontend_truth/latest/frontend_truth_payload.json"
+  ],
+  "files_added": [
+    "v2/frontend/src/pages/user-status/meta.ts",
+    "v2/frontend/src/pages/user-status/route.ts",
+    "v2/frontend/src/pages/user-status/rbac.ts",
+    "v2/frontend/src/pages/user-status/index.tsx",
+    "claude_worklog/final_readiness/eight_hour_trade_readiness_sprint/latest/LANE_F_FRONTEND_TRUTH_REPORT.md",
+    "claude_worklog/final_readiness/eight_hour_trade_readiness_sprint/latest/lane_f_frontend_truth_status.json"
+  ],
+  "files_modified_append_only": [
+    "v2/frontend/src/pages/registry.ts",
+    "v2/frontend/tests/e2e/_shared.ts"
+  ],
+  "components_reused": [
+    "v2/frontend/src/components/status-simple/StatusBadge.tsx::StatusBadge",
+    "v2/frontend/src/components/status-simple/StatusBadge.tsx::SimpleCard"
+  ],
+  "data_testid": "page-user-status",
+  "no_mock_data": true,
+  "no_legacy_redis": true,
+  "no_internal_ids_exposed": true,
+  "no_live_controls": true
+}

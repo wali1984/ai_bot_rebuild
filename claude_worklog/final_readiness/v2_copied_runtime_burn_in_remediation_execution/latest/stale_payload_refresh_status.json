@@ -1,0 +1,37 @@
+{
+  "schema_version": "stale_payload_refresh_status_v1",
+  "milestone": "v2_copied_runtime_burn_in_remediation_execution",
+  "generated_est": "2026-05-30T23:59:00-0400",
+  "generated_utc": "2026-05-31T03:59:00Z",
+  "git_head": "10513bbe0517fd81c9c87e4672bb15486a083c02",
+  "refreshes": [
+    {
+      "task_id": "r1_refresh_v2_feature_pipeline_native_status",
+      "target_payload": "v2/frontend/public/operator_runtime/v2_feature_pipeline_native/latest/v2_feature_pipeline_native_status.json",
+      "refresh_command": ".venv/bin/python3 -m v2.backend.app.cli.v2_feature_pipeline_native --write-evidence",
+      "post_refresh_age_seconds": 9,
+      "verdict": "REFRESHED"
+    },
+    {
+      "task_id": "r2_refresh_v2_owned_trainer_status",
+      "target_payload": "v2/frontend/public/operator_runtime/v2_owned_trainer/latest/status.json",
+      "refresh_command": ".venv/bin/python3 -m v2.backend.app.cli.v2_owned_trainer_runtime --dry-run --no-train-runtime-active",
+      "post_refresh_age_seconds": 8,
+      "verdict": "REFRESHED"
+    },
+    {
+      "task_id": "r3_refresh_v2_liquidation_ingestor_status",
+      "target_payload": "v2/frontend/public/operator_runtime/v2_liquidation_ingestor/latest/v2_liquidation_ingestor_status.json",
+      "refresh_command": ".venv/bin/python3 -m v2.backend.app.cli.v2_liquidation_ingestor_loop --once --no-redis-heartbeat",
+      "post_refresh_age_seconds": 9,
+      "verdict": "REFRESHED"
+    }
+  ],
+  "all_refreshes_succeeded": true,
+  "live_safety": {
+    "live_gate_status": "blocked_human_only",
+    "live_symbols": [],
+    "exchange_action_taken": false,
+    "old_redis_writes": false
+  }
+}

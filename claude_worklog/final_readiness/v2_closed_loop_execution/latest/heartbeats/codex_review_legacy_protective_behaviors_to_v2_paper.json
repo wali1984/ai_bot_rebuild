@@ -1,0 +1,9 @@
+{
+  "alive": true,
+  "file_lock_group": "legacy_protective_behaviors_to_v2_paper",
+  "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/codex_review_legacy_protective_behaviors_to_v2_paper_codex.log",
+  "pid": 252468,
+  "task_id": "codex_review_legacy_protective_behaviors_to_v2_paper",
+  "task_type": "CODEX_REVIEW",
+  "updated_at": "2026-06-15T20:15:37Z"
+}

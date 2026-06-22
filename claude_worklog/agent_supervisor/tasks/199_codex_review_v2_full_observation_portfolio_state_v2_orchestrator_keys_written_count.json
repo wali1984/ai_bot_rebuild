@@ -1,0 +1,43 @@
+{
+  "agent": "codex",
+  "controller_metadata": {
+    "codex_completed_at_utc": "2026-05-22T05:02:57Z",
+    "codex_go_no_go": "V2_FULL_OBSERVATION_PORTFOLIO_STATE_V2_ORCHESTRATOR_KEYS_WRITTEN_COUNT_CODEX_PASS",
+    "codex_review_path": "claude_worklog/final_readiness/v2_autonomous_production_equivalence_burndown/per_task/portfolio_state_v2_orchestrator_keys_written_count/codex_review/CODEX_REVIEW.md",
+    "controller": "v2_autonomous_production_equivalence_burndown_controller",
+    "field_group": "portfolio_state.v2_orchestrator_keys_written_count",
+    "selected_at_utc": "2026-05-22T04:24:06Z",
+    "slug": "portfolio_state_v2_orchestrator_keys_written_count"
+  },
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": [
+    "198_claude_fix_v2_full_observation_portfolio_state_v2_orchestrator_keys_written_count"
+  ],
+  "forbidden_actions": [
+    "modify /home/wali/Desktop/AI BOT",
+    "place or cancel or modify exchange orders",
+    "change leverage or margin",
+    "enable live trading",
+    "create live/canary/shutdown/Redis-trim approval tokens",
+    "create paper-only shutdown acceptance file",
+    "expose raw API keys",
+    "deserialize checkpoint blobs",
+    "write old (legacy) Redis keys",
+    "claim checkpoint compatibility",
+    "claim policy architecture parity",
+    "zero-fill unknown values",
+    "stop V2 runtime, remediation governor, legacy log observer, V2-vs-legacy comparator, or liquidation WSS daemon"
+  ],
+  "lane": "production_equivalence",
+  "next_gate": "V2_FULL_OBSERVATION_PORTFOLIO_STATE_V2_ORCHESTRATOR_KEYS_WRITTEN_COUNT_CODEX_PASS",
+  "predecessor_required_marker": "V2_FULL_OBSERVATION_PORTFOLIO_STATE_V2_ORCHESTRATOR_KEYS_WRITTEN_COUNT_BURNDOWN_READY_PARTIAL_PROGRESS",
+  "predecessor_required_marker_file": "claude_worklog/final_readiness/v2_autonomous_production_equivalence_burndown/per_task/portfolio_state_v2_orchestrator_keys_written_count/IMPLEMENTATION_REPORT.md",
+  "predecessor_task_ids": [
+    "198_claude_fix_v2_full_observation_portfolio_state_v2_orchestrator_keys_written_count"
+  ],
+  "prompt": "# Codex review: V2 full-observation field group `portfolio_state.v2_orchestrator_keys_written_count`\n\nReview Claude's implementation produced by task\n`198_claude_fix_v2_full_observation_portfolio_state_v2_orchestrator_keys_written_count`.\n\n## Verify\n- only the exact V2 source key(s) ['v2:orchestrator:decisions'] were consumed.\n- no generic `v2:*` placeholder source remained in the changeset.\n- no field that lacks an exact runtime source was treated as buildable.\n- `generated_full_observation_dim` actually increased (real, not synthetic).\n- missing-source labels remain explicit (for field `v2_orchestrator_keys_written_count` when payload absent).\n- `zero_filled_field_count == 0` after the change.\n- `checkpoint_compatibility_claimed` remains false.\n- `policy_architecture_parity_claimed` remains false.\n- no old Redis writes; no exchange mutation; no approvals; no live ramp.\n- live_gate=blocked_human_only and live_symbols=[].\n- the required tests run and pass: ['test_v2_orchestrator_keys_written_count_present_from_payload', 'test_v2_orchestrator_keys_written_count_missing_label_when_no_key'].\n\n## Decision strings (exact)\nPASS: `V2_FULL_OBSERVATION_PORTFOLIO_STATE_V2_ORCHESTRATOR_KEYS_WRITTEN_COUNT_CODEX_PASS`\nFAIL: `V2_FULL_OBSERVATION_PORTFOLIO_STATE_V2_ORCHESTRATOR_KEYS_WRITTEN_COUNT_CODEX_FAIL`\n\nOn FAIL: emit a precise fail-blocker string in the review markdown so\nthe controller can generate a focused remediation task next cycle.",
+  "risk_level": "L1",
+  "secondary_lane": "paper_backtest_mvp",
+  "status": "completed",
+  "task_id": "199_codex_review_v2_full_observation_portfolio_state_v2_orchestrator_keys_written_count"
+}

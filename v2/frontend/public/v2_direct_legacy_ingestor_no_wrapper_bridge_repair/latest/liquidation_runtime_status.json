@@ -1,0 +1,11 @@
+{
+  "generated_est": "2026-06-09T18:41:55-04:00",
+  "source_payload": "v2/frontend/public/operator_runtime/v2_liquidation_runtime_status/latest/v2_liquidation_runtime_status.json",
+  "classification": "LIQUIDATION_RUNTIME_OK",
+  "runtime_mode": "DIRECT_V2_LIQUIDATION_WSS_AND_LEVELS_RUNTIME",
+  "ingestor_bridge_active": false,
+  "live_gate": "enabled_operator_approved",
+  "liquidation_events_xlen": 10007,
+  "levels_symbols_covered": 123,
+  "force_order_event_window_note": "Zero new force-order events remains valid when the current Binance forceOrder event window is quiet."
+}

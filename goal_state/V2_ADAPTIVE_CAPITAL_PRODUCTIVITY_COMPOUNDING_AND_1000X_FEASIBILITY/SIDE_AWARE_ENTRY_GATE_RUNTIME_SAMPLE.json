@@ -1,0 +1,58 @@
+{
+  "generated_utc": "2026-06-19T12:46:35Z",
+  "started_at": "2026-06-19T12:46:27Z",
+  "intents_built": 275,
+  "intents_accepted": 0,
+  "intents_blocked": 275,
+  "closed_trade_count": 993,
+  "accepted_position_count": 12,
+  "open_position_count": 12,
+  "places_real_order": false,
+  "live_gate": "blocked_human_only",
+  "writes_legacy_redis": false,
+  "paper_audit_entry_gate_status": {
+    "entry_gate_block_count": 262,
+    "block_reason_counts": {
+      "EXPECTED_MOVE_NON_POSITIVE:0.0bps": 248,
+      "EXPECTED_MOVE_NOT_FAVORABLE_FOR_SIDE:long:-0.8bps": 1,
+      "EXPECTED_MOVE_NOT_FAVORABLE_FOR_SIDE:long:-1.3bps": 1,
+      "EXPECTED_MOVE_NOT_FAVORABLE_FOR_SIDE:long:-1.9bps": 1,
+      "EXPECTED_MOVE_NOT_FAVORABLE_FOR_SIDE:long:-2.0bps": 1,
+      "EXPECTED_MOVE_NOT_FAVORABLE_FOR_SIDE:long:-2.3bps": 1,
+      "EXPECTED_MOVE_NOT_FAVORABLE_FOR_SIDE:long:-3.5bps": 1,
+      "EXPECTED_MOVE_NOT_FAVORABLE_FOR_SIDE:long:-3.8bps": 1,
+      "EXPECTED_MOVE_NOT_FAVORABLE_FOR_SIDE:short:6.8bps": 1,
+      "SYMBOL_EXPLICITLY_EXCLUDED_BY_OPERATOR:NIGHTUSDT": 5,
+      "SYMBOL_EXPLICITLY_EXCLUDED_BY_OPERATOR:PUMPUSDT": 5,
+      "SYMBOL_EXPLICITLY_EXCLUDED_BY_OPERATOR:TIAUSDT": 5,
+      "SYMBOL_EXPLICITLY_EXCLUDED_BY_OPERATOR:TRUMPUSDT": 5,
+      "TIMEFRAME_BLOCKED:4h": 55,
+      "TIMEFRAME_BLOCKED:5m": 55
+    },
+    "live_path_changed": false,
+    "paper_only": true
+  },
+  "paper_drawdown_recovery_guard_status": {
+    "blocked_reason_counts": {
+      "CANDIDATE_SIDE_INVALID": 248,
+      "CURRENT_POSITION_NOT_FLAT": 11,
+      "DIRECTIONAL_COLLAPSE_NOT_DETECTED": 9,
+      "UPSTREAM_PAPER_FILL_NOT_ALLOWED": 7
+    },
+    "eligible_recovery_count": 0,
+    "recovered_intent_count": 0,
+    "live_path_changed": false,
+    "paper_only": true
+  },
+  "paper_strategy_mode_collapse_guard_status": {
+    "mode_counts": {
+      "mean_reversion_mode": 36,
+      "reduce_size_mode": 101,
+      "trend_mode": 856
+    },
+    "top_mode": "trend_mode",
+    "top_mode_share": 0.8620342396777442,
+    "strategy_mode_collapse_detected": true,
+    "blocked_majority_mode_fill_count": 0
+  }
+}

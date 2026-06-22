@@ -1,0 +1,525 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "did_not_call_exchange_mutation": true,
+  "did_not_claim_checkpoint_compatibility": true,
+  "did_not_claim_trainer_native_readiness": true,
+  "did_not_expose_raw_api_keys": true,
+  "did_not_modify_legacy_tree": true,
+  "did_not_overwrite_stronger_existing_prediction": true,
+  "did_not_stop_codex_governors": true,
+  "did_not_stop_legacy_runtime": true,
+  "did_not_stop_replay_miner": true,
+  "did_not_stop_report_center": true,
+  "did_not_stop_v2_runtime": true,
+  "did_not_weaken_paper_fill_gate": true,
+  "did_not_write_old_redis_keys": true,
+  "generated_at": "2026-06-12T18:28:39Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "rows": [
+    {
+      "canonical_prediction_key": "v2:prediction:1000BONKUSDT:1m",
+      "key": "v2:trainer:prediction_shadow:1000BONKUSDT:1m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "1000BONKUSDT",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:1000BONKUSDT:5m",
+      "key": "v2:trainer:prediction_shadow:1000BONKUSDT:5m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "1000BONKUSDT",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:1000FLOKIUSDT:1m",
+      "key": "v2:trainer:prediction_shadow:1000FLOKIUSDT:1m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "1000FLOKIUSDT",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:1000FLOKIUSDT:5m",
+      "key": "v2:trainer:prediction_shadow:1000FLOKIUSDT:5m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "1000FLOKIUSDT",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:1000PEPEUSDT:1m",
+      "key": "v2:trainer:prediction_shadow:1000PEPEUSDT:1m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "1000PEPEUSDT",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:1000PEPEUSDT:5m",
+      "key": "v2:trainer:prediction_shadow:1000PEPEUSDT:5m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "1000PEPEUSDT",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:1000SHIBUSDT:1m",
+      "key": "v2:trainer:prediction_shadow:1000SHIBUSDT:1m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "1000SHIBUSDT",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:1000SHIBUSDT:5m",
+      "key": "v2:trainer:prediction_shadow:1000SHIBUSDT:5m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "1000SHIBUSDT",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:ALICEUSDT:1m",
+      "key": "v2:trainer:prediction_shadow:ALICEUSDT:1m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "ALICEUSDT",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:ALICEUSDT:5m",
+      "key": "v2:trainer:prediction_shadow:ALICEUSDT:5m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "ALICEUSDT",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:ASTERUSDT:1m",
+      "key": "v2:trainer:prediction_shadow:ASTERUSDT:1m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "ASTERUSDT",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:ASTERUSDT:5m",
+      "key": "v2:trainer:prediction_shadow:ASTERUSDT:5m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "ASTERUSDT",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:AUCTIONUSDT:1m",
+      "key": "v2:trainer:prediction_shadow:AUCTIONUSDT:1m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "AUCTIONUSDT",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:AUCTIONUSDT:5m",
+      "key": "v2:trainer:prediction_shadow:AUCTIONUSDT:5m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "AUCTIONUSDT",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:AVNTUSDT:1m",
+      "key": "v2:trainer:prediction_shadow:AVNTUSDT:1m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "AVNTUSDT",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:AVNTUSDT:5m",
+      "key": "v2:trainer:prediction_shadow:AVNTUSDT:5m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "AVNTUSDT",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:BANKUSDT:1m",
+      "key": "v2:trainer:prediction_shadow:BANKUSDT:1m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "BANKUSDT",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:BANKUSDT:5m",
+      "key": "v2:trainer:prediction_shadow:BANKUSDT:5m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "BANKUSDT",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:BARDUSDT:1m",
+      "key": "v2:trainer:prediction_shadow:BARDUSDT:1m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "BARDUSDT",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:BARDUSDT:5m",
+      "key": "v2:trainer:prediction_shadow:BARDUSDT:5m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "BARDUSDT",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:BTCUSDT:1m",
+      "key": "v2:trainer:prediction_shadow:BTCUSDT:1m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "BTCUSDT",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:BTCUSDT:5m",
+      "key": "v2:trainer:prediction_shadow:BTCUSDT:5m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "BTCUSDT",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:DOGEUSDT:1m",
+      "key": "v2:trainer:prediction_shadow:DOGEUSDT:1m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "DOGEUSDT",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:DOGEUSDT:5m",
+      "key": "v2:trainer:prediction_shadow:DOGEUSDT:5m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "DOGEUSDT",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:ETHUSDT:1m",
+      "key": "v2:trainer:prediction_shadow:ETHUSDT:1m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "ETHUSDT",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:ETHUSDT:5m",
+      "key": "v2:trainer:prediction_shadow:ETHUSDT:5m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "ETHUSDT",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:FARTCOINUSDT:1m",
+      "key": "v2:trainer:prediction_shadow:FARTCOINUSDT:1m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "FARTCOINUSDT",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:FARTCOINUSDT:5m",
+      "key": "v2:trainer:prediction_shadow:FARTCOINUSDT:5m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "FARTCOINUSDT",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:HIGHUSDT:1m",
+      "key": "v2:trainer:prediction_shadow:HIGHUSDT:1m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "HIGHUSDT",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:HIGHUSDT:5m",
+      "key": "v2:trainer:prediction_shadow:HIGHUSDT:5m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "HIGHUSDT",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:LINKUSDT:1m",
+      "key": "v2:trainer:prediction_shadow:LINKUSDT:1m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "LINKUSDT",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:LINKUSDT:5m",
+      "key": "v2:trainer:prediction_shadow:LINKUSDT:5m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "LINKUSDT",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:LTCUSDT:1m",
+      "key": "v2:trainer:prediction_shadow:LTCUSDT:1m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "LTCUSDT",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:LTCUSDT:5m",
+      "key": "v2:trainer:prediction_shadow:LTCUSDT:5m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "LTCUSDT",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:PENGUUSDT:1m",
+      "key": "v2:trainer:prediction_shadow:PENGUUSDT:1m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "PENGUUSDT",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:PENGUUSDT:5m",
+      "key": "v2:trainer:prediction_shadow:PENGUUSDT:5m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "PENGUUSDT",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:PIPPINUSDT:1m",
+      "key": "v2:trainer:prediction_shadow:PIPPINUSDT:1m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "PIPPINUSDT",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:PIPPINUSDT:5m",
+      "key": "v2:trainer:prediction_shadow:PIPPINUSDT:5m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "PIPPINUSDT",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:RAVEUSDT:1m",
+      "key": "v2:trainer:prediction_shadow:RAVEUSDT:1m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "RAVEUSDT",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:RAVEUSDT:5m",
+      "key": "v2:trainer:prediction_shadow:RAVEUSDT:5m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "RAVEUSDT",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:RIVERUSDT:1m",
+      "key": "v2:trainer:prediction_shadow:RIVERUSDT:1m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "RIVERUSDT",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:RIVERUSDT:5m",
+      "key": "v2:trainer:prediction_shadow:RIVERUSDT:5m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "RIVERUSDT",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:SOLUSDT:1m",
+      "key": "v2:trainer:prediction_shadow:SOLUSDT:1m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "SOLUSDT",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:SOLUSDT:5m",
+      "key": "v2:trainer:prediction_shadow:SOLUSDT:5m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "SOLUSDT",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:UNIUSDT:1m",
+      "key": "v2:trainer:prediction_shadow:UNIUSDT:1m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "UNIUSDT",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:UNIUSDT:5m",
+      "key": "v2:trainer:prediction_shadow:UNIUSDT:5m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "UNIUSDT",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:WIFUSDT:1m",
+      "key": "v2:trainer:prediction_shadow:WIFUSDT:1m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "WIFUSDT",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:WIFUSDT:5m",
+      "key": "v2:trainer:prediction_shadow:WIFUSDT:5m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "WIFUSDT",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:XRPUSDT:1m",
+      "key": "v2:trainer:prediction_shadow:XRPUSDT:1m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "XRPUSDT",
+      "timeframe": "1m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    },
+    {
+      "canonical_prediction_key": "v2:prediction:XRPUSDT:5m",
+      "key": "v2:trainer:prediction_shadow:XRPUSDT:5m",
+      "paper_fill_allowed": false,
+      "prediction_source_classification": "BASELINE_PAPER_SHADOW",
+      "status": "V2_NATIVE_BASELINE_OR_CONTRACT_ONLY_SHADOW_PUBLISHED",
+      "symbol": "XRPUSDT",
+      "timeframe": "5m",
+      "trainer_source": "V2_NATIVE_BASELINE_PAPER_SHADOW"
+    }
+  ],
+  "schema_version": "v2_native_trainer_bridge_exit_prediction_publisher_v1_per_symbol_rows"
+}

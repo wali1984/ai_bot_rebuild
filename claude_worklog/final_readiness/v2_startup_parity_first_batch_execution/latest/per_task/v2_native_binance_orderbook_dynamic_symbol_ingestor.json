@@ -1,0 +1,304 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "blocked_reason": "v2 binance orderbook ingestor scaffold present; no live websocket started from the planner; operator decision required before connecting depth feeds for symbol expansion.",
+  "bridge_vs_v2_native_label_honest": true,
+  "broad_audit": false,
+  "codex_review_command": "codex exec review --uncommitted \"Review only v2/backend/app/services/native_runtime_migration/first_batch_executor.py::task_b_binance_orderbook. Fail on old Redis writes, exchange mutation, truthy approval tokens, raw secrets, fake edge claims, or any V2_NATIVE label on bridge data.\"",
+  "codex_review_required": true,
+  "did_not_adopt_any_symbol_universe_candidate": true,
+  "did_not_call_exchange_mutation": true,
+  "did_not_change_leverage_or_margin_mode": true,
+  "did_not_claim_full_migration": true,
+  "did_not_claim_trainer_native_readiness": true,
+  "did_not_create_paper_only_shutdown_acceptance_file": true,
+  "did_not_deserialize_legacy_checkpoint": true,
+  "did_not_expose_raw_api_keys": true,
+  "did_not_install_systemd_units_or_scheduler_daemons": true,
+  "did_not_modify_legacy_tree": true,
+  "did_not_mutate_live_symbols_paper_symbols_or_training_symbols": true,
+  "did_not_start_live_network_feed": true,
+  "did_not_stop_codex_governors": true,
+  "did_not_stop_legacy_runtime": true,
+  "did_not_stop_replay_miner": true,
+  "did_not_stop_report_center": true,
+  "did_not_stop_v2_runtime": true,
+  "did_not_weaken_paper_fill_gate": true,
+  "did_not_write_old_redis_keys": true,
+  "does_not_fake_data": true,
+  "envelope_summary": {
+    "freshness_state_counts": {
+      "MISSING_SOURCE": 25
+    },
+    "gap_or_bridge": 25,
+    "publishable": 0,
+    "source_label_counts": {
+      "PLACEHOLDER_NOT_READY": 25
+    },
+    "total": 25
+  },
+  "exchange_mutation": false,
+  "file_lock_group": "v2_native_ingestor_binance_orderbook",
+  "forbidden_actions": [
+    "no_exchange_mutation",
+    "no_live_network_feed_started_from_planner",
+    "no_old_redis_writes",
+    "no_credential_load",
+    "no_v2_native_label_for_bridge_data"
+  ],
+  "generated_utc": "2026-05-23T22:17:11Z",
+  "go_no_go_marker": "V2_NATIVE_BINANCE_ORDERBOOK_DYNAMIC_SYMBOL_INGESTOR_SCAFFOLDED",
+  "implementation_artifact": "v2/backend/app/services/native_runtime_migration/first_batch_executor.py::task_b_binance_orderbook",
+  "implementation_notes": "Contract-only scaffold. Source/freshness labels and dynamic symbol envelopes are produced; no live WS client opened.",
+  "implementation_status": "SCAFFOLDED_AWAITING_OPERATOR_CLIENT_DECISION",
+  "live_gate": "blocked_human_only",
+  "live_or_shutdown_approval": false,
+  "live_symbols": [],
+  "missing_source_policy": "Emit explicit MISSING_SOURCE, NO_CLIENT_PRESENT, BRIDGE_ONLY, or OPERATOR_DECISION_REQUIRED envelopes instead of fabricating V2-native payloads.",
+  "old_redis_write": false,
+  "per_symbol_envelopes": [
+    {
+      "freshness_state": "MISSING_SOURCE",
+      "gap_reason": "v2 binance orderbook ingestor scaffold present; no live websocket started from the planner; operator decision required before connecting depth feeds for symbol expansion.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {},
+      "source_label": "PLACEHOLDER_NOT_READY",
+      "symbol": "1000BONKUSDT"
+    },
+    {
+      "freshness_state": "MISSING_SOURCE",
+      "gap_reason": "v2 binance orderbook ingestor scaffold present; no live websocket started from the planner; operator decision required before connecting depth feeds for symbol expansion.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {},
+      "source_label": "PLACEHOLDER_NOT_READY",
+      "symbol": "1000FLOKIUSDT"
+    },
+    {
+      "freshness_state": "MISSING_SOURCE",
+      "gap_reason": "v2 binance orderbook ingestor scaffold present; no live websocket started from the planner; operator decision required before connecting depth feeds for symbol expansion.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {},
+      "source_label": "PLACEHOLDER_NOT_READY",
+      "symbol": "1000PEPEUSDT"
+    },
+    {
+      "freshness_state": "MISSING_SOURCE",
+      "gap_reason": "v2 binance orderbook ingestor scaffold present; no live websocket started from the planner; operator decision required before connecting depth feeds for symbol expansion.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {},
+      "source_label": "PLACEHOLDER_NOT_READY",
+      "symbol": "1000SHIBUSDT"
+    },
+    {
+      "freshness_state": "MISSING_SOURCE",
+      "gap_reason": "v2 binance orderbook ingestor scaffold present; no live websocket started from the planner; operator decision required before connecting depth feeds for symbol expansion.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {},
+      "source_label": "PLACEHOLDER_NOT_READY",
+      "symbol": "ALICEUSDT"
+    },
+    {
+      "freshness_state": "MISSING_SOURCE",
+      "gap_reason": "v2 binance orderbook ingestor scaffold present; no live websocket started from the planner; operator decision required before connecting depth feeds for symbol expansion.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {},
+      "source_label": "PLACEHOLDER_NOT_READY",
+      "symbol": "ASTERUSDT"
+    },
+    {
+      "freshness_state": "MISSING_SOURCE",
+      "gap_reason": "v2 binance orderbook ingestor scaffold present; no live websocket started from the planner; operator decision required before connecting depth feeds for symbol expansion.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {},
+      "source_label": "PLACEHOLDER_NOT_READY",
+      "symbol": "AUCTIONUSDT"
+    },
+    {
+      "freshness_state": "MISSING_SOURCE",
+      "gap_reason": "v2 binance orderbook ingestor scaffold present; no live websocket started from the planner; operator decision required before connecting depth feeds for symbol expansion.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {},
+      "source_label": "PLACEHOLDER_NOT_READY",
+      "symbol": "AVNTUSDT"
+    },
+    {
+      "freshness_state": "MISSING_SOURCE",
+      "gap_reason": "v2 binance orderbook ingestor scaffold present; no live websocket started from the planner; operator decision required before connecting depth feeds for symbol expansion.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {},
+      "source_label": "PLACEHOLDER_NOT_READY",
+      "symbol": "BANKUSDT"
+    },
+    {
+      "freshness_state": "MISSING_SOURCE",
+      "gap_reason": "v2 binance orderbook ingestor scaffold present; no live websocket started from the planner; operator decision required before connecting depth feeds for symbol expansion.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {},
+      "source_label": "PLACEHOLDER_NOT_READY",
+      "symbol": "BARDUSDT"
+    },
+    {
+      "freshness_state": "MISSING_SOURCE",
+      "gap_reason": "v2 binance orderbook ingestor scaffold present; no live websocket started from the planner; operator decision required before connecting depth feeds for symbol expansion.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {},
+      "source_label": "PLACEHOLDER_NOT_READY",
+      "symbol": "BTCUSDT"
+    },
+    {
+      "freshness_state": "MISSING_SOURCE",
+      "gap_reason": "v2 binance orderbook ingestor scaffold present; no live websocket started from the planner; operator decision required before connecting depth feeds for symbol expansion.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {},
+      "source_label": "PLACEHOLDER_NOT_READY",
+      "symbol": "DOGEUSDT"
+    },
+    {
+      "freshness_state": "MISSING_SOURCE",
+      "gap_reason": "v2 binance orderbook ingestor scaffold present; no live websocket started from the planner; operator decision required before connecting depth feeds for symbol expansion.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {},
+      "source_label": "PLACEHOLDER_NOT_READY",
+      "symbol": "ETHUSDT"
+    },
+    {
+      "freshness_state": "MISSING_SOURCE",
+      "gap_reason": "v2 binance orderbook ingestor scaffold present; no live websocket started from the planner; operator decision required before connecting depth feeds for symbol expansion.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {},
+      "source_label": "PLACEHOLDER_NOT_READY",
+      "symbol": "FARTCOINUSDT"
+    },
+    {
+      "freshness_state": "MISSING_SOURCE",
+      "gap_reason": "v2 binance orderbook ingestor scaffold present; no live websocket started from the planner; operator decision required before connecting depth feeds for symbol expansion.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {},
+      "source_label": "PLACEHOLDER_NOT_READY",
+      "symbol": "HIGHUSDT"
+    },
+    {
+      "freshness_state": "MISSING_SOURCE",
+      "gap_reason": "v2 binance orderbook ingestor scaffold present; no live websocket started from the planner; operator decision required before connecting depth feeds for symbol expansion.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {},
+      "source_label": "PLACEHOLDER_NOT_READY",
+      "symbol": "LINKUSDT"
+    },
+    {
+      "freshness_state": "MISSING_SOURCE",
+      "gap_reason": "v2 binance orderbook ingestor scaffold present; no live websocket started from the planner; operator decision required before connecting depth feeds for symbol expansion.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {},
+      "source_label": "PLACEHOLDER_NOT_READY",
+      "symbol": "LTCUSDT"
+    },
+    {
+      "freshness_state": "MISSING_SOURCE",
+      "gap_reason": "v2 binance orderbook ingestor scaffold present; no live websocket started from the planner; operator decision required before connecting depth feeds for symbol expansion.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {},
+      "source_label": "PLACEHOLDER_NOT_READY",
+      "symbol": "PENGUUSDT"
+    },
+    {
+      "freshness_state": "MISSING_SOURCE",
+      "gap_reason": "v2 binance orderbook ingestor scaffold present; no live websocket started from the planner; operator decision required before connecting depth feeds for symbol expansion.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {},
+      "source_label": "PLACEHOLDER_NOT_READY",
+      "symbol": "PIPPINUSDT"
+    },
+    {
+      "freshness_state": "MISSING_SOURCE",
+      "gap_reason": "v2 binance orderbook ingestor scaffold present; no live websocket started from the planner; operator decision required before connecting depth feeds for symbol expansion.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {},
+      "source_label": "PLACEHOLDER_NOT_READY",
+      "symbol": "RAVEUSDT"
+    },
+    {
+      "freshness_state": "MISSING_SOURCE",
+      "gap_reason": "v2 binance orderbook ingestor scaffold present; no live websocket started from the planner; operator decision required before connecting depth feeds for symbol expansion.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {},
+      "source_label": "PLACEHOLDER_NOT_READY",
+      "symbol": "RIVERUSDT"
+    },
+    {
+      "freshness_state": "MISSING_SOURCE",
+      "gap_reason": "v2 binance orderbook ingestor scaffold present; no live websocket started from the planner; operator decision required before connecting depth feeds for symbol expansion.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {},
+      "source_label": "PLACEHOLDER_NOT_READY",
+      "symbol": "SOLUSDT"
+    },
+    {
+      "freshness_state": "MISSING_SOURCE",
+      "gap_reason": "v2 binance orderbook ingestor scaffold present; no live websocket started from the planner; operator decision required before connecting depth feeds for symbol expansion.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {},
+      "source_label": "PLACEHOLDER_NOT_READY",
+      "symbol": "UNIUSDT"
+    },
+    {
+      "freshness_state": "MISSING_SOURCE",
+      "gap_reason": "v2 binance orderbook ingestor scaffold present; no live websocket started from the planner; operator decision required before connecting depth feeds for symbol expansion.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {},
+      "source_label": "PLACEHOLDER_NOT_READY",
+      "symbol": "WIFUSDT"
+    },
+    {
+      "freshness_state": "MISSING_SOURCE",
+      "gap_reason": "v2 binance orderbook ingestor scaffold present; no live websocket started from the planner; operator decision required before connecting depth feeds for symbol expansion.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {},
+      "source_label": "PLACEHOLDER_NOT_READY",
+      "symbol": "XRPUSDT"
+    }
+  ],
+  "public_payload": "v2/frontend/public/v2_startup_parity_first_batch_execution/latest/v2_native_binance_orderbook_dynamic_symbol_ingestor.json",
+  "queued_not_running": true,
+  "schema_version": "v2_startup_parity_first_batch_execution_v1_task_status",
+  "scope": "v2/backend/app/services/native_runtime_migration/first_batch_executor.py::task_b_binance_orderbook",
+  "status": "SCAFFOLDED_AWAITING_OPERATOR_CLIENT_DECISION",
+  "target_redis_key_patterns": [
+    "v2:market:orderbook:binance:{symbol}",
+    "v2:market:orderbook:binance:heartbeat"
+  ],
+  "target_v2_keys": [
+    "v2:market:orderbook:binance:{symbol}",
+    "v2:market:orderbook:binance:heartbeat"
+  ],
+  "task_id": "v2_native_binance_orderbook_dynamic_symbol_ingestor",
+  "tests_required": true,
+  "trainer_native_claim": false
+}

@@ -1,0 +1,12 @@
+{
+  "canonical_artifact_path": "v2_runtime_alpha_remediated_adaptive_1h_paper_soak_dynamic_strategy_leverage_margin/latest",
+  "canonical_operator_path": "operator_runtime/v2_runtime_alpha_remediated_adaptive_1h_dynamic_strategy_leverage_margin/latest",
+  "canonical_window_label": "1h",
+  "generated_est": "2026-06-15T14:53:38-04:00",
+  "legacy_alias_reason": "12h path retained only as a compatibility mirror for existing website/report readers",
+  "legacy_artifact_path": "v2_runtime_alpha_remediated_adaptive_12h_paper_soak_dynamic_strategy_leverage_margin/latest",
+  "legacy_operator_path": "operator_runtime/v2_runtime_alpha_remediated_adaptive_12h_dynamic_strategy_leverage_margin/latest",
+  "legacy_path_alias": true,
+  "schema_version": "runtime_alpha_1h_artifact_path_status_v1",
+  "status": "RUNTIME_ALPHA_1H_ARTIFACT_PATH_READY"
+}

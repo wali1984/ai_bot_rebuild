@@ -1,0 +1,56 @@
+{
+  "actions": [
+    {
+      "action": "refreshed_runtime_health_cycle_status",
+      "artifact": "claude_worklog/final_readiness/v2_8h_war_room/latest/runtime_cycle_status.json",
+      "changed_code": false,
+      "changed_systemd": false,
+      "lane": "A"
+    },
+    {
+      "action": "built_model_signal_gap_matrix_with_classifications",
+      "artifact": "claude_worklog/final_readiness/v2_8h_war_room/latest/model_signal_gap_matrix.json",
+      "changed_code": false,
+      "changed_systemd": false,
+      "lane": "B"
+    },
+    {
+      "action": "refreshed_full_observation_builder_status_via_existing_cli",
+      "artifact": "claude_worklog/final_readiness/v2_full_observation_builder/latest/full_observation_builder_status.json",
+      "changed_code": false,
+      "changed_systemd": false,
+      "lane": "C",
+      "observation_state_unchanged": true
+    },
+    {
+      "action": "refreshed_alt_data_provider_runtime_status_and_symbol_universe_gap",
+      "artifacts": [
+        "claude_worklog/final_readiness/v2_8h_war_room/latest/alt_data_provider_runtime_status.json",
+        "claude_worklog/final_readiness/v2_8h_war_room/latest/alt_data_symbol_universe_gap_matrix.json"
+      ],
+      "changed_code": false,
+      "kept_provider_scores_null_under_403": true,
+      "lane": "D"
+    },
+    {
+      "action": "refreshed_top10_binance_dashboards_via_existing_cli",
+      "artifact": "v2/frontend/public/operator_runtime/v2_top10_binance_dashboard_feed/latest/v2_top10_binance_dashboard_feed_status.json",
+      "changed_code": false,
+      "dashboards_published": 6,
+      "futures_source_status": "API_OK",
+      "lane": "E",
+      "spot_source_status": "API_NETWORK_ERROR"
+    }
+  ],
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_real": false,
+  "approves_redis_trim": false,
+  "cycle": "lane_g_actions_applied",
+  "gate": "blocked_human_only",
+  "generated_utc": "2026-05-18T05:58:05Z",
+  "schema_version": "v2_8h_war_room_actions_applied_v1",
+  "symbols_real": [],
+  "writes_exchange_orders": false,
+  "writes_legacy_redis": false
+}

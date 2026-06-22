@@ -1,0 +1,23 @@
+{
+  "generated_utc": "2026-06-21T00:44:10.179589+00:00",
+  "cohort_size": 98,
+  "max_drawdown_usd": 48.736,
+  "max_drawdown_pct": 0.4874,
+  "within_20pct": true,
+  "within_5pct_daily_envelope": true,
+  "worst_single_trade_bps": -260.11,
+  "worst_single_trade_usd": -9.8915,
+  "within_1pct_equity_100usd": true,
+  "var_99_bps": -260.11,
+  "cvar_95_bps": -191.92,
+  "trades_exceeding_100usd_loss": 0,
+  "min_liquidation_buffer_bps": 4827.9,
+  "liq_buffer_sample_n": 85,
+  "operator_envelope": {
+    "max_daily_drawdown_pct": 5.0,
+    "max_loss_per_trade_pct": 1.0,
+    "min_liquidation_buffer_bps": 500.0,
+    "tail_loss_multiplier": 1.5
+  },
+  "status": "PASS"
+}

@@ -1,0 +1,234 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "did_not_adopt_any_symbol_universe_candidate": true,
+  "did_not_call_exchange_mutation": true,
+  "did_not_change_leverage_or_margin_mode": true,
+  "did_not_claim_full_migration": true,
+  "did_not_claim_trainer_native_readiness": true,
+  "did_not_create_paper_only_shutdown_acceptance_file": true,
+  "did_not_deserialize_legacy_checkpoint": true,
+  "did_not_expose_raw_api_keys": true,
+  "did_not_install_systemd_units": true,
+  "did_not_modify_legacy_tree": true,
+  "did_not_mutate_live_symbols_paper_symbols_or_training_symbols": true,
+  "did_not_print_any_raw_credential_value": true,
+  "did_not_run_raw_legacy_script": true,
+  "did_not_start_any_daemon": true,
+  "did_not_start_live_network_feed": true,
+  "did_not_stop_any_daemon": true,
+  "did_not_stop_codex_governors": true,
+  "did_not_stop_legacy_runtime": true,
+  "did_not_stop_replay_miner": true,
+  "did_not_stop_report_center": true,
+  "did_not_stop_v2_runtime": true,
+  "did_not_weaken_paper_fill_gate": true,
+  "did_not_write_old_redis_keys": true,
+  "exchange_mutation_call_count": 0,
+  "generated_utc": "2026-06-05T02:05:50Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "old_redis_write_count": 0,
+  "replay_miner_status_age_seconds": 55.244606256484985,
+  "report_center_index_age_seconds": null,
+  "schema_version": "v2_full_paper_only_startup_manifest_runtime_v1_paper_runtime_process_status",
+  "v2_process_count": 50,
+  "v2_processes_head": [
+    {
+      "args_head": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_coinank_and_liquidation_bridge --loop --interval 60 --tf 1m --write-v2-redis --v2-r",
+      "comm": "python3",
+      "etime": "02:34:59",
+      "pid": "2415"
+    },
+    {
+      "args_head": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_coinapi_rest_ingestor_worker --loop --interval-seconds 300 --max-rps 0.5 --write-v2",
+      "comm": "python3",
+      "etime": "02:34:59",
+      "pid": "2418"
+    },
+    {
+      "args_head": "bash -lc \"/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3\" -m v2.backend.app.cli.v2_ingestors_status_publisher --loop --interval-seconds 60 >> \"/home/wali/D",
+      "comm": "bash",
+      "etime": "02:34:59",
+      "pid": "2420"
+    },
+    {
+      "args_head": "bash -lc while true; do \"/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3\" -m v2.backend.app.cli.v2_kucoin_ingestor_worker --write-evidence --fetch-public-re",
+      "comm": "bash",
+      "etime": "02:34:59",
+      "pid": "2423"
+    },
+    {
+      "args_head": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_legacy_log_intelligence_observer --loop --interval-seconds 60",
+      "comm": "python3",
+      "etime": "02:34:59",
+      "pid": "2425"
+    },
+    {
+      "args_head": "bash -lc \"/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3\" -m v2.backend.app.cli.v2_liquidation_bridge_status_publisher --loop --interval-seconds 60 >> \"/ho",
+      "comm": "bash",
+      "etime": "02:34:59",
+      "pid": "2428"
+    },
+    {
+      "args_head": "bash -lc \"/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3\" -m v2.backend.app.cli.v2_log_errors_status_publisher --loop --interval-seconds 120 >> \"/home/wali",
+      "comm": "bash",
+      "etime": "02:34:59",
+      "pid": "2432"
+    },
+    {
+      "args_head": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_native_ingestors_live_loop --loop --interval-seconds 60",
+      "comm": "python3",
+      "etime": "02:34:59",
+      "pid": "2437"
+    },
+    {
+      "args_head": "bash -lc \"/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3\" -m v2.backend.app.cli.v2_operator_review_publisher --loop --interval-seconds 60 >> \"/home/wali/De",
+      "comm": "bash",
+      "etime": "02:34:59",
+      "pid": "2466"
+    },
+    {
+      "args_head": "bash -lc \"/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3\" -m v2.backend.app.cli.v2_opportunity_tracker_publisher --loop --interval-seconds 300 >> \"/home/wa",
+      "comm": "bash",
+      "etime": "02:34:59",
+      "pid": "2469"
+    },
+    {
+      "args_head": "bash -lc \"/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3\" -m v2.backend.app.cli.v2_paper_decision_lineage_publisher --loop --interval-seconds 60 >> \"/home/",
+      "comm": "bash",
+      "etime": "02:34:59",
+      "pid": "2477"
+    },
+    {
+      "args_head": "bash -lc \"/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3\" -m v2.backend.app.cli.v2_portfolio_state_publisher --loop --interval-seconds 300 >> \"/home/wali/D",
+      "comm": "bash",
+      "etime": "02:34:59",
+      "pid": "2501"
+    },
+    {
+      "args_head": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_ingestors_status_publisher --loop --interval-seconds 60",
+      "comm": "python3",
+      "etime": "02:34:59",
+      "pid": "2539"
+    },
+    {
+      "args_head": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_liquidation_bridge_status_publisher --loop --interval-seconds 60",
+      "comm": "python3",
+      "etime": "02:34:59",
+      "pid": "2541"
+    },
+    {
+      "args_head": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_log_errors_status_publisher --loop --interval-seconds 120",
+      "comm": "python3",
+      "etime": "02:34:59",
+      "pid": "2543"
+    },
+    {
+      "args_head": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_trade_management_paper_loop --loop --interval-seconds 60",
+      "comm": "python3",
+      "etime": "02:34:59",
+      "pid": "2552"
+    },
+    {
+      "args_head": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_operator_review_publisher --loop --interval-seconds 60",
+      "comm": "python3",
+      "etime": "02:34:59",
+      "pid": "2563"
+    },
+    {
+      "args_head": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m uvicorn app.main:create_app --factory --host 127.0.0.1 --port 5173 --workers 1 --log-level info",
+      "comm": "python3",
+      "etime": "02:34:59",
+      "pid": "2570"
+    },
+    {
+      "args_head": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_opportunity_tracker_publisher --loop --interval-seconds 300",
+      "comm": "python3",
+      "etime": "02:34:59",
+      "pid": "2575"
+    },
+    {
+      "args_head": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_portfolio_state_publisher --loop --interval-seconds 300",
+      "comm": "python3",
+      "etime": "02:34:59",
+      "pid": "2617"
+    },
+    {
+      "args_head": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_paper_decision_lineage_publisher --loop --interval-seconds 60",
+      "comm": "python3",
+      "etime": "02:34:59",
+      "pid": "2620"
+    },
+    {
+      "args_head": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_trainer_checkpoint_evidence_publisher --loop --interval-seconds 300 --write-v2-redi",
+      "comm": "python3",
+      "etime": "02:34:58",
+      "pid": "3312"
+    },
+    {
+      "args_head": "./.venv/bin/python3 -m v2.backend.app.cli.paper_online_runtime --loop --interval 30",
+      "comm": "python3",
+      "etime": "02:34:58",
+      "pid": "3345"
+    },
+    {
+      "args_head": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_risk_gateway_live_loop --loop --interval-seconds 30 --v2-redis-ttl-seconds 300",
+      "comm": "python3",
+      "etime": "02:34:58",
+      "pid": "3348"
+    },
+    {
+      "args_head": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_trainer_training_live_loop --loop --interval-seconds 300 --minimum-train-rows 64 --",
+      "comm": "python3",
+      "etime": "02:34:58",
+      "pid": "3354"
+    },
+    {
+      "args_head": "bash -lc mkdir -p v2/runtime; while true; do ./.venv/bin/python3 -m v2.backend.app.cli.paper_shadow_observation --write >> v2/runtime/paper_shadow_observation.l",
+      "comm": "bash",
+      "etime": "02:34:58",
+      "pid": "3572"
+    },
+    {
+      "args_head": "./.venv/bin/python3 -m v2.backend.app.cli.v2_feature_snapshot_builder --loop --read-from-paper-runtime --interval 60",
+      "comm": "python3",
+      "etime": "02:34:58",
+      "pid": "3575"
+    },
+    {
+      "args_head": "bash -lc mkdir -p v2/runtime; while true; do ./.venv/bin/python3 -m v2.backend.app.cli.v2_trainer_bridge --once --readonly-only >> v2/runtime/v2_trainer_bridge.",
+      "comm": "bash",
+      "etime": "02:34:58",
+      "pid": "3820"
+    },
+    {
+      "args_head": "bash -lc mkdir -p v2/runtime; while true; do ./.venv/bin/python3 -m v2.backend.app.cli.symbol_universe_public_payload --write >> v2/runtime/symbol_universe_publ",
+      "comm": "bash",
+      "etime": "02:34:58",
+      "pid": "3855"
+    },
+    {
+      "args_head": "bash -lc mkdir -p v2/runtime; while true; do ./.venv/bin/python3 -m v2.backend.app.cli.v2_nansen_altdata_ingestor >> v2/runtime/v2_nansen_altdata_loop.log 2>&1 ",
+      "comm": "bash",
+      "etime": "02:34:58",
+      "pid": "4153"
+    },
+    {
+      "args_head": "bash -lc mkdir -p v2/runtime; while true; do ./.venv/bin/python3 -m v2.backend.app.cli.v2_alternative_data_status --once >> v2/runtime/v2_alternative_data_statu",
+      "comm": "bash",
+      "etime": "02:34:58",
+      "pid": "4168"
+    },
+    {
+      "args_head": "bash -lc mkdir -p v2/runtime; while true; do ./.venv/bin/python3 -m v2.backend.app.cli.v2_arkham_presence_only_worker --once --json >> v2/runtime/v2_arkham_pres",
+      "comm": "bash",
+      "etime": "02:34:58",
+      "pid": "4170"
+    }
+  ],
+  "v2_redis_scan_succeeded": true,
+  "v2_redis_v2_namespace_key_count": 8461
+}

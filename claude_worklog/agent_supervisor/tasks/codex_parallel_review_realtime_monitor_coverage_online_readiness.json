@@ -1,25 +1,34 @@
 {
-  "task_id": "codex_parallel_review_realtime_monitor_coverage_online_readiness",
   "agent": "codex",
-  "risk_level": "L1",
-  "status": "pending",
-  "priority": 3190,
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "claude_worklog/final_readiness/codex_parallel_audit_plan/latest/",
     "claude_worklog/final_readiness/realtime_legacy_monitoring_continuity/latest/"
   ],
+  "completed_at": "2026-05-11T07:59:49.697926+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_recommended_action": "If FAIL, create a focused non-live remediation task without blocking unrelated safe online-readiness work.",
+  "priority": 3190,
+  "prompt": "Run a read-only Codex parallel review of realtime legacy monitoring coverage for online readiness. Inspect the realtime monitoring continuity artifacts, Phase 3C runtime evidence, and relevant V2 dashboard payloads. Challenge whether monitoring uses actual runtime evidence, whether freshness/source labels are truthful, whether Redis memory pressure and lineage gaps are visible, and whether any hidden mutation path exists. Do not modify /home/wali/Desktop/AI BOT. Do not mutate Redis. Do not place, cancel, or modify exchange orders. Do not change leverage, margin, or position mode. Do not enable live execution. Emit exactly the required review and GO/NO-GO files. GO/NO-GO must contain one line: CODEX_REALTIME_MONITOR_COVERAGE_PASS or CODEX_REALTIME_MONITOR_COVERAGE_FAIL.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/final_readiness/codex_parallel_audit_plan/latest/CODEX_REALTIME_MONITOR_COVERAGE_REVIEW.md",
     "claude_worklog/final_readiness/codex_parallel_audit_plan/latest/CODEX_REALTIME_MONITOR_COVERAGE_GO_NO_GO.md"
   ],
-  "prompt": "Run a read-only Codex parallel review of realtime legacy monitoring coverage for online readiness. Inspect the realtime monitoring continuity artifacts, Phase 3C runtime evidence, and relevant V2 dashboard payloads. Challenge whether monitoring uses actual runtime evidence, whether freshness/source labels are truthful, whether Redis memory pressure and lineage gaps are visible, and whether any hidden mutation path exists. Do not modify /home/wali/Desktop/AI BOT. Do not mutate Redis. Do not place, cancel, or modify exchange orders. Do not change leverage, margin, or position mode. Do not enable live execution. Emit exactly the required review and GO/NO-GO files. GO/NO-GO must contain one line: CODEX_REALTIME_MONITOR_COVERAGE_PASS or CODEX_REALTIME_MONITOR_COVERAGE_FAIL.",
-  "next_recommended_action": "If FAIL, create a focused non-live remediation task without blocking unrelated safe online-readiness work.",
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
   "safety_constraints": [
     "read-only review",
     "legacy Redis no mutation",
     "exchange no mutation",
     "live gate blocked_human_only"
-  ]
+  ],
+  "source_truth_completed_at": "2026-05-11T07:59:49.697926+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/codex_parallel_review_realtime_monitor_coverage_online_readiness.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "codex_parallel_review_realtime_monitor_coverage_online_readiness",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

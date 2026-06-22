@@ -1,0 +1,145 @@
+{
+  "accepted_symbols_only": true,
+  "active_risk_profile": "conservative_min_executable",
+  "generated_est": "2026-06-21T20:28:07-04:00",
+  "order_submission_allowed": false,
+  "raw_credentials_exposed": false,
+  "rows": [
+    {
+      "adaptive_budget_source": "V2_ADAPTIVE_AI_CAPITAL_ALLOCATOR_PRE_SUBMIT",
+      "blockers": [
+        "FAILOVER_EXCHANGE_SYMBOL_MAPPING_UNVERIFIED",
+        "FAILOVER_SIGNED_READ_ONLY_PROBE_NOT_PASSED"
+      ],
+      "exchange": "KuCoin",
+      "exchange_symbol": null,
+      "exchange_symbol_candidate": "BNB-USDT",
+      "mapping_verified": false,
+      "market_type": "probe_required",
+      "min_notional": null,
+      "orchestrator_signal_availability": "MISSING_OR_STALE",
+      "order_submission_allowed": false,
+      "prediction_availability": "MISSING_OR_STALE",
+      "risk_decision_availability": "MISSING_OR_STALE",
+      "risk_profile": "conservative_min_executable",
+      "static_risk_cap_used": false,
+      "step_size": null,
+      "tick_size": null,
+      "v2_symbol": "BNBUSDT"
+    },
+    {
+      "adaptive_budget_source": "V2_ADAPTIVE_AI_CAPITAL_ALLOCATOR_PRE_SUBMIT",
+      "blockers": [
+        "FAILOVER_EXCHANGE_SYMBOL_MAPPING_UNVERIFIED",
+        "FAILOVER_SIGNED_READ_ONLY_PROBE_NOT_PASSED"
+      ],
+      "exchange": "KuCoin",
+      "exchange_symbol": null,
+      "exchange_symbol_candidate": "BTC-USDT",
+      "mapping_verified": false,
+      "market_type": "probe_required",
+      "min_notional": null,
+      "orchestrator_signal_availability": "MISSING_OR_STALE",
+      "order_submission_allowed": false,
+      "prediction_availability": "MISSING_OR_STALE",
+      "risk_decision_availability": "MISSING_OR_STALE",
+      "risk_profile": "conservative_min_executable",
+      "static_risk_cap_used": false,
+      "step_size": null,
+      "tick_size": null,
+      "v2_symbol": "BTCUSDT"
+    },
+    {
+      "adaptive_budget_source": "V2_ADAPTIVE_AI_CAPITAL_ALLOCATOR_PRE_SUBMIT",
+      "blockers": [
+        "FAILOVER_EXCHANGE_SYMBOL_MAPPING_UNVERIFIED",
+        "FAILOVER_SIGNED_READ_ONLY_PROBE_NOT_PASSED"
+      ],
+      "exchange": "KuCoin",
+      "exchange_symbol": null,
+      "exchange_symbol_candidate": "ETH-USDT",
+      "mapping_verified": false,
+      "market_type": "probe_required",
+      "min_notional": null,
+      "orchestrator_signal_availability": "MISSING_OR_STALE",
+      "order_submission_allowed": false,
+      "prediction_availability": "MISSING_OR_STALE",
+      "risk_decision_availability": "MISSING_OR_STALE",
+      "risk_profile": "conservative_min_executable",
+      "static_risk_cap_used": false,
+      "step_size": null,
+      "tick_size": null,
+      "v2_symbol": "ETHUSDT"
+    },
+    {
+      "adaptive_budget_source": "V2_ADAPTIVE_AI_CAPITAL_ALLOCATOR_PRE_SUBMIT",
+      "blockers": [
+        "FAILOVER_EXCHANGE_SYMBOL_MAPPING_UNVERIFIED",
+        "FAILOVER_SIGNED_READ_ONLY_PROBE_NOT_PASSED"
+      ],
+      "exchange": "KuCoin",
+      "exchange_symbol": null,
+      "exchange_symbol_candidate": "PAXG-USDT",
+      "mapping_verified": false,
+      "market_type": "probe_required",
+      "min_notional": null,
+      "orchestrator_signal_availability": "MISSING_OR_STALE",
+      "order_submission_allowed": false,
+      "prediction_availability": "MISSING_OR_STALE",
+      "risk_decision_availability": "MISSING_OR_STALE",
+      "risk_profile": "conservative_min_executable",
+      "static_risk_cap_used": false,
+      "step_size": null,
+      "tick_size": null,
+      "v2_symbol": "PAXGUSDT"
+    },
+    {
+      "adaptive_budget_source": "V2_ADAPTIVE_AI_CAPITAL_ALLOCATOR_PRE_SUBMIT",
+      "blockers": [
+        "FAILOVER_EXCHANGE_SYMBOL_MAPPING_UNVERIFIED",
+        "FAILOVER_SIGNED_READ_ONLY_PROBE_NOT_PASSED"
+      ],
+      "exchange": "KuCoin",
+      "exchange_symbol": null,
+      "exchange_symbol_candidate": "XAUT-USDT",
+      "mapping_verified": false,
+      "market_type": "probe_required",
+      "min_notional": null,
+      "orchestrator_signal_availability": "MISSING_OR_STALE",
+      "order_submission_allowed": false,
+      "prediction_availability": "MISSING_OR_STALE",
+      "risk_decision_availability": "MISSING_OR_STALE",
+      "risk_profile": "conservative_min_executable",
+      "static_risk_cap_used": false,
+      "step_size": null,
+      "tick_size": null,
+      "v2_symbol": "XAUTUSDT"
+    },
+    {
+      "adaptive_budget_source": "V2_ADAPTIVE_AI_CAPITAL_ALLOCATOR_PRE_SUBMIT",
+      "blockers": [
+        "FAILOVER_EXCHANGE_SYMBOL_MAPPING_UNVERIFIED",
+        "FAILOVER_SIGNED_READ_ONLY_PROBE_NOT_PASSED"
+      ],
+      "exchange": "KuCoin",
+      "exchange_symbol": null,
+      "exchange_symbol_candidate": "ZEC-USDT",
+      "mapping_verified": false,
+      "market_type": "probe_required",
+      "min_notional": null,
+      "orchestrator_signal_availability": "MISSING_OR_STALE",
+      "order_submission_allowed": false,
+      "prediction_availability": "MISSING_OR_STALE",
+      "risk_decision_availability": "MISSING_OR_STALE",
+      "risk_profile": "conservative_min_executable",
+      "static_risk_cap_used": false,
+      "step_size": null,
+      "tick_size": null,
+      "v2_symbol": "ZECUSDT"
+    }
+  ],
+  "schema_version": "failover_symbol_risk_orchestrator_mapping_status_v1",
+  "selected_exchange": "KuCoin",
+  "service_id": "v2_audited_exchange_failover_selection_and_transport_implementation",
+  "status": "FAILOVER_SYMBOL_MAPPING_REQUIRES_READ_ONLY_PROBE"
+}

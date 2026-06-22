@@ -1,0 +1,62 @@
+{
+  "audit_utc": "2026-06-19T00:15:00Z",
+  "total_trades": 645,
+  "feature_availability": {
+    "squeeze_evidence_score": {
+      "null_count": 645,
+      "null_pct": 100.0,
+      "non_null_count": 0,
+      "finding": "CRITICAL_NULL \u2014 100% of trades have null squeeze score",
+      "impact": "Squeeze detection is completely non-functional. High-squeeze events not filtered or used.",
+      "blocker": true
+    },
+    "liquidation_distance_context": {
+      "null_count": 0,
+      "null_pct": 0.0,
+      "non_null_count": 645,
+      "finding": "PRESENT \u2014 liquidation distance context populated in all trades",
+      "blocker": false
+    },
+    "liquidation_context": {
+      "null_count": 0,
+      "null_pct": 0.0,
+      "non_null_count": 645,
+      "finding": "PRESENT \u2014 liquidation context populated in all trades",
+      "blocker": false
+    },
+    "microstructure_context": {
+      "null_count": 0,
+      "present_count": 645,
+      "finding": "PRESENT but CONSTANT",
+      "bid_ask_spread_bps_distribution": {
+        "2.0": 645
+      },
+      "constant_spread_finding": "CRITICAL \u2014 bid_ask_spread_bps is hardcoded at 2.0 bps for 100% of trades. This is not observed market data.",
+      "blocker": true
+    },
+    "drawdown_at_entry": {
+      "always_zero": true,
+      "non_zero_count": 0,
+      "finding": "CRITICAL \u2014 drawdown_at_entry is 0.0 for all 645 trades. The drawdown tracking system is non-functional.",
+      "impact": "Risk gateway drawdown block (250 bps threshold) and reduce (125 bps threshold) are dead code. No drawdown-based risk reduction has ever applied.",
+      "blocker": true
+    }
+  },
+  "feature_consumption_matrix": {
+    "squeeze_evidence_score_used_in_routing": false,
+    "drawdown_at_entry_used_in_routing": "CONFIGURED but always_zero so threshold never triggered",
+    "microstructure_bid_ask_spread_used_in_routing": "YES \u2014 but constant 2.0 bps never triggers high_spread_bps_threshold=12.0",
+    "liquidation_context_used": "PRESENT \u2014 referenced in trade record but impact on execution unclear"
+  },
+  "point_in_time_safety": {
+    "pit_violations_found": 0,
+    "basis": "Prior audit (2026-06-18): 0 PIT violations confirmed after MISSING_TF_PREDICTION fix",
+    "confidence": "HIGH"
+  },
+  "missing_features_impact": {
+    "squeeze_null": "Squeeze events are not detected or filtered \u2014 high-volume pump/dump pairs (NIGHTUSDT, PUMPUSDT) enter with no squeeze awareness",
+    "constant_spread": "Real liquidity conditions not observed \u2014 low-liquidity symbols enter at 2.0 bps when actual spread may be 20-200 bps",
+    "zero_drawdown": "System never reduces size during account drawdown \u2014 risk management under adverse conditions is untested"
+  },
+  "confidence": "HIGH \u2014 computed from raw Redis closed_trades records"
+}

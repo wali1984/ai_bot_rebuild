@@ -1,0 +1,27 @@
+{
+  "accepted_symbols": [
+    "BNBUSDT",
+    "BTCUSDT",
+    "ETHUSDT",
+    "PAXGUSDT",
+    "XAUTUSDT",
+    "ZECUSDT"
+  ],
+  "blockers": [
+    "LIVE_GATE_RUNTIME_STATE_STALE",
+    "LIVE_ORDER_TRANSPORT_WRITE_ENV_NOT_ENABLED",
+    "RISK_GATEWAY_DECISION_ID_MISMATCH"
+  ],
+  "generated_est": "2026-06-07T15:21:01-04:00",
+  "live_gate": "blocked_human_only",
+  "runtime_loaded": true,
+  "runtime_validation": {
+    "age_seconds": 167289.582425,
+    "blockers": [
+      "LIVE_GATE_RUNTIME_STATE_STALE"
+    ],
+    "max_age_seconds": 3600,
+    "valid": false
+  },
+  "trader_status": "TRADER_CONNECTED_EXECUTION_FROZEN"
+}

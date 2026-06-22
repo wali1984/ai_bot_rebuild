@@ -1,0 +1,60 @@
+{
+  "agent": "claude",
+  "autoseed_metadata": {
+    "generated_at": "2026-05-24T20:00:34Z",
+    "source": "v2_autonomous_mission_backlog_autoseed",
+    "task_role": "implementation",
+    "title": "Dynamic symbol coverage missing-source closure"
+  },
+  "completed_at": "2026-05-24T22:20:58Z",
+  "created_at": "2026-05-24T20:00:34Z",
+  "current_active": true,
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "duplicate_suppression_key": "autoseed:dynamic_symbol_coverage_missing_source_closure:implementation",
+  "expected_output_paths": [
+    "claude_worklog/final_readiness/v2_autonomous_mission_backlog/per_task/dynamic_symbol_coverage_missing_source_closure/IMPLEMENTATION_REPORT.md"
+  ],
+  "fail_blockers": [
+    "running_descriptor_without_active_lease_reset"
+  ],
+  "file_lock_group": "v2_dynamic_symbol_coverage_missing_source_closure",
+  "lease_id": "7d788b0908ae4b8f9fe9c16b94fdc9b3",
+  "log_path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/claude_autoseed_dynamic_symbol_coverage_missing_source_closure.log",
+  "mission_categories": [
+    "symbol selection",
+    "runtime stability",
+    "observation completeness"
+  ],
+  "mission_progress_countable": true,
+  "next_action": "Run narrow V2 implementation task dynamic_symbol_coverage_missing_source_closure",
+  "owner": "CLAUDE",
+  "paired_codex_review_task_id": "codex_review_autoseed_dynamic_symbol_coverage_missing_source_closure",
+  "pid_or_job_id": 1818708,
+  "prompt": "Implement a narrow dynamic-symbol coverage closure. Use the 25-symbol V2 runtime status, identify one missing or stale source family, and either wire the V2-native source or mark MISSING_SOURCE with evidence. Do not mutate paper/training symbol adoption policy. Emit a per-task report.",
+  "report_only_work": false,
+  "risk_level": "L1",
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "scope_paths": [
+    "v2/backend/app/services/native_dynamic_runtime",
+    "claude_worklog/final_readiness/v2_native_dynamic_runtime_and_trainer_bridge_exit_execution/latest",
+    "v2/frontend/public/v2_native_dynamic_runtime_and_trainer_bridge_exit_execution/latest"
+  ],
+  "stall_count": 1,
+  "started_at": "2026-05-24T22:18:59Z",
+  "status": "completed",
+  "task_id": "claude_autoseed_dynamic_symbol_coverage_missing_source_closure",
+  "task_type": "CLAUDE_IMPLEMENTATION",
+  "ui_only_work": false,
+  "updated_at": "2026-05-24T22:20:58Z",
+  "worker_id": "claude-3"
+}

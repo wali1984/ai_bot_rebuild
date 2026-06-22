@@ -1,0 +1,24 @@
+{
+  "schema_version": "v2_redis_adapter_implementation_status_v1",
+  "milestone": "v2_legacy_data_zero_exception_parity_and_full_runtime_startup",
+  "phase": 3,
+  "generated_est": "2026-05-31T01:10:00-0400",
+  "generated_utc": "2026-05-31T05:10:00Z",
+  "status_aggregate": {
+    "PARTIAL": 1,
+    "WIRED_STUB": 1,
+    "WIRED_PARTIAL": 2,
+    "NOT_USED_BY_DESIGN": 1,
+    "WIRED": 3,
+    "MISSING_NO_KEYS": 4,
+    "REROUTED_TO_STREAM": 1,
+    "MISSING": 21,
+    "WIRED_PAPER_ONLY": 1
+  },
+  "missing_or_stub_count": 26,
+  "wired_count": 7,
+  "live_safety": {
+    "live_gate_status": "blocked_human_only",
+    "live_symbols": []
+  }
+}

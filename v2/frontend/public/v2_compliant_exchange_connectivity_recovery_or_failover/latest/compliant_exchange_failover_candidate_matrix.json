@@ -1,0 +1,130 @@
+{
+  "automatic_live_failover_allowed": false,
+  "candidates": [
+    {
+      "automatic_failover_allowed": false,
+      "credentials": {
+        "credential_key_names_checked": [
+          "KUCOIN_API_KEY",
+          "KUCOIN_API_SECRET",
+          "KUCOIN_API_PASSPHRASE"
+        ],
+        "credential_keys_present_by_name": [],
+        "credential_values_exposed": false
+      },
+      "exchange": "KuCoin",
+      "implementation_effort": "medium",
+      "live_gate_required": true,
+      "operator_approval_required": true,
+      "order_transport_implemented": false,
+      "public_data_available": true,
+      "risk_profile_compatibility": "requires_futures_filter_and_min_notional_mapping",
+      "signed_account_read_available": false,
+      "symbol_overlap_with_v2": "partial_public_symbol_mapping_present"
+    },
+    {
+      "automatic_failover_allowed": false,
+      "credentials": {
+        "credential_key_names_checked": [
+          "COINBASE_API_KEY",
+          "COINBASE_API_SECRET",
+          "COINBASE_API_PASSPHRASE",
+          "COINBASE_CLOUD_API_KEY"
+        ],
+        "credential_keys_present_by_name": [],
+        "credential_values_exposed": false
+      },
+      "exchange": "Coinbase Advanced",
+      "implementation_effort": "high",
+      "live_gate_required": true,
+      "operator_approval_required": true,
+      "order_transport_implemented": false,
+      "public_data_available": false,
+      "risk_profile_compatibility": "requires_spot_or_perp_contract_review",
+      "signed_account_read_available": false,
+      "symbol_overlap_with_v2": "spot_overlap_requires_strategy_mapping"
+    },
+    {
+      "automatic_failover_allowed": false,
+      "credentials": {
+        "credential_key_names_checked": [
+          "KRAKEN_API_KEY",
+          "KRAKEN_API_SECRET"
+        ],
+        "credential_keys_present_by_name": [],
+        "credential_values_exposed": false
+      },
+      "exchange": "Kraken",
+      "implementation_effort": "high",
+      "live_gate_required": true,
+      "operator_approval_required": true,
+      "order_transport_implemented": false,
+      "public_data_available": false,
+      "risk_profile_compatibility": "requires_contract_and_filter mapping",
+      "signed_account_read_available": false,
+      "symbol_overlap_with_v2": "requires_pair_mapping"
+    },
+    {
+      "automatic_failover_allowed": false,
+      "credentials": {
+        "credential_key_names_checked": [
+          "BYBIT_API_KEY",
+          "BYBIT_API_SECRET"
+        ],
+        "credential_keys_present_by_name": [],
+        "credential_values_exposed": false
+      },
+      "exchange": "Bybit",
+      "implementation_effort": "medium",
+      "live_gate_required": true,
+      "operator_approval_required": true,
+      "order_transport_implemented": false,
+      "public_data_available": false,
+      "risk_profile_compatibility": "operator_legal_approval_required_before_probe",
+      "signed_account_read_available": false,
+      "symbol_overlap_with_v2": "perp_overlap_likely_but_unverified"
+    },
+    {
+      "automatic_failover_allowed": false,
+      "credentials": {
+        "credential_key_names_checked": [
+          "OKX_API_KEY",
+          "OKX_API_SECRET",
+          "OKX_API_PASSPHRASE"
+        ],
+        "credential_keys_present_by_name": [],
+        "credential_values_exposed": false
+      },
+      "exchange": "OKX",
+      "implementation_effort": "medium",
+      "live_gate_required": true,
+      "operator_approval_required": true,
+      "order_transport_implemented": false,
+      "public_data_available": false,
+      "risk_profile_compatibility": "operator_legal_approval_required_before_probe",
+      "signed_account_read_available": false,
+      "symbol_overlap_with_v2": "perp_overlap_likely_but_unverified"
+    },
+    {
+      "automatic_failover_allowed": true,
+      "credentials": {
+        "credential_key_names_checked": [],
+        "credential_keys_present_by_name": [],
+        "credential_values_exposed": false
+      },
+      "exchange": "paper-only fallback",
+      "implementation_effort": "none",
+      "live_gate_required": false,
+      "operator_approval_required": false,
+      "order_transport_implemented": true,
+      "public_data_available": true,
+      "risk_profile_compatibility": "paper_shadow_only",
+      "signed_account_read_available": true,
+      "symbol_overlap_with_v2": "full accepted-symbol simulation only"
+    }
+  ],
+  "generated_est": "2026-06-21T20:28:07-04:00",
+  "raw_credentials_exposed": false,
+  "schema_version": "compliant_exchange_failover_candidate_matrix_v1",
+  "status": "FAILOVER_CANDIDATES_EVALUATED_AUDITED_APPROVAL_REQUIRED"
+}

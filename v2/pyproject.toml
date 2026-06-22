@@ -5,11 +5,11 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ai-bot-v2"
 version = "0.0.0"
-description = "AI BOT V2 control-plane scaffold (paper/read_only by default; live trading blocked)."
+description = "NERVYX ONE adaptive market intelligence scaffold (paper/read_only by default; live trading blocked)."
 requires-python = ">=3.11"
 dependencies = [
   "fastapi==0.115.0",
-  "pydantic==2.9.2",
+  "pydantic==2.13.4",
   "pydantic-settings==2.5.2",
   "uvicorn==0.30.6",
   "SQLAlchemy==2.0.35",
@@ -18,6 +18,8 @@ dependencies = [
   "httpx==0.27.2",
   "structlog==24.4.0",
   "python-multipart==0.0.10",
+  "websockets==15.0.1",
+  "binance-sdk-derivatives-trading-usds-futures @ git+https://github.com/binance/binance-connector-python.git@22af475b45db45bb90ad730babcdd32b8db1424d#subdirectory=clients/derivatives_trading_usds_futures",
 ]
 
 [project.optional-dependencies]

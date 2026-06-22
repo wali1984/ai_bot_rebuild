@@ -23,6 +23,7 @@ def _paper_payload() -> dict[str, object]:
                 "feature_snapshot_id": "fs_paper_tick_1",
                 "signal_id": "sig_paper_tick_1",
                 "risk_decision_id": "risk_paper_tick_1",
+                "orchestrator_decision_id": "orch_paper_tick_1",
                 "execution_intent_id": "pei_paper_tick_1",
             },
             "signal": {

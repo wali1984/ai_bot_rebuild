@@ -46,7 +46,7 @@ struct iPhoneLayout: View {
                 .tag(AppTab.dashboard)
 
             PositionsView()
-                .tabItem { Label("Positions", systemImage: "chart.line.uptrend.xyaxis") }
+                .tabItem { Label("Portfolio", systemImage: "chart.line.uptrend.xyaxis") }
                 .tag(AppTab.positions)
 
             SignalsView()
@@ -54,7 +54,7 @@ struct iPhoneLayout: View {
                 .tag(AppTab.signals)
 
             PaperTradingView()
-                .tabItem { Label("Paper", systemImage: "doc.plaintext") }
+                .tabItem { Label("Execute", systemImage: "bolt.horizontal.circle") }
                 .tag(AppTab.paper)
 
             MoreView()
@@ -73,21 +73,21 @@ struct iPadLayout: View {
     var body: some View {
         NavigationSplitView {
             List {
-                Section("Trading") {
+                Section("NERVYX EXECUTE") {
                     sidebarRow(.dashboard,  "Dashboard",     "gauge.high")
                     sidebarRow(.positions,  "Positions",     "chart.line.uptrend.xyaxis")
                     sidebarRow(.signals,    "Signals",       "antenna.radiowaves.left.and.right")
-                    sidebarRow(.paper,      "Paper Trading", "doc.plaintext")
+                    sidebarRow(.paper,      "Execute",       "bolt.horizontal.circle")
                     sidebarRow(.alerts,     "Alerts",        "bell.badge")
                 }
-                Section("Risk & Control") {
+                Section("NERVYX GUARD") {
                     sidebarRow(.risk,    "Risk Control", "shield.lefthalf.filled")
                 }
-                Section("System") {
+                Section("NERVYX OBSERVE") {
                     sidebarRow(.monitor, "Monitor",      "server.rack")
                 }
                 if auth.currentSession?.isAdmin == true {
-                    Section("Admin") {
+                    Section("Ops Terminal") {
                         sidebarRow(.admin, "Admin", "person.badge.key")
                     }
                 }
@@ -95,7 +95,7 @@ struct iPadLayout: View {
                     sidebarRow(.settings, "Settings", "gear")
                 }
             }
-            .navigationTitle("AI BOT V2")
+            .navigationTitle("NERVYX ONE")
             .listStyle(.sidebar)
         } detail: {
             detailView(for: appState.selectedTab)
@@ -138,13 +138,13 @@ struct MoreView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("System") {
+                Section("NERVYX OBSERVE") {
                     NavigationLink("Alerts") { AlertsView() }
                     NavigationLink("Risk Control") { RiskControlView() }
                     NavigationLink("Monitor") { MonitorView() }
                 }
                 if auth.currentSession?.isAdmin == true {
-                    Section("Admin") {
+                    Section("Ops Terminal") {
                         NavigationLink("Admin Dashboard") { AdminDashboardView() }
                     }
                 }

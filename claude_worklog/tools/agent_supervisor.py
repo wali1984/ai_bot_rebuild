@@ -52,6 +52,7 @@ PLANNER_STATUS_FILE = STATUS_DIR / "planner_status.json"
 HEARTBEAT_FILE = STATUS_DIR / "supervisor_heartbeat.json"
 LOCK_FILE = BASE_DIR / "supervisor.lock"
 NEXT_PHASE_FILE = BASE_DIR / "state/NEXT_PHASE.md"
+CODEX_NON_INTERACTIVE_FLAGS = ["--sandbox", "danger-full-access", "--ask-for-approval", "never"]
 NON_DRIFT_LOCK_FILE = pathlib.Path("claude_worklog/autonomous_governor/latest/NON_DRIFT_GOVERNOR_LOCK.json")
 V2_WORKER_PORTING_STATE_FILE = pathlib.Path(
     "claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/worker_porting_state.json"
@@ -1060,6 +1061,10 @@ def materialize_emit_files(
 
 def codex_ready() -> bool:
     return file_contains(BASE_DIR / "CODEX_LOCAL_AGENT_READY.md", "CODEX_LOCAL_AGENT_READY")
+
+
+def codex_exec_command(prompt: str) -> List[str]:
+    return ["codex", *CODEX_NON_INTERACTIVE_FLAGS, "exec", prompt]
 
 
 def claude_ready() -> bool:
@@ -2836,7 +2841,7 @@ def run_task(
                             else:
                                 prompt = str(task.get("prompt", ""))
                                 rc, run_pid, timed_out = run_cmd_with_pid(
-                                    ["codex", "exec", prompt],
+                                    codex_exec_command(prompt),
                                     cwd, stdout_path, stderr_path,
                                     timeout_seconds=hard_timeout_s, on_start=_mark_run_pid, on_poll=on_progress,
                                 )

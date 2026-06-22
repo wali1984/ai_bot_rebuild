@@ -1,0 +1,79 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "did_not_call_exchange_mutation": true,
+  "did_not_enable_any_control": true,
+  "did_not_expose_raw_api_keys": true,
+  "did_not_modify_legacy_tree": true,
+  "did_not_mutate_cloudflare_configuration": true,
+  "did_not_render_live_or_order_or_shutdown_or_adopt_button": true,
+  "did_not_start_or_stop_frontend_build": true,
+  "did_not_stop_codex_governors": true,
+  "did_not_stop_legacy_runtime": true,
+  "did_not_stop_replay_miner": true,
+  "did_not_stop_report_center": true,
+  "did_not_stop_v2_runtime": true,
+  "did_not_write_old_redis_keys": true,
+  "every_legacy_key_labelled_bridge_or_reference": true,
+  "frontend_does_not_read_redis_directly": true,
+  "generated_utc": "2026-05-23T23:09:38Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "no_fake_readiness": true,
+  "no_v2_native_label_for_bridge_data": true,
+  "no_v2_native_label_for_legacy_keys": true,
+  "row_count": 6,
+  "rows": [
+    {
+      "label": "V2_BRIDGE_FROM_LEGACY_REDIS",
+      "legacy_key": "prediction:*",
+      "public_payload": "v2/frontend/public/operator_runtime/paper_online/latest/trainer_prediction_current_record.json",
+      "remediation_reason": "prediction:* is written by the legacy hybrid_trainer. Cannot be V2_NATIVE_PUBLIC_PAYLOAD; bridge only.",
+      "served_via_public_payload": true,
+      "writer": "legacy hybrid_trainer"
+    },
+    {
+      "label": "V2_BRIDGE_FROM_LEGACY_REDIS",
+      "legacy_key": "coinank:*",
+      "public_payload": "v2/frontend/public/operator_runtime/v2_coinank_bridge/latest/*.json",
+      "remediation_reason": "coinank:* is written by the legacy CoinAnk ingest; only bridge until per-symbol V2-native publisher lands.",
+      "served_via_public_payload": true,
+      "writer": "legacy coinank ingest"
+    },
+    {
+      "label": "V2_BRIDGE_FROM_LEGACY_REDIS",
+      "legacy_key": "signals:trading",
+      "public_payload": "v2/frontend/public/operator_runtime/paper_online/latest/current_signal_lineage.json",
+      "remediation_reason": "RELABEL: signals:trading is the legacy hybrid_trainer output stream. The previous packet incorrectly labelled it V2_NATIVE_PUBLIC_PAYLOAD. Correct label is V2_BRIDGE_FROM_LEGACY_REDIS. The V2-native equivalent is v2:orchestrator:decisions (separate key, separate row).",
+      "served_via_public_payload": true,
+      "writer": "legacy hybrid_trainer"
+    },
+    {
+      "label": "V2_BRIDGE_FROM_LEGACY_REDIS",
+      "legacy_key": "price:*",
+      "public_payload": "v2/frontend/public/operator_runtime/paper_online/latest/paper_online_runtime_status.json",
+      "remediation_reason": "RELABEL: price:* is the legacy price-provider stream. The previous packet incorrectly labelled it V2_NATIVE_PUBLIC_PAYLOAD. Correct label is V2_BRIDGE_FROM_LEGACY_REDIS. The V2-native equivalent is v2:market:prices:{symbol} (separate key, separate row below).",
+      "served_via_public_payload": true,
+      "writer": "legacy ingest_realtime_price_provider"
+    },
+    {
+      "label": "V2_NATIVE_PUBLIC_PAYLOAD",
+      "legacy_key": "v2:orchestrator:decisions",
+      "public_payload": "v2/frontend/public/operator_runtime/paper_online/latest/current_signal_lineage.json",
+      "remediation_reason": "V2-native orchestrator decisions stream. This is the correct V2-native equivalent of the legacy signals:trading.",
+      "served_via_public_payload": true,
+      "writer": "v2_orchestrator_arbitration"
+    },
+    {
+      "label": "V2_NATIVE_PUBLIC_PAYLOAD",
+      "legacy_key": "v2:market:prices:{symbol}",
+      "public_payload": "v2/frontend/public/operator_runtime/paper_online/latest/paper_online_runtime_status.json",
+      "remediation_reason": "V2-native price stream. This is the correct V2-native equivalent of the legacy price:* family.",
+      "served_via_public_payload": true,
+      "writer": "v2_market_ingestor"
+    }
+  ],
+  "schema_version": "v2_website_data_alignment_route_coverage_and_bridge_label_remediation_v1_corrected_redis_bridge_contracts"
+}

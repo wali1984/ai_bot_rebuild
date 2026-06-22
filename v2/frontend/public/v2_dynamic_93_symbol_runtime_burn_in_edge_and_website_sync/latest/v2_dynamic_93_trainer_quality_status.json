@@ -1,0 +1,65 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "calls_exchange_mutation": false,
+  "calls_test_order_endpoint": false,
+  "checkpoint_blocker_distribution": {
+    "UNKNOWN": 73
+  },
+  "classification": "V2_TRAINER_TRAINING_LIVE_INSUFFICIENT_TRAIN_ROWS",
+  "confidence_distribution": {
+    "count": 73,
+    "max": 0.6740360248036803,
+    "mean": 0.5127315619279483,
+    "min": 0.44872653712280325,
+    "p50": 0.48486150233404485,
+    "p90": 0.612802969143799
+  },
+  "execution_live_symbols": [],
+  "expected_move_after_cost_distribution_bps": {
+    "count": 73,
+    "max": 5.893818378448486,
+    "mean": -5.84053305403827,
+    "min": -68.73019409179688,
+    "p50": 0.0,
+    "p90": 0.0
+  },
+  "generated_at": "2026-06-21T19:36:10-04:00",
+  "generated_est": "2026-06-21T19:36:10-04:00",
+  "generated_utc": "2026-06-21T23:36:10Z",
+  "leverage_changed": false,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "margin_mode_changed": false,
+  "missing_feature_count": 688,
+  "model_source_distribution": {
+    "v2_hybrid_ckpt_6d9f8817bed9ead40229baf7": 47,
+    "v2_hybrid_ckpt_b81193e8ca113cff44047e94": 26
+  },
+  "places_exchange_orders": false,
+  "places_real_order": false,
+  "raw_credential_value_exposed": false,
+  "real_feature_count": 23348,
+  "row_count": 172,
+  "schema_version": "v2_dynamic_93_trainer_quality_status_v1",
+  "stale_feature_count": 0,
+  "symbol_count": 86,
+  "timezone": "America/New_York",
+  "trade_all_discovered_symbols": false,
+  "train_rows": 0,
+  "trained_model_available": false,
+  "trainer_source_distribution": {
+    "V2_NATIVE_RL_MASA_PPO_CUDA_TRAINER_PAPER_SHADOW": 73
+  },
+  "trainer_status_freshness": {
+    "age_seconds": null,
+    "limit_seconds": 3600,
+    "state": "TIMESTAMP_MISSING"
+  },
+  "validation_rows": 0,
+  "writes_exchange_orders": false,
+  "writes_legacy_redis": false,
+  "writes_old_redis": false
+}

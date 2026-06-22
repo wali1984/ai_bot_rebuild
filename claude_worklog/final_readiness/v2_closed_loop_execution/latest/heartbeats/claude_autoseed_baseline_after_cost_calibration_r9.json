@@ -1,0 +1,10 @@
+{
+  "alive": true,
+  "cmd": [
+    "/home/wali/.local/bin/claude",
+    "..."
+  ],
+  "pid": 1893456,
+  "task_id": "claude_autoseed_baseline_after_cost_calibration_r9",
+  "updated_at": "2026-05-24T23:29:12Z"
+}

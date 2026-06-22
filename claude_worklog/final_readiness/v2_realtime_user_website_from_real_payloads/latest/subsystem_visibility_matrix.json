@@ -1,0 +1,183 @@
+{
+  "schema_version": "v2_realtime_user_website_subsystem_visibility_matrix_v1",
+  "generated_utc": "2026-05-18T06:11:00Z",
+  "rows": [
+    {
+      "subsystem": "live_gate",
+      "current_state": "blocked_human_only",
+      "visible_on_route": "every page",
+      "visible_as": "sticky red chip near top of viewport",
+      "real_source": "constant invariant emitted in every V2 status payload",
+      "missing_evidence_render": "page does not load; banner blocks until value present",
+      "must_show_false_or_blocked": ["approves_real", "approves_canary", "approves_legacy_shutdown", "approves_redis_trim"]
+    },
+    {
+      "subsystem": "shutdown",
+      "current_state": "blocked",
+      "visible_on_route": "/risk, /automation, /admin/approval-status",
+      "real_source": "no GO_NO_GO file under approvals/ contains a SHUTDOWN_ACCEPTANCE marker",
+      "missing_evidence_render": "panel says BLOCKED with audit pointer"
+    },
+    {
+      "subsystem": "full_observation_builder",
+      "current_state": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+      "visible_on_route": "/bot-intelligence, /automation",
+      "real_source": "v2/frontend/public/operator_runtime/v2_rl_core/latest/full_observation_builder_status.json",
+      "must_show": ["state", "target_full_observation_dim=1911", "per_symbol_generated_dim", "subfamily_present_counts_total", "checkpoint_compatibility_claimed=false", "policy_architecture_parity_claimed=false"],
+      "missing_evidence_render": "panel says MISSING with explicit blocker source; never a fabricated dim count"
+    },
+    {
+      "subsystem": "checkpoint_compatibility",
+      "current_state": "claimed=false",
+      "visible_on_route": "/bot-intelligence, /admin/codex-reviews",
+      "real_source": "full_observation_builder_status.json + every Codex review packet",
+      "missing_evidence_render": "warning chip if a downstream payload ever asserts true without operator approval"
+    },
+    {
+      "subsystem": "policy_architecture_parity",
+      "current_state": "claimed=false",
+      "visible_on_route": "/bot-intelligence",
+      "real_source": "policy_architecture_shape_contract.json + Codex policy review",
+      "missing_evidence_render": "chip stays at false until packet flips it"
+    },
+    {
+      "subsystem": "v2_trainer_feed",
+      "current_state": "v2:trainer:heartbeat present",
+      "visible_on_route": "/bot-intelligence",
+      "real_source": "v2:trainer:heartbeat",
+      "missing_evidence_render": "STALE chip with last-seen UTC and source key"
+    },
+    {
+      "subsystem": "v2_predictions",
+      "current_state": "per-symbol",
+      "visible_on_route": "/bot-intelligence",
+      "real_source": "v2:prediction:{symbol}:1m",
+      "missing_evidence_render": "MISSING row per absent symbol"
+    },
+    {
+      "subsystem": "v2_paper_positions_intents_ledger",
+      "current_state": "live",
+      "visible_on_route": "/paper",
+      "real_source": "v2:paper:positions / :intents / :intents_held_by_paper_fill_gate / :ledger",
+      "missing_evidence_render": "empty-state panel with key name + last-seen UTC"
+    },
+    {
+      "subsystem": "v2_position_price_track_history",
+      "current_state": "recorder running; entry_price often null upstream",
+      "visible_on_route": "/paper, /bot-intelligence",
+      "real_source": "v2:paper:position_price_track:{symbol} + :position_history:{symbol}",
+      "must_show_when_missing_entry_price": "MISSING_ENTRY_PRICE blocker (never fabricate MFE/MAE/ROE)",
+      "missing_evidence_render": "explicit blocker chip; no silent zero-fill"
+    },
+    {
+      "subsystem": "v2_orchestrator_decisions",
+      "current_state": "v2:orchestrator:decisions present",
+      "visible_on_route": "/bot-intelligence, /risk",
+      "real_source": "v2:orchestrator:decisions",
+      "missing_evidence_render": "STALE chip with last-seen UTC"
+    },
+    {
+      "subsystem": "v2_risk_decisions",
+      "current_state": "live",
+      "visible_on_route": "/risk",
+      "real_source": "v2:risk:decisions",
+      "missing_evidence_render": "EMPTY panel; never a fabricated allow/block"
+    },
+    {
+      "subsystem": "v2_market_liquidations_wss",
+      "current_state": "daemon active, heartbeat fresh",
+      "visible_on_route": "/market (tape), /risk (health)",
+      "real_source": "v2:market:liquidations:heartbeat + :latest:{symbol} + :aggregate:{symbol}",
+      "must_show": ["process_mode=persistent_daemon", "service_active=true", "opt_in_enabled=true", "heartbeat_at", "no_synthetic_liquidation_events=true"],
+      "missing_evidence_render": "RED chip if TTL<=0"
+    },
+    {
+      "subsystem": "binance_top10_dashboards",
+      "current_state": "6 dashboards published",
+      "visible_on_route": "/market",
+      "real_source": "v2:dashboards:binance_top10:* + operator_dashboard_payload.json mirror",
+      "must_show_window_size_actual": ["spot 12h", "futures 24h"],
+      "missing_evidence_render": "PARTIAL chip per dashboard with source_status sentinel (API_OK, API_RATE_LIMITED_429, API_FORBIDDEN_403, API_NETWORK_ERROR, API_TIMEOUT)"
+    },
+    {
+      "subsystem": "nansen_altdata",
+      "current_state": "key absent or API_FORBIDDEN_403; scores null",
+      "visible_on_route": "/market, /bot-intelligence",
+      "real_source": "v2:altdata:nansen:status + v2:altdata:nansen:symbol:{symbol}",
+      "must_never": "convert missing/forbidden state to a numeric score",
+      "missing_evidence_render": "STATUS panel renders KEY_MISSING_NO_NETWORK or API_FORBIDDEN_403 with rate_limit_state"
+    },
+    {
+      "subsystem": "lunarcrush_altdata",
+      "current_state": "key absent or API_FORBIDDEN_403; scores null",
+      "visible_on_route": "/market, /bot-intelligence",
+      "real_source": "v2:altdata:lunarcrush:status + v2:altdata:lunarcrush:symbol:{symbol}",
+      "must_never": "convert missing/forbidden state to a numeric score",
+      "missing_evidence_render": "STATUS panel renders KEY_MISSING_NO_NETWORK or API_FORBIDDEN_403 with rate_limit_state"
+    },
+    {
+      "subsystem": "arkham_future",
+      "current_state": "future-only placeholder; no integration today",
+      "visible_on_route": "/market (badge only)",
+      "real_source": "v2:altdata:arkham:status",
+      "missing_evidence_render": "FUTURE_ONLY badge"
+    },
+    {
+      "subsystem": "alt_data_symbol_universe_scoring",
+      "current_state": "MISSING_PROVIDER_DATA_SAFE",
+      "visible_on_route": "/market",
+      "real_source": "v2:symbol_universe:altdata_candidates",
+      "must_show": ["paper_symbols_expanded=false", "live_symbols=[]", "may_not_override_strict_paper_fill_gate=true", "may_not_authorize_live_or_canary=true"]
+    },
+    {
+      "subsystem": "war_room_8h_daemon",
+      "current_state": "timer active + enabled; heartbeat fresh",
+      "visible_on_route": "/automation",
+      "real_source": "v2:war_room:heartbeat + v2/frontend/public/v2_8h_war_room/latest/operator_dashboard_payload.json",
+      "must_show": ["cycle_id", "tier_5m_executed", "tier_15m_executed", "tier_30m_executed", "tier_60m_executed", "no_action_required_with_evidence"]
+    },
+    {
+      "subsystem": "continuous_remediation_governor",
+      "current_state": "READY",
+      "visible_on_route": "/automation, /risk",
+      "real_source": "codex_5m_status.json",
+      "must_show": ["go_no_go", "fail_blockers", "v2_processes_running/v2_processes_required", "soak_minutes_observed"]
+    },
+    {
+      "subsystem": "legacy_log_observer",
+      "current_state": "read-only observer running",
+      "visible_on_route": "/automation",
+      "real_source": "governor.summary",
+      "must_show": "freshness chip; STALE if payload older than 600s"
+    },
+    {
+      "subsystem": "codex_review_queue",
+      "current_state": "war-room cycle review queued",
+      "visible_on_route": "/admin/codex-reviews",
+      "real_source": "codex_review_queue.json",
+      "must_show": "no live/canary/legacy-shutdown/redis-trim approvals; no policy architecture port; no checkpoint compatibility claim"
+    }
+  ],
+  "must_show_always": [
+    "live_gate=blocked_human_only",
+    "live_symbols=[]",
+    "approves_real=false",
+    "approves_canary=false",
+    "approves_legacy_shutdown=false",
+    "approves_redis_trim=false",
+    "shutdown_status=blocked",
+    "checkpoint_compatibility_claimed=false",
+    "policy_architecture_parity_claimed=false",
+    "no_mock_data_as_current_truth",
+    "no_static_proof_fixture_as_primary_truth",
+    "missing_provider_data_converted_to_numeric_score=false"
+  ],
+  "writes_legacy_redis": false,
+  "writes_exchange_orders": false,
+  "approves_real": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false,
+  "gate": "blocked_human_only",
+  "symbols_real": []
+}

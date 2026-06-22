@@ -1,0 +1,61 @@
+{
+  "canary_only_units_targeted": [
+    "ai-bot-v2-closed-loop-worker-pool.service",
+    "ai-bot-v2-closed-loop-worker-pool.timer",
+    "ai-bot-v2-closed-loop-executor.service",
+    "ai-bot-v2-closed-loop-executor.timer"
+  ],
+  "generated_at": "2026-05-26T05:38:55.180579Z",
+  "legacy_untouched": true,
+  "live_untouched": true,
+  "protected_units_untouched": [
+    "ai-bot-v2-closed-loop-claude-worker@1.service",
+    "ai-bot-v2-closed-loop-claude-worker@2.service",
+    "ai-bot-v2-closed-loop-claude-worker@3.service",
+    "ai-bot-v2-closed-loop-codex-worker@1.service",
+    "ai-bot-v2-closed-loop-codex-worker@2.service",
+    "ai-bot-v2-closed-loop-codex-worker@3.service",
+    "ai-bot-v2-report-center-indexer.service",
+    "ai-bot-v2-post-hoc-replay-outcome-miner.service",
+    "ai-bot-v2-agent-supervisor.service",
+    "ai-bot-v2-autonomous-mission-backlog.service",
+    "ai-bot-v2-autonomous-mission-execution-burndown.service"
+  ],
+  "replay_miner_untouched": true,
+  "report_center_untouched": true,
+  "rollback_result": {
+    "db_preserve": {
+      "copy": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_closed_loop_spark/state/leases.audit-preserved-1779773935.db",
+      "db_preserved": true,
+      "dry_run": true,
+      "original": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_closed_loop_spark/state/leases.db"
+    },
+    "dry_run": true,
+    "mode": "file_backend",
+    "steps": [
+      {
+        "action": "write_drop_in",
+        "content": "[Service]\nEnvironment=LEASE_BACKEND=file\n",
+        "path": "/home/wali/.config/systemd/user/ai-bot-v2-closed-loop-worker-pool.service.d/50-lease-backend-file.conf"
+      },
+      {
+        "action": "write_drop_in",
+        "content": "[Service]\nEnvironment=LEASE_BACKEND=file\n",
+        "path": "/home/wali/.config/systemd/user/ai-bot-v2-closed-loop-executor.service.d/50-lease-backend-file.conf"
+      },
+      {
+        "action": "daemon_reload",
+        "rc": 0
+      }
+    ]
+  },
+  "safe_envelope": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "schema_version": "1"
+}

@@ -1,0 +1,59 @@
+{
+  "approves_live": false,
+  "config_parity_complete_for_subproject_scope": true,
+  "env_vars_read": [],
+  "exchange_methods_called": [],
+  "generated_utc": "2026-05-16",
+  "global_legacy_config_parity_complete": false,
+  "global_legacy_config_parity_ref": "claude_worklog/final_readiness/zero_miss_legacy_core_lift_remediation/latest/CONFIG_ZERO_MISS_PARITY_MATRIX.json",
+  "legacy_redis_keys_read_as_authoritative": [],
+  "legacy_redis_keys_written": [],
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "schema_version": "1.0.0",
+  "subproject": "v2_native_feature_pipeline_p0",
+  "v2_config_keys": [
+    {
+      "category": "V2_RUNTIME_CONFIG",
+      "default": 120,
+      "legacy_equivalent": "FEATURE_FRESHNESS_OHLCV_SEC (informational)",
+      "name": "ohlcv_max_age_seconds",
+      "type": "int"
+    },
+    {
+      "category": "V2_RUNTIME_CONFIG",
+      "default": 30,
+      "legacy_equivalent": "FEATURE_FRESHNESS_ORDERBOOK_SEC",
+      "name": "orderbook_max_age_seconds",
+      "type": "int"
+    },
+    {
+      "category": "V2_INGESTOR_CONFIG",
+      "default": 3600,
+      "legacy_equivalent": "FEATURE_FRESHNESS_FUNDING_SEC",
+      "name": "funding_max_age_seconds",
+      "type": "int"
+    },
+    {
+      "category": "V2_INGESTOR_CONFIG",
+      "default": 300,
+      "legacy_equivalent": "FEATURE_FRESHNESS_OI_SEC",
+      "name": "oi_max_age_seconds",
+      "type": "int"
+    },
+    {
+      "category": "V2_INGESTOR_CONFIG",
+      "default": 3600,
+      "legacy_equivalent": "FEATURE_FRESHNESS_LIQ_SEC",
+      "name": "liquidation_max_age_seconds",
+      "type": "int"
+    },
+    {
+      "category": "V2_RUNTIME_CONFIG",
+      "default": 300,
+      "legacy_equivalent": "PAPER_POSITION_FRESHNESS_SEC",
+      "name": "paper_position_max_age_seconds",
+      "type": "int"
+    }
+  ]
+}

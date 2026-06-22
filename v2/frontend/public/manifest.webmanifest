@@ -1,13 +1,13 @@
 {
-  "name": "AI BOT V2 Control Plane",
-  "short_name": "AIBOT V2",
-  "description": "Local-first control plane for AI BOT V2. LIVE TRADING: BLOCKED by default.",
+  "name": "NERVYX ONE",
+  "short_name": "NERVYX ONE",
+  "description": "Adaptive Market Intelligence for live trading execution.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#0b0f14",
-  "theme_color": "#0b0f14",
+  "background_color": "#070A12",
+  "theme_color": "#070A12",
   "lang": "en",
   "icons": [
     {

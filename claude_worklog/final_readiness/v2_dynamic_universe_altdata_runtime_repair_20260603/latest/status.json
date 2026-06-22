@@ -1,0 +1,65 @@
+{
+  "generated_utc": "2026-06-04T03:45:00Z",
+  "go_no_go": "V2_DYNAMIC_UNIVERSE_ALTDATA_RUNTIME_REPAIR_CODEX_PASS",
+  "symbol_universe": {
+    "discovered_symbols": 27,
+    "observed_symbols": 27,
+    "live_data_symbols": 27,
+    "trainer_live_symbols": 27,
+    "paper_shadow_live_symbols": 27,
+    "live_symbols": [],
+    "execution_live_symbols": [],
+    "live_gate": "blocked_human_only"
+  },
+  "providers": {
+    "nansen": {
+      "running": true,
+      "symbol_count": 27,
+      "network_call_attempted": true,
+      "successful_symbol_count": 0,
+      "source_status_counts": {
+        "API_FORBIDDEN_403": 27
+      }
+    },
+    "lunarcrush": {
+      "running": true,
+      "symbol_count": 27,
+      "network_call_attempted": true,
+      "successful_symbol_count": 0,
+      "source_status_counts": {
+        "API_FORBIDDEN_403": 27
+      }
+    },
+    "arkham": {
+      "running": true,
+      "presence_only": true,
+      "http_request_made": false,
+      "raw_credential_value_exposed": false
+    }
+  },
+  "candidate_publisher": {
+    "candidate_count": 27,
+    "candidate_state_counts": {
+      "MISSING_PROVIDER_DATA": 17,
+      "SYMBOL_NOT_TRADABLE_ON_BINANCE": 10,
+      "CANDIDATE_READY": 0
+    }
+  },
+  "safety": {
+    "writes_legacy_redis": false,
+    "writes_old_redis": false,
+    "exchange_mutation": false,
+    "writes_exchange_orders": false,
+    "approves_live": false,
+    "approves_canary": false
+  },
+  "verification": {
+    "backend_py_compile": "passed",
+    "symbol_universe_unit_tests": "3 passed",
+    "altdata_integration_tests": "109 passed",
+    "frontend_typecheck": "passed",
+    "frontend_build": "passed",
+    "route_crawl": "passed",
+    "failed_user_services": 0
+  }
+}

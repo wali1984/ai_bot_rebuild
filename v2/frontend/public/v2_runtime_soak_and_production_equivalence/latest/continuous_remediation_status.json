@@ -1,0 +1,64 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "claude_codex_task_pairs_written_or_existing": [],
+  "continuous_remediation_running": true,
+  "duplicate_task_suppression_count": 0,
+  "gaps_severity_counts": {
+    "NO_ACTION_REQUIRED_SAFE_BLOCK": 264
+  },
+  "gaps_total": 264,
+  "generated_utc": "2026-06-15T16:11:35Z",
+  "go_no_go": "V2_CONTINUOUS_LEGACY_LOG_TO_REBUILD_REMEDIATION_BLOCKED",
+  "legacy_log_observer_running": true,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "loop_iteration_at": "2026-06-15T16:11:35Z",
+  "monitor_script_count": 3,
+  "no_exchange_mutation": true,
+  "no_legacy_mutation": true,
+  "no_legacy_script_executed": true,
+  "no_old_redis_writes": true,
+  "observer_present": true,
+  "orchestrator_log_summary_path": "/home/wali/Desktop/AI BOT/logs/orchestrator_worker.log",
+  "production_equivalence_gaps_open": 0,
+  "remediation_hints_emitted": 2,
+  "remediation_hints_sample": [
+    {
+      "first_seen": "2026-06-15T16:11:35Z",
+      "id": "LEGACY_LOG_STALE_OR_MISSING",
+      "last_seen": "2026-06-15T16:11:35Z",
+      "legacy_evidence": "trainer_log_stale_seconds=1779575",
+      "recommended_claude_task": "Verify trainer log path or confirm legacy trainer paused.",
+      "severity": "INFO",
+      "source_log_or_script": "/home/wali/Desktop/AI BOT/logs/hybrid_trainer.log",
+      "symbol": null,
+      "v2_evidence": "v2_rl_core_inference_loop heartbeat fresh"
+    },
+    {
+      "first_seen": "2026-06-15T16:11:35Z",
+      "id": "LEGACY_LOG_STALE_OR_MISSING",
+      "last_seen": "2026-06-15T16:11:35Z",
+      "legacy_evidence": "orchestrator_log_stale_seconds=1778258",
+      "recommended_claude_task": "Verify orchestrator log path or confirm legacy orchestrator paused.",
+      "severity": "INFO",
+      "source_log_or_script": "/home/wali/Desktop/AI BOT/logs/orchestrator_worker.log",
+      "symbol": null,
+      "v2_evidence": "v2_orchestrator_arbitration_loop heartbeat fresh"
+    }
+  ],
+  "remediation_tasks_created_count": 0,
+  "schema_version": "v2_continuous_legacy_log_remediation_status_v2",
+  "self_fail_blockers": [
+    "SOAK_RUNTIME_NOT_ACTIVE"
+  ],
+  "soak_1h_ready": false,
+  "soak_6h_ready": false,
+  "soak_governor_shutdown_decision": "CODEX_RUNTIME_SOAK_AND_PRODUCTION_EQUIVALENCE_GOVERNOR_BLOCKED",
+  "soak_governor_shutdown_ready": false,
+  "soak_minutes_observed": 42609.87,
+  "soak_runtime_active": false,
+  "trainer_log_summary_path": "/home/wali/Desktop/AI BOT/logs/hybrid_trainer.log"
+}

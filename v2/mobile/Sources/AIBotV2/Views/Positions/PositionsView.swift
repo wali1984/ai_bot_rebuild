@@ -18,8 +18,7 @@ struct PositionsView: View {
                     positionsList
                 }
             }
-            .navigationTitle("Positions")
-            .safeAreaInset(edge: .top) { LiveBlockBanner() }
+            .navigationTitle("NERVYX EXECUTE")
             .toolbar { refreshButton }
             .refreshable { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) }
         }
@@ -35,12 +34,12 @@ struct PositionsView: View {
                     summaryHeader(summary)
                 }
             }
-            Section("Open Positions (\(vm.positions.count))") {
+            Section("NERVYX EXECUTE · Open Positions (\(vm.positions.count))") {
                 if vm.positions.isEmpty {
                     ContentUnavailableView(
                         "No Open Positions",
                         systemImage: "chart.line.downtrend.xyaxis",
-                        description: Text("Paper positions will appear here")
+                        description: Text("Open positions will appear here")
                     )
                 } else {
                     ForEach(vm.positions) { pos in
@@ -87,7 +86,7 @@ struct PositionsView: View {
                         .foregroundStyle(s.unrealized_pnl_usd >= 0 ? .green : .red)
                 }
                 Spacer()
-                Text("PAPER MODE")
+                Text("LIVE")
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(.orange)
                     .padding(.horizontal, 6)
@@ -184,6 +183,5 @@ struct PositionDetailView: View {
         }
         .navigationTitle(position.symbol)
         .navigationBarTitleDisplayMode(.inline)
-        .safeAreaInset(edge: .top) { LiveBlockBanner() }
     }
 }

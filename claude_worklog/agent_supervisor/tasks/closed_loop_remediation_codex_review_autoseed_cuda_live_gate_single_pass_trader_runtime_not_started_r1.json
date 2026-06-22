@@ -1,0 +1,38 @@
+{
+  "codex_pair_task_id": "codex_review_autoseed_cuda_live_gate_single_pass_trader_runtime_not_started_r1",
+  "created_at": "2026-06-05T05:01:22Z",
+  "fail_blockers": [
+    "blockers_simple: list[str] = []",
+    "blockers_simple.append(\"Paper edge has not proven it can beat fees.\")",
+    "blockers_simple.append(\"There are P0 runtime blockers still open.\")",
+    "blockers_simple.append(",
+    "blockers: list[str] = []",
+    "blockers_simple: list[str] = []",
+    "blockers_simple.append(\"Paper edge has not proven it can beat fees.\")",
+    "blockers_simple.append(\"There are P0 runtime blockers still open.\")",
+    "blockers_simple.append(",
+    "1. Fresh runtime payloads: pass",
+    "1. periodic static payload sync from this machine,",
+    "blockers: list[str] = []",
+    "blockers: list[str] = []",
+    "blockers.append(LIVE_GATE_BLOCK)"
+  ],
+  "file_lock_group": "cuda_live_gate_single_pass_trader_runtime",
+  "next_action": "Remediate the safe V2-side fail blockers listed in fail_blockers. Do not touch legacy. Do not call exchange mutation. Keep live_gate=blocked_human_only and live_symbols=[].",
+  "owner": "CLAUDE",
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "status": "pending",
+  "task_id": "closed_loop_remediation_codex_review_autoseed_cuda_live_gate_single_pass_trader_runtime_not_started_r1",
+  "task_type": "REMEDIATION",
+  "updated_at": "2026-06-05T05:01:22Z"
+}

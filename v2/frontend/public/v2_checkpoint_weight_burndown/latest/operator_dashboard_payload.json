@@ -1,0 +1,79 @@
+{
+  "schema_version": "v2_checkpoint_weight_burndown_dashboard_v1",
+  "generated_utc": "2026-05-17T02:25:00Z",
+  "git_head": "31a7fd70319f0d586c454b5ea2ea530ba9cb1541",
+  "go_no_go": "V2_CHECKPOINT_WEIGHT_BURNDOWN_OPERATOR_REQUIRED",
+  "summary_for_operator": {
+    "v2_runtime_kept_running": true,
+    "legacy_kept_running": true,
+    "checkpoint_weights_loaded_into_v2": false,
+    "checkpoint_blob_committed_to_git": false,
+    "checkpoint_status_in_plain_english": "No checkpoint blob found in the approved V2-owned local paths (.local_models/ absent; .local_secrets/ and v2/runtime/ contain none). V2 continues to run from deterministic-init policy weights. The operator must either provide a checkpoint blob with sidecar metadata at .local_models/ AND authorize a legacy-venv subprocess shape inspection AND have Codex pass before V2 references the artifact, OR accept the limitation in the paper-only acceptance file.",
+    "mismatch_explained_by_weight_state": "BTCUSDT and SOLUSDT V2=hold vs legacy directional - explained by deterministic-init weights. ETHUSDT currently matches by coincidence. None of this is a runtime fault.",
+    "paper_fill_gate_loosened_by_this_packet": false,
+    "positive_paper_edge_claimed_by_this_packet": false,
+    "is_live_trading_allowed": false
+  },
+  "operator_action_required": {
+    "option_1_provide_approved_blob": {
+      "place_at_path": ".local_models/<name>.pt",
+      "sidecar_metadata_path": ".local_models/<name>_metadata.json",
+      "expected_filename_prefixes": [
+        "legacy_live_checkpoint_<unix_ts>.zip",
+        "hybrid_trainer_ckpt_<unix_ts>.zip",
+        "ppo_masa_ckpt_<unix_ts>_<model_version>.zip",
+        "enterprise_modules_<unix_ts>.pt"
+      ],
+      "shape_inspection_via_legacy_venv_subprocess_required": true,
+      "codex_review_required": true,
+      "do_not_commit_blob_to_git": true
+    },
+    "option_2_accept_paper_only_limitation": {
+      "create_file": "claude_worklog/approvals/OPERATOR_ACCEPTS_V2_PAPER_ONLY_SHUTDOWN_LIMITATIONS.md",
+      "effect": "V2 continues paper/shadow with deterministic-init weights; legacy continues to own production; live remains blocked."
+    }
+  },
+  "v2_policy_shape_contract": {
+    "policy_observation_dim": 26,
+    "policy_hidden_dim": 16,
+    "action_count": 5,
+    "action_labels": ["hold", "long", "short", "close", "hedge"]
+  },
+  "per_symbol_mismatch_explained_by_weight_state": [
+    {"symbol": "BTCUSDT", "legacy_action": "close_short_open_long", "v2_action": "hold", "explained_by_deterministic_init_weights": true},
+    {"symbol": "ETHUSDT", "legacy_action": "matches_v2", "v2_action": "matches_legacy", "explained_by_deterministic_init_weights": false, "note": "Coincidental match"},
+    {"symbol": "SOLUSDT", "legacy_action": "open_short", "v2_action": "hold", "explained_by_deterministic_init_weights": true}
+  ],
+  "validation_results": {
+    "focused_checkpoint_tests_passed": 14,
+    "py_compile_ok": true,
+    "no_torch_import_in_v2_checkpoint_or_policy_module": true,
+    "no_exchange_mutation_in_burndown_artifacts": true,
+    "no_old_redis_writes_in_burndown_artifacts": true,
+    "no_raw_secret_values_in_burndown_payload": true,
+    "no_live_approval_token_present": true
+  },
+  "v2_runtime_status_at_burndown_time": {
+    "v2_processes_running_count": 10,
+    "v2_namespace_redis_key_count": 30,
+    "runtime_guard_classification": "V2_PRODUCTION_REPLACEMENT_RUNTIME_READY_STABLE",
+    "soak_window_minutes_observed_approx": 17.18,
+    "soak_15m_ready": true,
+    "soak_1h_ready": false,
+    "soak_6h_ready": false
+  },
+  "safety_state": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "final_live_approval_token_created": false,
+    "torch_weights_loaded_into_v2_process": false,
+    "checkpoint_blob_committed_to_git": false,
+    "legacy_was_stopped_by_this_packet": false,
+    "v2_runtime_was_stopped_by_this_packet": false
+  },
+  "evidence_path_root": "claude_worklog/final_readiness/v2_checkpoint_weight_burndown/latest/"
+}

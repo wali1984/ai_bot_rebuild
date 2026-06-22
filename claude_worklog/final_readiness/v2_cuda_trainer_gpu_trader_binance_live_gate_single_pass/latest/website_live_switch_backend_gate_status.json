@@ -1,0 +1,51 @@
+{
+  "approves_canary": false,
+  "approves_live": false,
+  "enable_requires": [
+    "live_gate approval state",
+    "risk caps accepted",
+    "paper/backtest edge accepted",
+    "read-only Binance probe passed",
+    "trader runtime connected",
+    "exchange mutation safety proof passed",
+    "live_symbols selected by operator",
+    "Codex 5.5 final pass",
+    "audit ledger write",
+    "typed confirmation"
+  ],
+  "endpoints": {
+    "GET /api/v1/live-gate/status": "implemented_readonly",
+    "POST /api/v1/live-gate/arm": "implemented_blocked_until_conditions_pass",
+    "POST /api/v1/live-gate/enable": "implemented_locked_until_conditions_pass",
+    "POST /api/v1/live-gate/evaluate": "implemented_readonly"
+  },
+  "exact_blockers": [
+    "BACKTEST_EDGE_BLOCKED_NO_EDGE_CLAIM",
+    "CODEX_5_5_FINAL_PASS_REQUIRED",
+    "GPU_UTILIZATION_OR_VRAM_TARGET_NOT_MET",
+    "LIVE_GATE_REMAINS_BLOCKED_HUMAN_ONLY",
+    "LIVE_RISK_CAPS_OPERATOR_REQUIRED",
+    "LIVE_SYMBOL_APPROVAL_REQUIRED",
+    "MODEL_TOO_SMALL_TO_SATURATE_GPU",
+    "UNIFIED_FEATURE_PARITY_BLOCKED_OR_PARTIAL"
+  ],
+  "execution_live_symbols": [],
+  "generated_est": "2026-06-05T00:54:38-04:00",
+  "live_gate": "blocked_human_only",
+  "live_switch": {
+    "backend_live_enable_callable": false,
+    "disabled": true,
+    "disabled_reason": "BACKTEST_EDGE_BLOCKED_NO_EDGE_CLAIM; CODEX_5_5_FINAL_PASS_REQUIRED; GPU_UTILIZATION_OR_VRAM_TARGET_NOT_MET; LIVE_GATE_REMAINS_BLOCKED_HUMAN_ONLY; LIVE_RISK_CAPS_OPERATOR_REQUIRED; LIVE_SYMBOL_APPROVAL_REQUIRED; STALE_CALLABLE_TRUE_OVERRIDDEN_BY_AUDITED_ACCEPTANCE_GATE",
+    "enabled": false,
+    "visible": true
+  },
+  "live_symbols": [],
+  "schema_version": "v2_cuda_trainer_gpu_trader_binance_live_gate_single_pass_v1_website_live_switch_backend_gate",
+  "status": "WEBSITE_LIVE_SWITCH_BACKEND_GATE_BLOCKED",
+  "audited_acceptance_gate_override": {
+    "source": "/v2_audited_operator_live_acceptance_and_enable_flow/latest/operator_dashboard_payload.json",
+    "backend_live_enable_callable": false,
+    "verdict": "LIVE_GATE_BLOCKED_AUDITED_ACCEPTANCE_REQUIRED",
+    "reason": "current audited gate supersedes stale callable true payload"
+  }
+}

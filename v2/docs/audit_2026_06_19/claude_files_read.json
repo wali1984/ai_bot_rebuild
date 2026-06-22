@@ -1,0 +1,54 @@
+{
+  "audit_utc": "2026-06-19T00:15:00Z",
+  "files_read": [
+    {
+      "path": "v2/backend/app/services/strategy_router/service.py",
+      "lines_read": "1-500",
+      "purpose": "Route strategy logic, action normalization, mode assignment"
+    },
+    {
+      "path": "v2/backend/app/services/all_timeframe_prediction_signal_price_target_publisher.py",
+      "lines_read": "321-780",
+      "purpose": "PPO action selection, action_probabilities extraction"
+    },
+    {
+      "path": "v2/backend/app/services/paper_mode/service.py",
+      "lines_read": "scan",
+      "purpose": "Paper mode entry gate"
+    },
+    {
+      "path": "v2/backend/app/services/paper_trade_management/hedging.py",
+      "lines_read": "existence",
+      "purpose": "Confirm hedge code exists but inactive"
+    },
+    {
+      "path": "v2/backend/app/services/paper_accounting/mark_to_market.py",
+      "lines_read": "existence",
+      "purpose": "Portfolio equity computation"
+    },
+    {
+      "path": "v2/docs/paper-trading-full-audit-2026-06-18.md",
+      "lines_read": "prior_session",
+      "purpose": "Prior 595-trade audit baseline"
+    },
+    {
+      "path": "v2/docs/paper-performance-remediation-plan.md",
+      "lines_read": "all",
+      "purpose": "Prior remediation plan context"
+    },
+    {
+      "path": "v2/frontend/public/operator_runtime/paper_performance/latest/paper_loss_cluster_report.json",
+      "lines_read": "all",
+      "purpose": "Prior 504-trade cluster report"
+    }
+  ],
+  "redis_keys_read": [
+    "v2:paper:closed_trades",
+    "v2:portfolio:state",
+    "v2:prediction:LITUSDT:15m",
+    "v2:prediction:SPACEUSDT:1h",
+    "v2:prediction:ZKPUSDT:5m",
+    "v2:prediction:XLMUSDT:5m",
+    "v2:prediction:ESPORTSUSDT:1h"
+  ]
+}

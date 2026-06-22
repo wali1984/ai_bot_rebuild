@@ -1,0 +1,68 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "checkpoint_compatibility_claimed": false,
+  "external_source_required_families": [
+    "unified_feature_family.token_metrics",
+    "onchain_btc",
+    "onchain_eth"
+  ],
+  "generated_utc": "2026-05-17T19:57:41Z",
+  "go_no_go": "V2_FULL_OBSERVATION_FEATURE_FAMILY_BURNDOWN_READY_PARTIAL_PROGRESS",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "next_required_family": "binance_orderbook",
+  "no_legacy_filesystem_read": true,
+  "no_pickle_loaded": true,
+  "no_torch_imported": true,
+  "no_zero_fill_for_unknown_fields": true,
+  "operator_decision_required_families": [
+    "unified_feature_family.ccxt_ohlcv"
+  ],
+  "per_symbol_summary": [
+    {
+      "generated_full_observation_dim": 109,
+      "missing_dim_count": 1802,
+      "state": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+      "symbol": "BTCUSDT"
+    },
+    {
+      "generated_full_observation_dim": 109,
+      "missing_dim_count": 1802,
+      "state": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+      "symbol": "ETHUSDT"
+    },
+    {
+      "generated_full_observation_dim": 104,
+      "missing_dim_count": 1807,
+      "state": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+      "symbol": "SOLUSDT"
+    }
+  ],
+  "policy_architecture_parity_claimed": false,
+  "schema_version": "v2_full_observation_feature_family_burndown_status_v1",
+  "state": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+  "subfamily_present_counts_total": {
+    "binance_klines": 60,
+    "binance_orderbook": 30,
+    "ccxt_ohlcv": 0,
+    "coinank": 30,
+    "liquidations": 3,
+    "portfolio_state_unified": 45,
+    "technical_analysis": 54,
+    "token_metrics": 0
+  },
+  "subfamily_target_counts_total": {
+    "binance_klines": 20,
+    "binance_orderbook": 15,
+    "ccxt_ohlcv": 10,
+    "coinank": 22,
+    "liquidations": 12,
+    "portfolio_state_unified": 15,
+    "technical_analysis": 25,
+    "token_metrics": 18
+  },
+  "target_full_observation_dim": 1911
+}

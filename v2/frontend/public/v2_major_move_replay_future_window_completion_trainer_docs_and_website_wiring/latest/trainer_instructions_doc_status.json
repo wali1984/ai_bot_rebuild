@@ -1,0 +1,24 @@
+{
+  "line_count": 107,
+  "line_count_before": 107,
+  "path": "v2/docs/trainer-instructions.md",
+  "required_sections_present": {
+    "10k/Month Feasibility Rule": true,
+    "Adaptive Allocator Relationship": true,
+    "All-Timeframe Prediction Grid": true,
+    "Closed-Candle Finality Requirement": true,
+    "Do Not": true,
+    "Durable Checkpoint Weight Blob Requirement": true,
+    "Live Boundary Rule": true,
+    "Major-Move Replay Rule": true,
+    "Market-State Integrity Requirement": true,
+    "Native CUDA Trainer Source": true,
+    "Paper Lifecycle Relationship": true,
+    "Paper-Only Breakout/Squeeze Detector Rule": true,
+    "Persistent Trainer Service": true,
+    "RL-Core Sidecar-Only Rule": true,
+    "Strategy, Hedge, And Exit Feedback Relationship": true
+  },
+  "sha256": "c42c3602a8f05ed52fbd4cfdb319cf4b9bae7312b52cf27cd03cb8f0ac439e94",
+  "status": "READY"
+}

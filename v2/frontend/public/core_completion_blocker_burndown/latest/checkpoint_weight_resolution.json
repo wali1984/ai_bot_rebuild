@@ -1,0 +1,57 @@
+{
+  "candidate_count": 0,
+  "checkpoint_weight_status": "CHECKPOINT_WEIGHT_BLOB_OPERATOR_REQUIRED",
+  "generated_utc": "2026-05-16T22:25:00Z",
+  "invariants": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "checkpoint_extensions_scanned": [
+      ".pt",
+      ".pth",
+      ".ckpt",
+      ".zip"
+    ],
+    "imports_numpy": false,
+    "imports_torch": false,
+    "legacy_checkpoint_manager_sha256": "151d8808d53b7ba00edc4411569ba2f86519154d52da1997b300cec14c3e1ba8",
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "loads_torch_weights": false,
+    "places_exchange_orders": false,
+    "writes_legacy_redis": false
+  },
+  "model_shape_status": "MODEL_SHAPE_VERIFICATION_BLOCKED_NO_TORCH_LOAD_IN_V2",
+  "operator_request": {
+    "candidate_paths_found_count": 0,
+    "candidate_paths_scanned": [
+      "v2/legacy_owned_runtime",
+      "v2/runtime",
+      ".local_secrets",
+      "claude_worklog/final_readiness/full_legacy_root_filesystem_inventory/latest"
+    ],
+    "do_not_commit_blobs_to_git": true,
+    "expected_file_types": [
+      ".pt",
+      ".pth",
+      ".ckpt",
+      ".zip"
+    ],
+    "expected_legacy_filename_prefixes": [
+      "legacy_live_checkpoint_<unix_ts>.zip",
+      "hybrid_trainer_ckpt_<unix_ts>.zip",
+      "ppo_masa_ckpt_<unix_ts>_<model_version>.zip",
+      "enterprise_modules_<unix_ts>.pt"
+    ],
+    "next_action_required_from_operator": "Either (a) provide an operator-approved checkpoint blob with sidecar metadata JSON AND authorize V2 to invoke a legacy-venv subprocess to inspect tensor shapes, OR (b) explicitly accept CHECKPOINT_WEIGHT_BLOB_OPERATOR_REQUIRED as a paper-only-shutdown limitation."
+  },
+  "phase": "P1_CHECKPOINT_WEIGHT_BLOCKER",
+  "scanned_roots": [
+    "v2/legacy_owned_runtime",
+    "v2/runtime",
+    ".local_secrets",
+    "claude_worklog/final_readiness/full_legacy_root_filesystem_inventory/latest"
+  ],
+  "top_candidates": [],
+  "top_candidates_truncated": false
+}

@@ -14,6 +14,7 @@
     "claude_worklog/**",
     "requirements/**"
   ],
+  "completed_at": "2026-05-14T22:44:37.711633+00:00",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "emit_files": true,
   "forbidden": [
@@ -33,7 +34,9 @@
   "live_gate": "blocked_human_only",
   "managed_by": "codex_legacy_shutdown_readiness_takeover",
   "max_attempts": 2,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
   "prompt": "You are Claude running under the AI BOT REBUILD supervisor.\nScope: write only inside /home/wali/Desktop/AI BOT REBUILD. Read the legacy bot tree only as reference evidence. Use BEGIN_FILE blocks for every file you change; do not attempt direct filesystem writes from headless mode. Do not mutate legacy files, old Redis, exchange state, leverage, margin mode, or live trading. Do not create final approval or Redis trim approval tokens. Keep live_gate=blocked_human_only and live_symbols=[] in all payloads.\n\nTask: backfill v2_feature_snapshot_builder full-closure LEGACY_BASELINE_ANALYSIS and legacy_behavior_mapping. Cite full_runtime_copied_source_manifest.json for rl/unified_feature_builder.py and rl/obs_schema.py behavior. Do not change green worker code unless the backfill exposes an actual parity bug.\n\nRequired evidence in outputs: LEGACY_BASELINE_ANALYSIS.md content, legacy_behavior_mapping.json content, SHA256 citations from full_runtime_copied_source_manifest.json and copied_baseline_manifest.json where relevant, dependency closure status, tests or an explicit V2_ENV_BLOCKED/MISSING_EVIDENCE classification, public payload impact if runtime-facing, and a clear GO/NO-GO.\n\nEmit at least these two BEGIN_FILE blocks:\nBEGIN_FILE: claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/claude_tasks/claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis/claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis_REPORT.md\n...report...\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/claude_tasks/claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis/claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis_STATUS.json\n{\"task_id\":\"claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis\",\"status\":\"BLOCKED_OR_REMEDIATED\",\"live_gate\":\"blocked_human_only\",\"final_approval_token\":\"absent\"}\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/claude_tasks/claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis/claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis_GO_NO_GO.md\nCLAUDE_BACKFILL_V2_FEATURE_SNAPSHOT_BUILDER_FULL_CLOSURE_BASELINE_ANALYSIS_BLOCKED_OR_READY\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/claude_tasks/claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis/claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis_LEGACY_BASELINE_ANALYSIS.md\n...SHA-cited analysis...\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/claude_tasks/claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis/claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis_legacy_behavior_mapping.json\n{\"task_id\":\"claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis\",\"mapping_status\":\"BLOCKED_OR_REMEDIATED\"}\nEND_FILE\n",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/claude_tasks/claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis/claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis_REPORT.md",
     "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/claude_tasks/claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis/claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis_STATUS.json",
@@ -41,8 +44,14 @@
     "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/claude_tasks/claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis/claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis_LEGACY_BASELINE_ANALYSIS.md",
     "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/claude_tasks/claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis/claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis_legacy_behavior_mapping.json"
   ],
+  "resolved_from_source_truth": true,
   "risk_level": "L2",
-  "status": "pending",
+  "source_truth_completed_at": "2026-05-14T22:44:37.711633+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
   "task_id": "claude_backfill_v2_feature_snapshot_builder_full_closure_baseline_analysis",
-  "task_timeout_seconds": 1800
+  "task_timeout_seconds": 1800,
+  "updated_at": "2026-06-15T19:54:42Z"
 }

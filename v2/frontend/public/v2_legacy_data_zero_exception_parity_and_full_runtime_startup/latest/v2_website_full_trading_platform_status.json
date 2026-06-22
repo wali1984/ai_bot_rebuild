@@ -1,0 +1,59 @@
+{
+  "all_required_pages_present": true,
+  "classification": "V2_WEBSITE_REQUIRED_PAGES_PRESENT",
+  "generated_est": "2026-06-03T22:40:39-04:00",
+  "generated_utc": "2026-06-04T02:40:39Z",
+  "live_safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "exchange_action_taken": false,
+    "live_gate": "blocked_human_only",
+    "live_gate_status": "blocked_human_only",
+    "live_symbols": [],
+    "places_real_order": false,
+    "trader_execution_enabled": false,
+    "writes_exchange_orders": false,
+    "writes_legacy_redis": false
+  },
+  "public_runtime_payloads": {
+    "alternative_data_registry": true,
+    "coinapi_wsds_status": true,
+    "opportunity_tracker": true,
+    "portfolio_state": true
+  },
+  "required_pages": {
+    "ingestors": {
+      "index": true,
+      "meta": true,
+      "rbac": true,
+      "route": true
+    },
+    "liquidation-bridge": {
+      "index": true,
+      "meta": true,
+      "rbac": true,
+      "route": true
+    },
+    "logs-errors": {
+      "index": true,
+      "meta": true,
+      "rbac": true,
+      "route": true
+    },
+    "strategy-backtesting": {
+      "index": true,
+      "meta": true,
+      "rbac": true,
+      "route": true
+    },
+    "technical-analysis": {
+      "index": true,
+      "meta": true,
+      "rbac": true,
+      "route": true
+    }
+  },
+  "schema_version": "v2_website_full_trading_platform_status_v2"
+}

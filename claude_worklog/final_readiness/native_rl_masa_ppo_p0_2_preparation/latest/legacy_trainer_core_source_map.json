@@ -1,0 +1,140 @@
+{
+  "generated_utc": "2026-05-16T02:25:19Z",
+  "sources": [
+    {
+      "classification": "RUNTIME_SOURCE_REQUIRED",
+      "copied_to_v2_owned_runtime": true,
+      "legacy_relative_path": "rl/environment.py",
+      "role": "gymnasium_trading_environment",
+      "sha256": "39866005417554c7f9552a64eddc14ec1024db7e22b432c844cfd1a8e7800b1d",
+      "size_bytes": 66775,
+      "v2_owned_path": "v2/legacy_owned_runtime/rl/environment.py"
+    },
+    {
+      "classification": "RUNTIME_SOURCE_REQUIRED",
+      "copied_to_v2_owned_runtime": true,
+      "legacy_relative_path": "rl/gymnasium_wrapper.py",
+      "role": "gymnasium_adapter_wrapper",
+      "sha256": "61a086cb4a0a406ca67fe2035cf776b0c991bb9d7391572ce86e77aea0a16574",
+      "size_bytes": 14062,
+      "v2_owned_path": "v2/legacy_owned_runtime/rl/gymnasium_wrapper.py"
+    },
+    {
+      "classification": "RUNTIME_SOURCE_REQUIRED",
+      "copied_to_v2_owned_runtime": true,
+      "legacy_relative_path": "rl/obs_schema.py",
+      "role": "observation_tensor_schema",
+      "sha256": "9ec040fa1306ac28f4395aac103b104eb02644866ca8acec5577b155fd925f5f",
+      "size_bytes": 17346,
+      "v2_owned_path": "v2/legacy_owned_runtime/rl/obs_schema.py"
+    },
+    {
+      "classification": "RUNTIME_SOURCE_REQUIRED",
+      "copied_to_v2_owned_runtime": true,
+      "legacy_relative_path": "rl/unified_feature_builder.py",
+      "role": "feature_tensor_assembly",
+      "sha256": "2af5c68d812c0a0a5db2e037204f0b2165d9084dea983d1737e09034e8c739a5",
+      "size_bytes": 29925,
+      "v2_owned_path": "v2/legacy_owned_runtime/rl/unified_feature_builder.py"
+    },
+    {
+      "classification": "RUNTIME_SOURCE_REQUIRED",
+      "copied_to_v2_owned_runtime": true,
+      "legacy_relative_path": "rl/agents/masa_agent.py",
+      "role": "masa_supervised_agent",
+      "sha256": "0c7496336ca00c0f006d9a294ea67e736e2c3f2a3e4202b98cd6925dff891080",
+      "size_bytes": 21109,
+      "v2_owned_path": "v2/legacy_owned_runtime/rl/agents/masa_agent.py"
+    },
+    {
+      "classification": "RUNTIME_SOURCE_REQUIRED",
+      "copied_to_v2_owned_runtime": true,
+      "legacy_relative_path": "rl/enhanced_architectures.py",
+      "role": "custom_policy_architectures",
+      "sha256": "d7b2071a6c83edee5eb940d50e5578fb0b4dd14d54f9e577c65d2533409b8236",
+      "size_bytes": 23252,
+      "v2_owned_path": "v2/legacy_owned_runtime/rl/enhanced_architectures.py"
+    },
+    {
+      "classification": "RUNTIME_SOURCE_REQUIRED",
+      "copied_to_v2_owned_runtime": true,
+      "legacy_relative_path": "rl/gpu_cnn_policy.py",
+      "role": "gpu_cnn_policy",
+      "sha256": "881cfdad7650e9114e14c24a8d3d7bc2cbb5a4c1ce2a5fa8cb3fe2d50d3b4062",
+      "size_bytes": 7843,
+      "v2_owned_path": "v2/legacy_owned_runtime/rl/gpu_cnn_policy.py"
+    },
+    {
+      "classification": "RUNTIME_SOURCE_REQUIRED",
+      "copied_to_v2_owned_runtime": true,
+      "legacy_relative_path": "rl/reward_functions.py",
+      "role": "base_reward_suite",
+      "sha256": "87ef4602012cbbd944bdf506fb8f1646375e7732c3a93e87b0946db7a1cca853",
+      "size_bytes": 31805,
+      "v2_owned_path": "v2/legacy_owned_runtime/rl/reward_functions.py"
+    },
+    {
+      "classification": "RUNTIME_SOURCE_REQUIRED",
+      "copied_to_v2_owned_runtime": true,
+      "legacy_relative_path": "rl/constrained_reward.py",
+      "role": "constrained_reward",
+      "sha256": "69ff3c75b53d8d3d7844894954cf9d16f334e79e0c1bd39e9624a4482a459b2e",
+      "size_bytes": 10861,
+      "v2_owned_path": "v2/legacy_owned_runtime/rl/constrained_reward.py"
+    },
+    {
+      "classification": "RUNTIME_SOURCE_REQUIRED",
+      "copied_to_v2_owned_runtime": true,
+      "legacy_relative_path": "rl/fee_ratio_reward_shaping.py",
+      "role": "fee_ratio_reward_shaping",
+      "sha256": "e7edce3e29a6bf7236329245ba4a14436dc6f6b0a249ad0ad3d05760570bfc06",
+      "size_bytes": 19427,
+      "v2_owned_path": "v2/legacy_owned_runtime/rl/fee_ratio_reward_shaping.py"
+    },
+    {
+      "classification": "RUNTIME_SOURCE_REQUIRED",
+      "copied_to_v2_owned_runtime": true,
+      "legacy_relative_path": "rl/hedge_reward_functions.py",
+      "role": "hedge_reward_functions",
+      "sha256": "54c1a5748ca61da84d3e697cf5260251f15cc802281c951f18b902bf522b41c9",
+      "size_bytes": 16526,
+      "v2_owned_path": "v2/legacy_owned_runtime/rl/hedge_reward_functions.py"
+    },
+    {
+      "classification": "RUNTIME_SOURCE_REQUIRED",
+      "copied_to_v2_owned_runtime": true,
+      "legacy_relative_path": "rl/checkpoint_manager.py",
+      "role": "checkpoint_lifecycle",
+      "sha256": "151d8808d53b7ba00edc4411569ba2f86519154d52da1997b300cec14c3e1ba8",
+      "size_bytes": 12300,
+      "v2_owned_path": "v2/legacy_owned_runtime/rl/checkpoint_manager.py"
+    },
+    {
+      "classification": "RUNTIME_SOURCE_REQUIRED",
+      "copied_to_v2_owned_runtime": true,
+      "legacy_relative_path": "rl/confidence_gates.py",
+      "role": "confidence_gates",
+      "sha256": "0f51194d182f58c1c2b885d4682c8b698ecd5fbfc53537d7af8c5621b373ab7c",
+      "size_bytes": 21453,
+      "v2_owned_path": "v2/legacy_owned_runtime/rl/confidence_gates.py"
+    },
+    {
+      "classification": "RUNTIME_SOURCE_REQUIRED",
+      "copied_to_v2_owned_runtime": true,
+      "legacy_relative_path": "rl/calibrated_confidence.py",
+      "role": "confidence_calibration",
+      "sha256": "03c56d7e3345444e9f285de3bee596573b3ca8d05ee4f3a26aef56e032806d90",
+      "size_bytes": 9767,
+      "v2_owned_path": "v2/legacy_owned_runtime/rl/calibrated_confidence.py"
+    },
+    {
+      "classification": "RUNTIME_SOURCE_REQUIRED",
+      "copied_to_v2_owned_runtime": true,
+      "legacy_relative_path": "rl/hybrid_trainer.py",
+      "role": "legacy_hybrid_trainer_reference",
+      "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+      "size_bytes": 3165342,
+      "v2_owned_path": "v2/legacy_owned_runtime/rl/hybrid_trainer.py"
+    }
+  ]
+}

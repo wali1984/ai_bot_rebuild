@@ -1,0 +1,52 @@
+{
+  "agent": "claude",
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/paper_expected_move_coverage_current_sample/latest/",
+    "claude_worklog/final_readiness/paper_edge_recovery/latest/",
+    "v2/backend/app/cli/",
+    "v2/backend/app/services/",
+    "v2/backend/tests/",
+    "v2/frontend/public/paper_expected_move_coverage_current_sample/latest/",
+    "v2/frontend/public/paper_edge_recovery/latest/"
+  ],
+  "allowed_paths": [
+    "v2/**",
+    "claude_worklog/**",
+    "requirements/**"
+  ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "forbidden": [
+    "legacy_mutation",
+    "old_redis_write",
+    "exchange_action",
+    "leverage_change",
+    "margin_mode_change",
+    "live_gate_unlock",
+    "approval_token_creation",
+    "redis_trim_approval_creation",
+    "using_future_outcomes_to_permit_current_fills",
+    "loosening_paper_fill_gate_without_native_evidence",
+    "paper_edge_proven_without_positive_net_post_filter_fills",
+    "confidence_only_fill_permission",
+    "expected_move_after_costs_missing_fill_permission",
+    "trainer_source_missing_fill_permission",
+    "feature_freshness_missing_fill_permission"
+  ],
+  "lane": "shutdown_readiness_remediation",
+  "live_gate": "blocked_human_only",
+  "managed_by": "codex_shutdown_readiness_controller",
+  "max_attempts": 1,
+  "prompt": "Task: Improve expected_move_after_cost coverage from the current shadow false-block sample without loosening the strict V2 paper fill gate.\n\nHard constraints: Work only inside /home/wali/Desktop/AI BOT REBUILD. Do not modify /home/wali/Desktop/AI BOT. Do not mutate old Redis. Do not place, cancel, or modify exchange orders. Do not change leverage or margin mode. Do not enable live. Do not create final approval or Redis trim approval tokens. Keep live_gate=blocked_human_only and live_symbols=[].\n\nCurrent evidence: the refreshed expected-move review is current against paper_shadow_outcome_observer with false_block_count=126 and go_no_go=V2_EXPECTED_MOVE_MODEL_REVIEW_READY_KEEP_GATE_STRICT. Safe threshold candidates remain 0. This is model-review evidence only, not permission to trade from hindsight.\n\nRequired work:\n1. Read the current paper_shadow_outcome_observer status, expected_move_model_review refresh, decision improvement recommendations, paper edge recovery status, trainer bridge status, and paper event JSONL.\n2. Classify false blocks by reason, expected_move_source, confidence bucket, symbol, side, feature freshness, trainer_source, and whether expected_move_after_cost_bps was native, missing, negative, or below threshold at decision time.\n3. Produce a current-sample model-improvement packet identifying exactly which native expected_move_after_cost sources need improvement. Do not use future outcome labels to authorize current fills.\n4. If a safe code change is available, add only fail-closed reporting/scoring improvements that increase evidence coverage. Do not lower min_expected_move_after_cost_bps, do not lower confidence thresholds, and do not permit fills from historical false-block labels.\n5. Preserve no-trade correctness tracking and mark insufficient sample honestly.\n6. Update public/operator payloads with edge_status, false_block_count, no_trade_correct_count, allowed_paper_fill_count, sample status, live_gate, and live_symbols.\n7. Add tests proving future outcome labels cannot permit fills and the strict edge gate still blocks missing expected_move_after_cost, missing trainer_source, missing feature_freshness_state, low confidence, and symbols outside paper scope.\n8. Create a Codex review descriptor for codex_review_expected_move_after_cost_current_sample_model_improvement.\n\nRequired outputs:\n- claude_worklog/final_readiness/paper_expected_move_coverage_current_sample/latest/EXPECTED_MOVE_AFTER_COST_CURRENT_SAMPLE_MODEL_REVIEW.md\n- claude_worklog/final_readiness/paper_expected_move_coverage_current_sample/latest/expected_move_after_cost_current_sample_model_review.json\n- claude_worklog/final_readiness/paper_expected_move_coverage_current_sample/latest/GO_NO_GO.md\n- claude_worklog/final_readiness/paper_expected_move_coverage_current_sample/latest/operator_dashboard_payload.json\n- v2/frontend/public/paper_expected_move_coverage_current_sample/latest/operator_dashboard_payload.json\n\nGO_NO_GO.md must contain exactly one of:\nEXPECTED_MOVE_AFTER_COST_CURRENT_SAMPLE_READY_EDGE_PENDING\nEXPECTED_MOVE_AFTER_COST_CURRENT_SAMPLE_BLOCKED_INSUFFICIENT_EVIDENCE\nEXPECTED_MOVE_AFTER_COST_CURRENT_SAMPLE_BLOCKED_SAFETY_REGRESSION\n\nValidation required: py_compile, targeted tests, JSON validation, high-confidence secret scan, forbidden mutation scan. Do not claim live-ready, canary-ready, positive edge, or legacy shutdown readiness.",
+  "required_output_files": [
+    "claude_worklog/final_readiness/paper_expected_move_coverage_current_sample/latest/EXPECTED_MOVE_AFTER_COST_CURRENT_SAMPLE_MODEL_REVIEW.md",
+    "claude_worklog/final_readiness/paper_expected_move_coverage_current_sample/latest/expected_move_after_cost_current_sample_model_review.json",
+    "claude_worklog/final_readiness/paper_expected_move_coverage_current_sample/latest/GO_NO_GO.md",
+    "claude_worklog/final_readiness/paper_expected_move_coverage_current_sample/latest/operator_dashboard_payload.json",
+    "v2/frontend/public/paper_expected_move_coverage_current_sample/latest/operator_dashboard_payload.json"
+  ],
+  "risk_level": "L2",
+  "status": "completed",
+  "task_id": "claude_improve_expected_move_after_cost_coverage_current_shadow_sample",
+  "task_timeout_seconds": 2400
+}

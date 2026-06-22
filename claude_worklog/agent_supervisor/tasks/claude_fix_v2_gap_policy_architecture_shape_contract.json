@@ -1,0 +1,56 @@
+{
+  "task_id": "claude_fix_v2_gap_policy_architecture_shape_contract",
+  "kind": "claude_narrow_remediation",
+  "gap_id": "policy_architecture_shape_contract",
+  "severity": "OPERATOR_DECISION_REQUIRED",
+  "cause": "V2_POLICY_ARCHITECTURE_MISMATCH",
+  "created_utc": "2026-05-17T18:00:00Z",
+  "updated_utc": "2026-05-17T18:00:00Z",
+  "status": "pending_operator_decision",
+  "auto_apply_allowed_by_this_loop": false,
+  "summary": "V2 paper policy uses MLP obs_dim=26 / hidden_dim=16 / action_count=5. Legacy production uses LSTM + multi-head attention + MoE + CNN over obs_dim=1911 with action_space_size=59049 (3^10 joint action). No legacy checkpoint can drive V2 today without an explicit policy-architecture port and observation-vector expansion.",
+  "v2_policy_facts": {
+    "obs_dim": 26,
+    "hidden_dim": 16,
+    "action_count": 5,
+    "action_labels": ["hold", "long", "short", "close", "hedge"],
+    "has_lstm": false,
+    "has_attention": false,
+    "has_moe": false,
+    "has_cnn": false
+  },
+  "legacy_architecture_facts": {
+    "obs_dim_v3": 1911,
+    "action_space_size": 59049,
+    "per_symbol_actions": 3,
+    "has_lstm": true,
+    "has_attention": true,
+    "has_moe": true,
+    "has_cnn": true,
+    "lstm_hidden_size_default_observed": 512
+  },
+  "operator_decision_options": [
+    "OPTION_A: train a new V2-native checkpoint matching V2 compact 26-dim observation + 5-action policy",
+    "OPTION_B: implement full observation-vector expansion (26 -> 1911) plus full architecture port (MLP -> LSTM+Attention+MoE+CNN); then attempt operator-approved legacy checkpoint shape inspection via separate paper-only Codex review",
+    "OPTION_C: keep V2 deterministic-init paper-only forever (Operator explicitly chose against this)"
+  ],
+  "forbidden_actions": [
+    "modify /home/wali/Desktop/AI BOT",
+    "stop or restart legacy",
+    "write old Redis keys",
+    "place or cancel exchange orders",
+    "change leverage or margin",
+    "enable live",
+    "create approval token",
+    "execute legacy monitor scripts",
+    "load torch weights into V2 process",
+    "commit checkpoint blobs to Git"
+  ],
+  "paired_codex_review_task_id": "codex_review_fix_v2_gap_policy_architecture_shape_contract",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false
+}

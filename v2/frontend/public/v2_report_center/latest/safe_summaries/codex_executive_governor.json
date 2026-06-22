@@ -1,0 +1,31 @@
+{
+  "freshness_seconds": 2579939.3607571125,
+  "go_no_go": "CODEX_EXECUTIVE_RECOVERY_AND_PRODUCTION_READINESS_GOVERNOR_READY",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "owner": "CODEX",
+  "redaction_applied": false,
+  "report_id": "codex_executive_governor",
+  "sanitized_summary": {
+    "go_no_go": "CODEX_EXECUTIVE_RECOVERY_AND_PRODUCTION_READINESS_GOVERNOR_READY",
+    "pruned": {
+      "generated_utc": "2026-05-23T03:49:30Z",
+      "go_no_go": "CODEX_EXECUTIVE_RECOVERY_AND_PRODUCTION_READINESS_GOVERNOR_READY",
+      "safety": {
+        "approves_canary": false,
+        "approves_legacy_shutdown": false,
+        "approves_live": false,
+        "approves_redis_trim": false,
+        "live_gate": "blocked_human_only",
+        "live_symbols": []
+      },
+      "schema_version": "codex_executive_recovery_and_production_readiness_governor_v1"
+    },
+    "redaction_applied": false,
+    "redaction_token": null,
+    "status": "READY"
+  },
+  "stale": true,
+  "status": "READY",
+  "title": "Codex Executive Governor"
+}

@@ -23,7 +23,7 @@ struct AdminDashboardView: View {
                     adminContent(summary)
                 }
             }
-            .navigationTitle("Admin")
+            .navigationTitle("NERVYX OBSERVE")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
@@ -54,9 +54,6 @@ struct AdminDashboardView: View {
     private func adminContent(_ s: MobileAdminSummary) -> some View {
         ScrollView {
             VStack(spacing: 16) {
-                LiveBlockBanner()
-                    .padding(.horizontal, -16)
-
                 // Actor info
                 actorCard(s.actor)
 
@@ -118,7 +115,7 @@ struct AdminDashboardView: View {
 
     private func trainerCard(_ t: AdminTrainer) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Trainer", systemImage: "brain").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+            Label("NERVYX CORE · Trainer", systemImage: "brain").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
             MetricRow(label: "State", value: t.state, valueColor: t.state.hasPrefix("ACTIVE") ? .green : .orange)
             MetricRow(label: "CUDA", value: t.cuda_active ? "Active" : "Off", valueColor: t.cuda_active ? .green : .red)
             MetricRow(label: "Steps/hr", value: "\(t.training_steps_last_hour.formatted())")
@@ -131,7 +128,7 @@ struct AdminDashboardView: View {
 
     private func gpuCard(_ gpu: GPUState) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("GPU — \(gpu.name.isEmpty ? "Unknown" : gpu.name)", systemImage: "cpu.fill")
+            Label("NERVYX CORE · GPU — \(gpu.name.isEmpty ? "Unknown" : gpu.name)", systemImage: "cpu.fill")
                 .font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
             GaugeCard(title: "Utilization", value: gpu.utilization_pct, max: 100, unit: "%",
                       color: gpu.utilization_pct > 90 ? .orange : .blue)
@@ -142,7 +139,7 @@ struct AdminDashboardView: View {
 
     private func paperCard(_ p: AdminPaper) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Paper", systemImage: "doc.plaintext").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+            Label("NERVYX EXECUTE · Runtime", systemImage: "bolt.horizontal.circle").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
             HStack(spacing: 12) {
                 MetricCard(title: "Open", value: "\(p.open_positions)", icon: "chart.line.uptrend.xyaxis")
                 MetricCard(title: "Closed", value: "\(p.closed_trades)", icon: "checkmark.circle")
@@ -159,7 +156,7 @@ struct AdminDashboardView: View {
 
     private func riskCard(_ r: AdminRisk) -> some View {
         HStack {
-            Label("Risk", systemImage: r.kill_switch_active ? "exclamationmark.shield.fill" : "shield.fill")
+            Label("NERVYX GUARD · Risk", systemImage: r.kill_switch_active ? "exclamationmark.shield.fill" : "shield.fill")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(r.kill_switch_active ? .red : .secondary)
             Spacer()
@@ -177,7 +174,7 @@ struct AdminDashboardView: View {
 
     private func dangerousControlsNote() -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Dangerous Controls", systemImage: "exclamationmark.triangle.fill")
+            Label("NERVYX GUARD · Dangerous Controls", systemImage: "exclamationmark.triangle.fill")
                 .font(.subheadline.weight(.semibold)).foregroundStyle(.orange)
             Text("Live trading, leverage changes, and kill switch controls require explicit human approval via the web admin interface. These actions are NOT available from mobile for safety.")
                 .font(.caption).foregroundStyle(.secondary)
@@ -190,7 +187,7 @@ struct AdminDashboardView: View {
     private func adminNavLinks() -> some View {
         VStack(spacing: 12) {
             NavigationLink(destination: AuditLedgerView()) {
-                Label("Audit Ledger", systemImage: "list.clipboard")
+                Label("NERVYX REPLAY · Audit Ledger", systemImage: "list.clipboard")
             }
             .buttonStyle(.borderedProminent)
             .tint(.secondary)

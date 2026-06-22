@@ -1,0 +1,183 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "do_not_implement_without_approval": [
+    "live order adapter",
+    "paid feed activation",
+    "checkpoint deserialization/promotion",
+    "Redis trim",
+    "risk threshold acceptance",
+    "capital recovery acceptance",
+    "legacy restart"
+  ],
+  "go_no_go": "V2_FULL_RUNTIME_MISSING_COMPONENT_BACKLOG_READY",
+  "live_symbols": [],
+  "ownership": {
+    "claude": "implementation",
+    "codex_5_5": "safe scoped review and fix",
+    "codex_spark_5_3": "scheduler, lease manager, watchdog, report-center truth updater"
+  },
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "task_count": 11,
+  "tasks": [
+    {
+      "component": "binance_mark_price",
+      "do_not_implement": [
+        "live order adapter",
+        "paid feed activation",
+        "checkpoint deserialization",
+        "Redis trim",
+        "legacy restart"
+      ],
+      "paired_review_task": "codex_review_5_5_safe_scoped_fix",
+      "scope": "wire v2/backend/app/cli/v2_binance_public_metadata_ingestor.py into a dedicated systemd unit + visible GNOME panel; ensure --once smoke test before --loop start; do not enable live",
+      "spark_lane": "proof-claude",
+      "task_type": "claude_implementation_task"
+    },
+    {
+      "component": "binance_funding",
+      "do_not_implement": [
+        "live order adapter",
+        "paid feed activation",
+        "checkpoint deserialization",
+        "Redis trim",
+        "legacy restart"
+      ],
+      "paired_review_task": "codex_review_5_5_safe_scoped_fix",
+      "scope": "wire v2/backend/app/cli/v2_binance_public_metadata_ingestor.py into a dedicated systemd unit + visible GNOME panel; ensure --once smoke test before --loop start; do not enable live",
+      "spark_lane": "proof-claude",
+      "task_type": "claude_implementation_task"
+    },
+    {
+      "component": "binance_open_interest",
+      "do_not_implement": [
+        "live order adapter",
+        "paid feed activation",
+        "checkpoint deserialization",
+        "Redis trim",
+        "legacy restart"
+      ],
+      "paired_review_task": "codex_review_5_5_safe_scoped_fix",
+      "scope": "wire v2/backend/app/cli/v2_binance_public_metadata_ingestor.py into a dedicated systemd unit + visible GNOME panel; ensure --once smoke test before --loop start; do not enable live",
+      "spark_lane": "proof-claude",
+      "task_type": "claude_implementation_task"
+    },
+    {
+      "component": "binance_orderbook",
+      "do_not_implement": [
+        "live order adapter",
+        "paid feed activation",
+        "checkpoint deserialization",
+        "Redis trim",
+        "legacy restart"
+      ],
+      "paired_review_task": "codex_review_5_5_safe_scoped_fix",
+      "scope": "wire v2/backend/app/cli/v2_binance_public_metadata_ingestor.py into a dedicated systemd unit + visible GNOME panel; ensure --once smoke test before --loop start; do not enable live",
+      "spark_lane": "proof-claude",
+      "task_type": "claude_implementation_task"
+    },
+    {
+      "component": "liquidation_bridge",
+      "do_not_implement": [
+        "live order adapter",
+        "paid feed activation",
+        "checkpoint deserialization",
+        "Redis trim",
+        "legacy restart"
+      ],
+      "paired_review_task": "codex_review_5_5_safe_scoped_fix",
+      "scope": "wire v2/backend/app/cli/v2_coinank_and_liquidation_bridge.py into a dedicated systemd unit + visible GNOME panel; ensure --once smoke test before --loop start; do not enable live",
+      "spark_lane": "proof-claude",
+      "task_type": "claude_implementation_task"
+    },
+    {
+      "component": "liquidation_levels_engine",
+      "do_not_implement": [
+        "live order adapter",
+        "paid feed activation",
+        "checkpoint deserialization",
+        "Redis trim",
+        "legacy restart"
+      ],
+      "paired_review_task": "codex_review_5_5_safe_scoped_fix",
+      "scope": "wire v2/backend/app/cli/v2_liquidation_observation_aggregator_status.py into a dedicated systemd unit + visible GNOME panel; ensure --once smoke test before --loop start; do not enable live",
+      "spark_lane": "proof-claude",
+      "task_type": "claude_implementation_task"
+    },
+    {
+      "component": "coinank_full_poller",
+      "do_not_implement": [
+        "live order adapter",
+        "paid feed activation",
+        "checkpoint deserialization",
+        "Redis trim",
+        "legacy restart"
+      ],
+      "paired_review_task": "codex_review_5_5_safe_scoped_fix",
+      "scope": "wire v2/backend/app/cli/v2_coinank_and_liquidation_bridge.py into a dedicated systemd unit + visible GNOME panel; ensure --once smoke test before --loop start; do not enable live",
+      "spark_lane": "proof-claude",
+      "task_type": "claude_implementation_task"
+    },
+    {
+      "component": "coinank_global_aggregator",
+      "do_not_implement": [
+        "live order adapter",
+        "paid feed activation",
+        "checkpoint deserialization",
+        "Redis trim",
+        "legacy restart"
+      ],
+      "paired_review_task": "codex_review_5_5_safe_scoped_fix",
+      "scope": "wire v2/backend/app/cli/v2_coinank_and_liquidation_bridge.py into a dedicated systemd unit + visible GNOME panel; ensure --once smoke test before --loop start; do not enable live",
+      "spark_lane": "proof-claude",
+      "task_type": "claude_implementation_task"
+    },
+    {
+      "component": "arkham_ingestor",
+      "do_not_implement": [
+        "live order adapter",
+        "paid feed activation",
+        "checkpoint deserialization",
+        "Redis trim",
+        "legacy restart"
+      ],
+      "paired_review_task": "codex_review_5_5_safe_scoped_fix",
+      "scope": "wire v2/backend/app/cli/v2_arkham_presence_only_worker.py into a dedicated systemd unit + visible GNOME panel; ensure --once smoke test before --loop start; do not enable live",
+      "spark_lane": "runtime-claude",
+      "task_type": "claude_implementation_task"
+    },
+    {
+      "component": "dataset_builder",
+      "do_not_implement": [
+        "live order adapter",
+        "paid feed activation",
+        "checkpoint deserialization",
+        "Redis trim",
+        "legacy restart"
+      ],
+      "paired_review_task": "codex_review_5_5_safe_scoped_fix",
+      "scope": "wire v2/backend/app/cli/v2_native_trainer_dataset_builder.py into a dedicated systemd unit + visible GNOME panel; ensure --once smoke test before --loop start; do not enable live",
+      "spark_lane": "proof-claude",
+      "task_type": "claude_implementation_task"
+    },
+    {
+      "component": "backtest_engine",
+      "do_not_implement": [
+        "live order adapter",
+        "paid feed activation",
+        "checkpoint deserialization",
+        "Redis trim",
+        "legacy restart"
+      ],
+      "paired_review_task": "codex_review_5_5_safe_scoped_fix",
+      "scope": "wire v2/backend/app/cli/historical_30d_replay_and_paper_proof.py into a dedicated systemd unit + visible GNOME panel; ensure --once smoke test before --loop start; do not enable live",
+      "spark_lane": "proof-claude",
+      "task_type": "claude_implementation_task"
+    }
+  ],
+  "ts_est": "20260526T003358EST",
+  "writes_exchange_orders": false
+}

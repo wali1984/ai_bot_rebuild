@@ -58,6 +58,7 @@ from v2.backend.app.services.symbol_universe.service import (
     SYMBOL_SELECTION_SCORE_FACTORS,
     SymbolUniverseService,
 )
+from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
 
 
 WORKER_ID = "v2_feature_pipeline_and_ta_worker"
@@ -276,7 +277,8 @@ def build_symbol_scope(snapshot: Dict[str, Any], observed_symbols: List[str]) ->
 
     return {
         "symbol_universe_contract": SYMBOL_UNIVERSE_CONTRACT,
-        "symbol_universe_source_path": public_path or SYMBOL_UNIVERSE_SERVICE_PATH,
+        "symbol_universe_source_path": SYMBOL_UNIVERSE_SERVICE_PATH,
+        "symbol_universe_public_payload_path": public_path,
         "symbol_universe_public_payload_status": (
             "PRESENT" if public_path else "MISSING_SYMBOL_UNIVERSE_PUBLIC_PAYLOAD"
         ),
@@ -542,11 +544,12 @@ def verify_baseline_shas(manifest_path: Path = COPIED_BASELINE_MANIFEST) -> Dict
 
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog=WORKER_ID)
-    parser.add_argument("--symbol", default="BTCUSDT")
+    parser.add_argument("--symbol", default=None)
     parser.add_argument("--timeframe", default="1m")
     parser.add_argument("--interval", type=int, default=FAST_LANE_INTERVAL_SEC)
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--loop", action="store_true")
+    parser.add_argument("--smoke-test", action="store_true")
     parser.add_argument("--no-write", action="store_true")
     parser.add_argument("--input-file", default=None,
                         help="Read snapshot input (per-symbol/tf dict) from a JSON file.")
@@ -557,6 +560,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument("--verify-baseline-shas", action="store_true")
     args = parser.parse_args(argv)
+    args.symbol = (args.symbol or resolve_symbols(smoke_test=args.smoke_test)[0]).strip().upper()
     if not args.loop and not args.once:
         args.once = True
     return args

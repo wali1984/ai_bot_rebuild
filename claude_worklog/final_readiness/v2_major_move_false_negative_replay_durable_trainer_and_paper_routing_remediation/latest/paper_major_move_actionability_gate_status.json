@@ -1,0 +1,11 @@
+{
+  "allowed_count": 0,
+  "block_reasons": [
+    "EVIDENCE_SCORE_BELOW_THRESHOLD",
+    "EXPECTED_MOVE_AFTER_COST_NOT_POSITIVE"
+  ],
+  "blocked_count": 3,
+  "candidate_count": 3,
+  "generated_est": "2026-06-15T18:09:53-04:00",
+  "paper_only": true
+}

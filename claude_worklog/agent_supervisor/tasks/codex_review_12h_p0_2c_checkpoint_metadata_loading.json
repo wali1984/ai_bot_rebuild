@@ -1,0 +1,41 @@
+{
+  "agent": "codex",
+  "allowed_paths": [
+    "v2/**",
+    "claude_worklog/**"
+  ],
+  "codex_governor_disposition": {
+    "disposition": "superseded_obsolete_not_a_pass",
+    "does_not_approve_canary": true,
+    "does_not_approve_live": true,
+    "does_not_approve_shutdown": true,
+    "does_not_claim_codex_pass": true,
+    "reason": "stale historical Codex review descriptor retired by full-rebuild self-healing governor; current final_readiness/codex packets supersede this descriptor",
+    "set_at_utc": "2026-05-23T01:34:32Z"
+  },
+  "created_utc": "2026-05-16T03:31:06Z",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": [
+    "claude_12h_p0_2c_checkpoint_metadata_loading"
+  ],
+  "forbidden": [
+    "modify_legacy_root",
+    "old_redis_write",
+    "exchange_mutation",
+    "live_enable",
+    "approval_token",
+    "live_symbols_non_empty"
+  ],
+  "lane": "12h_native_core_sprint",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "prompt": "Review P0.2C checkpoint metadata/loading. PASS only if checkpoint inventory and loading/blocker classification are honest, no checkpoint parity is claimed without evidence, no live/canary/shutdown approval appears, tests pass, and safety scans are clean. Required GO/NO-GO token: V2_NATIVE_RL_MASA_PPO_P0_2C_CODEX_PASS or V2_NATIVE_RL_MASA_PPO_P0_2C_CODEX_FAIL.",
+  "ready_to_dispatch": false,
+  "required_output_files": [
+    "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2c/latest/codex_review/CODEX_REVIEW.md",
+    "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2c/latest/codex_review/CODEX_GO_NO_GO.md"
+  ],
+  "risk_level": "L1",
+  "status": "superseded_obsolete",
+  "task_id": "codex_review_12h_p0_2c_checkpoint_metadata_loading"
+}

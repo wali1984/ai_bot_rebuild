@@ -1,0 +1,29 @@
+{
+  "alerts_to_emit_if_trial_accepted": [
+    "PAPER_CONFIDENCE_TRIAL_DRAWDOWN_EXCEEDED",
+    "PAPER_CONFIDENCE_TRIAL_ALLOWED_LOSER_RATE_HIGH",
+    "PAPER_CONFIDENCE_TRIAL_NO_EDGE_AFTER_60M"
+  ],
+  "current_paper": {
+    "accepted_fill_total": 169,
+    "current_session_equity": 10008.23058933,
+    "current_session_pnl": 8.23058933,
+    "economic_fill_total": 168,
+    "last_equity_update_est": "2026-06-10T14:14:51-04:00",
+    "open_positions_count": 16,
+    "realized_pnl_usd": 0.59519058,
+    "unrealized_pnl_usd": 7.63539875
+  },
+  "generated_est": "2026-06-10T14:15:07-04:00",
+  "live_state": {
+    "live_gate": "enabled_operator_approved",
+    "live_order_submit_allowed": false,
+    "live_order_submit_blocker": "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER",
+    "trader_state": "LIVE_ARMED_BALANCE_HOLD"
+  },
+  "live_threshold_changed": false,
+  "monitor_window_minutes": 60,
+  "paper_threshold_changed": false,
+  "schema_version": "v2_confidence_calibration_paper_actionability_v1_post_monitor",
+  "status": "POST_CALIBRATION_MONITOR_ARMED_NO_RUNTIME_THRESHOLD_CHANGE"
+}

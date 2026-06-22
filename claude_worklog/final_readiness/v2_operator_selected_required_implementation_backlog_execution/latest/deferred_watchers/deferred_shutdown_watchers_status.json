@@ -1,0 +1,54 @@
+{
+  "schema_version": "v2_deferred_shutdown_watchers_status_v1",
+  "generated_utc": "2026-05-25T06:15:00Z",
+  "git_head": "10513bbe0517fd81c9c87e4672bb15486a083c02",
+  "purpose": "Maintain watcher state for DEFER_KEEP_LEGACY_RUNNING blockers in the selection: legacy runtime owner and legacy Redis keys.",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "watcher_count": 2,
+  "watchers": [
+    {
+      "watcher_id": "deferred_watcher_legacy_runtime_owner",
+      "blocker_id": "legacy_shutdown.legacy_runtime_owner",
+      "operator_selected_option": "DEFER_KEEP_LEGACY_RUNNING",
+      "operator_accepted": false,
+      "current_observed_state": "LEGACY_RUNTIME_OWNER_ACTIVE_NO_STOP_INTENT_CAPTURED",
+      "pass_condition": "operator captures stop intent via a separate operator-gated runbook; this lane never captures it on its own",
+      "pass_condition_satisfied": false,
+      "completed": false,
+      "fake_completion_allowed": false,
+      "stops_legacy": false,
+      "blocks_paper_only_shutdown": true,
+      "last_observed_at": "2026-05-25T06:15:00Z"
+    },
+    {
+      "watcher_id": "deferred_watcher_legacy_redis_keys_active",
+      "blocker_id": "legacy_shutdown.legacy_redis_keys_active",
+      "operator_selected_option": "DEFER_KEEP_LEGACY_RUNNING",
+      "operator_accepted": false,
+      "current_observed_state": "LEGACY_REDIS_KEYS_ACTIVE_NO_TRIM_INTENT_CAPTURED",
+      "pass_condition": "operator captures retention/trim decision via a separate operator-gated runbook with backup verification; this lane never trims Redis",
+      "pass_condition_satisfied": false,
+      "completed": false,
+      "fake_completion_allowed": false,
+      "writes_old_redis": false,
+      "trims_legacy_redis": false,
+      "blocks_paper_only_shutdown": true,
+      "last_observed_at": "2026-05-25T06:15:00Z"
+    }
+  ],
+  "fake_completion_allowed": false,
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "writes_old_redis": false,
+    "calls_exchange_mutation": false,
+    "creates_approval_tokens": false,
+    "stops_legacy": false,
+    "stops_v2_runtime": false
+  }
+}

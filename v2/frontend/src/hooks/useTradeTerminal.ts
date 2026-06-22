@@ -4,8 +4,10 @@ import { getV2MarketDepth, getV2MarketTrades } from '../api/v2Market';
 import { getV2Signals } from '../api/v2Signals';
 import { useSymbolData } from './useSymbolData';
 import { typedPortfolioMatchesCurrentScope, usePaperAccountTruth } from './usePaperAccountTruth';
+import { usePaperActivityStream } from './usePaperActivityStream';
 import { useTraderContext } from './useTraderContext';
 import { useMarketDataStream, type MarketDataStreamState } from './useMarketDataStream';
+import { useRealtimeResource } from './useRealtimeResource';
 import { finite } from '../lib/tradeFormatters';
 import type { AccountReadinessData, ApiV2Envelope, AuditEventsData, ExchangeReadOnlyAccountData, ExecutionsData, MarketDepthData, MarketTickerData, OrdersData, PortfolioData, PositionsData, RecentTradesData, SignalData } from '../types/apiV2';
 
@@ -90,6 +92,26 @@ function tradePositions(value: unknown): TradePosition[] {
 function tradeRecords(value: unknown): Array<Record<string, unknown>> {
   if (!Array.isArray(value)) return [];
   return value.filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === 'object');
+}
+
+function paperActivityTradePositions(value: unknown): TradePosition[] {
+  return tradeRecords(value).map((row) => ({
+    symbol: symbolToken(row.symbol) ?? undefined,
+    side: typeof row.side === 'string' ? row.side : undefined,
+    quantity: finite(row.net_quantity) ?? finite(row.quantity) ?? undefined,
+    notional: finite(row.notional_usd) ?? finite(row.notional) ?? undefined,
+    entry_price: finite(row.avg_entry_price) ?? finite(row.entry_price) ?? undefined,
+    current_price: finite(row.last_mark_price) ?? finite(row.current_price) ?? undefined,
+    unrealized_pnl: finite(row.unrealized_pnl) ?? undefined,
+    unrealized_pnl_pct: finite(row.unrealized_pnl_pct) ?? (
+      finite(row.unrealized_pnl_bps) !== null ? (finite(row.unrealized_pnl_bps) as number) / 10000 : undefined
+    ),
+    opened_utc: typeof row.opened_utc === 'string'
+      ? row.opened_utc
+      : typeof row.opened_est === 'string'
+        ? row.opened_est
+        : undefined,
+  }));
 }
 
 function scopeToken(value: unknown): string | null {
@@ -195,10 +217,10 @@ function marketSourceLabel<T>(
 }
 
 function marketStreamSourceLabel(stream: Pick<MarketDataStreamState, 'streamSource' | 'connected' | 'stale'>): string {
-  if (stream.stale) return 'Read-only market stream stale; using current market polling fallback';
-  if (stream.streamSource === 'binance_usdm_public_websocket') return 'Read-only native public market stream connected';
-  if (stream.connected) return 'Read-only market stream connected';
-  return 'Read-only market stream unavailable; using current market polling fallback';
+  if (stream.stale) return 'Market stream stale; using current market polling fallback';
+  if (stream.streamSource === 'binance_usdm_public_websocket') return 'Native public market stream connected';
+  if (stream.connected) return 'Live market stream connected';
+  return 'Market stream unavailable; using current market polling fallback';
 }
 
 function accountSourceLabel<T>(
@@ -268,6 +290,10 @@ export function tradeAccountScopeKey(traderId: string | null, paperAccountId: st
   return `${trader}:${paper}`;
 }
 
+interface TradeMarketOverviewData {
+  symbols?: string[];
+}
+
 export function useTradeTerminal() {
   const [selectedSymbol, setSelectedSymbol] = useState('');
   const [typedPortfolio, setTypedPortfolio] = useState<ApiV2Envelope<PortfolioData> | null>(null);
@@ -282,11 +308,24 @@ export function useTradeTerminal() {
   const [typedTrades, setTypedTrades] = useState<ApiV2Envelope<RecentTradesData> | null>(null);
   const paperAccountTruth = usePaperAccountTruth(8_000, { requireTraderScope: true });
   const traderContext = useTraderContext();
+  const paperActivity = usePaperActivityStream(1000);
   const traderScopeKey = tradeAccountScopeKey(traderContext.traderId, traderContext.paperAccountId);
+  const marketOverview = useRealtimeResource<TradeMarketOverviewData>({
+    url: '/api/v2/market/overview',
+    source: '/api/v2/market/overview',
+    pollIntervalMs: 30_000,
+    staleThresholdMs: 90_000,
+    mode: 'read_only',
+  });
+  const marketSymbols = useMemo(
+    () => (marketOverview.envelope.data?.symbols ?? []).filter((s): s is string => typeof s === 'string' && s.length > 0),
+    [marketOverview.envelope.data],
+  );
 
   const typedPositionRows = typedPositions?.data
     ? scopedTradePositions(tradePositions(typedPositions.data.positions), typedPositions.data, traderContext.traderId, traderContext.paperAccountId)
     : null;
+  const paperActivityPositionRows = paperActivityTradePositions(paperActivity.data.positions);
   const typedOrdersScoped = envelopeMatchesTraderScope(typedOrders?.data, traderContext.traderId, traderContext.paperAccountId);
   const typedExecutionsScoped = envelopeMatchesTraderScope(typedExecutions?.data, traderContext.traderId, traderContext.paperAccountId);
   const typedAuditEventsScoped = envelopeMatchesTraderScope(typedAuditEvents?.data, traderContext.traderId, traderContext.paperAccountId);
@@ -304,13 +343,40 @@ export function useTradeTerminal() {
   const typedAuditEventRows = typedAuditEvents?.data
     ? scopedTradeRecords(tradeRecords(typedAuditEvents.data.audit_events), typedAuditEvents.data, traderContext.traderId, traderContext.paperAccountId)
     : [];
-  const positions = typedPositionRows ?? [];
+  const paperActivityOrderRows = tradeRecords(paperActivity.data.orders);
+  const paperActivityOpenOrderRows = tradeRecords(paperActivity.data.open_orders);
+  const paperActivityExecutionRows = tradeRecords(paperActivity.data.fills).length
+    ? tradeRecords(paperActivity.data.fills)
+    : tradeRecords(paperActivity.data.executions);
+  const paperActivityAuditRows = tradeRecords(paperActivity.data.audit_events);
+  const paperActivityAvailable = Boolean(
+    paperActivity.connected
+    || paperActivity.source === 'http_fallback'
+    || paperActivityPositionRows.length
+    || paperActivityOrderRows.length
+    || paperActivityExecutionRows.length
+    || paperActivityAuditRows.length
+  );
+  const positions = paperActivityPositionRows.length ? paperActivityPositionRows : typedPositionRows ?? [];
   const symbols = useMemo(
-    () => tradeTerminalSymbolUniverse({
-      watchlist: traderContext.user?.watchlist,
-      positions,
-    }),
-    [positions, traderContext.user?.watchlist],
+    () => {
+      const base = tradeTerminalSymbolUniverse({
+        watchlist: traderContext.user?.watchlist,
+        positions,
+      });
+      if (marketSymbols.length > 0) {
+        const combined = [...new Set([...base, ...marketSymbols])];
+        return combined.sort((a, b) => {
+          const aBase = base.includes(a);
+          const bBase = base.includes(b);
+          if (aBase && !bBase) return -1;
+          if (!aBase && bBase) return 1;
+          return a.localeCompare(b);
+        });
+      }
+      return base;
+    },
+    [positions, traderContext.user?.watchlist, marketSymbols],
   );
   const symbol = symbols.includes(selectedSymbol) ? selectedSymbol : symbols[0];
   const { detail: typedMarket } = useSymbolData(symbol);
@@ -360,7 +426,7 @@ export function useTradeTerminal() {
     ? scopedSignalAvailable
       ? activitySourceLabel(typedSignals, typedSignalsScoped, 'Trader signal source', 'Signal source unavailable')
       : redisPaperSignalAvailable
-        ? 'Paper forecast evidence source'
+        ? 'Current forecast evidence source'
         : 'Signal source unavailable'
     : 'Signal source unavailable';
   const signalFreshness = hasSignal
@@ -369,7 +435,7 @@ export function useTradeTerminal() {
       : scopedSignalAvailable
         ? 'Trader-scoped signal source'
         : redisPaperSignalAvailable
-          ? 'Current paper forecast evidence'
+          ? 'Current forecast evidence'
           : typedSignals?.source_type === 'static_payload'
             ? 'Fallback signal data'
             : 'Signal source unavailable'
@@ -380,8 +446,20 @@ export function useTradeTerminal() {
   const ask = finite(typedTicker?.ask) ?? depthAskPrice;
   const spreadAbs = bid !== null && ask !== null ? Math.max(0, ask - bid) : null;
   const spreadPct = spreadAbs !== null && lastPrice ? spreadAbs / lastPrice : null;
-  const availablePaperBalance = finite(typedPortfolioData?.equity);
+  const accountEquity = finite(typedPortfolioData?.equity) ?? paperAccountTruth.account.equity;
+  const availablePaperBalance = accountEquity;
+  const paperActivitySummary = record(paperActivity.data.summary);
+  const streamRealizedPnl = finite(paperActivitySummary.realized_pnl_usd);
+  const streamUnrealizedPnl = finite(paperActivitySummary.unrealized_pnl_usd);
+  const streamOpenNotional = finite(paperActivitySummary.total_open_notional);
+  const accountRealizedPnl = streamRealizedPnl ?? typedPortfolioData?.realized_pnl ?? null;
+  const accountUnrealizedPnl = streamUnrealizedPnl ?? typedPortfolioData?.unrealized_pnl ?? null;
+  const accountTotalPnl = accountRealizedPnl != null && accountUnrealizedPnl != null
+    ? accountRealizedPnl + accountUnrealizedPnl
+    : null;
 
+  // Account-scoped metadata. Paper activity rows come from usePaperActivityStream when available.
+  // Does NOT depend on symbol — account panels must not flash when symbol changes
   useEffect(() => {
     let active = true;
     setTypedPortfolio(null);
@@ -391,24 +469,24 @@ export function useTradeTerminal() {
     setTypedAuditEvents(null);
     setTypedAccountReadiness(null);
     setTypedExchangeReadOnly(null);
-    setTypedSignals(null);
     if (traderContext.loading) {
-      return () => {
-        active = false;
-      };
+      return () => { active = false; };
     }
 
-    async function loadTypedAccountState(): Promise<void> {
-      const [nextPortfolio, nextPositions, nextOrders, nextExecutions, nextAuditEvents, nextAccountReadiness, nextExchangeReadOnly, nextSignals] = await Promise.all([
+    async function loadAccountData(): Promise<void> {
+      const [nextPortfolio, nextAccountReadiness, nextExchangeReadOnly] = await Promise.all([
         getV2Portfolio(),
-        getV2Positions(),
-        getV2ExecutionOrders(),
-        getV2Executions(),
-        getV2AuditEvents(),
         getV2AccountReadiness(),
         getV2ExchangeReadOnlyAccount(),
-        getV2Signals(symbol),
       ]);
+      const [nextPositions, nextOrders, nextExecutions, nextAuditEvents] = paperActivityAvailable
+        ? [null, null, null, null]
+        : await Promise.all([
+            getV2Positions(),
+            getV2ExecutionOrders(),
+            getV2Executions(),
+            getV2AuditEvents(),
+          ]);
       if (!active) return;
       setTypedPortfolio(nextPortfolio);
       setTypedPositions(nextPositions);
@@ -417,15 +495,30 @@ export function useTradeTerminal() {
       setTypedAuditEvents(nextAuditEvents);
       setTypedAccountReadiness(nextAccountReadiness);
       setTypedExchangeReadOnly(nextExchangeReadOnly);
+    }
+
+    void loadAccountData();
+    const interval = window.setInterval(loadAccountData, 8_000);
+    return () => { active = false; window.clearInterval(interval); };
+  }, [traderContext.loading, traderScopeKey, paperActivityAvailable]);
+
+  // Signal data — symbol-specific, reload when symbol or scope changes
+  useEffect(() => {
+    let active = true;
+    setTypedSignals(null);
+    if (traderContext.loading) {
+      return () => { active = false; };
+    }
+
+    async function loadSignals(): Promise<void> {
+      const nextSignals = await getV2Signals(symbol);
+      if (!active) return;
       setTypedSignals(nextSignals);
     }
 
-    void loadTypedAccountState();
-    const interval = window.setInterval(loadTypedAccountState, 8_000);
-    return () => {
-      active = false;
-      window.clearInterval(interval);
-    };
+    void loadSignals();
+    const interval = window.setInterval(loadSignals, 8_000);
+    return () => { active = false; window.clearInterval(interval); };
   }, [symbol, traderContext.loading, traderScopeKey]);
 
   useEffect(() => {
@@ -452,21 +545,21 @@ export function useTradeTerminal() {
   }, [symbol]);
 
   const tickerSource = streamTickerEnvelope
-    ? marketSourceLabel(streamTickerEnvelope, 'Read-only market stream', 'Market ticker source unavailable')
+    ? marketSourceLabel(streamTickerEnvelope, 'Live market stream', 'Market ticker source unavailable')
     : marketSourceLabel(typedMarket, 'Current market data', 'Market ticker source unavailable');
   const orderBookSource = streamDepthEnvelope
-    ? marketSourceLabel(streamDepthEnvelope, 'Read-only order book stream', 'Order book source unavailable')
+    ? marketSourceLabel(streamDepthEnvelope, 'Live order book stream', 'Order book source unavailable')
     : marketSourceLabel(typedDepthEnvelope, 'Current order book source', 'Order book source unavailable');
   const depthSource = streamDepthEnvelope
-    ? marketSourceLabel(streamDepthEnvelope, 'Read-only market depth stream', 'Depth source unavailable')
+    ? marketSourceLabel(streamDepthEnvelope, 'Live market depth stream', 'Depth source unavailable')
     : marketSourceLabel(typedDepthEnvelope, 'Current market depth source', 'Depth source unavailable');
   const tradesSource = streamTradesEnvelope
-    ? marketSourceLabel(streamTradesEnvelope, 'Read-only trades stream', 'Recent trades source unavailable')
+    ? marketSourceLabel(streamTradesEnvelope, 'Live trades stream', 'Recent trades source unavailable')
     : marketSourceLabel(typedTradesEnvelope, 'Current recent trades source', 'Recent trades source unavailable');
   const hasTraderPaperScope = Boolean(traderContext.traderId && traderContext.paperAccountId);
   const traderPaperAccountFallback = hasTraderPaperScope
-    ? 'Trader-specific paper account source unavailable'
-    : 'Sign in to view trader-specific paper account';
+    ? 'Trader-specific account source unavailable'
+    : 'Sign in to view trader-specific account';
   const portfolioSource = accountSourceLabel(
     typedPortfolio,
     typedPortfolioScoped,
@@ -474,7 +567,7 @@ export function useTradeTerminal() {
     paperAccountTruth.account.reason ?? traderPaperAccountFallback,
   );
   const exchangeReadSource = typedExchangeReadOnlyData
-    ? 'Read-only exchange account source'
+    ? 'Exchange account source'
     : 'Account access source unavailable';
 
   return {
@@ -492,7 +585,7 @@ export function useTradeTerminal() {
       typedSignals: typedSignals?.endpoint ?? `/api/v2/signals?symbol=${symbol}`,
       typedDepth: typedDepthEnvelope?.endpoint ?? '/api/v2/market/{symbol}/depth',
       typedTrades: typedTradesEnvelope?.endpoint ?? '/api/v2/market/{symbol}/trades',
-      marketStream: marketStream.connected ? '/ws/market-data' : 'read-only market polling fallback',
+      marketStream: marketStream.connected ? '/ws/market-data' : 'market polling fallback',
       marketDetail: typedMarket.endpoint,
       paperAccountTruth: typedPortfolio?.endpoint ?? '/api/v2/portfolio',
     },
@@ -510,20 +603,20 @@ export function useTradeTerminal() {
       ageSeconds: null,
     },
     activity: {
-      orders: typedOrderRows,
-      openOrders: typedOrderRows.filter((row) => {
+      orders: paperActivityOrderRows.length ? paperActivityOrderRows : typedOrderRows,
+      openOrders: paperActivityOpenOrderRows.length ? paperActivityOpenOrderRows : (paperActivityOrderRows.length ? paperActivityOrderRows : typedOrderRows).filter((row) => {
         const status = String(row.status ?? row.order_status ?? '').toLowerCase();
         return !status || !/(filled|canceled|cancelled|rejected|expired|closed)/.test(status);
       }),
-      executions: typedExecutionRows,
-      auditEvents: typedAuditEventRows,
+      executions: paperActivityExecutionRows.length ? paperActivityExecutionRows : typedExecutionRows,
+      auditEvents: paperActivityAuditRows.length ? paperActivityAuditRows : typedAuditEventRows,
       auditPolicy: typedAuditEvents?.data?.audit_policy ?? null,
       auditLedger: typedAuditEvents?.data?.audit_ledger ?? null,
-      orderHistory: typedOrderRows,
+      orderHistory: paperActivityOrderRows.length ? paperActivityOrderRows : typedOrderRows,
       sources: {
-        orders: activitySourceLabel(typedOrders, typedOrdersScoped, 'Trader order source', 'Order source unavailable'),
-        executions: activitySourceLabel(typedExecutions, typedExecutionsScoped, 'Trader execution source', 'Execution source unavailable'),
-        auditEvents: activitySourceLabel(typedAuditEvents, typedAuditEventsScoped, 'Paper audit source', 'Paper audit event source unavailable'),
+        orders: paperActivityOrderRows.length ? 'Execution activity stream' : activitySourceLabel(typedOrders, typedOrdersScoped, 'Trader order source', 'Order source unavailable'),
+        executions: paperActivityExecutionRows.length ? 'Execution activity stream' : activitySourceLabel(typedExecutions, typedExecutionsScoped, 'Trader execution source', 'Execution source unavailable'),
+        auditEvents: paperActivityAuditRows.length ? 'Execution activity stream' : activitySourceLabel(typedAuditEvents, typedAuditEventsScoped, 'Execution audit source', 'Execution audit event source unavailable'),
         signals: signalSource,
       },
       missing: {
@@ -543,14 +636,20 @@ export function useTradeTerminal() {
       },
     },
     paper: {
-      payload: null,
-      error: null,
+      payload: paperActivity.envelope,
+      activity: paperActivity.data,
+      connected: paperActivity.connected,
+      source: paperActivity.source,
+      loading: paperActivity.loading,
+      error: paperActivity.error,
+      warnings: paperActivity.warnings,
+      stale: paperActivity.stale,
       ageSeconds: null,
     },
     mode: {
-      label: 'Paper / Read-only',
-      liveGate: 'Live trading disabled',
-      traderState: 'Paper read-only mode',
+      label: 'Live Trading',
+      liveGate: 'Live platform',
+      traderState: 'Live Trading',
     },
     market: {
       lastPrice,
@@ -591,24 +690,20 @@ export function useTradeTerminal() {
       },
     },
     account: {
-      equity: finite(typedPortfolioData?.equity),
-      realizedPnl: typedPortfolioData?.realized_pnl ?? null,
-      unrealizedPnl: typedPortfolioData?.unrealized_pnl ?? null,
-      totalPnl: (
-        typedPortfolioData?.realized_pnl != null && typedPortfolioData?.unrealized_pnl != null
-          ? typedPortfolioData.realized_pnl + typedPortfolioData.unrealized_pnl
-          : null
-      ),
-      totalNotional: null,
+      equity: accountEquity,
+      realizedPnl: accountRealizedPnl,
+      unrealizedPnl: accountUnrealizedPnl,
+      totalPnl: accountTotalPnl,
+      totalNotional: streamOpenNotional,
       availablePaperBalance,
       exchangeAvailableBalance: typedExchangeReadOnlyData?.account_snapshot?.available_balance ?? null,
       exchangeReadSource,
       exchangeReadStatus: typedExchangeReadOnlyData && typedExchangeReadOnly?.source_type === 'api'
-        ? 'Read-only account verified'
+        ? 'Account verified'
         : typedExchangeReadOnly?.source_type === 'unavailable'
           ? 'Account access source unavailable'
           : typedExchangeReadOnly
-            ? 'Read-only account withheld until trader scope is verified'
+            ? 'Account withheld until trader scope is verified'
             : 'Account access source unavailable',
       requiredInitialMargin: null,
       paperCurrency: paperAccountTruth.account.currency,
@@ -639,10 +734,10 @@ export function useTradeTerminal() {
       accountReadinessMissing: typedAccountReadiness?.missing_fields ?? ['trader_account_repository'],
       accountReadinessScopeVerified: typedAccountReadiness?.account_scope?.scope_verified ?? false,
       exchangeReadStatus: typedExchangeReadOnlyData && typedExchangeReadOnly?.source_type === 'api'
-        ? 'Read-only account verified'
+        ? 'Account verified'
         : typedExchangeReadOnly?.warnings?.[0] ?? 'Account access source unavailable',
       exchangeReadDetail: typedExchangeReadOnlyData
-        ? typedExchangeReadOnly?.warnings?.join(' ') ?? 'Exchange read-only account source unavailable'
+        ? typedExchangeReadOnly?.warnings?.join(' ') ?? 'Exchange account source unavailable'
         : 'Account access source unavailable',
       readOnly: traderContext.readOnly,
       liveTradingEnabled: traderContext.liveTradingEnabled,

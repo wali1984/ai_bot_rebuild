@@ -1,0 +1,80 @@
+{
+  "all_timeframe_visible_signal_rows_count": 0,
+  "current_runtime_paper_signal_count": 0,
+  "execution_live_symbols": [],
+  "generated_est": "2026-06-21T20:28:29-04:00",
+  "live_gate": "blocked_human_only",
+  "live_gate_runtime_context": {
+    "execution_live_symbols": [],
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "runtime_validation": {
+      "age_seconds": 786534.076837,
+      "blockers": [
+        "LIVE_GATE_NOT_ENABLED",
+        "TRADER_EXECUTION_ENABLED_NOT_TRUE",
+        "LIVE_SYMBOL_SETS_DO_NOT_MATCH_ACCEPTED_SYMBOLS",
+        "ORDER_TRANSPORT_SUBMIT_NOT_ENABLED",
+        "LIVE_GATE_RUNTIME_STATE_STALE"
+      ],
+      "max_age_seconds": 3600,
+      "valid": false
+    },
+    "source": "v2:live_gate:state",
+    "trader_execution_enabled": false
+  },
+  "live_symbols": [],
+  "paper_closed_trade_directional_collapse_guard_status": {
+    "block_reason": "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED",
+    "blocked_paper_actionability_count": 0,
+    "closed_directional_count": 1644,
+    "directional_collapse_detected": false,
+    "enabled": true,
+    "guard": "PAPER_CLOSED_TRADE_DIRECTIONAL_COLLAPSE_PUBLISHER_GUARD",
+    "major_side_share_threshold": 0.9,
+    "majority_side": "short",
+    "majority_side_count": 1324,
+    "majority_side_share": 0.805352798053528,
+    "minimum_closed_directional_rows": 50,
+    "minimum_majority_side_rows": 50,
+    "minority_side": "long",
+    "minority_side_count": 320,
+    "paper_only": true,
+    "side_counts": {
+      "long": 320,
+      "short": 1324
+    }
+  },
+  "paper_directional_collapse_guard_status": {
+    "block_reason": "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED",
+    "blocked_paper_actionability_count": 0,
+    "current_directional_count": 0,
+    "directional_collapse_detected": false,
+    "enabled": true,
+    "guard": "PAPER_PREDICTION_DIRECTIONAL_COLLAPSE_PUBLISHER_GUARD",
+    "major_side_share_threshold": 0.9,
+    "majority_side": null,
+    "majority_side_count": 0,
+    "majority_side_share": null,
+    "minimum_current_directional_rows": 50,
+    "minimum_majority_side_rows": 50,
+    "minority_side": null,
+    "minority_side_count": 0,
+    "paper_only": true,
+    "side_counts": {
+      "long": 0,
+      "short": 0
+    }
+  },
+  "publish_contract": {
+    "intended_v2_redis_keys": [],
+    "no_live_order_keys": true,
+    "old_redis_writes_performed": false,
+    "public_payload": "operator_runtime/v2_signals/latest/signals_payload.json",
+    "redis_writes_performed": true
+  },
+  "published_signals": [],
+  "schema_version": "v2_all_timeframe_signal_publisher_status_v1",
+  "signal_count": 0,
+  "status": "NO_ALL_TIMEFRAME_SIGNALS_VISIBLE"
+}

@@ -1,0 +1,72 @@
+{
+  "schema_version": "monthly_10k_goal_feasibility_and_gap_status.v1",
+  "generated_at_utc": "2026-06-14T04:42:29.315721+00:00",
+  "monthly_target_net_usdt": 10000,
+  "source_report": "/home/wali/Desktop/AI BOT REBUILD/PASS2B_PAPER_SHADOW_EDGE_PROOF_20260613_024915.md",
+  "paper_equity": "NOT_PROVEN_FROM_PASS2B_EDGE_SAMPLE",
+  "paper_pnl": 0.0,
+  "paper_24h_run_rate": "NOT_SUPPORTED_BY_SAMPLE",
+  "projected_monthly_pnl": "NOT_SUPPORTED_BY_SAMPLE",
+  "confidence_interval": "NOT_COMPUTABLE_INSUFFICIENT_CLOSED_TRADES",
+  "profit_factor": 0.0,
+  "win_rate": 0.0,
+  "max_drawdown": 0.0,
+  "capital_required_scenarios": [
+    {
+      "capital_usdt": 10000,
+      "monthly_return_required_pct": 100.0,
+      "daily_compound_return_required_pct": 2.3374
+    },
+    {
+      "capital_usdt": 25000,
+      "monthly_return_required_pct": 40.0,
+      "daily_compound_return_required_pct": 1.1279
+    },
+    {
+      "capital_usdt": 50000,
+      "monthly_return_required_pct": 20.0,
+      "daily_compound_return_required_pct": 0.6096
+    },
+    {
+      "capital_usdt": 100000,
+      "monthly_return_required_pct": 10.0,
+      "daily_compound_return_required_pct": 0.3182
+    },
+    {
+      "capital_usdt": 200000,
+      "monthly_return_required_pct": 5.0,
+      "daily_compound_return_required_pct": 0.1628
+    },
+    {
+      "capital_usdt": 500000,
+      "monthly_return_required_pct": 2.0,
+      "daily_compound_return_required_pct": 0.066
+    }
+  ],
+  "trade_evidence": {
+    "trusted_predictions": 10,
+    "actionable_predictions": 0.0,
+    "closed_paper_trades": 0.0,
+    "sample_sufficient": false
+  },
+  "capital_required_for_10k": "CANNOT_ESTIMATE_FROM_CURRENT_EDGE",
+  "risk_required_for_10k": "CANNOT_ESTIMATE_FROM_CURRENT_EDGE",
+  "current_capital_sufficient": "NOT_EVALUATED__EDGE_SAMPLE_INSUFFICIENT",
+  "current_edge_sufficient": "NO__INSUFFICIENT_SAMPLE",
+  "goal_status": "INSUFFICIENT_SAMPLE_FOR_10K_TARGET",
+  "blockers": [
+    "outcomes too sparse",
+    "closed paper trades below threshold",
+    "actionable predictions absent or insufficient",
+    "current edge not proven after fees/slippage"
+  ],
+  "non_guarantee_statement": "This artifact does not guarantee 10000 USDT/month. It rejects or blocks feasibility unless capital, sample size, net expectancy, profit factor, drawdown, and cost-adjusted runtime evidence support the target.",
+  "exact_improvement_needed": [
+    "collect trusted actionable paper/shadow trades",
+    "compute net expectancy after fees/slippage",
+    "prove profit factor above threshold",
+    "prove max drawdown below threshold",
+    "prove sizing remains adaptive and risk-capped",
+    "prove trainer learns from valid outcome labels only"
+  ]
+}

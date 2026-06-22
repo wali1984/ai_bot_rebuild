@@ -1,0 +1,77 @@
+{
+  "accepted_position_row_invariants": {
+    "decision": "ACCEPTED_PAPER_FILL",
+    "paper_fill_allowed": true,
+    "places_real_order": false
+  },
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "checkpoint_compatibility_claimed": false,
+  "full_observation_dim_regression_is_truthful": "Before normalization v2:paper:positions counted shadow rows as positions, inflating position_context fields. After normalization, no accepted fills are present so position-derived dims are correctly 0. The dim count is now truthful: no accepted fill = no position-derived dims.",
+  "full_observation_per_symbol_generated_dim": {
+    "BTCUSDT": 151,
+    "ETHUSDT": 151,
+    "SOLUSDT": 145
+  },
+  "full_observation_state": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+  "full_observation_target_dim": 1911,
+  "generated_utc": "2026-05-18T19:39:47Z",
+  "go_no_go": "V2_PAPER_POSITION_ACCEPTANCE_STATE_NORMALIZATION_READY",
+  "live_gate": "blocked_human_only",
+  "live_state_after_normalization": {
+    "ledger_accepted_position_count": 0,
+    "ledger_held_position_count": 1,
+    "ledger_shadow_observation_count": 2,
+    "v2:paper:intents_held_by_paper_fill_gate_len": 1,
+    "v2:paper:positions_len": 0,
+    "v2:paper:positions_paper_fill_allowed_true_only": true,
+    "v2:paper:shadow_observations_all_paper_fill_allowed_false": true,
+    "v2:paper:shadow_observations_len": 2
+  },
+  "live_symbols": [],
+  "no_legacy_filesystem_modified": true,
+  "no_pickle_loaded": true,
+  "no_torch_imported": true,
+  "paper_fill_gate_loosened": false,
+  "policy_architecture_parity_claimed": false,
+  "recorder_consumes_v2_paper_positions_only_for_accepted_mfe_mae_roe": true,
+  "recorder_state_after_normalization": {
+    "state_counts": {
+      "FLAT": 3
+    },
+    "symbols_still_blocked": null,
+    "symbols_with_entry_recovered": null,
+    "symbols_with_realized_exit_recovered": null
+  },
+  "schema_version": "v2_paper_position_acceptance_state_normalization_status_v1",
+  "shadow_observation_row_invariants": {
+    "counted_as_accepted_position": false,
+    "counted_as_fill": false,
+    "counted_as_open_position": false,
+    "decision": "SHADOW_OBSERVATION_ONLY",
+    "entry_price_provenance_observed": "true|false (price provenance is observed, not asserted as a fill)",
+    "paper_fill_allowed": false,
+    "places_real_order": false
+  },
+  "state_split_contract": {
+    "blocked[]": "intents that failed local pre-trade / fee-ratio / churn gates; never reach the shadow split",
+    "v2:paper:intents_held_by_paper_fill_gate": "intents the orchestrator pre-emptively held; decision=HELD_BY_PAPER_FILL_GATE; paper_fill_allowed=false",
+    "v2:paper:positions": "accepted paper fills only (paper_fill_allowed=true AND all local gates pass)",
+    "v2:paper:shadow_observations": "intents whose local gates pass but whose upstream paper-fill gate withheld the fill; decision=SHADOW_OBSERVATION_ONLY; counted_as_open_position=false"
+  },
+  "strict_gate_threshold_unchanged": true,
+  "tests": {
+    "combined_failed": 0,
+    "combined_passed": 23,
+    "normalization_test_file": "v2/backend/tests/integration/cli/test_v2_paper_position_acceptance_state_normalization.py",
+    "normalization_tests_passed": 10,
+    "provenance_test_file": "v2/backend/tests/integration/cli/test_v2_paper_ledger_fill_price_provenance.py",
+    "provenance_tests_passed": 13
+  },
+  "unsafe_fills_introduced": false,
+  "writer_patched": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+  "writes_exchange_orders": false,
+  "writes_legacy_redis": false
+}

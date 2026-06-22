@@ -1,0 +1,11 @@
+I'm being blocked by an interactive permission prompt on writing to `v2/backend/app/services/native_trainer/baseline_model.py`. CLAUDE.md authorizes writes under `./v2/**`, but the harness needs your explicit approval for the first write in this path. Could you approve the permission prompt (or grant write access to `v2/**`) so I can apply the edit? Once approved, I'll proceed with the full implementation:
+
+- Add `CalibrationBin`/`CalibrationMap` + `fit_expected_move_calibration_map()` (asserts no `insufficient_evidence`/`label_missing` rows enter the fit).
+- Add `apply_expected_move_calibration()` (clamps ±25 bps, preserves publishable contract).
+- Add `compute_false_negative_separation_bps()` diagnostic.
+- Augment `LogisticModel` with an optional `calibration_map`; `BaselineMetrics` gains `false_negative_calibrated_emac_separation_bps`.
+- Wire fit into `evaluate_all_baselines()` over TRAINABLE rows only; `build_baseline_prediction()` uses calibrated EMAC when available; `NOT_PRODUCTION_READY` and all live-gate pins unchanged.
+- Add tests covering: insufficient-evidence exclusion, payload publishability after calibration, FN separation sign, clamp.
+- Emit per-task implementation report under `claude_worklog/final_readiness/v2_native_trainer_dataset_and_baseline_model/per_task_reports/`.
+
+No changes to legacy, no Redis writes, no relaxation of safety pins.

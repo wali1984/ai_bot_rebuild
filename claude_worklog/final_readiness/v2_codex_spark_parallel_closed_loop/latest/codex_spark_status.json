@@ -1,0 +1,14 @@
+{
+  "status": "READY_FOR_CLOSED_LOOP_LANE_CANARY_ROLLOUT",
+  "marker": "V2_CODEX_SPARK_PARALLEL_CLOSED_LOOP_RUNTIME_READY",
+  "production_ready": false,
+  "closed_loop_lane_canary_rollout_required_before_full_deployment": true,
+  "summary": "Spark runtime package implemented; wrappers now delegate to the SQLite WAL truth plane. Full worker-lane rollout remains closed-loop canary-gated and is not a trading canary, live, or shutdown approval.",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false,
+  "generated_utc": "2026-05-24T00:00:00Z"
+}

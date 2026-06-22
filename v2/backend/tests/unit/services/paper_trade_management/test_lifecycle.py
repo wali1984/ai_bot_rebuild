@@ -1,0 +1,2857 @@
+from __future__ import annotations
+
+import pytest
+
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
+    V2HybridTrainerDataLoader,
+)
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (
+    FeatureTensorRecord,
+)
+from v2.backend.app.services.native_trainer.feedback_enrichment import (
+    build_strategy_hedge_exit_feedback,
+)
+from v2.backend.app.services.paper_trade_management import lifecycle as lifecycle_module
+from v2.backend.app.services.paper_trade_management.caps import PaperExposureCaps
+from v2.backend.app.services.paper_trade_management.exits import (
+    PAPER_EXIT_POLICY_VERSION,
+    PaperExitConfig,
+)
+from v2.backend.app.services.paper_trade_management.lifecycle import (
+    PaperLifecycleConfig,
+    reconcile_paper_lifecycle,
+)
+from v2.backend.app.services.paper_trade_management.outcomes import (
+    FUNDING_PNL_ACCOUNTING_FORMULA,
+    FUNDING_PNL_ACCOUNTING_VERSION,
+    build_close_event,
+)
+from v2.backend.app.services.paper_trade_management.position_state import (
+    ADAPTIVE_CAPITAL_POLICY_VERSION,
+    position_from_fill,
+)
+from v2.backend.app.services.trade_lifecycle_guard import (
+    TradeLifecycleGuardInput,
+    evaluate_trade_lifecycle_guard,
+)
+
+
+def _fill(
+    *,
+    fill_id: str,
+    symbol: str = "BTCUSDT",
+    side: str = "long",
+    qty: float = 1.0,
+    price: float = 100.0,
+    timeframe: str = "1m",
+) -> dict:
+    return {
+        "fill_id": fill_id,
+        "ledger_row_id": fill_id,
+        "intent_id": fill_id,
+        "symbol": symbol,
+        "side": side,
+        "quantity": qty,
+        "notional": qty * price,
+        "notional_usdt": qty * price,
+        "entry_price": price,
+        "fill_price": price,
+        "fill_price_utc": "2026-06-11T10:00:00Z",
+        "generated_utc": "2026-06-11T10:00:00Z",
+        "signal_id": f"sig_{fill_id}",
+        "prediction_id": f"pred_{fill_id}",
+        "risk_decision_id": f"risk_{fill_id}",
+        "orchestrator_decision_id": f"orch_{fill_id}",
+        "decision_id": f"orch_{fill_id}",
+        "market_state_id": f"ms_{fill_id}",
+        "feature_snapshot_id": f"feat_{fill_id}",
+        "mtf_snapshot_id": f"mtf_{fill_id}",
+        "feature_cutoff": "2026-06-11T09:59:00Z",
+        "decision_time": "2026-06-11T10:00:00Z",
+        "available_at": "2026-06-11T09:59:30Z",
+        "selected_action": side,
+        "model_version": "unit_model_v1",
+        "checkpoint_id": f"ckpt_{fill_id}",
+        "source_hashes": {"feature_vector_hash": f"hash_{fill_id}"},
+        "trainer_source": "V2_NATIVE_RL_MASA_PPO_CUDA_TRAINER_PAPER_SHADOW",
+        "timeframe": timeframe,
+        "paper_fill_allowed": True,
+    }
+
+
+def _audit_quality_fields() -> dict:
+    return {
+        "actual_observed_spread_entry_bps": 1.4,
+        "actual_observed_spread_exit_bps": 1.6,
+        "entry_spread_source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:test",
+        "exit_spread_source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:test",
+        "expected_slippage_bps": 0.9,
+        "expected_slippage_usd": 0.01,
+        "expected_slippage_source": "MODELED_FROM_OBSERVED_SPREAD_VOLATILITY_LIQUIDITY",
+        "expected_slippage_modeled": True,
+        "realized_slippage_bps": 1.0,
+        "realized_slippage_usd": 0.01,
+        "implementation_shortfall_usd": 0.0,
+        "squeeze_evidence_score": 0.0,
+        "squeeze_evidence_source": "DERIVED_FROM_LIQUIDATION_OI_FUNDING_ORDERBOOK_CONTEXT",
+        "squeeze_evidence_components": {"spread_stress": 0.0},
+        "mfe_bps": 20.0,
+        "mfe_usd": 1.0,
+        "mae_bps": 5.0,
+        "mae_usd": 0.25,
+        "intra_trade_high_price": 101.0,
+        "intra_trade_low_price": 99.5,
+        "trailing_stop_history": [],
+        "microstructure_context": {
+            "source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:test",
+            "bid_ask_spread_bps": 1.4,
+        },
+    }
+
+
+def test_position_from_fill_derives_entry_atr_from_percent_feature() -> None:
+    fill = _fill(fill_id="atr_pct", price=100.0)
+    fill["features"] = {"true_range_pct": 0.75, "ta_ATR": 2.0}
+
+    pos = position_from_fill(fill, fill_id="atr_pct", side="long", quantity=1.0, price=100.0)
+
+    assert pos.entry_atr_bps == pytest.approx(75.0)
+
+
+def test_position_from_fill_derives_entry_atr_from_price_atr_feature() -> None:
+    fill = _fill(fill_id="atr_price", price=100.0)
+    fill["features"] = {"ta_ATR": 2.0}
+
+    pos = position_from_fill(fill, fill_id="atr_price", side="long", quantity=1.0, price=100.0)
+
+    assert pos.entry_atr_bps == pytest.approx(200.0)
+
+
+def test_same_symbol_repeated_long_nets_into_one_position() -> None:
+    result = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[_fill(fill_id="a", qty=1), _fill(fill_id="b", qty=0.5, price=110)],
+        mark_prices={"BTCUSDT": 110.0},
+        generated_utc="2026-06-11T10:05:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(
+                take_profit_bps=99999.0,
+                stop_loss_bps=99999.0,
+                profit_bank_bps=99999.0,
+                profit_lock_bps=99999.0,
+            ),
+        ),
+    )
+
+    assert len(result["open_positions"]) == 1
+    assert result["open_positions"][0]["net_quantity"] == 1.5
+    assert result["paper_hedge_netting_status"]["same_side_netting_count"] == 1
+
+
+def test_long_then_short_closes_before_reverse() -> None:
+    result = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[
+            _fill(fill_id="a", side="long", qty=1, price=100),
+            _fill(fill_id="b", side="short", qty=1, price=105),
+        ],
+        mark_prices={"BTCUSDT": 105.0},
+        generated_utc="2026-06-11T10:05:00Z",
+        config=PaperLifecycleConfig(portfolio_equity_usdt=10000.0),
+    )
+
+    assert result["open_positions"] == []
+    assert len(result["closed_trades"]) == 1
+    assert result["closed_trades"][0]["close_reason"] == "TIER_3_MODEL_REVERSAL_NETTING"
+    assert result["paper_hedge_netting_status"]["opposite_side_netting_count"] == 1
+
+
+def test_symbol_exposure_cap_blocks_new_entry() -> None:
+    result = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[_fill(fill_id="a", qty=3, price=100)],
+        mark_prices={"BTCUSDT": 100.0},
+        generated_utc="2026-06-11T10:05:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.02),
+        ),
+    )
+
+    assert result["open_positions"] == []
+    assert result["blocked_entries"][0]["paper_lifecycle_block_reasons"] == [
+        "PAPER_SYMBOL_NOTIONAL_CAP_BLOCK"
+    ]
+
+
+def test_total_exposure_cap_blocks_new_entry() -> None:
+    result = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[
+            _fill(fill_id="a", symbol="BTCUSDT", qty=1, price=100),
+            _fill(fill_id="b", symbol="ETHUSDT", qty=1, price=100),
+        ],
+        mark_prices={"BTCUSDT": 100.0, "ETHUSDT": 100.0},
+        generated_utc="2026-06-11T10:05:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(
+                max_single_symbol_exposure_pct=0.05,
+                max_total_paper_exposure_pct=0.015,
+            ),
+        ),
+    )
+
+    assert len(result["open_positions"]) == 1
+    assert result["blocked_entries"][0]["paper_lifecycle_block_reasons"] == [
+        "PAPER_TOTAL_EXPOSURE_CAP_BLOCK"
+    ]
+
+
+def test_time_based_exit_closes_stale_position() -> None:
+    result = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[_fill(fill_id="a", qty=1, price=100)],
+        mark_prices={"BTCUSDT": 100.0},
+        generated_utc="2026-06-11T10:10:01Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(max_hold_seconds=10, take_profit_bps=99999.0, stop_loss_bps=99999.0),
+        ),
+    )
+
+    assert result["open_positions"] == []
+    assert result["closed_trades"][0]["close_reason"] == "TIER_4_MAX_HOLD_TIME"
+
+
+def test_take_profit_closes_profitable_position_and_writes_outcome() -> None:
+    result = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[_fill(fill_id="a", qty=1, price=100)],
+        mark_prices={"BTCUSDT": 102.0},
+        generated_utc="2026-06-11T10:05:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(
+                take_profit_bps=100.0,
+                stop_loss_bps=99999.0,
+                profit_bank_bps=99999.0,
+            ),
+        ),
+    )
+
+    assert result["closed_trades"][0]["close_reason"] == "TIER_2_TAKE_PROFIT"
+    assert result["closed_trades"][0]["realized_pnl_usd"] > 0
+    assert result["outcome_labels"][0]["winner"] is True
+
+
+def test_closed_trade_generates_consumable_trainer_feedback() -> None:
+    fill = _fill(fill_id="feedback", qty=1, price=100)
+    fill.update(
+        {
+            "strategy_id": "trend_following",
+            "strategy_family": "trend_following",
+            "strategy_subtype": "trend_following",
+            "strategy_selected_mode": "trend_following",
+            "market_regime_at_entry": "TREND",
+            "liquidity_zone_context": {"source": "test_liquidity"},
+            "liquidity_context": {"source": "test_liquidity"},
+            "liquidation_distance_context": {"source": "test_liquidations"},
+            "microstructure_context": {"source": "test_microstructure"},
+            "oi_funding_context": {"source": "test_oi_funding"},
+            "public_intel_context": {"source": "test_public_intel"},
+            **_audit_quality_fields(),
+        }
+    )
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 102.0},
+        generated_utc="2026-06-11T10:05:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(take_profit_bps=100.0, stop_loss_bps=99999.0),
+        ),
+    )
+
+    row = build_strategy_hedge_exit_feedback(
+        close_event=result["closed_trades"][0],
+        outcome_label=result["outcome_labels"][0],
+    )
+
+    assert row["trainer_consumable"] is True
+    assert row["prediction_id"] == "pred_feedback"
+    assert row["feature_snapshot_id"] == "feat_feedback"
+    assert row["market_state_id"] == "ms_feedback"
+    assert row["timeframe"] == "1m"
+    assert row["missing_feedback_fields"] == []
+
+
+def test_strategy_exit_pnl_fields_reach_trainer_feedback() -> None:
+    fill = _fill(fill_id="exit-pnl", qty=1, price=100)
+    fill.update(
+        {
+            "strategy_id": "mean_reversion",
+            "strategy_family": "mean_reversion",
+            "strategy_subtype": "mean_reversion",
+            "strategy_selected_mode": "mean_reversion",
+            "market_regime_at_entry": "RANGE",
+            "liquidity_zone_context": {"source": "test"},
+            "liquidity_context": {"source": "test"},
+            "liquidation_distance_context": {"source": "test"},
+            "microstructure_context": {"source": "test"},
+            "oi_funding_context": {"source": "test"},
+            "public_intel_context": {"source": "test"},
+        }
+    )
+    result = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 98.0},
+        generated_utc="2026-06-11T10:05:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(stop_loss_bps=100.0, take_profit_bps=99999.0),
+        ),
+    )
+
+    row = build_strategy_hedge_exit_feedback(
+        close_event=result["closed_trades"][0],
+        outcome_label=result["outcome_labels"][0],
+    )
+
+    assert row["strategy_id"] == "mean_reversion"
+    assert row["exit_reason"] == "TIER_1_STOP_LOSS"
+    assert row["realized_pnl_bps"] < 0
+    assert row["realized_pnl"] < 0
+
+
+def test_major_move_fields_reach_trainer_feedback() -> None:
+    fill = _fill(fill_id="major-move", qty=1, price=100)
+    fill.update(
+        {
+            "strategy_id": "correlated_major_squeeze",
+            "strategy_family": "breakout",
+            "strategy_subtype": "correlated_major_squeeze",
+            "strategy_selected_mode": "correlated_major_squeeze",
+            "entry_reason": "paper_only_major_move_candidate",
+            "market_regime_at_entry": "correlated_breakout_squeeze",
+            "liquidity_zone_context": {"source": "test"},
+            "liquidity_context": {"source": "test"},
+            "liquidation_distance_context": {"source": "test"},
+            "microstructure_context": {"source": "test"},
+            "oi_funding_context": {"source": "test"},
+            "public_intel_context": {"source": "test"},
+            "major_move_signal_id": "major_move_abc",
+            "squeeze_evidence_score": 0.74,
+            "future_window_label_source": "closed_candle_replay_label",
+            **_audit_quality_fields(),
+            "squeeze_evidence_score": 0.74,
+        }
+    )
+    result = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 102.0},
+        generated_utc="2026-06-11T10:05:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(take_profit_bps=100.0, stop_loss_bps=99999.0),
+        ),
+    )
+
+    row = build_strategy_hedge_exit_feedback(
+        close_event=result["closed_trades"][0],
+        outcome_label=result["outcome_labels"][0],
+    )
+
+    assert row["trainer_consumable"] is True
+    assert row["major_move_signal_id"] == "major_move_abc"
+    assert row["major_move_context"]["major_move_signal_id"] == "major_move_abc"
+    assert row["squeeze_evidence_score"] == 0.74
+
+
+def test_stop_loss_closes_losing_position() -> None:
+    result = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[_fill(fill_id="a", qty=1, price=100)],
+        mark_prices={"BTCUSDT": 98.0},
+        generated_utc="2026-06-11T10:05:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(stop_loss_bps=100.0, take_profit_bps=99999.0),
+        ),
+    )
+
+    assert result["closed_trades"][0]["close_reason"] == "TIER_1_STOP_LOSS"
+    assert result["outcome_labels"][0]["winner"] is False
+
+
+def test_trailing_stop_closes_after_best_price_reverses() -> None:
+    existing_ledger = {
+        "accepted": [_fill(fill_id="a", qty=1, price=100)],
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "long",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "best_favorable_price": 105.0,
+            }
+        ],
+    }
+    result = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[_fill(fill_id="a", qty=1, price=100)],
+        mark_prices={"BTCUSDT": 104.0},
+        generated_utc="2026-06-11T10:10:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(
+                trailing_stop_bps=50.0,
+                take_profit_bps=99999.0,
+                stop_loss_bps=99999.0,
+                profit_bank_bps=99999.0,
+            ),
+        ),
+    )
+    assert result["closed_trades"][0]["close_reason"] == "TIER_2_TRAILING_STOP"
+
+
+def test_trailing_stop_preempts_static_profit_tiers_after_long_reversal() -> None:
+    existing_ledger = {
+        "accepted": [_fill(fill_id="trail-profit-long", qty=1, price=100)],
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "long",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "best_favorable_price": 105.0,
+            }
+        ],
+    }
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[_fill(fill_id="trail-profit-long", qty=1, price=100)],
+        mark_prices={"BTCUSDT": 104.0},
+        generated_utc="2026-06-11T10:10:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(
+                trailing_stop_bps=50.0,
+                take_profit_bps=100.0,
+                profit_bank_bps=100.0,
+                stop_loss_bps=99999.0,
+            ),
+        ),
+    )
+
+    close = result["closed_trades"][0]
+    assert close["close_reason"] == "TIER_2_TRAILING_STOP"
+    assert close["realized_pnl_usd"] > 0.0
+    assert close["trailing_stop_history"]
+
+
+def test_trailing_stop_preempts_static_profit_tiers_after_short_reversal() -> None:
+    fill = _fill(fill_id="trail-profit-short", side="short", qty=1, price=100)
+    existing_ledger = {
+        "accepted": [fill],
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "short",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "best_favorable_price": 95.0,
+            }
+        ],
+    }
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 96.0},
+        generated_utc="2026-06-11T10:10:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(
+                trailing_stop_bps=50.0,
+                take_profit_bps=100.0,
+                profit_bank_bps=100.0,
+                stop_loss_bps=99999.0,
+            ),
+        ),
+    )
+
+    close = result["closed_trades"][0]
+    assert close["close_reason"] == "TIER_2_TRAILING_STOP"
+    assert close["realized_pnl_usd"] > 0.0
+    assert close["trailing_stop_history"]
+
+
+def test_default_trailing_stop_can_fire_before_static_take_profit_after_floor() -> None:
+    fill = _fill(fill_id="default-trailing-before-tp", qty=1, price=100)
+    existing_ledger = {
+        "accepted": [fill],
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "long",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "avg_entry_price": 100.0,
+                "best_favorable_price": 101.0,
+                "intra_trade_high_price": 101.0,
+                "last_mark_price": 101.0,
+            }
+        ],
+    }
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 100.45},
+        generated_utc="2026-06-11T10:10:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(
+                take_profit_bps=120.0,
+                profit_bank_bps=99999.0,
+                stop_loss_bps=99999.0,
+            ),
+        ),
+    )
+
+    close = result["new_close_events"][0]
+    assert close["close_reason"] == "TIER_2_TRAILING_STOP"
+    assert close["exit_price"] == pytest.approx(100.495)
+    assert close["exit_price_source"] == "PAPER_TRAILING_STOP_PRICE"
+    assert close["realized_pnl_bps"] == pytest.approx(49.5)
+    assert close["paper_exit_price"] == pytest.approx(100.495)
+    assert close["paper_exit_pnl_bps"] == pytest.approx(49.5)
+    assert close["trailing_stop_mark_price"] == pytest.approx(100.45)
+    assert close["trailing_stop_gap_bps"] == pytest.approx(((100.495 - 100.45) / 100.495) * 10000.0)
+    assert close["trailing_stop_bps_effective"] == pytest.approx(50.0)
+    assert close["trailing_profit_floor_bps"] == pytest.approx(42.0)
+    assert close["trailing_stop_history"]
+
+
+def test_take_profit_defers_to_previously_armed_trailing_stop() -> None:
+    fill = _fill(fill_id="tp-defers-to-trail", qty=1, price=100)
+    existing_ledger = {
+        "accepted": [fill],
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "long",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "avg_entry_price": 100.0,
+                "best_favorable_price": 101.3,
+                "intra_trade_high_price": 101.3,
+                "last_mark_price": 101.3,
+                "trailing_activation_price": 100.42,
+                "trailing_activation_time": "2026-06-11T10:05:00Z",
+                "trailing_stop_price": 100.7935,
+                "trailing_stop_history": [
+                    {
+                        "generated_utc": "2026-06-11T10:05:00Z",
+                        "activation_price": 100.42,
+                        "trailing_stop_price": 100.7935,
+                        "reason": "ADAPTIVE_TRAIL_ARMED_AFTER_NET_PROFIT_FLOOR",
+                    }
+                ],
+            }
+        ],
+    }
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 101.3},
+        generated_utc="2026-06-11T10:10:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(
+                take_profit_bps=120.0,
+                profit_bank_bps=99999.0,
+                stop_loss_bps=99999.0,
+            ),
+        ),
+    )
+
+    assert result["new_close_events"] == []
+    evaluation = result["paper_exit_coordinator_status"]["evaluations"][0]
+    assert evaluation["should_close"] is False
+    assert evaluation["blocker"] == "TAKE_PROFIT_DEFERRED_TO_ACTIVE_TRAILING_STOP"
+    assert evaluation["would_close_reason"] == "TIER_2_TAKE_PROFIT"
+    assert result["open_positions"][0]["trailing_stop_history"]
+
+
+def test_deferred_take_profit_closes_when_trailing_stop_is_breached() -> None:
+    fill = _fill(fill_id="tp-defers-then-trails", qty=1, price=100)
+    cfg = PaperLifecycleConfig(
+        portfolio_equity_usdt=10000.0,
+        exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+        exit_config=PaperExitConfig(
+            take_profit_bps=120.0,
+            profit_bank_bps=99999.0,
+            stop_loss_bps=99999.0,
+        ),
+    )
+    existing_ledger = {
+        "accepted": [fill],
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "long",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "avg_entry_price": 100.0,
+                "best_favorable_price": 101.3,
+                "intra_trade_high_price": 101.3,
+                "last_mark_price": 101.3,
+                "trailing_activation_price": 100.42,
+                "trailing_activation_time": "2026-06-11T10:05:00Z",
+                "trailing_stop_price": 100.7935,
+                "trailing_stop_history": [
+                    {
+                        "generated_utc": "2026-06-11T10:05:00Z",
+                        "activation_price": 100.42,
+                        "trailing_stop_price": 100.7935,
+                        "reason": "ADAPTIVE_TRAIL_ARMED_AFTER_NET_PROFIT_FLOOR",
+                    }
+                ],
+            }
+        ],
+    }
+    deferred = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 101.3},
+        generated_utc="2026-06-11T10:10:00Z",
+        config=cfg,
+    )
+
+    closed = reconcile_paper_lifecycle(
+        existing_ledger=deferred,
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 100.78},
+        generated_utc="2026-06-11T10:11:00Z",
+        config=cfg,
+    )
+
+    close = closed["new_close_events"][0]
+    assert close["close_reason"] == "TIER_2_TRAILING_STOP"
+    assert close["exit_price"] == pytest.approx(100.7935)
+    assert close["exit_price_source"] == "PAPER_TRAILING_STOP_PRICE"
+    assert close["realized_pnl_bps"] == pytest.approx(79.35)
+    assert close["paper_exit_price"] == pytest.approx(100.7935)
+    assert close["paper_exit_pnl_bps"] == pytest.approx(79.35)
+    assert close["trailing_stop_mark_price"] == pytest.approx(100.78)
+    assert close["trailing_stop_gap_bps"] == pytest.approx(((100.7935 - 100.78) / 100.7935) * 10000.0)
+    assert close["trailing_stop_history"]
+
+
+def test_prior_armed_trailing_stop_gap_close_records_profit_floor_gap() -> None:
+    fill = _fill(fill_id="trail-gap-positive", qty=1, price=100)
+    existing_ledger = {
+        "accepted": [fill],
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "long",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "avg_entry_price": 100.0,
+                "best_favorable_price": 101.0,
+                "intra_trade_high_price": 101.0,
+                "intra_trade_low_price": 100.0,
+                "last_mark_price": 101.0,
+                "trailing_activation_price": 100.55,
+                "trailing_activation_time": "2026-06-11T10:05:00Z",
+                "trailing_stop_price": 100.798,
+                "trailing_stop_history": [
+                    {
+                        "generated_utc": "2026-06-11T10:05:00Z",
+                        "activation_price": 100.55,
+                        "trailing_stop_price": 100.798,
+                        "reason": "ADAPTIVE_TRAIL_ARMED_AFTER_NET_PROFIT_FLOOR",
+                    }
+                ],
+            }
+        ],
+    }
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 100.4},
+        generated_utc="2026-06-11T10:10:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(
+                trailing_stop_bps=20.0,
+                min_profit_before_trailing_bps=30.0,
+                trailing_stop_min_after_cost_buffer_bps=25.0,
+                take_profit_bps=99999.0,
+                profit_bank_bps=99999.0,
+                stop_loss_bps=99999.0,
+                profit_lock_bps=99999.0,
+            ),
+        ),
+    )
+
+    close = result["new_close_events"][0]
+    assert close["close_reason"] == "TIER_2_TRAILING_STOP"
+    assert close["exit_price"] == pytest.approx(100.798)
+    assert close["exit_price_source"] == "PAPER_TRAILING_STOP_PRICE"
+    assert close["realized_pnl_bps"] == pytest.approx(79.8)
+    assert close["paper_exit_price"] == pytest.approx(100.798)
+    assert close["paper_exit_pnl_bps"] == pytest.approx(79.8)
+    assert close["trailing_stop_mark_price"] == pytest.approx(100.4)
+    assert close["trailing_stop_gap_bps"] == pytest.approx(((100.798 - 100.4) / 100.798) * 10000.0)
+    assert close["trailing_profit_floor_bps"] == pytest.approx(55.0)
+    assert close["trailing_profit_floor_gap_bps"] == pytest.approx(15.0)
+    assert close["trailing_profit_floor_gap_exit"] is True
+    assert (
+        close["trailing_profit_floor_gap_exit_reason"]
+        == "PRIOR_ARMED_TRAILING_STOP_BREACHED_WITH_POSITIVE_PNL"
+    )
+
+
+def test_prior_armed_trailing_stop_gap_to_unrealized_loss_uses_stop_price() -> None:
+    fill = _fill(fill_id="trail-gap-loss-mark", qty=1, price=100)
+    existing_ledger = {
+        "accepted": [fill],
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "long",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "avg_entry_price": 100.0,
+                "best_favorable_price": 101.0,
+                "intra_trade_high_price": 101.0,
+                "intra_trade_low_price": 100.0,
+                "last_mark_price": 101.0,
+                "trailing_activation_price": 100.55,
+                "trailing_activation_time": "2026-06-11T10:05:00Z",
+                "trailing_stop_price": 100.798,
+                "trailing_stop_history": [
+                    {
+                        "generated_utc": "2026-06-11T10:05:00Z",
+                        "activation_price": 100.55,
+                        "trailing_stop_price": 100.798,
+                        "reason": "ADAPTIVE_TRAIL_ARMED_AFTER_NET_PROFIT_FLOOR",
+                    }
+                ],
+            }
+        ],
+    }
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 99.8},
+        generated_utc="2026-06-11T10:10:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(
+                trailing_stop_bps=20.0,
+                min_profit_before_trailing_bps=30.0,
+                trailing_stop_min_after_cost_buffer_bps=25.0,
+                take_profit_bps=99999.0,
+                profit_bank_bps=99999.0,
+                stop_loss_bps=99999.0,
+                profit_lock_bps=99999.0,
+            ),
+        ),
+    )
+
+    close = result["new_close_events"][0]
+    assert close["close_reason"] == "TIER_2_TRAILING_STOP"
+    assert close["exit_price"] == pytest.approx(100.798)
+    assert close["exit_price_source"] == "PAPER_TRAILING_STOP_PRICE"
+    assert close["realized_pnl_bps"] == pytest.approx(79.8)
+    assert close["paper_exit_price"] == pytest.approx(100.798)
+    assert close["paper_exit_pnl_bps"] == pytest.approx(79.8)
+    assert close["trailing_stop_mark_price"] == pytest.approx(99.8)
+    assert close["trailing_stop_gap_bps"] == pytest.approx(((100.798 - 99.8) / 100.798) * 10000.0)
+    assert close["trailing_profit_floor_bps"] == pytest.approx(55.0)
+    assert close["trailing_profit_floor_gap_bps"] == pytest.approx(75.0)
+    assert close["trailing_profit_floor_gap_exit"] is True
+
+
+def test_prior_armed_trailing_stop_gap_blocks_stop_price_below_cost_floor() -> None:
+    fill = _fill(fill_id="trail-gap-stop-below-cost-floor", qty=1, price=100)
+    existing_ledger = {
+        "accepted": [fill],
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "long",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "avg_entry_price": 100.0,
+                "best_favorable_price": 100.7,
+                "intra_trade_high_price": 100.7,
+                "intra_trade_low_price": 100.0,
+                "last_mark_price": 100.7,
+                "trailing_activation_price": 100.42,
+                "trailing_activation_time": "2026-06-11T10:05:00Z",
+                "trailing_stop_price": 100.1965,
+                "trailing_stop_history": [
+                    {
+                        "generated_utc": "2026-06-11T10:05:00Z",
+                        "activation_price": 100.42,
+                        "trailing_stop_price": 100.1965,
+                        "reason": "ADAPTIVE_TRAIL_ARMED_AFTER_NET_PROFIT_FLOOR",
+                    }
+                ],
+            }
+        ],
+    }
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 99.8},
+        generated_utc="2026-06-11T10:10:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(
+                trailing_stop_bps=50.0,
+                min_profit_before_trailing_bps=30.0,
+                trailing_stop_min_after_cost_buffer_bps=12.0,
+                take_profit_bps=99999.0,
+                profit_bank_bps=99999.0,
+                stop_loss_bps=99999.0,
+                profit_lock_bps=99999.0,
+            ),
+        ),
+    )
+
+    # CG-F015: stop_price clamped to at-cost floor (100.42); trade now exits at floor instead of blocking
+    assert len(result["new_close_events"]) == 1
+    assert result["new_close_events"][0]["close_reason"] == "TIER_2_TRAILING_STOP"
+    assert result["open_positions"] == []
+    evaluation = result["paper_exit_coordinator_status"]["evaluations"][0]
+    assert evaluation["should_close"] is True
+    assert evaluation["close_reason"] == "TIER_2_TRAILING_STOP"
+    assert evaluation["paper_exit_price"] == pytest.approx(100.42)
+    assert evaluation["paper_exit_price_source"] == "PAPER_TRAILING_STOP_PRICE"
+    assert evaluation["paper_exit_pnl_bps"] == pytest.approx(42.0)
+    assert evaluation["trailing_profit_floor_bps"] == pytest.approx(42.0)
+    assert evaluation["trailing_stop_exit_floor_bps"] == pytest.approx(30.0)
+    assert evaluation["trailing_stop_exit_floor_gap_bps"] == pytest.approx(0.0)
+    assert evaluation["trailing_stop_mark_price"] == pytest.approx(99.8)
+
+
+def test_profit_bank_can_close_when_trailing_is_armed_same_cycle() -> None:
+    result = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[_fill(fill_id="profit-bank-same-cycle", qty=1, price=100)],
+        mark_prices={"BTCUSDT": 102.0},
+        generated_utc="2026-06-11T10:10:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(
+                profit_bank_bps=180.0,
+                take_profit_bps=99999.0,
+                stop_loss_bps=99999.0,
+            ),
+        ),
+    )
+
+    close = result["new_close_events"][0]
+    assert close["close_reason"] == "TIER_2_PROFIT_BANK"
+    assert close["trailing_stop_history"]
+
+
+def test_profit_bank_defers_to_previously_armed_trailing_stop() -> None:
+    fill = _fill(fill_id="profit-bank-defers-to-trail", qty=1, price=100)
+    existing_ledger = {
+        "accepted": [fill],
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "long",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "avg_entry_price": 100.0,
+                "best_favorable_price": 102.0,
+                "intra_trade_high_price": 102.0,
+                "last_mark_price": 102.0,
+                "trailing_activation_price": 100.42,
+                "trailing_activation_time": "2026-06-11T10:05:00Z",
+                "trailing_stop_price": 101.49,
+                "trailing_stop_history": [
+                    {
+                        "generated_utc": "2026-06-11T10:05:00Z",
+                        "activation_price": 100.42,
+                        "trailing_stop_price": 101.49,
+                        "reason": "ADAPTIVE_TRAIL_ARMED_AFTER_NET_PROFIT_FLOOR",
+                    }
+                ],
+            }
+        ],
+    }
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 101.9},
+        generated_utc="2026-06-11T10:10:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(
+                profit_bank_bps=180.0,
+                take_profit_bps=99999.0,
+                stop_loss_bps=99999.0,
+            ),
+        ),
+    )
+
+    assert result["new_close_events"] == []
+    evaluation = result["paper_exit_coordinator_status"]["evaluations"][0]
+    assert evaluation["should_close"] is False
+    assert evaluation["blocker"] == "PROFIT_BANK_DEFERRED_TO_ACTIVE_TRAILING_STOP"
+    assert evaluation["would_close_reason"] == "TIER_2_PROFIT_BANK"
+    assert result["open_positions"][0]["trailing_stop_history"]
+
+
+def test_deferred_profit_bank_closes_when_trailing_stop_is_breached() -> None:
+    fill = _fill(fill_id="profit-bank-defers-then-trails", qty=1, price=100)
+    cfg = PaperLifecycleConfig(
+        portfolio_equity_usdt=10000.0,
+        exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+        exit_config=PaperExitConfig(
+            profit_bank_bps=180.0,
+            take_profit_bps=99999.0,
+            stop_loss_bps=99999.0,
+        ),
+    )
+    existing_ledger = {
+        "accepted": [fill],
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "long",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "avg_entry_price": 100.0,
+                "best_favorable_price": 102.0,
+                "intra_trade_high_price": 102.0,
+                "last_mark_price": 102.0,
+                "trailing_activation_price": 100.42,
+                "trailing_activation_time": "2026-06-11T10:05:00Z",
+                "trailing_stop_price": 101.49,
+                "trailing_stop_history": [
+                    {
+                        "generated_utc": "2026-06-11T10:05:00Z",
+                        "activation_price": 100.42,
+                        "trailing_stop_price": 101.49,
+                        "reason": "ADAPTIVE_TRAIL_ARMED_AFTER_NET_PROFIT_FLOOR",
+                    }
+                ],
+            }
+        ],
+    }
+    deferred = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 101.9},
+        generated_utc="2026-06-11T10:10:00Z",
+        config=cfg,
+    )
+
+    closed = reconcile_paper_lifecycle(
+        existing_ledger=deferred,
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 101.45},
+        generated_utc="2026-06-11T10:11:00Z",
+        config=cfg,
+    )
+
+    close = closed["new_close_events"][0]
+    assert close["close_reason"] == "TIER_2_TRAILING_STOP"
+    assert close["exit_price"] == pytest.approx(101.49)
+    assert close["exit_price_source"] == "PAPER_TRAILING_STOP_PRICE"
+    assert close["realized_pnl_bps"] == pytest.approx(149.0)
+    assert close["paper_exit_price"] == pytest.approx(101.49)
+    assert close["paper_exit_pnl_bps"] == pytest.approx(149.0)
+    assert close["trailing_stop_mark_price"] == pytest.approx(101.45)
+    assert close["trailing_stop_gap_bps"] == pytest.approx(((101.49 - 101.45) / 101.49) * 10000.0)
+    assert close["trailing_stop_history"]
+
+
+def test_profit_lock_defers_to_armed_trailing_stop_before_trail_breach() -> None:
+    fill = _fill(fill_id="profit-lock-defers", qty=1, price=100)
+    existing_ledger = {
+        "accepted": [fill],
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "long",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "avg_entry_price": 100.0,
+                "best_favorable_price": 103.0,
+                "intra_trade_high_price": 103.0,
+                "last_mark_price": 103.0,
+            }
+        ],
+    }
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 102.2},
+        generated_utc="2026-06-11T10:10:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(
+                trailing_stop_bps=120.0,
+                profit_lock_bps=70.0,
+                take_profit_bps=99999.0,
+                profit_bank_bps=99999.0,
+                stop_loss_bps=99999.0,
+            ),
+        ),
+    )
+
+    assert result["new_close_events"] == []
+    assert result["open_positions"][0]["trailing_stop_history"]
+    evaluation = result["paper_exit_coordinator_status"]["evaluations"][0]
+    assert evaluation["should_close"] is False
+    assert evaluation["blocker"] == "PROFIT_LOCK_DEFERRED_TO_ACTIVE_TRAILING_STOP"
+    assert evaluation["would_close_reason"] == "TIER_2_PROFIT_LOCK"
+
+
+def test_deferred_profit_lock_closes_when_trailing_stop_is_breached() -> None:
+    fill = _fill(fill_id="profit-lock-to-trail", qty=1, price=100)
+    cfg = PaperLifecycleConfig(
+        portfolio_equity_usdt=10000.0,
+        exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+        exit_config=PaperExitConfig(
+            trailing_stop_bps=120.0,
+            profit_lock_bps=70.0,
+            take_profit_bps=99999.0,
+            profit_bank_bps=99999.0,
+            stop_loss_bps=99999.0,
+        ),
+    )
+    existing_ledger = {
+        "accepted": [fill],
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "long",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "avg_entry_price": 100.0,
+                "best_favorable_price": 103.0,
+                "intra_trade_high_price": 103.0,
+                "last_mark_price": 103.0,
+            }
+        ],
+    }
+    deferred = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 102.2},
+        generated_utc="2026-06-11T10:10:00Z",
+        config=cfg,
+    )
+
+    closed = reconcile_paper_lifecycle(
+        existing_ledger=deferred,
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 101.7},
+        generated_utc="2026-06-11T10:11:00Z",
+        config=cfg,
+    )
+
+    close = closed["new_close_events"][0]
+    assert close["close_reason"] == "TIER_2_TRAILING_STOP"
+    assert close["realized_pnl_usd"] > 0.0
+    assert close["trailing_stop_history"]
+
+
+def test_profit_lock_can_close_when_trailing_deferral_is_disabled() -> None:
+    fill = _fill(fill_id="profit-lock-legacy", qty=1, price=100)
+    existing_ledger = {
+        "accepted": [fill],
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "long",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "avg_entry_price": 100.0,
+                "best_favorable_price": 103.0,
+                "intra_trade_high_price": 103.0,
+                "last_mark_price": 103.0,
+            }
+        ],
+    }
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 102.2},
+        generated_utc="2026-06-11T10:10:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(
+                trailing_stop_bps=120.0,
+                profit_lock_bps=70.0,
+                defer_profit_lock_to_active_trailing_stop=False,
+                take_profit_bps=99999.0,
+                profit_bank_bps=99999.0,
+                stop_loss_bps=99999.0,
+            ),
+        ),
+    )
+
+    close = result["new_close_events"][0]
+    assert close["close_reason"] == "TIER_2_PROFIT_LOCK"
+
+
+def test_lifecycle_uses_entry_atr_to_widen_trailing_distance() -> None:
+    fill = dict(_fill(fill_id="a", qty=1, price=100), entry_atr_bps=100.0)
+    existing_ledger = {
+        "accepted": [fill],
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "long",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "avg_entry_price": 100.0,
+                "best_favorable_price": 110.0,
+                "intra_trade_high_price": 110.0,
+                "intra_trade_low_price": 100.0,
+                "last_mark_price": 110.0,
+                "entry_atr_bps": 100.0,
+            }
+        ],
+    }
+    result = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 110.0 * (1.0 - 80.0 / 10000.0)},
+        generated_utc="2026-06-11T10:10:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(
+                trailing_stop_bps=60.0,
+                atr_trailing_stop_multiplier=1.5,
+                take_profit_bps=99999.0,
+                stop_loss_bps=99999.0,
+                profit_bank_bps=99999.0,
+                profit_lock_bps=99999.0,
+            ),
+        ),
+    )
+
+    assert result["new_close_events"] == []
+    assert result["open_positions"]
+    assert result["open_positions"][0]["entry_atr_bps"] == 100.0
+    assert result["open_positions"][0]["trailing_stop_price"] == pytest.approx(
+        110.0 * (1.0 - 150.0 / 10000.0)
+    )
+    exit_eval = result["paper_exit_coordinator_status"]["evaluations"][0]
+    assert exit_eval["should_close"] is False
+
+
+def test_negative_runtime_trailing_expectancy_disables_new_trailing_closes() -> None:
+    historical_trailing_losses = [
+        {
+            "close_id": f"trail_loss_{i}",
+            "close_reason": "TIER_2_TRAILING_STOP",
+            "realized_pnl_usd": -1.0,
+            "source_fill_ids": [f"old_{i}"],
+        }
+        for i in range(50)
+    ]
+    existing_ledger = {
+        "closed_trades": historical_trailing_losses,
+        "accepted": [_fill(fill_id="a", qty=1, price=100)],
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "long",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "best_favorable_price": 105.0,
+            }
+        ],
+    }
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[_fill(fill_id="a", qty=1, price=100)],
+        mark_prices={"BTCUSDT": 104.0},
+        generated_utc="2026-06-11T10:10:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            disable_trailing_on_negative_runtime_expectancy=True,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(
+                trailing_stop_bps=50.0,
+                take_profit_bps=99999.0,
+                stop_loss_bps=99999.0,
+                profit_bank_bps=99999.0,
+            ),
+        ),
+    )
+
+    status = result["paper_stop_takeprofit_trailing_status"]["trailing_stop_runtime_circuit_breaker"]
+    assert result["new_close_events"] == []
+    assert result["open_positions"]
+    assert result["paper_stop_takeprofit_trailing_status"]["trailing_stop_enabled"] is False
+    assert status["disabled"] is True
+    assert status["sample_count"] == 50
+    assert status["pnl_usd"] == -50.0
+    assert "TRAILING_RUNTIME_PNL_NOT_POSITIVE" in status["reasons"]
+    assert "TRAILING_RUNTIME_WIN_RATE_BELOW_THRESHOLD" in status["reasons"]
+
+
+def test_policy_scoped_trailing_expectancy_ignores_legacy_losses() -> None:
+    legacy_trailing_losses = [
+        {
+            "close_id": f"legacy_trail_loss_{i}",
+            "close_reason": "TIER_2_TRAILING_STOP",
+            "realized_pnl_usd": -1.0,
+            "source_fill_ids": [f"legacy_{i}"],
+        }
+        for i in range(50)
+    ]
+    existing_ledger = {
+        "closed_trades": legacy_trailing_losses,
+        "accepted": [_fill(fill_id="a", qty=1, price=100)],
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "long",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "best_favorable_price": 105.0,
+            }
+        ],
+    }
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[_fill(fill_id="a", qty=1, price=100)],
+        mark_prices={"BTCUSDT": 104.0},
+        generated_utc="2026-06-11T10:10:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            disable_trailing_on_negative_runtime_expectancy=True,
+            trailing_expectancy_evidence_policy_version=PAPER_EXIT_POLICY_VERSION,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(
+                trailing_stop_bps=50.0,
+                take_profit_bps=99999.0,
+                stop_loss_bps=99999.0,
+                profit_bank_bps=99999.0,
+            ),
+        ),
+    )
+
+    trailing_status = result["paper_stop_takeprofit_trailing_status"]
+    breaker = trailing_status["trailing_stop_runtime_circuit_breaker"]
+    context_policy = trailing_status["trailing_stop_context_policy"]
+    assert breaker["disabled"] is False
+    assert breaker["policy_version_filter_enabled"] is True
+    assert breaker["policy_version"] == PAPER_EXIT_POLICY_VERSION
+    assert breaker["unfiltered_sample_count"] == 50
+    assert breaker["filtered_out_sample_count"] == 50
+    assert breaker["sample_count"] == 0
+    assert "TRAILING_RUNTIME_POLICY_SAMPLE_BELOW_MINIMUM" in breaker["reasons"]
+    assert context_policy["policy_version_filter_enabled"] is True
+    assert context_policy["unfiltered_sample_count"] == 50
+    assert context_policy["filtered_out_sample_count"] == 50
+    assert context_policy["trailing_sample_count"] == 0
+    assert trailing_status["trailing_stop_enabled"] is True
+    assert result["new_close_events"][0]["close_reason"] == "TIER_2_TRAILING_STOP"
+    assert result["new_close_events"][0]["paper_exit_policy_version"] == PAPER_EXIT_POLICY_VERSION
+
+
+def test_trailing_status_reports_policy_scoped_counts_separately_from_new_closes() -> None:
+    result = reconcile_paper_lifecycle(
+        existing_ledger={
+            "closed_trades": [
+                {
+                    "close_id": "legacy_trailing",
+                    "close_reason": "TIER_2_TRAILING_STOP",
+                    "realized_pnl_usd": -1.0,
+                    "source_fill_ids": ["legacy"],
+                },
+                {
+                    "close_id": "active_trailing",
+                    "paper_exit_policy_version": PAPER_EXIT_POLICY_VERSION,
+                    "close_reason": "TIER_2_TRAILING_STOP",
+                    "realized_pnl_usd": 1.0,
+                    "source_fill_ids": ["active_trailing_fill"],
+                },
+                {
+                    "close_id": "active_profit_bank",
+                    "paper_exit_policy_version": PAPER_EXIT_POLICY_VERSION,
+                    "close_reason": "TIER_2_PROFIT_BANK",
+                    "realized_pnl_usd": 2.0,
+                    "source_fill_ids": ["active_profit_fill"],
+                },
+            ]
+        },
+        accepted_fills=[],
+        mark_prices={},
+        generated_utc="2026-06-11T10:10:00Z",
+        config=PaperLifecycleConfig(),
+    )
+
+    trailing_status = result["paper_stop_takeprofit_trailing_status"]
+    coordinator_status = result["paper_exit_coordinator_status"]
+    assert result["new_close_events"] == []
+    assert trailing_status["triggered_count"] == 0
+    assert trailing_status["triggered_count_semantics"] == "LEGACY_ALIAS_FOR_NEW_CLOSE_EVENT_COUNT"
+    assert trailing_status["new_close_event_count"] == 0
+    assert trailing_status["historical_trailing_stop_triggered_count"] == 2
+    assert trailing_status["active_policy_version"] == PAPER_EXIT_POLICY_VERSION
+    assert trailing_status["active_policy_closed_trade_count"] == 2
+    assert trailing_status["active_policy_trailing_stop_triggered_count"] == 1
+    assert trailing_status["active_policy_close_reasons"] == {
+        "TIER_2_PROFIT_BANK": 1,
+        "TIER_2_TRAILING_STOP": 1,
+    }
+    assert coordinator_status["active_policy_closed_trade_count"] == 2
+    assert coordinator_status["active_policy_trailing_stop_triggered_count"] == 1
+
+
+def test_policy_scoped_trailing_expectancy_still_disables_current_policy_losses() -> None:
+    current_policy_losses = [
+        {
+            "close_id": f"policy_trail_loss_{i}",
+            "paper_exit_policy_version": PAPER_EXIT_POLICY_VERSION,
+            "close_reason": "TIER_2_TRAILING_STOP",
+            "realized_pnl_usd": -1.0,
+            "source_fill_ids": [f"policy_{i}"],
+        }
+        for i in range(50)
+    ]
+    existing_ledger = {
+        "closed_trades": current_policy_losses,
+        "accepted": [_fill(fill_id="a", qty=1, price=100)],
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "long",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "best_favorable_price": 105.0,
+            }
+        ],
+    }
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[_fill(fill_id="a", qty=1, price=100)],
+        mark_prices={"BTCUSDT": 104.0},
+        generated_utc="2026-06-11T10:10:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            disable_trailing_on_negative_runtime_expectancy=True,
+            trailing_expectancy_evidence_policy_version=PAPER_EXIT_POLICY_VERSION,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(
+                trailing_stop_bps=50.0,
+                take_profit_bps=99999.0,
+                stop_loss_bps=99999.0,
+                profit_bank_bps=99999.0,
+            ),
+        ),
+    )
+
+    breaker = result["paper_stop_takeprofit_trailing_status"]["trailing_stop_runtime_circuit_breaker"]
+    assert result["new_close_events"] == []
+    assert result["open_positions"]
+    assert result["paper_stop_takeprofit_trailing_status"]["trailing_stop_enabled"] is False
+    assert breaker["disabled"] is True
+    assert breaker["policy_version_filter_enabled"] is True
+    assert breaker["policy_version"] == PAPER_EXIT_POLICY_VERSION
+    assert breaker["unfiltered_sample_count"] == 50
+    assert breaker["filtered_out_sample_count"] == 0
+    assert breaker["sample_count"] == 50
+    assert breaker["pnl_usd"] == -50.0
+    assert "TRAILING_RUNTIME_PNL_NOT_POSITIVE" in breaker["reasons"]
+    assert "TRAILING_RUNTIME_WIN_RATE_BELOW_THRESHOLD" in breaker["reasons"]
+
+
+def test_positive_trailing_context_can_override_negative_global_trailing_expectancy() -> None:
+    global_trailing_losses = [
+        {
+            "close_id": f"trail_loss_{i}",
+            "symbol": "ETHUSDT",
+            "timeframe": "1m",
+            "strategy_selected_mode": "trend_mode",
+            "market_regime_at_entry": "bear",
+            "close_reason": "TIER_2_TRAILING_STOP",
+            "realized_pnl_usd": -1.0,
+            "source_fill_ids": [f"old_loss_{i}"],
+        }
+        for i in range(50)
+    ]
+    matching_context_wins = [
+        {
+            "close_id": f"trail_win_{i}",
+            "symbol": "BTCUSDT",
+            "timeframe": "1m",
+            "strategy_selected_mode": "mean_reversion_mode",
+            "market_regime_at_entry": "bull",
+            "close_reason": "TIER_2_TRAILING_STOP",
+            "realized_pnl_usd": 2.0,
+            "source_fill_ids": [f"old_win_{i}"],
+        }
+        for i in range(20)
+    ]
+    fill = _fill(fill_id="a", qty=1, price=100)
+    fill.update({
+        "strategy_selected_mode": "mean_reversion_mode",
+        "market_regime_at_entry": "bull",
+    })
+    existing_ledger = {
+        "closed_trades": global_trailing_losses + matching_context_wins,
+        "accepted": [fill],
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "long",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "best_favorable_price": 105.0,
+                "strategy_selected_mode": "mean_reversion_mode",
+                "market_regime_at_entry": "bull",
+            }
+        ],
+    }
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 104.0},
+        generated_utc="2026-06-11T10:10:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            disable_trailing_on_negative_runtime_expectancy=True,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(
+                trailing_stop_bps=50.0,
+                take_profit_bps=99999.0,
+                stop_loss_bps=99999.0,
+                profit_bank_bps=99999.0,
+            ),
+        ),
+    )
+
+    status = result["paper_stop_takeprofit_trailing_status"]
+    context_decision = result["paper_exit_coordinator_status"]["evaluations"][0]["trailing_context_decision"]
+    assert status["trailing_stop_runtime_circuit_breaker"]["disabled"] is True
+    assert status["trailing_stop_enabled"] is True
+    assert result["new_close_events"][0]["close_reason"] == "TIER_2_TRAILING_STOP"
+    assert context_decision["decision_source"] == "CONTEXTUAL_TRAILING_EXPECTANCY_POLICY"
+    assert context_decision["trailing_stop_enabled"] is True
+    assert context_decision["selected_context"]["scope"] == "symbol_timeframe_strategy_regime"
+    assert context_decision["selected_context"]["positive_expectancy"] is True
+
+
+def test_negative_trailing_context_disables_matching_trailing_even_when_global_positive() -> None:
+    global_trailing_wins = [
+        {
+            "close_id": f"trail_global_win_{i}",
+            "symbol": "ETHUSDT",
+            "timeframe": "1m",
+            "strategy_selected_mode": "trend_mode",
+            "market_regime_at_entry": "bear",
+            "close_reason": "TIER_2_TRAILING_STOP",
+            "realized_pnl_usd": 2.0,
+            "source_fill_ids": [f"old_global_win_{i}"],
+        }
+        for i in range(50)
+    ]
+    matching_context_losses = [
+        {
+            "close_id": f"trail_context_loss_{i}",
+            "symbol": "BTCUSDT",
+            "timeframe": "1m",
+            "strategy_selected_mode": "mean_reversion_mode",
+            "market_regime_at_entry": "bull",
+            "close_reason": "TIER_2_TRAILING_STOP",
+            "realized_pnl_usd": -1.0,
+            "source_fill_ids": [f"old_context_loss_{i}"],
+        }
+        for i in range(20)
+    ]
+    fill = _fill(fill_id="a", qty=1, price=100)
+    fill.update({
+        "strategy_selected_mode": "mean_reversion_mode",
+        "market_regime_at_entry": "bull",
+    })
+    existing_ledger = {
+        "closed_trades": global_trailing_wins + matching_context_losses,
+        "accepted": [fill],
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "long",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "best_favorable_price": 105.0,
+                "strategy_selected_mode": "mean_reversion_mode",
+                "market_regime_at_entry": "bull",
+            }
+        ],
+    }
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 104.0},
+        generated_utc="2026-06-11T10:10:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            disable_trailing_on_negative_runtime_expectancy=True,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(
+                trailing_stop_bps=50.0,
+                take_profit_bps=99999.0,
+                stop_loss_bps=99999.0,
+                profit_bank_bps=99999.0,
+            ),
+        ),
+    )
+
+    status = result["paper_stop_takeprofit_trailing_status"]
+    context_decision = result["paper_exit_coordinator_status"]["evaluations"][0]["trailing_context_decision"]
+    assert status["trailing_stop_runtime_circuit_breaker"]["disabled"] is False
+    assert status["trailing_stop_enabled"] is False
+    assert result["new_close_events"] == []
+    assert result["open_positions"]
+    assert context_decision["decision_source"] == "CONTEXTUAL_TRAILING_EXPECTANCY_POLICY"
+    assert context_decision["trailing_stop_enabled"] is False
+    assert context_decision["selected_context"]["failed"] is True
+    assert "TRAILING_CONTEXT_PNL_NOT_POSITIVE" in context_decision["reasons"]
+
+
+def test_closed_trade_carries_accounting_and_path_telemetry() -> None:
+    fill = _fill(fill_id="telemetry", qty=1, price=100)
+    allocation = {
+        **_complete_adaptive_capital_fields(),
+        "allocation_id": "alloc_test",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "action": "long",
+        "allocator_decision": "ALLOW_WITH_SIZE",
+        "target_notional_usdt": 100.0,
+        "target_quantity": 1.0,
+        "model_inputs": {
+            "raw_leverage_target": 3.0,
+            "leverage_target": 2.0,
+            "selected_leverage": 2.0,
+            "leverage_selection_reason": "risk_pressure_caps_leverage_at_2x",
+            "correlation_exposure_pct": 0.12,
+            "correlation_pair_count": 5,
+        },
+    }
+    allocation.update(
+        {
+            "risk_budget_usd": 100.0,
+            "allocated_margin_usd": 50.0,
+            "recommended_leverage": 2.0,
+            "effective_leverage": 2.0,
+            "recommended_margin_mode": "isolated",
+            "liquidation_price_estimate": 50.5,
+            "liquidation_buffer_bps": 4400.0,
+        }
+    )
+    fill.update(
+        {
+            "microstructure_context": {
+                "source": "TEST_ORDERBOOK",
+                "bid_ask_spread_bps": 7.5,
+            },
+            "squeeze_evidence_score": 0.42,
+            "squeeze_evidence_source": "DERIVED_FROM_LIQUIDATION_OI_FUNDING_ORDERBOOK_CONTEXT",
+            "squeeze_evidence_components": {"liquidation_pressure": 0.7},
+            "slippage_bps": 3.0,
+            "expected_slippage_source": "OBSERVED_OR_UPSTREAM_MODELED_SLIPPAGE_BPS",
+            "decision_latency_ms": 123.0,
+            "entry_atr_bps": 42.0,
+            "entry_feature_available_at": "2026-06-11T09:59:58Z",
+            "entry_feature_generated_at": "2026-06-11T09:59:58Z",
+            "entry_feature_cutoff": "2026-06-11T09:59:00Z",
+            "entry_feature_decision_time": "2026-06-11T10:00:00Z",
+            "entry_feature_source": "v2:features:latest:BTCUSDT:1m",
+            "entry_feature_candle_closed_confirmed": True,
+            "adaptive_allocation": allocation,
+            "correlation_input_source": "ADAPTIVE_ALLOCATION_MODEL_INPUTS",
+            "correlation_input_status": "READY",
+            "correlation_diagnostics": {"pair_count": 5},
+        }
+    )
+    cfg = PaperLifecycleConfig(
+        portfolio_equity_usdt=10000.0,
+        exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+        exit_config=PaperExitConfig(
+            trailing_stop_bps=50.0,
+            min_profit_before_trailing_bps=30.0,
+            take_profit_bps=99999.0,
+            stop_loss_bps=99999.0,
+            profit_bank_bps=99999.0,
+            atr_stop_multiplier=99999.0,
+        ),
+    )
+    opened = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 100.0},
+        generated_utc="2026-06-11T10:00:00Z",
+        config=cfg,
+    )
+    adverse = reconcile_paper_lifecycle(
+        existing_ledger=opened,
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 98.0},
+        generated_utc="2026-06-11T10:05:00Z",
+        config=cfg,
+    )
+    favorable = reconcile_paper_lifecycle(
+        existing_ledger=adverse,
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 105.0},
+        generated_utc="2026-06-11T10:10:00Z",
+        config=cfg,
+    )
+    closed = reconcile_paper_lifecycle(
+        existing_ledger=favorable,
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 104.0},
+        generated_utc="2026-06-11T10:15:00Z",
+        config=cfg,
+    )
+
+    row = closed["closed_trades"][0]
+    assert row["close_reason"] == "TIER_2_TRAILING_STOP"
+    assert row["realized_pnl_usd"] > 0.0
+    assert row["gross_notional_usd"] == 100.0
+    assert row["effective_leverage"] == 2.0
+    assert row["allocated_margin_usd"] == 50.0
+    assert row["recommended_leverage"] == 2.0
+    assert row["margin_mode_simulated"] == "isolated"
+    assert row["adaptive_capital_policy_version"] == ADAPTIVE_CAPITAL_POLICY_VERSION
+    assert row["adaptive_allocation"] == allocation
+    assert row["adaptive_allocation"]["model_inputs"]["raw_leverage_target"] == 3.0
+    assert row["adaptive_allocation"]["model_inputs"]["selected_leverage"] == 2.0
+    assert row["correlation_exposure_pct"] == 0.12
+    assert row["correlation_input_source"] == "ADAPTIVE_ALLOCATION_MODEL_INPUTS"
+    assert row["correlation_input_status"] == "READY"
+    assert row["correlation_pair_count"] == 5
+    assert row["correlation_diagnostics"] == {"pair_count": 5}
+    assert row["maintenance_margin_estimate"] > 0.0
+    assert row["liquidation_price_estimate"] is not None
+    assert row["risk_budget_usd"] == 100.0
+    assert row["entry_atr_bps"] == 42.0
+    assert row["atr_bps"] == 42.0
+    assert row["entry_feature_available_at"] == "2026-06-11T09:59:58Z"
+    assert row["entry_feature_generated_at"] == "2026-06-11T09:59:58Z"
+    assert row["entry_feature_cutoff"] == "2026-06-11T09:59:00Z"
+    assert row["entry_feature_decision_time"] == "2026-06-11T10:00:00Z"
+    assert row["entry_feature_source"] == "v2:features:latest:BTCUSDT:1m"
+    assert row["entry_feature_candle_closed_confirmed"] is True
+    assert row["mfe_bps"] == 500.0
+    assert row["mae_bps"] == 200.0
+    assert row["intra_trade_high_price"] == 105.0
+    assert row["intra_trade_low_price"] == 98.0
+    assert row["trailing_activation_price"] == pytest.approx(100.42)
+    assert row["paper_exit_policy_version"] == PAPER_EXIT_POLICY_VERSION
+    assert row["trailing_after_cost_floor_enabled"] is True
+    assert row["min_profit_before_trailing_bps"] == pytest.approx(30.0)
+    assert row["trailing_stop_min_after_cost_buffer_bps"] == pytest.approx(12.0)
+    assert row["trailing_after_cost_buffer_bps"] == pytest.approx(12.0)
+    assert row["trailing_profit_floor_bps"] == pytest.approx(42.0)
+    assert row["trailing_stop_price"] is not None
+    assert row["trailing_stop_history"]
+    assert row["actual_observed_spread_entry_bps"] == 7.5
+    assert row["actual_observed_spread_exit_bps"] == 7.5
+    assert row["expected_slippage_bps"] == 3.0
+    assert row["expected_slippage_source"] == "OBSERVED_OR_UPSTREAM_MODELED_SLIPPAGE_BPS"
+    assert row["realized_slippage_bps"] == pytest.approx(3.75)  # CG-F010: max(0.25, 7.5*0.50)
+    assert row["decision_latency_ms"] == 123.0
+    assert row["squeeze_evidence_score"] == 0.42
+    outcome = closed["outcome_labels"][0]
+    assert outcome["adaptive_allocation"] == allocation
+    assert outcome["adaptive_allocation"]["model_inputs"]["leverage_selection_reason"] == "risk_pressure_caps_leverage_at_2x"
+    assert outcome["correlation_exposure_pct"] == 0.12
+    assert row["squeeze_evidence_source"] == "DERIVED_FROM_LIQUIDATION_OI_FUNDING_ORDERBOOK_CONTEXT"
+    assert row["squeeze_evidence_components"] == {"liquidation_pressure": 0.7}
+    outcome = closed["outcome_labels"][0]
+    assert outcome["paper_exit_policy_version"] == PAPER_EXIT_POLICY_VERSION
+    assert outcome["trailing_profit_floor_bps"] == pytest.approx(42.0)
+    assert outcome["trailing_after_cost_buffer_bps"] == pytest.approx(12.0)
+    assert outcome["entry_atr_bps"] == 42.0
+    assert outcome["entry_feature_available_at"] == "2026-06-11T09:59:58Z"
+    assert outcome["entry_feature_cutoff"] == "2026-06-11T09:59:00Z"
+
+
+def test_opposite_side_netting_close_records_exit_path_and_spread_evidence() -> None:
+    entry = _fill(fill_id="entry", qty=1, price=100)
+    exit_fill = _fill(fill_id="exit", qty=1, price=98)
+    exit_fill["side"] = "short"
+    exit_fill["actual_observed_spread_entry_bps"] = 4.5
+    exit_fill["entry_spread_source"] = "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:test"
+    exit_fill["entry_spread_available_at"] = "2026-06-11T10:02:00Z"
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[entry, exit_fill],
+        mark_prices={},
+        generated_utc="2026-06-11T10:05:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(take_profit_bps=99999.0, stop_loss_bps=99999.0),
+        ),
+    )
+
+    close = result["closed_trades"][0]
+    assert close["close_reason"] == "TIER_3_MODEL_REVERSAL_NETTING"
+    assert close["mfe_bps"] == 0.0
+    assert close["mae_bps"] == 200.0
+    assert close["intra_trade_high_price"] == 100
+    assert close["intra_trade_low_price"] == 98
+    assert close["actual_observed_spread_exit_bps"] == 4.5
+    assert close["exit_spread_source"] == "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:test"
+    assert close["exit_spread_available_at"] == "2026-06-11T10:02:00Z"
+    assert close["expected_slippage_source"] == "MODELED_FROM_OBSERVED_EXIT_SPREAD"
+    assert close["expected_slippage_modeled"] is True
+    assert close["squeeze_evidence_score"] == 0.0
+    assert close["squeeze_evidence_source"] == "DERIVED_FROM_LIQUIDATION_OI_FUNDING_ORDERBOOK_CONTEXT"
+
+
+def test_mark_triggered_close_records_current_exit_spread_evidence() -> None:
+    fill = _fill(fill_id="mark-exit", qty=1, price=100)
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[fill],
+        mark_prices={
+            "BTCUSDT": {
+                "price": 102.0,
+                "source": "V2_MARKET_PRICES_TICKER_24HR_LAST_PRICE",
+                "actual_observed_spread_exit_bps": 6.0,
+                "exit_spread_source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:v2:market:orderbook:BTCUSDT",
+                "exit_spread_available_at": "2026-06-11T10:04:59Z",
+            }
+        },
+        generated_utc="2026-06-11T10:05:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(take_profit_bps=100.0, stop_loss_bps=99999.0),
+        ),
+    )
+
+    close = result["closed_trades"][0]
+    assert close["close_reason"] == "TIER_2_PROFIT_BANK"
+    assert close["mfe_bps"] == 200.0
+    assert close["mae_bps"] == 0.0
+    assert close["intra_trade_high_price"] == 102.0
+    assert close["intra_trade_low_price"] == 100
+    assert close["actual_observed_spread_exit_bps"] == 6.0
+    assert close["exit_spread_source"] == "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:v2:market:orderbook:BTCUSDT"
+    assert close["exit_spread_available_at"] == "2026-06-11T10:04:59Z"
+    assert close["expected_slippage_source"] == "MODELED_FROM_OBSERVED_EXIT_SPREAD"
+    assert close["expected_slippage_bps"] == 3.0
+    assert close["squeeze_evidence_score"] > 0.0
+
+
+def test_dirty_close_event_missing_path_is_blocked_before_closed_ledger(monkeypatch) -> None:
+    real_build_close_event = lifecycle_module.build_close_event
+
+    def dirty_build_close_event(**kwargs):
+        close_event, outcome = real_build_close_event(**kwargs)
+        for row in (close_event, outcome):
+            for field in (
+                "mfe_bps",
+                "mae_bps",
+                "intra_trade_high_price",
+                "intra_trade_low_price",
+            ):
+                row.pop(field, None)
+        return close_event, outcome
+
+    monkeypatch.setattr(lifecycle_module, "build_close_event", dirty_build_close_event)
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[_fill(fill_id="dirty-path", qty=1, price=100)],
+        mark_prices={"BTCUSDT": 102.0},
+        generated_utc="2026-06-11T10:05:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(take_profit_bps=100.0, stop_loss_bps=99999.0),
+        ),
+    )
+
+    block = result["paper_closed_trade_outcome_label_status"]["dirty_close_blocks"][0]
+    assert result["closed_trades"] == []
+    assert result["outcome_labels"] == []
+    assert result["new_close_events"] == []
+    assert result["open_positions"][0]["symbol"] == "BTCUSDT"
+    assert result["paper_position_lifecycle_status"]["dirty_close_block_count"] == 1
+    assert block["paper_close_blocked"] is True
+    assert block["close_reason"] == "TIER_2_PROFIT_BANK"
+    assert block["paper_close_block_reasons"] == [
+        "MISSING_MFE_BPS",
+        "MISSING_MAE_BPS",
+        "MISSING_INTRA_TRADE_HIGH_PRICE",
+        "MISSING_INTRA_TRADE_LOW_PRICE",
+    ]
+
+
+def test_trailing_close_missing_history_is_blocked_before_closed_ledger(monkeypatch) -> None:
+    real_build_close_event = lifecycle_module.build_close_event
+
+    def dirty_build_close_event(**kwargs):
+        close_event, outcome = real_build_close_event(**kwargs)
+        for row in (close_event, outcome):
+            row["trailing_stop_history"] = []
+            row["trailing_activation_price"] = None
+            row["trailing_activation_time"] = None
+            row["trailing_stop_price"] = None
+        return close_event, outcome
+
+    monkeypatch.setattr(lifecycle_module, "build_close_event", dirty_build_close_event)
+    existing_ledger = {
+        "accepted": [_fill(fill_id="trail-dirty", qty=1, price=100)],
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "long",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "best_favorable_price": 105.0,
+            }
+        ],
+    }
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[_fill(fill_id="trail-dirty", qty=1, price=100)],
+        mark_prices={"BTCUSDT": 104.0},
+        generated_utc="2026-06-11T10:10:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(
+                trailing_stop_bps=50.0,
+                take_profit_bps=99999.0,
+                stop_loss_bps=99999.0,
+                profit_bank_bps=99999.0,
+            ),
+        ),
+    )
+
+    block = result["paper_exit_coordinator_status"]["dirty_close_blocks"][0]
+    assert result["closed_trades"] == []
+    assert result["new_close_events"] == []
+    assert result["open_positions"][0]["symbol"] == "BTCUSDT"
+    assert block["close_reason"] == "TIER_2_TRAILING_STOP"
+    assert block["paper_close_block_reasons"] == [
+        "MISSING_TRAILING_STOP_HISTORY_FOR_TRAILING_EXIT",
+        "MISSING_TRAILING_ACTIVATION_PRICE_FOR_TRAILING_EXIT",
+        "MISSING_TRAILING_ACTIVATION_TIME_FOR_TRAILING_EXIT",
+        "MISSING_TRAILING_STOP_PRICE_FOR_TRAILING_EXIT",
+    ]
+
+
+def test_prior_open_position_context_carries_into_closed_trade_feedback() -> None:
+    existing_ledger = {
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "long",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "strategy_id": "trend_following",
+                "strategy_family": "trend_following",
+                "strategy_selected_mode": "trend_following",
+                "hedge_state": "NO_HEDGE",
+                "hedge_reason": "NO_HEDGE_CONTEXT",
+                "drawdown_at_entry": 0.0,
+                "market_regime_at_entry": "TREND",
+                "liquidity_zone_context": {"source": "test_liquidity"},
+                "liquidation_distance_context": {"source": "test_liquidations"},
+                "microstructure_context": {"source": "test_microstructure"},
+            }
+        ],
+    }
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[_fill(fill_id="a", qty=1, price=100)],
+        mark_prices={"BTCUSDT": 102.0},
+        generated_utc="2026-06-11T10:05:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(take_profit_bps=100.0, stop_loss_bps=99999.0),
+        ),
+    )
+
+    close = result["closed_trades"][0]
+    outcome = result["outcome_labels"][0]
+    assert close["strategy_id"] == "trend_following"
+    assert close["strategy_family"] == "trend_following"
+    assert close["hedge_state"] == "NO_HEDGE"
+    assert close["hedge_reason"] == "NO_HEDGE_CONTEXT"
+    assert close["market_regime_at_entry"] == "TREND"
+    assert close["liquidity_zone_context"] == {"source": "test_liquidity"}
+    assert close["liquidation_distance_context"] == {"source": "test_liquidations"}
+    assert close["microstructure_context"] == {"source": "test_microstructure"}
+    assert close["source_fill_ids"] == ["a"]
+    assert outcome["strategy_id"] == "trend_following"
+    assert outcome["hedge_state"] == "NO_HEDGE"
+    assert outcome["hedge_reason"] == "NO_HEDGE_CONTEXT"
+    assert outcome["liquidity_zone_context"] == {"source": "test_liquidity"}
+
+
+def test_prior_open_position_mark_state_restores_path_telemetry_before_close() -> None:
+    existing_ledger = {
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "short",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "last_mark_price": 95.0,
+                "last_mark_est": "2026-06-11T10:03:00Z",
+                "best_favorable_price": 95.0,
+            }
+        ],
+    }
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[_fill(fill_id="a", side="short", qty=1, price=100)],
+        mark_prices={"BTCUSDT": 96.0},
+        generated_utc="2026-06-11T10:05:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(
+                take_profit_bps=300.0,
+                trailing_stop_bps=99999.0,
+                stop_loss_bps=99999.0,
+            ),
+        ),
+    )
+
+    close = result["closed_trades"][0]
+    assert close["close_reason"] == "TIER_2_PROFIT_BANK"
+    assert close["mfe_bps"] == 500.0
+    assert close["mae_bps"] == 0.0
+    assert close["intra_trade_high_price"] == 100.0
+    assert close["intra_trade_low_price"] == 95.0
+
+
+def test_same_side_netting_can_fill_missing_position_context_before_close() -> None:
+    enriched_fill = _fill(fill_id="b", qty=0.5, price=100)
+    enriched_fill.update(
+        {
+            "strategy_id": "momentum",
+            "strategy_family": "momentum",
+            "strategy_selected_mode": "momentum",
+            "drawdown_at_entry": 0.0,
+            "market_regime_at_entry": "MOMENTUM",
+            "liquidity_zone_context": {"source": "test_liquidity"},
+            "liquidation_distance_context": {"source": "test_liquidations"},
+            "microstructure_context": {"source": "test_microstructure"},
+        }
+    )
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[_fill(fill_id="a", qty=1, price=100), enriched_fill],
+        mark_prices={"BTCUSDT": 102.0},
+        generated_utc="2026-06-11T10:05:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(take_profit_bps=100.0, stop_loss_bps=99999.0),
+        ),
+    )
+
+    close = result["closed_trades"][0]
+    assert close["strategy_id"] == "momentum"
+    assert close["strategy_family"] == "momentum"
+    assert close["market_regime_at_entry"] == "MOMENTUM"
+    assert close["microstructure_context"] == {"source": "test_microstructure"}
+
+
+def test_trainer_feedback_loader_requires_enriched_outcome_label() -> None:
+    tensor = FeatureTensorRecord(
+        tensor_id="tensor",
+        symbol="BTCUSDT",
+        timeframe="1m",
+        feature_snapshot_id="feat",
+        values=(0.0,),
+        missing_mask=(0,),
+        stale_mask=(0,),
+        source_availability=(1,),
+        feature_names=("ema_12",),
+        source_labels=("test",),
+        missing_feature_names=(),
+        stale_feature_names=(),
+        data_coverage_percent=100.0,
+        source_availability_vector=(1,),
+    )
+    loader = V2HybridTrainerDataLoader()
+
+    bare_label = loader._label_from_closed_trade_outcome(  # noqa: SLF001
+        payloads={
+            "paper_outcome_labels": [
+                {
+                    "symbol": "BTCUSDT",
+                    "timeframe": "1m",
+                    "entry_prediction_id": "pred",
+                    "exit_time": "2026-06-11T10:00:00Z",
+                    "realized_pnl_bps": 12.5,
+                }
+            ]
+        },
+        tensor=tensor,
+    )
+
+    assert bare_label is None
+
+    label = loader._label_from_closed_trade_outcome(  # noqa: SLF001
+        payloads={
+            "paper_outcome_labels": [
+                {
+                    "symbol": "BTCUSDT",
+                    "timeframe": "1m",
+                    "prediction_id": "pred",
+                    "entry_prediction_id": "pred",
+                    "signal_id": "sig",
+                    "entry_signal_id": "sig",
+                        "feature_snapshot_id": "feat",
+                        "entry_feature_snapshot_id": "feat",
+                        "market_state_id": "ms",
+                        "entry_market_state_id": "ms",
+                        "decision_id": "decision",
+                        "mtf_snapshot_id": "mtf",
+                        "feature_cutoff": "2026-06-11T09:59:00Z",
+                        "decision_time": "2026-06-11T10:00:00Z",
+                        "available_at": "2026-06-11T09:59:30Z",
+                        "selected_action": "long",
+                        "model_version": "unit_model_v1",
+                        "checkpoint_id": "ckpt",
+                        "source_hashes": {"feature_vector_hash": "hash_feat"},
+                        "exit_time": "2026-06-11T10:00:00Z",
+                        "action": "long",
+                    "entry_price": 100.0,
+                    "exit_price": 101.0,
+                    "realized_pnl": 1.0,
+                    "realized_pnl_bps": 12.5,
+                    "trainer_feedback_source": "V2_PAPER_TRADE_MANAGEMENT_CLOSED_TRADE",
+                    "strategy_id": "trend_following",
+                    "strategy_family": "trend_following",
+                    "strategy_subtype": "trend_following",
+                    "entry_reason": "trend_following",
+                    "hedge_state": "NO_HEDGE",
+                    "hedge_reason": "NO_HEDGE_CONTEXT",
+                    "exit_reason": "TIER_2_TAKE_PROFIT",
+                    "hold_time_seconds": 300,
+                    "market_regime": "TREND",
+                    "market_regime_at_entry": "TREND",
+                    "market_regime_at_exit": "TREND",
+                    "liquidity_zone_context": {"source": "test"},
+                    "liquidity_context": {"source": "test"},
+                    "liquidation_distance_context": {"source": "test"},
+                    "microstructure_context": {"source": "test"},
+                    "oi_funding_context": {"source": "test"},
+                    "public_intel_context": {"source": "test"},
+                    "major_move_context": {"source": "test", "status": "not_major_move_trade"},
+                    "future_window_label_source": "closed_trade_outcome",
+                    "drawdown_at_entry": 0.0,
+                    **_audit_quality_fields(),
+                }
+            ]
+        },
+        tensor=tensor,
+    )
+
+    assert label == 12.5
+
+
+def test_position_from_fill_preserves_trainer_feedback_entry_context() -> None:
+    position = position_from_fill(
+        {
+            "symbol": "BTCUSDT",
+            "signal_id": "sig",
+            "prediction_id": "pred",
+            "strategy_id": "trend_following",
+            "strategy_family": "trend_following",
+            "strategy_selected_mode": "trend_following",
+            "strategy_regime_labels": ["TREND"],
+            "drawdown_at_entry": 0.0,
+            "liquidity_zone_context": {"source": "test"},
+            "liquidation_distance_context": {"source": "test"},
+            "microstructure_context": {"source": "test"},
+            "generated_utc": "2026-06-11T10:00:00Z",
+        },
+        fill_id="fill",
+        side="long",
+        quantity=1.0,
+        price=100.0,
+    )
+
+    assert position.strategy_id == "trend_following"
+    assert position.strategy_family == "trend_following"
+    assert position.drawdown_at_entry == 0.0
+    assert position.market_regime_at_entry == "TREND"
+    assert position.liquidity_zone_context == {"source": "test"}
+    assert position.liquidation_distance_context == {"source": "test"}
+    assert position.microstructure_context == {"source": "test"}
+
+
+def test_position_from_fill_preserves_adaptive_capital_policy_version() -> None:
+    position = position_from_fill(
+        {
+            "symbol": "BTCUSDT",
+            "generated_utc": "2026-06-11T10:00:00Z",
+            "adaptive_allocation": {
+                "adaptive_capital_policy_version": ADAPTIVE_CAPITAL_POLICY_VERSION,
+            },
+        },
+        fill_id="fill",
+        side="long",
+        quantity=1.0,
+        price=100.0,
+    )
+
+    payload = position.to_payload(generated_utc="2026-06-11T10:01:00Z")
+
+    assert position.adaptive_capital_policy_version == ADAPTIVE_CAPITAL_POLICY_VERSION
+    assert payload["adaptive_capital_policy_version"] == ADAPTIVE_CAPITAL_POLICY_VERSION
+
+
+def test_position_from_fill_sets_policy_activated_at_for_adaptive_policy() -> None:
+    position = position_from_fill(
+        {
+            "symbol": "BTCUSDT",
+            "generated_utc": "2026-06-11T10:00:00Z",
+            "fill_price_utc": "2026-06-11T10:00:05Z",
+            "adaptive_allocation": {
+                "adaptive_capital_policy_version": ADAPTIVE_CAPITAL_POLICY_VERSION,
+            },
+        },
+        fill_id="fill",
+        side="long",
+        quantity=1.0,
+        price=100.0,
+    )
+
+    payload = position.to_payload(generated_utc="2026-06-11T10:01:00Z")
+
+    assert position.policy_activated_at == "2026-06-11T10:00:05Z"
+    assert payload["policy_activated_at"] == "2026-06-11T10:00:05Z"
+
+
+def test_position_from_fill_uses_entry_creation_time_when_policy_timestamp_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "v2.backend.app.services.paper_trade_management.position_state.utc_now_iso",
+        lambda: "2026-06-11T10:00:09Z",
+    )
+
+    position = position_from_fill(
+        {
+            "symbol": "BTCUSDT",
+            "adaptive_allocation": {
+                "adaptive_capital_policy_version": ADAPTIVE_CAPITAL_POLICY_VERSION,
+            },
+        },
+        fill_id="fill",
+        side="long",
+        quantity=1.0,
+        price=100.0,
+    )
+
+    payload = position.to_payload(generated_utc="2026-06-11T10:01:00Z")
+
+    assert position.policy_activated_at == "2026-06-11T10:00:09Z"
+    assert payload["policy_activated_at"] == "2026-06-11T10:00:09Z"
+
+
+def test_lifecycle_writes_policy_activation_and_funding_terms_to_accepted_open_fill() -> None:
+    fill = _fill(fill_id="policy-activated", qty=1.0, price=100.0)
+    fill.update({
+        "adaptive_allocation": {
+            "adaptive_capital_policy_version": ADAPTIVE_CAPITAL_POLICY_VERSION,
+            "expected_funding_bps": 1.0,
+            "model_inputs": {
+                "funding_rate": 0.0001,
+                "funding_interval_seconds": 3600.0,
+            },
+        },
+    })
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 100.0},
+        generated_utc="2026-06-11T10:01:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exit_config=PaperExitConfig(
+                take_profit_bps=99999.0,
+                stop_loss_bps=99999.0,
+                profit_bank_bps=99999.0,
+                profit_lock_bps=99999.0,
+            ),
+        ),
+    )
+
+    accepted = result["accepted_open_fills"][0]
+    assert accepted["paper_lifecycle_status"] == "OPEN_POSITION"
+    assert accepted["adaptive_capital_policy_version"] == ADAPTIVE_CAPITAL_POLICY_VERSION
+    assert accepted["policy_activated_at"] == "2026-06-11T10:00:00Z"
+    assert accepted["expected_funding_bps"] == 1.0
+    assert accepted["funding_rate"] == 0.0001
+    assert accepted["funding_interval_seconds"] == 3600.0
+
+
+def test_lifecycle_enriches_previously_closed_accepted_fill_with_policy_and_funding_terms() -> None:
+    fill = _fill(fill_id="policy-closed", qty=1.0, price=100.0)
+    fill.update({
+        "adaptive_allocation": {
+            "adaptive_capital_policy_version": ADAPTIVE_CAPITAL_POLICY_VERSION,
+            "model_inputs": {
+                "expected_funding_bps": 1.5,
+                "funding_interval_seconds": 3600.0,
+            },
+        },
+    })
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger={
+            "closed_trades": [
+                {
+                    "close_id": "already_closed",
+                    "source_fill_ids": ["policy-closed"],
+                }
+            ],
+        },
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 100.0},
+        generated_utc="2026-06-11T10:01:00Z",
+        config=PaperLifecycleConfig(portfolio_equity_usdt=10000.0),
+    )
+
+    accepted = result["accepted_open_fills"][0]
+    assert accepted["paper_lifecycle_status"] == "CLOSED_PREVIOUSLY"
+    assert accepted["adaptive_capital_policy_version"] == ADAPTIVE_CAPITAL_POLICY_VERSION
+    assert accepted["policy_activated_at"] == "2026-06-11T10:00:00Z"
+    assert accepted["expected_funding_bps"] == 1.5
+    assert accepted["funding_rate"] == 0.00015
+    assert accepted["funding_interval_seconds"] == 3600.0
+    assert accepted["adaptive_allocation"]["policy_activated_at"] == "2026-06-11T10:00:00Z"
+    assert accepted["adaptive_allocation"]["expected_funding_bps"] == 1.5
+    assert accepted["adaptive_allocation"]["model_inputs"]["funding_rate"] == 0.00015
+
+
+def test_lifecycle_repairs_existing_closed_trade_funding_before_emitting_ledger() -> None:
+    fill = _fill(fill_id="closed-zero-funding", side="short", qty=1.0, price=100.0)
+    fill.update({
+        "adaptive_capital_policy_version": ADAPTIVE_CAPITAL_POLICY_VERSION,
+        "expected_funding_bps": 2.5,
+        "funding_rate": 0.00025,
+        "adaptive_allocation": {
+            "adaptive_capital_policy_version": ADAPTIVE_CAPITAL_POLICY_VERSION,
+            "expected_funding_bps": 2.5,
+            "model_inputs": {
+                "funding_rate": 0.00025,
+                "funding_interval_seconds": 3600.0,
+            },
+        },
+    })
+    closed = {
+        "close_id": "closed-zero-funding-close",
+        "outcome_label_id": "closed-zero-funding-outcome",
+        "trainer_feedback_id": "closed-zero-funding-feedback",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "side": "short",
+        "source_fill_ids": ["closed-zero-funding"],
+        "entry_signal_id": "sig_closed-zero-funding",
+        "entry_prediction_id": "pred_closed-zero-funding",
+        "entry_price": 100.0,
+        "closed_quantity": 1.0,
+        "exit_price": 99.0,
+        "exit_time": "2026-06-11T11:00:00Z",
+        "hold_time_seconds": 3600.0,
+        "realized_pnl_usd": 1.0,
+        "realized_pnl_usdt": 1.0,
+        "realized_pnl": 1.0,
+        "winner": True,
+        "paper_only": True,
+        "places_real_order": False,
+        "paper_exit_policy_version": PAPER_EXIT_POLICY_VERSION,
+        "adaptive_capital_policy_version": ADAPTIVE_CAPITAL_POLICY_VERSION,
+        "policy_activated_at": "2026-06-11T10:00:00Z",
+        "funding_pnl_usd": None,
+        "funding_pnl_source": None,
+        "adaptive_allocation": {
+            "adaptive_capital_policy_version": ADAPTIVE_CAPITAL_POLICY_VERSION,
+            "policy_activated_at": "2026-06-11T10:00:00Z",
+            "expected_funding_bps": 0.0,
+            "model_inputs": {
+                "funding_rate": 0.0,
+                "expected_funding_bps": 0.0,
+                "funding_interval_seconds": 3600.0,
+            },
+        },
+    }
+    outcome = dict(closed)
+    outcome.pop("close_id")
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger={
+            "closed_trades": [closed],
+            "outcome_labels": [outcome],
+        },
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 100.0},
+        generated_utc="2026-06-11T12:00:00Z",
+        config=PaperLifecycleConfig(portfolio_equity_usdt=10000.0),
+    )
+
+    repaired_close = result["closed_trades"][0]
+    repaired_outcome = result["outcome_labels"][0]
+    assert repaired_close["funding_pnl_accounting_status"] == "READY_FUNDING_PNL_ACCRUED"
+    assert repaired_close["funding_pnl_source"] == "FUNDING_RATE"
+    assert repaired_close["funding_rate"] == 0.0
+    assert repaired_close["funding_bps"] == 0.0
+    assert repaired_close["funding_pnl_usd"] == 0.0
+    assert repaired_outcome["funding_pnl_accounting_status"] == "READY_FUNDING_PNL_ACCRUED"
+    assert repaired_outcome["funding_pnl_usd"] == 0.0
+    status = result["paper_closed_trade_outcome_label_status"]
+    assert status["policy_funding_repair"]["status_counts"]["repaired"] == 1
+    assert status["outcome_label_policy_funding_repair"]["status_counts"]["repaired"] == 1
+
+
+def test_lifecycle_does_not_synthesize_policy_activation_for_timestampless_closed_fill() -> None:
+    fill = _fill(fill_id="timestampless-policy-closed", qty=1.0, price=100.0)
+    for key in ("fill_price_utc", "generated_utc", "entry_price_utc", "fill_time_est"):
+        fill.pop(key, None)
+    fill.update({
+        "adaptive_allocation": {
+            "adaptive_capital_policy_version": ADAPTIVE_CAPITAL_POLICY_VERSION,
+        },
+    })
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger={
+            "closed_trades": [
+                {
+                    "close_id": "already_closed",
+                    "source_fill_ids": ["timestampless-policy-closed"],
+                }
+            ],
+        },
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 100.0},
+        generated_utc="2026-06-11T10:01:00Z",
+        config=PaperLifecycleConfig(portfolio_equity_usdt=10000.0),
+    )
+
+    accepted = result["accepted_open_fills"][0]
+    assert accepted["paper_lifecycle_status"] == "CLOSED_PREVIOUSLY"
+    assert accepted["adaptive_capital_policy_version"] == ADAPTIVE_CAPITAL_POLICY_VERSION
+    assert "policy_activated_at" not in accepted
+    assert "policy_activated_at" not in accepted["adaptive_allocation"]
+
+
+def test_close_event_accounts_signed_funding_pnl_for_long_and_short() -> None:
+    base_fill = {
+        "symbol": "BTCUSDT",
+        "fill_price_utc": "2026-06-11T10:00:00Z",
+        "adaptive_allocation": {
+            "adaptive_capital_policy_version": ADAPTIVE_CAPITAL_POLICY_VERSION,
+            "model_inputs": {
+                "funding_rate": 0.0001,
+                "funding_interval_seconds": 3600.0,
+            },
+        },
+    }
+    long_position = position_from_fill(
+        base_fill,
+        fill_id="long",
+        side="long",
+        quantity=1.0,
+        price=100.0,
+    )
+    short_position = position_from_fill(
+        base_fill,
+        fill_id="short",
+        side="short",
+        quantity=1.0,
+        price=100.0,
+    )
+
+    long_close, long_outcome = build_close_event(
+        position=long_position,
+        close_quantity=1.0,
+        exit_price=100.0,
+        exit_time="2026-06-11T11:00:00Z",
+        close_reason="TEST_CLOSE",
+        fee_bps=0.0,
+        slippage_bps=0.0,
+    )
+    short_close, short_outcome = build_close_event(
+        position=short_position,
+        close_quantity=1.0,
+        exit_price=100.0,
+        exit_time="2026-06-11T11:00:00Z",
+        close_reason="TEST_CLOSE",
+        fee_bps=0.0,
+        slippage_bps=0.0,
+    )
+
+    assert long_close["funding_pnl_usd"] == pytest.approx(-0.01)
+    assert long_close["funding_pnl_accounting_version"] == FUNDING_PNL_ACCOUNTING_VERSION
+    assert long_close["funding_pnl_accounting_status"] == "READY_FUNDING_PNL_ACCRUED"
+    assert long_close["funding_pnl_formula"] == FUNDING_PNL_ACCOUNTING_FORMULA
+    assert long_close["funding_pnl_side_sign"] == -1.0
+    assert long_close["funding_pnl_source"] == "FUNDING_RATE"
+    assert long_close["realized_pnl_usd"] == pytest.approx(-0.01)
+    assert long_outcome["funding_pnl_usd"] == pytest.approx(-0.01)
+    assert long_outcome["funding_pnl_accounting_version"] == FUNDING_PNL_ACCOUNTING_VERSION
+    assert long_outcome["funding_pnl_accounting_status"] == "READY_FUNDING_PNL_ACCRUED"
+    assert short_close["funding_pnl_usd"] == pytest.approx(0.01)
+    assert short_close["funding_pnl_accounting_version"] == FUNDING_PNL_ACCOUNTING_VERSION
+    assert short_close["funding_pnl_accounting_status"] == "READY_FUNDING_PNL_ACCRUED"
+    assert short_close["funding_pnl_formula"] == FUNDING_PNL_ACCOUNTING_FORMULA
+    assert short_close["funding_pnl_side_sign"] == 1.0
+    assert short_close["funding_pnl_source"] == "FUNDING_RATE"
+    assert short_close["realized_pnl_usd"] == pytest.approx(0.01)
+    assert short_outcome["funding_pnl_usd"] == pytest.approx(0.01)
+    assert short_outcome["funding_pnl_accounting_version"] == FUNDING_PNL_ACCOUNTING_VERSION
+    assert short_outcome["funding_pnl_accounting_status"] == "READY_FUNDING_PNL_ACCRUED"
+
+
+def test_position_from_fill_preserves_adaptive_allocation_and_correlation_evidence() -> None:
+    allocation = {
+        "adaptive_capital_policy_version": ADAPTIVE_CAPITAL_POLICY_VERSION,
+        "allocator_decision": "ALLOW_WITH_SIZE",
+        "gross_notional_usd": 100.0,
+        "allocated_margin_usd": 100.0,
+        "recommended_leverage": 1.0,
+        "effective_leverage": 1.0,
+        "model_inputs": {
+            "correlation_exposure_pct": 0.11,
+            "correlation_pair_count": 4,
+        },
+    }
+    position = position_from_fill(
+        {
+            "symbol": "BTCUSDT",
+            "generated_utc": "2026-06-11T10:00:00Z",
+            "adaptive_allocation": allocation,
+            "correlation_input_source": "MARKET_OHLCV_RETURN_CORRELATION",
+            "correlation_input_status": "READY",
+            "correlation_diagnostics": {"return_count": 99},
+        },
+        fill_id="fill",
+        side="long",
+        quantity=1.0,
+        price=100.0,
+    )
+
+    payload = position.to_payload(generated_utc="2026-06-11T10:01:00Z")
+
+    assert payload["adaptive_allocation"] == allocation
+    assert payload["correlation_exposure_pct"] == 0.11
+    assert payload["correlation_input_source"] == "MARKET_OHLCV_RETURN_CORRELATION"
+    assert payload["correlation_input_status"] == "READY"
+    assert payload["correlation_pair_count"] == 4
+    assert payload["correlation_diagnostics"] == {"return_count": 99}
+
+
+def test_lifecycle_does_not_overwrite_fresh_adaptive_accounting_with_stale_prior() -> None:
+    allocation = {
+        **_complete_adaptive_capital_fields(),
+        "allocation_id": "alloc_fresh",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "action": "long",
+        "allocator_decision": "ALLOW_WITH_SIZE",
+        "target_notional_usdt": 100.0,
+        "target_quantity": 1.0,
+        "allocated_margin_usd": 50.0,
+        "recommended_leverage": 2.0,
+        "effective_leverage": 2.0,
+        "recommended_margin_mode": "isolated_paper_simulated",
+        "model_inputs": {
+            "selected_leverage": 2.0,
+            "leverage_selection_reason": "test",
+            "selected_margin_mode": "isolated_paper_simulated",
+            "margin_mode_selection_reason": "test",
+            "selected_hedge_budget_pct_of_risk": 0.0,
+            "hedge_budget_selection_reason": "test",
+        },
+    }
+    fill = _fill(fill_id="fresh-accounting", qty=1.0, price=100.0)
+    fill.update({
+        "adaptive_capital_policy_version": ADAPTIVE_CAPITAL_POLICY_VERSION,
+        "adaptive_allocation": allocation,
+        "gross_notional_usd": 100.0,
+        "allocated_margin_usd": 50.0,
+        "recommended_leverage": 2.0,
+        "effective_leverage": 2.0,
+        "recommended_margin_mode": "isolated_paper_simulated",
+        "stop_distance_bps": 50.0,
+        "liquidation_price_estimate": 1.0,
+        "liquidation_buffer_bps": 9000.0,
+        "expected_fees_usd": 0.04,
+        "expected_slippage_usd": 0.02,
+        "expected_funding_usd": 0.0,
+        "expected_net_pnl_usd": 1.0,
+        "expected_shortfall_usd": 15.0,
+        "hedge_budget_usd": 0.0,
+        "capital_allocation_reason": "adaptive_allocation_from_confidence_edge_market_quality_and_risk_budget",
+    })
+    existing_ledger = {
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "long",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "best_favorable_price": 105.0,
+                "adaptive_capital_policy_version": ADAPTIVE_CAPITAL_POLICY_VERSION,
+                "adaptive_allocation": allocation,
+                "gross_notional_usd": 100.0,
+                "allocated_margin_usd": 200.0,
+                "recommended_leverage": 1.0,
+                "effective_leverage": 1.0,
+                "recommended_margin_mode": "isolated_paper_simulated",
+                "stop_distance_bps": 50.0,
+                "liquidation_price_estimate": 1.0,
+                "liquidation_buffer_bps": 9000.0,
+                "expected_fees_usd": 0.04,
+                "expected_slippage_usd": 0.02,
+                "expected_funding_usd": 0.0,
+                "expected_net_pnl_usd": 1.0,
+                "expected_shortfall_usd": 15.0,
+                "hedge_budget_usd": 0.0,
+                "capital_allocation_reason": "stale_prior_accounting",
+            }
+        ],
+    }
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 104.0},
+        generated_utc="2026-06-11T10:10:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(
+                trailing_stop_bps=99999.0,
+                take_profit_bps=99999.0,
+                stop_loss_bps=99999.0,
+                profit_bank_bps=99999.0,
+                atr_stop_multiplier=99999.0,
+            ),
+        ),
+    )
+
+    row = result["open_positions"][0]
+    assert row["allocated_margin_usd"] == 50.0
+    assert row["recommended_leverage"] == 2.0
+    assert row["effective_leverage"] == 2.0
+    assert row["capital_allocation_reason"] == "adaptive_allocation_from_confidence_edge_market_quality_and_risk_budget"
+    assert row["best_favorable_price"] == 105.0
+
+
+def test_position_from_fill_does_not_version_legacy_incomplete_allocation() -> None:
+    position = position_from_fill(
+        {
+            "symbol": "BTCUSDT",
+            "generated_utc": "2026-06-11T10:00:00Z",
+            "adaptive_allocation": {
+                "risk_budget_pct_of_equity": 0.01,
+                "model_inputs": {"equity": 10000.0},
+            },
+        },
+        fill_id="fill",
+        side="long",
+        quantity=1.0,
+        price=100.0,
+    )
+
+    payload = position.to_payload(generated_utc="2026-06-11T10:01:00Z")
+
+    assert position.adaptive_capital_policy_version is None
+    assert position.policy_activated_at is None
+    assert payload["adaptive_capital_policy_version"] is None
+    assert payload["policy_activated_at"] is None
+
+
+def _complete_adaptive_capital_fields() -> dict:
+    return {
+        "adaptive_capital_policy_version": ADAPTIVE_CAPITAL_POLICY_VERSION,
+        "risk_budget_usd": 10.0,
+        "gross_notional_usd": 100.0,
+        "allocated_margin_usd": 100.0,
+        "recommended_leverage": 1.0,
+        "effective_leverage": 1.0,
+        "recommended_margin_mode": "isolated_paper_simulated",
+        "stop_distance_bps": 50.0,
+        "liquidation_price_estimate": 1.0,
+        "liquidation_buffer_bps": 9000.0,
+        "expected_fees_usd": 0.04,
+        "expected_slippage_usd": 0.02,
+        "expected_funding_usd": 0.0,
+        "expected_net_pnl_usd": 1.0,
+        "expected_shortfall_usd": 15.0,
+        "hedge_budget_usd": 0.0,
+        "capital_allocation_reason": "adaptive_allocation_from_confidence_edge_market_quality_and_risk_budget",
+    }
+
+
+def test_lifecycle_does_not_carry_incomplete_prior_adaptive_capital_version() -> None:
+    fill = _fill(fill_id="legacy-incomplete-capital", qty=1.0, price=100.0)
+    existing_ledger = {
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "long",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "avg_entry_price": 100.0,
+                "net_quantity": 1.0,
+                "adaptive_capital_policy_version": ADAPTIVE_CAPITAL_POLICY_VERSION,
+                "risk_budget_usd": 10.0,
+            }
+        ],
+    }
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 100.0},
+        generated_utc="2026-06-11T10:01:00Z",
+        config=PaperLifecycleConfig(portfolio_equity_usdt=10000.0),
+    )
+
+    assert result["open_positions"][0]["adaptive_capital_policy_version"] is None
+    assert result["open_positions"][0]["risk_budget_usd"] == 10.0
+
+
+def test_lifecycle_carries_complete_prior_adaptive_capital_version() -> None:
+    allocation = {
+        **_complete_adaptive_capital_fields(),
+        "model_inputs": {
+            "raw_leverage_target": 3.0,
+            "leverage_target": 1.0,
+            "selected_leverage": 1.0,
+            "leverage_selection_reason": "drawdown_pressure_caps_leverage_at_1x",
+        },
+    }
+    fill = _fill(fill_id="complete-capital", qty=1.0, price=100.0)
+    existing_ledger = {
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "long",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "avg_entry_price": 100.0,
+                "net_quantity": 1.0,
+                **_complete_adaptive_capital_fields(),
+                "adaptive_allocation": allocation,
+                "correlation_exposure_pct": 0.08,
+                "correlation_input_source": "ADAPTIVE_ALLOCATION_MODEL_INPUTS",
+                "correlation_input_status": "READY",
+                "correlation_pair_count": 3,
+            }
+        ],
+    }
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 100.0},
+        generated_utc="2026-06-11T10:01:00Z",
+        config=PaperLifecycleConfig(portfolio_equity_usdt=10000.0),
+    )
+
+    assert result["open_positions"][0]["adaptive_capital_policy_version"] == ADAPTIVE_CAPITAL_POLICY_VERSION
+    assert result["open_positions"][0]["stop_distance_bps"] == 50.0
+    assert result["open_positions"][0]["adaptive_allocation"] == allocation
+    assert result["open_positions"][0]["adaptive_allocation"]["model_inputs"]["raw_leverage_target"] == 3.0
+    assert result["open_positions"][0]["correlation_exposure_pct"] == 0.08
+    assert result["open_positions"][0]["correlation_input_status"] == "READY"
+    assert result["open_positions"][0]["correlation_pair_count"] == 3
+
+
+def test_lifecycle_promotes_nested_adaptive_policy_version_to_open_and_closed_payloads() -> None:
+    allocation = {
+        **_complete_adaptive_capital_fields(),
+        "policy_activated_at": "2026-06-11T10:00:00Z",
+        "model_inputs": {
+            "raw_leverage_target": 2.0,
+            "leverage_target": 1.0,
+            "selected_leverage": 1.0,
+            "leverage_selection_reason": "after_cost_edge_too_small_for_dynamic_leverage",
+        },
+    }
+    existing_ledger = {
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "long",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "avg_entry_price": 100.0,
+                "net_quantity": 1.0,
+                **{
+                    key: value
+                    for key, value in _complete_adaptive_capital_fields().items()
+                    if key != "adaptive_capital_policy_version"
+                },
+                "adaptive_allocation": allocation,
+            }
+        ],
+    }
+
+    open_result = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[_fill(fill_id="nested-version", qty=1.0, price=100.0)],
+        mark_prices={"BTCUSDT": 100.0},
+        generated_utc="2026-06-11T10:01:00Z",
+        config=PaperLifecycleConfig(portfolio_equity_usdt=10000.0),
+    )
+    closed_result = reconcile_paper_lifecycle(
+        existing_ledger=open_result,
+        accepted_fills=[_fill(fill_id="nested-version", qty=1.0, price=100.0)],
+        mark_prices={"BTCUSDT": 102.0},
+        generated_utc="2026-06-11T10:05:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exit_config=PaperExitConfig(take_profit_bps=100.0, stop_loss_bps=99999.0),
+        ),
+    )
+
+    assert open_result["open_positions"][0]["adaptive_capital_policy_version"] == ADAPTIVE_CAPITAL_POLICY_VERSION
+    assert open_result["open_positions"][0]["policy_activated_at"] == "2026-06-11T10:00:00Z"
+    assert closed_result["closed_trades"][0]["adaptive_capital_policy_version"] == ADAPTIVE_CAPITAL_POLICY_VERSION
+    assert closed_result["closed_trades"][0]["policy_activated_at"] == "2026-06-11T10:00:00Z"
+    assert closed_result["outcome_labels"][0]["adaptive_capital_policy_version"] == ADAPTIVE_CAPITAL_POLICY_VERSION
+    assert closed_result["outcome_labels"][0]["policy_activated_at"] == "2026-06-11T10:00:00Z"
+    assert closed_result["closed_trades"][0]["adaptive_allocation"] == allocation
+    assert closed_result["outcome_labels"][0]["adaptive_allocation"] == allocation
+
+
+def test_lifecycle_guard_kill_switch_blocks_paper_entry() -> None:
+    result = evaluate_trade_lifecycle_guard(
+        TradeLifecycleGuardInput(
+            symbol="BTCUSDT",
+            side="long",
+            kill_switch_active=True,
+        )
+    )
+
+    assert result.allowed is False
+    assert "TRADE_LIFECYCLE_KILL_SWITCH_ACTIVE" in result.blockers
+
+
+def test_lifecycle_guard_reduce_only_blocks_entry_but_allows_close() -> None:
+    entry_result = evaluate_trade_lifecycle_guard(
+        TradeLifecycleGuardInput(
+            symbol="BTCUSDT",
+            side="long",
+            reduce_only_latch_active=True,
+            close_or_reduce=False,
+        )
+    )
+    close_result = evaluate_trade_lifecycle_guard(
+        TradeLifecycleGuardInput(
+            symbol="BTCUSDT",
+            side="long",
+            action="close",
+            reduce_only_latch_active=True,
+            close_or_reduce=True,
+        )
+    )
+
+    assert entry_result.allowed is False
+    assert "TRADE_LIFECYCLE_REDUCE_ONLY_LATCH_BLOCKS_NEW_ENTRY" in entry_result.blockers
+    assert close_result.allowed is True
+    assert close_result.blockers == ()
+
+
+def test_reduce_only_latch_blocks_new_entry_but_allows_close() -> None:
+    blocked = evaluate_trade_lifecycle_guard(
+        TradeLifecycleGuardInput(
+            symbol="BTCUSDT",
+            side="long",
+            reduce_only_latch_active=True,
+            close_or_reduce=False,
+        )
+    )
+    allowed = evaluate_trade_lifecycle_guard(
+        TradeLifecycleGuardInput(
+            symbol="BTCUSDT",
+            side="long",
+            action="close",
+            reduce_only_latch_active=True,
+            close_or_reduce=True,
+        )
+    )
+
+    assert blocked.allowed is False
+    assert allowed.allowed is True

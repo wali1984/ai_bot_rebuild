@@ -1,0 +1,53 @@
+{
+  "schema_version": "symbol_universe_diff_buffer_status_v1",
+  "milestone": "v2_copied_runtime_burn_in_remediation_execution",
+  "generated_est": "2026-05-30T23:59:00-0400",
+  "generated_utc": "2026-05-31T03:59:00Z",
+  "implementation": {
+    "cli_module": "v2.backend.app.cli.v2_symbol_universe_diff_buffer",
+    "buffer_directory": "v2/runtime/symbol_universe_diff_buffer/snapshots/",
+    "status_payload": "v2/frontend/public/operator_runtime/symbol_universe_diff_buffer/latest/symbol_universe_diff_buffer_status.json",
+    "systemd_service": "ai-bot-v2-symbol-universe-diff-buffer.service",
+    "systemd_timer": "ai-bot-v2-symbol-universe-diff-buffer.timer",
+    "timer_cadence": "OnBootSec=2min, OnUnitActiveSec=5min",
+    "timer_enabled_and_active": true,
+    "max_buffer_entries": 2048,
+    "max_buffer_age_seconds": 1209600,
+    "no_redis_writes": true,
+    "no_exchange_action": true,
+    "no_legacy_mutation": true
+  },
+  "current_buffer_state": {
+    "snapshot_count": 2,
+    "earliest_captured_utc": "2026-05-31T03:54:44Z",
+    "latest_captured_utc": "2026-05-31T03:55:27Z",
+    "current_dynamic_discovered_count": 27
+  },
+  "current_window_verdicts": {
+    "1h": "INSUFFICIENT_HISTORY_FOR_WINDOW",
+    "6h": "INSUFFICIENT_HISTORY_FOR_WINDOW",
+    "12h": "INSUFFICIENT_HISTORY_FOR_WINDOW"
+  },
+  "current_window_diffs": {
+    "12h": {
+      "diff": null,
+      "earlier_snapshot_captured_utc": null,
+      "verdict": "INSUFFICIENT_HISTORY_FOR_WINDOW"
+    },
+    "1h": {
+      "diff": null,
+      "earlier_snapshot_captured_utc": null,
+      "verdict": "INSUFFICIENT_HISTORY_FOR_WINDOW"
+    },
+    "6h": {
+      "diff": null,
+      "earlier_snapshot_captured_utc": null,
+      "verdict": "INSUFFICIENT_HISTORY_FOR_WINDOW"
+    }
+  },
+  "live_safety": {
+    "live_gate_status": "blocked_human_only",
+    "live_symbols": []
+  },
+  "verdict": "BUFFER_IMPLEMENTED_TIMER_ENABLED_HISTORY_ACCUMULATING"
+}

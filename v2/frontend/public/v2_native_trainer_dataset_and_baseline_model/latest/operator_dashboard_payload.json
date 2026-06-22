@@ -1,0 +1,63 @@
+{
+  "baseline_summary": {
+    "metric_names": [
+      "hold_baseline",
+      "contract_only_publisher_baseline",
+      "simple_v2_native_baseline_ema_or_rsi",
+      "legacy_reference_action_mirror_only"
+    ],
+    "minimum_sample_satisfied": false,
+    "publishable_baseline_available": false,
+    "train_count": 0,
+    "validation_count": 0
+  },
+  "checkpoint_compatibility_claimed": false,
+  "dataset_summary": {
+    "insufficient_evidence_rows": 0,
+    "label_missing_rows": 172,
+    "minimum_sample_satisfied": false,
+    "minimum_train_rows_threshold": 256,
+    "missing_feature_rows": 0,
+    "row_count": 172,
+    "stale_feature_rows": 0,
+    "train_rows": 0,
+    "validation_rows": 0
+  },
+  "generated_at": "2026-06-21T23:35:02Z",
+  "go_no_go": "V2_NATIVE_TRAINER_DATASET_AND_BASELINE_MODEL_READY",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "model_parity_claimed": false,
+  "publisher_summary": {
+    "old_redis_write_attempts": 0,
+    "preserved_count": 0,
+    "published_count": 0,
+    "rejected_count": 0,
+    "writes_failed": 0,
+    "writes_succeeded": 0
+  },
+  "safety_scoreboard": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "did_not_call_exchange_mutation": true,
+    "did_not_claim_checkpoint_compatibility": true,
+    "did_not_claim_trainer_native_readiness": true,
+    "did_not_expose_raw_api_keys": true,
+    "did_not_modify_legacy_tree": true,
+    "did_not_stop_codex_governors": true,
+    "did_not_stop_legacy_runtime": true,
+    "did_not_stop_replay_miner": true,
+    "did_not_stop_report_center": true,
+    "did_not_stop_v2_runtime": true,
+    "did_not_use_raw_legacy_redis_as_current_truth": true,
+    "did_not_weaken_paper_fill_gate": true,
+    "did_not_write_old_redis_keys": true,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "schema_version": "v2_native_trainer_dataset_and_baseline_model_v1_operator_dashboard_payload",
+  "trainer_native_readiness_claimed": false,
+  "v2_native_trainer_ready": false
+}

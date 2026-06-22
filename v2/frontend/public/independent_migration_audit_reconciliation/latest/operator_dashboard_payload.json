@@ -1,0 +1,48 @@
+{
+  "worker_id": "independent_migration_audit_reconciliation",
+  "go_no_go": "INDEPENDENT_MIGRATION_AUDIT_RECONCILIATION_READY",
+  "generated_utc": "2026-05-15",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false,
+  "final_approval_token": "absent",
+  "redis_trim_approval_token": "absent",
+  "headline": "V2 is not fully migrated yet.",
+  "downgrade_count": 13,
+  "missing_or_bridge_only_components": [
+    "trainer_core_ppo_masa",
+    "rl_environment_gymnasium_obs",
+    "masa_agent_and_policy",
+    "reward_functions",
+    "feature_pipeline_computation",
+    "live_ingestors",
+    "orchestrator_arbitration",
+    "trading_execution_engine",
+    "stop_tp_stealth_exit",
+    "risk_management_deep_logic",
+    "config_unification",
+    "utils_remaining",
+    "hedge_and_dynamic_sizing"
+  ],
+  "newly_classified_missing_in_v2": [
+    "masa_agent_and_policy",
+    "reward_functions",
+    "stop_tp_stealth_exit",
+    "hedge_and_dynamic_sizing"
+  ],
+  "next_p0_claude_tasks": [
+    "claude_rebuild_v2_native_feature_pipeline_worker_from_legacy",
+    "claude_rebuild_v2_trainer_full_rl_masa_ppo_reward_stack",
+    "claude_rebuild_v2_orchestrator_arbitration_from_legacy",
+    "claude_rebuild_v2_stop_tp_stealth_exit_engine_paper_first",
+    "claude_verify_v2_ingestors_are_native_or_downgrade_to_bridge"
+  ],
+  "audit_source_path": "migration-audit.md",
+  "reconciliation_matrix_path": "claude_worklog/final_readiness/independent_migration_audit_reconciliation/latest/independent_audit_reconciliation_matrix.json",
+  "report_path": "claude_worklog/final_readiness/independent_migration_audit_reconciliation/latest/INDEPENDENT_AUDIT_RECONCILIATION_REPORT.md",
+  "next_true_migration_tasks_path": "claude_worklog/final_readiness/independent_migration_audit_reconciliation/latest/NEXT_TRUE_MIGRATION_TASKS.md",
+  "frontend_truth_payload_path": "v2/frontend/public/operator_runtime/frontend_truth/latest/frontend_truth_payload.json"
+}

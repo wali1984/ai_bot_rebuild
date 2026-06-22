@@ -1,0 +1,36 @@
+{
+  "codex_pair_task_id": "codex_review_fix_v2_gap_trainer_missing_checkpoint_weight_shape_contract",
+  "completed_at": "2026-05-24T19:01:55Z",
+  "created_at": "2026-05-24T11:10:24Z",
+  "fail_blockers": [
+    "1. Realized PnL credit (signed)",
+    "1. Realized PnL credit (signed)",
+    "1. Realized PnL credit (signed)",
+    "1. Realized PnL credit (signed)",
+    "1. Realized PnL credit (signed)",
+    "1. Provide an operator-approved checkpoint blob under",
+    "1. The CLAUDE.md protected runtime policy forbids mutating or"
+  ],
+  "file_lock_group": "fix_v2_gap_trainer_missing_checkpoint_weight_shape_contract",
+  "lease_id": "2adb27ea54e848eb932709cba745e9bc",
+  "next_action": "Remediate the safe V2-side fail blockers listed in fail_blockers. Do not touch legacy. Do not call exchange mutation. Keep live_gate=blocked_human_only and live_symbols=[].",
+  "owner": "CLAUDE",
+  "pid_or_job_id": 1573506,
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "started_at": "2026-05-24T18:59:10Z",
+  "status": "completed",
+  "task_id": "closed_loop_remediation_codex_review_fix_v2_gap_trainer_missing_checkpoint_weight_shape_contract",
+  "task_type": "REMEDIATION",
+  "updated_at": "2026-05-24T19:01:55Z",
+  "worker_id": "claude-1"
+}

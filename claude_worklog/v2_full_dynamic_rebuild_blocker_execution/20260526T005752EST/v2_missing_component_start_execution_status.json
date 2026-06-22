@@ -1,0 +1,149 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "go_no_go": "V2_MISSING_COMPONENT_START_EXECUTION_READY",
+  "items": [
+    {
+      "component": "binance_mark_price",
+      "exit_visible_in_log": true,
+      "log_file": "claude_worklog/v2_full_dynamic_rebuild_blocker_execution/20260526T005752EST/cmd_logs/binance_public_metadata.log",
+      "log_size_bytes": 3749,
+      "module": "v2/backend/app/cli/v2_binance_public_metadata_ingestor.py",
+      "redis_key_count_after_run": 3,
+      "redis_pattern": "v2:market:mark_price:*",
+      "started_via_one_shot": true
+    },
+    {
+      "component": "binance_funding",
+      "exit_visible_in_log": true,
+      "log_file": "claude_worklog/v2_full_dynamic_rebuild_blocker_execution/20260526T005752EST/cmd_logs/binance_public_metadata.log",
+      "log_size_bytes": 3749,
+      "module": "v2/backend/app/cli/v2_binance_public_metadata_ingestor.py",
+      "redis_key_count_after_run": 3,
+      "redis_pattern": "v2:market:mark_price:*",
+      "started_via_one_shot": true
+    },
+    {
+      "component": "binance_open_interest",
+      "exit_visible_in_log": true,
+      "log_file": "claude_worklog/v2_full_dynamic_rebuild_blocker_execution/20260526T005752EST/cmd_logs/binance_public_metadata.log",
+      "log_size_bytes": 3749,
+      "module": "v2/backend/app/cli/v2_binance_public_metadata_ingestor.py",
+      "redis_key_count_after_run": 3,
+      "redis_pattern": "v2:market:open_interest:*",
+      "started_via_one_shot": true
+    },
+    {
+      "component": "binance_orderbook",
+      "exit_visible_in_log": true,
+      "log_file": "claude_worklog/v2_full_dynamic_rebuild_blocker_execution/20260526T005752EST/cmd_logs/binance_public_metadata.log",
+      "log_size_bytes": 3749,
+      "module": "v2/backend/app/cli/v2_binance_public_metadata_ingestor.py",
+      "redis_key_count_after_run": 3,
+      "redis_pattern": "v2:market:orderbook_top:*",
+      "started_via_one_shot": true
+    },
+    {
+      "component": "liquidation_bridge_levels_engine",
+      "exit_visible_in_log": true,
+      "log_file": "claude_worklog/v2_full_dynamic_rebuild_blocker_execution/20260526T005752EST/cmd_logs/liquidation_observation_aggregator.log",
+      "log_size_bytes": 156,
+      "module": "v2/backend/app/cli/v2_liquidation_observation_aggregator_status.py",
+      "redis_key_count_after_run": 0,
+      "redis_pattern": "v2:liquidation:*",
+      "started_via_one_shot": true
+    },
+    {
+      "component": "coinank_full_poller",
+      "exit_visible_in_log": false,
+      "log_file": "claude_worklog/v2_full_dynamic_rebuild_blocker_execution/20260526T005752EST/cmd_logs/coinank_and_liquidation_bridge.log",
+      "log_size_bytes": 0,
+      "module": "v2/backend/app/cli/v2_coinank_and_liquidation_bridge.py",
+      "redis_key_count_after_run": 0,
+      "redis_pattern": "v2:market:coinank:*",
+      "started_via_one_shot": true
+    },
+    {
+      "component": "coinank_global_aggregator",
+      "exit_visible_in_log": false,
+      "log_file": "claude_worklog/v2_full_dynamic_rebuild_blocker_execution/20260526T005752EST/cmd_logs/coinank_and_liquidation_bridge.log",
+      "log_size_bytes": 0,
+      "module": "v2/backend/app/cli/v2_coinank_and_liquidation_bridge.py",
+      "redis_key_count_after_run": 0,
+      "redis_pattern": "v2:market:coinank:global",
+      "started_via_one_shot": true
+    },
+    {
+      "component": "technical_analysis_full",
+      "exit_visible_in_log": false,
+      "log_file": "claude_worklog/v2_full_dynamic_rebuild_blocker_execution/20260526T005752EST/cmd_logs/feature_pipeline_and_ta_worker.log",
+      "log_size_bytes": 0,
+      "module": "v2/backend/app/cli/v2_feature_pipeline_and_ta_worker.py",
+      "redis_key_count_after_run": 25,
+      "redis_pattern": "v2:technical_analysis:*",
+      "started_via_one_shot": true
+    },
+    {
+      "component": "arkham_ingestor",
+      "exit_visible_in_log": true,
+      "log_file": "claude_worklog/v2_full_dynamic_rebuild_blocker_execution/20260526T005752EST/cmd_logs/arkham_presence_only.log",
+      "log_size_bytes": 915,
+      "module": "v2/backend/app/cli/v2_arkham_presence_only_worker.py",
+      "redis_key_count_after_run": 1,
+      "redis_pattern": "v2:alt_data:arkham:*",
+      "started_via_one_shot": true
+    },
+    {
+      "component": "dataset_builder",
+      "exit_visible_in_log": true,
+      "log_file": "claude_worklog/v2_full_dynamic_rebuild_blocker_execution/20260526T005752EST/cmd_logs/native_trainer_dataset_builder.log",
+      "log_size_bytes": 1070,
+      "module": "v2/backend/app/cli/v2_native_trainer_dataset_builder.py",
+      "redis_key_count_after_run": 1,
+      "redis_pattern": "v2:trainer:dataset:*",
+      "started_via_one_shot": true
+    },
+    {
+      "component": "backtest_engine_first_run",
+      "exit_visible_in_log": true,
+      "log_file": "claude_worklog/v2_full_dynamic_rebuild_blocker_execution/20260526T005752EST/cmd_logs/historical_30d_replay_and_paper_proof.log",
+      "log_size_bytes": 208,
+      "module": "v2/backend/app/cli/historical_30d_replay_and_paper_proof.py",
+      "redis_key_count_after_run": null,
+      "redis_pattern": null,
+      "started_via_one_shot": true
+    },
+    {
+      "component": "risk_gateway_one_shot",
+      "exit_visible_in_log": false,
+      "log_file": "claude_worklog/v2_full_dynamic_rebuild_blocker_execution/20260526T005752EST/cmd_logs/risk_gateway_runtime_worker.log",
+      "log_size_bytes": 0,
+      "module": "v2/backend/app/cli/v2_risk_gateway_runtime_worker.py",
+      "redis_key_count_after_run": 1,
+      "redis_pattern": "v2:risk:*",
+      "started_via_one_shot": true
+    },
+    {
+      "component": "report_center_indexer_one_shot",
+      "exit_visible_in_log": true,
+      "log_file": "claude_worklog/v2_full_dynamic_rebuild_blocker_execution/20260526T005752EST/cmd_logs/report_center_indexer.log",
+      "log_size_bytes": 18551,
+      "module": "v2/backend/app/cli/v2_report_center_indexer.py",
+      "redis_key_count_after_run": null,
+      "redis_pattern": null,
+      "started_via_one_shot": true
+    }
+  ],
+  "live_symbols": [],
+  "notes": "Each component was started in --once mode. Persistent systemd wiring is intentionally a separate operator decision; auto-seeded backlog covers it. Risk gateway and feature/TA workers exit fail-closed with rc=2 when they detect missing-evidence; the exit is itself the expected gate-protective behavior.",
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "started_count": 13,
+  "total_components_attempted": 13,
+  "ts_est": "20260526T005752EST",
+  "ts_human_est": "2026-05-26 01:03:25 EDT",
+  "ts_iso_est": "2026-05-26T01:03:25-0400",
+  "writes_exchange_orders": false
+}

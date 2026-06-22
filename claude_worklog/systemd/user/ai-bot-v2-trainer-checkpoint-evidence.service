@@ -1,0 +1,14 @@
+[Unit]
+Description=AI BOT V2 trainer checkpoint evidence publisher (metadata-only, V2 namespace)
+After=network-online.target redis-server.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+ExecStartPre=/usr/bin/env bash -lc 'exec ./claude_worklog/tools/v2_automation_safety_preflight.sh ai-bot-v2-trainer-checkpoint-evidence'
+ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -m v2.backend.app.cli.v2_trainer_checkpoint_evidence_publisher --loop --interval-seconds 300 --write-v2-redis --v2-redis-ttl-seconds 900'
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

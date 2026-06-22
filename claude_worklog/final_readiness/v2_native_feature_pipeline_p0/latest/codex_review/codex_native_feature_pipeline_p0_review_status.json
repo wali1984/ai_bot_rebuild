@@ -1,0 +1,63 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "checks": {
+    "does_not_read_legacy_features_as_authoritative": true,
+    "feature_snapshot_id_declared": true,
+    "forbidden_import_hits": [],
+    "forbidden_mutation_call_hits": [],
+    "missing_components_disclosed": [
+      "full_legacy_unified_feature_builder_2000_plus_features",
+      "regime_state_machine_hysteresis",
+      "ingestor_layer_native_websocket_rest",
+      "cross_exchange_aggregation",
+      "tokenmetrics_alphavantage_derived_features"
+    ],
+    "non_bridge_native_compute": true,
+    "required_categories_present": [
+      "freshness",
+      "funding_oi_liquidation",
+      "microstructure",
+      "multi_timeframe",
+      "ohlcv_derived",
+      "portfolio_aware",
+      "ta_indicators"
+    ],
+    "sha256_citations_missing": [],
+    "test_evidence": {
+      "forbidden_import_test": true,
+      "full_input_snapshot_test": true,
+      "microstructure_test": true,
+      "missing_flags_test": true,
+      "snapshot_id_test": true,
+      "stale_flags_test": true
+    }
+  },
+  "codex_findings": [],
+  "generated_utc": "2026-05-16T02:31:25Z",
+  "go_no_go": "V2_NATIVE_FEATURE_PIPELINE_P0_CODEX_PASS",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "migration_classification": "PARTIALLY_MIGRATED",
+  "p0_2_gate": {
+    "native_feature_pipeline_codex_review_passed": true,
+    "p0_2_completion_allowed": false,
+    "reason": "P0.1 native compute passes, but P0.2 remains blocked until a reusable native latest_feature_snapshot payload is published and Codex verifies trainer consumption.",
+    "trainer_consumable_public_snapshot_paths_checked": [
+      "v2/frontend/public/operator_runtime/v2_feature_pipeline_native/latest/latest_feature_snapshot.json",
+      "v2/frontend/public/operator_runtime/v2_feature_pipeline_native/latest/sample_feature_snapshot.json",
+      "v2/frontend/public/feature_pipeline_native/latest/latest_feature_snapshot.json"
+    ],
+    "trainer_consumable_public_snapshot_paths_found": []
+  },
+  "review_subject": "V2_NATIVE_FEATURE_PIPELINE_P0_FROM_FULL_ROOT_READY",
+  "schema_version": "1.0.0",
+  "validation": {
+    "baseline_path": "claude_worklog/final_readiness/v2_native_feature_pipeline_p0/latest/LEGACY_BASELINE_ANALYSIS.md",
+    "pytest": "PASS: 11 passed in v2/backend/tests/integration/cli/test_v2_feature_pipeline_native.py",
+    "report_path": "claude_worklog/final_readiness/v2_native_feature_pipeline_p0/latest/V2_NATIVE_FEATURE_PIPELINE_P0_REPORT.md",
+    "status_payload_path": "v2/frontend/public/operator_runtime/v2_feature_pipeline_native/latest/v2_feature_pipeline_native_status.json"
+  }
+}

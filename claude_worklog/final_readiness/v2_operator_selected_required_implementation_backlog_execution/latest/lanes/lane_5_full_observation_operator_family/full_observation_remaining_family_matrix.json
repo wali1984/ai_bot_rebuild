@@ -1,0 +1,105 @@
+{
+  "schema_version": "v2_full_observation_remaining_family_matrix_v1",
+  "generated_utc": "2026-05-25T06:15:00Z",
+  "git_head": "10513bbe0517fd81c9c87e4672bb15486a083c02",
+  "lane_id": "lane_5_full_observation_operator_family",
+  "checkpoint_compatibility_claimed": false,
+  "claim_1911_dim_completion": false,
+  "matrix": [
+    {
+      "family_id": "portfolio_state",
+      "implemented": "PARTIAL",
+      "operator_required": false,
+      "external_required": false,
+      "event_dependent": false,
+      "not_required_for_current_native_path": false,
+      "current_status_source": "v2_full_observation_builder/latest/full_observation_builder_status.json#full_observation_v1.partial_observation_categories"
+    },
+    {
+      "family_id": "position_context",
+      "implemented": "PARTIAL",
+      "operator_required": false,
+      "external_required": false,
+      "event_dependent": false,
+      "not_required_for_current_native_path": false,
+      "current_status_source": "v2_full_observation_builder/latest/full_observation_builder_status.json#full_observation_v1.partial_observation_categories"
+    },
+    {
+      "family_id": "unified_features.ccxt_ohlcv",
+      "implemented": "PARTIAL",
+      "operator_required": true,
+      "external_required": false,
+      "event_dependent": false,
+      "not_required_for_current_native_path": false,
+      "current_status_source": "v2_full_observation_builder/latest/full_observation_builder_status.json#operator_decision_required_families"
+    },
+    {
+      "family_id": "unified_features.token_metrics",
+      "implemented": false,
+      "operator_required": true,
+      "external_required": true,
+      "event_dependent": false,
+      "not_required_for_current_native_path": false,
+      "external_keys_required_by_name": ["TOKENMETRICS_API_KEY", "TM_API_KEY"],
+      "raw_values_read": false
+    },
+    {
+      "family_id": "onchain_btc",
+      "implemented": false,
+      "operator_required": true,
+      "external_required": true,
+      "event_dependent": false,
+      "not_required_for_current_native_path": false,
+      "external_keys_required_by_name": ["GLASSNODE_API_KEY", "CRYPTOQUANT_API_KEY", "SANTIMENT_API_KEY"],
+      "raw_values_read": false
+    },
+    {
+      "family_id": "onchain_eth",
+      "implemented": false,
+      "operator_required": true,
+      "external_required": true,
+      "event_dependent": false,
+      "not_required_for_current_native_path": false,
+      "external_keys_required_by_name": ["GLASSNODE_API_KEY", "CRYPTOQUANT_API_KEY", "SANTIMENT_API_KEY"],
+      "raw_values_read": false
+    },
+    {
+      "family_id": "liquidations",
+      "implemented": false,
+      "operator_required": false,
+      "external_required": false,
+      "event_dependent": true,
+      "not_required_for_current_native_path": false,
+      "watcher_id": "event_watcher_1_liquidation_source"
+    },
+    {
+      "family_id": "technical_analysis",
+      "implemented": "CONDITIONALLY_UNDEFINED",
+      "operator_required": true,
+      "external_required": false,
+      "event_dependent": false,
+      "not_required_for_current_native_path": true,
+      "note": "Conditionally undefined under V2 native compact path. Only required for full V3 1911-dim parity under signed checkpoint."
+    }
+  ],
+  "counts_by_classification": {
+    "IMPLEMENTED_FULL": 0,
+    "IMPLEMENTED_PARTIAL": 3,
+    "OPERATOR_REQUIRED": 4,
+    "EXTERNAL_REQUIRED": 3,
+    "EVENT_DEPENDENT": 1,
+    "NOT_REQUIRED_FOR_CURRENT_NATIVE_PATH": 1
+  },
+  "no_fabricated_observations": true,
+  "no_zero_fill_for_unknown_fields": true,
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "creates_approval_tokens": false,
+    "fabricates_missing_observations": false
+  }
+}

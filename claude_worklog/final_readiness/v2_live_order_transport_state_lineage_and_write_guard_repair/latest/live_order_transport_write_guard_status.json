@@ -1,0 +1,12 @@
+{
+  "blockers": [],
+  "generated_est": "2026-06-07T19:32:09-04:00",
+  "raw_credentials_exposed": false,
+  "schema_version": "live_order_transport_write_guard_status_v1",
+  "status": "LIVE_ORDER_TRANSPORT_WRITE_GUARD_READY",
+  "submit_guard_enabled": true,
+  "submit_guard_source": "audited_live_gate_runtime_state",
+  "transport_force_disabled": false,
+  "write_guard_enabled": true,
+  "write_guard_source": "audited_live_gate_runtime_state"
+}

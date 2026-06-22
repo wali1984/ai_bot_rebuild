@@ -1,0 +1,393 @@
+{
+  "schema_version": "v2_out_of_sample_reverify_evidence_producer_v1",
+  "generated_utc": "2026-06-22T00:22:36Z",
+  "producer": "holdout",
+  "status": "NO_COUNTABLE_HOLDOUT_ROWS_APPENDED",
+  "selector_policy_fingerprint": "c4b8fb1ed12aabcb87224723f1758563eefff10de90288be09866d2bf3fa74b5",
+  "holdout_labeling_policy": "REQUIRES_PREEXISTING_PENDING_SELECTION_RECORD",
+  "labeled_from_preexisting_pending_count": 0,
+  "same_run_pending_rows_not_labeled_count": 0,
+  "source_status": {
+    "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/closed_candle_replay_evidence_rows.jsonl",
+    "exists": true,
+    "scanned_line_count": 19800,
+    "parse_error_count": 0,
+    "parse_error_sample": [],
+    "sha256": "0f04e7a8590970c5859b9f15c4b3e4deb514d43e519b6ad35242efa8e12dc395"
+  },
+  "bucket_matrix_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/a_grade_bucket_performance_matrix.json",
+  "eligible_bucket_count": 5,
+  "registry_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_window_registry.json",
+  "registry_status": "NO_ELIGIBLE_HOLDOUT_WINDOWS_REGISTERED",
+  "holdout_registry_preflight_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_window_registry_preflight.json",
+  "holdout_registry_preflight": {
+    "schema_version": "v2_out_of_sample_reverify_evidence_producer_v1",
+    "generated_utc": "2026-06-22T00:22:36Z",
+    "status": "NO_GO_NO_REGISTERED_HOLDOUT_WINDOWS",
+    "selector_policy_fingerprint": "c4b8fb1ed12aabcb87224723f1758563eefff10de90288be09866d2bf3fa74b5",
+    "registry_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_window_registry.json",
+    "registry_sha256": "361ca52c4db21369744e311b77d4a5e5c49e940cba2f33c4f4024a2e0d1bdbd5",
+    "registry_status": "NO_ELIGIBLE_HOLDOUT_WINDOWS_REGISTERED",
+    "registry_selector_policy_fingerprint": "c4b8fb1ed12aabcb87224723f1758563eefff10de90288be09866d2bf3fa74b5",
+    "source_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/closed_candle_replay_evidence_rows.jsonl",
+    "source_sha256": "0f04e7a8590970c5859b9f15c4b3e4deb514d43e519b6ad35242efa8e12dc395",
+    "registry_source_sha256": "0f04e7a8590970c5859b9f15c4b3e4deb514d43e519b6ad35242efa8e12dc395",
+    "source_hash_match": true,
+    "source_row_count": 19800,
+    "source_symbol_count": 90,
+    "source_symbols_sample": [
+      "AAVEUSDT",
+      "ADAUSDT",
+      "AEROUSDT",
+      "ALGOUSDT",
+      "ALLOUSDT",
+      "APTUSDT",
+      "ARBUSDT",
+      "ATOMUSDT",
+      "AVAXUSDT",
+      "BABYUSDT",
+      "BCHUSDT",
+      "BEATUSDT",
+      "BILLUSDT",
+      "BIOUSDT",
+      "BNBUSDT",
+      "BSBUSDT",
+      "CAKEUSDT",
+      "CHIPUSDT",
+      "CHZUSDT",
+      "COAIUSDT",
+      "CRVUSDT",
+      "DASHUSDT",
+      "DOTUSDT",
+      "EDENUSDT",
+      "EIGENUSDT",
+      "ENAUSDT",
+      "ENSOUSDT",
+      "EPICUSDT",
+      "ESPORTSUSDT",
+      "ETCUSDT",
+      "FETUSDT",
+      "FILUSDT",
+      "HBARUSDT",
+      "HEIUSDT",
+      "HMSTRUSDT",
+      "HOMEUSDT",
+      "HUSDT",
+      "HYPEUSDT",
+      "ICPUSDT",
+      "IDUSDT",
+      "INJUSDT",
+      "IPUSDT",
+      "JTOUSDT",
+      "LABUSDT",
+      "LDOUSDT",
+      "LITUSDT",
+      "MEGAUSDT",
+      "MITOUSDT",
+      "MONUSDT",
+      "MOVEUSDT",
+      "MYXUSDT",
+      "NEARUSDT",
+      "NEOUSDT",
+      "NIGHTUSDT",
+      "ONDOUSDT",
+      "OPGUSDT",
+      "OPUSDT",
+      "ORCAUSDT",
+      "PAXGUSDT",
+      "PENDLEUSDT",
+      "POLUSDT",
+      "PORTALUSDT",
+      "PUMPUSDT",
+      "RENDERUSDT",
+      "SAHARAUSDT",
+      "SEIUSDT",
+      "SENTUSDT",
+      "SKYAIUSDT",
+      "SSVUSDT",
+      "STGUSDT",
+      "SUIUSDT",
+      "SUNUSDT",
+      "TAOUSDT",
+      "TIAUSDT",
+      "TONUSDT",
+      "TRUMPUSDT",
+      "TRXUSDT",
+      "VELVETUSDT",
+      "VIRTUALUSDT",
+      "VVVUSDT",
+      "WLDUSDT",
+      "WLFIUSDT",
+      "XAUTUSDT",
+      "XLMUSDT",
+      "XMRUSDT",
+      "XPLUSDT",
+      "ZECUSDT",
+      "ZKCUSDT",
+      "ZKPUSDT",
+      "ZROUSDT"
+    ],
+    "source_timeframes": [
+      "15m",
+      "1h",
+      "1m",
+      "4h",
+      "5m"
+    ],
+    "source_decision_time_min": "2026-05-29T12:00:00Z",
+    "source_decision_time_max": "2026-06-15T16:38:00Z",
+    "registered_window_count": 0,
+    "statically_eligible_window_count": 0,
+    "matching_source_row_count": 0,
+    "unmatched_source_row_count": 19800,
+    "decision_time_candidate_ready_count": 0,
+    "countable_after_label_count": 0,
+    "overlap_row_count": 0,
+    "global_reasons": [
+      "NO_REGISTERED_HOLDOUT_WINDOWS"
+    ],
+    "windows": [],
+    "candidate_selection_preflight": {
+      "selection_fields_freeze": "decision_time_features_only",
+      "outcome_fields_excluded_before_selection": [
+        "after_cost_return_bps",
+        "closed_at",
+        "drawdown_bps",
+        "exit_price",
+        "exit_time",
+        "future_label_close_time",
+        "future_label_horizon_candles",
+        "mae_bps",
+        "mfe_bps",
+        "outcome_after_cost_usd",
+        "paper_exit_pnl_bps",
+        "realized_after_cost_return_bps",
+        "realized_pnl_bps",
+        "realized_pnl_usd",
+        "realized_pnl_usdt"
+      ],
+      "future_labels_used_as_features_allowed": false,
+      "selection_does_not_filter_by_outcome": true
+    }
+  },
+  "registered_window_count": 0,
+  "processed_source_row_count": 19800,
+  "accepted_appended_count": 0,
+  "pending_appended_count": 0,
+  "rejected_appended_count": 0,
+  "duplicate_skipped_count": 19800,
+  "rejection_reason_counts": {},
+  "source_gate_breakdown": {
+    "processed_source_row_count": 19800,
+    "existing_final_duplicate_count": 0,
+    "candidate_ready_source_row_count": 0,
+    "rejected_source_row_count": 19800,
+    "category_counts": {
+      "evidence_protocol": 19800,
+      "frozen_selector": 25831
+    },
+    "reason_counts": {
+      "DYNAMIC_BUCKET_NOT_A_GRADE_ELIGIBLE": 19571,
+      "NON_POSITIVE_DECISION_TIME_EXPECTED_EDGE": 6260,
+      "NO_PRE_REGISTERED_HOLDOUT_WINDOW": 19800
+    },
+    "top_reason_combinations": [
+      {
+        "reasons": [
+          "DYNAMIC_BUCKET_NOT_A_GRADE_ELIGIBLE",
+          "NO_PRE_REGISTERED_HOLDOUT_WINDOW"
+        ],
+        "row_count": 13311
+      },
+      {
+        "reasons": [
+          "DYNAMIC_BUCKET_NOT_A_GRADE_ELIGIBLE",
+          "NON_POSITIVE_DECISION_TIME_EXPECTED_EDGE",
+          "NO_PRE_REGISTERED_HOLDOUT_WINDOW"
+        ],
+        "row_count": 6260
+      },
+      {
+        "reasons": [
+          "NO_PRE_REGISTERED_HOLDOUT_WINDOW"
+        ],
+        "row_count": 229
+      }
+    ]
+  },
+  "rejection_ledger_summary": {
+    "source_status": {
+      "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_reverify_rejected.jsonl",
+      "exists": true,
+      "scanned_line_count": 19800,
+      "parse_error_count": 0,
+      "parse_error_sample": [],
+      "sha256": "c712107813be22e98f0a82c5933da0cba5e2960c17f94161df3bb4b93f2fc89a"
+    },
+    "row_count": 19800,
+    "reason_counts": {
+      "DYNAMIC_BUCKET_NOT_A_GRADE_ELIGIBLE": 19571,
+      "NON_POSITIVE_DECISION_TIME_EXPECTED_EDGE": 6260,
+      "NO_PRE_REGISTERED_HOLDOUT_WINDOW": 19800
+    },
+    "source_kind_counts": {
+      "holdout": 19800
+    },
+    "source_kind_reason_counts": {
+      "holdout": {
+        "DYNAMIC_BUCKET_NOT_A_GRADE_ELIGIBLE": 19571,
+        "NON_POSITIVE_DECISION_TIME_EXPECTED_EDGE": 6260,
+        "NO_PRE_REGISTERED_HOLDOUT_WINDOW": 19800
+      }
+    },
+    "top_reason_combinations": [
+      {
+        "reasons": [
+          "DYNAMIC_BUCKET_NOT_A_GRADE_ELIGIBLE",
+          "NO_PRE_REGISTERED_HOLDOUT_WINDOW"
+        ],
+        "row_count": 13311
+      },
+      {
+        "reasons": [
+          "DYNAMIC_BUCKET_NOT_A_GRADE_ELIGIBLE",
+          "NON_POSITIVE_DECISION_TIME_EXPECTED_EDGE",
+          "NO_PRE_REGISTERED_HOLDOUT_WINDOW"
+        ],
+        "row_count": 6260
+      },
+      {
+        "reasons": [
+          "NO_PRE_REGISTERED_HOLDOUT_WINDOW"
+        ],
+        "row_count": 229
+      }
+    ],
+    "samples_by_reason": {
+      "DYNAMIC_BUCKET_NOT_A_GRADE_ELIGIBLE": [
+        {
+          "candidate_identity": "f700f273d724d541c5883042bf1e88c64899f17467bad2658497f1c13c42c004",
+          "source_kind": null,
+          "symbol": "AAVEUSDT",
+          "timeframe": "15m",
+          "side": "long",
+          "decision_time": "2026-06-12T00:45:00Z"
+        },
+        {
+          "candidate_identity": "c59fe52faacf72b143edd1fad1a4ea6d838fa43900a1f6b080582ba9de484203",
+          "source_kind": null,
+          "symbol": "AAVEUSDT",
+          "timeframe": "15m",
+          "side": "short",
+          "decision_time": "2026-06-12T00:45:00Z"
+        },
+        {
+          "candidate_identity": "0f77789cb37b2c69722810ab7b01ef865f277da030516397089bc934b7ce29f0",
+          "source_kind": null,
+          "symbol": "AAVEUSDT",
+          "timeframe": "15m",
+          "side": "long",
+          "decision_time": "2026-06-12T01:00:00Z"
+        }
+      ],
+      "NON_POSITIVE_DECISION_TIME_EXPECTED_EDGE": [
+        {
+          "candidate_identity": "f700f273d724d541c5883042bf1e88c64899f17467bad2658497f1c13c42c004",
+          "source_kind": null,
+          "symbol": "AAVEUSDT",
+          "timeframe": "15m",
+          "side": "long",
+          "decision_time": "2026-06-12T00:45:00Z"
+        },
+        {
+          "candidate_identity": "0f77789cb37b2c69722810ab7b01ef865f277da030516397089bc934b7ce29f0",
+          "source_kind": null,
+          "symbol": "AAVEUSDT",
+          "timeframe": "15m",
+          "side": "long",
+          "decision_time": "2026-06-12T01:00:00Z"
+        },
+        {
+          "candidate_identity": "07c77e72defb4549745e75b44cce3e869f7519d551e2626fe9ec21672a27b5a9",
+          "source_kind": null,
+          "symbol": "AAVEUSDT",
+          "timeframe": "15m",
+          "side": "long",
+          "decision_time": "2026-06-12T01:15:00Z"
+        }
+      ],
+      "NO_PRE_REGISTERED_HOLDOUT_WINDOW": [
+        {
+          "candidate_identity": "f700f273d724d541c5883042bf1e88c64899f17467bad2658497f1c13c42c004",
+          "source_kind": null,
+          "symbol": "AAVEUSDT",
+          "timeframe": "15m",
+          "side": "long",
+          "decision_time": "2026-06-12T00:45:00Z"
+        },
+        {
+          "candidate_identity": "c59fe52faacf72b143edd1fad1a4ea6d838fa43900a1f6b080582ba9de484203",
+          "source_kind": null,
+          "symbol": "AAVEUSDT",
+          "timeframe": "15m",
+          "side": "short",
+          "decision_time": "2026-06-12T00:45:00Z"
+        },
+        {
+          "candidate_identity": "0f77789cb37b2c69722810ab7b01ef865f277da030516397089bc934b7ce29f0",
+          "source_kind": null,
+          "symbol": "AAVEUSDT",
+          "timeframe": "15m",
+          "side": "long",
+          "decision_time": "2026-06-12T01:00:00Z"
+        }
+      ]
+    }
+  },
+  "sidecar_summary": {
+    "source_status": {
+      "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_reverify_rows.jsonl",
+      "exists": true,
+      "scanned_line_count": 0,
+      "parse_error_count": 0,
+      "parse_error_sample": [],
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "row_count": 0,
+    "symbol_count": 0,
+    "symbols_sample": [],
+    "side_counts": {},
+    "expectancy_metric": null,
+    "profit_factor": null,
+    "profit_factor_numeric": null,
+    "profit_concentration_status": {
+      "symbol": {
+        "dimension": "symbol",
+        "top_profit_share": null,
+        "status": "NO_GROSS_PROFIT"
+      },
+      "timeframe": {
+        "dimension": "timeframe",
+        "top_profit_share": null,
+        "status": "NO_GROSS_PROFIT"
+      },
+      "regime": {
+        "dimension": "regime",
+        "top_profit_share": null,
+        "status": "NO_GROSS_PROFIT"
+      },
+      "strategy": {
+        "dimension": "strategy",
+        "top_profit_share": null,
+        "status": "NO_GROSS_PROFIT"
+      }
+    }
+  },
+  "hash_chain_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_reverify_rows.jsonl.hash_chain.jsonl",
+  "paper_only": true,
+  "places_real_order": false,
+  "test_orders": false,
+  "leverage_mutation": false,
+  "margin_mode_mutation": false,
+  "old_redis_writes": false
+}

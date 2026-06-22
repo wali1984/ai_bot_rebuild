@@ -1,0 +1,110 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "checkpoint_compatibility_claimed": false,
+  "display_only": true,
+  "dry_run": true,
+  "frontend_build": "PASS",
+  "frontend_typecheck": "PASS",
+  "generated_utc": "2026-05-21T20:00:38Z",
+  "go_no_go": "V2_TOP10_MARKET_AND_ALTDATA_DASHBOARD_RENDERING_READY",
+  "leverage_changed": false,
+  "live_enabled": false,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "margin_mode_changed": false,
+  "no_live_buttons": true,
+  "no_order_buttons": true,
+  "no_provider_network_calls_from_frontend": true,
+  "no_provider_network_calls_from_renderer": true,
+  "no_shutdown_claim": true,
+  "panel_state_legend": {
+    "BUDGET_LIMITED": "Provider hit free-tier daily budget / rate limit / cooldown; rows intentionally absent.",
+    "KEY_MISSING": "Required Redis key is absent.",
+    "KEY_PRESENT_NO_CLIENT_YET": "Data path is wired but upstream client/exporter has not produced rows yet.",
+    "OK_ROWS_PRESENT": "Panel has fresh ranked rows.",
+    "STALE": "Payload exists but generated_utc is older than the panel's freshness window."
+  },
+  "panel_summary": [
+    {
+      "panel_id": "binance_spot_volume_12h",
+      "rank_count": 0,
+      "state": "KEY_PRESENT_NO_CLIENT_YET",
+      "title": "Binance Spot 12h Volume Leaders"
+    },
+    {
+      "panel_id": "binance_futures_volume_12h",
+      "rank_count": 10,
+      "state": "OK_ROWS_PRESENT",
+      "title": "Binance Futures 12h Volume Leaders"
+    },
+    {
+      "panel_id": "binance_spot_trades_12h",
+      "rank_count": 0,
+      "state": "KEY_PRESENT_NO_CLIENT_YET",
+      "title": "Binance Spot 12h Most Traded"
+    },
+    {
+      "panel_id": "binance_futures_trades_12h",
+      "rank_count": 10,
+      "state": "OK_ROWS_PRESENT",
+      "title": "Binance Futures 12h Most Traded"
+    },
+    {
+      "panel_id": "binance_spot_volatility_12h",
+      "rank_count": 0,
+      "state": "KEY_PRESENT_NO_CLIENT_YET",
+      "title": "Binance Spot 12h Volatility Leaders"
+    },
+    {
+      "panel_id": "binance_futures_volatility_12h",
+      "rank_count": 10,
+      "state": "OK_ROWS_PRESENT",
+      "title": "Binance Futures 12h Volatility Leaders"
+    },
+    {
+      "panel_id": "liquidation_tape_top_symbols",
+      "rank_count": 0,
+      "state": "KEY_PRESENT_NO_CLIENT_YET",
+      "title": "Liquidation Tape Top Symbols"
+    },
+    {
+      "panel_id": "funding_oi_movers",
+      "rank_count": 3,
+      "state": "OK_ROWS_PRESENT",
+      "title": "Funding / OI Movers"
+    },
+    {
+      "panel_id": "nansen_smart_money_top_symbols",
+      "rank_count": 0,
+      "state": "KEY_MISSING",
+      "title": "Nansen Smart Money Top Symbols"
+    },
+    {
+      "panel_id": "lunarcrush_social_momentum_top_symbols",
+      "rank_count": 0,
+      "state": "KEY_MISSING",
+      "title": "LunarCrush Social Momentum Top Symbols"
+    }
+  ],
+  "panels_budget_limited": 0,
+  "panels_key_missing": 2,
+  "panels_key_present_no_client_yet": 4,
+  "panels_ok_rows_present": 4,
+  "panels_stale": 0,
+  "panels_total": 10,
+  "policy_architecture_parity_claimed": false,
+  "raw_credential_in_payload": "NEVER",
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "renderer_payload_generated_utc": "2026-05-21T20:00:11Z",
+  "renderer_payload_path": "v2/frontend/public/v2_top10_dashboards/latest/dashboard_payload.json",
+  "renderer_worklog_path": "claude_worklog/final_readiness/v2_top10_market_and_altdata_dashboard_rendering/latest/dashboard_payload.json",
+  "schema_version": "v2_top10_market_and_altdata_dashboard_rendering_dashboard_v1",
+  "tests_total": 17,
+  "validation_sweep_status": "PASS",
+  "writes_exchange_orders": false,
+  "writes_legacy_redis": false
+}

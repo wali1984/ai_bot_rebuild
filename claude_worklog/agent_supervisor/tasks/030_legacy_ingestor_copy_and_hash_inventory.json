@@ -1,14 +1,27 @@
 {
-  "task_id": "030_legacy_ingestor_copy_and_hash_inventory",
   "agent": "system_check",
-  "risk_level": "L2",
-  "status": "pending",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": false,
   "allowed_output_prefixes": [
     "claude_worklog/phase2_core_rebuild/ingestors/",
     "v2/legacy_preserved/ingestors/"
   ],
+  "auto_commit": false,
+  "command": "python3 claude_worklog/tools/phase2_ingestor_copy_hash_inventory.py",
+  "completed_at": "2026-05-02T05:54:00.880081+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": [],
+  "emit_files": false,
+  "go_no_go_marker": "PHASE2_INGESTOR_PRESERVATION_READY",
+  "max_attempts": 1,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_recommended_action": "If GO, run Codex review for Phase 2A ingestor preservation before building adapters.",
+  "phase2_requirements": [
+    "live_coinank.py copied as-is with matching hash",
+    "all listed ingestors inventoried and hash-recorded",
+    "feature_pipeline.py treated as parity-critical",
+    "no ingestor enhancement before parity tests"
+  ],
+  "priority": 0,
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/phase2_core_rebuild/ingestors/00_SCOPE.md",
     "claude_worklog/phase2_core_rebuild/ingestors/01_INGESTOR_COPY_HASH_INVENTORY.json",
@@ -17,21 +30,9 @@
     "claude_worklog/phase2_core_rebuild/ingestors/04_GO_NO_GO.md",
     "v2/legacy_preserved/ingestors/live_coinank.py"
   ],
-  "depends_on": [],
-  "max_attempts": 1,
-  "priority": 0,
-  "auto_commit": false,
-  "command": "python3 claude_worklog/tools/phase2_ingestor_copy_hash_inventory.py",
+  "resolved_from_source_truth": true,
+  "risk_level": "L2",
   "safety_boundary": {
-    "forbidden_writes": [
-      "../AI BOT/**",
-      "/home/wali/Desktop/AI BOT/**",
-      "**/.env",
-      "**/secrets/**",
-      "claude_worklog/agent_supervisor/state/**",
-      "claude_worklog/agent_supervisor/status/**",
-      "claude_worklog/agent_supervisor/runs/**"
-    ],
     "forbidden_runtime_actions": [
       "run_legacy_ingestors",
       "write_legacy_redis",
@@ -42,15 +43,23 @@
       "deploy",
       "production_migration"
     ],
-    "live_trading_default": "BLOCKED",
-    "legacy_bot_access": "READ_ONLY"
+    "forbidden_writes": [
+      "../AI BOT/**",
+      "/home/wali/Desktop/AI BOT/**",
+      "**/.env",
+      "**/secrets/**",
+      "claude_worklog/agent_supervisor/state/**",
+      "claude_worklog/agent_supervisor/status/**",
+      "claude_worklog/agent_supervisor/runs/**"
+    ],
+    "legacy_bot_access": "READ_ONLY",
+    "live_trading_default": "BLOCKED"
   },
-  "phase2_requirements": [
-    "live_coinank.py copied as-is with matching hash",
-    "all listed ingestors inventoried and hash-recorded",
-    "feature_pipeline.py treated as parity-critical",
-    "no ingestor enhancement before parity tests"
-  ],
-  "go_no_go_marker": "PHASE2_INGESTOR_PRESERVATION_READY",
-  "next_recommended_action": "If GO, run Codex review for Phase 2A ingestor preservation before building adapters."
+  "source_truth_completed_at": "2026-05-02T05:54:00.880081+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/030_legacy_ingestor_copy_and_hash_inventory.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "030_legacy_ingestor_copy_and_hash_inventory",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

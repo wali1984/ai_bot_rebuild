@@ -1,0 +1,30 @@
+{
+  "freshness_seconds": 2320663.542773485,
+  "go_no_go": "V2_CURRENT_MIGRATION_AUDIT_BLOCKED",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "owner": "CODEX",
+  "redaction_applied": false,
+  "report_id": "current_v2_migration_audit",
+  "sanitized_summary": {
+    "go_no_go": "V2_CURRENT_MIGRATION_AUDIT_BLOCKED",
+    "pruned": {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "generated_utc": "2026-05-26T03:50:28Z",
+      "go_no_go": "V2_CURRENT_MIGRATION_AUDIT_BLOCKED",
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "schema_version": "current_v2_migration_audit_v1",
+      "status": "BLOCKED_NOT_LIVE"
+    },
+    "redaction_applied": false,
+    "redaction_token": null,
+    "status": "BLOCKED"
+  },
+  "stale": true,
+  "status": "BLOCKED",
+  "title": "Current V2 Migration Audit"
+}

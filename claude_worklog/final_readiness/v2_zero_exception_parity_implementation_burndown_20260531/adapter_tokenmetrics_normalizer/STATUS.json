@@ -1,0 +1,32 @@
+{
+  "claim": "TokenMetrics normalizer adapter boundary is present in the V2 owned runtime, and V2 alternative-data registry now tracks TokenMetrics as a disabled, redacted provider.",
+  "completed_by": "codex_takeover",
+  "confidence": "MEDIUM_HIGH",
+  "files_modified": [
+    "v2/legacy_owned_runtime/ingest/tokenmetrics_normalizer.py",
+    "v2/backend/app/services/alternative_data/provider_registry.py"
+  ],
+  "generated_est": "2026-06-03T22:44:59-04:00",
+  "generated_utc": "2026-06-04T02:44:59Z",
+  "implementation_marker": "V2_ZERO_EXCEPTION_PARITY_ADAPTER_TOKENMETRICS_NORMALIZER_CODEX_TAKEOVER_DONE",
+  "live_safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "exchange_action_taken": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "places_real_order": false,
+    "trader_execution_enabled": false,
+    "writes_exchange_orders": false,
+    "writes_legacy_redis": false
+  },
+  "milestone": "v2_zero_exception_parity_implementation_burndown_20260531",
+  "missing_evidence": "No live TokenMetrics request was made; provider remains disabled pending operator-owned credential/budget policy.",
+  "raw_evidence": "Files: v2/legacy_owned_runtime/ingest/tokenmetrics_normalizer.py and provider registry with tokenmetrics provider id.",
+  "schema_version": "zero_exception_task_status_v1",
+  "status": "DONE_VERIFIED",
+  "task_slug": "adapter_tokenmetrics_normalizer",
+  "verification_command": "python - <<'PY'\nfrom v2.backend.app.services.alternative_data.provider_registry import provider_registry_payload\nprint('tokenmetrics' in provider_registry_payload()['provider_ids'])\nPY"
+}

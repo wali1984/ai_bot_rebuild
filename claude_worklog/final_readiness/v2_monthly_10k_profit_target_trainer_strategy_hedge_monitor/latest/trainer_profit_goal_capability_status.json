@@ -1,0 +1,1533 @@
+{
+  "blocked_prediction_rows": 250,
+  "bottleneck_reason": "APPROVED_SAMPLE_SET_BELOW_TARGET_BATCH",
+  "calibration_error": null,
+  "checkpoint_age_seconds": null,
+  "checkpoint_id": "v2_hybrid_ckpt_b81193e8ca113cff44047e94",
+  "closed_trades_last_hour": 0,
+  "confidence_distribution": {
+    "count": 385,
+    "high_count": 20,
+    "low_count": 273,
+    "max": 0.70197447,
+    "median": 0.47394137,
+    "mid_count": 92,
+    "min": 0.45632283
+  },
+  "cuda_active": true,
+  "expected_move_distribution": {
+    "count": 385,
+    "max_bps": 7.85722637,
+    "median_bps": 0.0,
+    "min_bps": -81.06775665,
+    "positive_count": 9
+  },
+  "generated_est": "2026-06-21T19:16:35-04:00",
+  "loss_trend": {
+    "loss_after": 7.31439733505249,
+    "loss_before": 7.598814964294434
+  },
+  "missing_prediction_input_diagnostics_by_symbol": {
+    "ACEUSDT": {
+      "likely_root_cause": "MISSING_CANONICAL_CLOSED_CANDLE_COVERAGE",
+      "missing_closed_candle_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_feature_payload_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_prediction_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ]
+    },
+    "AGTUSDT": {
+      "likely_root_cause": "MISSING_CANONICAL_CLOSED_CANDLE_COVERAGE",
+      "missing_closed_candle_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_feature_payload_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_prediction_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ]
+    },
+    "AXSUSDT": {
+      "likely_root_cause": "MISSING_CANONICAL_CLOSED_CANDLE_COVERAGE",
+      "missing_closed_candle_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_feature_payload_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_prediction_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ]
+    },
+    "BELUSDT": {
+      "likely_root_cause": "MISSING_CANONICAL_CLOSED_CANDLE_COVERAGE",
+      "missing_closed_candle_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_feature_payload_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_prediction_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ]
+    },
+    "BICOUSDT": {
+      "likely_root_cause": "MISSING_CANONICAL_CLOSED_CANDLE_COVERAGE",
+      "missing_closed_candle_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_feature_payload_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_prediction_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ]
+    },
+    "BTWUSDT": {
+      "likely_root_cause": "MISSING_CANONICAL_CLOSED_CANDLE_COVERAGE",
+      "missing_closed_candle_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_feature_payload_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_prediction_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ]
+    },
+    "CLOUSDT": {
+      "likely_root_cause": "MISSING_CANONICAL_CLOSED_CANDLE_COVERAGE",
+      "missing_closed_candle_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_feature_payload_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_prediction_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ]
+    },
+    "DYMUSDT": {
+      "likely_root_cause": "MISSING_CANONICAL_CLOSED_CANDLE_COVERAGE",
+      "missing_closed_candle_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_feature_payload_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_prediction_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ]
+    },
+    "ENSUSDT": {
+      "likely_root_cause": "MISSING_CANONICAL_CLOSED_CANDLE_COVERAGE",
+      "missing_closed_candle_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_feature_payload_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_prediction_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ]
+    },
+    "IDUSDT": {
+      "likely_root_cause": "MISSING_CANONICAL_CLOSED_CANDLE_COVERAGE",
+      "missing_closed_candle_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_feature_payload_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_prediction_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ]
+    },
+    "IOUSDT": {
+      "likely_root_cause": "MISSING_CANONICAL_CLOSED_CANDLE_COVERAGE",
+      "missing_closed_candle_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_feature_payload_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_prediction_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ]
+    },
+    "MANAUSDT": {
+      "likely_root_cause": "MISSING_CANONICAL_CLOSED_CANDLE_COVERAGE",
+      "missing_closed_candle_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_feature_payload_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_prediction_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ]
+    },
+    "METUSDT": {
+      "likely_root_cause": "MISSING_CANONICAL_CLOSED_CANDLE_COVERAGE",
+      "missing_closed_candle_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_feature_payload_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_prediction_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ]
+    },
+    "ORDIUSDT": {
+      "likely_root_cause": "MISSING_CANONICAL_CLOSED_CANDLE_COVERAGE",
+      "missing_closed_candle_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_feature_payload_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_prediction_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ]
+    },
+    "RAREUSDT": {
+      "likely_root_cause": "MISSING_CANONICAL_CLOSED_CANDLE_COVERAGE",
+      "missing_closed_candle_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_feature_payload_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_prediction_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ]
+    },
+    "RESOLVUSDT": {
+      "likely_root_cause": "MISSING_CANONICAL_CLOSED_CANDLE_COVERAGE",
+      "missing_closed_candle_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_feature_payload_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_prediction_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ]
+    },
+    "REUSDT": {
+      "likely_root_cause": "MISSING_CANONICAL_CLOSED_CANDLE_COVERAGE",
+      "missing_closed_candle_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_feature_payload_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_prediction_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ]
+    },
+    "SAGAUSDT": {
+      "likely_root_cause": "MISSING_CANONICAL_CLOSED_CANDLE_COVERAGE",
+      "missing_closed_candle_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_feature_payload_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_prediction_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ]
+    },
+    "SANDUSDT": {
+      "likely_root_cause": "MISSING_CANONICAL_CLOSED_CANDLE_COVERAGE",
+      "missing_closed_candle_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_feature_payload_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_prediction_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ]
+    },
+    "SYNUSDT": {
+      "likely_root_cause": "MISSING_CANONICAL_CLOSED_CANDLE_COVERAGE",
+      "missing_closed_candle_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_feature_payload_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_prediction_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ]
+    },
+    "TNSRUSDT": {
+      "likely_root_cause": "MISSING_CANONICAL_CLOSED_CANDLE_COVERAGE",
+      "missing_closed_candle_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_feature_payload_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_prediction_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ]
+    },
+    "UBUSDT": {
+      "likely_root_cause": "MISSING_CANONICAL_CLOSED_CANDLE_COVERAGE",
+      "missing_closed_candle_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_feature_payload_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_prediction_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ]
+    },
+    "WUSDT": {
+      "likely_root_cause": "MISSING_CANONICAL_CLOSED_CANDLE_COVERAGE",
+      "missing_closed_candle_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_feature_payload_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "missing_prediction_timeframes": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "4h"
+      ]
+    }
+  },
+  "missing_prediction_input_reason_counts": {
+    "MISSING_CANONICAL_CLOSED_CANDLE_COVERAGE": 115,
+    "MISSING_FEATURE_PAYLOAD": 115
+  },
+  "missing_prediction_rows_count": 115,
+  "missing_prediction_symbol_count": 23,
+  "missing_prediction_symbols": [
+    "ACEUSDT",
+    "AGTUSDT",
+    "AXSUSDT",
+    "BELUSDT",
+    "BICOUSDT",
+    "BTWUSDT",
+    "CLOUSDT",
+    "DYMUSDT",
+    "ENSUSDT",
+    "IDUSDT",
+    "IOUSDT",
+    "MANAUSDT",
+    "METUSDT",
+    "ORDIUSDT",
+    "RAREUSDT",
+    "RESOLVUSDT",
+    "REUSDT",
+    "SAGAUSDT",
+    "SANDUSDT",
+    "SYNUSDT",
+    "TNSRUSDT",
+    "UBUSDT",
+    "WUSDT"
+  ],
+  "missing_prediction_timeframes_by_symbol": {
+    "ACEUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "AGTUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "AXSUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "BELUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "BICOUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "BTWUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "CLOUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "DYMUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "ENSUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "IDUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "IOUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "MANAUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "METUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "ORDIUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "RAREUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "RESOLVUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "REUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "SAGAUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "SANDUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "SYNUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "TNSRUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "UBUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "WUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ]
+  },
+  "outcome_labels_last_hour": 0,
+  "paper_actionability_allowed_rows_count": 0,
+  "paper_actionability_block_reason_counts": {},
+  "paper_actionability_blocked_rows_count": 0,
+  "paper_pnl_by_checkpoint": {
+    "v2_hybrid_ckpt_b81193e8ca113cff44047e94": 56.49408454
+  },
+  "prediction_grid_current": true,
+  "prediction_grid_rows": 500,
+  "publisher_expected_symbol_count": 100,
+  "samples_seen_last_hour": 1907.248128,
+  "schema_version": "trainer_profit_goal_capability_status_v1",
+  "stale_prediction_rows_count": 385,
+  "stale_prediction_symbol_count": 77,
+  "stale_prediction_symbols": [
+    "1000BONKUSDT",
+    "1000FLOKIUSDT",
+    "1000PEPEUSDT",
+    "1000SHIBUSDT",
+    "AAVEUSDT",
+    "ADAUSDT",
+    "AEROUSDT",
+    "ALICEUSDT",
+    "ALLOUSDT",
+    "APTUSDT",
+    "ARBUSDT",
+    "ASTERUSDT",
+    "AUCTIONUSDT",
+    "AVAXUSDT",
+    "AVNTUSDT",
+    "BANKUSDT",
+    "BARDUSDT",
+    "BCHUSDT",
+    "BNBUSDT",
+    "BTCUSDT",
+    "CAKEUSDT",
+    "CHZUSDT",
+    "CRVUSDT",
+    "DASHUSDT",
+    "DOGEUSDT",
+    "DOTUSDT",
+    "EIGENUSDT",
+    "ENAUSDT",
+    "EPICUSDT",
+    "ETCUSDT",
+    "ETHUSDT",
+    "FARTCOINUSDT",
+    "FETUSDT",
+    "FILUSDT",
+    "HBARUSDT",
+    "HYPEUSDT",
+    "ICPUSDT",
+    "INJUSDT",
+    "IPUSDT",
+    "JTOUSDT",
+    "JUPUSDT",
+    "KITEUSDT",
+    "LABUSDT",
+    "LINKUSDT",
+    "LTCUSDT",
+    "MEGAUSDT",
+    "NEARUSDT",
+    "ONDOUSDT",
+    "OPUSDT",
+    "PAXGUSDT",
+    "PENDLEUSDT",
+    "PENGUUSDT",
+    "PIPPINUSDT",
+    "POLUSDT",
+    "PUMPUSDT",
+    "RAVEUSDT",
+    "RENDERUSDT",
+    "RIVERUSDT",
+    "SEIUSDT",
+    "SLXUSDT",
+    "SOLUSDT",
+    "SUIUSDT",
+    "SUNUSDT",
+    "TAOUSDT",
+    "TRUMPUSDT",
+    "TRXUSDT",
+    "UNIUSDT",
+    "VIRTUALUSDT",
+    "WIFUSDT",
+    "WLDUSDT",
+    "XAUTUSDT",
+    "XLMUSDT",
+    "XMRUSDT",
+    "XPLUSDT",
+    "XRPUSDT",
+    "ZECUSDT",
+    "ZROUSDT"
+  ],
+  "stale_prediction_timeframes_by_symbol": {
+    "1000BONKUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "1000FLOKIUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "1000PEPEUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "1000SHIBUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "AAVEUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "ADAUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "AEROUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "ALICEUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "ALLOUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "APTUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "ARBUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "ASTERUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "AUCTIONUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "AVAXUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "AVNTUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "BANKUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "BARDUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "BCHUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "BNBUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "BTCUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "CAKEUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "CHZUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "CRVUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "DASHUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "DOGEUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "DOTUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "EIGENUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "ENAUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "EPICUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "ETCUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "ETHUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "FARTCOINUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "FETUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "FILUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "HBARUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "HYPEUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "ICPUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "INJUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "IPUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "JTOUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "JUPUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "KITEUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "LABUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "LINKUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "LTCUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "MEGAUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "NEARUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "ONDOUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "OPUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "PAXGUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "PENDLEUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "PENGUUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "PIPPINUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "POLUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "PUMPUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "RAVEUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "RENDERUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "RIVERUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "SEIUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "SLXUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "SOLUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "SUIUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "SUNUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "TAOUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "TRUMPUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "TRXUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "UNIUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "VIRTUALUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "WIFUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "WLDUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "XAUTUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "XLMUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "XMRUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "XPLUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "XRPUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "ZECUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "ZROUSDT": [
+      "1m",
+      "5m",
+      "15m",
+      "1h",
+      "4h"
+    ]
+  },
+  "trainer_capability_status": "TRAINER_ACTIVE_BUT_INSUFFICIENT_FEEDBACK",
+  "trainer_expected_missing_from_redis_symbols": [
+    "1000BONKUSDT",
+    "1000FLOKIUSDT",
+    "1000PEPEUSDT",
+    "1000SHIBUSDT",
+    "AAVEUSDT",
+    "ACEUSDT",
+    "ADAUSDT",
+    "AEROUSDT",
+    "AGTUSDT",
+    "ALICEUSDT",
+    "ALLOUSDT",
+    "APTUSDT",
+    "ARBUSDT",
+    "ASTERUSDT",
+    "AUCTIONUSDT",
+    "AVAXUSDT",
+    "AVNTUSDT",
+    "AXSUSDT",
+    "BANKUSDT",
+    "BARDUSDT",
+    "BCHUSDT",
+    "BELUSDT",
+    "BICOUSDT",
+    "BNBUSDT",
+    "BTCUSDT",
+    "BTWUSDT",
+    "CAKEUSDT",
+    "CHZUSDT",
+    "CLOUSDT",
+    "CRVUSDT",
+    "DASHUSDT",
+    "DOGEUSDT",
+    "DOTUSDT",
+    "DYMUSDT",
+    "EIGENUSDT",
+    "ENAUSDT",
+    "ENSUSDT",
+    "EPICUSDT",
+    "ETCUSDT",
+    "ETHUSDT",
+    "FARTCOINUSDT",
+    "FETUSDT",
+    "FILUSDT",
+    "HBARUSDT",
+    "HYPEUSDT",
+    "ICPUSDT",
+    "IDUSDT",
+    "INJUSDT",
+    "IOUSDT",
+    "IPUSDT",
+    "JTOUSDT",
+    "JUPUSDT",
+    "KITEUSDT",
+    "LABUSDT",
+    "LINKUSDT",
+    "LTCUSDT",
+    "MANAUSDT",
+    "MEGAUSDT",
+    "METUSDT",
+    "NEARUSDT",
+    "ONDOUSDT",
+    "OPUSDT",
+    "ORDIUSDT",
+    "PAXGUSDT",
+    "PENDLEUSDT",
+    "PENGUUSDT",
+    "PIPPINUSDT",
+    "POLUSDT",
+    "PUMPUSDT",
+    "RAREUSDT",
+    "RAVEUSDT",
+    "RENDERUSDT",
+    "RESOLVUSDT",
+    "REUSDT",
+    "RIVERUSDT",
+    "SAGAUSDT",
+    "SANDUSDT",
+    "SEIUSDT",
+    "SLXUSDT",
+    "SOLUSDT",
+    "SUIUSDT",
+    "SUNUSDT",
+    "SYNUSDT",
+    "TAOUSDT",
+    "TNSRUSDT",
+    "TRUMPUSDT",
+    "TRXUSDT",
+    "UBUSDT",
+    "UNIUSDT",
+    "VIRTUALUSDT",
+    "WIFUSDT",
+    "WLDUSDT",
+    "WUSDT",
+    "XAUTUSDT",
+    "XLMUSDT",
+    "XMRUSDT",
+    "XPLUSDT",
+    "XRPUSDT",
+    "ZECUSDT",
+    "ZROUSDT"
+  ],
+  "trainer_expected_symbol_mismatch_count": 100,
+  "trainer_feedback_rows_last_hour": 0,
+  "trainer_prediction_redis_symbol_count": 0,
+  "trainer_recent_redis_residue_symbol_count": 0,
+  "trainer_recent_redis_residue_symbols": [],
+  "trainer_redis_extra_prediction_symbols": [],
+  "trainer_redis_extra_prediction_timeframes_by_symbol": {},
+  "trainer_source": "V2_NATIVE_RL_MASA_PPO_CUDA_TRAINER_PAPER_SHADOW",
+  "trainer_stale_prediction_redis_symbol_count": 0,
+  "trainer_stale_redis_prediction_symbols": [],
+  "trainer_stale_redis_prediction_timeframes_by_symbol": {},
+  "trainer_symbol_universe_alignment_status": "TRAINER_PUBLISHER_SYMBOL_UNIVERSE_MISMATCH",
+  "trainer_unknown_time_prediction_redis_symbol_count": 0,
+  "trainer_unknown_time_redis_prediction_symbols": [],
+  "trainer_unknown_time_redis_prediction_timeframes_by_symbol": {},
+  "training_loop_active": true,
+  "training_steps_last_hour": 16,
+  "training_steps_total": 445648
+}

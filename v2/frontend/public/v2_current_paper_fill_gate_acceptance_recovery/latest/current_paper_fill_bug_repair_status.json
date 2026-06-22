@@ -1,0 +1,21 @@
+{
+  "accepted_fills_after_repair": 6,
+  "bug_block_count_after_repair": 0,
+  "exact_reason_if_no_acceptance": "ALL_CURRENT_HELD_ROWS_CLASSIFIED_VALID_BLOCK",
+  "generated_est": "2026-06-09T15:07:21-04:00",
+  "generated_utc": "2026-06-09T19:07:21Z",
+  "overstrict_block_count_after_repair": 0,
+  "repairs_applied": [
+    {
+      "after": 738,
+      "before": 738,
+      "repair": "paper_loop_reads_per_symbol_v2_signals_paper_keys",
+      "status": "APPLIED"
+    },
+    {
+      "repair": "held_rows_preserve_prediction_metrics_and_lineage_context",
+      "status": "APPLIED"
+    }
+  ],
+  "schema_version": "current_paper_fill_bug_repair_status_v1"
+}

@@ -1,0 +1,68 @@
+{
+  "schema_id": "v2_closed_loop_claude_codex_execution_engine_task_lifecycle_v1",
+  "description": "Canonical lifecycle envelope for every Claude / Codex task consumed by the V2 closed-loop execution engine. The engine refuses to operate on descriptors that fail this contract.",
+  "safety_envelope": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "writes_old_redis": false,
+    "calls_exchange_mutation": false,
+    "modifies_legacy_repo": false
+  },
+  "task_types": [
+    "CLAUDE_IMPLEMENTATION",
+    "CODEX_REVIEW",
+    "CODEX_TAKEOVER",
+    "REMEDIATION"
+  ],
+  "statuses": [
+    "pending",
+    "running",
+    "completed",
+    "failed",
+    "stale",
+    "blocked_operator_required",
+    "duplicate_suppressed"
+  ],
+  "fields": {
+    "task_id": {"type": "string", "required": true, "description": "Stable opaque id; filename-derived if absent."},
+    "task_type": {"type": "string", "enum_ref": "task_types", "required": true},
+    "status": {"type": "string", "enum_ref": "statuses", "required": true, "default": "pending"},
+    "owner": {"type": "string", "enum": ["CLAUDE", "CODEX", "OPERATOR", "SYSTEM"], "required": true},
+    "file_lock_group": {"type": "string", "required": true, "description": "All tasks sharing this key serialize their edits; the runner refuses parallel execution of the same lock group."},
+    "created_at": {"type": "string", "format": "iso8601_utc", "required": true},
+    "started_at": {"type": "string", "format": "iso8601_utc", "required": false},
+    "updated_at": {"type": "string", "format": "iso8601_utc", "required": true},
+    "completed_at": {"type": "string", "format": "iso8601_utc", "required": false},
+    "pid_or_job_id": {"type": ["integer", "string", "null"], "required": false, "description": "Real OS process id or supervisor job id while running. Engine refuses to mark active without this."},
+    "log_path": {"type": "string", "required": false, "description": "Path to the per-task log under claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/."},
+    "expected_output_paths": {"type": "array", "items": {"type": "string"}, "required": true, "description": "Paths the runner watches to confirm completion (GO_NO_GO, CODEX_REVIEW, etc.)."},
+    "codex_pair_task_id": {"type": ["string", "null"], "required": false, "description": "For CLAUDE_IMPLEMENTATION tasks, the paired Codex review task id; for CODEX_REVIEW, the Claude task it reviews."},
+    "fail_blockers": {"type": "array", "items": {"type": "string"}, "required": false, "default": []},
+    "next_action": {"type": ["string", "null"], "required": false},
+    "stall_count": {"type": "integer", "required": false, "default": 0, "description": "Number of times the engine relaunched this task after stall."},
+    "max_stall_relaunches": {"type": "integer", "required": false, "default": 1, "description": "Engine relaunches once; on second stall it escalates per spec."},
+    "stall_threshold_seconds": {"type": "integer", "required": false, "default": 600, "description": "10-minute no-progress window before marking stale."},
+    "duplicate_suppression_key": {"type": ["string", "null"], "required": false, "description": "If two pending tasks share this key, the second is marked duplicate_suppressed."},
+    "operator_required_reason": {"type": ["string", "null"], "required": false}
+  },
+  "transitions": {
+    "pending": ["running", "duplicate_suppressed", "blocked_operator_required"],
+    "running": ["completed", "failed", "stale", "blocked_operator_required"],
+    "stale": ["running", "failed", "blocked_operator_required"],
+    "failed": ["pending", "blocked_operator_required"],
+    "completed": [],
+    "duplicate_suppressed": [],
+    "blocked_operator_required": ["pending"]
+  },
+  "ready_invariants": [
+    "active_lane_count is computed from real running pid_or_job_id values, never from descriptors alone",
+    "duplicate_suppression_key collisions never produce two simultaneously running tasks",
+    "file_lock_group collisions never produce two simultaneously running tasks",
+    "stall_count is monotonically non-decreasing and never exceeds max_stall_relaunches without a takeover or remediation descriptor being created",
+    "CLAUDE_EXECUTOR_NOT_AVAILABLE_OPERATOR_ACTION_REQUIRED, when emitted, blocks the ready marker"
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "generated_est": "2026-06-15T18:09:53-04:00",
+  "live_allowed": false,
+  "paper_only": true,
+  "rows": [
+    {
+      "confidence": 0.438,
+      "direction": "blocked",
+      "evidence_score": 0.16,
+      "expected_move_after_cost_bps": 1.177819,
+      "explanation": "BTCUSDT 1m did not create a paper candidate because EVIDENCE_SCORE_BELOW_THRESHOLD.",
+      "live_allowed": false,
+      "major_move_signal_id": "major_move_4289e558f99b896893f72c03",
+      "move_probability": 0.396,
+      "paper_only": true,
+      "reasons": [
+        "btc_eth_sol_correlated_regime"
+      ],
+      "regime": "correlated_breakout_squeeze",
+      "reject_reasons": [
+        "EVIDENCE_SCORE_BELOW_THRESHOLD"
+      ],
+      "symbol": "BTCUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "confidence": 0.438,
+      "direction": "blocked",
+      "evidence_score": 0.16,
+      "expected_move_after_cost_bps": -0.61154,
+      "explanation": "ETHUSDT 1m did not create a paper candidate because EVIDENCE_SCORE_BELOW_THRESHOLD, EXPECTED_MOVE_AFTER_COST_NOT_POSITIVE.",
+      "live_allowed": false,
+      "major_move_signal_id": "major_move_2a70d8a16660c9f4934d00d5",
+      "move_probability": 0.396,
+      "paper_only": true,
+      "reasons": [
+        "btc_eth_sol_correlated_regime"
+      ],
+      "regime": "correlated_breakout_squeeze",
+      "reject_reasons": [
+        "EVIDENCE_SCORE_BELOW_THRESHOLD",
+        "EXPECTED_MOVE_AFTER_COST_NOT_POSITIVE"
+      ],
+      "symbol": "ETHUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "confidence": 0.438,
+      "direction": "blocked",
+      "evidence_score": 0.16,
+      "expected_move_after_cost_bps": 2.652475,
+      "explanation": "SOLUSDT 1m did not create a paper candidate because EVIDENCE_SCORE_BELOW_THRESHOLD.",
+      "live_allowed": false,
+      "major_move_signal_id": "major_move_126949f5ad73183030987eda",
+      "move_probability": 0.396,
+      "paper_only": true,
+      "reasons": [
+        "btc_eth_sol_correlated_regime"
+      ],
+      "regime": "correlated_breakout_squeeze",
+      "reject_reasons": [
+        "EVIDENCE_SCORE_BELOW_THRESHOLD"
+      ],
+      "symbol": "SOLUSDT",
+      "timeframe": "1m"
+    }
+  ],
+  "status": "READY"
+}

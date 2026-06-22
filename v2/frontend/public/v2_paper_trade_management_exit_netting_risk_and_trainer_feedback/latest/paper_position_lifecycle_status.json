@@ -1,0 +1,19 @@
+{
+  "gate": "V2_PAPER_TRADE_MANAGEMENT_EXIT_NETTING_RISK_AND_TRAINER_FEEDBACK_READY",
+  "status": "PASS",
+  "generated_utc": "2026-06-11T20:27:36Z",
+  "runtime_evidence_file": "v2/frontend/public/operator_runtime/v2_paper_trade_management/latest/paper_position_lifecycle_status.json",
+  "state_machine": "NEW_SIGNAL->ENTRY_CHECK->OPEN_POSITION->HOLD->REDUCE->CLOSE->CLOSED->OUTCOME_LABEL_WRITTEN",
+  "open_positions_count_runtime_sample": 6,
+  "closed_positions_count_runtime_sample": 1,
+  "new_close_event_count_runtime_sample": 1,
+  "outcome_label_count_runtime_sample": 1,
+  "verified": {
+    "paper_position_can_not_stack_indefinitely": true,
+    "same_side_netting_enabled": true,
+    "opposite_side_reduce_or_close_before_reverse": true,
+    "realized_pnl_written_on_close": true,
+    "outcome_label_written_on_close": true
+  }
+}
+

@@ -1,0 +1,30 @@
+{
+  "schema_version": "trainer_data_feed_burndown_status_v1",
+  "milestone": "v2_zero_exception_parity_implementation_burndown",
+  "phase": 5,
+  "generated_est": "2026-05-31T01:36:00-0400",
+  "generated_utc": "2026-05-31T05:36:00Z",
+  "trainer_mode": "PARITY_BRIDGE",
+  "trainer_data_feed_real_input_count_by_namespace": {
+    "v2:market:prices:*": 27,
+    "v2:market:funding:*": 25,
+    "v2:market:open_interest:*": 25,
+    "v2:market:ohlcv:binance:*:1m": 19,
+    "v2:market:orderbook:*": 37,
+    "v2:features:latest:*": 38,
+    "v2:unified_features:*": 170,
+    "v2:liquidations:events_XLEN": 0,
+    "v2:market:coinank:*": 0,
+    "v2:market:kucoin:*": 0,
+    "v2:market:coinapi:*": 0,
+    "v2:altdata:nansen:*": 28,
+    "v2:altdata:lunarcrush:*": 1
+  },
+  "v2_native_trainer_ready": false,
+  "v2_native_trainer_ready_blockers": [
+    "no_native_training_loop_in_v2_trainer_surface",
+    "WRAPPER_NOT_LEGACY_HYBRID_PARITY"
+  ],
+  "claim_that_would_be_dishonest": "V2_NATIVE_TRAINER_READY",
+  "live_safety": {"live_gate_status": "blocked_human_only", "live_symbols": []}
+}

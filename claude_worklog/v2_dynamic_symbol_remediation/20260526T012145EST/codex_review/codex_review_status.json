@@ -1,0 +1,190 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "claude_claimed_go_no_go": "V2_DYNAMIC_SYMBOL_AND_COPIED_COMPONENT_RUNTIME_REMEDIATION_READY",
+  "codex_go_no_go": "V2_DYNAMIC_SYMBOL_COPIED_COMPONENT_RUNTIME_REMEDIATION_CODEX_FAIL",
+  "credentials_values_exposed": false,
+  "fail_reasons": [
+    {
+      "evidence": [
+        "ai-bot-v2-feature-pipeline-native-loop.service runs v2_feature_pipeline_native_loop with no --symbols override; source DEFAULT_SYMBOLS is BTCUSDT,ETHUSDT,SOLUSDT.",
+        "ai-bot-v2-native-ingestors-live-loop.service runs v2_native_ingestors_live_loop with no --symbols override; source DEFAULT_SYMBOLS is BTCUSDT,ETHUSDT,SOLUSDT.",
+        "ai-bot-v2-rl-core-inference-loop.service runs v2_rl_core_inference_loop with no --symbols override; source DEFAULT_SYMBOLS is BTCUSDT,ETHUSDT,SOLUSDT.",
+        "ai-bot-v2-liquidation-wss-paper-shadow.service runs v2_liquidation_wss_loop with no --symbols override; source default is BTCUSDT,ETHUSDT,SOLUSDT.",
+        "ai-bot-v2-position-history-persistent-tracker.service explicitly passes --symbols BTCUSDT,ETHUSDT,SOLUSDT with no smoke-test flag.",
+        "current operator_runtime/v2_rl_core/live payload still reports symbols=[BTCUSDT,ETHUSDT,SOLUSDT]."
+      ],
+      "owner": "Claude implementation, Spark runtime wiring, Codex review",
+      "remediation": "Patch every active service entrypoint to use the central dynamic symbol resolver with the 25-symbol baseline minimum; add explicit --smoke-test-only mode for 3-symbol runs; update systemd units and rerun after Codex review.",
+      "severity": "HIGH",
+      "summary": "Active runtime lanes still default to or explicitly run BTC/ETH/SOL without smoke-test mode."
+    },
+    {
+      "evidence": [
+        "ai-bot-v2-paper-online-runtime.service runs paper_online_runtime without --symbol; source default is BTCUSDT.",
+        "ai-bot-v2-feature-snapshot-builder.service runs v2_feature_snapshot_builder without --symbol; source default is BTCUSDT.",
+        "Additional BTC-only defaults remain in v2_feature_pipeline_native.py, v2_market_ingestor.py, v2_owned_ingestors_runtime.py, v2_owned_trainer_runtime.py, and readonly_market_exchange_data_plane.py."
+      ],
+      "owner": "Claude implementation, Codex review",
+      "remediation": "Remove BTC-only production defaults. If a single-symbol smoke tool is needed, require an explicit --smoke-test flag or explicit --symbol argument and label it smoke-only.",
+      "severity": "HIGH",
+      "summary": "BTC-only defaults remain."
+    },
+    {
+      "evidence": [
+        "copied_component_persistent_runtime_status.json marks live_coinank, live_coinank_global_aggregator, liquidation_bridge, liquidation_levels_engine, and live_technical_analysis as persistent while v2_systemd_active=false.",
+        "The visible GNOME logs rerun commands such as v2_coinank_and_liquidation_bridge --once and v2_feature_pipeline_and_ta_worker --once.",
+        "CoinAnk copied-component evidence still shows v2:market:coinank:* count 0."
+      ],
+      "owner": "Spark scheduling, Claude implementation, Codex review",
+      "remediation": "Do not count recurrent one-shot terminal loops as persistent runtime. Create reviewed systemd units or explicitly classify these copied components as blocked until the persistent wrapper exists and emits nonzero runtime evidence where applicable.",
+      "severity": "HIGH",
+      "summary": "Copied safe ingestors are not all proven persistent; several are recurring one-shot wrappers."
+    },
+    {
+      "evidence": [
+        "trainer_runtime_correction_status.json reports current_runtime_mode=V2_NATIVE_BASELINE_PAPER_SHADOW.",
+        "The active v2_trainer_bridge public status reports trainer_mode_one_of_PARITY_BRIDGE_V2_NATIVE=PARITY_BRIDGE.",
+        "The active v2_rl_core live payload is still 3-symbol scoped."
+      ],
+      "owner": "Claude implementation",
+      "remediation": "Separate labels for PARITY_BRIDGE, V2_NATIVE_BASELINE, and copied-legacy trainer modes. Do not call bridge/copy-derived evidence V2-native; keep prediction writes under v2:prediction:* only.",
+      "severity": "MEDIUM",
+      "summary": "Trainer labeling is not fully honest/consistent."
+    },
+    {
+      "evidence": [
+        "website_trading_platform_runtime_status.json is a declarative status packet, not a rendered runtime proof.",
+        "Report Center did not have a lane for v2_dynamic_symbol_remediation before the Codex fix.",
+        "Current Report Center executive payload still showed dynamic market coverage as 3 symbols before this Codex override."
+      ],
+      "owner": "Frontend/Report Center",
+      "remediation": "Surface this lane in Report Center and trading-platform pages with explicit FAIL/BLOCKED state, active service symbol scopes, copied-component blockers, and missing runtime components.",
+      "severity": "MEDIUM",
+      "summary": "Website evidence does not yet prove a truthful trading-platform runtime view."
+    }
+  ],
+  "live_symbols": [],
+  "no_canary_approval": true,
+  "no_exchange_mutation_observed": true,
+  "no_legacy_root_runtime_restarted_by_codex": true,
+  "no_live_approval": true,
+  "no_margin_or_leverage_mutation_observed": true,
+  "no_real_order_attempted": true,
+  "no_real_order_submitted": true,
+  "old_redis_observation": {
+    "current_counts": {
+      "*leverage*": 0,
+      "*margin*": 0,
+      "coinank:*": 48,
+      "exchange:order:*": 0,
+      "features:coinank:*": 1564,
+      "kc:*": 150,
+      "live_orders:*": 0,
+      "ohlcv:list:*": 25,
+      "orchestrator:*": 0,
+      "prediction:*": 1,
+      "price:*": 31,
+      "signals:trading:*": 2,
+      "ta:*": 150
+    },
+    "new_old_redis_writer_proven": false,
+    "old_key_presence_still_exists": true,
+    "raw_old_redis_components_blocked": [
+      "v2/legacy_owned_runtime/ingest/live_coinapi_wsds.py",
+      "v2/legacy_owned_runtime/ingest/live_coinapi_v1.py"
+    ]
+  },
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "review_checks": [
+    {
+      "id": 1,
+      "name": "No BTC-only default remains",
+      "status": "FAIL",
+      "summary": "BTC-only defaults remain in active paper_online_runtime and feature_snapshot_builder lanes and in additional CLI files."
+    },
+    {
+      "id": 2,
+      "name": "No BTC/ETH/SOL default remains outside explicit smoke-test mode",
+      "status": "FAIL",
+      "summary": "Several active services still default to or explicitly pass BTCUSDT,ETHUSDT,SOLUSDT with no smoke-test flag."
+    },
+    {
+      "id": 3,
+      "name": "Dynamic universe or 25-symbol baseline is default",
+      "status": "PARTIAL",
+      "summary": "The four remediated CLIs now resolve 27 symbols, but other active runtime services still use 3-symbol or BTC-only scopes."
+    },
+    {
+      "id": 4,
+      "name": "Copied safe ingestors are running persistently, not one-shot",
+      "status": "FAIL",
+      "summary": "Several copied-component wrappers are terminal loops that rerun --once commands and have v2_systemd_active=false."
+    },
+    {
+      "id": 5,
+      "name": "Old Redis writes are blocked or adapted to v2:*",
+      "status": "PASS_WITH_CAVEAT",
+      "summary": "Raw coinapi old-writer copies are blocked and V2 wrappers claim v2:* writes, but old key presence remains and writer proof is not complete."
+    },
+    {
+      "id": 6,
+      "name": "Trainer copied mode labelled honestly and writes only v2:prediction:*",
+      "status": "PARTIAL",
+      "summary": "Prediction writes are v2:* in active RL core status, but packet trainer mode conflicts with active trainer bridge PARITY_BRIDGE labeling."
+    },
+    {
+      "id": 7,
+      "name": "Website shows trading-platform runtime state",
+      "status": "FAIL",
+      "summary": "Packet is declarative; Report Center lacked this lane before Codex and did not expose the active-symbol-scope failure."
+    },
+    {
+      "id": 8,
+      "name": "GNOME terminals show visible output",
+      "status": "PASS_WITH_CAVEAT",
+      "summary": "GNOME logs have visible heartbeats, but they show repeated --once reruns rather than persistent service ownership."
+    },
+    {
+      "id": 9,
+      "name": "No legacy root runtime restarted",
+      "status": "PASS",
+      "summary": "Process scan found no /home/wali/Desktop/AI BOT root runtime process."
+    },
+    {
+      "id": 10,
+      "name": "No live/canary/order/leverage/margin endpoint",
+      "status": "PASS",
+      "summary": "No order/live/leverage/margin Redis evidence and all reviewed payloads keep live disabled."
+    },
+    {
+      "id": 11,
+      "name": "No old Redis writes",
+      "status": "PARTIAL",
+      "summary": "No new writer was proven, but old namespaces still exist and the packet does not fully prove every active writer is v2-only."
+    },
+    {
+      "id": 12,
+      "name": "LIVE_GATE=blocked_human_only",
+      "status": "PASS",
+      "summary": "Reviewed payloads and report-center state keep live_gate blocked_human_only."
+    },
+    {
+      "id": 13,
+      "name": "live_symbols=[]",
+      "status": "PASS",
+      "summary": "Reviewed payloads keep live_symbols empty."
+    }
+  ],
+  "safe_fixes_applied_by_codex": [
+    "Created Codex FAIL review artifacts.",
+    "Updated the remediation operator-dashboard payload to expose Codex FAIL.",
+    "Registered the remediation lane in Report Center as live/shutdown/production-equivalence blocking.",
+    "No trading, Redis trim/delete, legacy restart, live/canary approval, order, leverage, or margin mutation performed."
+  ],
+  "ts_est": "20260526T013642EST",
+  "ts_iso_est": "2026-05-26T01:36:42-0400",
+  "writes_exchange_orders": false
+}

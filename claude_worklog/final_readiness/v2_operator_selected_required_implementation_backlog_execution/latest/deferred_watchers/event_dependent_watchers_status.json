@@ -1,0 +1,52 @@
+{
+  "schema_version": "v2_event_dependent_watchers_defer_status_v1",
+  "generated_utc": "2026-05-25T06:15:00Z",
+  "git_head": "10513bbe0517fd81c9c87e4672bb15486a083c02",
+  "purpose": "Maintain watcher state for DEFERRED event-dependent observation blocker. Real per-symbol liquidation events required; no synthetic completion.",
+  "blocker_id": "full_observation_builder.event_dependent",
+  "operator_selected_option": "DEFER_KEEP_LEGACY_RUNNING",
+  "operator_accepted": false,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "watcher_count": 1,
+  "fake_completion_allowed": false,
+  "watchers": [
+    {
+      "watcher_id": "event_watcher_1_liquidation_source",
+      "blocker_id": "full_observation_builder.event_dependent",
+      "completed": false,
+      "current_observed_state": "WAITING_FOR_REAL_LIQUIDATION_EVENT_OR_SOURCE",
+      "exact_event_source_required": "Wait for real per-symbol liquidation events: liquidations. Do not fabricate missing per-symbol fields.",
+      "fail_condition": "source missing, stale, or synthetic; keep blocker open",
+      "fake_completion_allowed": false,
+      "last_observed_at": "2026-05-25T06:15:00Z",
+      "observed_evidence": {
+        "no_synthetic_liquidation_events": true,
+        "symbols_with_any_v2_liquidation_key_populated_count": 0,
+        "v2_liquidation_aggregator_per_symbol_source_available": false
+      },
+      "pass_condition": "real per-symbol liquidation event observed and payload lineage/freshness recorded",
+      "pass_condition_satisfied": false,
+      "redis_key_or_public_payload_watched": [
+        "v2:market:liquidations:latest:{symbol}",
+        "v2/frontend/public/v2_per_symbol_liquidation_source/latest/operator_dashboard_payload.json",
+        "v2/frontend/public/v2_full_observation_liquidation_burndown/latest/liquidation_aggregator_status.json"
+      ],
+      "timeout_escalation": "remain blocked and emit watcher stale status; do not fabricate completion",
+      "blocks_paper_only_shutdown": true
+    }
+  ],
+  "no_fabricated_observations": true,
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "writes_old_redis": false,
+    "calls_exchange_mutation": false,
+    "creates_approval_tokens": false,
+    "fabricates_missing_observations": false
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "approves_live": false,
+  "canary_gate_verdict": "CANARY_GATED_NOT_PRODUCTION_READY",
+  "canary_label_enforced_in_worker_pool": true,
+  "generated_at": "2026-05-25T02:39:21.507124Z",
+  "lane_registry": {
+    "all_labelled_canary_in_worker_pool": true,
+    "claude_lanes": 3,
+    "codex_lanes": 3,
+    "total_lanes": 6,
+    "total_max_parallel": 8
+  },
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "persistent_workers_all_active": true,
+  "production_automation_running": true,
+  "rollback_flags": {
+    "LEASE_BACKEND_file": "LEASE_BACKEND=file",
+    "LEASE_BACKEND_sqlite": "LEASE_BACKEND=sqlite",
+    "note": "Set LEASE_BACKEND=file to bypass SQLite and use file-backed path; set LEASE_BACKEND=sqlite for Spark. Rollback script sets LEASE_BACKEND=file."
+  },
+  "safe_to_claim_verification": {
+    "allows_safe_task": true,
+    "blocks_approves_live": true,
+    "blocks_live_symbols": true,
+    "blocks_unsafe_live_gate": true
+  },
+  "schema_version": "1",
+  "spark_cannot_mark_production_ready": true,
+  "spark_db_exists": true,
+  "spark_db_path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_closed_loop_spark/state/leases.db",
+  "spark_runtime_status": "canary_only_pending_preflight"
+}

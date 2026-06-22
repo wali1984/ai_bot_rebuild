@@ -1,5 +1,10 @@
 {
-  "actions": [],
+  "actions": [
+    {
+      "action": "fallback_required",
+      "command": "bash claude_worklog/tools/install_v2_persistent_automation_services.sh"
+    }
+  ],
   "blockers": [],
   "classification": [
     "SYSTEMD_USER_PERSISTENCE_REQUIRED",
@@ -15,7 +20,7 @@
     "supervisor_task_id": null
   },
   "final_approval_token": "absent",
-  "generated_at": "2026-05-14T15:49:58Z",
+  "generated_at": "2026-06-22T00:27:48Z",
   "git_corruption_detected": false,
   "in_flight_workers": [],
   "last_completed_worker": "v2_p2_deployment_helpers",
@@ -23,127 +28,151 @@
   "next_action": "all_workers_complete",
   "next_worker": null,
   "paper_runtime_freshness": {
-    "age_seconds": 2,
-    "generated_at": "2026-05-14T15:49:56Z",
+    "age_seconds": 15,
+    "generated_at": "2026-06-21T20:27:33-04:00",
     "path": "v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json",
     "status": "fresh"
   },
   "pending_codex_reviews": [
+    "codex_review_autoseed_baseline_after_cost_calibration_r22.json",
+    "codex_review_autoseed_cuda_live_gate_single_pass_edge_recompute_missing_r1.json",
+    "codex_review_autoseed_cuda_live_gate_single_pass_gpu_utilization_r1.json",
+    "codex_review_autoseed_observation_gap_feature_source_burndown_r22.json",
+    "codex_review_autoseed_paper_fill_gate_block_reason_recording_r5.json",
+    "codex_review_claude_autoseed_altdata_replay_bundle_snapshot_attachment_r3.json",
+    "codex_review_claude_autoseed_paper_fill_gate_block_reason_recording_r1.json",
+    "codex_review_fix_v2_gap_onchain_btc_source.json",
+    "codex_review_fix_v2_gap_onchain_eth_source.json",
+    "codex_review_fix_v2_gap_portfolio_state_extended_source.json",
+    "codex_review_fix_v2_gap_position_context_extended_source.json",
+    "codex_review_fix_v2_gap_unified_feature_family_binance_klines_source.json",
+    "codex_review_fix_v2_gap_unified_feature_family_binance_orderbook_source.json",
+    "codex_review_fix_v2_gap_unified_feature_family_ccxt_ohlcv_source.json",
+    "codex_review_fix_v2_gap_unified_feature_family_liquidations_source.json",
+    "codex_review_fix_v2_gap_unified_feature_family_token_metrics_source.json",
+    "codex_review_legacy_protective_behaviors_to_v2_paper.json",
+    "codex_review_legacy_rl_risk_trainer_trader_closure.json",
     "codex_review_legacy_startup_baseline_v2_migration.json",
     "codex_review_parallel_trading_platform_consumer_ui.json",
+    "codex_review_public_payload_freshness_shutdown_readiness.json",
     "codex_review_v2_coinank_liquidation_bridge.json",
     "codex_review_v2_config_admin_manager.json",
     "codex_review_v2_feature_snapshot_builder.json",
     "codex_review_v2_feature_snapshot_builder_legacy_backfill.json",
     "codex_review_v2_market_ingestor.json",
+    "codex_review_v2_native_core_p0_true_migration_sprint.json",
     "codex_review_v2_p2_deployment_helpers.json",
     "codex_review_v2_persistent_automation_service_layer.json",
     "codex_review_v2_script_monitor.json",
     "codex_review_v2_signal_publisher.json",
+    "codex_review_v2_signal_publisher_legacy_schema_parity.json",
     "codex_review_v2_trainer_bridge.json",
-    "codex_review_v2_worker_porting_orchestrator.json"
+    "codex_review_v2_worker_porting_orchestrator.json",
+    "codex_review_zero_miss_legacy_core_lift_remediation.json"
   ],
   "processes": {
     "agent_supervisor": [
-      "218807    5737   43595 ./.venv/bin/python3 claude_worklog/tools/agent_supervisor.py --daemon --poll-seconds 30"
+      "77165    1936    1468 ./.venv/bin/python3 claude_worklog/tools/agent_supervisor.py --daemon --poll-seconds 30"
     ],
     "claude_worker": [],
     "codex_non_live_watchdog": [
-      "73192    5737   58623 ./.venv/bin/python3 claude_worklog/tools/codex_non_live_watchdog.py --daemon --poll-seconds 300"
+      "4781    1936    4076 ./.venv/bin/python3 claude_worklog/tools/codex_non_live_watchdog.py --daemon --poll-seconds 300",
+      "5216    1936    4075 tmux new-session -d -s ai_bot_codex_non_live_watchdog cd '/home/wali/Desktop/AI BOT REBUILD' && python3 claude_worklog/tools/codex_non_live_watchdog.py --daemon --poll-seconds 300",
+      "5217    5216    4075 python3 claude_worklog/tools/codex_non_live_watchdog.py --daemon --poll-seconds 300"
+    ],
+    "codex_shutdown_readiness_takeover": [
+      "4780    1936    4076 ./.venv/bin/python3 claude_worklog/tools/codex_legacy_shutdown_readiness_takeover.py --daemon --poll-seconds 120"
     ],
     "feature_snapshot_builder": [
-      "73368    5737   58623 ./.venv/bin/python3 -m v2.backend.app.cli.v2_feature_snapshot_builder --loop --read-from-paper-runtime --interval 60"
+      "4652    1936    4076 ./.venv/bin/python3 -m v2.backend.app.cli.v2_feature_snapshot_builder --loop --read-from-paper-runtime --interval 60"
     ],
     "paper_online_runtime": [
-      "435062    5737   18473 ./.venv/bin/python3 -m v2.backend.app.cli.paper_online_runtime --loop --interval 30"
+      "4525    1936    4076 ./.venv/bin/python3 -m v2.backend.app.cli.paper_online_runtime --loop --interval 30"
     ],
     "paper_shadow_observation": [
-      "73348    5737   58623 bash -lc mkdir -p v2/runtime; while true; do ./.venv/bin/python3 -m v2.backend.app.cli.paper_shadow_observation --write >> v2/runtime/paper_shadow_observation.log 2>&1; sleep 60; done"
+      "4644    1936    4076 bash -lc mkdir -p v2/runtime; while true; do ./.venv/bin/python3 -m v2.backend.app.cli.paper_shadow_observation --write >> v2/runtime/paper_shadow_observation.log 2>&1; sleep 60; done"
     ],
     "parallel_capacity_scheduler": [
-      "73164    5737   58623 ./.venv/bin/python3 claude_worklog/tools/parallel_capacity_scheduler.py --daemon --poll-seconds 600"
+      "4764    1936    4076 ./.venv/bin/python3 claude_worklog/tools/parallel_capacity_scheduler.py --daemon --poll-seconds 600"
     ],
     "symbol_universe_publisher": [
-      "556142    5737      56 bash -lc mkdir -p v2/runtime; while true; do ./.venv/bin/python3 -m v2.backend.app.cli.symbol_universe_public_payload --write >> v2/runtime/symbol_universe_public_payload.log 2>&1 || true; sleep 60; done"
+      "4787    1936    4076 bash -lc mkdir -p v2/runtime; while true; do ./.venv/bin/python3 -m v2.backend.app.cli.symbol_universe_public_payload --write >> v2/runtime/symbol_universe_public_payload.log 2>&1 || true; sleep 60; done"
     ],
-    "trainer_bridge": [
-      "425515    5737   19448 bash -lc mkdir -p v2/runtime; while true; do ./.venv/bin/python3 -m v2.backend.app.cli.v2_trainer_bridge --once --readonly-only >> v2/runtime/v2_trainer_bridge.log 2>&1 || true; sleep 60; done"
-    ],
+    "trainer_bridge": [],
     "v2_worker_porting_orchestrator": [
-      "430848    5737   18981 ./.venv/bin/python3 claude_worklog/tools/v2_worker_porting_orchestrator.py --daemon --poll-seconds 120",
-      "554660   10436     197 /bin/bash -lc sleep 900; date -u +%Y-%m-%dT%H:%M:%SZ; printf 'orchestrator\\n'; .venv/bin/python3 claude_worklog/tools/v2_worker_porting_orchestrator.py --once --status | jq '{last_completed_worker,next_action,progress_p0,progress_p1,progress_p2,live_gate,final_approval_token,redis_trim_approval}'; printf 'paper_metrics\\n'; .venv/bin/python3 -m v2.backend.app.cli.paper_shadow_metrics_analyzer | jq '{generated_at,pnl,events,fills,blocked_intents,fill_rate,win_rate,profit_factor,classifications,canary_blockers,live_gate}'; printf 'account_permission\\n'; .venv/bin/python3 -m v2.backend.app.cli.account_permission_contract_checker | jq '{generated_at,canary_ready,canary_blockers,account_evidence_status,trade_permission_status,margin_evidence_status,leverage_evidence_status,mutation_guard_status,live_gate}'; printf 'trainer_bridge\\n'; jq '{last_run_ts,trainer_readiness,runtime_evidence_status,prediction_evidence_status,accepted_as_legacy_hybrid_prediction,freshness_seconds,error_blocker_state,live_gate}' v2/frontend/public/operator_runtime/v2_trainer_bridge/latest/v2_trainer_bridge_status.json; printf 'services\\n'; systemctl --user is-active ai-bot-v2-worker-porting-orchestrator.service ai-bot-v2-agent-supervisor.service ai-bot-v2-parallel-scheduler.service ai-bot-v2-codex-watchdog.service ai-bot-v2-paper-online-runtime.service ai-bot-v2-paper-shadow-observation.service ai-bot-v2-feature-snapshot-builder.service ai-bot-v2-trainer-bridge.service ai-bot-v2-automation-liveness-watchdog.timer 2>/dev/null || true; printf 'approval_markers\\n'; test ! -f claude_worklog/approvals/APPROVED_FINAL_LIVE_TINY_CANARY_ONLY.md && echo final_approval_absent; test ! -f claude_worklog/approvals/APPROVED_REDIS_LIQUIDATIONS_EVENTS_XTRIM_MINID_1777222885206_0_ONLY.md && echo redis_trim_approval_absent; printf 'freshness_guard\\n'; .venv/bin/python3 -m v2.backend.app.cli.public_payload_freshness_guard | jq '{result,findings,payloads_checked}'; printf 'recent_commits\\n'; git log --oneline -4"
+      "4530    1936    4076 ./.venv/bin/python3 claude_worklog/tools/v2_worker_porting_orchestrator.py --daemon --poll-seconds 120"
     ]
   },
   "redis_trim_approval": "absent",
   "result": "PASS",
   "service_units": [
     {
-      "active_state": "active",
-      "enabled_state": "enabled",
-      "installed": true,
+      "active_state": "systemd_user_unavailable",
+      "installed": false,
       "unit": "ai-bot-v2-worker-porting-orchestrator.service"
     },
     {
-      "active_state": "active",
-      "enabled_state": "enabled",
-      "installed": true,
+      "active_state": "systemd_user_unavailable",
+      "installed": false,
       "unit": "ai-bot-v2-agent-supervisor.service"
     },
     {
-      "active_state": "active",
-      "enabled_state": "enabled",
-      "installed": true,
+      "active_state": "systemd_user_unavailable",
+      "installed": false,
       "unit": "ai-bot-v2-parallel-scheduler.service"
     },
     {
-      "active_state": "active",
-      "enabled_state": "enabled",
-      "installed": true,
+      "active_state": "systemd_user_unavailable",
+      "installed": false,
       "unit": "ai-bot-v2-codex-watchdog.service"
     },
     {
-      "active_state": "active",
-      "enabled_state": "enabled",
-      "installed": true,
+      "active_state": "systemd_user_unavailable",
+      "installed": false,
+      "unit": "ai-bot-v2-codex-shutdown-readiness-takeover.service"
+    },
+    {
+      "active_state": "systemd_user_unavailable",
+      "installed": false,
       "unit": "ai-bot-v2-paper-online-runtime.service"
     },
     {
-      "active_state": "active",
-      "enabled_state": "enabled",
-      "installed": true,
+      "active_state": "systemd_user_unavailable",
+      "installed": false,
       "unit": "ai-bot-v2-paper-shadow-observation.service"
     },
     {
-      "active_state": "active",
-      "enabled_state": "enabled",
-      "installed": true,
+      "active_state": "systemd_user_unavailable",
+      "installed": false,
       "unit": "ai-bot-v2-feature-snapshot-builder.service"
     },
     {
-      "active_state": "active",
-      "enabled_state": "enabled",
-      "installed": true,
+      "active_state": "systemd_user_unavailable",
+      "installed": false,
       "unit": "ai-bot-v2-symbol-universe-publisher.service"
     },
     {
-      "active_state": "active",
-      "enabled_state": "enabled",
-      "installed": true,
+      "active_state": "systemd_user_unavailable",
+      "installed": false,
       "unit": "ai-bot-v2-trainer-bridge.service"
     },
     {
-      "active_state": "active",
-      "enabled_state": "enabled",
-      "installed": true,
+      "active_state": "systemd_user_unavailable",
+      "installed": false,
       "unit": "ai-bot-v2-automation-liveness-watchdog.timer"
+    },
+    {
+      "active_state": "systemd_user_unavailable",
+      "installed": false,
+      "unit": "ai-bot-v2-codex-shutdown-readiness-takeover.timer"
     }
   ],
-  "state_age_seconds": 12,
+  "state_age_seconds": 81,
   "supervisor_current_status": {
     "run_pid": null,
     "status": "pending",
     "task_id": null
   },
-  "systemd_user_available": true,
+  "systemd_user_available": false,
   "worker_state_path": "claude_worklog/final_readiness/v2_worker_porting_orchestrator/latest/worker_porting_state.json"
 }

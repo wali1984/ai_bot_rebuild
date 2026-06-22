@@ -1,0 +1,12 @@
+[Unit]
+Description=AI BOT V2 8h war-room timer (every 5 minutes, paper/shadow only)
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+Persistent=true
+AccuracySec=15s
+Unit=ai-bot-v2-8h-war-room.service
+
+[Install]
+WantedBy=timers.target

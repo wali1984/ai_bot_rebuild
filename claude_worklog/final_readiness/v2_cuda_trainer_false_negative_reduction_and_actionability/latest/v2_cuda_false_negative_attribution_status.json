@@ -1,0 +1,2603 @@
+{
+  "approves_canary": false,
+  "approves_live": false,
+  "execution_live_symbols": [],
+  "false_negative_count": 43,
+  "generated_est": "2026-06-04T17:43:54-04:00",
+  "lineage_complete": true,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "missing_lineage_prediction_ids": [],
+  "root_cause_counts": {
+    "CONFIDENCE_TOO_LOW": 43,
+    "DATA_COVERAGE_LOW": 43,
+    "INSUFFICIENT_HISTORY": 43,
+    "ORCHESTRATOR_HOLD": 43,
+    "RISK_GATE_BLOCKED": 43,
+    "TRAINER_ACTION_TOO_CONSERVATIVE": 43
+  },
+  "rows": [
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 48.57142857142857,
+      "expected_move_after_cost_bps": -56.39742660522461,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 36,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_cd8d203fa04509df5c776fe30893be09",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_cd8d203fa04509df5c776fe30893be09",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_cd8d203fa04509df5c776fe30893be09",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_cd8d203fa04509df5c776fe30893be09",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 6.034265103696292,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_cd8d203fa04509df5c776fe30893be09",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "ALICEUSDT",
+      "timeframe": "1m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.5241879115620154
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 32.857142857142854,
+      "expected_move_after_cost_bps": -91.42062377929688,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 47,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_e94fe7b87f11c03f6ebbfafb09f16add",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_e94fe7b87f11c03f6ebbfafb09f16add",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_e94fe7b87f11c03f6ebbfafb09f16add",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_e94fe7b87f11c03f6ebbfafb09f16add",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 6.034265103696292,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_e94fe7b87f11c03f6ebbfafb09f16add",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "ALICEUSDT",
+      "timeframe": "5m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.5035738644298281
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 45.714285714285715,
+      "expected_move_after_cost_bps": -39.941551208496094,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 38,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_d5aa9bb48d685b484c9baba4e6bc8234",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_d5aa9bb48d685b484c9baba4e6bc8234",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_d5aa9bb48d685b484c9baba4e6bc8234",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_d5aa9bb48d685b484c9baba4e6bc8234",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 43.91798695247002,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_d5aa9bb48d685b484c9baba4e6bc8234",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "short",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "HIGHUSDT",
+      "timeframe": "1m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.5112184668626972
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 30.0,
+      "expected_move_after_cost_bps": -73.96862030029297,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 49,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_6e567861234b4ff8f5b21cd919ae7f4d",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_6e567861234b4ff8f5b21cd919ae7f4d",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_6e567861234b4ff8f5b21cd919ae7f4d",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_6e567861234b4ff8f5b21cd919ae7f4d",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 43.91798695247002,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_6e567861234b4ff8f5b21cd919ae7f4d",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "short",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "HIGHUSDT",
+      "timeframe": "5m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.5041615392257838
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 45.714285714285715,
+      "expected_move_after_cost_bps": -49.23038101196289,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 38,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_e615887e4e3071bf576e5150467528ea",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_e615887e4e3071bf576e5150467528ea",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_e615887e4e3071bf576e5150467528ea",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_e615887e4e3071bf576e5150467528ea",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 8.491803278689112,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_e615887e4e3071bf576e5150467528ea",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "RAVEUSDT",
+      "timeframe": "1m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.5148717396118692
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 30.0,
+      "expected_move_after_cost_bps": -72.46469497680664,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 49,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_e41fb8a80273bba38520c51cbd669121",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_e41fb8a80273bba38520c51cbd669121",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_e41fb8a80273bba38520c51cbd669121",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_e41fb8a80273bba38520c51cbd669121",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 8.491803278689112,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_e41fb8a80273bba38520c51cbd669121",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "RAVEUSDT",
+      "timeframe": "5m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.5042791462738108
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 34.285714285714285,
+      "expected_move_after_cost_bps": -22.330132484436035,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 46,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_434ea221cdae29dcd943ba774dcfa7de",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_434ea221cdae29dcd943ba774dcfa7de",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_434ea221cdae29dcd943ba774dcfa7de",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_434ea221cdae29dcd943ba774dcfa7de",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 24.114120621162655,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_434ea221cdae29dcd943ba774dcfa7de",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "CHZUSDT",
+      "timeframe": "5m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.5008800166462593
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 50.0,
+      "expected_move_after_cost_bps": -11.640428960323334,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 35,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_b3725ed4c22d28887696b170903458c6",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_b3725ed4c22d28887696b170903458c6",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_b3725ed4c22d28887696b170903458c6",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_b3725ed4c22d28887696b170903458c6",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 9.266154097823783,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_b3725ed4c22d28887696b170903458c6",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "NO_TREND_CONFIRMATION",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "EPICUSDT",
+      "timeframe": "1m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.5097892962845709
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 34.285714285714285,
+      "expected_move_after_cost_bps": -15.885081768035889,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 46,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_dcf410f1d4674ccb45ef896fdc03c861",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_dcf410f1d4674ccb45ef896fdc03c861",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_dcf410f1d4674ccb45ef896fdc03c861",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_dcf410f1d4674ccb45ef896fdc03c861",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 9.266154097823783,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_dcf410f1d4674ccb45ef896fdc03c861",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "NO_TREND_CONFIRMATION",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "EPICUSDT",
+      "timeframe": "5m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.49978084430345804
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 55.714285714285715,
+      "expected_move_after_cost_bps": -14.845078945159912,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 31,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_325b11d924d4ace30c9f7dd2793bb402",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_325b11d924d4ace30c9f7dd2793bb402",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_325b11d924d4ace30c9f7dd2793bb402",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_325b11d924d4ace30c9f7dd2793bb402",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 14.19336993420228,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_325b11d924d4ace30c9f7dd2793bb402",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "short",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "NO_TREND_CONFIRMATION",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "HOMEUSDT",
+      "timeframe": "1m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.49816521500608607
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 40.0,
+      "expected_move_after_cost_bps": -58.031925201416016,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 42,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_7b314ab4bc8198e9a13c18f24a2e356c",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_7b314ab4bc8198e9a13c18f24a2e356c",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_7b314ab4bc8198e9a13c18f24a2e356c",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_7b314ab4bc8198e9a13c18f24a2e356c",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 14.19336993420228,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_7b314ab4bc8198e9a13c18f24a2e356c",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "short",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "NO_TREND_CONFIRMATION",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "HOMEUSDT",
+      "timeframe": "5m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.49039683132318446
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 50.0,
+      "expected_move_after_cost_bps": 11.42953109741211,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 35,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "long",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_bacc657658f48cee28a522524fbdb297",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_bacc657658f48cee28a522524fbdb297",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_bacc657658f48cee28a522524fbdb297",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_bacc657658f48cee28a522524fbdb297",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 17.850746268655822,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_bacc657658f48cee28a522524fbdb297",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "long",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "NO_TREND_CONFIRMATION",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "HOTUSDT",
+      "timeframe": "1m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.5107035907795561
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 52.857142857142854,
+      "expected_move_after_cost_bps": -36.7761344909668,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 33,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_13b2f4233c61ddee60470afc6076e1a0",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_13b2f4233c61ddee60470afc6076e1a0",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_13b2f4233c61ddee60470afc6076e1a0",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_13b2f4233c61ddee60470afc6076e1a0",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 19.393554566255464,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_13b2f4233c61ddee60470afc6076e1a0",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "HUSDT",
+      "timeframe": "1m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.5172441385926941
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 37.142857142857146,
+      "expected_move_after_cost_bps": -51.745323181152344,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 44,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_16e310b3c478ee46c67e769329721032",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_16e310b3c478ee46c67e769329721032",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_16e310b3c478ee46c67e769329721032",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_16e310b3c478ee46c67e769329721032",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 19.393554566255464,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_16e310b3c478ee46c67e769329721032",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "HUSDT",
+      "timeframe": "5m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.4982687676888693
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 52.857142857142854,
+      "expected_move_after_cost_bps": -41.25635528564453,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 33,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_d27b32a6c8db7ef2c8b561adbb1ef6a1",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_d27b32a6c8db7ef2c8b561adbb1ef6a1",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_d27b32a6c8db7ef2c8b561adbb1ef6a1",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_d27b32a6c8db7ef2c8b561adbb1ef6a1",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 15.41729117163166,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_d27b32a6c8db7ef2c8b561adbb1ef6a1",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "INJUSDT",
+      "timeframe": "1m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.5210292417521832
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 37.142857142857146,
+      "expected_move_after_cost_bps": -40.23674201965332,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 44,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_668a05aa81f169e2c08a5f0345c10dea",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_668a05aa81f169e2c08a5f0345c10dea",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_668a05aa81f169e2c08a5f0345c10dea",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_668a05aa81f169e2c08a5f0345c10dea",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 15.41729117163166,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_668a05aa81f169e2c08a5f0345c10dea",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "INJUSDT",
+      "timeframe": "5m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.4994050857822781
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 34.285714285714285,
+      "expected_move_after_cost_bps": -25.11853313446045,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 46,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_3283504d0460f53f1af64b129098d4ec",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_3283504d0460f53f1af64b129098d4ec",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_3283504d0460f53f1af64b129098d4ec",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_3283504d0460f53f1af64b129098d4ec",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 2.6986771190603864,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_3283504d0460f53f1af64b129098d4ec",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "NO_TREND_CONFIRMATION",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "IRYSUSDT",
+      "timeframe": "5m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.49868885398763585
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 52.857142857142854,
+      "expected_move_after_cost_bps": -39.01438522338867,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 33,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_d24e702ef86a3dae4e535573ea5b3b20",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_d24e702ef86a3dae4e535573ea5b3b20",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_d24e702ef86a3dae4e535573ea5b3b20",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_d24e702ef86a3dae4e535573ea5b3b20",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 387.7729484268572,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_d24e702ef86a3dae4e535573ea5b3b20",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "short",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "LABUSDT",
+      "timeframe": "1m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.5207805243133372
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 37.142857142857146,
+      "expected_move_after_cost_bps": -37.931854248046875,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 44,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_451add4a4d4cd93db066f28b039097cb",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_451add4a4d4cd93db066f28b039097cb",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_451add4a4d4cd93db066f28b039097cb",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_451add4a4d4cd93db066f28b039097cb",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 387.7729484268572,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_451add4a4d4cd93db066f28b039097cb",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "short",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "LABUSDT",
+      "timeframe": "5m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.49763290354270523
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 52.857142857142854,
+      "expected_move_after_cost_bps": -39.21615791320801,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 33,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_2454857a76fff567632263c63a82984a",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_2454857a76fff567632263c63a82984a",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_2454857a76fff567632263c63a82984a",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_2454857a76fff567632263c63a82984a",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 6.348623853210498,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_2454857a76fff567632263c63a82984a",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "LITUSDT",
+      "timeframe": "1m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.523024410600497
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 37.142857142857146,
+      "expected_move_after_cost_bps": -51.24299621582031,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 44,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_d42c9cd322ff81b45e718f66d1709905",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_d42c9cd322ff81b45e718f66d1709905",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_d42c9cd322ff81b45e718f66d1709905",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_d42c9cd322ff81b45e718f66d1709905",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 6.348623853210498,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_d42c9cd322ff81b45e718f66d1709905",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "LITUSDT",
+      "timeframe": "5m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.49893775191707423
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 52.857142857142854,
+      "expected_move_after_cost_bps": -34.87641525268555,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 33,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_5a958d8a2cb4cb333768b3976a65d68b",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_5a958d8a2cb4cb333768b3976a65d68b",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_5a958d8a2cb4cb333768b3976a65d68b",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_5a958d8a2cb4cb333768b3976a65d68b",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 34.29629629629762,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_5a958d8a2cb4cb333768b3976a65d68b",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "short",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "MONUSDT",
+      "timeframe": "1m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.5149455958283564
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 37.142857142857146,
+      "expected_move_after_cost_bps": -57.5356559753418,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 44,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_e96ea6edb0269acfca1a04131e7a1c78",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_e96ea6edb0269acfca1a04131e7a1c78",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_e96ea6edb0269acfca1a04131e7a1c78",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_e96ea6edb0269acfca1a04131e7a1c78",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 34.29629629629762,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_e96ea6edb0269acfca1a04131e7a1c78",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "short",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "MONUSDT",
+      "timeframe": "5m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.49514248055181587
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 45.714285714285715,
+      "expected_move_after_cost_bps": -40.70602226257324,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 38,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_f008f4d2537b8679fb7b7da30c19b2ca",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_f008f4d2537b8679fb7b7da30c19b2ca",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_f008f4d2537b8679fb7b7da30c19b2ca",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_f008f4d2537b8679fb7b7da30c19b2ca",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 25.341299477221014,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_f008f4d2537b8679fb7b7da30c19b2ca",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "MOVRUSDT",
+      "timeframe": "1m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.5152768858557661
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 30.0,
+      "expected_move_after_cost_bps": -67.41043090820312,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 49,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_90cb425088771e4ec028cc19d0d44e53",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_90cb425088771e4ec028cc19d0d44e53",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_90cb425088771e4ec028cc19d0d44e53",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_90cb425088771e4ec028cc19d0d44e53",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 25.341299477221014,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_90cb425088771e4ec028cc19d0d44e53",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "MOVRUSDT",
+      "timeframe": "5m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.5042297331890349
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 48.57142857142857,
+      "expected_move_after_cost_bps": -68.53187942504883,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 36,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_2b837626796f4ff168c346f8cb46665b",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_2b837626796f4ff168c346f8cb46665b",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_2b837626796f4ff168c346f8cb46665b",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_2b837626796f4ff168c346f8cb46665b",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 15.777777777776919,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_2b837626796f4ff168c346f8cb46665b",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "MYXUSDT",
+      "timeframe": "1m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.5197891904416156
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 32.857142857142854,
+      "expected_move_after_cost_bps": -94.58985900878906,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 47,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_c1eb9f1e0d4fbe26fd9cb7a12ff06eba",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_c1eb9f1e0d4fbe26fd9cb7a12ff06eba",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_c1eb9f1e0d4fbe26fd9cb7a12ff06eba",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_c1eb9f1e0d4fbe26fd9cb7a12ff06eba",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 15.777777777776919,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_c1eb9f1e0d4fbe26fd9cb7a12ff06eba",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "MYXUSDT",
+      "timeframe": "5m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.5049190463933152
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 50.0,
+      "expected_move_after_cost_bps": -17.259368896484375,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 35,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_75589904f0d268bbdb05a515cd1526b3",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_75589904f0d268bbdb05a515cd1526b3",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_75589904f0d268bbdb05a515cd1526b3",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_75589904f0d268bbdb05a515cd1526b3",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 8.882276168101473,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_75589904f0d268bbdb05a515cd1526b3",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "NIGHTUSDT",
+      "timeframe": "1m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.5089037284453037
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 34.285714285714285,
+      "expected_move_after_cost_bps": -24.676790237426758,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 46,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_b5a88f35c5046ead4e5c5aae411620f9",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_b5a88f35c5046ead4e5c5aae411620f9",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_b5a88f35c5046ead4e5c5aae411620f9",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_b5a88f35c5046ead4e5c5aae411620f9",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 8.882276168101473,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_b5a88f35c5046ead4e5c5aae411620f9",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "NIGHTUSDT",
+      "timeframe": "5m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.49871012054745567
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 52.857142857142854,
+      "expected_move_after_cost_bps": -43.34521675109863,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 33,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_d026ce24aa4e414851ca439e477322ef",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_d026ce24aa4e414851ca439e477322ef",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_d026ce24aa4e414851ca439e477322ef",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_d026ce24aa4e414851ca439e477322ef",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 261.2793522267205,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_d026ce24aa4e414851ca439e477322ef",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "short",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "NO_TREND_CONFIRMATION",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "OPNUSDT",
+      "timeframe": "1m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.508889479912902
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 37.142857142857146,
+      "expected_move_after_cost_bps": -63.589195251464844,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 44,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_f8a15ad4bb81538c76f39441ccbefb2c",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_f8a15ad4bb81538c76f39441ccbefb2c",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_f8a15ad4bb81538c76f39441ccbefb2c",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_f8a15ad4bb81538c76f39441ccbefb2c",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 261.2793522267205,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_f8a15ad4bb81538c76f39441ccbefb2c",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "short",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "NO_TREND_CONFIRMATION",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "OPNUSDT",
+      "timeframe": "5m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.4966948875490856
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 52.857142857142854,
+      "expected_move_after_cost_bps": -27.129667282104492,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 33,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_9a339ef52fe72ba1a90054dc2213fe05",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_9a339ef52fe72ba1a90054dc2213fe05",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_9a339ef52fe72ba1a90054dc2213fe05",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_9a339ef52fe72ba1a90054dc2213fe05",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 5.346053772767192,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_9a339ef52fe72ba1a90054dc2213fe05",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "OPUSDT",
+      "timeframe": "1m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.5206800135220707
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 37.142857142857146,
+      "expected_move_after_cost_bps": -70.0413932800293,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 44,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_41f09708081abadeb6887965e6098e28",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_41f09708081abadeb6887965e6098e28",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_41f09708081abadeb6887965e6098e28",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_41f09708081abadeb6887965e6098e28",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 5.346053772767192,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_41f09708081abadeb6887965e6098e28",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "OPUSDT",
+      "timeframe": "5m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.5000783744779952
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 50.0,
+      "expected_move_after_cost_bps": 5.949617385864258,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 35,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "long",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_6af438a008c9247a8bba7b5ea04738e9",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_6af438a008c9247a8bba7b5ea04738e9",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_6af438a008c9247a8bba7b5ea04738e9",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_6af438a008c9247a8bba7b5ea04738e9",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 5.421602787455736,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_6af438a008c9247a8bba7b5ea04738e9",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "long",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "long",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "NO_TREND_CONFIRMATION",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "PEOPLEUSDT",
+      "timeframe": "1m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.5051432989401459
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 45.714285714285715,
+      "expected_move_after_cost_bps": -36.39731025695801,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 38,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_393742714cde1c937d8a38867ae6c984",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_393742714cde1c937d8a38867ae6c984",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_393742714cde1c937d8a38867ae6c984",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_393742714cde1c937d8a38867ae6c984",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 145.18157181571928,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_393742714cde1c937d8a38867ae6c984",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "short",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "PORTALUSDT",
+      "timeframe": "1m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.519813879694092
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 30.0,
+      "expected_move_after_cost_bps": -74.37908172607422,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 49,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_710abfef6b6d1e7cad32b7b9ba220ced",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_710abfef6b6d1e7cad32b7b9ba220ced",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_710abfef6b6d1e7cad32b7b9ba220ced",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_710abfef6b6d1e7cad32b7b9ba220ced",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 145.18157181571928,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_710abfef6b6d1e7cad32b7b9ba220ced",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "short",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "PORTALUSDT",
+      "timeframe": "5m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.504196948671897
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 50.0,
+      "expected_move_after_cost_bps": -6.533167362213135,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 35,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_615b6f04a06594e49cdda68c5cc570a8",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_615b6f04a06594e49cdda68c5cc570a8",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_615b6f04a06594e49cdda68c5cc570a8",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_615b6f04a06594e49cdda68c5cc570a8",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 32.58977407847927,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_615b6f04a06594e49cdda68c5cc570a8",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "SAHARAUSDT",
+      "timeframe": "1m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.5132233095303249
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 34.285714285714285,
+      "expected_move_after_cost_bps": -24.860239028930664,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 46,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_7fd32639c786eedefdc1cdfab6e4481a",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_7fd32639c786eedefdc1cdfab6e4481a",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_7fd32639c786eedefdc1cdfab6e4481a",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_7fd32639c786eedefdc1cdfab6e4481a",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 32.58977407847927,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_7fd32639c786eedefdc1cdfab6e4481a",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "SAHARAUSDT",
+      "timeframe": "5m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.4987275971335303
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 50.0,
+      "expected_move_after_cost_bps": 8.146745681762695,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 35,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "long",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_c26dbaac62bc6aa9842023650031f9a6",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_c26dbaac62bc6aa9842023650031f9a6",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_c26dbaac62bc6aa9842023650031f9a6",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_c26dbaac62bc6aa9842023650031f9a6",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 24.23785208367616,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_c26dbaac62bc6aa9842023650031f9a6",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "long",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "long",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "NO_TREND_CONFIRMATION",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "STOUSDT",
+      "timeframe": "1m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.5075497636428439
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 52.857142857142854,
+      "expected_move_after_cost_bps": -51.63467025756836,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 33,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_f254b9f93d0fe49a159dcc2b9705595e",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_f254b9f93d0fe49a159dcc2b9705595e",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_f254b9f93d0fe49a159dcc2b9705595e",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_f254b9f93d0fe49a159dcc2b9705595e",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 3.7526254375724886,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_f254b9f93d0fe49a159dcc2b9705595e",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "TONUSDT",
+      "timeframe": "1m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.5070622062809432
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 37.142857142857146,
+      "expected_move_after_cost_bps": -44.41337203979492,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 44,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_67ee97ee51f7869371064e3f876a0846",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_67ee97ee51f7869371064e3f876a0846",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_67ee97ee51f7869371064e3f876a0846",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_67ee97ee51f7869371064e3f876a0846",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 3.7526254375724886,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_67ee97ee51f7869371064e3f876a0846",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "TONUSDT",
+      "timeframe": "5m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.49735906381918105
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 52.857142857142854,
+      "expected_move_after_cost_bps": -37.21816062927246,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 33,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_1404584d559fd480964b2737a169eb99",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_1404584d559fd480964b2737a169eb99",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_1404584d559fd480964b2737a169eb99",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_1404584d559fd480964b2737a169eb99",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 4.227180527382611,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_1404584d559fd480964b2737a169eb99",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "VVVUSDT",
+      "timeframe": "1m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.5145327863510194
+    },
+    {
+      "block_reason": "deny_orchestrator_abstained",
+      "data_coverage_percent": 37.142857142857146,
+      "expected_move_after_cost_bps": -34.98484802246094,
+      "feature_stale_missing_flags": {
+        "missing_feature_count": 44,
+        "paper_fill_gate_block_reasons": [
+          "data_coverage_below_threshold",
+          "confidence_below_threshold"
+        ],
+        "stale_feature_count": 0
+      },
+      "missed_direction": "short",
+      "orchestrator_decision": {
+        "orchestrator_action": "abstain",
+        "orchestrator_decision_id": "dec_v2h_cf16022ea30dbc7fc5aad48671eaf4a1",
+        "orchestrator_reason": "abstain_freshness_missing"
+      },
+      "paper_outcome": {
+        "classification": "false_negative",
+        "paper_intent_id": "v2h_cf16022ea30dbc7fc5aad48671eaf4a1",
+        "paper_ledger_action": "record_deny",
+        "paper_ledger_id": "pt_rd_dec_v2h_cf16022ea30dbc7fc5aad48671eaf4a1",
+        "paper_ledger_reason": "mirror_deny_orchestrator_abstained"
+      },
+      "prediction_id": "v2h_cf16022ea30dbc7fc5aad48671eaf4a1",
+      "primary_root_cause": "DATA_COVERAGE_LOW",
+      "realized_after_cost_bps": 4.227180527382611,
+      "risk_decision": {
+        "risk_action": "deny",
+        "risk_decision_id": "rd_dec_v2h_cf16022ea30dbc7fc5aad48671eaf4a1",
+        "risk_reason": "deny_orchestrator_abstained"
+      },
+      "root_causes": [
+        "DATA_COVERAGE_LOW",
+        "INSUFFICIENT_HISTORY",
+        "CONFIDENCE_TOO_LOW",
+        "TRAINER_ACTION_TOO_CONSERVATIVE",
+        "RISK_GATE_BLOCKED",
+        "ORCHESTRATOR_HOLD"
+      ],
+      "strategy_agreement_disagreement": "AGREE",
+      "strategy_evidence": {
+        "breakout_signal": "short",
+        "derived_from_outcome_windows_only": true,
+        "funding_oi_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "liquidation_signal": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "momentum_signal": "NO_MOMENTUM_CONFIRMATION",
+        "orderbook_confirmation": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "public_intel_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD",
+        "strategy_agreement": "AGREE",
+        "ta_confirmation": "DERIVED_FROM_OUTCOME_WINDOWS_ONLY",
+        "trend_strategy_signal": "short",
+        "whale_wall_contribution": "NOT_AVAILABLE_IN_EDGE_BURN_IN_PAYLOAD"
+      },
+      "symbol": "VVVUSDT",
+      "timeframe": "5m",
+      "trainer_action": "hedge_reserved_fail_closed",
+      "trainer_confidence": 0.49544561890285455
+    }
+  ],
+  "schema_version": "v2_cuda_trainer_false_negative_reduction_actionability_v1_false_negative_attribution",
+  "status": "FALSE_NEGATIVE_ATTRIBUTION_READY"
+}

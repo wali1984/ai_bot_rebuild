@@ -1,0 +1,18 @@
+{
+  "approval_token_created": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "credentials_status": "MISSING",
+  "evidence_path": "v2/frontend/public/operator_runtime/v2_account_position_monitor/latest/v2_account_position_monitor_status.json",
+  "exchange_action_taken": false,
+  "exchange_mutation_performed": false,
+  "fail_closed": true,
+  "fail_closed_reason": "MISSING_CREDENTIALS",
+  "generated_at": "2026-05-15T21:20:00Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "operator_decision_required_for_paper_only": true,
+  "status": "ACCOUNT_TRADE_PERMISSION_OPERATOR_DECISION_REQUIRED",
+  "trade_permission_status": "TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY"
+}

@@ -1,0 +1,32 @@
+{
+  "claim": "OHLCV and resampling consumers have fresh V2 OHLCV/feature/TA data; missing raw per-timeframe depth is explicitly classified in the TA heartbeat.",
+  "completed_by": "codex_takeover",
+  "confidence": "MEDIUM_HIGH",
+  "files_modified": [
+    "v2/backend/app/services/full_talib_ta/service.py",
+    "v2/backend/app/services/feature_pipeline_native/service.py"
+  ],
+  "generated_est": "2026-06-03T22:44:59-04:00",
+  "generated_utc": "2026-06-04T02:44:59Z",
+  "implementation_marker": "V2_ZERO_EXCEPTION_PARITY_STALE_INGESTOR_OHLCV_RESAMPLER_HOTFIX_CODEX_TAKEOVER_DONE",
+  "live_safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "exchange_action_taken": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "places_real_order": false,
+    "trader_execution_enabled": false,
+    "writes_exchange_orders": false,
+    "writes_legacy_redis": false
+  },
+  "milestone": "v2_zero_exception_parity_implementation_burndown_20260531",
+  "missing_evidence": "Some legacy timeframe OHLCV keys still use compact/fallback classification rather than full candle history.",
+  "raw_evidence": "v2:market:ohlcv:binance:* has 48 total / 17 TTL-fresh keys; full TA writes fallback payloads for missing OHLCV keys instead of fabricating full candles.",
+  "schema_version": "zero_exception_task_status_v1",
+  "status": "DONE_VERIFIED",
+  "task_slug": "stale_ingestor_ohlcv_resampler_hotfix",
+  "verification_command": "redis-cli --scan --pattern \"v2:market:ohlcv:binance:*\" | wc -l"
+}

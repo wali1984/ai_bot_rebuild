@@ -1,0 +1,12 @@
+[Unit]
+Description=Run AI Bot V2 autonomous no-manual next-task policy
+
+[Timer]
+OnBootSec=60s
+OnUnitActiveSec=120s
+AccuracySec=10s
+Persistent=true
+Unit=ai-bot-v2-autonomous-no-manual-next-task-policy.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,55 @@
+{
+  "gate": "V2_PAPER_TRADE_MANAGEMENT_EXIT_NETTING_RISK_AND_TRAINER_FEEDBACK_READY",
+  "generated_utc": "2026-06-11T20:27:36Z",
+  "paper_trade_management_ready": true,
+  "adaptive_allocator_ready": true,
+  "paper_loop_classification": "V2_TRADE_MANAGEMENT_PAPER_PRODUCTION_OK",
+  "paper_loop_intents_built": 720,
+  "paper_loop_intents_accepted": 0,
+  "paper_loop_v2_keys_written_count": 11,
+  "runtime_sample": {
+    "open_positions_count": 6,
+    "closed_positions_count": 1,
+    "new_close_event_count": 1,
+    "outcome_label_count": 1,
+    "trainer_feedback_rows_ready": 1
+  },
+  "adaptive_runtime": {
+    "paper_candidates_with_allocation": 1440,
+    "accepted_allocation_count": 412,
+    "blocked_allocation_count": 1028,
+    "fixed_runtime_200_usdt_sizing": false,
+    "static_trade_size_used": false
+  },
+  "risk_lifecycle": {
+    "risk_evaluators_called_before_allow": true,
+    "kill_switch_can_block": true,
+    "halt_can_block": true,
+    "reduce_only_latch_can_block_entries": true,
+    "reduce_only_latch_allows_closes": true,
+    "budget_can_block": true,
+    "margin_governor_can_block": true,
+    "shared_trade_lifecycle_guard_available": true
+  },
+  "safety": {
+    "paper_only": true,
+    "live_submit_changed": false,
+    "live_order_submitted_by_validation": false,
+    "test_order_attempted": false,
+    "leverage_changed": false,
+    "margin_mode_changed": false,
+    "old_redis_write": false,
+    "raw_credentials_exposed": false,
+    "trainer_bridge_unmasked": false
+  },
+  "validation": {
+    "py_compile": "PASS",
+    "focused_backend_tests": "PASS: 137 passed",
+    "paper_loop_once": "PASS",
+    "static_sizing_scan": "PASS_CURRENT_RUNTIME_WITH_LEGACY_PACKET_CAVEATS",
+    "old_redis_scan": "PASS",
+    "exchange_mutation_scan": "PASS",
+    "raw_secret_scan": "PASS"
+  }
+}
+

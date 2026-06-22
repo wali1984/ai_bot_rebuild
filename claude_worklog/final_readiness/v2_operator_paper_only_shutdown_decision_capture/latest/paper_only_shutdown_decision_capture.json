@@ -1,0 +1,359 @@
+{
+  "schema_version": "v2_operator_paper_only_shutdown_decision_capture_v1",
+  "generated_utc": "2026-05-25T05:30:00Z",
+  "git_head": "10513bbe0517fd81c9c87e4672bb15486a083c02",
+  "lane_id": "v2_operator_paper_only_shutdown_decision_capture",
+  "scope": "PAPER_ONLY_LEGACY_SHUTDOWN_DECISION_CAPTURE",
+  "go_no_go": "V2_OPERATOR_PAPER_ONLY_SHUTDOWN_DECISION_CAPTURE_READY",
+  "is_decision_capture_only": true,
+  "auto_accepts_any_option": false,
+  "creates_approval_tokens": false,
+  "creates_approval_artifacts": false,
+  "stops_legacy": false,
+  "stops_v2_runtime": false,
+  "writes_old_redis": false,
+  "calls_exchange_mutation": false,
+  "enables_live": false,
+  "approves_canary": false,
+  "approves_redis_trim": false,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "input_sources": [
+    "claude_worklog/final_readiness/v2_final_operator_decision_and_event_watcher_execution/latest/final_operator_decision_center.json",
+    "claude_worklog/final_readiness/v2_final_operator_decision_and_event_watcher_execution/latest/final_shutdown_recommendation.json",
+    "claude_worklog/final_readiness/v2_final_operator_decision_and_event_watcher_execution/latest/external_source_decision_execution_status.json",
+    "claude_worklog/final_readiness/v2_final_operator_decision_and_event_watcher_execution/latest/event_dependent_watcher_runtime_status.json",
+    "claude_worklog/final_readiness/v2_final_production_equivalence_blocker_resolution_sprint/latest"
+  ],
+  "upstream_recommendation": "BLOCK_LEGACY_SHUTDOWN_PRODUCTION_EQUIVALENCE_INCOMPLETE",
+  "required_safety_text": [
+    "This does not approve live.",
+    "This does not approve canary.",
+    "This does not approve Redis trim.",
+    "This does not approve exchange mutation.",
+    "This does not change leverage/margin.",
+    "This is paper-only shutdown decision capture."
+  ],
+  "decision_count": 9,
+  "operator_accepted_count": 0,
+  "operator_selected_count": 0,
+  "shutdown_safe": false,
+  "paper_only_shutdown_decision_capture_ready": true,
+  "paper_only_shutdown_acceptance_artifact_present": false,
+  "paper_only_shutdown_acceptance_artifact_path": "claude_worklog/approvals/OPERATOR_ACCEPTS_V2_PAPER_ONLY_SHUTDOWN_LIMITATIONS.md",
+  "next_action": "OPERATOR_OPENS_operator_decision_form.md_SELECTS_OPTIONS_AND_SIGNS_ACCEPTANCE_FILE",
+  "decisions": [
+    {
+      "decision_index": 1,
+      "blocker_id": "full_observation_builder.operator_decision_families",
+      "decision_label": "paper-edge threshold and unified-feature acceptance",
+      "current_evidence": {
+        "source_packet": "final_operator_decision_center.json",
+        "current_status": "PENDING_OPERATOR_DECISION",
+        "operator_accepted_upstream": false,
+        "observed_state": "Operator decision families for paper-edge thresholds and unified-feature acceptance are explicit and unaccepted."
+      },
+      "why_it_blocks_shutdown_live": "Production equivalence cannot mark resolved while the operator-controlled paper-edge thresholds and unified-feature acceptance remain unselected. Legacy shutdown stays blocked because edge proof and full observation depend on these accepted thresholds.",
+      "option_A_accept_for_paper_only_shutdown": {
+        "id": "ACCEPT_FOR_PAPER_ONLY_SHUTDOWN",
+        "description": "Accept the documented limitation for paper-only shutdown evaluation only. Live/canary remain blocked. No approval token is created by this capture packet."
+      },
+      "option_B_require_implementation_before_shutdown": {
+        "id": "REQUIRE_IMPLEMENTATION_BEFORE_SHUTDOWN",
+        "description": "Require concrete operator thresholds and unified-feature acceptance to be wired with raw evidence before any paper-only shutdown decision is captured."
+      },
+      "option_C_defer_keep_legacy_running": {
+        "id": "DEFER_KEEP_LEGACY_RUNNING",
+        "description": "Defer this decision and keep legacy running. V2 stays paper-only. No shutdown is captured."
+      },
+      "recommended_conservative_default": "DEFER_KEEP_LEGACY_RUNNING",
+      "risk_if_accepted": "Paper-only shutdown could proceed without strict operator-numeric thresholds; live/canary still blocked. Misinterpretation risk if operator later assumes thresholds were validated.",
+      "risk_if_deferred": "Legacy keeps running. V2 production-equivalence stays incomplete. Slower migration but zero exchange-side risk.",
+      "operator_selected_option": null,
+      "operator_accepted": false,
+      "operator_signed_at_utc": null,
+      "operator_signature_artifact_path": null
+    },
+    {
+      "decision_index": 2,
+      "blocker_id": "checkpoint_promotion",
+      "decision_label": "checkpoint/model promotion limitation",
+      "current_evidence": {
+        "source_packet": "final_operator_decision_center.json",
+        "current_status": "PENDING_OPERATOR_DECISION",
+        "operator_accepted_upstream": false,
+        "supporting_field": "p0_2g_checkpoint_weight_status=CHECKPOINT_WEIGHT_BLOB_OPERATOR_REQUIRED",
+        "observed_state": "Checkpoint weight blob is operator-required; promotion path is not signed."
+      },
+      "why_it_blocks_shutdown_live": "Without a signed checkpoint promotion, V2 inference parity with legacy cannot be claimed. Legacy shutdown is unsafe because trainer outputs needed for paper-only continuity are not promoted under operator authority.",
+      "option_A_accept_for_paper_only_shutdown": {
+        "id": "ACCEPT_FOR_PAPER_ONLY_SHUTDOWN",
+        "description": "Accept that the current checkpoint promotion gap is acceptable for paper-only legacy shutdown. Live/canary stay blocked."
+      },
+      "option_B_require_implementation_before_shutdown": {
+        "id": "REQUIRE_IMPLEMENTATION_BEFORE_SHUTDOWN",
+        "description": "Require an operator-signed checkpoint promotion with raw weight blob lineage before any paper-only shutdown is captured."
+      },
+      "option_C_defer_keep_legacy_running": {
+        "id": "DEFER_KEEP_LEGACY_RUNNING",
+        "description": "Defer the decision. Keep legacy trainer/runtime running until checkpoint promotion is operator-signed."
+      },
+      "recommended_conservative_default": "DEFER_KEEP_LEGACY_RUNNING",
+      "risk_if_accepted": "V2 may run paper without a fully-signed checkpoint; explainability/lineage gaps could appear in audit.",
+      "risk_if_deferred": "Migration delay; ongoing cost of keeping legacy alive; no exchange-side risk.",
+      "operator_selected_option": null,
+      "operator_accepted": false,
+      "operator_signed_at_utc": null,
+      "operator_signature_artifact_path": null
+    },
+    {
+      "decision_index": 3,
+      "blocker_id": "legacy_shutdown.legacy_runtime_owner",
+      "decision_label": "legacy runtime stop acceptance",
+      "current_evidence": {
+        "source_packet": "final_operator_decision_center.json",
+        "current_status": "PENDING_OPERATOR_DECISION",
+        "operator_accepted_upstream": false,
+        "observed_state": "No operator-signed acceptance to stop legacy runtime owner. Legacy processes remain active."
+      },
+      "why_it_blocks_shutdown_live": "Stopping the legacy runtime requires explicit operator authority. Without it, no shutdown action is permitted regardless of V2 readiness.",
+      "option_A_accept_for_paper_only_shutdown": {
+        "id": "ACCEPT_FOR_PAPER_ONLY_SHUTDOWN",
+        "description": "Operator accepts authority to stop legacy runtime for paper-only V2 continuity. This capture does not itself execute the stop; it captures the decision intent. Live/canary stay blocked."
+      },
+      "option_B_require_implementation_before_shutdown": {
+        "id": "REQUIRE_IMPLEMENTATION_BEFORE_SHUTDOWN",
+        "description": "Require fully-documented stop runbook, rollback plan, and Codex review before capturing the legacy runtime stop decision."
+      },
+      "option_C_defer_keep_legacy_running": {
+        "id": "DEFER_KEEP_LEGACY_RUNNING",
+        "description": "Defer. Keep legacy runtime active. No stop intent captured."
+      },
+      "recommended_conservative_default": "DEFER_KEEP_LEGACY_RUNNING",
+      "risk_if_accepted": "Operator commits to a stop intent that can later be executed by a separate operator-gated runbook. Misexecution outside the runbook could disrupt observability.",
+      "risk_if_deferred": "Dual-system overhead continues; no exchange-side risk.",
+      "operator_selected_option": null,
+      "operator_accepted": false,
+      "operator_signed_at_utc": null,
+      "operator_signature_artifact_path": null
+    },
+    {
+      "decision_index": 4,
+      "blocker_id": "legacy_shutdown.legacy_redis_keys_active",
+      "decision_label": "legacy Redis trim / retention decision",
+      "current_evidence": {
+        "source_packet": "final_operator_decision_center.json",
+        "current_status": "PENDING_OPERATOR_DECISION",
+        "operator_accepted_upstream": false,
+        "observed_state": "Legacy Redis keys still hold live data lineage. No operator decision to trim or retain."
+      },
+      "why_it_blocks_shutdown_live": "Without explicit operator decision on trim/retention, V2 cannot safely assume legacy Redis is decommissioned. Trimming without operator authority risks losing audit lineage; not trimming leaves attack surface and key collisions.",
+      "option_A_accept_for_paper_only_shutdown": {
+        "id": "ACCEPT_FOR_PAPER_ONLY_SHUTDOWN",
+        "description": "Operator captures intent to retain legacy Redis read-only and treat keys as frozen lineage for paper-only shutdown. Capture packet does NOT trim Redis. No write occurs."
+      },
+      "option_B_require_implementation_before_shutdown": {
+        "id": "REQUIRE_IMPLEMENTATION_BEFORE_SHUTDOWN",
+        "description": "Require backup verification and trim runbook with Codex review and rollback plan before any retention decision is captured."
+      },
+      "option_C_defer_keep_legacy_running": {
+        "id": "DEFER_KEEP_LEGACY_RUNNING",
+        "description": "Defer. Legacy Redis keeps running with active keys. No trim, no retention intent captured."
+      },
+      "recommended_conservative_default": "DEFER_KEEP_LEGACY_RUNNING",
+      "risk_if_accepted": "Frozen lineage requires periodic re-verification; misuse risk if a downstream job assumes the legacy keys are fresh.",
+      "risk_if_deferred": "Storage growth and audit ambiguity continue; no exchange-side risk.",
+      "operator_selected_option": null,
+      "operator_accepted": false,
+      "operator_signed_at_utc": null,
+      "operator_signature_artifact_path": null
+    },
+    {
+      "decision_index": 5,
+      "blocker_id": "risk_caps_canary_hard_gates_unset",
+      "decision_label": "risk/capital caps and canary hard gates",
+      "current_evidence": {
+        "source_packet": "final_operator_decision_center.json",
+        "current_status": "PENDING_OPERATOR_DECISION",
+        "operator_accepted_upstream": false,
+        "observed_state": "Hard risk caps and canary gates are unset. No operator-signed numeric caps exist for live/canary."
+      },
+      "why_it_blocks_shutdown_live": "Production-equivalence claim requires that the live/canary risk frame is fully described, even if live remains blocked. Without operator caps, paper-only shutdown cannot be evaluated against the documented live frame.",
+      "option_A_accept_for_paper_only_shutdown": {
+        "id": "ACCEPT_FOR_PAPER_ONLY_SHUTDOWN",
+        "description": "Operator accepts that risk caps remain unset because V2 is paper-only and live is blocked. Capture explicitly states caps are unset and live remains blocked_human_only."
+      },
+      "option_B_require_implementation_before_shutdown": {
+        "id": "REQUIRE_IMPLEMENTATION_BEFORE_SHUTDOWN",
+        "description": "Require operator-signed numeric risk caps and canary hard gates before paper-only shutdown is captured, even though live remains blocked."
+      },
+      "option_C_defer_keep_legacy_running": {
+        "id": "DEFER_KEEP_LEGACY_RUNNING",
+        "description": "Defer. Legacy keeps running. Risk caps remain unset and V2 remains paper-only with live blocked."
+      },
+      "recommended_conservative_default": "DEFER_KEEP_LEGACY_RUNNING",
+      "risk_if_accepted": "Caps remain unset; any future attempt to enable canary must trip a fresh operator gate. Risk surface only if a separate gate is bypassed.",
+      "risk_if_deferred": "Continued dual-system; no exchange-side risk.",
+      "operator_selected_option": null,
+      "operator_accepted": false,
+      "operator_signed_at_utc": null,
+      "operator_signature_artifact_path": null
+    },
+    {
+      "decision_index": 6,
+      "blocker_id": "capital_recovery_gate_unset",
+      "decision_label": "capital recovery threshold / risk guard acceptance",
+      "current_evidence": {
+        "source_packet": "final_operator_decision_center.json",
+        "current_status": "PENDING_OPERATOR_DECISION",
+        "operator_accepted_upstream": false,
+        "observed_state": "Capital recovery threshold and risk guard are unset and operator-required."
+      },
+      "why_it_blocks_shutdown_live": "Capital recovery threshold informs the paper-edge proof statistics and any future canary capital frame. Without it, paper-only shutdown evaluation lacks an operator-signed loss/recovery boundary.",
+      "option_A_accept_for_paper_only_shutdown": {
+        "id": "ACCEPT_FOR_PAPER_ONLY_SHUTDOWN",
+        "description": "Operator accepts that for paper-only shutdown the capital recovery gate is documented as unset; V2 remains paper-only and live remains blocked."
+      },
+      "option_B_require_implementation_before_shutdown": {
+        "id": "REQUIRE_IMPLEMENTATION_BEFORE_SHUTDOWN",
+        "description": "Require operator-signed numeric capital recovery threshold and risk guard before paper-only shutdown is captured."
+      },
+      "option_C_defer_keep_legacy_running": {
+        "id": "DEFER_KEEP_LEGACY_RUNNING",
+        "description": "Defer. Legacy keeps running. Capital recovery gate remains unset."
+      },
+      "recommended_conservative_default": "DEFER_KEEP_LEGACY_RUNNING",
+      "risk_if_accepted": "No numeric recovery target captured; paper-only metrics may lack a defensible boundary. Live remains blocked so no capital is at risk.",
+      "risk_if_deferred": "Continued dual-system overhead; no exchange-side risk.",
+      "operator_selected_option": null,
+      "operator_accepted": false,
+      "operator_signed_at_utc": null,
+      "operator_signature_artifact_path": null
+    },
+    {
+      "decision_index": 7,
+      "blocker_id": "full_observation_builder.external_sources",
+      "decision_label": "external source adoption (onchain_btc, onchain_eth, unified_feature_family.token_metrics)",
+      "current_evidence": {
+        "source_packet": "external_source_decision_execution_status.json",
+        "classification": "SOURCE_MISSING_KEY_OPERATOR_REQUIRED",
+        "raw_values_read": false,
+        "raw_key_values_exposed": false,
+        "free_tier_codex_safe_confirmed_by_env_name_presence": false,
+        "missing_env_var_names_by_family": {
+          "onchain_btc": ["GLASSNODE_API_KEY", "CRYPTOQUANT_API_KEY", "SANTIMENT_API_KEY"],
+          "onchain_eth": ["GLASSNODE_API_KEY", "CRYPTOQUANT_API_KEY", "SANTIMENT_API_KEY"],
+          "unified_feature_family.token_metrics": ["TOKENMETRICS_API_KEY", "TM_API_KEY"]
+        },
+        "observed_state": "All external-source families lack present env-var names. The capture packet checks names only and never reads raw secret values."
+      },
+      "why_it_blocks_shutdown_live": "Full observation builder cannot satisfy external-source families without operator-approved adoption (free-tier confirmation OR paid-tier secret name presence). Until adopted, paper-only shutdown is gated.",
+      "option_A_accept_for_paper_only_shutdown": {
+        "id": "ACCEPT_FOR_PAPER_ONLY_SHUTDOWN",
+        "description": "Operator accepts that external sources remain unadopted for paper-only shutdown and that full observation will continue to operate with the documented gap. Live/canary remain blocked."
+      },
+      "option_B_require_implementation_before_shutdown": {
+        "id": "REQUIRE_IMPLEMENTATION_BEFORE_SHUTDOWN",
+        "description": "Require operator to set V2_EXTERNAL_SOURCE_FREE_TIER_CONFIRMED + V2_EXTERNAL_SOURCE_CODEX_SAFE_CONFIRMED for free-tier OR provide the named secrets (by name only, the capture does not read values) before paper-only shutdown is captured."
+      },
+      "option_C_defer_keep_legacy_running": {
+        "id": "DEFER_KEEP_LEGACY_RUNNING",
+        "description": "Defer. Keep legacy running and leave full-observation external-source family blocked."
+      },
+      "recommended_conservative_default": "DEFER_KEEP_LEGACY_RUNNING",
+      "risk_if_accepted": "Full observation operates with documented external-source gaps. Model edge proof may remain weaker; live remains blocked so no exchange risk.",
+      "risk_if_deferred": "Continued dual-system; no exchange-side risk.",
+      "operator_selected_option": null,
+      "operator_accepted": false,
+      "operator_signed_at_utc": null,
+      "operator_signature_artifact_path": null
+    },
+    {
+      "decision_index": 8,
+      "blocker_id": "full_observation_builder.event_dependent",
+      "decision_label": "event-dependent liquidation / full-observation watcher",
+      "current_evidence": {
+        "source_packet": "event_dependent_watcher_runtime_status.json",
+        "watcher_id": "event_watcher_1_liquidation_source",
+        "current_observed_state": "WAITING_FOR_REAL_LIQUIDATION_EVENT_OR_SOURCE",
+        "pass_condition_satisfied": false,
+        "no_synthetic_liquidation_events": true,
+        "symbols_with_any_v2_liquidation_key_populated_count": 0,
+        "v2_liquidation_aggregator_per_symbol_source_available": false,
+        "observed_state": "Watcher remains active and has not observed real per-symbol liquidation evidence. No fabricated completion is permitted."
+      },
+      "why_it_blocks_shutdown_live": "Full observation requires real per-symbol liquidation events. Without them, the paper-only shutdown decision cannot rely on full observation; the watcher must stay open.",
+      "option_A_accept_for_paper_only_shutdown": {
+        "id": "ACCEPT_FOR_PAPER_ONLY_SHUTDOWN",
+        "description": "Operator accepts that liquidation-event observation remains pending for paper-only shutdown; V2 continues paper-only with the documented gap. Live/canary remain blocked."
+      },
+      "option_B_require_implementation_before_shutdown": {
+        "id": "REQUIRE_IMPLEMENTATION_BEFORE_SHUTDOWN",
+        "description": "Require real per-symbol liquidation event observed and aggregator source available before paper-only shutdown is captured."
+      },
+      "option_C_defer_keep_legacy_running": {
+        "id": "DEFER_KEEP_LEGACY_RUNNING",
+        "description": "Defer. Keep legacy running until the watcher passes on real evidence."
+      },
+      "recommended_conservative_default": "DEFER_KEEP_LEGACY_RUNNING",
+      "risk_if_accepted": "Full-observation continues with documented liquidation gap; live remains blocked so no exchange risk.",
+      "risk_if_deferred": "Continued dual-system; no exchange-side risk.",
+      "operator_selected_option": null,
+      "operator_accepted": false,
+      "operator_signed_at_utc": null,
+      "operator_signature_artifact_path": null
+    },
+    {
+      "decision_index": 9,
+      "blocker_id": "paper_edge_not_proven",
+      "decision_label": "paper-edge proof watcher",
+      "current_evidence": {
+        "source_packet": "event_dependent_watcher_runtime_status.json",
+        "watcher_id": "event_watcher_2_paper_edge_evidence",
+        "current_observed_state": "WAITING_FOR_EDGE_PROOF_AND_OPERATOR_THRESHOLDS",
+        "pass_condition_satisfied": false,
+        "miner_verdict": "EDGE_NOT_CLAIMED_OPERATOR_THRESHOLDS_REQUIRED",
+        "expected_move_after_cost_bps": -8.981832584893514,
+        "after_cost_ci_lower_bps": -13.090729934534577,
+        "edge_claimed": false,
+        "minimum_sample_satisfied": false,
+        "no_fabricated_outcomes": true,
+        "observed_state": "After-cost edge is negative; CI lower bound is negative; minimum sample not satisfied; operator thresholds not set."
+      },
+      "why_it_blocks_shutdown_live": "Paper-edge is the foundation of any post-legacy decision. Negative after-cost edge with unset operator thresholds means paper-only shutdown cannot claim a defensible edge frame.",
+      "option_A_accept_for_paper_only_shutdown": {
+        "id": "ACCEPT_FOR_PAPER_ONLY_SHUTDOWN",
+        "description": "Operator accepts that paper-edge remains unproven for the purpose of paper-only shutdown evaluation. V2 stays paper-only no-trade or fail-closed. Live/canary remain blocked."
+      },
+      "option_B_require_implementation_before_shutdown": {
+        "id": "REQUIRE_IMPLEMENTATION_BEFORE_SHUTDOWN",
+        "description": "Require operator numeric thresholds AND statistically defensible positive after-cost paper/shadow expectancy before paper-only shutdown is captured."
+      },
+      "option_C_defer_keep_legacy_running": {
+        "id": "DEFER_KEEP_LEGACY_RUNNING",
+        "description": "Defer. Keep legacy running until paper-edge passes with operator thresholds and positive after-cost evidence."
+      },
+      "recommended_conservative_default": "REQUIRE_IMPLEMENTATION_BEFORE_SHUTDOWN",
+      "risk_if_accepted": "V2 operates paper-only with an explicitly unproven edge; misinterpretation risk if anyone treats this as a green light. Live remains blocked.",
+      "risk_if_deferred": "Continued dual-system; no exchange-side risk.",
+      "operator_selected_option": null,
+      "operator_accepted": false,
+      "operator_signed_at_utc": null,
+      "operator_signature_artifact_path": null
+    }
+  ],
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "writes_old_redis": false,
+    "calls_exchange_mutation": false,
+    "creates_approval_tokens": false,
+    "fabricates_edge": false,
+    "fabricates_missing_observations": false,
+    "modifies_legacy_repo": false
+  }
+}

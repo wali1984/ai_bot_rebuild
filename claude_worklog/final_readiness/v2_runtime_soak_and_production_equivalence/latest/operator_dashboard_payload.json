@@ -1,0 +1,69 @@
+{
+  "schema_version": "post_6h_production_equivalence_operator_dashboard_v1",
+  "generated_utc": "2026-05-17T17:11:23Z",
+  "go_no_go": "POST_6H_PRODUCTION_EQUIVALENCE_OPERATOR_DECISION_REQUIRED",
+  "headline": "6h V2 paper/shadow soak passed; production equivalence still requires operator decision.",
+  "can_old_system_be_shut_down": false,
+  "do_not_shut_down_legacy_yet": true,
+  "live_ready": false,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false,
+  "six_hour_soak": {
+    "codex_pass": true,
+    "minutes_observed": 905.25,
+    "soak_6h_ready": true,
+    "all_v2_processes_uninterrupted": true,
+    "v2_namespaces_never_empty": true
+  },
+  "remaining_decisions": [
+    "CHECKPOINT_WEIGHT_BLOB_OPERATOR_REQUIRED",
+    "OPERATOR_ACCEPTS_V2_PAPER_ONLY_SHUTDOWN_LIMITATIONS_FILE_ABSENT",
+    "LEGACY_STILL_OWNS_PRODUCTION_RUNTIME",
+    "LEGACY_PRODUCTION_REDIS_KEYS_STILL_ACTIVE"
+  ],
+  "checkpoint_state": {
+    "approved_checkpoint_artifact_present": false,
+    "operator_acceptance_file_exists": false,
+    "checkpoint_parity_claimed": false
+  },
+  "legacy_process_summary": {
+    "legacy_processes_still_running": 10,
+    "v2_equivalents_running": true,
+    "shutdown_classification": "OPERATOR_DECISION_REQUIRED_FOR_PAPER_ONLY_SHUTDOWN"
+  },
+  "redis_summary": {
+    "legacy_prediction_keys": 151,
+    "legacy_features_keys": 5723,
+    "legacy_signals_keys": 8,
+    "legacy_market_keys": 144,
+    "legacy_trainer_keys": 26,
+    "legacy_orchestrator_keys": 1,
+    "v2_prediction_keys": 3,
+    "v2_features_keys": 5,
+    "v2_signals_keys": 1,
+    "v2_market_keys": 11,
+    "v2_trainer_keys": 2,
+    "v2_orchestrator_keys": 3
+  },
+  "comparison_summary": {
+    "no_invented_outcomes": true,
+    "matches": 0,
+    "mismatches": 3,
+    "checkpoint_driven_hold_mismatches": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT"
+    ]
+  },
+  "plain_english": [
+    "The V2 paper/shadow runtime completed the 6h soak.",
+    "Legacy still owns production and must not be stopped by this packet.",
+    "Checkpoint weights are still missing or not accepted.",
+    "The operator must provide a reviewed checkpoint artifact or explicitly accept deterministic-init paper-only limitations.",
+    "Live trading remains blocked."
+  ]
+}

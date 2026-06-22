@@ -1,0 +1,13 @@
+{
+  "schema_version": "v2_continuous_hourly_monitor_v1",
+  "generated_at": "2026-06-21T23:02:29Z",
+  "windows_evaluated": 3,
+  "losing_windows": 0,
+  "clean_windows": 3,
+  "total_closed_trades_3h": 0,
+  "total_realized_pnl_3h": 0,
+  "quality_verdict": "3H_EDGE_NOT_YET_VALIDATED",
+  "required_for_final_marker": "3 consecutive clean windows + 500 trade soak",
+  "gate_status": "blocked_human_only",
+  "mutates_exchange": false
+}

@@ -1,0 +1,33 @@
+{
+  "packet_id": "priority_autoseed_20260531",
+  "generated_at": "2026-05-31T00:00:00Z",
+  "live_gate": "blocked_human_only",
+  "mode": "top_priority_omission_closure",
+  "manual_next_task_required": false,
+  "selected_primary_task": "claude_priority_director_legacy_audit_omission_closure_20260531",
+  "autoseeded_tasks": [
+    "claude_priority_missing_ingestor_service_20260531",
+    "claude_priority_stale_ingestor_payload_20260531",
+    "claude_priority_missing_v2_namespace_mapping_20260531",
+    "claude_priority_old_redis_adapter_for_copied_script_20260531",
+    "claude_priority_missing_dynamic_symbol_coverage_20260531",
+    "claude_priority_feature_ta_missing_fields_20260531",
+    "claude_priority_trainer_data_feed_gaps_20260531",
+    "claude_priority_website_stale_incorrect_page_20260531",
+    "claude_priority_paper_decision_lineage_missing_20260531",
+    "claude_priority_backtest_not_run_20260531",
+    "claude_priority_old_redis_writer_proof_missing_20260531"
+  ],
+  "acceptance_until_stop": {
+    "every_legacy_audit_item_represented": true,
+    "every_data_source_validated": true,
+    "every_omission_has_exact_blocker": true,
+    "website_displays_true_state": true
+  },
+  "forbidden_actions": {
+    "live_enablement": false,
+    "legacy_mutation": false,
+    "old_redis_write": false,
+    "exchange_mutation": false
+  }
+}

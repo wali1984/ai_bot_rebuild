@@ -1,0 +1,30 @@
+{
+  "codex_pair_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r15",
+  "completed_at": "2026-05-24T23:52:17Z",
+  "created_at": "2026-05-24T23:48:15Z",
+  "fail_blockers": [
+    "1. Add `AfterCostCalibration` dataclass + `_fit_after_cost_calibration(train_rows, model)` doing simple OLS on `(predicted p, after_cost_return_bps)` over V2-owned `ROW_TRAINABLE` rows only; defensively excludes `insufficient_evidence` and `None` after-cost rows; requires `MIN_CALIBRATION_SAMPLES = 16`."
+  ],
+  "file_lock_group": "v2_native_baseline_after_cost_calibration",
+  "lease_id": "e8aa5815740a44d89ccc9ae8fcf7afaf",
+  "next_action": "Remediate the safe V2-side fail blockers listed in fail_blockers. Do not touch legacy. Do not call exchange mutation. Keep live_gate=blocked_human_only and live_symbols=[].",
+  "owner": "CLAUDE",
+  "pid_or_job_id": 1573506,
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "started_at": "2026-05-24T23:49:02Z",
+  "status": "completed",
+  "task_id": "closed_loop_remediation_codex_review_autoseed_baseline_after_cost_calibration_r15",
+  "task_type": "REMEDIATION",
+  "updated_at": "2026-05-24T23:52:17Z",
+  "worker_id": "claude-1"
+}

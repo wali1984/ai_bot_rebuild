@@ -1,0 +1,128 @@
+{
+  "blockers": [
+    "LIVE_GATE_RUNTIME_STATE_STALE",
+    "LIVE_ORDER_TRANSPORT_WRITE_ENV_NOT_ENABLED",
+    "RISK_GATEWAY_DECISION_ID_MISMATCH"
+  ],
+  "execution_live_symbols": [],
+  "generated_est": "2026-06-07T15:21:01-04:00",
+  "go_no_go": "V2_BINANCE_LIVE_ORDER_TRANSPORT_BINDING_AND_FIRST_HOUR_MONITORING_BLOCKED",
+  "live_gate": "blocked_human_only",
+  "live_order_transport_bound": true,
+  "live_symbols": [],
+  "places_real_order": false,
+  "post_live_enable_first_hour": {
+    "auto_freeze_triggered": false,
+    "blockers": [
+      "LIVE_GATE_RUNTIME_STATE_STALE",
+      "LIVE_ORDER_TRANSPORT_WRITE_ENV_NOT_ENABLED",
+      "RISK_GATEWAY_DECISION_ID_MISMATCH"
+    ],
+    "generated_est": "2026-06-07T15:21:01-04:00",
+    "monitor_interval_seconds": 5,
+    "orders_attempted": 0,
+    "orders_rejected": 0,
+    "orders_submitted": 0,
+    "status": "POST_ENABLE_MONITOR_NOT_STARTED_ORDER_TRANSPORT_BLOCKED"
+  },
+  "schema_version": "v2_binance_live_order_transport_operator_dashboard_v1",
+  "trader_execution_enabled": false,
+  "transport": {
+    "accepted_symbols": [
+      "BNBUSDT",
+      "BTCUSDT",
+      "ETHUSDT",
+      "PAXGUSDT",
+      "XAUTUSDT",
+      "ZECUSDT"
+    ],
+    "blockers": [
+      "LIVE_GATE_RUNTIME_STATE_STALE",
+      "LIVE_ORDER_TRANSPORT_WRITE_ENV_NOT_ENABLED",
+      "RISK_GATEWAY_DECISION_ID_MISMATCH"
+    ],
+    "credential_status": {
+      "api_key_present": true,
+      "api_secret_present": true,
+      "env_source": "/home/wali/Desktop/AI BOT REBUILD/v2/.env.local",
+      "key_names_used": {
+        "api_key": "BINANCE_API_KEY",
+        "api_secret": "BINANCE_API_SECRET"
+      },
+      "raw_credential_in_payload": "NEVER"
+    },
+    "generated_est": "2026-06-07T15:21:09-04:00",
+    "kill_switch_active": false,
+    "kill_switch_source": "unset",
+    "legacy_restart_attempted": false,
+    "leverage_changed": false,
+    "live_order_transport_bound": true,
+    "margin_mode_changed": false,
+    "order_submitted": false,
+    "places_real_order": false,
+    "position_read_status": "OK",
+    "raw_credentials_exposed": false,
+    "real_order_endpoint": null,
+    "redis_trim_attempted": false,
+    "required_lineage_fields": [
+      "prediction_id",
+      "risk_decision_id",
+      "orchestrator_decision_id",
+      "signal_id",
+      "live_gate_audit_id",
+      "risk_profile_audit_id",
+      "symbols_audit_id"
+    ],
+    "runtime_state_source": "v2:live_gate:state",
+    "runtime_state_validation": {
+      "age_seconds": 167289.579806,
+      "blockers": [
+        "LIVE_GATE_RUNTIME_STATE_STALE"
+      ],
+      "max_age_seconds": 3600,
+      "valid": false
+    },
+    "schema_version": "v2_binance_live_order_transport_binding_v1",
+    "selected_candidate": {
+      "confidence": 0.6809434355382293,
+      "expected_move_after_cost_bps": 108.56573370692621,
+      "final_approval_audit_id": "live_gate_final_badf7f3cf3874dd9b347e7c3266d2573",
+      "lineage": {
+        "live_gate_audit_id": "live_gate_enable_7eb4403699a14bc8aecd29fcf7f2431c",
+        "orchestrator_decision_id": "v2_native_pred_eebc485029b97512d5d598030b850cd2_219a2190e2b0ebb8",
+        "prediction_id": "v2_native_pred_eebc485029b97512d5d598030b850cd2_219a2190e2b0ebb8",
+        "risk_decision_id": "v2:risk:decisions:BTCUSDT",
+        "risk_profile_audit_id": "live_gate_risk_bf7f2431a82a41d0997dad5f668e7996",
+        "signal_id": "v2_native_pred_eebc485029b97512d5d598030b850cd2_219a2190e2b0ebb8",
+        "symbols_audit_id": "live_gate_symbols_aca7a192fba941b8873df0cf864f5c52"
+      },
+      "price_reference": 62102.68118462986,
+      "quantity": 0.0004025591089324399,
+      "requested_notional_usdt": 25.0,
+      "risk_gateway_record": {
+        "live_blocked": true,
+        "risk_action": "allow",
+        "risk_decision_id": "rd_dec_v2_native_pred_364aeea001d33300bcf465a30f2303ea_219a2190e2b0ebb8",
+        "risk_reason_code": "allow_proceed_long"
+      },
+      "side": "BUY",
+      "source_generated_est": "2026-06-07T15:19:54-04:00",
+      "source_signal_live_gate": "blocked_human_only",
+      "source_signal_live_symbols": [],
+      "symbol": "BTCUSDT"
+    },
+    "status": "LIVE_ORDER_TRANSPORT_BLOCKED",
+    "submit_result": null,
+    "test_order_endpoint_attempted": false,
+    "transfer_or_withdrawal_attempted": false,
+    "transport_env_enabled": false,
+    "transport_write_enabled": false,
+    "warnings": [
+      "RISK_GATEWAY_LEGACY_LIVE_BLOCKED_TRUE_PRESENT",
+      "SIGNAL_PAYLOAD_LIVE_GATE_DIFFERS_FROM_RUNTIME_STATE"
+    ],
+    "writes_exchange_orders": false,
+    "writes_old_redis": false
+  },
+  "writes_exchange_orders": false
+}

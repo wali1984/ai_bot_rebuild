@@ -1,0 +1,65 @@
+{
+  "schema_version": "v2_final_production_equivalence_and_legacy_shutdown_readiness_v2",
+  "generated_utc": "2026-05-25T01:24:29Z",
+  "go_no_go": "V2_FINAL_PRODUCTION_EQUIVALENCE_AND_LEGACY_SHUTDOWN_READINESS_BLOCKED",
+  "ready": false,
+  "production_equivalence_ready": false,
+  "legacy_shutdown_ready": false,
+  "live_ready": false,
+  "paper_edge_proven": false,
+  "non_operator_p0_implementation_blocker_count": 0,
+  "operator_required_blocker_count": 2,
+  "evidence_or_event_dependent_blocker_count": 2,
+  "blockers": [
+    {
+      "blocker_id": "full_observation_builder",
+      "classification": "OPERATOR_REQUIRED_EXTERNAL_EVENT_DEPENDENT",
+      "status": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+      "operator_required": true,
+      "next_required_family": null,
+      "no_buildable_internal_family_remaining": true,
+      "external_source_required_families": [
+        "unified_feature_family.token_metrics",
+        "onchain_btc",
+        "onchain_eth"
+      ],
+      "operator_decision_required_families": [
+        "unified_feature_family.ccxt_ohlcv"
+      ],
+      "event_dependent_families": [
+        "liquidations"
+      ],
+      "conditionally_undefined_families": [
+        "technical_analysis"
+      ]
+    },
+    {
+      "blocker_id": "checkpoint_promotion",
+      "classification": "OPERATOR_DECISION_REQUIRED",
+      "status": "V2_CHECKPOINT_PROMOTION_OPERATOR_REQUIRED",
+      "operator_required": true
+    },
+    {
+      "blocker_id": "paper_edge_not_proven",
+      "classification": "EVIDENCE_AND_OPERATOR_THRESHOLD_REQUIRED",
+      "operator_required": true
+    },
+    {
+      "blocker_id": "legacy_shutdown",
+      "classification": "OPERATOR_ONLY",
+      "operator_required": true,
+      "exact_operator_requirement": [
+        "LEGACY_STILL_OWNS_PRODUCTION_RUNTIME",
+        "LEGACY_PRODUCTION_REDIS_KEYS_STILL_ACTIVE"
+      ]
+    }
+  ],
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false
+  }
+}

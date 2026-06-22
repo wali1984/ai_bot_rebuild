@@ -1,0 +1,159 @@
+{
+  "already_complete_path_rows": 901,
+  "binance_public_agg_trades_cache_entries": 31,
+  "binance_public_agg_trades_fetch_enabled": true,
+  "binance_public_agg_trades_rows_fetched": 66652,
+  "binance_public_agg_trades_used_for_rows": 31,
+  "binance_public_klines_cache_entries": 10,
+  "binance_public_klines_fetch_enabled": true,
+  "binance_public_klines_rows_fetched": 2417,
+  "binance_public_klines_symbol_windows": 10,
+  "binance_public_klines_used_for_rows": 0,
+  "binance_public_market_data_used_for_rows": 31,
+  "closed_trade_rows_seen": 932,
+  "dry_run": false,
+  "examples": [
+    {
+      "candle_count": 145,
+      "candle_timeframe": "aggTrade",
+      "exit_time": "2026-06-18T13:27:58Z",
+      "side": "short",
+      "source_keys": [
+        "BINANCE_USDM_PUBLIC_AGG_TRADES:MITOUSDT"
+      ],
+      "symbol": "MITOUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "candle_count": 3356,
+      "candle_timeframe": "aggTrade",
+      "exit_time": "2026-06-18T13:38:39Z",
+      "side": "short",
+      "source_keys": [
+        "BINANCE_USDM_PUBLIC_AGG_TRADES:ESPORTSUSDT"
+      ],
+      "symbol": "ESPORTSUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "candle_count": 314,
+      "candle_timeframe": "aggTrade",
+      "exit_time": "2026-06-18T13:42:55Z",
+      "side": "short",
+      "source_keys": [
+        "BINANCE_USDM_PUBLIC_AGG_TRADES:HOMEUSDT"
+      ],
+      "symbol": "HOMEUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "candle_count": 2124,
+      "candle_timeframe": "aggTrade",
+      "exit_time": "2026-06-18T13:57:08Z",
+      "side": "short",
+      "source_keys": [
+        "BINANCE_USDM_PUBLIC_AGG_TRADES:ESPORTSUSDT"
+      ],
+      "symbol": "ESPORTSUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "candle_count": 203,
+      "candle_timeframe": "aggTrade",
+      "exit_time": "2026-06-18T14:07:21Z",
+      "side": "short",
+      "source_keys": [
+        "BINANCE_USDM_PUBLIC_AGG_TRADES:BSBUSDT"
+      ],
+      "symbol": "BSBUSDT",
+      "timeframe": "1h"
+    },
+    {
+      "candle_count": 24,
+      "candle_timeframe": "aggTrade",
+      "exit_time": "2026-06-18T14:09:23Z",
+      "side": "short",
+      "source_keys": [
+        "BINANCE_USDM_PUBLIC_AGG_TRADES:BSBUSDT"
+      ],
+      "symbol": "BSBUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "candle_count": 3455,
+      "candle_timeframe": "aggTrade",
+      "exit_time": "2026-06-18T14:12:39Z",
+      "side": "short",
+      "source_keys": [
+        "BINANCE_USDM_PUBLIC_AGG_TRADES:HUSDT"
+      ],
+      "symbol": "HUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "candle_count": 46,
+      "candle_timeframe": "aggTrade",
+      "exit_time": "2026-06-18T14:17:59Z",
+      "side": "short",
+      "source_keys": [
+        "BINANCE_USDM_PUBLIC_AGG_TRADES:FILUSDT"
+      ],
+      "symbol": "FILUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "candle_count": 1142,
+      "candle_timeframe": "aggTrade",
+      "exit_time": "2026-06-18T14:20:04Z",
+      "side": "short",
+      "source_keys": [
+        "BINANCE_USDM_PUBLIC_AGG_TRADES:HUSDT"
+      ],
+      "symbol": "HUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "candle_count": 3490,
+      "candle_timeframe": "aggTrade",
+      "exit_time": "2026-06-18T14:41:05Z",
+      "side": "short",
+      "source_keys": [
+        "BINANCE_USDM_PUBLIC_AGG_TRADES:ESPORTSUSDT"
+      ],
+      "symbol": "ESPORTSUSDT",
+      "timeframe": "1m"
+    }
+  ],
+  "generated_at": "2026-06-19T09:13:38Z",
+  "keys_written": [
+    "v2:paper:closed_trades",
+    "v2:paper:outcome_labels",
+    "v2:paper:ledger"
+  ],
+  "ledger_rows_updated": {
+    "closed_trades": 31,
+    "closes": 31,
+    "outcome_labels": 31
+  },
+  "live_gate": "blocked_human_only",
+  "not_coverable_path_rows": 0,
+  "outcome_label_rows_seen": 932,
+  "outcome_label_rows_updated": 31,
+  "path_policy": {
+    "does_not_create_training_decision_features": true,
+    "leaves_uncovered_rows_dirty": true,
+    "public_aggregate_trade_fetch_is_readonly_and_opt_in": true,
+    "public_market_data_fetch_is_readonly_and_opt_in": true,
+    "requires_candle_close_time_lte_exit_time": true,
+    "requires_candle_open_time_gte_entry_time": true,
+    "uses_entry_exit_boundary_prices": true,
+    "uses_only_final_candles": true,
+    "uses_only_final_public_aggregate_trades": true
+  },
+  "places_real_order": false,
+  "post_backfill_path_complete_count": 932,
+  "repaired_path_rows": 31,
+  "schema_version": "v2_paper_closed_trade_path_telemetry_backfill_v1",
+  "writes_exchange_orders": false,
+  "writes_redis": true
+}

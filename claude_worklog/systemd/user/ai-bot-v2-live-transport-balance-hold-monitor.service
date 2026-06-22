@@ -1,0 +1,21 @@
+[Unit]
+Description=AI BOT V2 live transport balance-aware hold monitor (no-submit; V2-only)
+Documentation=file:%h/Desktop/AI%20BOT%20REBUILD/v2/frontend/public/v2_live_transport_balance_aware_hold_and_first_order_monitor/latest/GO_NO_GO.md
+After=network.target ai-bot-v2-trader-runtime-loop.service ai-bot-v2-risk-gateway-live-loop.service ai-bot-v2-orchestrator-arbitration-loop.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Desktop/AI BOT REBUILD
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=%h/Desktop/AI BOT REBUILD
+Environment=V2_REPO_ROOT=%h/Desktop/AI BOT REBUILD
+ExecStart="%h/Desktop/AI BOT REBUILD/.venv/bin/python3" "%h/Desktop/AI BOT REBUILD/v2/backend/app/cli/v2_live_transport_balance_aware_hold_and_first_order_monitor.py" --repo-root "%h/Desktop/AI BOT REBUILD" --no-submit --skip-validation
+StandardOutput=append:%h/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_live_transport_balance_hold_monitor.log
+StandardError=append:%h/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_live_transport_balance_hold_monitor.err
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=false
+
+[Install]
+WantedBy=default.target

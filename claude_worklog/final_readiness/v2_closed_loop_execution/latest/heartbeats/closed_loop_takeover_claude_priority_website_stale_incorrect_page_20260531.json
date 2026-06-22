@@ -1,0 +1,9 @@
+{
+  "alive": true,
+  "file_lock_group": "claude_priority_website_stale_incorrect_page_20260531",
+  "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/closed_loop_takeover_claude_priority_website_stale_incorrect_page_20260531_codex.log",
+  "pid": 2248878,
+  "task_id": "closed_loop_takeover_claude_priority_website_stale_incorrect_page_20260531",
+  "task_type": "CODEX_TAKEOVER",
+  "updated_at": "2026-05-31T09:28:50Z"
+}

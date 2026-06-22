@@ -1,0 +1,94 @@
+{
+  "schema_version": "v2_replay_bundle_cost_model_backfill_remediation_status_v1",
+  "generated_utc": "2026-05-23T05:35:00Z",
+  "go_no_go": "V2_REPLAY_BUNDLE_COST_MODEL_BACKFILL_REMEDIATION_READY",
+  "codex_fail_blockers_resolved": [
+    "persisted replay bundle artifacts still contain stale default cost-model rows without OPERATOR_DECISION_REQUIRED",
+    "old rows missing operator_decision_required / operator_override_required / default_fee_bps_visible / default_slippage_estimate_bps_visible"
+  ],
+  "required_cost_model_literal": "OPERATOR_DECISION_REQUIRED",
+  "required_cost_model_marker": "DEFAULT_PAPER_COST_MODEL_PENDING_OPERATOR_OVERRIDE_OPERATOR_DECISION_REQUIRED",
+  "required_market_snapshot_keys": [
+    "cost_model_source",
+    "operator_decision_required",
+    "operator_override_required",
+    "default_fee_bps_visible",
+    "default_slippage_estimate_bps_visible"
+  ],
+  "stores_backfilled": [
+    {
+      "path": "claude_worklog/final_readiness/v2_post_hoc_replay_outcome_miner/latest/replay_outcome_bundles.jsonl",
+      "rows": 6,
+      "changed": 3,
+      "validation_passed": true,
+      "protected_field_drift": []
+    },
+    {
+      "path": "v2/frontend/public/v2_post_hoc_replay_outcome_miner/latest/replay_outcome_bundles.jsonl",
+      "rows": 6,
+      "changed": 3,
+      "validation_passed": true,
+      "protected_field_drift": []
+    },
+    {
+      "path": "claude_worklog/final_readiness/v2_post_hoc_replay_outcome_miner/state/replay_bundles.jsonl",
+      "rows": 6,
+      "changed": 3,
+      "validation_passed": true,
+      "protected_field_drift": []
+    }
+  ],
+  "post_backfill_artifact_scan": {
+    "stale_marker_rows": 0,
+    "missing_literal_rows": 0,
+    "missing_visible_override_fields_total": 0,
+    "approval_truthy_hits": 0,
+    "secret_hits": 0,
+    "bad_jsonl_rows": 0
+  },
+  "tests": {
+    "focused_evaluator_tests": "34 of 34 passed",
+    "focused_miner_tests_including_backfill": "26 of 26 passed",
+    "combined_regression_sweep": "83 of 83 passed across evaluator + miner + website + report center"
+  },
+  "validation_scans": {
+    "py_compile": "PASS",
+    "old_redis_write_scan_edge_proof_code": "PASS (0 hits across 6 files)",
+    "exchange_mutation_scan_edge_proof_code": "PASS (0 hits across 6 files)",
+    "approval_token_truthy_scan_all_jsonl_and_dashboards": "PASS (0 hits)",
+    "raw_secret_scan_all_jsonl_and_dashboards": "PASS (0 hits for AKIA / ASIA / PEM headers / .local_secrets/)",
+    "jsonl_validation": "PASS (every row valid JSON, every row carries required literal + visible override fields)"
+  },
+  "protected_fields_never_modified": [
+    "intent_id",
+    "prediction_id",
+    "symbol",
+    "generated_at",
+    "anchor_ts",
+    "future_outcomes",
+    "label",
+    "outcome_after_cost",
+    "paper_gate_decision",
+    "risk_decision",
+    "orchestrator_decision",
+    "paper_intent",
+    "legacy_reference_action"
+  ],
+  "miner_now_runs_backfill_every_cycle_so_no_regression_can_persist": true,
+  "did_not_install_or_enable_replay_miner_timer": true,
+  "did_not_modify_legacy_bot": true,
+  "did_not_stop_legacy": true,
+  "did_not_stop_v2_runtime": true,
+  "did_not_write_old_redis": true,
+  "did_not_call_exchange": true,
+  "did_not_create_approval_marker": true,
+  "did_not_enable_live": true,
+  "did_not_fabricate_future_outcome_windows": true,
+  "did_not_change_replay_labels": true,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false
+}

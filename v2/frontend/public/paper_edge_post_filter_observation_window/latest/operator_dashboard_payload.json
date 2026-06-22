@@ -4,7 +4,7 @@
   "classification": "POST_FILTER_EDGE_STILL_UNPROVEN_MODEL_REVIEW_REQUIRED",
   "cumulative_paper_pnl_usdt_pre_plus_post": -49.345535,
   "final_approval_token": "absent",
-  "generated_at": "2026-05-15T16:49:55Z",
+  "generated_at": "2026-06-22T00:28:25Z",
   "historical_negative_pnl_isolated": false,
   "live_gate": "blocked_human_only",
   "live_symbols": [],

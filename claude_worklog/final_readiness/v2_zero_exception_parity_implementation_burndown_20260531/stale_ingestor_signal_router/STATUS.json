@@ -1,0 +1,32 @@
+{
+  "claim": "Signal routing is implemented through V2 orchestrator arbitration and paper signal outputs, with old signal streams left untouched.",
+  "completed_by": "codex_takeover",
+  "confidence": "MEDIUM_HIGH",
+  "files_modified": [
+    "v2/backend/app/cli/v2_orchestrator_arbitration_loop.py",
+    "v2/backend/app/services/orchestrator_arbitration/"
+  ],
+  "generated_est": "2026-06-03T22:44:59-04:00",
+  "generated_utc": "2026-06-04T02:44:59Z",
+  "implementation_marker": "V2_ZERO_EXCEPTION_PARITY_STALE_INGESTOR_SIGNAL_ROUTER_CODEX_TAKEOVER_DONE",
+  "live_safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "exchange_action_taken": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "places_real_order": false,
+    "trader_execution_enabled": false,
+    "writes_exchange_orders": false,
+    "writes_legacy_redis": false
+  },
+  "milestone": "v2_zero_exception_parity_implementation_burndown_20260531",
+  "missing_evidence": "Legacy signals:* streams are not written; V2 paper signal path is the active path.",
+  "raw_evidence": "v2_orchestrator_arbitration_loop writes v2:orchestrator:* and v2:signals:paper from V2 predictions; safety flags remain exchange_action_taken=false.",
+  "schema_version": "zero_exception_task_status_v1",
+  "status": "DONE_VERIFIED",
+  "task_slug": "stale_ingestor_signal_router",
+  "verification_command": "python -m v2.backend.app.cli.v2_orchestrator_arbitration_loop --once"
+}

@@ -1,0 +1,111 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "automatable_remaining": 47,
+  "generated_utc": "2026-06-22T00:26:46Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "next_action": "controller dispatches Claude/Codex fix for category RUNTIME_PROCESS_DOWN",
+  "operator_owned_blockers": [
+    {
+      "category": "EXTERNAL_SOURCE_REQUIRED",
+      "evidence": {
+        "category": "EXTERNAL_SOURCE_REQUIRED_ONCHAIN_BTC",
+        "dim_count": 45
+      },
+      "owner": "OPERATOR",
+      "remediation": "operator-approved gate or external feed required",
+      "severity": "P2",
+      "source": "remaining_dim_queue:EXTERNAL_SOURCE_REQUIRED_ONCHAIN_BTC"
+    },
+    {
+      "category": "EXTERNAL_SOURCE_REQUIRED",
+      "evidence": {
+        "category": "EXTERNAL_SOURCE_REQUIRED_ONCHAIN_ETH",
+        "dim_count": 45
+      },
+      "owner": "OPERATOR",
+      "remediation": "operator-approved gate or external feed required",
+      "severity": "P2",
+      "source": "remaining_dim_queue:EXTERNAL_SOURCE_REQUIRED_ONCHAIN_ETH"
+    },
+    {
+      "category": "EXTERNAL_SOURCE_REQUIRED",
+      "evidence": {
+        "category": "EXTERNAL_SOURCE_REQUIRED_TOKEN_METRICS",
+        "dim_count": 54
+      },
+      "owner": "OPERATOR",
+      "remediation": "operator-approved gate or external feed required",
+      "severity": "P2",
+      "source": "remaining_dim_queue:EXTERNAL_SOURCE_REQUIRED_TOKEN_METRICS"
+    },
+    {
+      "category": "OPERATOR_DECISION_REQUIRED",
+      "evidence": {
+        "category": "OPERATOR_DECISION_REQUIRED_CCXT_OHLCV",
+        "dim_count": 30
+      },
+      "owner": "OPERATOR",
+      "remediation": "operator-approved gate or external feed required",
+      "severity": "P2",
+      "source": "remaining_dim_queue:OPERATOR_DECISION_REQUIRED_CCXT_OHLCV"
+    },
+    {
+      "category": "EVENT_DEPENDENT",
+      "evidence": {
+        "category": "V2_EVENT_DEPENDENT_LIQUIDATION_WSS",
+        "dim_count": 12
+      },
+      "owner": "OPERATOR",
+      "remediation": "operator-approved gate or external feed required",
+      "severity": "P2",
+      "source": "remaining_dim_queue:V2_EVENT_DEPENDENT_LIQUIDATION_WSS"
+    },
+    {
+      "category": "POSITION_DEPENDENT",
+      "evidence": {
+        "category": "V2_POSITION_DEPENDENT_OPEN_POSITION_REQUIRED",
+        "dim_count": 60
+      },
+      "owner": "OPERATOR",
+      "remediation": "operator-approved gate or external feed required",
+      "severity": "P2",
+      "source": "remaining_dim_queue:V2_POSITION_DEPENDENT_OPEN_POSITION_REQUIRED"
+    }
+  ],
+  "schema_version": "v2_autonomous_full_rebuild_self_healing_work_selection_v1",
+  "selected_work": {
+    "category": "RUNTIME_PROCESS_DOWN",
+    "duplicate_key": "4d972e8257fcbbf9",
+    "evidence": {
+      "pattern": "v2_continuous_legacy_log_to_rebuild_remediation",
+      "running": false
+    },
+    "owner": "CLAUDE",
+    "remediation": "investigate or restart per its start script; do not stop legacy",
+    "severity": "P1",
+    "source": "continuous_legacy_log_remediation"
+  },
+  "skipped_categories": [
+    {
+      "category": "EXTERNAL_SOURCE_REQUIRED",
+      "reason": "never_auto_pick"
+    },
+    {
+      "category": "OPERATOR_DECISION_REQUIRED",
+      "reason": "never_auto_pick"
+    },
+    {
+      "category": "EVENT_DEPENDENT",
+      "reason": "never_auto_pick"
+    },
+    {
+      "category": "POSITION_DEPENDENT",
+      "reason": "never_auto_pick"
+    }
+  ],
+  "status": "AUTOMATABLE_WORK_SELECTED"
+}

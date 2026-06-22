@@ -1,0 +1,39 @@
+{
+  "blocker_id": "runtime_soak_production_equivalence.governor_stale_or_blocked",
+  "evidence_paths": [
+    "v2/frontend/public/v2_runtime_soak_and_production_equivalence/latest/operator_dashboard_payload.json",
+    "claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/codex_governor/codex_15m_status.json"
+  ],
+  "generated_utc": "2026-06-22T00:26:47Z",
+  "governor_fail_blockers": [
+    "V2_REQUIRED_PROCESS_MISSING: production_equivalence_comparator, soak_observer, payload_freshness_refresher",
+    "PAYLOAD_STALE_OR_MISSING: soak_observer",
+    "REPLACEMENT_SCOREBOARD_V2_RUNTIME_NOT_RUNNING",
+    "V2_RUNTIME_SOAK_1H_NOT_READY_AFTER_60M",
+    "V2_RUNTIME_SOAK_6H_NOT_READY_AFTER_360M"
+  ],
+  "governor_go_no_go": "CODEX_RUNTIME_SOAK_AND_PRODUCTION_EQUIVALENCE_GOVERNOR_BLOCKED",
+  "implementation_evidence": [
+    "PYTHONPATH=$PWD .venv/bin/python -m v2.backend.app.cli.v2_production_payload_freshness_refresher --once",
+    "PYTHONPATH=$PWD .venv/bin/python -m v2.backend.app.cli.v2_production_equivalence_comparator --once",
+    "PYTHONPATH=$PWD .venv/bin/python claude_worklog/tools/codex_runtime_soak_and_production_equivalence_governor.py --once"
+  ],
+  "queued_task_state": "SPARK_SEEDED_PRIOR_TO_DIRECT_FIX",
+  "resolved": false,
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "creates_approval_tokens": false,
+    "fabricates_edge": false,
+    "fabricates_missing_observations": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "schema_version": "v2_final_technical_blocker_resolution_status_v1",
+  "status": "BLOCKED"
+}

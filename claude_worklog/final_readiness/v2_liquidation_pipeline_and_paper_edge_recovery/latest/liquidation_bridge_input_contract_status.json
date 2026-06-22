@@ -1,0 +1,70 @@
+{
+  "schema_version": "liquidation_bridge_input_contract_status_v1",
+  "milestone": "v2_liquidation_pipeline_and_paper_edge_recovery",
+  "phase": 2,
+  "generated_est": "2026-05-31T00:48:00-0400",
+  "generated_utc": "2026-05-31T04:48:00Z",
+  "canonical_consumer": {
+    "consumer_module": "v2/legacy_owned_runtime/ingest/liquidation_levels_engine.py",
+    "consumer_method": "xreadgroup",
+    "consumer_group": "v2_liq_levels",
+    "stream_key": "v2:liquidations:events",
+    "field_contract_required_by_consumer": [
+      "symbol",
+      "ts",
+      "ingest_ts",
+      "price",
+      "qty",
+      "notional",
+      "side"
+    ]
+  },
+  "primary_producer_after_this_milestone": {
+    "producer": "v2.backend.app.services.native_ingestors.liquidations_wss.write_event_to_stream",
+    "produces_stream_key": "v2:liquidations:events",
+    "source_label": "binance_wss_forceOrder",
+    "blast_radius": "v2_namespace_only_no_exchange_action"
+  },
+  "fallback_producers": [
+    {
+      "producer_module": "v2/legacy_owned_runtime/ingest/liquidation_bridge.py",
+      "function": "process_binance_force",
+      "input_key": "v2:binance:force:raw",
+      "input_llen_current": 0,
+      "status": "LABELLED_FALLBACK_NO_ACTIVE_PRODUCER"
+    },
+    {
+      "producer_module": "v2/legacy_owned_runtime/ingest/liquidation_bridge.py",
+      "function": "process_coinank_orders",
+      "input_key": "v2:raw:coinank:liquidation_orders:global",
+      "input_strlen_current": 0,
+      "status": "LABELLED_FALLBACK_NO_ACTIVE_PRODUCER"
+    }
+  ],
+  "bridge_input_contract": {
+    "required_for_paper_edge_event_flow": [
+      "v2:liquidations:events"
+    ],
+    "permitted_per_symbol_observation_keys": [
+      "v2:market:liquidations:latest:{symbol}",
+      "v2:market:liquidations:aggregate:{symbol}",
+      "v2:market:liquidations:{symbol}"
+    ],
+    "permitted_optional_inputs": [
+      "v2:binance:force:raw (legacy raw list; LABELLED_FALLBACK)",
+      "v2:raw:coinank:liquidation_orders:global (CoinAnk REST; LABELLED_FALLBACK)"
+    ],
+    "must_not_depend_on_empty_raw_namespace": true,
+    "bridge_required_for_levels_engine_today": false
+  },
+  "current_runtime_units": {
+    "ai-bot-v2-liquidation-bridge.service": "active (LABELLED_FALLBACK polling no-op)",
+    "ai-bot-v2-liquidation-levels-engine.service": "active (consumes v2:liquidations:events)",
+    "ai-bot-v2-liquidation-wss-paper-shadow.service": "active (now publishes into v2:liquidations:events)"
+  },
+  "live_safety": {
+    "live_gate_status": "blocked_human_only",
+    "live_symbols": []
+  },
+  "verdict": "BRIDGE_INPUT_CONTRACT_DEFINED_WSS_NOW_CANONICAL_PRODUCER_BRIDGE_DOWNGRADED_TO_LABELLED_FALLBACK"
+}

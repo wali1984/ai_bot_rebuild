@@ -1,0 +1,3221 @@
+{
+  "active_or_finished_generated_implementations": 3,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "below_target_queue_triggered": true,
+  "blockers": [],
+  "current_autoseed_implementation_count": 95,
+  "current_autoseed_task_status": [
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_altdata_replay_bundle_snapshot_attachment",
+      "mission_categories": [
+        "observation completeness",
+        "paper edge",
+        "symbol selection"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_altdata_replay_bundle_snapshot_attachment",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_altdata_replay_bundle_snapshot_attachment.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "claude_autoseed_altdata_replay_bundle_snapshot_attachment",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_altdata_replay_bundle_snapshot_attachment",
+      "mission_categories": [
+        "observation completeness",
+        "paper edge",
+        "symbol selection"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_altdata_replay_bundle_snapshot_attachment_r2",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_altdata_replay_bundle_snapshot_attachment_r2.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "claude_autoseed_altdata_replay_bundle_snapshot_attachment_r2",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_baseline_after_cost_calibration",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_baseline_after_cost_calibration.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "claude_autoseed_baseline_after_cost_calibration",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r10",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_baseline_after_cost_calibration_r10.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_baseline_after_cost_calibration_r10",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r11",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_baseline_after_cost_calibration_r11.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_baseline_after_cost_calibration_r11",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r12",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_baseline_after_cost_calibration_r12.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_baseline_after_cost_calibration_r12",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r13",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_baseline_after_cost_calibration_r13.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_baseline_after_cost_calibration_r13",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r14",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_baseline_after_cost_calibration_r14.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_baseline_after_cost_calibration_r14",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r15",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_baseline_after_cost_calibration_r15.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "claude_autoseed_baseline_after_cost_calibration_r15",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r16",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_baseline_after_cost_calibration_r16.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "claude_autoseed_baseline_after_cost_calibration_r16",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r17",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_baseline_after_cost_calibration_r17.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "claude_autoseed_baseline_after_cost_calibration_r17",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r18",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_baseline_after_cost_calibration_r18.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "claude_autoseed_baseline_after_cost_calibration_r18",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r19",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_baseline_after_cost_calibration_r19.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "claude_autoseed_baseline_after_cost_calibration_r19",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r2",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_baseline_after_cost_calibration_r2.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_baseline_after_cost_calibration_r2",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r20",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_baseline_after_cost_calibration_r20.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "claude_autoseed_baseline_after_cost_calibration_r20",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r21",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_baseline_after_cost_calibration_r21.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_baseline_after_cost_calibration_r21",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r22",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_baseline_after_cost_calibration_r22.json",
+      "report_only_work": false,
+      "status": "running",
+      "task_id": "claude_autoseed_baseline_after_cost_calibration_r22",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r3",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_baseline_after_cost_calibration_r3.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_baseline_after_cost_calibration_r3",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r4",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_baseline_after_cost_calibration_r4.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_baseline_after_cost_calibration_r4",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r5",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_baseline_after_cost_calibration_r5.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_baseline_after_cost_calibration_r5",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r6",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_baseline_after_cost_calibration_r6.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_baseline_after_cost_calibration_r6",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r7",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_baseline_after_cost_calibration_r7.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_baseline_after_cost_calibration_r7",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r8",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_baseline_after_cost_calibration_r8.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_baseline_after_cost_calibration_r8",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r9",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_baseline_after_cost_calibration_r9.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_baseline_after_cost_calibration_r9",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_decision_match_runtime_replay_comparator",
+      "mission_categories": [
+        "decision match",
+        "runtime stability",
+        "paper edge"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_decision_match_runtime_replay_comparator.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "claude_autoseed_decision_match_runtime_replay_comparator",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_decision_match_runtime_replay_comparator",
+      "mission_categories": [
+        "decision match",
+        "runtime stability",
+        "paper edge"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator_r2",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_decision_match_runtime_replay_comparator_r2.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_decision_match_runtime_replay_comparator_r2",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_dynamic_symbol_coverage_missing_source_closure",
+      "mission_categories": [
+        "symbol selection",
+        "runtime stability",
+        "observation completeness"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_dynamic_symbol_coverage_missing_source_closure",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_dynamic_symbol_coverage_missing_source_closure.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "claude_autoseed_dynamic_symbol_coverage_missing_source_closure",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_dynamic_symbol_coverage_missing_source_closure",
+      "mission_categories": [
+        "symbol selection",
+        "runtime stability",
+        "observation completeness"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_dynamic_symbol_coverage_missing_source_closure_r2",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_dynamic_symbol_coverage_missing_source_closure_r2.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_dynamic_symbol_coverage_missing_source_closure_r2",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_observation_gap_feature_source_burndown",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_observation_gap_feature_source_burndown.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "claude_autoseed_observation_gap_feature_source_burndown",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r10",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_observation_gap_feature_source_burndown_r10.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_observation_gap_feature_source_burndown_r10",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r11",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_observation_gap_feature_source_burndown_r11.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_observation_gap_feature_source_burndown_r11",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r12",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_observation_gap_feature_source_burndown_r12.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_observation_gap_feature_source_burndown_r12",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r13",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_observation_gap_feature_source_burndown_r13.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_observation_gap_feature_source_burndown_r13",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r14",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_observation_gap_feature_source_burndown_r14.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_observation_gap_feature_source_burndown_r14",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r15",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_observation_gap_feature_source_burndown_r15.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "claude_autoseed_observation_gap_feature_source_burndown_r15",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r16",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_observation_gap_feature_source_burndown_r16.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "claude_autoseed_observation_gap_feature_source_burndown_r16",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r17",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_observation_gap_feature_source_burndown_r17.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "claude_autoseed_observation_gap_feature_source_burndown_r17",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r18",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_observation_gap_feature_source_burndown_r18.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "claude_autoseed_observation_gap_feature_source_burndown_r18",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r19",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_observation_gap_feature_source_burndown_r19.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "claude_autoseed_observation_gap_feature_source_burndown_r19",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r2",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_observation_gap_feature_source_burndown_r2.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_observation_gap_feature_source_burndown_r2",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r20",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_observation_gap_feature_source_burndown_r20.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_observation_gap_feature_source_burndown_r20",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r21",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_observation_gap_feature_source_burndown_r21.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_observation_gap_feature_source_burndown_r21",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r22",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_observation_gap_feature_source_burndown_r22.json",
+      "report_only_work": false,
+      "status": "pending",
+      "task_id": "claude_autoseed_observation_gap_feature_source_burndown_r22",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r3",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_observation_gap_feature_source_burndown_r3.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_observation_gap_feature_source_burndown_r3",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r4",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_observation_gap_feature_source_burndown_r4.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_observation_gap_feature_source_burndown_r4",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r5",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_observation_gap_feature_source_burndown_r5.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_observation_gap_feature_source_burndown_r5",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r6",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_observation_gap_feature_source_burndown_r6.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_observation_gap_feature_source_burndown_r6",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r7",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_observation_gap_feature_source_burndown_r7.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_observation_gap_feature_source_burndown_r7",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r8",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_observation_gap_feature_source_burndown_r8.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_observation_gap_feature_source_burndown_r8",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r9",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_observation_gap_feature_source_burndown_r9.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_observation_gap_feature_source_burndown_r9",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_paper_edge_false_negative_gate_reason_enrichment.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r10",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r10.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r10",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r11",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r11.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r11",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r12",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r12.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r12",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r13",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r13.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r13",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r14",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r14.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r14",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r15",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r15.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r15",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r16",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r16.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r16",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r2",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r2.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r2",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r3",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r3.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r3",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r4",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r4.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r4",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r5",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r5.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r5",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r6",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r6.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r6",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r7",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r7.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r7",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r8",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r8.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r8",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r9",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r9.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r9",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_paper_fill_gate_block_reason_recording",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_paper_fill_gate_block_reason_recording",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_paper_fill_gate_block_reason_recording.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "claude_autoseed_paper_fill_gate_block_reason_recording",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_paper_fill_gate_block_reason_recording",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_paper_fill_gate_block_reason_recording_r2",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_paper_fill_gate_block_reason_recording_r2.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "claude_autoseed_paper_fill_gate_block_reason_recording_r2",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_paper_fill_gate_block_reason_recording",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_paper_fill_gate_block_reason_recording_r3",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_paper_fill_gate_block_reason_recording_r3.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "claude_autoseed_paper_fill_gate_block_reason_recording_r3",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_paper_fill_gate_block_reason_recording",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_paper_fill_gate_block_reason_recording_r4",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_paper_fill_gate_block_reason_recording_r4.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "claude_autoseed_paper_fill_gate_block_reason_recording_r4",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_paper_fill_gate_block_reason_recording",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_paper_fill_gate_block_reason_recording_r5",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_paper_fill_gate_block_reason_recording_r5.json",
+      "report_only_work": false,
+      "status": "pending",
+      "task_id": "claude_autoseed_paper_fill_gate_block_reason_recording_r5",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/closed_loop_codex_review_claude_autoseed_observation_gap_feature_source_burndown_r19.json",
+      "report_only_work": false,
+      "status": "pending",
+      "task_id": "closed_loop_codex_review_claude_autoseed_observation_gap_feature_source_burndown_r19",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/closed_loop_codex_review_claude_autoseed_observation_gap_feature_source_burndown_r20.json",
+      "report_only_work": false,
+      "status": "pending",
+      "task_id": "closed_loop_codex_review_claude_autoseed_observation_gap_feature_source_burndown_r20",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_altdata_replay_bundle_snapshot_attachment",
+      "mission_categories": [],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_altdata_replay_bundle_snapshot_attachment.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "closed_loop_remediation_codex_review_autoseed_altdata_replay_bundle_snapshot_attachment",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_baseline_after_cost_calibration.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "closed_loop_remediation_codex_review_autoseed_baseline_after_cost_calibration",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_baseline_after_cost_calibration_r15.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "closed_loop_remediation_codex_review_autoseed_baseline_after_cost_calibration_r15",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "remediation_codex_review_autoseed_baseline_after_cost_calibration_r16",
+      "mission_categories": [],
+      "paired_codex_review_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r16",
+      "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_baseline_after_cost_calibration_r16.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "closed_loop_remediation_codex_review_autoseed_baseline_after_cost_calibration_r16",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_baseline_after_cost_calibration_r17.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "closed_loop_remediation_codex_review_autoseed_baseline_after_cost_calibration_r17",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_baseline_after_cost_calibration_r18.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "closed_loop_remediation_codex_review_autoseed_baseline_after_cost_calibration_r18",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_baseline_after_cost_calibration_r19.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "closed_loop_remediation_codex_review_autoseed_baseline_after_cost_calibration_r19",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "remediation_codex_review_autoseed_baseline_after_cost_calibration_r20",
+      "mission_categories": [],
+      "paired_codex_review_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r20",
+      "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_baseline_after_cost_calibration_r20.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "closed_loop_remediation_codex_review_autoseed_baseline_after_cost_calibration_r20",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_decision_match_runtime_replay_comparator",
+      "mission_categories": [],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "closed_loop_remediation_codex_review_autoseed_decision_match_runtime_replay_comparator",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_dynamic_symbol_coverage_missing_source_closure",
+      "mission_categories": [],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_dynamic_symbol_coverage_missing_source_closure.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "closed_loop_remediation_codex_review_autoseed_dynamic_symbol_coverage_missing_source_closure",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_observation_gap_feature_source_burndown.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "closed_loop_remediation_codex_review_autoseed_observation_gap_feature_source_burndown",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_observation_gap_feature_source_burndown_r15.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "closed_loop_remediation_codex_review_autoseed_observation_gap_feature_source_burndown_r15",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "remediation_codex_review_autoseed_observation_gap_feature_source_burndown_r16",
+      "mission_categories": [],
+      "paired_codex_review_task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r16",
+      "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_observation_gap_feature_source_burndown_r16.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "closed_loop_remediation_codex_review_autoseed_observation_gap_feature_source_burndown_r16",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "remediation_codex_review_autoseed_observation_gap_feature_source_burndown_r17",
+      "mission_categories": [],
+      "paired_codex_review_task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r17",
+      "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_observation_gap_feature_source_burndown_r17.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "closed_loop_remediation_codex_review_autoseed_observation_gap_feature_source_burndown_r17",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_observation_gap_feature_source_burndown_r18.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "closed_loop_remediation_codex_review_autoseed_observation_gap_feature_source_burndown_r18",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "remediation_codex_review_autoseed_observation_gap_feature_source_burndown_r19",
+      "mission_categories": [],
+      "paired_codex_review_task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r19",
+      "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_observation_gap_feature_source_burndown_r19.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "closed_loop_remediation_codex_review_autoseed_observation_gap_feature_source_burndown_r19",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "closed_loop_remediation_codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r14.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "closed_loop_remediation_codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r14",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r15.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "closed_loop_remediation_codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r15",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r16.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "closed_loop_remediation_codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r16",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_paper_fill_gate_block_reason_recording",
+      "mission_categories": [],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_paper_fill_gate_block_reason_recording.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "closed_loop_remediation_codex_review_autoseed_paper_fill_gate_block_reason_recording",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [],
+      "file_lock_group": "v2_paper_fill_gate_block_reason_recording",
+      "mission_categories": [],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_paper_fill_gate_block_reason_recording_r3.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "closed_loop_remediation_codex_review_autoseed_paper_fill_gate_block_reason_recording_r3",
+      "task_role": "implementation",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [
+        "claude_autoseed_altdata_replay_bundle_snapshot_attachment"
+      ],
+      "file_lock_group": "v2_altdata_replay_bundle_snapshot_attachment",
+      "mission_categories": [
+        "observation completeness",
+        "paper edge",
+        "symbol selection"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_altdata_replay_bundle_snapshot_attachment.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_altdata_replay_bundle_snapshot_attachment",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [
+        "claude_autoseed_altdata_replay_bundle_snapshot_attachment_r2"
+      ],
+      "file_lock_group": "v2_altdata_replay_bundle_snapshot_attachment",
+      "mission_categories": [
+        "observation completeness",
+        "paper edge",
+        "symbol selection"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_altdata_replay_bundle_snapshot_attachment_r2.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "codex_review_autoseed_altdata_replay_bundle_snapshot_attachment_r2",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [
+        "claude_autoseed_baseline_after_cost_calibration"
+      ],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_baseline_after_cost_calibration.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_baseline_after_cost_calibration",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_baseline_after_cost_calibration_r10"
+      ],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_baseline_after_cost_calibration_r10.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_baseline_after_cost_calibration_r10",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_baseline_after_cost_calibration_r11"
+      ],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_baseline_after_cost_calibration_r11.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_baseline_after_cost_calibration_r11",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_baseline_after_cost_calibration_r12"
+      ],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_baseline_after_cost_calibration_r12.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_baseline_after_cost_calibration_r12",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_baseline_after_cost_calibration_r13"
+      ],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_baseline_after_cost_calibration_r13.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_baseline_after_cost_calibration_r13",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_baseline_after_cost_calibration_r14"
+      ],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_baseline_after_cost_calibration_r14.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_baseline_after_cost_calibration_r14",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [
+        "claude_autoseed_baseline_after_cost_calibration_r15"
+      ],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_baseline_after_cost_calibration_r15.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_baseline_after_cost_calibration_r15",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [
+        "claude_autoseed_baseline_after_cost_calibration_r16"
+      ],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_baseline_after_cost_calibration_r16.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_baseline_after_cost_calibration_r16",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [
+        "claude_autoseed_baseline_after_cost_calibration_r17"
+      ],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_baseline_after_cost_calibration_r17.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_baseline_after_cost_calibration_r17",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [
+        "claude_autoseed_baseline_after_cost_calibration_r18"
+      ],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_baseline_after_cost_calibration_r18.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_baseline_after_cost_calibration_r18",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [
+        "claude_autoseed_baseline_after_cost_calibration_r19"
+      ],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_baseline_after_cost_calibration_r19.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_baseline_after_cost_calibration_r19",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_baseline_after_cost_calibration_r2"
+      ],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_baseline_after_cost_calibration_r2.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_baseline_after_cost_calibration_r2",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [
+        "claude_autoseed_baseline_after_cost_calibration_r20"
+      ],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_baseline_after_cost_calibration_r20.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_baseline_after_cost_calibration_r20",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_baseline_after_cost_calibration_r21"
+      ],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_baseline_after_cost_calibration_r21.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_baseline_after_cost_calibration_r21",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_baseline_after_cost_calibration_r22"
+      ],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_baseline_after_cost_calibration_r22.json",
+      "report_only_work": false,
+      "status": "blocked_dependency",
+      "task_id": "codex_review_autoseed_baseline_after_cost_calibration_r22",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_baseline_after_cost_calibration_r3"
+      ],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_baseline_after_cost_calibration_r3.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_baseline_after_cost_calibration_r3",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_baseline_after_cost_calibration_r4"
+      ],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_baseline_after_cost_calibration_r4.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_baseline_after_cost_calibration_r4",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_baseline_after_cost_calibration_r5"
+      ],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_baseline_after_cost_calibration_r5.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_baseline_after_cost_calibration_r5",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_baseline_after_cost_calibration_r6"
+      ],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_baseline_after_cost_calibration_r6.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_baseline_after_cost_calibration_r6",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_baseline_after_cost_calibration_r7"
+      ],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_baseline_after_cost_calibration_r7.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_baseline_after_cost_calibration_r7",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_baseline_after_cost_calibration_r8"
+      ],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_baseline_after_cost_calibration_r8.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_baseline_after_cost_calibration_r8",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_baseline_after_cost_calibration_r9"
+      ],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_baseline_after_cost_calibration_r9.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_baseline_after_cost_calibration_r9",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [
+        "claude_autoseed_decision_match_runtime_replay_comparator"
+      ],
+      "file_lock_group": "v2_decision_match_runtime_replay_comparator",
+      "mission_categories": [
+        "decision match",
+        "runtime stability",
+        "paper edge"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_decision_match_runtime_replay_comparator.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_decision_match_runtime_replay_comparator_r2"
+      ],
+      "file_lock_group": "v2_decision_match_runtime_replay_comparator",
+      "mission_categories": [
+        "decision match",
+        "runtime stability",
+        "paper edge"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_decision_match_runtime_replay_comparator_r2.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator_r2",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [
+        "claude_autoseed_dynamic_symbol_coverage_missing_source_closure"
+      ],
+      "file_lock_group": "v2_dynamic_symbol_coverage_missing_source_closure",
+      "mission_categories": [
+        "symbol selection",
+        "runtime stability",
+        "observation completeness"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_dynamic_symbol_coverage_missing_source_closure.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_dynamic_symbol_coverage_missing_source_closure",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_dynamic_symbol_coverage_missing_source_closure_r2"
+      ],
+      "file_lock_group": "v2_dynamic_symbol_coverage_missing_source_closure",
+      "mission_categories": [
+        "symbol selection",
+        "runtime stability",
+        "observation completeness"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_dynamic_symbol_coverage_missing_source_closure_r2.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_dynamic_symbol_coverage_missing_source_closure_r2",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [
+        "claude_autoseed_observation_gap_feature_source_burndown"
+      ],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_observation_gap_feature_source_burndown.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_observation_gap_feature_source_burndown",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_observation_gap_feature_source_burndown_r10"
+      ],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_observation_gap_feature_source_burndown_r10.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r10",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_observation_gap_feature_source_burndown_r11"
+      ],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_observation_gap_feature_source_burndown_r11.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r11",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_observation_gap_feature_source_burndown_r12"
+      ],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_observation_gap_feature_source_burndown_r12.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r12",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_observation_gap_feature_source_burndown_r13"
+      ],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_observation_gap_feature_source_burndown_r13.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r13",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_observation_gap_feature_source_burndown_r14"
+      ],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_observation_gap_feature_source_burndown_r14.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r14",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [
+        "claude_autoseed_observation_gap_feature_source_burndown_r15"
+      ],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_observation_gap_feature_source_burndown_r15.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r15",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [
+        "claude_autoseed_observation_gap_feature_source_burndown_r16"
+      ],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_observation_gap_feature_source_burndown_r16.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r16",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [
+        "claude_autoseed_observation_gap_feature_source_burndown_r17"
+      ],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_observation_gap_feature_source_burndown_r17.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r17",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [
+        "claude_autoseed_observation_gap_feature_source_burndown_r18"
+      ],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_observation_gap_feature_source_burndown_r18.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r18",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [
+        "claude_autoseed_observation_gap_feature_source_burndown_r19"
+      ],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_observation_gap_feature_source_burndown_r19.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r19",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_observation_gap_feature_source_burndown_r2"
+      ],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_observation_gap_feature_source_burndown_r2.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r2",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_observation_gap_feature_source_burndown_r20"
+      ],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_observation_gap_feature_source_burndown_r20.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r20",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_observation_gap_feature_source_burndown_r21"
+      ],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_observation_gap_feature_source_burndown_r21.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r21",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_observation_gap_feature_source_burndown_r22"
+      ],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_observation_gap_feature_source_burndown_r22.json",
+      "report_only_work": false,
+      "status": "blocked_dependency",
+      "task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r22",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_observation_gap_feature_source_burndown_r3"
+      ],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_observation_gap_feature_source_burndown_r3.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r3",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_observation_gap_feature_source_burndown_r4"
+      ],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_observation_gap_feature_source_burndown_r4.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r4",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_observation_gap_feature_source_burndown_r5"
+      ],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_observation_gap_feature_source_burndown_r5.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r5",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_observation_gap_feature_source_burndown_r6"
+      ],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_observation_gap_feature_source_burndown_r6.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r6",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_observation_gap_feature_source_burndown_r7"
+      ],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_observation_gap_feature_source_burndown_r7.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r7",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_observation_gap_feature_source_burndown_r8"
+      ],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_observation_gap_feature_source_burndown_r8.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r8",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_observation_gap_feature_source_burndown_r9"
+      ],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_observation_gap_feature_source_burndown_r9.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r9",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [
+        "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment"
+      ],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r10"
+      ],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r10.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r10",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r11"
+      ],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r11.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r11",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r12"
+      ],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r12.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r12",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r13"
+      ],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r13.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r13",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [
+        "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r14"
+      ],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r14.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r14",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [
+        "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r15"
+      ],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r15.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r15",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [
+        "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r16"
+      ],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r16.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r16",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r2"
+      ],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r2.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r2",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r3"
+      ],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r3.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r3",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r4"
+      ],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r4.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r4",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r5"
+      ],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r5.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r5",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r6"
+      ],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r6.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r6",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r7"
+      ],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r7.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r7",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r8"
+      ],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r8.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r8",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_paper_edge_false_negative_gate_reason_enrichment_r9"
+      ],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r9.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r9",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [
+        "claude_autoseed_paper_fill_gate_block_reason_recording"
+      ],
+      "file_lock_group": "v2_paper_fill_gate_block_reason_recording",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_paper_fill_gate_block_reason_recording.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_paper_fill_gate_block_reason_recording",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [
+        "claude_autoseed_paper_fill_gate_block_reason_recording_r2"
+      ],
+      "file_lock_group": "v2_paper_fill_gate_block_reason_recording",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_paper_fill_gate_block_reason_recording_r2.json",
+      "report_only_work": false,
+      "status": "completed",
+      "task_id": "codex_review_autoseed_paper_fill_gate_block_reason_recording_r2",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": false,
+      "depends_on": [
+        "claude_autoseed_paper_fill_gate_block_reason_recording_r3"
+      ],
+      "file_lock_group": "v2_paper_fill_gate_block_reason_recording",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_paper_fill_gate_block_reason_recording_r3.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_paper_fill_gate_block_reason_recording_r3",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_paper_fill_gate_block_reason_recording_r4"
+      ],
+      "file_lock_group": "v2_paper_fill_gate_block_reason_recording",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_paper_fill_gate_block_reason_recording_r4.json",
+      "report_only_work": false,
+      "status": "failed",
+      "task_id": "codex_review_autoseed_paper_fill_gate_block_reason_recording_r4",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    },
+    {
+      "dependency_pending": true,
+      "depends_on": [
+        "claude_autoseed_paper_fill_gate_block_reason_recording_r5"
+      ],
+      "file_lock_group": "v2_paper_fill_gate_block_reason_recording",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_paper_fill_gate_block_reason_recording_r5.json",
+      "report_only_work": false,
+      "status": "blocked_dependency",
+      "task_id": "codex_review_autoseed_paper_fill_gate_block_reason_recording_r5",
+      "task_role": "codex_review",
+      "ui_only_work": false
+    }
+  ],
+  "dashboard_empty_queue_healthy_override": "blocked_when_migration_incomplete_and_automatable_blockers_exist",
+  "dead_running_descriptors_reset": [],
+  "dependency_blocked_codex_review_count": 3,
+  "dependency_promoted_codex_reviews": [],
+  "dependency_review_descriptors_reconciled": [],
+  "descriptor_only_progress_counted": false,
+  "duplicate_suppressed": [],
+  "empty_queue_migration_incomplete_triggered": true,
+  "failed_dependency_reviews_closed": [
+    {
+      "failed_dependency": "claude_autoseed_baseline_after_cost_calibration_r21",
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_baseline_after_cost_calibration_r21.json",
+      "task_id": "codex_review_autoseed_baseline_after_cost_calibration_r21"
+    },
+    {
+      "failed_dependency": "claude_autoseed_observation_gap_feature_source_burndown_r21",
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_observation_gap_feature_source_burndown_r21.json",
+      "task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r21"
+    },
+    {
+      "failed_dependency": "claude_autoseed_paper_fill_gate_block_reason_recording_r4",
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_paper_fill_gate_block_reason_recording_r4.json",
+      "task_id": "codex_review_autoseed_paper_fill_gate_block_reason_recording_r4"
+    }
+  ],
+  "generated_task_status": [
+    {
+      "dependency_pending": false,
+      "file_lock_group": "v2_paper_fill_gate_block_reason_recording",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_paper_fill_gate_block_reason_recording_r5.json",
+      "status": "pending",
+      "task_id": "claude_autoseed_paper_fill_gate_block_reason_recording_r5",
+      "task_role": "implementation"
+    },
+    {
+      "dependency_pending": true,
+      "file_lock_group": "v2_paper_fill_gate_block_reason_recording",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_paper_fill_gate_block_reason_recording_r5.json",
+      "status": "blocked_dependency",
+      "task_id": "codex_review_autoseed_paper_fill_gate_block_reason_recording_r5",
+      "task_role": "codex_review"
+    },
+    {
+      "dependency_pending": false,
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_observation_gap_feature_source_burndown_r22.json",
+      "status": "pending",
+      "task_id": "claude_autoseed_observation_gap_feature_source_burndown_r22",
+      "task_role": "implementation"
+    },
+    {
+      "dependency_pending": true,
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_observation_gap_feature_source_burndown_r22.json",
+      "status": "blocked_dependency",
+      "task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r22",
+      "task_role": "codex_review"
+    },
+    {
+      "dependency_pending": false,
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_baseline_after_cost_calibration_r22.json",
+      "status": "running",
+      "task_id": "claude_autoseed_baseline_after_cost_calibration_r22",
+      "task_role": "implementation"
+    },
+    {
+      "dependency_pending": true,
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_baseline_after_cost_calibration_r22.json",
+      "status": "blocked_dependency",
+      "task_id": "codex_review_autoseed_baseline_after_cost_calibration_r22",
+      "task_role": "codex_review"
+    }
+  ],
+  "generated_tasks": [
+    {
+      "file_lock_group": "v2_paper_fill_gate_block_reason_recording",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_paper_fill_gate_block_reason_recording_r5",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_paper_fill_gate_block_reason_recording_r5.json",
+      "task_id": "claude_autoseed_paper_fill_gate_block_reason_recording_r5",
+      "task_role": "implementation"
+    },
+    {
+      "depends_on": [
+        "claude_autoseed_paper_fill_gate_block_reason_recording_r5"
+      ],
+      "file_lock_group": "v2_paper_fill_gate_block_reason_recording",
+      "mission_categories": [
+        "paper edge",
+        "observation completeness",
+        "risk control"
+      ],
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_paper_fill_gate_block_reason_recording_r5.json",
+      "task_id": "codex_review_autoseed_paper_fill_gate_block_reason_recording_r5",
+      "task_role": "codex_review"
+    },
+    {
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r22",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_observation_gap_feature_source_burndown_r22.json",
+      "task_id": "claude_autoseed_observation_gap_feature_source_burndown_r22",
+      "task_role": "implementation"
+    },
+    {
+      "depends_on": [
+        "claude_autoseed_observation_gap_feature_source_burndown_r22"
+      ],
+      "file_lock_group": "v2_observation_gap_feature_source_burndown",
+      "mission_categories": [
+        "observation completeness",
+        "model/policy readiness",
+        "decision match"
+      ],
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_observation_gap_feature_source_burndown_r22.json",
+      "task_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r22",
+      "task_role": "codex_review"
+    },
+    {
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "paired_codex_review_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r22",
+      "path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_baseline_after_cost_calibration_r22.json",
+      "task_id": "claude_autoseed_baseline_after_cost_calibration_r22",
+      "task_role": "implementation"
+    },
+    {
+      "depends_on": [
+        "claude_autoseed_baseline_after_cost_calibration_r22"
+      ],
+      "file_lock_group": "v2_native_baseline_after_cost_calibration",
+      "mission_categories": [
+        "model/policy readiness",
+        "paper edge",
+        "risk control"
+      ],
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_baseline_after_cost_calibration_r22.json",
+      "task_id": "codex_review_autoseed_baseline_after_cost_calibration_r22",
+      "task_role": "codex_review"
+    }
+  ],
+  "generated_utc": "2026-05-25T02:15:47Z",
+  "go_no_go": "V2_AUTONOMOUS_MISSION_BACKLOG_AUTOSEED_AND_DISPATCH_READY",
+  "historical_excluded_count": 878,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "marker": "V2_AUTONOMOUS_MISSION_BACKLOG_AUTOSEED_AND_DISPATCH_READY",
+  "mission_blocker_inventory": {
+    "automatable_blocker_count": 1,
+    "blocker_count": 3,
+    "blockers": [
+      {
+        "automatable": false,
+        "go_no_go": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+        "mission_categories": [
+          "observation completeness"
+        ],
+        "operator_required": true,
+        "report_id": "full_observation_builder",
+        "status": "BLOCKED",
+        "title": "Full Observation Builder Status",
+        "top_blocker": true,
+        "unsafe_generation_reason": null
+      },
+      {
+        "automatable": false,
+        "go_no_go": "V2_CHECKPOINT_PROMOTION_OPERATOR_REQUIRED",
+        "mission_categories": [
+          "checkpoint readiness",
+          "decision match"
+        ],
+        "operator_required": true,
+        "report_id": "checkpoint_promotion",
+        "status": "OPERATOR_DECISION_REQUIRED",
+        "title": "Checkpoint Promotion",
+        "top_blocker": true,
+        "unsafe_generation_reason": null
+      },
+      {
+        "automatable": true,
+        "go_no_go": "V2_AUTONOMOUS_MISSION_EXECUTION_BURNDOWN_BLOCKED",
+        "mission_categories": [
+          "runtime stability"
+        ],
+        "operator_required": false,
+        "report_id": "v2_autonomous_mission_execution_burndown",
+        "status": "BLOCKED",
+        "title": "V2 Autonomous Mission Execution Burndown",
+        "top_blocker": true,
+        "unsafe_generation_reason": null
+      }
+    ],
+    "generated_utc": "2026-05-25T02:15:42Z",
+    "mission_incomplete": true,
+    "operator_required_blocker_count": 2,
+    "safety": {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "calls_exchange_mutation": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "modifies_legacy_repo": false,
+      "writes_old_redis": false
+    },
+    "schema_version": "v2_autonomous_mission_blocker_inventory_v1",
+    "unsafe_blocker_count": 0
+  },
+  "operator_required_blockers_not_seeded": [
+    {
+      "automatable": false,
+      "go_no_go": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+      "mission_categories": [
+        "observation completeness"
+      ],
+      "operator_required": true,
+      "report_id": "full_observation_builder",
+      "status": "BLOCKED",
+      "title": "Full Observation Builder Status",
+      "top_blocker": true,
+      "unsafe_generation_reason": null
+    },
+    {
+      "automatable": false,
+      "go_no_go": "V2_CHECKPOINT_PROMOTION_OPERATOR_REQUIRED",
+      "mission_categories": [
+        "checkpoint readiness",
+        "decision match"
+      ],
+      "operator_required": true,
+      "report_id": "checkpoint_promotion",
+      "status": "OPERATOR_DECISION_REQUIRED",
+      "title": "Checkpoint Promotion",
+      "top_blocker": true,
+      "unsafe_generation_reason": null
+    }
+  ],
+  "paired_codex_reviews_generated": 3,
+  "paired_codex_reviews_required": true,
+  "pool_status": {
+    "active_lane_count": 6,
+    "active_leases_count": 1,
+    "blocker": null,
+    "current_task_assignments": [
+      {
+        "child_process_pid": 2134684,
+        "descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_baseline_after_cost_calibration_r22.json",
+        "expected_output_paths": [
+          "claude_worklog/final_readiness/v2_autonomous_mission_backlog/per_task/baseline_after_cost_calibration/IMPLEMENTATION_REPORT.md"
+        ],
+        "file_lock_group": "v2_native_baseline_after_cost_calibration",
+        "heartbeat_at": "2026-05-25T02:15:46Z",
+        "lane_type": "CLAUDE_IMPLEMENTATION",
+        "lease_id": "0f8bf5d9d08a4064a55745e6c6085ba7",
+        "lease_status": "running",
+        "leased_at": "2026-05-25T02:15:46Z",
+        "log_path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/claude_autoseed_baseline_after_cost_calibration_r22.log",
+        "task_id": "claude_autoseed_baseline_after_cost_calibration_r22",
+        "worker_current_lease_id": "0f8bf5d9d08a4064a55745e6c6085ba7",
+        "worker_heartbeat": "2026-05-25T02:15:46Z",
+        "worker_id": "claude-2",
+        "worker_pid": 1572990,
+        "worker_state": "busy"
+      }
+    ],
+    "duplicate_file_locks": 0,
+    "duplicate_task_leases": 0,
+    "duplicate_worker_leases": 0,
+    "worker_count_busy": 1,
+    "worker_count_idle_ready": 5
+  },
+  "post_wait_dead_running_descriptors_reset": [],
+  "premature_dependency_leases_released": [],
+  "queue_after_count": 3,
+  "queue_before_count": 0,
+  "ready": true,
+  "refused": [],
+  "report_only_work_counted_as_migration_progress": false,
+  "running_autoseed_implementation_count": 1,
+  "safe_non_conflicting_task_capacity": 3,
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "schema_version": "v2_autonomous_mission_backlog_autoseed_v1",
+  "seed_triggered": true,
+  "target_current_queue": 3,
+  "ui_only_drift": false,
+  "unsafe_blockers_not_seeded": []
+}

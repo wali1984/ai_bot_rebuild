@@ -1,0 +1,52 @@
+{
+  "agent": "claude",
+  "created_at": "2026-05-31T00:00:00Z",
+  "current_active": false,
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": null,
+  "duplicate_suppression_key": null,
+  "expected_output_paths": [
+    "claude_worklog/final_readiness/v2_zero_exception_parity_implementation_burndown_20260531/missing_impl_live_kucoin/IMPLEMENTATION_REPORT.md",
+    "claude_worklog/final_readiness/v2_zero_exception_parity_implementation_burndown_20260531/missing_impl_live_kucoin/GO_NO_GO.md",
+    "claude_worklog/final_readiness/v2_zero_exception_parity_implementation_burndown_20260531/missing_impl_live_kucoin/STATUS.json"
+  ],
+  "fail_blockers": [],
+  "file_lock_group": "v2_zero_exception_parity_missing_impl_live_kucoin",
+  "max_stall_relaunches": 1,
+  "mission_category": "ZERO_EXCEPTION_PARITY",
+  "next_action": "Implement and emit evidence artifacts in scope.",
+  "owner": "CLAUDE",
+  "paired_task_id": "codex_review_v2_zero_exception_parity_missing_impl_live_kucoin_20260531",
+  "predecessor_task_ids": null,
+  "priority": 9000,
+  "prompt": "Implement V2_MISSING_IMPLEMENTATION: ingest/live_kucoin.py as part of V2_ZERO_EXCEPTION_PARITY_IMPLEMENTATION_BURNDOWN_READY. Do not run live, canary, or shutdown operations. Keep V2 scoped writes only and preserve no legacy Redis key writes. Emit concrete evidence artifacts at expected output paths.",
+  "risk_level": "L1",
+  "safe_envelope": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "scope_paths": [
+    "v2/legacy_owned_runtime/ingest/live_kucoin.py",
+    "v2/backend/app/services/native_ingestors/v2_kucoin_ingestor_worker.py",
+    "v2/frontend/public/v2_legacy_data_zero_exception_parity_and_full_runtime_startup/latest/v2_full_ingestor_startup_and_validation_status.json"
+  ],
+  "source_matrix_row": "v2_zero_exception_parity_missing_impl_live_kucoin",
+  "stall_count": 0,
+  "stall_threshold_seconds": 600,
+  "status": "done",
+  "task_id": "claude_v2_zero_exception_parity_missing_impl_live_kucoin_20260531",
+  "task_type": "CLAUDE_IMPLEMENTATION",
+  "updated_at": "2026-06-03T22:32:40Z"
+}

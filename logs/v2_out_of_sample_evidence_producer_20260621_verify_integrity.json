@@ -1,0 +1,127 @@
+{
+  "schema_version": "v2_out_of_sample_reverify_evidence_producer_v1",
+  "generated_utc": "2026-06-21T22:43:10Z",
+  "selector_policy_fingerprint": "c4b8fb1ed12aabcb87224723f1758563eefff10de90288be09866d2bf3fa74b5",
+  "producer": "verify",
+  "paper_only": true,
+  "places_real_order": false,
+  "test_orders": false,
+  "leverage_mutation": false,
+  "margin_mode_mutation": false,
+  "old_redis_writes": false,
+  "integrity": {
+    "schema_version": "v2_out_of_sample_reverify_evidence_producer_v1",
+    "generated_utc": "2026-06-21T22:43:10Z",
+    "producer": "verify",
+    "status": "PASSED_EVIDENCE_INTEGRITY",
+    "selector_policy_fingerprint": "c4b8fb1ed12aabcb87224723f1758563eefff10de90288be09866d2bf3fa74b5",
+    "holdout": {
+      "schema_version": "v2_out_of_sample_reverify_evidence_producer_v1",
+      "generated_utc": "2026-06-21T22:43:10Z",
+      "status": "PASSED_HASH_CHAIN_INTEGRITY",
+      "chain_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_reverify_rows.jsonl.hash_chain.jsonl",
+      "chain_status": {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_reverify_rows.jsonl.hash_chain.jsonl",
+        "exists": true,
+        "scanned_line_count": 19800,
+        "parse_error_count": 0,
+        "parse_error_sample": [],
+        "sha256": "778fa21f3fdc2485960f16261f8c5582af86992a81bc88567ccf6af042c806c8"
+      },
+      "sidecar_statuses": {
+        "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_reverify_rows.jsonl": {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_reverify_rows.jsonl",
+          "exists": true,
+          "scanned_line_count": 0,
+          "parse_error_count": 0,
+          "parse_error_sample": [],
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "row_count": 0
+        },
+        "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_reverify_pending.jsonl": {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_reverify_pending.jsonl",
+          "exists": false,
+          "scanned_line_count": 0,
+          "parse_error_count": 0,
+          "parse_error_sample": [],
+          "sha256": null,
+          "row_count": 0
+        },
+        "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_reverify_rejected.jsonl": {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_reverify_rejected.jsonl",
+          "exists": true,
+          "scanned_line_count": 19800,
+          "parse_error_count": 0,
+          "parse_error_sample": [],
+          "sha256": "c712107813be22e98f0a82c5933da0cba5e2960c17f94161df3bb4b93f2fc89a",
+          "row_count": 19800
+        }
+      },
+      "chain_record_count": 19800,
+      "verified_sidecar_record_count": 19800,
+      "event_type_counts": {
+        "holdout_rejected": 19800
+      },
+      "unchained_sidecar_row_counts": {},
+      "failure_count": 0,
+      "failure_sample": []
+    },
+    "realtime": {
+      "schema_version": "v2_out_of_sample_reverify_evidence_producer_v1",
+      "generated_utc": "2026-06-21T22:43:10Z",
+      "status": "PASSED_HASH_CHAIN_INTEGRITY",
+      "chain_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_realtime_paper_reverify_rows.jsonl.hash_chain.jsonl",
+      "chain_status": {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_realtime_paper_reverify_rows.jsonl.hash_chain.jsonl",
+        "exists": true,
+        "scanned_line_count": 84154,
+        "parse_error_count": 0,
+        "parse_error_sample": [],
+        "sha256": "05e18ae1846b7b2fdff2ce7cac825fac8eadedda22169e3b094dd59f95787942"
+      },
+      "sidecar_statuses": {
+        "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_realtime_paper_reverify_rows.jsonl": {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_realtime_paper_reverify_rows.jsonl",
+          "exists": true,
+          "scanned_line_count": 0,
+          "parse_error_count": 0,
+          "parse_error_sample": [],
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "row_count": 0
+        },
+        "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_realtime_paper_reverify_pending.jsonl": {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_realtime_paper_reverify_pending.jsonl",
+          "exists": false,
+          "scanned_line_count": 0,
+          "parse_error_count": 0,
+          "parse_error_sample": [],
+          "sha256": null,
+          "row_count": 0
+        },
+        "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_realtime_paper_reverify_rejected.jsonl": {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_realtime_paper_reverify_rejected.jsonl",
+          "exists": true,
+          "scanned_line_count": 84154,
+          "parse_error_count": 0,
+          "parse_error_sample": [],
+          "sha256": "d7bdce230967306e5d49213b01934e751dd12aa4afa1fc90b8686cb3a4d4c267",
+          "row_count": 84154
+        }
+      },
+      "chain_record_count": 84154,
+      "verified_sidecar_record_count": 84154,
+      "event_type_counts": {
+        "realtime_rejected": 84154
+      },
+      "unchained_sidecar_row_counts": {},
+      "failure_count": 0,
+      "failure_sample": []
+    },
+    "paper_only": true,
+    "places_real_order": false,
+    "test_orders": false,
+    "leverage_mutation": false,
+    "margin_mode_mutation": false,
+    "old_redis_writes": false
+  }
+}

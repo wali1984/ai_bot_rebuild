@@ -1,0 +1,24 @@
+{
+  "all_legacy_writes_blocked": true,
+  "generated_utc": "2026-05-15T23:33:30+00:00",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "policy": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "policy": {
+      "allow_legacy_reads": true,
+      "classification_for_legacy_reads": "LEGACY_REFERENCE_READ_ONLY",
+      "enforce_v2_prefix_on_writes": true
+    },
+    "v2_namespace_prefix": "v2:"
+  },
+  "v2_writes_allowed": true,
+  "violation_raised_for_legacy_writes": {
+    "delete": true,
+    "hset": true,
+    "set": true,
+    "xadd": true,
+    "xtrim": true
+  }
+}

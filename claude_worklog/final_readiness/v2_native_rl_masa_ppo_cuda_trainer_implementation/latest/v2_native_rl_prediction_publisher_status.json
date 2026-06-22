@@ -1,0 +1,6 @@
+{
+  "prediction_count": 298,
+  "status": "READY",
+  "trainer_source": "V2_NATIVE_RL_MASA_PPO_CUDA_TRAINER_PAPER_SHADOW",
+  "writes_only_v2_prediction_keys": true
+}

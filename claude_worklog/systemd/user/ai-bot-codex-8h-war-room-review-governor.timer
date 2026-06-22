@@ -1,0 +1,12 @@
+[Unit]
+Description=Run AI Bot Codex 8H war-room review governor every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Persistent=true
+Unit=ai-bot-codex-8h-war-room-review-governor.service
+
+[Install]
+WantedBy=timers.target

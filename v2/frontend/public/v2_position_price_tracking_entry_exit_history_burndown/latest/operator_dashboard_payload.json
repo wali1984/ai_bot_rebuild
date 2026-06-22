@@ -1,0 +1,188 @@
+{
+  "allowed_outputs": [
+    "v2:paper:position_price_track:{symbol}",
+    "v2:paper:position_history:{symbol}",
+    "v2:paper:position_history:heartbeat"
+  ],
+  "any_entry_recovered": false,
+  "any_realized_exit_recovered": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "burndown_go_no_go": "V2_POSITION_PRICE_TRACKING_ENTRY_EXIT_HISTORY_BURNDOWN_BLOCKED",
+  "checkpoint_compatibility_claimed": false,
+  "entry_price_source_by_symbol": {
+    "BTCUSDT": "MISSING_ENTRY_PRICE_FROM_V2_PAPER_INPUTS",
+    "ETHUSDT": "MISSING_ENTRY_PRICE_FROM_V2_PAPER_INPUTS",
+    "SOLUSDT": "MISSING_ENTRY_PRICE_FROM_V2_PAPER_INPUTS"
+  },
+  "generated_utc": "2026-05-18T20:49:06Z",
+  "go_no_go": "V2_POSITION_PRICE_TRACKING_RECORDER_READY",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "missing_flags_by_symbol": {
+    "BTCUSDT": [
+      "FLAT_NO_OPEN_POSITION"
+    ],
+    "ETHUSDT": [
+      "FLAT_NO_OPEN_POSITION"
+    ],
+    "SOLUSDT": [
+      "FLAT_NO_OPEN_POSITION"
+    ]
+  },
+  "no_fake_price_tracks": true,
+  "no_silent_zero_fill": true,
+  "per_symbol": [
+    {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "entry_price": null,
+      "entry_price_source": "MISSING_ENTRY_PRICE_FROM_V2_PAPER_INPUTS",
+      "generated_utc": "2026-05-18T20:49:06Z",
+      "hold_time_seconds": null,
+      "latest_price": null,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "mae_bps": null,
+      "max_price_since_entry": null,
+      "mfe_bps": null,
+      "min_price_since_entry": null,
+      "missing_flags": [
+        "FLAT_NO_OPEN_POSITION"
+      ],
+      "no_fake_price_tracks": true,
+      "no_silent_zero_fill": true,
+      "position_state": "FLAT",
+      "realized_exit_price": null,
+      "realized_exit_source": "NO_REALIZED_EXIT_RECORDED_YET",
+      "realized_exit_utc": null,
+      "roe_bps": null,
+      "schema_version": "v2_position_price_track_v1",
+      "side": null,
+      "source": "V2_POSITION_PRICE_TRACKING_RECORDER",
+      "source_freshness_seconds": null,
+      "stale_flags": [],
+      "symbol": "BTCUSDT",
+      "writes_exchange_orders": false,
+      "writes_legacy_redis": false
+    },
+    {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "entry_price": null,
+      "entry_price_source": "MISSING_ENTRY_PRICE_FROM_V2_PAPER_INPUTS",
+      "generated_utc": "2026-05-18T20:49:06Z",
+      "hold_time_seconds": null,
+      "latest_price": null,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "mae_bps": null,
+      "max_price_since_entry": null,
+      "mfe_bps": null,
+      "min_price_since_entry": null,
+      "missing_flags": [
+        "FLAT_NO_OPEN_POSITION"
+      ],
+      "no_fake_price_tracks": true,
+      "no_silent_zero_fill": true,
+      "position_state": "FLAT",
+      "realized_exit_price": null,
+      "realized_exit_source": "NO_REALIZED_EXIT_RECORDED_YET",
+      "realized_exit_utc": null,
+      "roe_bps": null,
+      "schema_version": "v2_position_price_track_v1",
+      "side": null,
+      "source": "V2_POSITION_PRICE_TRACKING_RECORDER",
+      "source_freshness_seconds": null,
+      "stale_flags": [],
+      "symbol": "ETHUSDT",
+      "writes_exchange_orders": false,
+      "writes_legacy_redis": false
+    },
+    {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "entry_price": null,
+      "entry_price_source": "MISSING_ENTRY_PRICE_FROM_V2_PAPER_INPUTS",
+      "generated_utc": "2026-05-18T20:49:06Z",
+      "hold_time_seconds": null,
+      "latest_price": null,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "mae_bps": null,
+      "max_price_since_entry": null,
+      "mfe_bps": null,
+      "min_price_since_entry": null,
+      "missing_flags": [
+        "FLAT_NO_OPEN_POSITION"
+      ],
+      "no_fake_price_tracks": true,
+      "no_silent_zero_fill": true,
+      "position_state": "FLAT",
+      "realized_exit_price": null,
+      "realized_exit_source": "NO_REALIZED_EXIT_RECORDED_YET",
+      "realized_exit_utc": null,
+      "roe_bps": null,
+      "schema_version": "v2_position_price_track_v1",
+      "side": null,
+      "source": "V2_POSITION_PRICE_TRACKING_RECORDER",
+      "source_freshness_seconds": null,
+      "stale_flags": [],
+      "symbol": "SOLUSDT",
+      "writes_exchange_orders": false,
+      "writes_legacy_redis": false
+    }
+  ],
+  "policy_architecture_parity_claimed": false,
+  "realized_exit_price_by_symbol": {
+    "BTCUSDT": null,
+    "ETHUSDT": null,
+    "SOLUSDT": null
+  },
+  "realized_exit_source_by_symbol": {
+    "BTCUSDT": "NO_REALIZED_EXIT_RECORDED_YET",
+    "ETHUSDT": "NO_REALIZED_EXIT_RECORDED_YET",
+    "SOLUSDT": "NO_REALIZED_EXIT_RECORDED_YET"
+  },
+  "redis_write_results": {
+    "v2:paper:position_history:BTCUSDT": true,
+    "v2:paper:position_history:ETHUSDT": true,
+    "v2:paper:position_history:SOLUSDT": true,
+    "v2:paper:position_history:heartbeat": true,
+    "v2:paper:position_price_track:BTCUSDT": true,
+    "v2:paper:position_price_track:ETHUSDT": true,
+    "v2:paper:position_price_track:SOLUSDT": true
+  },
+  "schema_version": "v2_position_price_tracking_recorder_status_v1",
+  "stale_flags_by_symbol": {
+    "BTCUSDT": [],
+    "ETHUSDT": [],
+    "SOLUSDT": []
+  },
+  "state_counts": {
+    "FLAT": 3
+  },
+  "symbol_count": 3,
+  "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+  ],
+  "symbols_still_blocked": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+  ],
+  "symbols_with_entry_recovered": [],
+  "symbols_with_realized_exit_recovered": [],
+  "writes_exchange_orders": false,
+  "writes_legacy_redis": false
+}

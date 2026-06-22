@@ -1,0 +1,18 @@
+{
+  "blockers": [
+    "MAJOR_MOVE_REPLAY_FUTURE_WINDOW_MISSING",
+    "MAJOR_MOVE_PAPER_CANDIDATE_NOT_PROVEN"
+  ],
+  "exchange_leverage_mutation": false,
+  "exchange_margin_mode_mutation": false,
+  "gate": "V2_MAJOR_MOVE_FALSE_NEGATIVE_REPLAY_DURABLE_TRAINER_AND_PAPER_ROUTING_REMEDIATION_BLOCKED",
+  "generated_est": "2026-06-15T18:09:53-04:00",
+  "live_order_submitted": false,
+  "model_source": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA",
+  "old_redis_write": false,
+  "paper_only": true,
+  "raw_credentials_exposed": false,
+  "status": "BLOCKED",
+  "test_order_called": false,
+  "trainer_source": "V2_NATIVE_RL_MASA_PPO_CUDA_TRAINER_PAPER_SHADOW"
+}

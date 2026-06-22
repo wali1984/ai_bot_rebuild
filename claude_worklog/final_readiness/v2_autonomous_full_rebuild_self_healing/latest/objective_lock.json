@@ -1,0 +1,47 @@
+{
+  "schema_version": "v2_autonomous_full_rebuild_self_healing_objective_lock_v1",
+  "generated_utc": "2026-05-23T02:00:00Z",
+  "primary_goal": "Migrate legacy AI BOT into V2 rebuild so V2 can become production-equivalent first in paper/shadow, then eventually live/canary after separate approvals.",
+  "active_priorities": [
+    {"rank": 1, "name": "runtime_health"},
+    {"rank": 2, "name": "full_observation_builder_completion"},
+    {"rank": 3, "name": "policy_architecture_readiness_after_observation_gate"},
+    {"rank": 4, "name": "checkpoint_model_parity_after_architecture_gate"},
+    {"rank": 5, "name": "v2_vs_legacy_decision_match"},
+    {"rank": 6, "name": "symbol_universe_dynamic_selection"},
+    {"rank": 7, "name": "alternative_data_intelligence_as_feature_or_symbol_source_only"},
+    {"rank": 8, "name": "frontend_truth"},
+    {"rank": 9, "name": "live_readiness_only_after_all_prior_gates"}
+  ],
+  "prohibited_autonomous_actions": [
+    "live trading",
+    "canary trading",
+    "shutdown acceptance",
+    "exchange mutation (orders, cancels, modifies, leverage, margin)",
+    "old (legacy) Redis writes",
+    "checkpoint loading without Codex/operator approval",
+    "policy architecture port before observation gate",
+    "paid endpoints without Codex/operator approval",
+    "automatic Symbol Universe adoption without gate",
+    "approval token creation (live/canary/shutdown/Redis-trim/paper-only shutdown acceptance)",
+    "modification of /home/wali/Desktop/AI BOT",
+    "checkpoint blob deserialization",
+    "raw API key exposure",
+    "stopping V2 runtime, continuous remediation, legacy log observer, V2-vs-legacy comparator, liquidation WSS daemon, position-history daemon"
+  ],
+  "allowed_write_scopes": [
+    "v2/**",
+    "claude_worklog/**",
+    "v2/frontend/public/**",
+    "tools/**",
+    "ollama/**",
+    "raw_evidence/**"
+  ],
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false,
+  "objective_lock_immutable_without_operator_signoff": true
+}

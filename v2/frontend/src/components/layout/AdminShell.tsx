@@ -1,36 +1,50 @@
 import { Navigate, Outlet, useLocation, NavLink } from 'react-router-dom';
-import { canSeePage, normalizeRole, useRoles, type RoleLike } from '../../auth/rbac';
+import { canSeePage, normalizeRole, type RoleLike } from '../../auth/rbac';
 import { useAuth } from '../../hooks/useAuth';
-import { LiveBlockBanner } from '../banners/LiveBlockBanner';
 import { Nav } from './Nav';
 import { PAGES } from '../../pages/registry';
-const ADMIN_NAV_SECTIONS: Array<{ label: string; paths: string[] }> = [
+import { NervyxModuleBadge } from './NervyxModuleBadge';
+import type { NervyxModuleId } from '../../brand/nervyxBrand';
+
+const ADMIN_NAV_SECTIONS: Array<{ label: string; module: NervyxModuleId; paths: string[] }> = [
   {
-    label: 'System',
+    label: 'Observe',
+    module: 'observe',
     paths: ['/admin/system', '/admin', '/admin/monitor-center', '/admin/ingestors', '/admin/logs'],
   },
   {
-    label: 'Data',
+    label: 'Sense',
+    module: 'sense',
     paths: ['/admin/coverage', '/admin/scripts', '/admin/signal-explainability'],
   },
   {
-    label: 'AI / Trainer',
+    label: 'Core',
+    module: 'core',
     paths: ['/admin/trainer', '/system/build-code-review', '/admin/ai-tools'],
   },
   {
-    label: 'Risk',
+    label: 'Guard',
+    module: 'guard',
     paths: ['/admin/risk', '/admin/readiness', '/admin/external-manual-position-quarantine'],
   },
   {
-    label: 'Config',
-    paths: ['/admin/config', '/admin/traders', '/admin/orchestrator', '/admin/execution', '/admin/exchanges'],
+    label: 'Shift',
+    module: 'shift',
+    paths: ['/admin/traders', '/admin/orchestrator', '/admin/config'],
   },
   {
-    label: 'Audit',
+    label: 'Execute',
+    module: 'execute',
+    paths: ['/admin/execution', '/admin/exchanges'],
+  },
+  {
+    label: 'Replay',
+    module: 'replay',
     paths: ['/admin/audit', '/admin/build-validation', '/admin/evidence', '/system/executive-summary', '/admin/migrations'],
   },
   {
     label: 'Reports',
+    module: 'observe',
     paths: ['/admin/reports', '/admin/readiness/mobile'],
   },
 ];
@@ -63,10 +77,9 @@ function roleLabel(role: RoleLike): string {
 }
 
 export function AdminShell(): JSX.Element {
-  const sessionRole = useRoles();
   const { user, loading, logout } = useAuth();
   const location = useLocation();
-  const effectiveRole: RoleLike = user?.role ? normalizeRole(user.role) : sessionRole;
+  const effectiveRole: RoleLike = user?.role ? normalizeRole(user.role) : 'public';
   const routeLookupPath = location.pathname;
 
   if (loading) {
@@ -77,7 +90,7 @@ export function AdminShell(): JSX.Element {
     );
   }
 
-  if (!user && effectiveRole === 'public') {
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
 
@@ -116,43 +129,35 @@ export function AdminShell(): JSX.Element {
     <div
       className="platform-shell"
       data-testid="admin-shell"
+      data-nervyx-theme="ops-terminal"
       style={{ fontFamily: 'var(--font-sans)' }}
     >
-      <LiveBlockBanner />
-
       {/* Top bar */}
       <header className="admin-shell__header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span
+          <img
+            src="/brand/nervyx-one-logo-horizontal-on-midnight.svg"
+            alt="NERVYX ONE"
             style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 32,
-              height: 32,
-              borderRadius: 8,
-              background: 'var(--admin-bg)',
-              border: '1px solid var(--admin-border)',
-              color: 'var(--admin-accent)',
-              fontWeight: 700,
-              fontSize: 14,
-              fontFamily: 'var(--font-mono)',
+              display: 'block',
+              width: 170,
+              maxWidth: '32vw',
+              height: 38,
+              objectFit: 'contain',
             }}
-          >
-            A
-          </span>
+          />
           <div>
             <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>
-              AlphaForge V2
+              NERVYX OBSERVE
             </div>
             <div style={{ fontSize: 11, color: 'var(--admin-accent)', fontFamily: 'var(--font-mono)' }}>
-              Control Portal
+              Ops Terminal
             </div>
           </div>
         </div>
 
         <div className="admin-shell__top-chips">
-          <StatusChip label="MODE" value="PAPER/READ-ONLY" />
+          <StatusChip label="MODE" value="LIVE PLATFORM" />
           <StatusChip label="LIVE" value="BLOCKED" ok={false} />
           <StatusChip label="ROLE" value={String(effectiveRole).toUpperCase()} />
         </div>
@@ -190,8 +195,10 @@ export function AdminShell(): JSX.Element {
               key={section.label}
               to={section.paths[0]}
               className={`admin-shell__topnav-link${isActive ? ' admin-shell__topnav-link--active' : ''}`}
+              data-nervyx-module={section.module}
             >
-              {section.label}
+              <span>{section.label}</span>
+              <NervyxModuleBadge moduleId={section.module} compact />
             </NavLink>
           );
         })}

@@ -1,0 +1,59 @@
+{
+  "schema_version": "v2_zero_exception_task_queue_worker_lease_execution_status_v1",
+  "milestone": "v2_zero_exception_task_queue_materialization_and_execution_ready",
+  "active_leases": 1,
+  "current_automatable_claude_tasks": 46,
+  "waiting_codex_review_tasks": 46,
+  "busy_claude_workers": 1,
+  "busy_codex_workers": 0,
+  "claims": [
+    {
+      "file_lock_group": "v2_zero_exception_parity_adapter_alphavantage_client",
+      "heartbeat_at": "2026-06-01T21:47:49Z",
+      "lane_type": "CLAUDE_IMPLEMENTATION",
+      "lease_id": "716741d1-7ee5-4697-807f-40957d84a504",
+      "leased_at": "2026-06-01T21:47:49Z",
+      "safety": {
+        "approves_canary": false,
+        "approves_legacy_shutdown": false,
+        "approves_live": false,
+        "approves_redis_trim": false,
+        "live_gate": "blocked_human_only",
+        "live_symbols": []
+      },
+      "status": "leased",
+      "task_id": "claude_v2_zero_exception_parity_adapter_alphavantage_client_20260531",
+      "worker_id": "claude-materialization-2026-06-01T214749"
+    }
+  ],
+  "active_leases_detail": [
+    {
+      "file_lock_group": "v2_zero_exception_parity_adapter_alphavantage_client",
+      "heartbeat_at": "2026-06-01T21:47:49Z",
+      "lane_type": "CLAUDE_IMPLEMENTATION",
+      "lease_id": "716741d1-7ee5-4697-807f-40957d84a504",
+      "leased_at": "2026-06-01T21:47:49Z",
+      "safety": {
+        "approves_canary": false,
+        "approves_legacy_shutdown": false,
+        "approves_live": false,
+        "approves_redis_trim": false,
+        "live_gate": "blocked_human_only",
+        "live_symbols": []
+      },
+      "status": "leased",
+      "task_id": "claude_v2_zero_exception_parity_adapter_alphavantage_client_20260531",
+      "worker_id": "claude-materialization-2026-06-01T214749"
+    }
+  ],
+  "safety": {
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "generated_est": "2026-06-01T17:48:11-0400",
+  "generated_utc": "2026-06-01T21:48:11Z"
+}

@@ -1,0 +1,931 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "checkpoint_compatibility_claimed": false,
+  "compact_observation_dim": 26,
+  "compact_observation_v1": {
+    "dim": 26,
+    "kept_as_current_runtime_policy_input": true,
+    "source": "v2.backend.app.services.rl_core.observation_schema"
+  },
+  "conditionally_undefined_families": [],
+  "event_dependent_families": [
+    "liquidations"
+  ],
+  "external_source_required_families": [
+    "unified_feature_family.token_metrics",
+    "onchain_btc",
+    "onchain_eth"
+  ],
+  "full_observation_v1": {
+    "checkpoint_compatibility_claimed": false,
+    "missing_observation_categories": [
+      "onchain_btc",
+      "onchain_eth"
+    ],
+    "operator_artifact_or_new_builder_required": true,
+    "partial_observation_categories": [
+      "portfolio_state",
+      "position_context",
+      "unified_features"
+    ],
+    "present_observation_categories": [],
+    "target_dim": 1911,
+    "target_schema": "V3"
+  },
+  "generated_at": "2026-06-21T15:17:38Z",
+  "generated_utc": "2026-06-21T15:17:38Z",
+  "legacy_observation_largest_dim": 1911,
+  "legacy_observation_total_dim_by_version": {
+    "V1": 1053,
+    "V2": 1061,
+    "V3": 1911
+  },
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "next_required_family": "binance_klines",
+  "next_required_fix": "Extend buildable V2-native sub-families and address EXTERNAL_SOURCE_REQUIRED categories only after operator + Codex approval.",
+  "no_buildable_internal_family_remaining": false,
+  "no_legacy_features_consumed_as_current_truth": true,
+  "no_legacy_filesystem_read": true,
+  "no_pickle_loaded": true,
+  "no_torch_imported": true,
+  "no_zero_fill_for_unknown_fields": true,
+  "operator_decision_required_families": [
+    "unified_feature_family.ccxt_ohlcv"
+  ],
+  "operator_instruction": "Continue burndown of buildable families. Adopt external sources only after operator decision and Codex review.",
+  "operator_required": true,
+  "per_symbol": [
+    {
+      "checkpoint_compatibility_claimed": false,
+      "compact_observation_dim": 26,
+      "explicit_missing_categories": [
+        "onchain_btc",
+        "onchain_eth"
+      ],
+      "feature_snapshot_id": "v2_fsnap_e61f044048830ec0a557220351475a2f918e5955aad72bd9dac35ae2cc738db4",
+      "generated_full_observation_dim": 226,
+      "missing_dim_count": 1685,
+      "missing_field_count": 1685,
+      "missing_field_count_sample": [
+        "binance_klines.prev_close",
+        "binance_orderbook.bid_price",
+        "binance_orderbook.ask_price",
+        "binance_orderbook.bid_qty",
+        "binance_orderbook.ask_qty",
+        "binance_orderbook.mid_price",
+        "binance_orderbook.spread_pct_derived",
+        "binance_orderbook.bid_qty_minus_ask_qty",
+        "binance_orderbook.mid_minus_micro_price",
+        "ccxt_ohlcv[0]",
+        "ccxt_ohlcv[1]",
+        "ccxt_ohlcv[2]",
+        "ccxt_ohlcv[3]",
+        "ccxt_ohlcv[4]",
+        "ccxt_ohlcv[5]",
+        "ccxt_ohlcv[6]",
+        "ccxt_ohlcv[7]",
+        "ccxt_ohlcv[8]",
+        "ccxt_ohlcv[9]",
+        "token_metrics[0]"
+      ],
+      "partial_categories": [
+        "unified_features",
+        "portfolio_state",
+        "position_context"
+      ],
+      "present_categories": [],
+      "sample_missing_fields": [
+        {
+          "name": "binance_klines.prev_close",
+          "source": "MISSING_FROM_V2_BINANCE_KLINE_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_orderbook.bid_price",
+          "source": "MISSING_FROM_V2_BINANCE_ORDERBOOK_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_orderbook.ask_price",
+          "source": "MISSING_FROM_V2_BINANCE_ORDERBOOK_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_orderbook.bid_qty",
+          "source": "MISSING_FROM_V2_BINANCE_ORDERBOOK_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_orderbook.ask_qty",
+          "source": "MISSING_FROM_V2_BINANCE_ORDERBOOK_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_orderbook.mid_price",
+          "source": "MISSING_FROM_V2_BINANCE_ORDERBOOK_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_orderbook.spread_pct_derived",
+          "source": "MISSING_FROM_V2_BINANCE_ORDERBOOK_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_orderbook.bid_qty_minus_ask_qty",
+          "source": "MISSING_FROM_V2_BINANCE_ORDERBOOK_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_orderbook.mid_minus_micro_price",
+          "source": "MISSING_FROM_V2_BINANCE_ORDERBOOK_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "ccxt_ohlcv[0]",
+          "source": "OPERATOR_DECISION_REQUIRED_SECONDARY_EXCHANGE_OHLCV",
+          "value": null
+        },
+        {
+          "name": "ccxt_ohlcv[1]",
+          "source": "OPERATOR_DECISION_REQUIRED_SECONDARY_EXCHANGE_OHLCV",
+          "value": null
+        },
+        {
+          "name": "ccxt_ohlcv[2]",
+          "source": "OPERATOR_DECISION_REQUIRED_SECONDARY_EXCHANGE_OHLCV",
+          "value": null
+        }
+      ],
+      "sample_present_fields": [
+        {
+          "name": "binance_klines.last_price",
+          "source": "V2_MARKET_TICKER_24HR",
+          "value": 64194.4
+        },
+        {
+          "name": "binance_klines.open_price",
+          "source": "V2_MARKET_TICKER_24HR",
+          "value": 64029.0
+        },
+        {
+          "name": "binance_klines.high_price",
+          "source": "V2_MARKET_TICKER_24HR",
+          "value": 64568.0
+        },
+        {
+          "name": "binance_klines.low_price",
+          "source": "V2_MARKET_TICKER_24HR",
+          "value": 63661.9
+        },
+        {
+          "name": "binance_klines.weighted_avg",
+          "source": "V2_MARKET_TICKER_24HR",
+          "value": 64136.01
+        },
+        {
+          "name": "binance_klines.volume",
+          "source": "V2_MARKET_TICKER_24HR",
+          "value": 80210.511
+        },
+        {
+          "name": "binance_klines.quote_volume",
+          "source": "V2_MARKET_TICKER_24HR",
+          "value": 5144381894.46
+        },
+        {
+          "name": "binance_klines.trade_count",
+          "source": "V2_MARKET_TICKER_24HR",
+          "value": 1794539.0
+        },
+        {
+          "name": "binance_klines.price_change",
+          "source": "V2_MARKET_TICKER_24HR",
+          "value": 165.4
+        },
+        {
+          "name": "binance_klines.price_change_pct",
+          "source": "V2_MARKET_TICKER_24HR",
+          "value": 0.258
+        },
+        {
+          "name": "binance_klines.ret_pct",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0025832044854675455
+        },
+        {
+          "name": "binance_klines.log_return",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0025832044854674496
+        },
+        {
+          "name": "binance_klines.body_pct",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0025832044854675455
+        },
+        {
+          "name": "binance_klines.range_pct",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.014151400146808454
+        },
+        {
+          "name": "binance_klines.gap_pct",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "binance_klines.true_range_pct",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.014151400146808454
+        },
+        {
+          "name": "binance_klines.ema_12",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 64174.080967067246
+        },
+        {
+          "name": "binance_klines.ema_26",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 64144.97921739673
+        },
+        {
+          "name": "binance_klines.ema_diff",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 29.101749670517165
+        },
+        {
+          "name": "binance_orderbook.bid_ask_spread_bps",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.015586460043068627
+        },
+        {
+          "name": "binance_orderbook.depth_imbalance",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.1256038647342995
+        },
+        {
+          "name": "binance_orderbook.micro_price",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 64194.4
+        },
+        {
+          "name": "binance_orderbook.toxicity_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.1256038647342995
+        },
+        {
+          "name": "binance_orderbook.depth_imbalance_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 1.0
+        }
+      ],
+      "source_freshness_state": "CURRENT",
+      "state": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+      "subfamily_present_counts": {
+        "binance_klines": 19,
+        "binance_orderbook": 7,
+        "ccxt_ohlcv": 0,
+        "coinank": 22,
+        "liquidations": 12,
+        "portfolio_state_unified": 13,
+        "technical_analysis": 25,
+        "token_metrics": 0
+      },
+      "subfamily_target_counts": {
+        "binance_klines": 20,
+        "binance_orderbook": 15,
+        "ccxt_ohlcv": 10,
+        "coinank": 22,
+        "liquidations": 12,
+        "portfolio_state_unified": 15,
+        "technical_analysis": 25,
+        "token_metrics": 18
+      },
+      "symbol": "BTCUSDT",
+      "target_full_observation_dim": 1911,
+      "timeframe": "1m",
+      "zero_filled_field_count": 0
+    },
+    {
+      "checkpoint_compatibility_claimed": false,
+      "compact_observation_dim": 26,
+      "explicit_missing_categories": [
+        "onchain_btc",
+        "onchain_eth"
+      ],
+      "feature_snapshot_id": "v2_fsnap_a35e9a6ad169a33c58611f1a9d82eedfd9ddb9c80b11fdf5f491a4999bf9de2e",
+      "generated_full_observation_dim": 209,
+      "missing_dim_count": 1702,
+      "missing_field_count": 1702,
+      "missing_field_count_sample": [
+        "binance_klines.last_price",
+        "binance_klines.open_price",
+        "binance_klines.high_price",
+        "binance_klines.low_price",
+        "binance_klines.prev_close",
+        "binance_klines.weighted_avg",
+        "binance_klines.volume",
+        "binance_klines.quote_volume",
+        "binance_klines.trade_count",
+        "binance_klines.price_change",
+        "binance_klines.price_change_pct",
+        "binance_orderbook.bid_price",
+        "binance_orderbook.ask_price",
+        "binance_orderbook.bid_qty",
+        "binance_orderbook.ask_qty",
+        "binance_orderbook.mid_price",
+        "binance_orderbook.spread_pct_derived",
+        "binance_orderbook.bid_qty_minus_ask_qty",
+        "binance_orderbook.mid_minus_micro_price",
+        "ccxt_ohlcv[0]"
+      ],
+      "partial_categories": [
+        "unified_features",
+        "portfolio_state",
+        "position_context"
+      ],
+      "present_categories": [],
+      "sample_missing_fields": [
+        {
+          "name": "binance_klines.last_price",
+          "source": "MISSING_FROM_V2_BINANCE_KLINE_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_klines.open_price",
+          "source": "MISSING_FROM_V2_BINANCE_KLINE_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_klines.high_price",
+          "source": "MISSING_FROM_V2_BINANCE_KLINE_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_klines.low_price",
+          "source": "MISSING_FROM_V2_BINANCE_KLINE_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_klines.prev_close",
+          "source": "MISSING_FROM_V2_BINANCE_KLINE_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_klines.weighted_avg",
+          "source": "MISSING_FROM_V2_BINANCE_KLINE_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_klines.volume",
+          "source": "MISSING_FROM_V2_BINANCE_KLINE_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_klines.quote_volume",
+          "source": "MISSING_FROM_V2_BINANCE_KLINE_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_klines.trade_count",
+          "source": "MISSING_FROM_V2_BINANCE_KLINE_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_klines.price_change",
+          "source": "MISSING_FROM_V2_BINANCE_KLINE_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_klines.price_change_pct",
+          "source": "MISSING_FROM_V2_BINANCE_KLINE_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_orderbook.bid_price",
+          "source": "MISSING_FROM_V2_BINANCE_ORDERBOOK_PROJECTION",
+          "value": null
+        }
+      ],
+      "sample_present_fields": [
+        {
+          "name": "binance_klines.ret_pct",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "binance_klines.log_return",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "binance_klines.body_pct",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "binance_klines.range_pct",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "binance_klines.gap_pct",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "binance_klines.true_range_pct",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "binance_klines.ema_12",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 1728.390097608331
+        },
+        {
+          "name": "binance_klines.ema_26",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 1727.556330056006
+        },
+        {
+          "name": "binance_klines.ema_diff",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.8337675523250709
+        },
+        {
+          "name": "binance_orderbook.bid_ask_spread_bps",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.05784810822218825
+        },
+        {
+          "name": "binance_orderbook.depth_imbalance",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.555830713792839
+        },
+        {
+          "name": "binance_orderbook.micro_price",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "binance_orderbook.toxicity_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.555830713792839
+        },
+        {
+          "name": "binance_orderbook.depth_imbalance_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 1.0
+        },
+        {
+          "name": "binance_orderbook.v2_depth_source_available",
+          "source": "V2_PROBE_FLAG_NO_DEPTH_LADDER_PRESENT",
+          "value": 0.0
+        },
+        {
+          "name": "binance_orderbook.orderbook_v2_native_source_count",
+          "source": "V2_PROBE_FLAG_TICKER_ONLY",
+          "value": 1.0
+        },
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "V2_MARKET_LIQUIDATIONS_LATEST",
+          "value": 5030.838140000001
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "V2_MARKET_LIQUIDATIONS_LATEST",
+          "value": 1.0
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "V2_MARKET_LIQUIDATIONS_LATEST",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 87783.10688280001
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "V2_MARKET_LIQUIDATIONS_AGGREGATE",
+          "value": 137458.05011
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 6.264978885650635
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_MARKET_LIQUIDATIONS_PER_SYMBOL_PRESENT",
+          "value": 1.0
+        },
+        {
+          "name": "technical_analysis.rsi_14",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 55.968882902301964
+        }
+      ],
+      "source_freshness_state": "CURRENT",
+      "state": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+      "subfamily_present_counts": {
+        "binance_klines": 9,
+        "binance_orderbook": 7,
+        "ccxt_ohlcv": 0,
+        "coinank": 21,
+        "liquidations": 7,
+        "portfolio_state_unified": 13,
+        "technical_analysis": 25,
+        "token_metrics": 0
+      },
+      "subfamily_target_counts": {
+        "binance_klines": 20,
+        "binance_orderbook": 15,
+        "ccxt_ohlcv": 10,
+        "coinank": 22,
+        "liquidations": 12,
+        "portfolio_state_unified": 15,
+        "technical_analysis": 25,
+        "token_metrics": 18
+      },
+      "symbol": "ETHUSDT",
+      "target_full_observation_dim": 1911,
+      "timeframe": "1m",
+      "zero_filled_field_count": 0
+    },
+    {
+      "checkpoint_compatibility_claimed": false,
+      "compact_observation_dim": 26,
+      "explicit_missing_categories": [
+        "onchain_btc",
+        "onchain_eth"
+      ],
+      "feature_snapshot_id": "v2_fsnap_9b4c55191f5456054c255a639004ee5babec1697e0df3bf1bcc170a04905d528",
+      "generated_full_observation_dim": 209,
+      "missing_dim_count": 1702,
+      "missing_field_count": 1702,
+      "missing_field_count_sample": [
+        "binance_klines.last_price",
+        "binance_klines.open_price",
+        "binance_klines.high_price",
+        "binance_klines.low_price",
+        "binance_klines.prev_close",
+        "binance_klines.weighted_avg",
+        "binance_klines.volume",
+        "binance_klines.quote_volume",
+        "binance_klines.trade_count",
+        "binance_klines.price_change",
+        "binance_klines.price_change_pct",
+        "binance_orderbook.bid_price",
+        "binance_orderbook.ask_price",
+        "binance_orderbook.bid_qty",
+        "binance_orderbook.ask_qty",
+        "binance_orderbook.mid_price",
+        "binance_orderbook.spread_pct_derived",
+        "binance_orderbook.bid_qty_minus_ask_qty",
+        "binance_orderbook.mid_minus_micro_price",
+        "ccxt_ohlcv[0]"
+      ],
+      "partial_categories": [
+        "unified_features",
+        "portfolio_state",
+        "position_context"
+      ],
+      "present_categories": [],
+      "sample_missing_fields": [
+        {
+          "name": "binance_klines.last_price",
+          "source": "MISSING_FROM_V2_BINANCE_KLINE_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_klines.open_price",
+          "source": "MISSING_FROM_V2_BINANCE_KLINE_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_klines.high_price",
+          "source": "MISSING_FROM_V2_BINANCE_KLINE_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_klines.low_price",
+          "source": "MISSING_FROM_V2_BINANCE_KLINE_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_klines.prev_close",
+          "source": "MISSING_FROM_V2_BINANCE_KLINE_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_klines.weighted_avg",
+          "source": "MISSING_FROM_V2_BINANCE_KLINE_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_klines.volume",
+          "source": "MISSING_FROM_V2_BINANCE_KLINE_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_klines.quote_volume",
+          "source": "MISSING_FROM_V2_BINANCE_KLINE_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_klines.trade_count",
+          "source": "MISSING_FROM_V2_BINANCE_KLINE_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_klines.price_change",
+          "source": "MISSING_FROM_V2_BINANCE_KLINE_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_klines.price_change_pct",
+          "source": "MISSING_FROM_V2_BINANCE_KLINE_PROJECTION",
+          "value": null
+        },
+        {
+          "name": "binance_orderbook.bid_price",
+          "source": "MISSING_FROM_V2_BINANCE_ORDERBOOK_PROJECTION",
+          "value": null
+        }
+      ],
+      "sample_present_fields": [
+        {
+          "name": "binance_klines.ret_pct",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "binance_klines.log_return",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "binance_klines.body_pct",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "binance_klines.range_pct",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "binance_klines.gap_pct",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "binance_klines.true_range_pct",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "binance_klines.ema_12",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 73.99027496368723
+        },
+        {
+          "name": "binance_klines.ema_26",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 73.98593101241029
+        },
+        {
+          "name": "binance_klines.ema_diff",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": 0.004343951276936764
+        },
+        {
+          "name": "binance_orderbook.bid_ask_spread_bps",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 1.3521736190914617
+        },
+        {
+          "name": "binance_orderbook.depth_imbalance",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": -0.9007906735153228
+        },
+        {
+          "name": "binance_orderbook.micro_price",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.0
+        },
+        {
+          "name": "binance_orderbook.toxicity_proxy",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 0.9007906735153228
+        },
+        {
+          "name": "binance_orderbook.depth_imbalance_direction",
+          "source": "V2_DERIVED_FROM_FEATURES",
+          "value": -1.0
+        },
+        {
+          "name": "binance_orderbook.v2_depth_source_available",
+          "source": "V2_PROBE_FLAG_NO_DEPTH_LADDER_PRESENT",
+          "value": 0.0
+        },
+        {
+          "name": "binance_orderbook.orderbook_v2_native_source_count",
+          "source": "V2_PROBE_FLAG_TICKER_ONLY",
+          "value": 1.0
+        },
+        {
+          "name": "liquidations.latest_liquidation_notional",
+          "source": "V2_MARKET_LIQUIDATIONS_LATEST",
+          "value": 1004.3319
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_long",
+          "source": "V2_MARKET_LIQUIDATIONS_LATEST",
+          "value": 1.0
+        },
+        {
+          "name": "liquidations.latest_liquidation_side_short",
+          "source": "V2_MARKET_LIQUIDATIONS_LATEST",
+          "value": 0.0
+        },
+        {
+          "name": "liquidations.liquidation_count_proxy_global",
+          "source": "V2_COINANK_GLOBAL_AGGREGATE_NOT_PER_SYMBOL",
+          "value": 87783.10688280001
+        },
+        {
+          "name": "liquidations.liquidation_notional_1h_proxy",
+          "source": "V2_MARKET_LIQUIDATIONS_AGGREGATE",
+          "value": 24310.089100000005
+        },
+        {
+          "name": "liquidations.liquidation_freshness_seconds",
+          "source": "V2_COINANK_MARKET_INTELLIGENCE",
+          "value": 6.264978885650635
+        },
+        {
+          "name": "liquidations.v2_liquidation_source_available",
+          "source": "V2_MARKET_LIQUIDATIONS_PER_SYMBOL_PRESENT",
+          "value": 1.0
+        },
+        {
+          "name": "technical_analysis.rsi_14",
+          "source": "V2_NATIVE_FEATURE_SNAPSHOT",
+          "value": 45.649826525332074
+        }
+      ],
+      "source_freshness_state": "CURRENT",
+      "state": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+      "subfamily_present_counts": {
+        "binance_klines": 9,
+        "binance_orderbook": 7,
+        "ccxt_ohlcv": 0,
+        "coinank": 21,
+        "liquidations": 7,
+        "portfolio_state_unified": 13,
+        "technical_analysis": 25,
+        "token_metrics": 0
+      },
+      "subfamily_target_counts": {
+        "binance_klines": 20,
+        "binance_orderbook": 15,
+        "ccxt_ohlcv": 10,
+        "coinank": 22,
+        "liquidations": 12,
+        "portfolio_state_unified": 15,
+        "technical_analysis": 25,
+        "token_metrics": 18
+      },
+      "symbol": "SOLUSDT",
+      "target_full_observation_dim": 1911,
+      "timeframe": "1m",
+      "zero_filled_field_count": 0
+    }
+  ],
+  "policy_architecture_parity_claimed": false,
+  "position_history_consumption": {
+    "blocked_reason": null,
+    "consumption_allowed": true,
+    "consumption_state": "ALLOWED_AFTER_CODEX_PASS_AND_FRESH_HEARTBEAT",
+    "consumption_unblocked_after": [
+      "V2_POSITION_HISTORY_PERSISTENT_TRACKER_CODEX_PASS",
+      "V2_POSITION_HISTORY_TRACKER_DAEMON_REMEDIATION_CODEX_PASS"
+    ],
+    "tracker_codex_pass_marker_paths_failed": [
+      "claude_worklog/final_readiness/v2_position_history_persistent_tracker/latest/codex_review/CODEX_GO_NO_GO.md"
+    ],
+    "tracker_codex_pass_marker_paths_passed": [
+      "claude_worklog/final_readiness/v2_position_history_tracker_daemon_remediation/latest/codex_review/CODEX_GO_NO_GO.md"
+    ],
+    "tracker_codex_pass_markers": [
+      {
+        "actual_token": "V2_POSITION_HISTORY_TRACKER_DAEMON_REMEDIATION_CODEX_PASS",
+        "passed": true,
+        "path": "claude_worklog/final_readiness/v2_position_history_tracker_daemon_remediation/latest/codex_review/CODEX_GO_NO_GO.md"
+      },
+      {
+        "actual_token": "V2_POSITION_HISTORY_TRACKER_CODEX_FAIL",
+        "passed": false,
+        "path": "claude_worklog/final_readiness/v2_position_history_persistent_tracker/latest/codex_review/CODEX_GO_NO_GO.md"
+      }
+    ],
+    "tracker_heartbeat_age_seconds": 33,
+    "tracker_heartbeat_fresh": true,
+    "tracker_heartbeat_generated_utc": "2026-06-21T15:17:05Z",
+    "tracker_heartbeat_key": "v2:paper:position_history:heartbeat",
+    "tracker_heartbeat_max_age_seconds": 180,
+    "tracker_heartbeat_present": true,
+    "tracker_heartbeat_ttl_seconds": 868
+  },
+  "position_history_consumption_allowed": true,
+  "position_history_consumption_blocked_reason": null,
+  "position_history_consumption_state": "ALLOWED_AFTER_CODEX_PASS_AND_FRESH_HEARTBEAT",
+  "position_history_consumption_unblocked_after": [
+    "V2_POSITION_HISTORY_PERSISTENT_TRACKER_CODEX_PASS",
+    "V2_POSITION_HISTORY_TRACKER_DAEMON_REMEDIATION_CODEX_PASS"
+  ],
+  "position_history_tracker_codex_pass_marker_paths_failed": [
+    "claude_worklog/final_readiness/v2_position_history_persistent_tracker/latest/codex_review/CODEX_GO_NO_GO.md"
+  ],
+  "position_history_tracker_codex_pass_marker_paths_passed": [
+    "claude_worklog/final_readiness/v2_position_history_tracker_daemon_remediation/latest/codex_review/CODEX_GO_NO_GO.md"
+  ],
+  "position_history_tracker_heartbeat_age_seconds": 33,
+  "position_history_tracker_heartbeat_fresh": true,
+  "position_history_tracker_heartbeat_generated_utc": "2026-06-21T15:17:05Z",
+  "position_history_tracker_heartbeat_present": true,
+  "position_history_tracker_heartbeat_ttl_seconds": 868,
+  "schema_version": "v2_full_observation_builder_status_v3",
+  "slice_sizes_target": {
+    "onchain_btc": 15,
+    "onchain_eth": 15,
+    "portfolio_state": 401,
+    "position_context": 50,
+    "unified_features": 1430
+  },
+  "state": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+  "subfamily_layout": [
+    {
+      "name": "binance_klines",
+      "size": 20
+    },
+    {
+      "name": "binance_orderbook",
+      "size": 15
+    },
+    {
+      "name": "ccxt_ohlcv",
+      "size": 10
+    },
+    {
+      "name": "liquidations",
+      "size": 12
+    },
+    {
+      "name": "technical_analysis",
+      "size": 25
+    },
+    {
+      "name": "token_metrics",
+      "size": 18
+    },
+    {
+      "name": "coinank",
+      "size": 22
+    },
+    {
+      "name": "portfolio_state_unified",
+      "size": 15
+    }
+  ],
+  "subfamily_present_counts_total": {
+    "binance_klines": 37,
+    "binance_orderbook": 21,
+    "ccxt_ohlcv": 0,
+    "coinank": 64,
+    "liquidations": 26,
+    "portfolio_state_unified": 39,
+    "technical_analysis": 75,
+    "token_metrics": 0
+  },
+  "subfamily_target_counts_total": {
+    "binance_klines": 20,
+    "binance_orderbook": 15,
+    "ccxt_ohlcv": 10,
+    "coinank": 22,
+    "liquidations": 12,
+    "portfolio_state_unified": 15,
+    "technical_analysis": 25,
+    "token_metrics": 18
+  },
+  "target_full_observation_dim": 1911,
+  "zero_filled_field_count": 0
+}

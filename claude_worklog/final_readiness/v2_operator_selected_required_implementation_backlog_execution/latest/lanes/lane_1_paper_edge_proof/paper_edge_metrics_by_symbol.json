@@ -1,0 +1,73 @@
+{
+  "schema_version": "v2_paper_edge_metrics_by_symbol_v1",
+  "generated_utc": "2026-05-25T06:15:00Z",
+  "git_head": "10513bbe0517fd81c9c87e4672bb15486a083c02",
+  "source": "v2/frontend/public/v2_post_hoc_replay_outcome_miner/latest/edge_metrics_summary.json (aggregate) + replay_outcome_bundles.jsonl (per-symbol breakdown)",
+  "primary_outcome_window_id": "5m",
+  "by_symbol_breakdown_state": "AGGREGATE_OBSERVED_PER_SYMBOL_PENDING_BUNDLE_PARTITION",
+  "symbols": [
+    {
+      "symbol": "BTCUSDT",
+      "timeline_length": 2582,
+      "per_symbol_metrics_state": "OPERATOR_DECISION_REQUIRED_FOR_PER_SYMBOL_THRESHOLDS",
+      "per_symbol_edge_claim_allowed": false,
+      "after_cost_pnl_delta_bps": null,
+      "after_cost_ci_lower_bps": null,
+      "after_cost_ci_upper_bps": null,
+      "false_negative_rate": null,
+      "false_positive_rate": null,
+      "downside_pre_cascade_recall": null,
+      "max_drawdown_bps_observed": null,
+      "sample_count": null,
+      "evidence_note": "Bundle stream is shared across symbols; per-symbol partition requires the next miner cycle. Aggregate edge is negative; per-symbol cannot override that decision."
+    },
+    {
+      "symbol": "ETHUSDT",
+      "timeline_length": 2588,
+      "per_symbol_metrics_state": "OPERATOR_DECISION_REQUIRED_FOR_PER_SYMBOL_THRESHOLDS",
+      "per_symbol_edge_claim_allowed": false,
+      "after_cost_pnl_delta_bps": null,
+      "after_cost_ci_lower_bps": null,
+      "after_cost_ci_upper_bps": null,
+      "false_negative_rate": null,
+      "false_positive_rate": null,
+      "downside_pre_cascade_recall": null,
+      "max_drawdown_bps_observed": null,
+      "sample_count": null,
+      "evidence_note": "Bundle stream is shared across symbols; per-symbol partition requires the next miner cycle."
+    },
+    {
+      "symbol": "SOLUSDT",
+      "timeline_length": 2583,
+      "per_symbol_metrics_state": "OPERATOR_DECISION_REQUIRED_FOR_PER_SYMBOL_THRESHOLDS",
+      "per_symbol_edge_claim_allowed": false,
+      "after_cost_pnl_delta_bps": null,
+      "after_cost_ci_lower_bps": null,
+      "after_cost_ci_upper_bps": null,
+      "false_negative_rate": null,
+      "false_positive_rate": null,
+      "downside_pre_cascade_recall": null,
+      "max_drawdown_bps_observed": null,
+      "sample_count": null,
+      "evidence_note": "Bundle stream is shared across symbols; per-symbol partition requires the next miner cycle."
+    }
+  ],
+  "by_timeframe": [
+    {"window_id": "1m", "window_seconds": 60, "windows_filled": 96, "per_timeframe_edge_claim_allowed": false},
+    {"window_id": "5m", "window_seconds": 300, "windows_filled": 81, "per_timeframe_edge_claim_allowed": false},
+    {"window_id": "15m", "window_seconds": 900, "windows_filled": 78, "per_timeframe_edge_claim_allowed": false},
+    {"window_id": "1h", "window_seconds": 3600, "windows_filled": 189, "per_timeframe_edge_claim_allowed": false}
+  ],
+  "edge_claim_allowed_any_symbol_or_timeframe": false,
+  "no_fabricated_outcomes": true,
+  "no_fabricated_per_symbol_values": true,
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "fabricates_edge": false
+  }
+}

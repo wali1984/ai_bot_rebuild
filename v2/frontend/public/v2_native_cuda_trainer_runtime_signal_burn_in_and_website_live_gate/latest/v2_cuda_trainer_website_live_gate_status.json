@@ -1,0 +1,39 @@
+{
+  "approves_canary": false,
+  "approves_live": false,
+  "cuda_trainer_active_visible": true,
+  "edge_recompute_visible": true,
+  "exact_live_blockers": [
+    "BLOCK_LIVE_PAPER_EDGE_NOT_PROVEN",
+    "BLOCK_LIVE_MODEL_SIGNAL_QUALITY_NOT_READY",
+    "BLOCK_LIVE_RISK_CAPS_OPERATOR_REQUIRED"
+  ],
+  "execution_live_symbols": [],
+  "generated_est": "2026-06-04T16:41:37-04:00",
+  "gpu_metrics_visible": true,
+  "live_gate": "blocked_human_only",
+  "live_switch": {
+    "backend_live_enable_callable": false,
+    "disabled_reason": "LIVE_GATE=blocked_human_only; requires operator approval, risk caps, paper/canary edge acceptance, read-only permission probe, exchange mutation safety, live_symbols, and Codex final live PASS",
+    "enabled": false,
+    "visible": true
+  },
+  "live_symbols": [],
+  "orchestrator_consumption_visible": true,
+  "paper_trader_lineage_visible": true,
+  "payload_path": "/v2_native_cuda_trainer_runtime_signal_burn_in_and_website_live_gate/latest/operator_dashboard_payload.json",
+  "prediction_lineage_visible": true,
+  "risk_consumption_visible": true,
+  "schema_version": "v2_native_cuda_trainer_runtime_signal_burn_in_live_gate_v1_website_live_gate",
+  "status": "WEBSITE_LIVE_GATE_SYNC_READY",
+  "surfaces_synced": [
+    "AI Brain / Trainer",
+    "Risk",
+    "Orchestrator",
+    "Paper Trading",
+    "Live Readiness",
+    "Symbols",
+    "Market Intelligence"
+  ],
+  "training_loss_visible": true
+}

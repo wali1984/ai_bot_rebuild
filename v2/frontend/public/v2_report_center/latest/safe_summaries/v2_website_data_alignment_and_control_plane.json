@@ -1,0 +1,24 @@
+{
+  "freshness_seconds": 1544300.7211930752,
+  "go_no_go": "V2_WEBSITE_DATA_ALIGNMENT_AND_CONTROL_PLANE_READY",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "owner": "CLAUDE",
+  "redaction_applied": false,
+  "report_id": "v2_website_data_alignment_and_control_plane",
+  "sanitized_summary": {
+    "go_no_go": "V2_WEBSITE_DATA_ALIGNMENT_AND_CONTROL_PLANE_READY",
+    "pruned": {
+      "generated_utc": "2026-06-04T03:30:09Z",
+      "go_no_go": "V2_WEBSITE_DATA_ALIGNMENT_AND_CONTROL_PLANE_READY",
+      "schema_version": "v2_website_data_alignment_and_control_plane_v1_operator_dashboard_payload",
+      "summary": {}
+    },
+    "redaction_applied": false,
+    "redaction_token": null,
+    "status": "READY"
+  },
+  "stale": true,
+  "status": "READY",
+  "title": "V2 Website Data Alignment + Control Plane"
+}

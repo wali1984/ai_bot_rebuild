@@ -1,0 +1,61 @@
+{
+  "gate": "V2_WEBSITE_REALTIME_DATA_CONTRACT_AND_CHART_REPAIR_READY",
+  "generated_est": "2026-06-04T23:02:18-04:00",
+  "chart_service": {
+    "service": "ai-bot-v2-market-chart-payload-publisher.service",
+    "active": true,
+    "source_type": "EXISTING_WEBSOCKET_RUNTIME_FEED",
+    "source_keys": [
+      "v2:market:coinapi:wsds:BTCUSDT",
+      "v2:market:coinapi:wsds:ETHUSDT",
+      "v2:market:coinapi:wsds:SOLUSDT"
+    ],
+    "calls_exchange_api": false,
+    "writes_redis": false
+  },
+  "chart_payloads": {
+    "BTCUSDT": {
+      "status": "CURRENT",
+      "sample_count": 240,
+      "source_type": "EXISTING_WEBSOCKET_RUNTIME_FEED"
+    },
+    "ETHUSDT": {
+      "status": "CURRENT",
+      "sample_count": 240,
+      "source_type": "EXISTING_WEBSOCKET_RUNTIME_FEED"
+    },
+    "SOLUSDT": {
+      "status": "CURRENT",
+      "sample_count": 240,
+      "source_type": "EXISTING_WEBSOCKET_RUNTIME_FEED"
+    }
+  },
+  "route_crawl": {
+    "phase": "v2_website_realtime_data_contract_and_chart_repair_final",
+    "route_count": 32,
+    "passed_count": 32,
+    "failed_count": 0,
+    "console_error_routes": [],
+    "network_error_routes": []
+  },
+  "validation": {
+    "py_compile": "passed",
+    "frontend_typecheck": "passed",
+    "frontend_build": "passed",
+    "route_crawl": "passed"
+  },
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "execution_live_symbols": [],
+  "safety": {
+    "approves_live": false,
+    "approves_canary": false,
+    "writes_exchange_orders": false,
+    "calls_test_order_endpoint": false,
+    "leverage_changed": false,
+    "margin_mode_changed": false,
+    "writes_old_redis": false,
+    "redis_trim_performed": false,
+    "legacy_restart_performed": false
+  }
+}

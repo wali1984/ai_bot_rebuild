@@ -1,0 +1,99 @@
+{
+  "accepted_live_symbols": [
+    "BNBUSDT",
+    "BTCUSDT",
+    "ETHUSDT",
+    "PAXGUSDT",
+    "XAUTUSDT",
+    "ZECUSDT"
+  ],
+  "accepted_risk_audit_id": "live_gate_risk_d72f2d3f5e7f4667bae74c8931a78049",
+  "accepted_symbols_audit_id": "live_gate_symbols_aca7a192fba941b8873df0cf864f5c52",
+  "allowed_runtime_keys": [
+    "v2:live_gate:state",
+    "v2:risk:active_profile",
+    "v2:trader:accepted_live_symbols",
+    "v2:trader:execution_state"
+  ],
+  "enable_audit_id": "live_gate_enable_a625277031184b56a17cef3f7b620de8",
+  "enabled_at_est": "2026-06-07T22:29:57-04:00",
+  "enabled_by": "wali",
+  "execution_live_symbols": [
+    "BNBUSDT",
+    "BTCUSDT",
+    "ETHUSDT",
+    "PAXGUSDT",
+    "XAUTUSDT",
+    "ZECUSDT"
+  ],
+  "final_approval_audit_id": "live_gate_final_1df15ae557ff43b994ddee7fcee75d2f",
+  "generated_est": "2026-06-12T17:58:10-04:00",
+  "kill_switch_active": false,
+  "kill_switch_conditions": [
+    "any_mutation_before_final_gate",
+    "daily_loss_cap_breach",
+    "drawdown_cap_breach"
+  ],
+  "kill_switch_enabled": true,
+  "legacy_restart_allowed": false,
+  "leverage_mutation_allowed": false,
+  "live_gate": "enabled_operator_approved",
+  "live_symbols": [
+    "BNBUSDT",
+    "BTCUSDT",
+    "ETHUSDT",
+    "PAXGUSDT",
+    "XAUTUSDT",
+    "ZECUSDT"
+  ],
+  "margin_mutation_allowed": false,
+  "max_leverage": 1.0,
+  "old_redis_write_allowed": false,
+  "order_lineage_required": [
+    "prediction_id",
+    "risk_decision_id",
+    "orchestrator_decision_id",
+    "signal_id",
+    "live_gate_audit_id",
+    "risk_profile_audit_id",
+    "symbols_audit_id"
+  ],
+  "order_transport_submit_enabled": true,
+  "order_transport_submit_source": "audited_live_gate_runtime_state",
+  "order_transport_write_guard_enabled": true,
+  "order_transport_write_guard_source": "audited_live_gate_runtime_state",
+  "redis_trim_allowed": false,
+  "risk_profile": {
+    "fields": {
+      "cooldown_seconds": 1200,
+      "kill_switch_conditions": [
+        "any_mutation_before_final_gate",
+        "daily_loss_cap_breach",
+        "drawdown_cap_breach"
+      ],
+      "max_daily_loss": 15.0,
+      "max_drawdown": 75.0,
+      "max_leverage": 1.0,
+      "max_notional_per_trade": 64.86,
+      "max_open_positions": 1,
+      "max_slippage_bps": 2.0,
+      "max_spread_bps": 3.5,
+      "max_symbol_exposure": 64.86,
+      "max_total_exposure": 100.0,
+      "min_confidence_calibrated": 0.66,
+      "min_expected_move_after_cost_bps": 12.0
+    },
+    "profile_id": "conservative_min_executable",
+    "profile_name": "conservative_min_executable"
+  },
+  "runtime_heartbeat_source": "audited_live_gate_runtime_state_refresh",
+  "runtime_refreshed_at_est": "2026-06-12T17:58:10-04:00",
+  "schema_version": "v2_live_gate_runtime_execution_state_v1",
+  "source": "v2.backend.app.services.live_gate.runtime_execution_state",
+  "source_payload_ids": [
+    "sha256:7b1719af9d8312c9a1fd21d3016ac4ad8c13a305095c60a71b5f92fc332382b6",
+    "sha256:988731ca7889bb51f7cf0b8e8a46b20723d61eaa15781bd80537c5525cd6e1f5",
+    "sha256:7b1719af9d8312c9a1fd21d3016ac4ad8c13a305095c60a71b5f92fc332382b6+sha256:988731ca7889bb51f7cf0b8e8a46b20723d61eaa15781bd80537c5525cd6e1f5"
+  ],
+  "trader_execution_enabled": true
+}

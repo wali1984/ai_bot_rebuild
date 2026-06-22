@@ -1,0 +1,23 @@
+{
+  "freshness_seconds": 551969.7526955605,
+  "go_no_go": "CODEX_24H_PARALLEL_RECOVERY_WAR_ROOM_GOVERNOR_BLOCKED",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "owner": "CODEX",
+  "redaction_applied": false,
+  "report_id": "codex_24h_parallel_recovery_war_room_governor",
+  "sanitized_summary": {
+    "go_no_go": "CODEX_24H_PARALLEL_RECOVERY_WAR_ROOM_GOVERNOR_BLOCKED",
+    "pruned": {
+      "generated_utc": "2026-05-23T18:27:53Z",
+      "go_no_go": "CODEX_24H_PARALLEL_RECOVERY_WAR_ROOM_GOVERNOR_BLOCKED",
+      "schema_version": "codex_24h_parallel_recovery_war_room_governor_status_v1"
+    },
+    "redaction_applied": false,
+    "redaction_token": null,
+    "status": "BLOCKED"
+  },
+  "stale": true,
+  "status": "BLOCKED",
+  "title": "Codex 24H Parallel Recovery War-Room Governor"
+}

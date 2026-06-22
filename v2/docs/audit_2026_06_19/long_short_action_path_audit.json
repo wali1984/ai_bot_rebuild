@@ -1,0 +1,99 @@
+{
+  "audit_utc": "2026-06-19T00:15:00Z",
+  "finding": "SHORT_ONLY_MONOPOLY",
+  "severity": "CRITICAL",
+  "description": "All 645 closed paper trades have action='short' and side='short'. Zero LONG trades have ever been executed. The PPO model's action_probabilities have index[2] (SHORT) near 1.0 for virtually all symbols/timeframes. The LONG action path (index[1]) is structurally suppressed at training time.",
+  "closed_trade_action_distribution": {
+    "short": 645
+  },
+  "closed_trade_side_distribution": {
+    "short": 645
+  },
+  "long_trades_executed": 0,
+  "short_trades_executed": 645,
+  "long_pct": 0.0,
+  "short_pct": 100.0,
+  "ppo_model_evidence": {
+    "action_index_mapping": {
+      "0": "hold",
+      "1": "long",
+      "2": "short",
+      "note": "Inferred from probability distributions \u2014 index[2] is always highest"
+    },
+    "sample_predictions": [
+      {
+        "key": "v2:prediction:LITUSDT:15m",
+        "selected_action": "short",
+        "action_probabilities": [
+          2.42e-07,
+          1.4e-07,
+          0.9999996
+        ],
+        "interpretation": "index[0]=hold\u22480, index[1]=long\u22480, index[2]=short\u22481.0"
+      },
+      {
+        "key": "v2:prediction:SPACEUSDT:1h",
+        "selected_action": "short",
+        "action_probabilities": [
+          2.42e-06,
+          0.00109,
+          0.9989039
+        ],
+        "interpretation": "short prob 99.9%"
+      },
+      {
+        "key": "v2:prediction:ZKPUSDT:5m",
+        "selected_action": "short",
+        "action_probabilities": [
+          0.11,
+          0.042,
+          0.296
+        ],
+        "interpretation": "short prob 29.6% \u2014 lowest confidence short observed"
+      },
+      {
+        "key": "v2:prediction:XLMUSDT:5m",
+        "selected_action": "short",
+        "action_probabilities": [
+          1.91e-10,
+          5.57e-09,
+          0.9999999
+        ],
+        "interpretation": "short prob 100%"
+      },
+      {
+        "key": "v2:prediction:ESPORTSUSDT:1h",
+        "selected_action": "short",
+        "action_probabilities": [
+          5.3e-10,
+          5.71e-06,
+          0.9999942
+        ],
+        "interpretation": "short prob 99.999%"
+      }
+    ],
+    "long_prob_near_zero": true,
+    "short_prob_near_one": "Consistent across all sampled symbols"
+  },
+  "strategy_router_trace": {
+    "source_file": "v2/backend/app/services/strategy_router/service.py",
+    "action_normalization": "line 103-111: _normalize_action() maps ppo output to 'long'|'short'|'hold'",
+    "long_path_code": "line 481: if higher_direction == action and mid_direction in {None, action}: selected_mode = MODE_TREND (applies equally to long and short)",
+    "long_block_finding": "Strategy router does NOT block LONG \u2014 the issue is upstream: PPO never outputs 'long' with sufficient confidence",
+    "position_transition_check": "line 208-217: _position_transition_allowed() \u2014 FLAT allows both long and short"
+  },
+  "root_cause": {
+    "cause": "PPO_REWARD_BIAS_SHORT_ONLY",
+    "explanation": "The PPO model was trained in an environment where SHORT trades dominated the reward signal. The trainer likely processed bearish market data or had a reward function that over-rewarded short positions. Result: model converged to always outputting action=short. The LONG action path (action_probabilities[1]) is effectively dead weight.",
+    "evidence": "5 sampled prediction keys all show action_probabilities[1] (LONG) < 0.01% probability",
+    "implication": "The system has zero exposure to LONG-side momentum, trend-following, or mean-reversion opportunities. In a bull market, all SHORT trades are structurally losers. The observed 30.39% win rate includes BOTH bull and bear periods \u2014 in a sustained uptrend the WR would collapse further."
+  },
+  "tests_required": [
+    "test: inject a prediction with action='long', verify paper loop accepts it and creates LONG position",
+    "test: verify strategy_router routes long action to trend_mode when higher_direction='long'",
+    "test: verify PPO model checkpoint can output action[1] (long) when trained on bullish data",
+    "test: verify position_transition_allowed(FLAT, long) returns True"
+  ],
+  "blocker": true,
+  "confidence": "CONFIRMED \u2014 645/645 trades, 0 LONG"
+}

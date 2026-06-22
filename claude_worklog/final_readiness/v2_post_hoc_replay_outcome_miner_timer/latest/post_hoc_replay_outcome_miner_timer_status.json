@@ -1,0 +1,87 @@
+{
+  "schema_version": "v2_post_hoc_replay_outcome_miner_timer_status_v1",
+  "generated_utc": "2026-05-23T06:24:52Z",
+  "go_no_go": "V2_POST_HOC_REPLAY_OUTCOME_MINER_TIMER_READY",
+  "timer_unit": "ai-bot-v2-post-hoc-replay-outcome-miner.timer",
+  "service_unit": "ai-bot-v2-post-hoc-replay-outcome-miner.service",
+  "timer_active": true,
+  "timer_enabled": true,
+  "systemd_timer_active_state": "active",
+  "systemd_timer_unit_file_state": "enabled",
+  "systemd_timer_period_seconds": 60,
+  "systemd_timer_persistent": true,
+  "systemd_service_type": "oneshot",
+  "systemd_service_active_state_after_oneshot": "inactive",
+  "systemd_service_last_result": "success",
+  "systemd_service_last_exec_status": 0,
+  "last_observed_trigger_local": "2026-05-23 02:22:05 EDT",
+  "next_observed_trigger_local": "2026-05-23 02:23:05 EDT",
+  "unit_files": {
+    "service": "claude_worklog/systemd/user/ai-bot-v2-post-hoc-replay-outcome-miner.service",
+    "timer": "claude_worklog/systemd/user/ai-bot-v2-post-hoc-replay-outcome-miner.timer",
+    "installed_service": "~/.config/systemd/user/ai-bot-v2-post-hoc-replay-outcome-miner.service",
+    "installed_timer": "~/.config/systemd/user/ai-bot-v2-post-hoc-replay-outcome-miner.timer",
+    "enabled_timer_symlink": "~/.config/systemd/user/timers.target.wants/ai-bot-v2-post-hoc-replay-outcome-miner.timer"
+  },
+  "entry_point": "python -m v2.backend.app.cli.v2_post_hoc_replay_outcome_miner --symbols BTCUSDT,ETHUSDT,SOLUSDT --json",
+  "miner_payload_install_snapshot": {
+    "generated_at": "2026-05-23T06:22:05Z",
+    "bundles_total": 14,
+    "label_counts": {
+      "insufficient_evidence": 14
+    },
+    "windows_filled": {
+      "15m": 0,
+      "1h": 0,
+      "1m": 0,
+      "5m": 0
+    },
+    "windows_insufficient_5m_evidence": 14,
+    "verdict": "EDGE_NOT_CLAIMED_OPERATOR_THRESHOLDS_REQUIRED",
+    "sample_count": 14,
+    "no_fabricated_outcomes": true
+  },
+  "miner_payload_latest_observed": {
+    "generated_at": "2026-05-23T06:24:06Z",
+    "bundles_total": 18,
+    "label_counts": {
+      "insufficient_evidence": 18
+    },
+    "windows_filled": {
+      "15m": 0,
+      "1h": 0,
+      "1m": 1,
+      "5m": 0
+    },
+    "windows_insufficient_5m_evidence": 18,
+    "verdict": "EDGE_NOT_CLAIMED_OPERATOR_THRESHOLDS_REQUIRED",
+    "sample_count": 18,
+    "no_fabricated_outcomes": true
+  },
+  "replay_bundle_jsonl_validation_latest_observed": {
+    "stores_checked": [
+      "claude_worklog/final_readiness/v2_post_hoc_replay_outcome_miner/latest/replay_outcome_bundles.jsonl",
+      "v2/frontend/public/v2_post_hoc_replay_outcome_miner/latest/replay_outcome_bundles.jsonl",
+      "claude_worklog/final_readiness/v2_post_hoc_replay_outcome_miner/state/replay_bundles.jsonl"
+    ],
+    "rows_per_store": 18,
+    "bad_cost_model_marker_count": 0,
+    "missing_visible_override_field_count": 0,
+    "filled_or_sampled_windows": 1,
+    "safety_violations": 0
+  },
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false,
+  "did_not_modify_legacy_bot": true,
+  "did_not_stop_legacy": true,
+  "did_not_stop_v2_runtime": true,
+  "did_not_write_old_redis": true,
+  "did_not_call_exchange": true,
+  "did_not_enable_live": true,
+  "did_not_create_approval_marker": true,
+  "did_not_fabricate_future_outcomes": true
+}

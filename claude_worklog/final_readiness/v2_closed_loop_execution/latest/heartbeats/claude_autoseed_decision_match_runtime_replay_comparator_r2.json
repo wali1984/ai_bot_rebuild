@@ -1,0 +1,10 @@
+{
+  "alive": true,
+  "cmd": [
+    "/home/wali/.local/bin/claude",
+    "..."
+  ],
+  "pid": 1874922,
+  "task_id": "claude_autoseed_decision_match_runtime_replay_comparator_r2",
+  "updated_at": "2026-05-24T23:17:10Z"
+}

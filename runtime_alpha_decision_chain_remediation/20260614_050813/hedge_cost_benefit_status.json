@@ -1,0 +1,10 @@
+{
+  "hedge_benefit_usd": 1.2,
+  "hedge_cost_benefit_tracked": true,
+  "hedge_cost_usd": 0.02,
+  "hedge_id": "hedge_demo",
+  "hedge_notional_usd": 10.0,
+  "net_hedge_benefit_usd": 1.18,
+  "paper_only": true,
+  "places_real_order": false
+}

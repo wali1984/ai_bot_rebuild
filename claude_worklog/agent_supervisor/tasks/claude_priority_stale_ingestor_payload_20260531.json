@@ -1,0 +1,28 @@
+{
+  "agent": "claude",
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/priority_autoseed_20260531/stale_ingestor_payload/",
+    "v2/frontend/public/operator_runtime/",
+    "v2/backend/app/"
+  ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "lane": "primary_claude_lane",
+  "log_path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/claude_priority_stale_ingestor_payload_20260531.log",
+  "next_action": "CODEX_TAKEOVER created; operator may resume Claude manually.",
+  "next_gate": "GO_NO_GO.md",
+  "pid_or_job_id": 2134301,
+  "priority": 4850,
+  "prompt": "Remediate stale ingestor payload or classify exact blocker. Validate freshness windows from runtime evidence and emit stale-key matrix with timestamps and age seconds. If blocked, provide exact upstream dependency and command-level verification evidence.",
+  "required_output_files": [
+    "claude_worklog/final_readiness/priority_autoseed_20260531/stale_ingestor_payload/REPORT.md",
+    "claude_worklog/final_readiness/priority_autoseed_20260531/stale_ingestor_payload/STATUS.json",
+    "claude_worklog/final_readiness/priority_autoseed_20260531/stale_ingestor_payload/GO_NO_GO.md"
+  ],
+  "risk_level": "L2",
+  "stall_count": 2,
+  "started_at": "2026-05-31T07:06:17Z",
+  "status": "stale",
+  "task_id": "claude_priority_stale_ingestor_payload_20260531",
+  "updated_at": "2026-05-31T07:16:24Z"
+}

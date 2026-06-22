@@ -1,0 +1,94 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "bridged_count": 0,
+  "candidate_order": [
+    {
+      "key_template": "v2:prediction:{symbol}:1m",
+      "source_type": "V2_NATIVE_PUBLIC_PAYLOAD"
+    },
+    {
+      "key_template": "prediction:{symbol}:multi",
+      "source_type": "V2_BRIDGE_FROM_LEGACY_REDIS"
+    },
+    {
+      "key_template": "prediction:{symbol}:5m",
+      "source_type": "V2_BRIDGE_FROM_LEGACY_REDIS"
+    },
+    {
+      "key_template": "prediction:{symbol}:1m",
+      "source_type": "V2_BRIDGE_FROM_LEGACY_REDIS"
+    }
+  ],
+  "generated_at": "2026-05-23T04:12:21Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "missing_count": 0,
+  "per_symbol": [
+    {
+      "candidates_tried": [
+        {
+          "key": "v2:prediction:BTCUSDT:1m",
+          "ok": true,
+          "source_type": "V2_NATIVE_PUBLIC_PAYLOAD",
+          "value_present": true
+        }
+      ],
+      "chosen_prediction_key": "v2:prediction:BTCUSDT:1m",
+      "confidence": null,
+      "direction": null,
+      "freshness_seconds": null,
+      "is_v2_native": true,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "missing_reason": null,
+      "source_type": "V2_NATIVE_PUBLIC_PAYLOAD",
+      "symbol": "BTCUSDT"
+    },
+    {
+      "candidates_tried": [
+        {
+          "key": "v2:prediction:ETHUSDT:1m",
+          "ok": true,
+          "source_type": "V2_NATIVE_PUBLIC_PAYLOAD",
+          "value_present": true
+        }
+      ],
+      "chosen_prediction_key": "v2:prediction:ETHUSDT:1m",
+      "confidence": null,
+      "direction": null,
+      "freshness_seconds": null,
+      "is_v2_native": true,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "missing_reason": null,
+      "source_type": "V2_NATIVE_PUBLIC_PAYLOAD",
+      "symbol": "ETHUSDT"
+    },
+    {
+      "candidates_tried": [
+        {
+          "key": "v2:prediction:SOLUSDT:1m",
+          "ok": true,
+          "source_type": "V2_NATIVE_PUBLIC_PAYLOAD",
+          "value_present": true
+        }
+      ],
+      "chosen_prediction_key": "v2:prediction:SOLUSDT:1m",
+      "confidence": null,
+      "direction": null,
+      "freshness_seconds": null,
+      "is_v2_native": true,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "missing_reason": null,
+      "source_type": "V2_NATIVE_PUBLIC_PAYLOAD",
+      "symbol": "SOLUSDT"
+    }
+  ],
+  "schema_version": "v2_website_rebuild_phase_1_prediction_key_resolution_v1",
+  "symbol_count": 3,
+  "v2_native_count": 3
+}

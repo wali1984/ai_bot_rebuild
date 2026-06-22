@@ -1,0 +1,162 @@
+{
+  "edge_verdict": "EDGE_NOT_PROVEN",
+  "enable_button": {
+    "disabled": true,
+    "disabled_reason": "AUDIT_LEDGER_WRITE_FOR_FINAL_ENABLE_REQUIRED; EDGE_ACCEPTANCE_REQUIRED; EDGE_NOT_PROVEN; FEATURE_PARITY_PROVIDER_EVENT_OR_PLAN_ROWS_REMAIN; LIVE_RISK_CAPS_OPERATOR_REQUIRED; LIVE_SYMBOL_APPROVAL_REQUIRED; LIVE_SYMBOL_SELECTION_ACCEPTANCE_REQUIRED; RISK_PROFILE_ACCEPTANCE_REQUIRED; TYPED_OPERATOR_CONFIRMATION_REQUIRED",
+    "enabled": false,
+    "requires": [
+      "edge accepted/proven",
+      "risk caps accepted",
+      "live symbols accepted",
+      "trader connected",
+      "mutation safety passed",
+      "final Codex pass exists",
+      "audit ledger write exists",
+      "typed operator confirmation"
+    ],
+    "visible": true
+  },
+  "exact_remaining_blockers": [
+    "AUDIT_LEDGER_WRITE_FOR_FINAL_ENABLE_REQUIRED",
+    "EDGE_ACCEPTANCE_REQUIRED",
+    "EDGE_NOT_PROVEN",
+    "FEATURE_PARITY_PROVIDER_EVENT_OR_PLAN_ROWS_REMAIN",
+    "LIVE_RISK_CAPS_OPERATOR_REQUIRED",
+    "LIVE_SYMBOL_APPROVAL_REQUIRED",
+    "LIVE_SYMBOL_SELECTION_ACCEPTANCE_REQUIRED",
+    "RISK_PROFILE_ACCEPTANCE_REQUIRED",
+    "TYPED_OPERATOR_CONFIRMATION_REQUIRED"
+  ],
+  "execution_frozen": true,
+  "execution_live_symbols": [],
+  "final_codex_pass_status": "PRESENT_BLOCKING_REVIEW_COMPLETE",
+  "generated_est": "2026-06-05T01:20:08-04:00",
+  "live_gate": "blocked_human_only",
+  "live_symbol_candidate_selection": {
+    "actual_live_symbols": [],
+    "operator_acceptance_required": true,
+    "proposed_live_symbols": [
+      "AAVEUSDT",
+      "BCHUSDT",
+      "BNBUSDT",
+      "HYPEUSDT",
+      "LABUSDT"
+    ],
+    "recommended_symbols": [
+      {
+        "after_cost_5m_sample_count": 3,
+        "avg_data_coverage_percent": 70.14925373134328,
+        "backtest_paper_edge_acceptable": false,
+        "data_complete_enough": true,
+        "exchange_tradable": true,
+        "mean_after_cost_5m_bps": 38.699382538234566,
+        "operator_override_required": true,
+        "prediction_present": true,
+        "provider_blockers_present": true,
+        "provider_critical_blocker": false,
+        "reason": "Candidate only after operator override; global edge is not proven and risk/live-symbol approvals are absent.",
+        "risk_state_acceptable": true,
+        "spread_liquidity_acceptable": "OPERATOR_REVIEW_REQUIRED",
+        "symbol": "AAVEUSDT"
+      },
+      {
+        "after_cost_5m_sample_count": 9,
+        "avg_data_coverage_percent": 69.40298507462687,
+        "backtest_paper_edge_acceptable": false,
+        "data_complete_enough": false,
+        "exchange_tradable": true,
+        "mean_after_cost_5m_bps": 6.072717067205184,
+        "operator_override_required": true,
+        "prediction_present": true,
+        "provider_blockers_present": true,
+        "provider_critical_blocker": false,
+        "reason": "Candidate only after operator override; global edge is not proven and risk/live-symbol approvals are absent.",
+        "risk_state_acceptable": true,
+        "spread_liquidity_acceptable": "OPERATOR_REVIEW_REQUIRED",
+        "symbol": "BCHUSDT"
+      },
+      {
+        "after_cost_5m_sample_count": 14,
+        "avg_data_coverage_percent": 71.64179104477611,
+        "backtest_paper_edge_acceptable": false,
+        "data_complete_enough": true,
+        "exchange_tradable": true,
+        "mean_after_cost_5m_bps": 5.395465093680895,
+        "operator_override_required": true,
+        "prediction_present": true,
+        "provider_blockers_present": true,
+        "provider_critical_blocker": false,
+        "reason": "Candidate only after operator override; global edge is not proven and risk/live-symbol approvals are absent.",
+        "risk_state_acceptable": true,
+        "spread_liquidity_acceptable": "OPERATOR_REVIEW_REQUIRED",
+        "symbol": "BNBUSDT"
+      },
+      {
+        "after_cost_5m_sample_count": 6,
+        "avg_data_coverage_percent": 71.64179104477611,
+        "backtest_paper_edge_acceptable": false,
+        "data_complete_enough": true,
+        "exchange_tradable": true,
+        "mean_after_cost_5m_bps": 49.22667344422964,
+        "operator_override_required": true,
+        "prediction_present": true,
+        "provider_blockers_present": true,
+        "provider_critical_blocker": false,
+        "reason": "Candidate only after operator override; global edge is not proven and risk/live-symbol approvals are absent.",
+        "risk_state_acceptable": true,
+        "spread_liquidity_acceptable": "OPERATOR_REVIEW_REQUIRED",
+        "symbol": "HYPEUSDT"
+      },
+      {
+        "after_cost_5m_sample_count": 5,
+        "avg_data_coverage_percent": 70.14925373134328,
+        "backtest_paper_edge_acceptable": false,
+        "data_complete_enough": true,
+        "exchange_tradable": true,
+        "mean_after_cost_5m_bps": 56.83726284399588,
+        "operator_override_required": true,
+        "prediction_present": true,
+        "provider_blockers_present": true,
+        "provider_critical_blocker": false,
+        "reason": "Candidate only after operator override; global edge is not proven and risk/live-symbol approvals are absent.",
+        "risk_state_acceptable": true,
+        "spread_liquidity_acceptable": "OPERATOR_REVIEW_REQUIRED",
+        "symbol": "LABUSDT"
+      }
+    ]
+  },
+  "live_symbols": [],
+  "must_show": {
+    "disabled_enable_button_until_all_required_approvals_exist": true,
+    "edge_verdict": "EDGE_NOT_PROVEN",
+    "exact_remaining_blockers": [
+      "AUDIT_LEDGER_WRITE_FOR_FINAL_ENABLE_REQUIRED",
+      "EDGE_ACCEPTANCE_REQUIRED",
+      "EDGE_NOT_PROVEN",
+      "FEATURE_PARITY_PROVIDER_EVENT_OR_PLAN_ROWS_REMAIN",
+      "LIVE_RISK_CAPS_OPERATOR_REQUIRED",
+      "LIVE_SYMBOL_APPROVAL_REQUIRED",
+      "LIVE_SYMBOL_SELECTION_ACCEPTANCE_REQUIRED",
+      "RISK_PROFILE_ACCEPTANCE_REQUIRED",
+      "TYPED_OPERATOR_CONFIRMATION_REQUIRED"
+    ],
+    "execution_frozen": true,
+    "final_codex_pass_status": "PRESENT_BLOCKING_REVIEW_COMPLETE",
+    "live_symbol_candidate_selection": true,
+    "risk_profile_selection": true,
+    "trader_connected": true
+  },
+  "risk_profile_selection": {
+    "accepted_profile": null,
+    "operator_acceptance_required": true,
+    "selectable_profiles": [
+      "conservative",
+      "balanced",
+      "aggressive"
+    ]
+  },
+  "schema_version": "website_live_enable_packet_status_v1",
+  "service_id": "v2_final_live_gate_blocker_burndown_and_operator_enable_packet",
+  "status": "WEBSITE_LIVE_ENABLE_PACKET_READY_DISABLED",
+  "trader_connected": true
+}

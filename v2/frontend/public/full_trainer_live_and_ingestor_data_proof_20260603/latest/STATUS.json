@@ -1,0 +1,910 @@
+{
+  "checkpoint_evidence": {
+    "candidate_count": 15388,
+    "checkpoint_evidence_status": "LEGACY_CHECKPOINT_METADATA_PRESENT",
+    "checkpoint_weight_status": "LEGACY_CHECKPOINT_METADATA_PRESENT_WEIGHTS_NOT_DESERIALIZED_V2_SAFE_MODE",
+    "missing_checkpoint_blockers": [
+      "v2_control_plane_does_not_load_torch_weights",
+      "weight_shape_verification_requires_operator_approved_subprocess",
+      "checkpoint_promotion_to_v2_requires_codex_review"
+    ],
+    "model_weights_loaded_into_v2_process": false,
+    "pickle_deserialized": false,
+    "selected_checkpoint_id": "ppo_checkpoint_1777264095"
+  },
+  "dataset_counts_by_symbol": {
+    "BTCUSDT": {
+      "HELD_OUT_VALIDATION": 34,
+      "INSUFFICIENT_EVIDENCE": 8538,
+      "LABEL_MISSING": 1,
+      "TRAINABLE": 130,
+      "live_feature_snapshot_rows": 1,
+      "total": 8703,
+      "usable_train_or_validation_rows": 164
+    },
+    "ETHUSDT": {
+      "HELD_OUT_VALIDATION": 38,
+      "INSUFFICIENT_EVIDENCE": 8414,
+      "LABEL_MISSING": 2,
+      "TRAINABLE": 125,
+      "live_feature_snapshot_rows": 2,
+      "total": 8579,
+      "usable_train_or_validation_rows": 163
+    },
+    "SOLUSDT": {
+      "HELD_OUT_VALIDATION": 6,
+      "INSUFFICIENT_EVIDENCE": 1593,
+      "LABEL_MISSING": 2,
+      "TRAINABLE": 27,
+      "live_feature_snapshot_rows": 2,
+      "total": 1628,
+      "usable_train_or_validation_rows": 33
+    }
+  },
+  "dataset_example_rows_by_symbol": {
+    "BTCUSDT": {
+      "after_cost_return_bps": -9.008384342233395,
+      "classification": "TRAINABLE",
+      "feature_snapshot_id": "BTCUSDT:1m:2026-05-23T06:24:33Z",
+      "feature_vector": {
+        "atr_14": null,
+        "ema_21": null,
+        "ema_9": null,
+        "ema_spread": 10.85657337069262,
+        "feature_freshness_seconds": 5.0,
+        "macd": 108.56573370692621,
+        "macd_signal": 0.0,
+        "rsi_14": 57.237737421529175,
+        "vol_zscore": null
+      },
+      "label": "correct_no_trade",
+      "row_id": "v2_native_ds_f6c15c041078f069eb29e1fa1c9e6988",
+      "source_lineage": [
+        "replay_outcome_bundles.jsonl"
+      ]
+    },
+    "ETHUSDT": {
+      "after_cost_return_bps": -9.008384342233395,
+      "classification": "HELD_OUT_VALIDATION",
+      "feature_snapshot_id": "BTCUSDT:1m:2026-05-23T06:24:33Z",
+      "feature_vector": {
+        "atr_14": null,
+        "ema_21": null,
+        "ema_9": null,
+        "ema_spread": 10.85657337069262,
+        "feature_freshness_seconds": 5.0,
+        "macd": 108.56573370692621,
+        "macd_signal": 0.0,
+        "rsi_14": 57.237737421529175,
+        "vol_zscore": null
+      },
+      "label": "correct_no_trade",
+      "row_id": "v2_native_ds_00bb8c2d56c3c4c15dc1da354199dd24",
+      "source_lineage": [
+        "replay_outcome_bundles.jsonl"
+      ]
+    },
+    "SOLUSDT": {
+      "after_cost_return_bps": -11.35354498307339,
+      "classification": "TRAINABLE",
+      "feature_snapshot_id": "BTCUSDT:1m:2026-05-23T06:59:33Z",
+      "feature_vector": {
+        "atr_14": null,
+        "ema_21": null,
+        "ema_9": null,
+        "ema_spread": 1.0935192881849207,
+        "feature_freshness_seconds": 5.0,
+        "macd": 10.935192881849208,
+        "macd_signal": 0.0,
+        "rsi_14": 53.714398885413466,
+        "vol_zscore": null
+      },
+      "label": "correct_no_trade",
+      "row_id": "v2_native_ds_4629a1d7849a04f6815044c4f5e21d7a",
+      "source_lineage": [
+        "replay_outcome_bundles.jsonl"
+      ]
+    }
+  },
+  "direct_or_adapter_decisions": [
+    {
+      "decision": "RUN_DIRECT_UNDER_SYSTEMD",
+      "examples": [
+        "ingest/liquidation_bridge.py",
+        "ingest/liquidation_levels_engine.py"
+      ],
+      "legacy_class": "safe copied ingestor with V2 namespace env support",
+      "reason": "can run with V2_REDIS_PREFIX and paper-only gates; no order mutation"
+    },
+    {
+      "decision": "RUN_THROUGH_V2_ADAPTER",
+      "examples": [
+        "ingest/live_kucoin.py",
+        "ingest/live_coinapi_v1.py"
+      ],
+      "legacy_class": "safe reusable public/keyed ingestor needing Redis/key isolation",
+      "reason": "adapter preserves legacy parsing while forcing V2-prefixed writes and blocked live gate"
+    },
+    {
+      "decision": "RUN_V2_EQUIVALENT_NOT_DIRECT",
+      "examples": [
+        "ingest/live_binance.py",
+        "ingest/realtime_price_provider.py",
+        "ingest/live_coinank_global_aggregator.py",
+        "ingest/live_coinapi_rest.py"
+      ],
+      "legacy_class": "unsafe direct start or cleaner V2 implementation exists",
+      "reason": "direct legacy scripts include destructive/operator-gated markers, unprefixed Redis, or keyed/provider assumptions; V2 equivalent provides same data family safely"
+    },
+    {
+      "decision": "DO_NOT_START_DIRECT",
+      "examples": [
+        "rl/hybrid_trainer.py",
+        "trading/*",
+        "exchange mutation scripts",
+        "startup_baseline/*",
+        "full_runtime_closure/*"
+      ],
+      "legacy_class": "old trader/exchange/destructive/trainer runtime",
+      "reason": "would mutate old runtime, exchange, Redis, or duplicate archival code; replaced by V2 signal-only trainer/training loop and controller stack"
+    }
+  ],
+  "generated_utc": "2026-06-04T00:49:08Z",
+  "orchestrator": {
+    "classification": "V2_ORCHESTRATOR_PRODUCTION_OK",
+    "predictions_held_by_paper_fill_gate": 50,
+    "predictions_seen": 52,
+    "proposals_arbitrated": 2
+  },
+  "redis_counts": {
+    "v2:coinank:global:*": {
+      "pattern": "v2:coinank:global:*",
+      "sample_keys": [
+        "v2:coinank:global:alt_season_index:latest",
+        "v2:coinank:global:btc_dominance:latest",
+        "v2:coinank:global:eth_dominance:latest",
+        "v2:coinank:global:fear_greed:latest",
+        "v2:coinank:global:funding_rate_avg:latest",
+        "v2:coinank:global:last_update",
+        "v2:coinank:global:long_short_ratio:latest",
+        "v2:coinank:global:market_sentiment:latest",
+        "v2:coinank:global:total_liquidations:latest",
+        "v2:coinank:global:total_oi:latest",
+        "v2:coinank:global:total_volume:latest",
+        "v2:coinank:global:volatility_index:latest"
+      ],
+      "total": 12,
+      "ttl_none": 0,
+      "ttl_positive": 12
+    },
+    "v2:features:coinapi_rest:*": {
+      "pattern": "v2:features:coinapi_rest:*",
+      "sample_keys": [
+        "v2:features:coinapi_rest:1000BONKUSDT:latest",
+        "v2:features:coinapi_rest:1000FLOKIUSDT:latest",
+        "v2:features:coinapi_rest:1000PEPEUSDT:latest",
+        "v2:features:coinapi_rest:1000SHIBUSDT:latest",
+        "v2:features:coinapi_rest:ALICEUSDT:latest",
+        "v2:features:coinapi_rest:ASTERUSDT:latest",
+        "v2:features:coinapi_rest:AUCTIONUSDT:latest",
+        "v2:features:coinapi_rest:AVNTUSDT:latest",
+        "v2:features:coinapi_rest:BANKUSDT:latest",
+        "v2:features:coinapi_rest:BARDUSDT:latest",
+        "v2:features:coinapi_rest:BTCUSDT:latest",
+        "v2:features:coinapi_rest:DOGEUSDT:latest"
+      ],
+      "total": 25,
+      "ttl_none": 0,
+      "ttl_positive": 25
+    },
+    "v2:features:global_coinank:*": {
+      "pattern": "v2:features:global_coinank:*",
+      "sample_keys": [
+        "v2:features:global_coinank:alt_season_index:latest",
+        "v2:features:global_coinank:btc_dominance:latest",
+        "v2:features:global_coinank:eth_dominance:latest",
+        "v2:features:global_coinank:fear_greed:latest",
+        "v2:features:global_coinank:funding_rate_avg:latest",
+        "v2:features:global_coinank:long_short_ratio:latest",
+        "v2:features:global_coinank:market_sentiment:latest",
+        "v2:features:global_coinank:total_liquidations:latest",
+        "v2:features:global_coinank:total_oi:latest",
+        "v2:features:global_coinank:total_volume:latest",
+        "v2:features:global_coinank:volatility_index:latest"
+      ],
+      "total": 11,
+      "ttl_none": 0,
+      "ttl_positive": 11
+    },
+    "v2:features:kucoin:*": {
+      "pattern": "v2:features:kucoin:*",
+      "sample_keys": [
+        "v2:features:kucoin:1000BONKUSDT:latest",
+        "v2:features:kucoin:1000FLOKIUSDT:latest",
+        "v2:features:kucoin:1000PEPEUSDT:latest",
+        "v2:features:kucoin:1000SHIBUSDT:latest",
+        "v2:features:kucoin:ALICEUSDT:15m:normalized",
+        "v2:features:kucoin:ALICEUSDT:1h:normalized",
+        "v2:features:kucoin:ALICEUSDT:1m:normalized",
+        "v2:features:kucoin:ALICEUSDT:4h:normalized",
+        "v2:features:kucoin:ALICEUSDT:5m:normalized",
+        "v2:features:kucoin:ALICEUSDT:latest",
+        "v2:features:kucoin:ASTERUSDT:15m:normalized",
+        "v2:features:kucoin:ASTERUSDT:1h:normalized"
+      ],
+      "total": 117,
+      "ttl_none": 0,
+      "ttl_positive": 117
+    },
+    "v2:features:latest:*": {
+      "pattern": "v2:features:latest:*",
+      "sample_keys": [
+        "v2:features:latest:1000BONKUSDT:1m",
+        "v2:features:latest:1000BONKUSDT:5m",
+        "v2:features:latest:1000FLOKIUSDT:1m",
+        "v2:features:latest:1000FLOKIUSDT:5m",
+        "v2:features:latest:1000PEPEUSDT:1m",
+        "v2:features:latest:1000SHIBUSDT:1m",
+        "v2:features:latest:1000SHIBUSDT:5m",
+        "v2:features:latest:ALICEUSDT:1m",
+        "v2:features:latest:ASTERUSDT:1m",
+        "v2:features:latest:ASTERUSDT:5m",
+        "v2:features:latest:AUCTIONUSDT:1m",
+        "v2:features:latest:AVNTUSDT:1m"
+      ],
+      "total": 38,
+      "ttl_none": 11,
+      "ttl_positive": 27
+    },
+    "v2:latest:coinapi:ohlcv:*": {
+      "pattern": "v2:latest:coinapi:ohlcv:*",
+      "sample_keys": [
+        "v2:latest:coinapi:ohlcv:BTCUSDT:1m",
+        "v2:latest:coinapi:ohlcv:BTCUSDT:5m",
+        "v2:latest:coinapi:ohlcv:ETHUSDT:1m",
+        "v2:latest:coinapi:ohlcv:ETHUSDT:5m",
+        "v2:latest:coinapi:ohlcv:SOLUSDT:1m",
+        "v2:latest:coinapi:ohlcv:SOLUSDT:5m"
+      ],
+      "total": 6,
+      "ttl_none": 0,
+      "ttl_positive": 6
+    },
+    "v2:liquidations:*": {
+      "pattern": "v2:liquidations:*",
+      "sample_keys": [
+        "v2:liquidations:events"
+      ],
+      "total": 1,
+      "ttl_none": 1,
+      "ttl_positive": 0
+    },
+    "v2:market:coinapi:rest:*": {
+      "pattern": "v2:market:coinapi:rest:*",
+      "sample_keys": [
+        "v2:market:coinapi:rest:heartbeat",
+        "v2:market:coinapi:rest:orderbook:1000BONKUSDT",
+        "v2:market:coinapi:rest:orderbook:1000FLOKIUSDT",
+        "v2:market:coinapi:rest:orderbook:1000PEPEUSDT",
+        "v2:market:coinapi:rest:orderbook:1000SHIBUSDT",
+        "v2:market:coinapi:rest:orderbook:ALICEUSDT",
+        "v2:market:coinapi:rest:orderbook:ASTERUSDT",
+        "v2:market:coinapi:rest:orderbook:AUCTIONUSDT",
+        "v2:market:coinapi:rest:orderbook:AVNTUSDT",
+        "v2:market:coinapi:rest:orderbook:BANKUSDT",
+        "v2:market:coinapi:rest:orderbook:BARDUSDT",
+        "v2:market:coinapi:rest:orderbook:BTCUSDT"
+      ],
+      "total": 53,
+      "ttl_none": 0,
+      "ttl_positive": 53
+    },
+    "v2:market:kucoin:*": {
+      "pattern": "v2:market:kucoin:*",
+      "sample_keys": [
+        "v2:market:kucoin:contract:1000BONKUSDT",
+        "v2:market:kucoin:contract:1000FLOKIUSDT",
+        "v2:market:kucoin:contract:1000PEPEUSDT",
+        "v2:market:kucoin:contract:1000SHIBUSDT",
+        "v2:market:kucoin:contract:ALICEUSDT",
+        "v2:market:kucoin:contract:ASTERUSDT",
+        "v2:market:kucoin:contract:AUCTIONUSDT",
+        "v2:market:kucoin:contract:AVNTUSDT",
+        "v2:market:kucoin:contract:BANKUSDT",
+        "v2:market:kucoin:contract:BARDUSDT",
+        "v2:market:kucoin:contract:BTCUSDT",
+        "v2:market:kucoin:contract:COINANK_ONLY_USDT"
+      ],
+      "total": 109,
+      "ttl_none": 0,
+      "ttl_positive": 109
+    },
+    "v2:market:liquidations:*": {
+      "pattern": "v2:market:liquidations:*",
+      "sample_keys": [],
+      "total": 0,
+      "ttl_none": 0,
+      "ttl_positive": 0
+    },
+    "v2:market:ohlcv:*": {
+      "pattern": "v2:market:ohlcv:*",
+      "sample_keys": [
+        "v2:market:ohlcv:binance:1000FLOKIUSDT:15m",
+        "v2:market:ohlcv:binance:1000FLOKIUSDT:1h",
+        "v2:market:ohlcv:binance:1000FLOKIUSDT:1m",
+        "v2:market:ohlcv:binance:1000FLOKIUSDT:5m",
+        "v2:market:ohlcv:binance:1000PEPEUSDT:1h",
+        "v2:market:ohlcv:binance:1000SHIBUSDT:1h",
+        "v2:market:ohlcv:binance:1000SHIBUSDT:1m",
+        "v2:market:ohlcv:binance:ALICEUSDT:1h",
+        "v2:market:ohlcv:binance:ALICEUSDT:1m",
+        "v2:market:ohlcv:binance:ASTERUSDT:15m",
+        "v2:market:ohlcv:binance:ASTERUSDT:1m",
+        "v2:market:ohlcv:binance:ASTERUSDT:5m"
+      ],
+      "total": 48,
+      "ttl_none": 31,
+      "ttl_positive": 17
+    },
+    "v2:market:orderbook:*": {
+      "pattern": "v2:market:orderbook:*",
+      "sample_keys": [
+        "v2:market:orderbook:1000BONKUSDT",
+        "v2:market:orderbook:1000FLOKIUSDT",
+        "v2:market:orderbook:1000PEPEUSDT",
+        "v2:market:orderbook:1000SHIBUSDT",
+        "v2:market:orderbook:ALICEUSDT",
+        "v2:market:orderbook:ASTERUSDT",
+        "v2:market:orderbook:AUCTIONUSDT",
+        "v2:market:orderbook:AVNTUSDT",
+        "v2:market:orderbook:BANKUSDT",
+        "v2:market:orderbook:BARDUSDT",
+        "v2:market:orderbook:BTCUSDT",
+        "v2:market:orderbook:DOGEUSDT"
+      ],
+      "total": 37,
+      "ttl_none": 12,
+      "ttl_positive": 25
+    },
+    "v2:market:prices:*": {
+      "pattern": "v2:market:prices:*",
+      "sample_keys": [
+        "v2:market:prices:1000BONKUSDT",
+        "v2:market:prices:1000FLOKIUSDT",
+        "v2:market:prices:1000PEPEUSDT",
+        "v2:market:prices:1000SHIBUSDT",
+        "v2:market:prices:ALICEUSDT",
+        "v2:market:prices:ASTERUSDT",
+        "v2:market:prices:AUCTIONUSDT",
+        "v2:market:prices:AVNTUSDT",
+        "v2:market:prices:BANKUSDT",
+        "v2:market:prices:BARDUSDT",
+        "v2:market:prices:BTCUSDT",
+        "v2:market:prices:COINANK_ONLY_USDT"
+      ],
+      "total": 27,
+      "ttl_none": 0,
+      "ttl_positive": 27
+    },
+    "v2:normalized:ohlcv:*": {
+      "pattern": "v2:normalized:ohlcv:*",
+      "sample_keys": [
+        "v2:normalized:ohlcv:BTCUSDT:1m",
+        "v2:normalized:ohlcv:BTCUSDT:5m",
+        "v2:normalized:ohlcv:ETHUSDT:1m",
+        "v2:normalized:ohlcv:ETHUSDT:5m",
+        "v2:normalized:ohlcv:SOLUSDT:1m",
+        "v2:normalized:ohlcv:SOLUSDT:5m"
+      ],
+      "total": 6,
+      "ttl_none": 0,
+      "ttl_positive": 6
+    },
+    "v2:orchestrator:*": {
+      "pattern": "v2:orchestrator:*",
+      "sample_keys": [
+        "v2:orchestrator:decisions",
+        "v2:orchestrator:heartbeat",
+        "v2:orchestrator:proposals"
+      ],
+      "total": 3,
+      "ttl_none": 0,
+      "ttl_positive": 3
+    },
+    "v2:prediction:*": {
+      "pattern": "v2:prediction:*",
+      "sample_keys": [
+        "v2:prediction:1000BONKUSDT:1m",
+        "v2:prediction:1000BONKUSDT:5m",
+        "v2:prediction:1000FLOKIUSDT:1m",
+        "v2:prediction:1000FLOKIUSDT:5m",
+        "v2:prediction:1000PEPEUSDT:1m",
+        "v2:prediction:1000PEPEUSDT:5m",
+        "v2:prediction:1000SHIBUSDT:1m",
+        "v2:prediction:1000SHIBUSDT:5m",
+        "v2:prediction:ALICEUSDT:1m",
+        "v2:prediction:ALICEUSDT:5m",
+        "v2:prediction:ASTERUSDT:1m",
+        "v2:prediction:ASTERUSDT:5m"
+      ],
+      "total": 52,
+      "ttl_none": 25,
+      "ttl_positive": 27
+    },
+    "v2:risk:gateway:*": {
+      "pattern": "v2:risk:gateway:*",
+      "sample_keys": [
+        "v2:risk:gateway:decisions",
+        "v2:risk:gateway:heartbeat",
+        "v2:risk:gateway:latest"
+      ],
+      "total": 3,
+      "ttl_none": 0,
+      "ttl_positive": 3
+    },
+    "v2:trainer:*": {
+      "pattern": "v2:trainer:*",
+      "sample_keys": [
+        "v2:trainer:checkpoint:evidence",
+        "v2:trainer:checkpoint:heartbeat",
+        "v2:trainer:dataset:manifest",
+        "v2:trainer:heartbeat",
+        "v2:trainer:prediction_publisher_status",
+        "v2:trainer:status",
+        "v2:trainer:training:heartbeat",
+        "v2:trainer:training:status"
+      ],
+      "total": 8,
+      "ttl_none": 2,
+      "ttl_positive": 6
+    }
+  },
+  "risk_gateway": {
+    "classification": "V2_RISK_GATEWAY_LIVE_OK",
+    "decisions_processed_total": 2,
+    "exchange_action_taken": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "orchestrator_winners_seen": 2,
+    "places_real_order": false,
+    "risk_action": "allow",
+    "risk_reason_code": "allow_proceed_long"
+  },
+  "safety": {
+    "exchange_action_taken": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "trader_execution_enabled": false,
+    "writes_legacy_redis": false
+  },
+  "schema_version": "full_trainer_live_and_ingestor_data_proof_v1",
+  "services": {
+    "ai-bot-v2-coinank-global-bridge-loop.service": "active",
+    "ai-bot-v2-coinapi-rest-fallback-loop.service": "active",
+    "ai-bot-v2-feature-pipeline-native-loop.service": "active",
+    "ai-bot-v2-kucoin-public-rest-loop.service": "active",
+    "ai-bot-v2-legacy-coinapi-v1-ingestor.service": "active",
+    "ai-bot-v2-legacy-kucoin-ingestor.service": "active",
+    "ai-bot-v2-liquidation-bridge.service": "active",
+    "ai-bot-v2-liquidation-levels-engine.service": "active",
+    "ai-bot-v2-liquidation-wss-paper-shadow.service": "active",
+    "ai-bot-v2-native-ingestors-live-loop.service": "active",
+    "ai-bot-v2-orchestrator-arbitration-loop.service": "active",
+    "ai-bot-v2-risk-gateway-live-loop.service": "active",
+    "ai-bot-v2-rl-core-inference-loop.service": "active",
+    "ai-bot-v2-trainer-checkpoint-evidence.service": "active",
+    "ai-bot-v2-trainer-training-live-loop.service": "active"
+  },
+  "symbols": {
+    "BTCUSDT": {
+      "binance_ohlcv_1m": {
+        "candle_count": 100,
+        "close": "63340.01000000",
+        "high": "63424.70000000",
+        "key": "v2:market:ohlcv:binance:BTCUSDT:1m",
+        "low": "63340.00000000",
+        "open": "63385.39000000",
+        "open_time_ms": 1780533960000,
+        "ttl": 423,
+        "volume": "9.49000000"
+      },
+      "binance_orderbook": {
+        "ask_levels": 20,
+        "best_ask": 63291.4,
+        "best_bid": 63291.3,
+        "bid_levels": 20,
+        "key": "v2:market:orderbook:BTCUSDT",
+        "spread_bps": 0.015799947385945284,
+        "ttl": 423
+      },
+      "binance_price": {
+        "fetched_utc": "2026-06-04T00:46:11Z",
+        "funding_rate": "0.00001897",
+        "key": "v2:market:prices:BTCUSDT",
+        "last_price": "63392.00000000",
+        "open_interest": "103943.492",
+        "price_change_percent": "-5.487",
+        "source": "binance_public_rest",
+        "ttl": 423
+      },
+      "coinapi_rest": {
+        "depth_imbalance": 0.5742343851810482,
+        "feature_key": "v2:features:coinapi_rest:BTCUSDT:latest",
+        "feature_ttl": 574,
+        "micro_price": 63250.97861789385,
+        "orderbook_key": "v2:market:coinapi:rest:orderbook:BTCUSDT",
+        "orderbook_present": true,
+        "orderbook_ttl": 574,
+        "spread_bps": 0.015810039216572213
+      },
+      "coinapi_wss_ohlcv": {
+        "latest_key": "v2:latest:coinapi:ohlcv:BTCUSDT:1m",
+        "latest_present": true,
+        "latest_ttl": 3600,
+        "latest_type": "hash",
+        "normalized_key": "v2:normalized:ohlcv:BTCUSDT:1m",
+        "normalized_present": true,
+        "normalized_ttl": 3600,
+        "normalized_type": "hash"
+      },
+      "feature_snapshot": {
+        "categories_present": [
+          "ohlcv_derived",
+          "ta_indicators",
+          "multi_timeframe",
+          "microstructure",
+          "funding_oi_liquidation",
+          "portfolio_aware",
+          "freshness"
+        ],
+        "feature_count": 25,
+        "feature_snapshot_id": "v2_fsnap_ba29b613c03ba77eef7272f5c9c3a0ed4e64560e4fc729756bbd03c3a8a28122",
+        "freshness": "CURRENT",
+        "key": "v2:features:latest:BTCUSDT:1m",
+        "missing_feature_count": 0,
+        "placeholder_feature_count": 0,
+        "real_feature_count": 25,
+        "selected_features": {
+          "atr_14": 153.10554476807866,
+          "bid_ask_spread_bps": 0.015799947385945284,
+          "depth_imbalance": -0.8919936930623685,
+          "funding_rate": 1.897e-05,
+          "last_liq_bps_24h": 0.0,
+          "macd": -168.95208487776836,
+          "macd_signal": -190.9097306708548,
+          "oi_change_pct": -0.0057000762379741145,
+          "ret_pct": -0.05486641221374046,
+          "rsi_14": 40.13130544239605
+        },
+        "trainer_consumable": true,
+        "ttl": 580
+      },
+      "kucoin": {
+        "key": "v2:features:kucoin:BTCUSDT:latest",
+        "klines_present": [
+          "1m"
+        ],
+        "orderbook20_present": true,
+        "present": true,
+        "source": "kucoin_public_rest",
+        "ticker_present": true,
+        "ttl": 582
+      },
+      "prediction": {
+        "checkpoint_id": "ppo_checkpoint_1777264095",
+        "checkpoint_weight_status": "LEGACY_CHECKPOINT_METADATA_PRESENT_WEIGHTS_NOT_DESERIALIZED_V2_SAFE_MODE",
+        "confidence_calibrated": 0.6809434355382293,
+        "expected_move_after_cost_bps": 108.56573370692621,
+        "key": "v2:prediction:BTCUSDT:1m",
+        "model_weights_loaded_into_v2_process": false,
+        "paper_fill_allowed": true,
+        "paper_fill_gate_status": "TRAINER_OUTPUT_PRESENT_PAPER_FILL_GATE_OPEN",
+        "prediction_id": "v2_native_pred_6741479319d1ca3816b453b9f9f674db_219a2190e2b0ebb8",
+        "routes_to_orchestrator": true,
+        "routes_to_risk_gateway": true,
+        "selected_action": "hold",
+        "trader_execution_enabled": false,
+        "trainer_source": "V2_NATIVE_RL_CORE",
+        "ttl": 551
+      }
+    },
+    "ETHUSDT": {
+      "binance_ohlcv_1m": {
+        "candle_count": 100,
+        "close": "1792.68000000",
+        "high": "1796.21000000",
+        "key": "v2:market:ohlcv:binance:ETHUSDT:1m",
+        "low": "1792.56000000",
+        "open": "1795.02000000",
+        "open_time_ms": 1780533960000,
+        "ttl": 440,
+        "volume": "215.77640000"
+      },
+      "binance_orderbook": {
+        "ask_levels": 20,
+        "best_ask": 1791.49,
+        "best_bid": 1791.48,
+        "bid_levels": 20,
+        "key": "v2:market:orderbook:ETHUSDT",
+        "spread_bps": 0.05581961333748764,
+        "ttl": 440
+      },
+      "binance_price": {
+        "fetched_utc": "2026-06-04T00:46:28Z",
+        "funding_rate": "0.00006547",
+        "key": "v2:market:prices:ETHUSDT",
+        "last_price": "1793.06000000",
+        "open_interest": "2338078.409",
+        "price_change_percent": "-4.115",
+        "source": "binance_public_rest",
+        "ttl": 440
+      },
+      "coinapi_rest": {
+        "depth_imbalance": 0.2675613310663104,
+        "feature_key": "v2:features:coinapi_rest:ETHUSDT:latest",
+        "feature_ttl": 574,
+        "micro_price": 1787.3962612302175,
+        "orderbook_key": "v2:market:coinapi:rest:orderbook:ETHUSDT",
+        "orderbook_present": true,
+        "orderbook_ttl": 574,
+        "spread_bps": 0.0559473423613186
+      },
+      "coinapi_wss_ohlcv": {
+        "latest_key": "v2:latest:coinapi:ohlcv:ETHUSDT:1m",
+        "latest_present": true,
+        "latest_ttl": 3581,
+        "latest_type": "hash",
+        "normalized_key": "v2:normalized:ohlcv:ETHUSDT:1m",
+        "normalized_present": true,
+        "normalized_ttl": 3581,
+        "normalized_type": "hash"
+      },
+      "feature_snapshot": {
+        "categories_present": [
+          "ohlcv_derived",
+          "ta_indicators",
+          "multi_timeframe",
+          "microstructure",
+          "funding_oi_liquidation",
+          "portfolio_aware",
+          "freshness"
+        ],
+        "feature_count": 25,
+        "feature_snapshot_id": "v2_fsnap_dba744e63e75789d96e2fe4bbebd27fd04fdc9bf5ce3b55cdd514e70ac6445c6",
+        "freshness": "CURRENT",
+        "key": "v2:features:latest:ETHUSDT:1m",
+        "missing_feature_count": 0,
+        "placeholder_feature_count": 0,
+        "real_feature_count": 25,
+        "selected_features": {
+          "atr_14": 5.074423533066974,
+          "bid_ask_spread_bps": 0.05581961333748764,
+          "depth_imbalance": -0.814562335134139,
+          "funding_rate": 6.547e-05,
+          "last_liq_bps_24h": 0.0,
+          "macd": -3.828727331735763,
+          "macd_signal": -4.847341967018068,
+          "oi_change_pct": -0.01574469171153392,
+          "ret_pct": -0.04114951256945153,
+          "rsi_14": 44.04985302340725
+        },
+        "trainer_consumable": true,
+        "ttl": 580
+      },
+      "kucoin": {
+        "key": "v2:features:kucoin:ETHUSDT:latest",
+        "klines_present": [
+          "1m"
+        ],
+        "orderbook20_present": true,
+        "present": true,
+        "source": "kucoin_public_rest",
+        "ticker_present": true,
+        "ttl": 582
+      },
+      "prediction": {
+        "checkpoint_id": "ppo_checkpoint_1777264095",
+        "checkpoint_weight_status": "LEGACY_CHECKPOINT_METADATA_PRESENT_WEIGHTS_NOT_DESERIALIZED_V2_SAFE_MODE",
+        "confidence_calibrated": 0.6809434355382293,
+        "expected_move_after_cost_bps": 108.56573370692621,
+        "key": "v2:prediction:ETHUSDT:1m",
+        "model_weights_loaded_into_v2_process": false,
+        "paper_fill_allowed": true,
+        "paper_fill_gate_status": "TRAINER_OUTPUT_PRESENT_PAPER_FILL_GATE_OPEN",
+        "prediction_id": "v2_native_pred_61319e6d53725f586e0f395d1f5b1e3f_219a2190e2b0ebb8",
+        "routes_to_orchestrator": true,
+        "routes_to_risk_gateway": true,
+        "selected_action": "hold",
+        "trader_execution_enabled": false,
+        "trainer_source": "V2_NATIVE_RL_CORE",
+        "ttl": 551
+      }
+    },
+    "SOLUSDT": {
+      "binance_ohlcv_1m": {
+        "candle_count": 100,
+        "close": "70.82000000",
+        "high": "70.83000000",
+        "key": "v2:market:ohlcv:binance:SOLUSDT:1m",
+        "low": "70.67000000",
+        "open": "70.72000000",
+        "open_time_ms": 1780534020000,
+        "ttl": 515,
+        "volume": "3298.91400000"
+      },
+      "binance_orderbook": {
+        "ask_levels": 20,
+        "best_ask": 70.77,
+        "best_bid": 70.76,
+        "bid_levels": 20,
+        "key": "v2:market:orderbook:SOLUSDT",
+        "spread_bps": 1.4131279587353782,
+        "ttl": 515
+      },
+      "binance_price": {
+        "fetched_utc": "2026-06-04T00:47:43Z",
+        "funding_rate": "-0.00012463",
+        "key": "v2:market:prices:SOLUSDT",
+        "last_price": "70.82000000",
+        "open_interest": "10049725.82",
+        "price_change_percent": "-5.498",
+        "source": "binance_public_rest",
+        "ttl": 515
+      },
+      "coinapi_rest": {
+        "depth_imbalance": -0.3149387380016339,
+        "feature_key": "v2:features:coinapi_rest:SOLUSDT:latest",
+        "feature_ttl": 574,
+        "micro_price": 70.78591925735363,
+        "orderbook_key": "v2:market:coinapi:rest:orderbook:SOLUSDT",
+        "orderbook_present": true,
+        "orderbook_ttl": 574,
+        "spread_bps": 1.412728685456681
+      },
+      "coinapi_wss_ohlcv": {
+        "latest_key": "v2:latest:coinapi:ohlcv:SOLUSDT:1m",
+        "latest_present": true,
+        "latest_ttl": 3581,
+        "latest_type": "hash",
+        "normalized_key": "v2:normalized:ohlcv:SOLUSDT:1m",
+        "normalized_present": true,
+        "normalized_ttl": 3581,
+        "normalized_type": "hash"
+      },
+      "feature_snapshot": {
+        "categories_present": [
+          "ohlcv_derived",
+          "ta_indicators",
+          "multi_timeframe",
+          "microstructure",
+          "funding_oi_liquidation",
+          "portfolio_aware",
+          "freshness"
+        ],
+        "feature_count": 25,
+        "feature_snapshot_id": "v2_fsnap_ccbc8a10e4789423a5b7a9a464e11ac66b07ab627a5f9510b098c76f61846c46",
+        "freshness": "CURRENT",
+        "key": "v2:features:latest:SOLUSDT:1m",
+        "missing_feature_count": 0,
+        "placeholder_feature_count": 0,
+        "real_feature_count": 25,
+        "selected_features": {
+          "atr_14": 0.24007623184951976,
+          "bid_ask_spread_bps": 1.4131279587353782,
+          "depth_imbalance": -0.5668145000663923,
+          "funding_rate": -0.00012463,
+          "last_liq_bps_24h": 0.0,
+          "macd": -0.1670184301930533,
+          "macd_signal": -0.21045004179217633,
+          "oi_change_pct": -0.00565851087307962,
+          "ret_pct": -0.05497731518548178,
+          "rsi_14": 45.15311548810698
+        },
+        "trainer_consumable": true,
+        "ttl": 580
+      },
+      "kucoin": {
+        "key": "v2:features:kucoin:SOLUSDT:latest",
+        "klines_present": [
+          "1m"
+        ],
+        "orderbook20_present": true,
+        "present": true,
+        "source": "kucoin_public_rest",
+        "ticker_present": true,
+        "ttl": 582
+      },
+      "prediction": {
+        "checkpoint_id": "ppo_checkpoint_1777264095",
+        "checkpoint_weight_status": "LEGACY_CHECKPOINT_METADATA_PRESENT_WEIGHTS_NOT_DESERIALIZED_V2_SAFE_MODE",
+        "confidence_calibrated": 0.5502845488272303,
+        "expected_move_after_cost_bps": -39.92638434956034,
+        "key": "v2:prediction:SOLUSDT:1m",
+        "model_weights_loaded_into_v2_process": false,
+        "paper_fill_allowed": false,
+        "paper_fill_gate_status": "BLOCKED_BY_TRAINER_OUTPUT_MALFORMED",
+        "prediction_id": "v2_native_pred_94782459b2f53da7680e593007d61abf_219a2190e2b0ebb8",
+        "routes_to_orchestrator": true,
+        "routes_to_risk_gateway": true,
+        "selected_action": "hold",
+        "trader_execution_enabled": false,
+        "trainer_source": "V2_NATIVE_RL_CORE",
+        "ttl": 551
+      }
+    }
+  },
+  "trainer_inference": {
+    "checkpoint_id": "ppo_checkpoint_1777264095",
+    "checkpoint_weight_status": "LEGACY_CHECKPOINT_METADATA_PRESENT_WEIGHTS_NOT_DESERIALIZED_V2_SAFE_MODE",
+    "classification": "V2_NATIVE_RL_CORE_PRODUCTION_INFERENCE_OK",
+    "market_data_mode": "REALTIME_PUBLIC_MARKET_DATA",
+    "predictions_count": 27,
+    "predictions_with_open_gate": [
+      "BTCUSDT",
+      "ETHUSDT"
+    ],
+    "production_signal_only": true,
+    "routes_to_orchestrator": true,
+    "routes_to_risk_gateway": true,
+    "trader_execution_enabled": false,
+    "trainer_online_mode": "V2_NATIVE_RL_CORE_WITH_LEGACY_CHECKPOINT_EVIDENCE",
+    "writes_legacy_redis": false
+  },
+  "trainer_training": {
+    "baseline_evaluated": true,
+    "baseline_predictions_published": false,
+    "classification": "V2_TRAINER_TRAINING_LIVE_OK",
+    "dataset_rebuilt": true,
+    "exchange_action_taken": false,
+    "labels_loaded": 8701,
+    "minimum_train_rows": 64,
+    "production_prediction_writer": "v2_rl_core_inference_loop",
+    "publishable_baseline_available": false,
+    "replay_rows_loaded": 19488,
+    "row_count": 19542,
+    "symbol_resolution": {
+      "baseline_count": 25,
+      "count": 27,
+      "discovered_count": 27,
+      "smoke_test": false,
+      "source_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/symbol_universe/latest/symbol_universe_status.json",
+      "symbol_profile": "dynamic_or_baseline",
+      "symbols": [
+        "1000BONKUSDT",
+        "1000FLOKIUSDT",
+        "1000PEPEUSDT",
+        "1000SHIBUSDT",
+        "ALICEUSDT",
+        "ASTERUSDT",
+        "AUCTIONUSDT",
+        "AVNTUSDT",
+        "BANKUSDT",
+        "BARDUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "FARTCOINUSDT",
+        "HIGHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "PENGUUSDT",
+        "PIPPINUSDT",
+        "RAVEUSDT",
+        "RIVERUSDT",
+        "SOLUSDT",
+        "UNIUSDT",
+        "WIFUSDT",
+        "XRPUSDT",
+        "COINANK_ONLY_USDT",
+        "KUCOIN_ONLY_USDT"
+      ]
+    },
+    "trader_execution_enabled": false,
+    "train_rows": 285,
+    "trained_model_available": true,
+    "training_loop_active": true,
+    "universe_count": 27,
+    "validation_rows": 78,
+    "writes_legacy_redis": false
+  }
+}

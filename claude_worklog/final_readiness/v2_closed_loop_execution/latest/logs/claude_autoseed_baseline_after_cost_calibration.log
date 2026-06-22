@@ -1,0 +1,9 @@
+The Edit tool is awaiting your permission approval for `v2/backend/app/services/native_trainer/baseline_model.py`. Once you approve writing under `v2/**` (or approve this single edit), I'll proceed with the rest of the calibration work. The plan is:
+
+1. Add `_fit_after_cost_calibration()` — closed-form least-squares of `after_cost_return_bps ~ a + b·p` on TRAINABLE rows only, gated by sample count and RMSE-improvement vs the hardcoded `(p−0.5)·50 − 7` formula.
+2. Add sample-weight scaling in `train_logistic_model` keyed on `|after_cost_return_bps|` to sharpen false-negative separation; insufficient-evidence rows are already excluded since training uses `TRAINABLE` rows only.
+3. Extend `BaselineMetrics` with `positive_label_mean_score`, `negative_label_mean_score`, `score_separation`, plus calibration RMSE fields; extend `EvaluationResult` with `excluded_insufficient_evidence_count` and `model_readiness="NOT_PRODUCTION_READY"` (pinned; calibration acceptance never flips readiness).
+4. Wire `build_baseline_prediction` to use the calibrated slope/intercept only when proven, fall back otherwise.
+5. Add tests; emit `claude_worklog/agent_supervisor/tasks/223_claude_v2_baseline_calibration_improvement.json` implementation report.
+
+Could you approve write access to `v2/**` so I can apply the edits?

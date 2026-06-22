@@ -1,0 +1,16 @@
+{
+  "account_mode_read": true,
+  "balances_redacted": true,
+  "binance_private_read_only_probe_ok": true,
+  "exchange_mutation_frozen": true,
+  "filters_loaded": true,
+  "generated_est": "2026-06-05T14:16:19-04:00",
+  "live_enable_endpoint_locked_unless_final_gate_passes": true,
+  "no_leverage_margin_mutation": true,
+  "no_order_test_order_cancel_modify": true,
+  "open_orders_read": true,
+  "positions_read": true,
+  "schema_version": "trader_runtime_live_gate_readiness_status_v1",
+  "service_id": "v2_paper_fill_gate_live_blocker_burndown_and_controlled_live_enable_ready",
+  "trader_runtime_active": true
+}

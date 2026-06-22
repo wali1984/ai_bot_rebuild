@@ -1,0 +1,79 @@
+{
+  "schema_version": "v2_full_legacy_trainer_remediation_phase0_release_candidate_protection_v1",
+  "generated_at_utc": "2026-06-14T00:00:00Z",
+  "phase": "Phase 0 - Release-candidate protection",
+  "status": "PRESERVED_WITH_REMEDIATION_GUARDRAILS",
+  "release_candidate_freeze": {
+    "active": true,
+    "status": "READY",
+    "marker": "V2_GO_LIVE_RELEASE_CANDIDATE_FREEZE_READY",
+    "source_report": "v2/frontend/public/v2_go_live_release_candidate_freeze/latest/V2_GO_LIVE_RELEASE_CANDIDATE_FREEZE_REPORT.md",
+    "source_runtime_state": "v2/frontend/public/v2_go_live_release_candidate_freeze/latest/release_candidate_runtime_state.json",
+    "source_agent_scope": "v2/frontend/public/v2_go_live_release_candidate_freeze/latest/agent_scope_freeze_status.json",
+    "agent_scope_freeze_active": true,
+    "agent_scope_note": "No agent may start a new implementation lane unless a release-candidate check fails. This remediation pass is being tracked as a scoped response to paper instability/losses and Pass4A strict-trust invalid runtime evidence."
+  },
+  "live_boundary": {
+    "must_remain": "LIVE_ARMED_BALANCE_HOLD",
+    "known_blocker": "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER",
+    "real_orders_allowed": false,
+    "test_orders_allowed": false,
+    "leverage_mutation_allowed": false,
+    "margin_mode_mutation_allowed": false,
+    "legacy_restart_allowed": false,
+    "old_redis_writes_allowed": false,
+    "trainer_bridge_unmask_allowed": false,
+    "rl_core_primary_overwrite_allowed": false,
+    "fixed_runtime_sizing_allowed": false
+  },
+  "current_evidence": {
+    "freeze_report_generated_at": "2026-06-12T20:26:49Z",
+    "freeze_report_live_gate": "enabled_operator_approved",
+    "freeze_report_trader_state": "LIVE_ARMED_BALANCE_HOLD",
+    "freeze_report_available_margin": 0.0,
+    "freeze_report_order_submitted": false,
+    "soak_completion_report_generated_at": "2026-06-13T19:02:11Z",
+    "soak_proof_status": "SOAK_24H_COMPLETE",
+    "soak_24h_complete": true,
+    "soak_observed_hours": 46.0897,
+    "soak_density_eligible_observations": 306,
+    "soak_high_severity_alerts": "none",
+    "soak_live_remains_balance_held": true,
+    "soak_static_sizing_regression_status": "CLEAR",
+    "soak_same_symbol_hedge_status": "CLEAR",
+    "soak_trainer_feedback_rows": 7,
+    "soak_realized_pnl_usd": 0.74910542
+  },
+  "phase0_decision": {
+    "freeze_preserved_before_touching_code": true,
+    "soak_status_confirmed_before_touching_code": true,
+    "material_behavior_changes_started": false,
+    "current_soak_evidence_valid_for_pre_remediation_state_only": true,
+    "must_not_reuse_pre_fix_soak_after_material_runtime_behavior_changes": true
+  },
+  "guardrails_for_next_phases": [
+    "Do not place real orders.",
+    "Do not call test-order.",
+    "Do not change leverage.",
+    "Do not change margin mode.",
+    "Do not write old Redis.",
+    "Do not restart legacy.",
+    "Do not trim Redis.",
+    "Do not expose raw credentials.",
+    "Do not unmask trainer bridge.",
+    "Do not reintroduce V2_PAPER_TRAINER_WRAPPER.",
+    "Do not allow RL-core to overwrite primary native CUDA predictions.",
+    "Do not use fixed trade sizing such as 200 USDT in runtime.",
+    "Do not bypass adaptive allocator.",
+    "Do not bypass trade lifecycle guard.",
+    "Do not bypass risk evaluator.",
+    "Keep live in LIVE_ARMED_BALANCE_HOLD until account margin is sufficient."
+  ],
+  "read_only_sources_checked": [
+    "v2/frontend/public/v2_go_live_release_candidate_freeze/latest/V2_GO_LIVE_RELEASE_CANDIDATE_FREEZE_REPORT.md",
+    "v2/frontend/public/v2_go_live_release_candidate_freeze/latest/release_candidate_runtime_state.json",
+    "v2/frontend/public/v2_go_live_release_candidate_freeze/latest/agent_scope_freeze_status.json",
+    "v2/frontend/public/v2_adaptive_allocation_and_trade_lifecycle_24h_paper_soak/latest/soak_status.json",
+    "v2/frontend/public/v2_adaptive_allocation_and_trade_lifecycle_24h_paper_soak/latest/V2_ADAPTIVE_ALLOCATION_AND_TRADE_LIFECYCLE_24H_PAPER_SOAK_COMPLETION_REPORT.md"
+  ]
+}

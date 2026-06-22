@@ -1,0 +1,90 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_real": false,
+  "approves_redis_trim": false,
+  "checkpoint_compatibility_claimed": false,
+  "cycle": "lane_g_narrow_fix_creation_policy",
+  "gate": "blocked_human_only",
+  "generated_utc": "2026-05-18T05:58:05Z",
+  "live_canary_shutdown_redis_trim_approval_tokens_created": false,
+  "paper_only_shutdown_acceptance_created": false,
+  "pending_codex_reviews": [
+    {
+      "duplicate_of_existing_open_blocker": false,
+      "reason_for_review": "Verify war-room cycle outputs are evidence-based and contain zero approval drift.",
+      "review_id": "codex_review_v2_8h_war_room_cycle_summary",
+      "severity": "P2",
+      "subject_artifacts": [
+        "claude_worklog/final_readiness/v2_8h_war_room/latest/V2_8H_CONTINUOUS_WAR_ROOM_REPORT.md",
+        "claude_worklog/final_readiness/v2_8h_war_room/latest/GO_NO_GO.md",
+        "claude_worklog/final_readiness/v2_8h_war_room/latest/runtime_cycle_status.json",
+        "claude_worklog/final_readiness/v2_8h_war_room/latest/model_signal_gap_matrix.json",
+        "claude_worklog/final_readiness/v2_8h_war_room/latest/actions_applied.json",
+        "claude_worklog/final_readiness/v2_8h_war_room/latest/codex_review_queue.json"
+      ],
+      "topic": "War-room cycle summary review",
+      "v2_only_fix": true
+    }
+  ],
+  "policy": {
+    "codex_review_descriptor_in_same_cycle_required": true,
+    "create_only_if_evidence_in_model_signal_gap_matrix": true,
+    "create_only_if_severity_p0_or_p1": true,
+    "no_broad_audit_tasks": true,
+    "no_checkpoint_compatibility_claim": true,
+    "no_duplicate_of_checkpoint_full_observation_or_policy_blocker": true,
+    "no_policy_architecture_implementation_started": true,
+    "v2_only_fix_required": true
+  },
+  "policy_architecture_parity_claimed": false,
+  "policy_architecture_port_started": false,
+  "pre_existing_blockers_not_eligible_for_new_task_creation": [
+    {
+      "blocker_id": "CHECKPOINT_WEIGHT_BLOB_OPERATOR_REQUIRED",
+      "observed_in_symbols": [
+        "SOLUSDT"
+      ],
+      "rationale": "Existing operator-decision blocker; war-room cycle must not duplicate task creation per Lane G policy."
+    },
+    {
+      "blocker_id": "FULL_OBSERVATION_PARTIAL",
+      "observed_in_symbols": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "rationale": "Existing burndown lane already tracked under v2_full_observation_*; do not duplicate."
+    },
+    {
+      "blocker_id": "V2_POSITION_HISTORY_MISSING:MISSING_ENTRY_PRICE",
+      "observed_in_symbols": [
+        "BTCUSDT",
+        "ETHUSDT"
+      ],
+      "rationale": "Price-tracking recorder is in place; entry_price will populate when v2:paper:positions exposes an entry_price field or first-fill snapshot. Tracked separately under v2_position_price_tracking_recorder; not duplicating here."
+    },
+    {
+      "blocker_id": "ALT_DATA_PROVIDER_FORBIDDEN_OR_MISSING",
+      "observed_in_symbols": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "rationale": "Provider 403/missing-state is operator-decision pending NANSEN_API_KEY / LUNARCRUSH_API_KEY provisioning. No automated fix today."
+    },
+    {
+      "blocker_id": "MISSING_LEGACY_LOG_ACTION_EVIDENCE",
+      "observed_in_symbols": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "rationale": "Legacy log observer is running; the observer status payload was absent from Redis at probe time, not the observer process. Continuous remediation governor still reports remediation loop healthy."
+    }
+  ],
+  "schema_version": "v2_8h_war_room_codex_review_queue_v1",
+  "symbols_real": [],
+  "writes_exchange_orders": false,
+  "writes_legacy_redis": false
+}

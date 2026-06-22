@@ -1,6 +1,6 @@
 # Runtime Truth Bridge Report
 
-Generated at: 2026-05-12T03:01:49.223Z
+Generated at: 2026-06-15T22:16:00.819Z
 
 The hosted dashboard is static unless a current read-only runtime bridge publishes operator truth. The supported bridge for this pass is:
 

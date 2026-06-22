@@ -1,0 +1,27 @@
+{
+  "active_leases": 0,
+  "active_leases_detail": [],
+  "busy_claude_workers": 0,
+  "busy_codex_workers": 0,
+  "claims": [],
+  "current_automatable_claude_tasks": 0,
+  "generated_est": "2026-06-03T22:51:41-04:00",
+  "generated_utc": "2026-06-04T02:51:41Z",
+  "milestone": "v2_zero_exception_parity_queue_reconciliation_and_continued_burndown_ready",
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "exchange_action_taken": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "places_real_order": false,
+    "trader_execution_enabled": false,
+    "writes_exchange_orders": false,
+    "writes_legacy_redis": false
+  },
+  "schema_version": "v2_zero_exception_task_queue_worker_lease_execution_status_v4",
+  "triggered_codex_reviews": 46,
+  "waiting_codex_review_tasks": 0
+}

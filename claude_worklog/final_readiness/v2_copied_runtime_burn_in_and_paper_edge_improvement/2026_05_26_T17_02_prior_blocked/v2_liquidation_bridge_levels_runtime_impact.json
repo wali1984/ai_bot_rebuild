@@ -1,0 +1,99 @@
+{
+  "schema_version": "v2_liquidation_bridge_levels_runtime_impact_v1",
+  "phase": 2,
+  "generated_est": "2026-05-26T17:02:47-0400",
+  "generated_utc": "2026-05-26T21:02:47Z",
+
+  "services": [
+    {
+      "unit": "ai-bot-v2-liquidation-bridge.service",
+      "active": true,
+      "active_since_est": "2026-05-26T16:09:40",
+      "uptime_minutes": 53,
+      "n_restarts": 0,
+      "exec_classification": "copied_safe_script_paper_only"
+    },
+    {
+      "unit": "ai-bot-v2-liquidation-levels-engine.service",
+      "active": true,
+      "active_since_est": "2026-05-26T16:09:40",
+      "uptime_minutes": 53,
+      "n_restarts": 0,
+      "exec_classification": "copied_safe_script_paper_only"
+    },
+    {
+      "unit": "ai-bot-v2-liquidation-wss-paper-shadow.service",
+      "active": true,
+      "active_since_est": "2026-05-26T13:22:03",
+      "uptime_minutes": 220,
+      "n_restarts": 0,
+      "exec_classification": "public_binance_wss_force_order_shadow",
+      "note": "not the live_binance_liquidations.py script; that one remains excluded"
+    }
+  ],
+
+  "live_binance_liquidations_exclusion_verified": {
+    "wrapped_in_any_active_service": false,
+    "script_path_appearances_in_active_services": 0,
+    "operator_instruction_honored": true
+  },
+
+  "redis_outputs": {
+    "v2_liquidations_keys_count": 1,
+    "v2_market_liquidation_levels_keys_count": 0,
+    "v2_unified_features_keys_count": 170,
+    "v2_liquidations_events_stream": {
+      "key": "v2:liquidations:events",
+      "type": "stream",
+      "xlen": 0,
+      "interpretation": "stream key allocated by bridge but no liquidation events have been ingested yet; either upstream Binance force-order stream is quiet, or bridge is still warming up its WSS subscription (only 53 min uptime)"
+    }
+  },
+
+  "missing_event_conditions": [
+    {
+      "id": "v2_market_liquidation_levels_keys_absent",
+      "severity": "info",
+      "description": "v2:market:liquidation_levels:* family has 0 keys despite the levels-engine running for 53 minutes",
+      "possible_causes": [
+        "levels engine uses a different key prefix than expected",
+        "levels engine requires upstream liquidation events first (which are XLEN=0)",
+        "levels engine in warmup window"
+      ],
+      "remediation_owner": "phase_7"
+    },
+    {
+      "id": "v2_liquidations_events_xlen_zero",
+      "severity": "info",
+      "description": "v2:liquidations:events stream has 0 entries after 53 min uptime",
+      "expected_resolution_window_minutes": "60 to 240 (depends on Binance force-order volume)",
+      "remediation_owner": "phase_7"
+    }
+  ],
+
+  "contribution_to_feature_pipeline": {
+    "feature_pipeline_can_see_liquidation_keys": true,
+    "v2_unified_features_includes_liquidation_dim": "indeterminate_until_xlen_gt_zero",
+    "note": "Until v2:liquidations:events XLEN > 0, no per-symbol liquidation feature can be measurably contributed; the wiring is in place but the data signal has not arrived yet"
+  },
+
+  "heartbeats": {
+    "bridge_heartbeat_payload_path": "v2/frontend/public/operator_runtime/v2_liquidation_wss_client/latest/v2_liquidation_wss_client_status.json",
+    "bridge_heartbeat_freshness_seconds_at_snapshot": 6,
+    "levels_engine_heartbeat_payload_path_candidate": "v2/frontend/public/operator_runtime/v2_liquidation_ingestor/latest/v2_liquidation_ingestor_status.json",
+    "levels_engine_heartbeat_freshness_seconds_at_snapshot": 800000,
+    "levels_engine_heartbeat_freshness_status": "STALE_NOT_REFRESHED_BY_NEWLY_WRAPPED_SERVICE",
+    "levels_engine_heartbeat_remediation_owner": "phase_7"
+  },
+
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "places_real_order": false,
+    "writes_exchange_orders": false,
+    "writes_old_redis": false,
+    "live_binance_liquidations_excluded": true,
+    "approves_live": false,
+    "approves_canary": false
+  }
+}

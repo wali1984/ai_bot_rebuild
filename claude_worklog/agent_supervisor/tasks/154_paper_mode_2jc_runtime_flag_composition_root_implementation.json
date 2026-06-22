@@ -1,31 +1,56 @@
 {
-  "task_id": "154_paper_mode_2jc_runtime_flag_composition_root_implementation",
   "agent": "codex",
-  "risk_level": "L1",
-  "status": "pending",
-  "depends_on": [
-    "153_paper_mode_2jb_runtime_flag_assembler_service_codex_review"
-  ],
-  "predecessor_task_ids": [
-    "153_paper_mode_2jb_runtime_flag_assembler_service_codex_review"
-  ],
-  "predecessor_required_marker": "PHASE2J_B_PAPER_MODE_RUNTIME_FLAG_ASSEMBLER_SERVICE_CODEX_PASS",
-  "predecessor_required_marker_file": "claude_worklog/phase2_core_rebuild/paper_mode_impl/17_2J_B_PAPER_MODE_RUNTIME_FLAG_ASSEMBLER_SERVICE_CODEX_GO_NO_GO.md",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
-  "task_granularity_mode": "consolidated_default",
-  "requires_clean_worktree": true,
-  "worktree_excluded_paths": [
-    "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt",
-    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_fail_marker_recovery_ready.json",
-    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_non_live_recovery_ready.json",
-    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_parallel_readonly_review_ready.json",
-    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_phase2j_a_paper_mode_runtime_flag_domain_codex_pass.json"
-  ],
   "allowed_output_prefixes": [
     "v2/backend/app/composition/paper_mode/",
     "v2/backend/tests/unit/composition/paper_mode/",
     "claude_worklog/phase2_core_rebuild/paper_mode_impl/"
+  ],
+  "blocked_by": [
+    "PHASE2J_B_PAPER_MODE_RUNTIME_FLAG_ASSEMBLER_SERVICE_CODEX_PASS"
+  ],
+  "completed_at": "2026-05-07T20:20:56.113467+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": [
+    "153_paper_mode_2jb_runtime_flag_assembler_service_codex_review"
+  ],
+  "emit_files": true,
+  "failure_marker": "PHASE2J_C_PAPER_MODE_RUNTIME_FLAG_COMPOSITION_ROOT_IMPL_AND_VALIDATION_FAILED",
+  "failure_marker_file": "claude_worklog/phase2_core_rebuild/paper_mode_impl/23_2J_C_PAPER_MODE_RUNTIME_FLAG_COMPOSITION_ROOT_GO_NO_GO.md",
+  "forbidden_actions": [
+    "modify /home/wali/Desktop/AI BOT",
+    "read or write any Redis key",
+    "invoke any Redis command",
+    "import redis or redis.asyncio or aioredis or hiredis or httpx or requests or fastapi or uvicorn or starlette or urllib",
+    "import v2.backend.app.adapters.redis_v2.factory or v2.backend.app.adapters.redis_v2.url_env",
+    "import v2.backend.app.composition.orchestrator_decision or v2.backend.app.composition.risk_gateway or v2.backend.app.composition.trainer_parity or v2.backend.app.composition.trainer_worker_health or v2.backend.app.composition.trainer_prediction_output or v2.backend.app.composition.paper_execution_ledger or v2.backend.app.composition.replay_backtest_runner in any authored 2J.C source file",
+    "import v2.backend.app.services.* sibling outside v2.backend.app.services.paper_mode in any authored 2J.C source file",
+    "import v2.backend.app.domain.* sibling outside v2.backend.app.domain.paper_mode in any authored 2J.C source file",
+    "read os.environ or os.getenv",
+    "invoke subprocess outside the permitted import-isolation test files",
+    "invoke socket",
+    "call wall-clock helpers (time.time, time.monotonic, datetime.now, datetime.utcnow) in any authored 2J.C source file",
+    "register a FastAPI lifespan, dependency, or router",
+    "introduce a module-level singleton, cache, or lock",
+    "log via logging or stdout",
+    "emit URL, token, key, or credential-shaped strings",
+    "construct PaperModeFlag directly in any authored 2J.C source file",
+    "introduce ledger or replay persistence (SQL, SQLite, JSON, Parquet, CSV, Redis, in-memory dict acting as a ledger)",
+    "introduce PnL, position sizing, quantity, price, fees, slippage, or risk-adjusted-return computation",
+    "introduce any live, live_enabled, or enable_live requested-mode branch at the composition layer",
+    "modify v2/backend/app/services/paper_loop.py",
+    "modify v2/backend/app/services/replay_runner.py",
+    "populate v2/backend/app/domain/execution/",
+    "modify any 2J.A or 2J.B authored file",
+    "modify any 2I.A / 2I.B / 2I.C / 2H.A / 2H.B / 2H.C / 2G.A / 2G.B / 2G.C / 2F.A / 2F.B / 2F.C / 2E1 / 2E2 / 2E3 authored file",
+    "place, cancel, or modify any exchange order",
+    "change leverage or margin",
+    "restart any live service",
+    "enable live trading",
+    "deploy",
+    "run any production migration",
+    "expose or commit any credential",
+    "approve the live gate",
+    "emit a standalone marker line in any authored file body matching the harness BEGIN_FILE or END_FILE framing tokens"
   ],
   "forbidden_output_paths": [
     "v2/backend/app/composition/paper_mode.py",
@@ -104,6 +129,27 @@
     "claude_worklog/phase2_core_rebuild/paper_mode_impl/21_PHASE_2J_C_PAPER_MODE_RUNTIME_FLAG_COMPOSITION_ROOT_GO_NO_GO_REQUEST.md",
     "/home/wali/Desktop/AI BOT"
   ],
+  "implementation_report_file": "claude_worklog/phase2_core_rebuild/paper_mode_impl/22_2J_C_PAPER_MODE_RUNTIME_FLAG_COMPOSITION_ROOT_IMPLEMENTATION_REPORT.md",
+  "implementation_report_marker": "PHASE2J_C_PAPER_MODE_RUNTIME_FLAG_COMPOSITION_ROOT_IMPLEMENTATION_REPORT_READY",
+  "lane": "paper_backtest_mvp",
+  "legacy_evidence_consulted": [
+    "claude_worklog/phase2_core_rebuild/paper_mode_impl/01_PHASE_2J_LEGACY_EVIDENCE_REVIEW.md",
+    "claude_worklog/legacy_readonly_audit/02_STARTUP_SCRIPT_MAP.md",
+    "claude_worklog/legacy_readonly_audit/07_ORCHESTRATOR_TRADER_RUNTIME_EVIDENCE.md",
+    "legacy_reference/AI BOT/scripts/start_all_services_production.sh",
+    "legacy_reference/AI BOT/trading/trader.py",
+    "legacy_reference/AI BOT/rl/orchestrator_worker.py"
+  ],
+  "legacy_failure_addressed": "Legacy trader.py and rl.orchestrator_worker carried implicit live-mode posture through environment variables and per-call argument passing, which made it impossible to assert the live-blocked posture by typed value (REQ_0022 LAB hedge-unwind / squeeze failure; REQ_0017 / REQ_0020 paper-mode boundary requirement). The 2J.C composition surface exposes the slotted single-closure runtime that downstream consumers bind to without ever importing a live-execution surface and without re-deriving the live-blocked posture from environment variables. The only accepted modes are paper and live_blocked; both flags carry live_blocked == True; there is no live_enabled affordance.",
+  "mvp_relevance": "Phase 2J.C is the third and final sub-phase of REQ_0017 milestone 6 PAPER_MODE_MVP. It exposes the slotted single-closure composition surface (build_paper_mode_runtime / PaperModeRuntime / PaperModeRuntimeCompositionError) that downstream consumers (paper execution ledger consumers, replay/backtest runner consumers, future shadow_decision_id consumers) bind to without importing any live-execution surface and without re-deriving the live-blocked posture from environment variables. After 2J.C Codex pass, REQ_0017 milestone 6 is satisfied; one milestone (SHADOW_MODE_READINESS) remains to V2_BACKTEST_AND_PAPER_MVP_READY.",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_gate": "PHASE2J_C_PAPER_MODE_RUNTIME_FLAG_COMPOSITION_ROOT_IMPL_AND_VALIDATION_PASSED",
+  "predecessor_required_marker": "PHASE2J_B_PAPER_MODE_RUNTIME_FLAG_ASSEMBLER_SERVICE_CODEX_PASS",
+  "predecessor_required_marker_file": "claude_worklog/phase2_core_rebuild/paper_mode_impl/17_2J_B_PAPER_MODE_RUNTIME_FLAG_ASSEMBLER_SERVICE_CODEX_GO_NO_GO.md",
+  "predecessor_task_ids": [
+    "153_paper_mode_2jb_runtime_flag_assembler_service_codex_review"
+  ],
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "v2/backend/app/composition/paper_mode/__init__.py",
     "v2/backend/app/composition/paper_mode/errors.py",
@@ -115,63 +161,25 @@
   "required_output_files_test_dir": "v2/backend/tests/unit/composition/paper_mode/",
   "required_output_test_files_count": 23,
   "required_output_test_files_inventory_source": "claude_worklog/phase2_core_rebuild/paper_mode_impl/19_PHASE_2J_C_PAPER_MODE_RUNTIME_FLAG_COMPOSITION_ROOT_TEST_PLAN.md",
-  "forbidden_actions": [
-    "modify /home/wali/Desktop/AI BOT",
-    "read or write any Redis key",
-    "invoke any Redis command",
-    "import redis or redis.asyncio or aioredis or hiredis or httpx or requests or fastapi or uvicorn or starlette or urllib",
-    "import v2.backend.app.adapters.redis_v2.factory or v2.backend.app.adapters.redis_v2.url_env",
-    "import v2.backend.app.composition.orchestrator_decision or v2.backend.app.composition.risk_gateway or v2.backend.app.composition.trainer_parity or v2.backend.app.composition.trainer_worker_health or v2.backend.app.composition.trainer_prediction_output or v2.backend.app.composition.paper_execution_ledger or v2.backend.app.composition.replay_backtest_runner in any authored 2J.C source file",
-    "import v2.backend.app.services.* sibling outside v2.backend.app.services.paper_mode in any authored 2J.C source file",
-    "import v2.backend.app.domain.* sibling outside v2.backend.app.domain.paper_mode in any authored 2J.C source file",
-    "read os.environ or os.getenv",
-    "invoke subprocess outside the permitted import-isolation test files",
-    "invoke socket",
-    "call wall-clock helpers (time.time, time.monotonic, datetime.now, datetime.utcnow) in any authored 2J.C source file",
-    "register a FastAPI lifespan, dependency, or router",
-    "introduce a module-level singleton, cache, or lock",
-    "log via logging or stdout",
-    "emit URL, token, key, or credential-shaped strings",
-    "construct PaperModeFlag directly in any authored 2J.C source file",
-    "introduce ledger or replay persistence (SQL, SQLite, JSON, Parquet, CSV, Redis, in-memory dict acting as a ledger)",
-    "introduce PnL, position sizing, quantity, price, fees, slippage, or risk-adjusted-return computation",
-    "introduce any live, live_enabled, or enable_live requested-mode branch at the composition layer",
-    "modify v2/backend/app/services/paper_loop.py",
-    "modify v2/backend/app/services/replay_runner.py",
-    "populate v2/backend/app/domain/execution/",
-    "modify any 2J.A or 2J.B authored file",
-    "modify any 2I.A / 2I.B / 2I.C / 2H.A / 2H.B / 2H.C / 2G.A / 2G.B / 2G.C / 2F.A / 2F.B / 2F.C / 2E1 / 2E2 / 2E3 authored file",
-    "place, cancel, or modify any exchange order",
-    "change leverage or margin",
-    "restart any live service",
-    "enable live trading",
-    "deploy",
-    "run any production migration",
-    "expose or commit any credential",
-    "approve the live gate",
-    "emit a standalone marker line in any authored file body matching the harness BEGIN_FILE or END_FILE framing tokens"
-  ],
-  "lane": "paper_backtest_mvp",
-  "mvp_relevance": "Phase 2J.C is the third and final sub-phase of REQ_0017 milestone 6 PAPER_MODE_MVP. It exposes the slotted single-closure composition surface (build_paper_mode_runtime / PaperModeRuntime / PaperModeRuntimeCompositionError) that downstream consumers (paper execution ledger consumers, replay/backtest runner consumers, future shadow_decision_id consumers) bind to without importing any live-execution surface and without re-deriving the live-blocked posture from environment variables. After 2J.C Codex pass, REQ_0017 milestone 6 is satisfied; one milestone (SHADOW_MODE_READINESS) remains to V2_BACKTEST_AND_PAPER_MVP_READY.",
-  "blocked_by": [
-    "PHASE2J_B_PAPER_MODE_RUNTIME_FLAG_ASSEMBLER_SERVICE_CODEX_PASS"
-  ],
-  "next_gate": "PHASE2J_C_PAPER_MODE_RUNTIME_FLAG_COMPOSITION_ROOT_IMPL_AND_VALIDATION_PASSED",
-  "legacy_evidence_consulted": [
-    "claude_worklog/phase2_core_rebuild/paper_mode_impl/01_PHASE_2J_LEGACY_EVIDENCE_REVIEW.md",
-    "claude_worklog/legacy_readonly_audit/02_STARTUP_SCRIPT_MAP.md",
-    "claude_worklog/legacy_readonly_audit/07_ORCHESTRATOR_TRADER_RUNTIME_EVIDENCE.md",
-    "legacy_reference/AI BOT/scripts/start_all_services_production.sh",
-    "legacy_reference/AI BOT/trading/trader.py",
-    "legacy_reference/AI BOT/rl/orchestrator_worker.py"
-  ],
-  "legacy_failure_addressed": "Legacy trader.py and rl.orchestrator_worker carried implicit live-mode posture through environment variables and per-call argument passing, which made it impossible to assert the live-blocked posture by typed value (REQ_0022 LAB hedge-unwind / squeeze failure; REQ_0017 / REQ_0020 paper-mode boundary requirement). The 2J.C composition surface exposes the slotted single-closure runtime that downstream consumers bind to without ever importing a live-execution surface and without re-deriving the live-blocked posture from environment variables. The only accepted modes are paper and live_blocked; both flags carry live_blocked == True; there is no live_enabled affordance.",
+  "requires_clean_worktree": true,
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-05-07T20:20:56.113467+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/154_paper_mode_2jc_runtime_flag_composition_root_implementation.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
   "spec_documents": [
     "claude_worklog/phase2_core_rebuild/paper_mode_impl/18_PHASE_2J_C_PAPER_MODE_RUNTIME_FLAG_COMPOSITION_ROOT_SPEC.md",
     "claude_worklog/phase2_core_rebuild/paper_mode_impl/19_PHASE_2J_C_PAPER_MODE_RUNTIME_FLAG_COMPOSITION_ROOT_TEST_PLAN.md",
     "claude_worklog/phase2_core_rebuild/paper_mode_impl/20_PHASE_2J_C_PAPER_MODE_RUNTIME_FLAG_COMPOSITION_ROOT_SAFETY_BOUNDARIES.md",
     "claude_worklog/phase2_core_rebuild/paper_mode_impl/21_PHASE_2J_C_PAPER_MODE_RUNTIME_FLAG_COMPOSITION_ROOT_GO_NO_GO_REQUEST.md"
   ],
+  "status": "completed",
+  "success_marker": "PHASE2J_C_PAPER_MODE_RUNTIME_FLAG_COMPOSITION_ROOT_IMPL_AND_VALIDATION_PASSED",
+  "success_marker_file": "claude_worklog/phase2_core_rebuild/paper_mode_impl/23_2J_C_PAPER_MODE_RUNTIME_FLAG_COMPOSITION_ROOT_GO_NO_GO.md",
+  "task_granularity_mode": "consolidated_default",
+  "task_id": "154_paper_mode_2jc_runtime_flag_composition_root_implementation",
+  "updated_at": "2026-06-15T19:54:42Z",
   "validation_commands": [
     ".venv/bin/python -m py_compile v2/backend/app/composition/paper_mode/__init__.py v2/backend/app/composition/paper_mode/errors.py v2/backend/app/composition/paper_mode/runtime.py",
     ".venv/bin/python -m pytest v2/backend/tests/unit/composition/paper_mode/ -q",
@@ -183,10 +191,11 @@
     "git diff --stat HEAD -- v2/backend/app/domain/execution/",
     "git status -s"
   ],
-  "success_marker": "PHASE2J_C_PAPER_MODE_RUNTIME_FLAG_COMPOSITION_ROOT_IMPL_AND_VALIDATION_PASSED",
-  "success_marker_file": "claude_worklog/phase2_core_rebuild/paper_mode_impl/23_2J_C_PAPER_MODE_RUNTIME_FLAG_COMPOSITION_ROOT_GO_NO_GO.md",
-  "failure_marker": "PHASE2J_C_PAPER_MODE_RUNTIME_FLAG_COMPOSITION_ROOT_IMPL_AND_VALIDATION_FAILED",
-  "failure_marker_file": "claude_worklog/phase2_core_rebuild/paper_mode_impl/23_2J_C_PAPER_MODE_RUNTIME_FLAG_COMPOSITION_ROOT_GO_NO_GO.md",
-  "implementation_report_file": "claude_worklog/phase2_core_rebuild/paper_mode_impl/22_2J_C_PAPER_MODE_RUNTIME_FLAG_COMPOSITION_ROOT_IMPLEMENTATION_REPORT.md",
-  "implementation_report_marker": "PHASE2J_C_PAPER_MODE_RUNTIME_FLAG_COMPOSITION_ROOT_IMPLEMENTATION_REPORT_READY"
+  "worktree_excluded_paths": [
+    "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt",
+    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_fail_marker_recovery_ready.json",
+    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_non_live_recovery_ready.json",
+    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_parallel_readonly_review_ready.json",
+    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_phase2j_a_paper_mode_runtime_flag_domain_codex_pass.json"
+  ]
 }

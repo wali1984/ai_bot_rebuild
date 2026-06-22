@@ -1,0 +1,26 @@
+{
+  "blocker_id": "paper_edge_not_proven",
+  "completed": false,
+  "current_observed_state": "WAITING_FOR_EDGE_PROOF_AND_OPERATOR_THRESHOLDS",
+  "exact_event_source_required": "Operator must accept numeric edge thresholds AND paper/shadow evidence must show statistically defensible positive after-cost expectancy. Worker activity, task completion, or one-off correct_no_trade rows do not prove edge.",
+  "fail_condition": "thresholds missing, negative after-cost evidence, insufficient sample, or fabricated outcome",
+  "fake_completion_allowed": false,
+  "last_observed_at": "2026-06-21T23:34:59Z",
+  "observed_evidence": {
+    "after_cost_ci_lower_bps": -8.458940335446197,
+    "edge_claim_blocked_reason": "operator_thresholds_required_and_not_set",
+    "edge_claimed": false,
+    "expected_move_after_cost_bps": -4.879330541891545,
+    "miner_verdict": "EDGE_NOT_CLAIMED_OPERATOR_THRESHOLDS_REQUIRED",
+    "minimum_sample_satisfied": false,
+    "no_fabricated_outcomes": true
+  },
+  "pass_condition": "operator numeric thresholds exist and statistically defensible positive after-cost paper/shadow expectancy is observed",
+  "pass_condition_satisfied": false,
+  "redis_key_or_public_payload_watched": [
+    "v2/frontend/public/v2_post_hoc_replay_outcome_miner/latest/post_hoc_replay_outcome_status.json",
+    "v2/frontend/public/v2_24h_parallel_recovery_war_room/latest/war_room_status.json"
+  ],
+  "timeout_escalation": "remain blocked and emit watcher stale status; do not fabricate completion",
+  "watcher_id": "event_watcher_2_paper_edge_evidence"
+}

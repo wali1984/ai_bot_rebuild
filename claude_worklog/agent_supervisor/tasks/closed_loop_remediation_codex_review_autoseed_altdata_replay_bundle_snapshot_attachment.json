@@ -1,0 +1,33 @@
+{
+  "codex_pair_task_id": "codex_review_autoseed_altdata_replay_bundle_snapshot_attachment",
+  "completed_at": "2026-05-25T01:10:12Z",
+  "created_at": "2026-05-25T01:01:15Z",
+  "fail_blockers": [
+    "1. Appends the current ``v2:market:prices:{symbol}`` snapshot to a",
+    "1. Appends the current v2:market:prices:{symbol} snapshot into a",
+    "1. Appends the current v2:market:prices:{symbol} snapshot into a",
+    "1. Patch `v2/backend/app/services/edge_proof/replay_miner.py` to add `build_altdata_snapshot()`, wire it into `_new_bundle_from_row`, and extend `validate_bundle_row`"
+  ],
+  "file_lock_group": "v2_altdata_replay_bundle_snapshot_attachment",
+  "lease_id": "52d6141aaa41428e88c1c9ec5ce171ca",
+  "next_action": "Remediate the safe V2-side fail blockers listed in fail_blockers. Do not touch legacy. Do not call exchange mutation. Keep live_gate=blocked_human_only and live_symbols=[].",
+  "owner": "CLAUDE",
+  "pid_or_job_id": 1572990,
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "started_at": "2026-05-25T01:04:57Z",
+  "status": "completed",
+  "task_id": "closed_loop_remediation_codex_review_autoseed_altdata_replay_bundle_snapshot_attachment",
+  "task_type": "REMEDIATION",
+  "updated_at": "2026-05-25T01:10:12Z",
+  "worker_id": "claude-2"
+}

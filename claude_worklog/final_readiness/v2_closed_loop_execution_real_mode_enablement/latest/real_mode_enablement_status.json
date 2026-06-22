@@ -1,0 +1,278 @@
+{
+  "blockers": [
+    "ACTIVE_LANES_BELOW_MINIMUM"
+  ],
+  "current_work_queue": {
+    "allowlist_size": 0,
+    "current_automatable_count": 7,
+    "historical_excluded_count": 706,
+    "recent_codex_fail_refs_size": 3,
+    "report_center_blocker_refs_size": 0
+  },
+  "generated_utc": "2026-05-24T04:54:37Z",
+  "marker": "V2_CLOSED_LOOP_EXECUTION_ENGINE_REAL_MODE_ENABLEMENT_BLOCKED",
+  "monitor_only": false,
+  "probe_descriptors": [],
+  "proof": {
+    "active_claude_jobs": 1,
+    "active_codex_jobs": 0,
+    "active_lane_count": 1,
+    "lanes": [
+      {
+        "command_executor": "claude",
+        "counted_active": false,
+        "expected_output_paths": [],
+        "file_lock_group": "reconcile_actual_codex_architecture_review",
+        "heartbeat_present": true,
+        "heartbeat_timestamp": "2026-05-24T04:54:31Z",
+        "last_log_bytes": 58348,
+        "log_path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/003_reconcile_actual_codex_architecture_review.log",
+        "pid_alive": false,
+        "pid_or_job_id": null,
+        "started_at": null,
+        "status": "pending",
+        "task_id": "003_reconcile_actual_codex_architecture_review",
+        "task_type": "CLAUDE_IMPLEMENTATION"
+      },
+      {
+        "command_executor": "claude",
+        "counted_active": false,
+        "expected_output_paths": [],
+        "file_lock_group": "fix_risk_gateway_architecture",
+        "heartbeat_present": true,
+        "heartbeat_timestamp": "2026-05-24T04:54:31Z",
+        "last_log_bytes": 116521,
+        "log_path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/005_fix_risk_gateway_architecture.log",
+        "pid_alive": false,
+        "pid_or_job_id": null,
+        "started_at": null,
+        "status": "pending",
+        "task_id": "005_fix_risk_gateway_architecture",
+        "task_type": "CLAUDE_IMPLEMENTATION"
+      },
+      {
+        "command_executor": "claude",
+        "counted_active": true,
+        "expected_output_paths": [],
+        "file_lock_group": "claude_continuous_remediation_review_governor_blocker_fix",
+        "heartbeat_present": true,
+        "heartbeat_timestamp": "2026-05-24T04:52:38Z",
+        "last_log_bytes": 0,
+        "log_path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/claude_continuous_remediation_review_governor_blocker_fix.log",
+        "pid_alive": true,
+        "pid_or_job_id": 903546,
+        "started_at": "2026-05-24T04:52:38Z",
+        "status": "running",
+        "task_id": "claude_continuous_remediation_review_governor_blocker_fix",
+        "task_type": "REMEDIATION"
+      },
+      {
+        "command_executor": "CLAUDE",
+        "counted_active": false,
+        "expected_output_paths": [],
+        "file_lock_group": "v2_gap_trainer_missing_checkpoint_weight_shape_contract",
+        "heartbeat_present": true,
+        "heartbeat_timestamp": "2026-05-24T04:54:31Z",
+        "last_log_bytes": 1563,
+        "log_path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/claude_fix_v2_gap_trainer_missing_checkpoint_weight_shape_contract.log",
+        "pid_alive": false,
+        "pid_or_job_id": null,
+        "started_at": null,
+        "status": "pending",
+        "task_id": "claude_fix_v2_gap_trainer_missing_checkpoint_weight_shape_contract",
+        "task_type": "CLAUDE_IMPLEMENTATION"
+      },
+      {
+        "command_executor": "claude",
+        "counted_active": false,
+        "expected_output_paths": [],
+        "file_lock_group": "claude_v2_runtime_soak_and_production_equivalence_remediation",
+        "heartbeat_present": false,
+        "heartbeat_timestamp": null,
+        "last_log_bytes": null,
+        "log_path": null,
+        "pid_alive": false,
+        "pid_or_job_id": null,
+        "started_at": null,
+        "status": "pending",
+        "task_id": "claude_v2_runtime_soak_and_production_equivalence_remediation",
+        "task_type": "REMEDIATION"
+      },
+      {
+        "command_executor": "CLAUDE",
+        "counted_active": false,
+        "expected_output_paths": [],
+        "file_lock_group": "trainer_parity_2e1e_codex_autofix",
+        "heartbeat_present": false,
+        "heartbeat_timestamp": null,
+        "last_log_bytes": null,
+        "log_path": null,
+        "pid_alive": false,
+        "pid_or_job_id": null,
+        "started_at": null,
+        "status": "pending",
+        "task_id": "closed_loop_remediation_098_trainer_parity_2e1e_codex_autofix",
+        "task_type": "REMEDIATION"
+      },
+      {
+        "command_executor": "CLAUDE",
+        "counted_active": false,
+        "expected_output_paths": [],
+        "file_lock_group": "trainer_parity_2e1e_codex_rereview_after_autofix",
+        "heartbeat_present": false,
+        "heartbeat_timestamp": null,
+        "last_log_bytes": null,
+        "log_path": null,
+        "pid_alive": false,
+        "pid_or_job_id": null,
+        "started_at": null,
+        "status": "pending",
+        "task_id": "closed_loop_remediation_099_trainer_parity_2e1e_codex_rereview_after_autofix",
+        "task_type": "REMEDIATION"
+      }
+    ]
+  },
+  "ready": false,
+  "real_mode_pass": {
+    "claude_dispatch_attempts": [],
+    "claude_dispatched": 0,
+    "codex_dispatch_attempts": [],
+    "codex_started_this_pass": 0,
+    "skipped": true
+  },
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "schema_version": "v2_closed_loop_real_mode_enablement_status_v1",
+  "target_active_lanes": 3,
+  "timer_install": {
+    "copied": [],
+    "errors": [],
+    "skipped": [],
+    "verification": {
+      "ai-bot-v2-claude-task-runner.timer": {
+        "is_active": {
+          "cmd": [
+            "systemctl",
+            "--user",
+            "is-active",
+            "ai-bot-v2-claude-task-runner.timer"
+          ],
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "active"
+        },
+        "is_enabled": {
+          "cmd": [
+            "systemctl",
+            "--user",
+            "is-enabled",
+            "ai-bot-v2-claude-task-runner.timer"
+          ],
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "enabled"
+        }
+      },
+      "ai-bot-v2-closed-loop-executor.timer": {
+        "is_active": {
+          "cmd": [
+            "systemctl",
+            "--user",
+            "is-active",
+            "ai-bot-v2-closed-loop-executor.timer"
+          ],
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "active"
+        },
+        "is_enabled": {
+          "cmd": [
+            "systemctl",
+            "--user",
+            "is-enabled",
+            "ai-bot-v2-closed-loop-executor.timer"
+          ],
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "enabled"
+        }
+      },
+      "ai-bot-v2-codex-review-runner.timer": {
+        "is_active": {
+          "cmd": [
+            "systemctl",
+            "--user",
+            "is-active",
+            "ai-bot-v2-codex-review-runner.timer"
+          ],
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "active"
+        },
+        "is_enabled": {
+          "cmd": [
+            "systemctl",
+            "--user",
+            "is-enabled",
+            "ai-bot-v2-codex-review-runner.timer"
+          ],
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "enabled"
+        }
+      }
+    }
+  },
+  "utilization": {
+    "active_claude_jobs": 1,
+    "active_codex_jobs": 0,
+    "active_lane_count": 1,
+    "automatable_work_count_current": 7,
+    "automatable_work_count_historical_excluded": 706,
+    "blocker": "ACTIVE_LANES_BELOW_MINIMUM",
+    "dry_run": false,
+    "generated_utc": "2026-05-24T04:54:37Z",
+    "latest_started_jobs": [
+      {
+        "command_executor": "claude",
+        "counted_active": true,
+        "expected_output_paths": [],
+        "file_lock_group": "claude_continuous_remediation_review_governor_blocker_fix",
+        "heartbeat_present": true,
+        "heartbeat_timestamp": "2026-05-24T04:52:38Z",
+        "last_log_bytes": 0,
+        "log_path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/claude_continuous_remediation_review_governor_blocker_fix.log",
+        "pid_alive": true,
+        "pid_or_job_id": 903546,
+        "started_at": "2026-05-24T04:52:38Z",
+        "status": "running",
+        "task_id": "claude_continuous_remediation_review_governor_blocker_fix",
+        "task_type": "REMEDIATION"
+      }
+    ],
+    "real_dispatch_count": 0,
+    "safety": {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "calls_exchange_mutation": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "modifies_legacy_repo": false,
+      "writes_old_redis": false
+    },
+    "schema_version": "v2_closed_loop_real_mode_utilization_v1",
+    "target_active_lanes": 3,
+    "utilization_percent": 33.3
+  }
+}

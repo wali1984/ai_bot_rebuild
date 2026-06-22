@@ -1,0 +1,8 @@
+{
+  "aggregate_dim_count": 0,
+  "category": "CHECKPOINT_ARTIFACT_BLOCKED",
+  "field_groups": [],
+  "generated_utc": "2026-05-23T02:22:09Z",
+  "note": "No field is currently classified CHECKPOINT_ARTIFACT_BLOCKED. checkpoint_compatibility_claimed remains false.",
+  "schema_version": "v2_full_observation_checkpoint_artifact_blocked_v1"
+}

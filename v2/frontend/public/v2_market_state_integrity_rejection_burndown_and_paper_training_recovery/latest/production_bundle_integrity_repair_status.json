@@ -1,0 +1,21 @@
+{
+  "deploy_command_path": "No v2/frontend deploy script, wrangler.toml, or Wrangler dependency found. Build output path is v2/frontend/dist; publish that directory through the existing Cloudflare Pages deployment pipeline.",
+  "did_deploy_in_this_flow": false,
+  "generated_est": "2026-06-09T15:07:22-04:00",
+  "generated_utc": "2026-06-09T19:07:22Z",
+  "latest_build_deployed": true,
+  "local_build_bundle": "index-D8Qqmpeq.js",
+  "local_build_path": "v2/frontend/dist",
+  "production_probe": {
+    "bytes": 537,
+    "detail": null,
+    "duration_seconds": 0.705,
+    "error": null,
+    "fetch_status": "OK",
+    "http_status": 200,
+    "url": "https://dashboard.wajidali.us/landing"
+  },
+  "production_served_bundle": "index-D8Qqmpeq.js",
+  "schema_version": "production_bundle_integrity_repair_status_v1",
+  "status": "PRODUCTION_BUNDLE_CURRENT"
+}

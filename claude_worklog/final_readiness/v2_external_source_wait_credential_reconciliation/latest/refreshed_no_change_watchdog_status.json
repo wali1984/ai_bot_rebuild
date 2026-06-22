@@ -1,0 +1,81 @@
+{
+  "schema_version": "v2_refreshed_no_change_watchdog_status_v1",
+  "generated_utc": "2026-05-25T19:05:00Z",
+  "git_head": "10513bbe0517fd81c9c87e4672bb15486a083c02",
+  "lane_id": "v2_external_source_wait_credential_reconciliation",
+  "scope": "PHASE_5_NO_STATUS_CHANGE_WATCHDOG_REFRESH_AFTER_RECONCILIATION",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "upstream_watchdog_lane": "v2_no_status_change_sla_watchdog",
+  "upstream_watchdog_payload_path": "v2/frontend/public/v2_no_status_change_sla_watchdog/latest/no_status_change_sla_status.json",
+  "upstream_prior_state": {
+    "root_cause": "TRUE_EXTERNAL_SOURCE_WAIT",
+    "sla_state": "EXPECTED_WAIT",
+    "STATUS_FLAT_DURATION": "13.2h",
+    "WHY_STATUS_IS_FLAT": "external source adoption and API/key/tier decisions remain unresolved",
+    "root_cause_is_allowed": true
+  },
+  "reconciliation_evidence": {
+    "keys_present_by_name_count": 4,
+    "keys_present_provider_ids": ["tokenmetrics", "nansen", "lunarcrush", "arkham"],
+    "keys_absent_count": 3,
+    "keys_absent_provider_ids": ["glassnode", "cryptoquant", "santiment"],
+    "providers_with_v2_native_client_count": 2,
+    "providers_with_v2_native_client_ids": ["nansen", "lunarcrush"],
+    "providers_with_v2_native_ingestor_count": 1,
+    "providers_with_v2_native_ingestor_ids": ["lunarcrush"]
+  },
+  "proposed_root_cause_after_reconciliation": "MIXED_KEY_ABSENT_FOR_ONCHAIN_AND_KEY_PRESENT_BUT_CLIENT_OR_PAID_TIER_PENDING_FOR_ALT_DATA",
+  "proposed_root_cause_is_allowed": true,
+  "proposed_sla_state": "EXPECTED_WAIT",
+  "is_automation_stalled": false,
+  "is_this_expected": true,
+  "wait_legitimacy_assessment": {
+    "onchain_btc_eth_wait_is_legitimate": true,
+    "onchain_btc_eth_legitimacy_reason": "All three onchain provider keys absent; cannot auto-scaffold without operator either providing the key NAME or accepting deferral. Operator-required.",
+    "alt_data_wait_is_legitimate_but_partially_unblockable": true,
+    "alt_data_unblock_path": "Operator confirms ALT_DATA_ENABLE_PAID/ALT_DATA_TIER (names only). Closed-loop Spark seeder then picks up the 4 paired Claude+Codex scaffold tasks. Once those land, the next watchdog cycle will transition root_cause toward AUTOMATION_IN_PROGRESS for the alt-data family."
+  },
+  "transition_to_AUTOMATION_IN_PROGRESS_eligible_when": [
+    "Operator confirms ALT_DATA_ENABLE_PAID/ALT_DATA_TIER (env-var names only, no values exposed).",
+    "Closed-loop seeder creates the 4 paired Claude+Codex tasks listed in external_source_autoseed_status.json.",
+    "First implementation task completes Codex review."
+  ],
+  "transition_to_AUTOMATION_IN_PROGRESS_actual_at_this_packet": false,
+  "transition_blocked_reason_at_this_packet": "Paid-tier confirmation is operator-required. Until operator confirms, autoseed remains pending and root_cause remains TRUE_EXTERNAL_SOURCE_WAIT (partial).",
+  "next_watchdog_cycle_will_observe": "external_source_credential_reconciliation_status.json + external_source_autoseed_status.json. If autoseed transitions any provider from `seed_eligible=false` to `seed_eligible=true`, the seeder will dispatch and the watchdog will reclassify.",
+  "do_not_silence_watchdog": true,
+  "do_not_force_progress_signal_to_appear_changed": true,
+  "do_not_fake_completion": true,
+  "snapshot": {
+    "operator_visible_status_unchanged_at_this_packet": true,
+    "background_evidence_movement_recorded": true,
+    "background_evidence_movement_kind": "EXTERNAL_SOURCE_RECONCILIATION_PUBLISHED",
+    "automatable_now_count_added_to_queue": 0,
+    "automatable_now_count_pending_operator_paid_tier_confirmation": 4
+  },
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "activates_paid_feed": false,
+    "writes_old_redis": false,
+    "calls_exchange_mutation": false,
+    "creates_approval_tokens": false,
+    "deserializes_checkpoint": false,
+    "fabricates_edge": false,
+    "fabricates_missing_observations": false,
+    "modifies_legacy_repo": false,
+    "stops_legacy": false,
+    "stops_v2_runtime": false,
+    "stops_report_center": false,
+    "stops_replay_miner": false,
+    "stops_spark_or_worker_pool": false,
+    "stops_no_status_change_sla_watchdog": false,
+    "raw_values_read": false,
+    "raw_values_exposed": false
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "accepted_live_symbols_for_final_enable": [
+    "BNBUSDT",
+    "BTCUSDT",
+    "ETHUSDT",
+    "PAXGUSDT",
+    "XAUTUSDT",
+    "ZECUSDT"
+  ],
+  "attempted": true,
+  "audit_id": "live_gate_enable_3d93332df9db4fcbab63d74e0fd7dccb",
+  "backend_live_enable_path_available": true,
+  "enabled": false,
+  "endpoint": "POST /api/v1/live-gate/enable",
+  "execution_live_symbols": [],
+  "generated_est": "2026-06-05T16:26:51-04:00",
+  "http_status": 200,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "raw_confirmation_text_stored": false,
+  "reason": "LIVE_OPERATOR_ENABLE_AVAILABLE_BACKEND_GATE_ONLY",
+  "request_confirmation_text_hash": "0d68bcb219fe906c42eec80d6d9710ac2f0c881f839d9c193e023bc89b220e76",
+  "requires_separate_runtime_execution_contract": true,
+  "response": {
+    "accepted_live_symbols_for_final_enable": [
+      "BNBUSDT",
+      "BTCUSDT",
+      "ETHUSDT",
+      "PAXGUSDT",
+      "XAUTUSDT",
+      "ZECUSDT"
+    ],
+    "accepted_risk_audit_id": "live_gate_risk_bf7f2431a82a41d0997dad5f668e7996",
+    "accepted_symbols_audit_id": "live_gate_symbols_aca7a192fba941b8873df0cf864f5c52",
+    "audit_id": "live_gate_enable_3d93332df9db4fcbab63d74e0fd7dccb",
+    "backend_live_enable_path_available": true,
+    "enabled": false,
+    "execution_live_symbols": [],
+    "final_approval_audit_id": "live_gate_final_badf7f3cf3874dd9b347e7c3266d2573",
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "reason": "LIVE_OPERATOR_ENABLE_AVAILABLE_BACKEND_GATE_ONLY",
+    "requires_separate_runtime_execution_contract": true,
+    "runtime_mutation_executed": false
+  },
+  "runtime_live_keys_after": [],
+  "runtime_live_keys_before": [],
+  "runtime_mutation_executed": false,
+  "schema_version": "live_enable_execution_status_v1",
+  "service_id": "v2_audited_live_acceptance_records_and_enable_execution",
+  "status": "BACKEND_GATE_APPROVED_RUNTIME_EXECUTION_NOT_MUTATED"
+}

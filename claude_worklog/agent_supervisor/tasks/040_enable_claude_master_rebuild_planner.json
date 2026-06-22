@@ -1,28 +1,22 @@
 {
-  "task_id": "040_enable_claude_master_rebuild_planner",
   "agent": "system_check",
-  "risk_level": "L2",
-  "status": "pending",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": false,
   "allowed_output_prefixes": [
     "claude_worklog/autonomous_control_plane/"
   ],
+  "command": "python3 claude_worklog/tools/claude_master_rebuild_planner.py --dry-run",
+  "completed_at": "2026-05-11T20:35:14.773620+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": false,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_recommended_action": "Use --run-once only after service-map Codex review passes.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/autonomous_control_plane/06_CLAUDE_MASTER_REBUILD_PLANNER.md",
     "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt"
   ],
-  "command": "python3 claude_worklog/tools/claude_master_rebuild_planner.py --dry-run",
+  "resolved_from_source_truth": true,
+  "risk_level": "L2",
   "safety_boundary": {
-    "forbidden_writes": [
-      "../AI BOT/**",
-      "/home/wali/Desktop/AI BOT/**",
-      "**/.env",
-      "**/secrets/**",
-      "claude_worklog/agent_supervisor/state/**",
-      "claude_worklog/agent_supervisor/status/**",
-      "claude_worklog/agent_supervisor/runs/**"
-    ],
     "forbidden_runtime_actions": [
       "write_legacy_redis",
       "delete_redis_keys",
@@ -32,8 +26,23 @@
       "deploy",
       "production_migration"
     ],
-    "live_trading_default": "BLOCKED",
-    "legacy_bot_access": "READ_ONLY"
+    "forbidden_writes": [
+      "../AI BOT/**",
+      "/home/wali/Desktop/AI BOT/**",
+      "**/.env",
+      "**/secrets/**",
+      "claude_worklog/agent_supervisor/state/**",
+      "claude_worklog/agent_supervisor/status/**",
+      "claude_worklog/agent_supervisor/runs/**"
+    ],
+    "legacy_bot_access": "READ_ONLY",
+    "live_trading_default": "BLOCKED"
   },
-  "next_recommended_action": "Use --run-once only after service-map Codex review passes."
+  "source_truth_completed_at": "2026-05-11T20:35:14.773620+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/040_enable_claude_master_rebuild_planner.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "040_enable_claude_master_rebuild_planner",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

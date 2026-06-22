@@ -1,0 +1,32 @@
+{
+  "codex_pair_task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator",
+  "completed_at": "2026-05-24T21:11:03Z",
+  "created_at": "2026-05-24T21:07:00Z",
+  "fail_blockers": [
+    "1. Appends the current ``v2:market:prices:{symbol}`` snapshot to a",
+    "1. **`decision_comparator/service.py`** \u2014 add two optional kwargs `replay_status` and `legacy_reference_metadata`, produce two new sub-blocks on each comparison (`replay_evidence_match`, `legacy_reference_metadata_match`) with exact evidence pointers (file paths + dotted keys), tag legacy-reference data with `data_role: \"reference_only\"` and a \"not current truth\" note, and aggregate a top-level `mismatches[]` array with `{kind, observed, expected, evidence_pointer, severity, note}`. Add disagree",
+    "blockers = as_list(nested_get(canary, \"blockers\")) + as_list(paper_exec_status.get(\"paper_filter_blockers\"))"
+  ],
+  "file_lock_group": "v2_decision_match_runtime_replay_comparator",
+  "lease_id": "d816b890c8ed4fe2904a06e1ca88b27b",
+  "next_action": "Remediate the safe V2-side fail blockers listed in fail_blockers. Do not touch legacy. Do not call exchange mutation. Keep live_gate=blocked_human_only and live_symbols=[].",
+  "owner": "CLAUDE",
+  "pid_or_job_id": 1573127,
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "started_at": "2026-05-24T21:07:03Z",
+  "status": "completed",
+  "task_id": "closed_loop_remediation_codex_review_autoseed_decision_match_runtime_replay_comparator",
+  "task_type": "REMEDIATION",
+  "updated_at": "2026-05-24T21:11:03Z",
+  "worker_id": "claude-3"
+}

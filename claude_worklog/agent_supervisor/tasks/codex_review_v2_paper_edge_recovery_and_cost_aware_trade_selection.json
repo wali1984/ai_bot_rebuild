@@ -3,6 +3,7 @@
   "allowed_output_prefixes": [
     "claude_worklog/final_readiness/paper_edge_recovery/latest/codex_review/"
   ],
+  "completed_at": "2026-05-15T05:03:38.900015+00:00",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "depends_on": [
     "claude_v2_paper_edge_recovery_and_cost_aware_trade_selection"
@@ -12,13 +13,21 @@
   "live_gate": "blocked_human_only",
   "managed_by": "codex_legacy_shutdown_readiness_takeover",
   "max_attempts": 1,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
   "prompt": "You are Codex running the paper-edge recovery and cost-aware trade-selection review. Review Claude outputs, V2 source/tests, paper loss attribution, paper post-filter observation, paper runtime/shadow payloads, and current shutdown controller state. Do not modify source files. Do not mutate legacy, old Redis, exchange state, leverage, margin mode, or live trading. Keep live_gate=blocked_human_only and live_symbols=[].\n\nFail if confidence alone can allow a fill; expected_move_after_cost_bps missing can allow a fill; trainer source missing can allow a fill; feature freshness missing can allow a fill; symbol not in paper_symbols can allow a fill; old Redis write appears; exchange mutation appears; live gate changes; live_symbols is not []; paper edge is marked proven with zero fills; old pre-filter PnL is hidden; loss report caveats are hidden; legacy protective behaviors are silently dropped; GO_NO_GO.md contains a token outside the allowed set; or positive edge is claimed without positive post-filter net-after-cost fill evidence.\n\nAllowed GO_NO_GO tokens: V2_PAPER_EDGE_RECOVERY_READY_NO_UNSAFE_FILLS_EDGE_PENDING, V2_PAPER_EDGE_RECOVERY_READY_POSITIVE_EDGE_PROVEN, V2_PAPER_EDGE_RECOVERY_BLOCKED_EDGE_NOT_FOUND, V2_PAPER_EDGE_RECOVERY_BLOCKED. Passing review does not approve live, canary, or legacy shutdown.\n\nEmit exactly two BEGIN_FILE blocks:\nBEGIN_FILE: claude_worklog/final_readiness/paper_edge_recovery/latest/codex_review/CODEX_REVIEW.md\n...findings with PASS/FAIL rationale...\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/paper_edge_recovery/latest/codex_review/CODEX_GO_NO_GO.md\nCLAUDE_V2_PAPER_EDGE_RECOVERY_AND_COST_AWARE_TRADE_SELECTION_CODEX_FAIL\nEND_FILE\nUse CLAUDE_V2_PAPER_EDGE_RECOVERY_AND_COST_AWARE_TRADE_SELECTION_CODEX_PASS instead only if every review condition passes.\n",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/final_readiness/paper_edge_recovery/latest/codex_review/CODEX_REVIEW.md",
     "claude_worklog/final_readiness/paper_edge_recovery/latest/codex_review/CODEX_GO_NO_GO.md"
   ],
+  "resolved_from_source_truth": true,
   "risk_level": "L1",
-  "status": "pending",
+  "source_truth_completed_at": "2026-05-15T05:03:38.900015+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/codex_review_v2_paper_edge_recovery_and_cost_aware_trade_selection.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
   "task_id": "codex_review_v2_paper_edge_recovery_and_cost_aware_trade_selection",
-  "task_timeout_seconds": 1200
+  "task_timeout_seconds": 1200,
+  "updated_at": "2026-06-15T19:54:42Z"
 }

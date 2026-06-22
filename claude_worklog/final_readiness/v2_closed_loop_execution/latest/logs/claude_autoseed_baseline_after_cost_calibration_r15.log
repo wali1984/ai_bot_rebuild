@@ -1,0 +1,17 @@
+I'm blocked on file-write permission for `/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/baseline_model.py`. The path is within the `./v2/**` write boundary per CLAUDE.md, but the harness is asking for your explicit approval before each edit. Please approve the write so I can proceed.
+
+While waiting, here is the plan I will execute once approved (so you can preview and redirect):
+
+**Edits to `v2/backend/app/services/native_trainer/baseline_model.py`:**
+1. Add `AfterCostCalibration` dataclass + `_fit_after_cost_calibration(train_rows, model)` doing simple OLS on `(predicted p, after_cost_return_bps)` over V2-owned `ROW_TRAINABLE` rows only; defensively excludes `insufficient_evidence` and `None` after-cost rows; requires `MIN_CALIBRATION_SAMPLES = 16`.
+2. Add `after_cost_calibration: AfterCostCalibration | None = None` to `LogisticModel`, surface in `to_jsonable`.
+3. `train_logistic_model` fits the calibration after weights/bias; new `fit_after_cost_calibration: bool = True` flag.
+4. `build_baseline_prediction` uses calibration when present (clamped ±50 bps), else falls back to the existing static `−7 bps`. `model_readiness="NOT_PRODUCTION_READY"`, `paper_fill_allowed=False`, `live_gate=blocked_human_only`, `live_symbols=[]` remain unchanged.
+5. Extend `BaselineMetrics` with four false-negative separation fields (counts + avoided-vs-realized after-cost + separation delta) computed in `_evaluate_strategy`, propagated to `to_jsonable` + the markdown report.
+
+**Edits to `v2/backend/tests/integration/cli/test_v2_native_trainer_dataset_and_baseline_model.py`:**
+- Tests for: calibration fits on TRAINABLE-only rows; calibration excludes `insufficient_evidence`; emitted `expected_move_after_cost_bps` differs from the static formula when calibration is fit; safety pins still pass `is_baseline_prediction_publishable`; false-negative separation metric populated correctly.
+
+**New file `claude_worklog/final_readiness/v2_autonomous_mission_backlog/per_task/baseline_after_cost_calibration/IMPLEMENTATION_REPORT.md`** with the standard format (GO/NO-GO marker, exact source, change summary, validation, safety pins).
+
+Approve the write and I'll execute.

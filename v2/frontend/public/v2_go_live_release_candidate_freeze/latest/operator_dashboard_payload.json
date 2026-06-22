@@ -1,0 +1,21 @@
+{
+  "available_margin": 0.0,
+  "checks_passed": 17,
+  "checks_total": 17,
+  "completion_window_elapsed_seconds": 8571,
+  "critical_blocker_count": 0,
+  "gate": "V2_GO_LIVE_RELEASE_CANDIDATE_FREEZE_READY",
+  "generated_utc": "2026-06-12T20:26:49Z",
+  "live_blocker": "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER",
+  "live_gate": "enabled_operator_approved",
+  "live_status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+  "order_submitted": false,
+  "pending_dependency_count": 2,
+  "release_candidate_freeze_active": true,
+  "required_initial_margin": 64.86,
+  "schema_version": "v2_go_live_release_candidate_operator_dashboard_payload_v1",
+  "soak_complete": false,
+  "soak_status": "PENDING_24H_OBSERVATION",
+  "status": "READY",
+  "trader_state": "LIVE_ARMED_BALANCE_HOLD"
+}

@@ -1,0 +1,12 @@
+[Unit]
+Description=AI BOT V2 live-canary permission-probe timer (every 5min; read-only; NOT enabled by default)
+
+[Timer]
+OnBootSec=60s
+OnUnitActiveSec=300s
+Persistent=true
+AccuracySec=15s
+Unit=ai-bot-v2-live-canary-permission-probe.service
+
+[Install]
+WantedBy=timers.target

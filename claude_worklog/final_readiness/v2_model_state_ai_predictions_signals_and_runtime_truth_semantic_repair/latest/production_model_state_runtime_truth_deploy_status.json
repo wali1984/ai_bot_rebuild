@@ -1,0 +1,25 @@
+{
+  "asset_name": "index-DFuFjcvv.js",
+  "bundle_hash_match": false,
+  "generated_est": "2026-06-14T17:01:47-04:00",
+  "local_bundle_hash": "4939d7330a5f20e2",
+  "payload_age": 0,
+  "production_asset_name": null,
+  "production_bundle_hash": null,
+  "production_failed_routes": [
+    "/admin/monitor-center?role=admin",
+    "/admin/script-registry?role=admin"
+  ],
+  "production_fetch_status": "PRODUCTION_FETCH_UNAVAILABLE:HTTPError",
+  "production_fixed_claimed": false,
+  "route_status": "32/34",
+  "routes": [
+    "https://dashboard.wajidali.us/ai-predictions/model-state",
+    "https://dashboard.wajidali.us/ai-predictions",
+    "https://dashboard.wajidali.us/signals",
+    "https://dashboard.wajidali.us/dashboard",
+    "https://dashboard.wajidali.us/trade"
+  ],
+  "schema_version": "production_model_state_runtime_truth_deploy_status_v1",
+  "semantic_validation_result": "PRODUCTION_MODEL_SIGNAL_ROUTES_SEMANTIC_PASS_WITH_ADMIN_CAVEATS"
+}

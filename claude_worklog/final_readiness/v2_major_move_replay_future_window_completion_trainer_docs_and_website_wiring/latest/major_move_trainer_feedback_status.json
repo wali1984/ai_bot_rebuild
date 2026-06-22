@@ -1,0 +1,107 @@
+{
+  "exit_fields_present": true,
+  "feedback_fields_present": true,
+  "field_presence": {
+    "entry_reason": true,
+    "exit_reason": true,
+    "future_window_label_source": true,
+    "liquidation_context": true,
+    "major_move_signal_id": true,
+    "microstructure_context": true,
+    "oi_funding_context": true,
+    "public_intel_context": true,
+    "realized_pnl_bps": true,
+    "squeeze_evidence_score": true,
+    "strategy_family": true,
+    "strategy_subtype": true
+  },
+  "generated_est": "2026-06-15T21:44:08-04:00",
+  "liquidity_fields_present": true,
+  "microstructure_fields_present": true,
+  "oi_funding_fields_present": true,
+  "public_intel_fields_present": true,
+  "sample_feedback_row": {
+    "action": "long",
+    "drawdown_at_entry": 0.0,
+    "entry_feature_snapshot_id": "feature_snapshot_major_move_schema_probe",
+    "entry_market_state_id": "market_state_major_move_schema_probe",
+    "entry_prediction_id": "prediction_major_move_schema_probe",
+    "entry_price": 100.0,
+    "entry_reason": "paper_only_major_move_candidate",
+    "entry_signal_id": "signal_major_move_schema_probe",
+    "exit_prediction_id": "prediction_major_move_exit_schema_probe",
+    "exit_price": 101.0,
+    "exit_reason": "schema_probe",
+    "exit_signal_id": "signal_major_move_exit_schema_probe",
+    "exit_time": "2026-06-15T10:15:00Z",
+    "feature_snapshot_id": "feature_snapshot_major_move_schema_probe",
+    "feedback_schema_version": "strategy_hedge_exit_feedback_v1",
+    "fill_price_utc": null,
+    "future_window_label_source": "closed_candle_replay_label",
+    "hedge_reason": "NO_HEDGE_CONTEXT",
+    "hedge_state": "NO_HEDGE",
+    "hold_time_seconds": 900,
+    "lineage_backfilled_from_prediction_id": null,
+    "liquidation_context": {
+      "source": "schema_probe"
+    },
+    "liquidation_distance_context": {
+      "source": "schema_probe"
+    },
+    "liquidity_context": {
+      "source": "schema_probe"
+    },
+    "liquidity_zone_context": {
+      "source": "schema_probe"
+    },
+    "major_move_context": {
+      "major_move_signal_id": "major_move_schema_probe",
+      "regime": "correlated_breakout_squeeze",
+      "source": "V2_PAPER_MAJOR_MOVE_CONTEXT",
+      "squeeze_evidence_score": 0.72,
+      "status": "provided"
+    },
+    "major_move_signal_id": "major_move_schema_probe",
+    "market_regime": "correlated_breakout_squeeze",
+    "market_regime_at_entry": "correlated_breakout_squeeze",
+    "market_regime_at_exit": "correlated_breakout_squeeze",
+    "market_state_id": "market_state_major_move_schema_probe",
+    "microstructure_context": {
+      "source": "schema_probe"
+    },
+    "missing_feedback_classifications": [],
+    "missing_feedback_fields": [],
+    "non_critical_quarantine_reason": null,
+    "oi_funding_context": {
+      "source": "schema_probe"
+    },
+    "original_fill_utc": null,
+    "outcome_label_id": "paper_outcome_major_move_schema_probe",
+    "paper_fill_persistence_status": null,
+    "paper_only": true,
+    "places_real_order": false,
+    "position_id": "paper_position_major_move_schema_probe",
+    "prediction_id": "prediction_major_move_schema_probe",
+    "public_intel_context": {
+      "source": "schema_probe"
+    },
+    "quarantine_non_critical": false,
+    "quarantine_reason": "NONE",
+    "realized_pnl": 1.0,
+    "realized_pnl_bps": 42.0,
+    "signal_id": "signal_major_move_schema_probe",
+    "squeeze_evidence_score": 0.72,
+    "strategy_family": "breakout",
+    "strategy_id": "correlated_major_squeeze",
+    "strategy_subtype": "correlated_major_squeeze",
+    "symbol": "BTCUSDT",
+    "timeframe": "1m",
+    "trainer_consumable": true,
+    "trainer_feedback_id": "trainer_feedback_major_move_schema_probe",
+    "trainer_feedback_source": "V2_PAPER_TRADE_MANAGEMENT_CLOSED_TRADE"
+  },
+  "squeeze_fields_present": true,
+  "status": "READY",
+  "strategy_fields_present": true,
+  "trainer_consumable_rows": 1
+}

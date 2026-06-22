@@ -1,9 +1,19 @@
 {
-  "task_id": "002_codex_adversarial_architecture_review",
   "agent": "codex",
-  "risk_level": "L1",
+  "completed_at": "2026-06-15T19:54:42Z",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "prompt": "Run an adversarial architecture review for AI BOT REBUILD using inputs under claude_worklog/v2_architecture, claude_worklog/v2_requirements, and claude_worklog/v2_architecture_review. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not alter service state. Produce a concise verdict and blocker list in plain text suitable for replacing provisional Copilot-generated Codex review.",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
   "next_recommended_action": "Persist validated local Codex output and update GO/NO-GO marker",
-  "normalized_from_artifact": true
+  "normalized_from_artifact": true,
+  "prompt": "Run an adversarial architecture review for AI BOT REBUILD using inputs under claude_worklog/v2_architecture, claude_worklog/v2_requirements, and claude_worklog/v2_architecture_review. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not alter service state. Produce a concise verdict and blocker list in plain text suitable for replacing provisional Copilot-generated Codex review.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-06-15T19:54:42Z",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/002_codex_adversarial_architecture_review.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "002_codex_adversarial_architecture_review",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

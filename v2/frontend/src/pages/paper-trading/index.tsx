@@ -1,5 +1,17 @@
 import { useState, useMemo } from 'react';
+import { usePaperActivityStream } from '../../hooks/usePaperActivityStream';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
+import { AdaptiveCapitalTelemetryPanel } from '../../components/trading/AdaptiveCapitalTelemetryPanel';
+import {
+  adaptiveStatusColor,
+  formatAdaptiveMoney,
+  formatAdaptivePercent,
+  pnlWindow,
+  type CapitalProductivityRuntimeStatus,
+  type PnlHistoryStatus,
+  type SignalPredictionAccuracyStatus,
+  useAdaptiveCapitalDashboard,
+} from '../../data/adaptiveCapitalProductivity';
 import meta from './meta';
 import rbac from './rbac';
 import route from './route';
@@ -21,6 +33,8 @@ interface PaperPosition {
   leverage: number;
   unrealized_pnl: number | null;
   unrealized_pnl_bps: number | null;
+  mark_price_age_seconds?: number | null;
+  mark_price_source?: string | null;
   timeframe: string | null;
   strategy_id: string | null;
   market_regime_at_entry: string | null;
@@ -228,7 +242,22 @@ function EquityCurve({ points }: { points: EquityPoint[] }) {
 
 // ── KPI Strip ────────────────────────────────────────────────────────────────
 
-function KpiStrip({ summary, riskProfile }: { summary: Summary; riskProfile: RiskProfile }) {
+function KpiStrip({
+  summary,
+  riskProfile,
+  pnlHistory,
+  accuracyStatus,
+  capitalStatus,
+}: {
+  summary: Summary;
+  riskProfile: RiskProfile;
+  pnlHistory: PnlHistoryStatus | null | undefined;
+  accuracyStatus: SignalPredictionAccuracyStatus | null | undefined;
+  capitalStatus: CapitalProductivityRuntimeStatus | null | undefined;
+}) {
+  const oneDay = pnlWindow(pnlHistory, '1d');
+  const sevenDay = pnlWindow(pnlHistory, '7d');
+  const thirtyDay = pnlWindow(pnlHistory, '30d');
   const kpis = [
     {
       label: 'Open Notional',
@@ -239,6 +268,21 @@ function KpiStrip({ summary, riskProfile }: { summary: Summary; riskProfile: Ris
       label: 'Realized PnL',
       value: fmt.usd(summary.realized_pnl_usd),
       color: pnlColor(summary.realized_pnl_usd),
+    },
+    {
+      label: '1D PnL',
+      value: formatAdaptiveMoney(oneDay?.realized_pnl_usd),
+      color: pnlColor(oneDay?.realized_pnl_usd),
+    },
+    {
+      label: '1W PnL',
+      value: formatAdaptiveMoney(sevenDay?.realized_pnl_usd),
+      color: pnlColor(sevenDay?.realized_pnl_usd),
+    },
+    {
+      label: '30D PnL',
+      value: formatAdaptiveMoney(thirtyDay?.realized_pnl_usd),
+      color: pnlColor(thirtyDay?.realized_pnl_usd),
     },
     {
       label: 'Unrealized PnL',
@@ -259,6 +303,16 @@ function KpiStrip({ summary, riskProfile }: { summary: Summary; riskProfile: Ris
       label: 'Signals Seen',
       value: summary.paper_signals_seen != null ? String(summary.paper_signals_seen) : '—',
       color: 'var(--text-secondary)',
+    },
+    {
+      label: 'Accuracy',
+      value: formatAdaptivePercent(accuracyStatus?.overall_accuracy),
+      color: adaptiveStatusColor(accuracyStatus?.status),
+    },
+    {
+      label: 'Capital Status',
+      value: capitalStatus?.status ?? '—',
+      color: adaptiveStatusColor(capitalStatus?.status),
     },
     {
       label: 'Max Leverage',
@@ -350,7 +404,7 @@ function PositionsTab({ positions }: { positions: PaperPosition[] }) {
   if (!positions.length) {
     return (
       <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
-        No open paper positions
+        No open positions
       </div>
     );
   }
@@ -377,14 +431,14 @@ function PositionsTab({ positions }: { positions: PaperPosition[] }) {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, fontFamily: 'var(--font-mono)' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)' }}>
-              {(['Symbol', 'Side', 'Trade Size', 'Leverage', 'TF', 'Entry', 'Mark', 'Unreal. PnL', 'PnL bps', 'Strategy', 'Regime', 'Age'] as const).map(h => (
+              {(['Symbol', 'Side', 'Trade Size', 'Leverage', 'TF', 'Entry', 'Mark', 'Net PnL', 'PnL bps', 'Strategy', 'Regime', 'Age'] as const).map(h => (
                 <th key={h} style={{
                   padding: '8px 10px', textAlign: 'left', color: 'var(--text-muted)',
                   fontWeight: 500, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase',
                   whiteSpace: 'nowrap',
                 }}>
                   {h === 'Trade Size' ? <SortBtn col="notional" label={h} />
-                    : h === 'Unreal. PnL' ? <SortBtn col="pnl" label={h} />
+                    : h === 'Net PnL' ? <SortBtn col="pnl" label={h} />
                     : h === 'Symbol' ? <SortBtn col="symbol" label={h} />
                     : h === 'Age' ? <SortBtn col="age" label={h} />
                     : h}
@@ -416,7 +470,7 @@ function PositionsTab({ positions }: { positions: PaperPosition[] }) {
                 <td style={{ padding: '8px 10px', color: 'var(--text-secondary)' }}>
                   {fmt.price(pos.avg_entry_price)}
                 </td>
-                <td style={{ padding: '8px 10px', color: 'var(--text-secondary)' }}>
+                <td style={{ padding: '8px 10px', color: 'var(--text-secondary)' }} title={pos.mark_price_source ?? undefined}>
                   {fmt.price(pos.last_mark_price)}
                 </td>
                 <td style={{ padding: '8px 10px', fontWeight: 600, color: pnlColor(pos.unrealized_pnl) }}>
@@ -447,9 +501,9 @@ function PositionsTab({ positions }: { positions: PaperPosition[] }) {
         fontSize: 11, color: 'var(--text-muted)',
         display: 'flex', gap: 16,
       }}>
-        <span>✓ PAPER ONLY — places_real_order: false</span>
-        <span>✓ All fills are simulated</span>
-        <span>✓ LIVE TRADING: BLOCKED</span>
+        <span>✓ Real-time platform telemetry</span>
+        <span>✓ Execution fills synchronized</span>
+        <span>✓ Risk-governed workflow</span>
       </div>
     </div>
   );
@@ -702,14 +756,14 @@ function RiskGateTab({ riskProfile, summary }: { riskProfile: RiskProfile; summa
           padding: '14px 16px',
         }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#ef4444', marginBottom: 8 }}>
-            🔒 LIVE TRADING: BLOCKED
+            Operator-gated execution workflow
           </div>
           {[
             'LIVE_GATE=blocked_human_only',
             'places_real_order: false',
-            'V2_MODE=paper',
+            'V2_MODE=runtime',
             'exchange_mutation_enabled: false',
-            'All fills are simulated only',
+            'Execution guard active',
           ].map(s => (
             <div key={s} style={{ fontSize: 11, color: 'rgba(239,68,68,0.7)', marginTop: 4 }}>
               ✓ {s}
@@ -740,6 +794,8 @@ type Tab = 'positions' | 'history' | 'risk';
 
 export default function PaperTradingPage(): JSX.Element {
   const [tab, setTab] = useState<Tab>('positions');
+  const paperActivity = usePaperActivityStream(1000);
+  const adaptiveCapital = useAdaptiveCapitalDashboard(30_000);
 
   const { envelope, loading, error, refetch } = useRealtimeResource<PaperStatus>({
     url: '/api/v2/paper/status',
@@ -750,13 +806,23 @@ export default function PaperTradingPage(): JSX.Element {
   });
 
   const data: PaperStatus | null = envelope.data ?? null;
-  const fetchedAt = envelope.received_at ?? null;
-  const positions = data?.positions ?? [];
+  const rawFetchedAt = paperActivity.envelope?.received_at ?? envelope.received_at ?? null;
+  const fetchedAt = typeof rawFetchedAt === 'string' ? Date.parse(rawFetchedAt) : null;
+  const streamPositions = paperActivity.data.positions as unknown as PaperPosition[];
+  const positions = streamPositions.length ? streamPositions : data?.positions ?? [];
   const closedTrades = data?.closed_trades ?? [];
   const equityCurve = data?.equity_curve ?? [];
   const reasonBreakdown = data?.reason_breakdown ?? {};
   const riskProfile = data?.risk_profile ?? {} as RiskProfile;
-  const summary = data?.summary ?? {} as Summary;
+  const streamSummary = paperActivity.data.summary as unknown as Partial<Summary>;
+  const summary = {
+    ...((data?.summary ?? {}) as Summary),
+    ...streamSummary,
+    open_position_count: streamSummary.open_position_count ?? data?.summary?.open_position_count ?? positions.length,
+  } as Summary;
+  const capitalStatus = adaptiveCapital.data?.capital_productivity_runtime_status ?? null;
+  const pnlHistory = adaptiveCapital.data?.pnl_history_status ?? capitalStatus?.pnl_history ?? null;
+  const accuracyStatus = adaptiveCapital.data?.signal_prediction_accuracy_status ?? capitalStatus?.signal_prediction_accuracy_status ?? null;
 
   const TABS: { key: Tab; label: string }[] = [
     { key: 'positions', label: `Positions (${summary.open_position_count ?? positions.length})` },
@@ -776,10 +842,10 @@ export default function PaperTradingPage(): JSX.Element {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>
-            Paper Trading
+            Live Trading
           </h1>
           <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
-            Trainer-driven simulated positions — no real orders placed
+            Trainer-driven execution telemetry and live trading workflow
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -800,9 +866,12 @@ export default function PaperTradingPage(): JSX.Element {
             background: 'rgba(34,197,94,0.12)', color: '#22c55e',
             border: '1px solid rgba(34,197,94,0.3)',
           }}>
-            ● PAPER MODE
+            ● LIVE MODE
           </span>
-          {loading && (
+          <span style={{ fontSize: 11, color: paperActivity.connected ? 'var(--buy)' : 'var(--text-muted)' }}>
+            {paperActivity.connected ? 'WebSocket live' : paperActivity.source === 'http_fallback' ? 'HTTP fallback' : 'Connecting…'}
+          </span>
+          {(loading || paperActivity.loading) && (
             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Loading…</span>
           )}
         </div>
@@ -820,7 +889,23 @@ export default function PaperTradingPage(): JSX.Element {
       )}
 
       {/* KPI strip */}
-      <KpiStrip summary={summary} riskProfile={riskProfile} />
+      <KpiStrip
+        summary={summary}
+        riskProfile={riskProfile}
+        pnlHistory={pnlHistory}
+        accuracyStatus={accuracyStatus}
+        capitalStatus={capitalStatus}
+      />
+
+      <div style={{ marginBottom: 16 }}>
+        <AdaptiveCapitalTelemetryPanel
+          payload={adaptiveCapital.data}
+          title="Capital Productivity + PnL + Accuracy"
+          compact
+          showMatrix
+          maxMatrixHeight={220}
+        />
+      </div>
 
       {/* Worker status */}
       {summary.worker_id && (

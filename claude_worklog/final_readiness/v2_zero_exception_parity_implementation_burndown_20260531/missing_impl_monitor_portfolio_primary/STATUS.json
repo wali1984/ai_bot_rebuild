@@ -1,0 +1,32 @@
+{
+  "claim": "Portfolio monitor surface is implemented as V2 paper-only portfolio state plus trader runtime state composition.",
+  "completed_by": "codex_takeover",
+  "confidence": "MEDIUM_HIGH",
+  "files_modified": [
+    "v2/backend/app/cli/v2_portfolio_state_publisher.py",
+    "v2/backend/app/composition/trader_runtime_state.py"
+  ],
+  "generated_est": "2026-06-03T22:44:59-04:00",
+  "generated_utc": "2026-06-04T02:44:59Z",
+  "implementation_marker": "V2_ZERO_EXCEPTION_PARITY_MISSING_IMPL_MONITOR_PORTFOLIO_PRIMARY_CODEX_TAKEOVER_DONE",
+  "live_safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "exchange_action_taken": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "places_real_order": false,
+    "trader_execution_enabled": false,
+    "writes_exchange_orders": false,
+    "writes_legacy_redis": false
+  },
+  "milestone": "v2_zero_exception_parity_implementation_burndown_20260531",
+  "missing_evidence": "Telegram/live account alerting is not enabled; this is paper/runtime status only.",
+  "raw_evidence": "v2:portfolio:state is fresh; portfolio payload classification PORTFOLIO_STATE_OK with trader_execution_enabled=false; v2_trader_runtime_state_status.json emitted.",
+  "schema_version": "zero_exception_task_status_v1",
+  "status": "DONE_VERIFIED",
+  "task_slug": "missing_impl_monitor_portfolio_primary",
+  "verification_command": "python -m v2.backend.app.cli.v2_portfolio_state_publisher --once"
+}

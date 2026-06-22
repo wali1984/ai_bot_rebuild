@@ -1,0 +1,11 @@
+[Unit]
+Description=Run AI Bot V2 market-state integrity monitor every 30 seconds
+
+[Timer]
+OnBootSec=30
+OnUnitActiveSec=30
+AccuracySec=5
+Unit=ai-bot-v2-market-state-integrity-monitor.service
+
+[Install]
+WantedBy=timers.target

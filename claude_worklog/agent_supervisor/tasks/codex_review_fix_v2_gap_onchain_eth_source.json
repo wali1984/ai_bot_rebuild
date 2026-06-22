@@ -1,0 +1,19 @@
+{
+  "created_utc": "2026-05-17T19:42:48Z",
+  "fail_conditions": [
+    "approve loading legacy pickle into V2 process",
+    "approve any live or canary or shutdown or redis trim action",
+    "approve broad audit loop",
+    "claim policy architecture port complete",
+    "claim checkpoint compatibility",
+    "approve zero-fill of missing observation dimensions",
+    "approve creating paper-only shutdown acceptance file"
+  ],
+  "family_id": "onchain_eth",
+  "gap_id": "full_observation_source_onchain_eth",
+  "kind": "codex_review",
+  "paired_claude_task_id": "claude_fix_v2_gap_onchain_eth_source",
+  "severity": "OPERATOR_DECISION_REQUIRED",
+  "task_id": "codex_review_fix_v2_gap_onchain_eth_source",
+  "updated_utc": "2026-05-17T19:42:56Z"
+}

@@ -1,0 +1,25 @@
+{
+  "aggregate_dim_count": 12,
+  "blocked_on": "v2:market:liquidations:latest:{symbol} and v2:market:liquidations:aggregate:{symbol} require a V2-owned Binance WSS forceOrder publisher",
+  "category": "V2_EVENT_DEPENDENT_LIQUIDATION_WSS",
+  "field_groups": [
+    {
+      "dim_count": 3,
+      "name": "liquidations.latest_liquidation_notional"
+    },
+    {
+      "dim_count": 3,
+      "name": "liquidations.latest_liquidation_side_long"
+    },
+    {
+      "dim_count": 3,
+      "name": "liquidations.latest_liquidation_side_short"
+    },
+    {
+      "dim_count": 3,
+      "name": "liquidations.liquidation_notional_1h_proxy"
+    }
+  ],
+  "generated_utc": "2026-05-23T02:22:09Z",
+  "schema_version": "v2_full_observation_event_dependent_fields_v1"
+}

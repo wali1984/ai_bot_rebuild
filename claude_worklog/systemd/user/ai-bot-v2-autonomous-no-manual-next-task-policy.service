@@ -1,0 +1,21 @@
+[Unit]
+Description=AI Bot V2 autonomous no-manual next-task policy
+ConditionPathExists=/home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools/v2_autonomous_no_manual_next_task_policy.py
+After=default.target ai-bot-v2-report-center-indexer.service ai-bot-v2-closed-loop-worker-pool.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment=PYTHONUNBUFFERED=1
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools"
+Environment="LIVE_GATE=blocked_human_only"
+ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python" "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools/v2_autonomous_no_manual_next_task_policy.py" --json'
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=false
+
+[Install]
+WantedBy=default.target

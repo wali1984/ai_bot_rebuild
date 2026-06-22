@@ -1,0 +1,38 @@
+{
+  "schema_version": "v2_post_hoc_replay_outcome_miner_timer_operator_dashboard_v1",
+  "generated_utc": "2026-05-23T06:24:52Z",
+  "go_no_go": "V2_POST_HOC_REPLAY_OUTCOME_MINER_TIMER_READY",
+  "timer_active": true,
+  "timer_enabled": true,
+  "timer_unit": "ai-bot-v2-post-hoc-replay-outcome-miner.timer",
+  "service_unit": "ai-bot-v2-post-hoc-replay-outcome-miner.service",
+  "timer_period_seconds": 60,
+  "service_last_result": "success",
+  "service_last_exec_status": 0,
+  "last_observed_trigger_local": "2026-05-23 02:22:05 EDT",
+  "miner_verdict": "EDGE_NOT_CLAIMED_OPERATOR_THRESHOLDS_REQUIRED",
+  "bundles_total_latest_observed": 18,
+  "bundles_total_install_snapshot": 14,
+  "label_counts": {
+    "insufficient_evidence": 18
+  },
+  "windows_filled": {
+    "15m": 0,
+    "1h": 0,
+    "1m": 1,
+    "5m": 0
+  },
+  "no_fabricated_outcomes": true,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false,
+  "required_visible_text": [
+    "Live trading is blocked.",
+    "Legacy shutdown is blocked.",
+    "Recovery requires proof of edge before scaling.",
+    "READY means timer exists and is active. READY does not mean edge proven."
+  ]
+}

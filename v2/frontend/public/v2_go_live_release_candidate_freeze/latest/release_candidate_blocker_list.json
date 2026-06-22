@@ -1,0 +1,26 @@
+{
+  "critical_blockers": [],
+  "gate": "V2_GO_LIVE_RELEASE_CANDIDATE_FREEZE_READY",
+  "generated_utc": "2026-06-12T20:26:49Z",
+  "pending_dependencies_not_release_candidate_blockers": [
+    {
+      "completion_window_elapsed_seconds": 8571,
+      "name": "adaptive_allocation_trade_lifecycle_24h_paper_soak",
+      "note": "Pass 2 remains pending and must complete before live readiness can advance.",
+      "required_seconds": 86400,
+      "soak_24h_complete": false,
+      "status": "PENDING_24H_OBSERVATION"
+    },
+    {
+      "available_margin": 0.0,
+      "blocker": "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER",
+      "name": "live_account_margin",
+      "note": "Pass 3 remains balance-held until available margin is sufficient.",
+      "required_initial_margin": 64.86,
+      "status": "LIVE_READY_BALANCE_HELD_NO_ACTION",
+      "wallet_balance": 1e-08
+    }
+  ],
+  "schema_version": "v2_go_live_release_candidate_blocker_list_v1",
+  "status": "READY"
+}

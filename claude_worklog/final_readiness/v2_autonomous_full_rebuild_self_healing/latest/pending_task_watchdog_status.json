@@ -1,0 +1,184 @@
+{
+  "actions": [],
+  "allow_redispatch": false,
+  "field_group_duplicates": {},
+  "generated_utc": "2026-06-22T00:28:53Z",
+  "pending_claude_count": 0,
+  "pending_codex_count": 18,
+  "safety": {
+    "did_not_call_exchange": true,
+    "did_not_delete_tasks": true,
+    "did_not_restart_agent": true,
+    "did_not_touch_legacy": true,
+    "did_not_write_redis": true
+  },
+  "schema_version": "v2_autonomous_full_rebuild_self_healing_pending_task_watchdog_v1",
+  "stale_claude_count": 0,
+  "stale_claude_tasks": [],
+  "stale_codex_count": 18,
+  "stale_codex_tasks": [
+    {
+      "age_seconds": 1453193.6011469364,
+      "dispatch_attempt_count": 0,
+      "last_dispatch_attempt_utc": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_cuda_live_gate_single_pass_edge_recompute_missing_r1.json",
+      "stale": true,
+      "status": "pending",
+      "task_id": "codex_review_autoseed_cuda_live_gate_single_pass_edge_recompute_missing_r1"
+    },
+    {
+      "age_seconds": 1453231.3283028603,
+      "dispatch_attempt_count": 0,
+      "last_dispatch_attempt_utc": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_autoseed_cuda_live_gate_single_pass_gpu_utilization_r1.json",
+      "stale": true,
+      "status": "pending",
+      "task_id": "codex_review_autoseed_cuda_live_gate_single_pass_gpu_utilization_r1"
+    },
+    {
+      "age_seconds": 551993.6711292267,
+      "dispatch_attempt_count": 0,
+      "last_dispatch_attempt_utc": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_legacy_rl_risk_trainer_trader_closure.json",
+      "stale": true,
+      "status": "pending",
+      "task_id": "codex_review_legacy_rl_risk_trainer_trader_closure"
+    },
+    {
+      "age_seconds": 551993.6711924076,
+      "dispatch_attempt_count": 0,
+      "last_dispatch_attempt_utc": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_legacy_startup_baseline_v2_migration.json",
+      "stale": true,
+      "status": "pending",
+      "task_id": "codex_review_legacy_startup_baseline_v2_migration"
+    },
+    {
+      "age_seconds": 551993.6702759266,
+      "dispatch_attempt_count": 0,
+      "last_dispatch_attempt_utc": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_parallel_trading_platform_consumer_ui.json",
+      "stale": true,
+      "status": "pending",
+      "task_id": "codex_review_parallel_trading_platform_consumer_ui"
+    },
+    {
+      "age_seconds": 551993.6703119278,
+      "dispatch_attempt_count": 0,
+      "last_dispatch_attempt_utc": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_public_payload_freshness_shutdown_readiness.json",
+      "stale": true,
+      "status": "pending",
+      "task_id": "codex_review_public_payload_freshness_shutdown_readiness"
+    },
+    {
+      "age_seconds": 551993.6703982353,
+      "dispatch_attempt_count": 0,
+      "last_dispatch_attempt_utc": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_v2_coinank_liquidation_bridge.json",
+      "stale": true,
+      "status": "pending",
+      "task_id": "codex_review_v2_coinank_liquidation_bridge"
+    },
+    {
+      "age_seconds": 551993.6704330444,
+      "dispatch_attempt_count": 0,
+      "last_dispatch_attempt_utc": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_v2_config_admin_manager.json",
+      "stale": true,
+      "status": "pending",
+      "task_id": "codex_review_v2_config_admin_manager"
+    },
+    {
+      "age_seconds": 551993.6705083847,
+      "dispatch_attempt_count": 0,
+      "last_dispatch_attempt_utc": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_v2_feature_snapshot_builder.json",
+      "stale": true,
+      "status": "pending",
+      "task_id": "codex_review_v2_feature_snapshot_builder"
+    },
+    {
+      "age_seconds": 551993.6705429554,
+      "dispatch_attempt_count": 0,
+      "last_dispatch_attempt_utc": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_v2_feature_snapshot_builder_legacy_backfill.json",
+      "stale": true,
+      "status": "pending",
+      "task_id": "codex_review_v2_feature_snapshot_builder_legacy_backfill"
+    },
+    {
+      "age_seconds": 551993.6705777645,
+      "dispatch_attempt_count": 0,
+      "last_dispatch_attempt_utc": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_v2_market_ingestor.json",
+      "stale": true,
+      "status": "pending",
+      "task_id": "codex_review_v2_market_ingestor"
+    },
+    {
+      "age_seconds": 551993.6706762314,
+      "dispatch_attempt_count": 0,
+      "last_dispatch_attempt_utc": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_v2_p2_deployment_helpers.json",
+      "stale": true,
+      "status": "pending",
+      "task_id": "codex_review_v2_p2_deployment_helpers"
+    },
+    {
+      "age_seconds": 551993.6707334518,
+      "dispatch_attempt_count": 0,
+      "last_dispatch_attempt_utc": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_v2_persistent_automation_service_layer.json",
+      "stale": true,
+      "status": "pending",
+      "task_id": "codex_review_v2_persistent_automation_service_layer"
+    },
+    {
+      "age_seconds": 551993.6707496643,
+      "dispatch_attempt_count": 0,
+      "last_dispatch_attempt_utc": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_v2_script_monitor.json",
+      "stale": true,
+      "status": "pending",
+      "task_id": "codex_review_v2_script_monitor"
+    },
+    {
+      "age_seconds": 551993.6707987785,
+      "dispatch_attempt_count": 0,
+      "last_dispatch_attempt_utc": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_v2_signal_publisher.json",
+      "stale": true,
+      "status": "pending",
+      "task_id": "codex_review_v2_signal_publisher"
+    },
+    {
+      "age_seconds": 551993.6708316803,
+      "dispatch_attempt_count": 0,
+      "last_dispatch_attempt_utc": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_v2_signal_publisher_legacy_schema_parity.json",
+      "stale": true,
+      "status": "pending",
+      "task_id": "codex_review_v2_signal_publisher_legacy_schema_parity"
+    },
+    {
+      "age_seconds": 551993.6708669662,
+      "dispatch_attempt_count": 0,
+      "last_dispatch_attempt_utc": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_v2_trainer_bridge.json",
+      "stale": true,
+      "status": "pending",
+      "task_id": "codex_review_v2_trainer_bridge"
+    },
+    {
+      "age_seconds": 551993.6709303856,
+      "dispatch_attempt_count": 0,
+      "last_dispatch_attempt_utc": null,
+      "path": "claude_worklog/agent_supervisor/tasks/codex_review_v2_worker_porting_orchestrator.json",
+      "stale": true,
+      "status": "pending",
+      "task_id": "codex_review_v2_worker_porting_orchestrator"
+    }
+  ],
+  "stale_seconds_threshold": 300
+}

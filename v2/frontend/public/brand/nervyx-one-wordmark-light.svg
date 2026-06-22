@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="120" viewBox="0 0 640 120">
+  <text x="10" y="79" font-family="Inter, Arial, sans-serif" font-size="72" font-weight="800" letter-spacing="2.2"><tspan fill="#101522">NERVY</tspan><tspan fill="#22D3C5">X</tspan></text>
+  <g transform="translate(350 31)">
+    <rect x="0" y="0" width="118" height="56" rx="18" fill="#101522"/>
+    <text x="59" y="38" text-anchor="middle" fill="#F6F7FB" font-family="Inter, Arial, sans-serif" font-size="28" font-weight="800" letter-spacing="4">ONE</text>
+  </g>
+</svg>

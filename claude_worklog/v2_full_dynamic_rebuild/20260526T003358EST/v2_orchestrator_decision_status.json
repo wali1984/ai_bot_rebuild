@@ -1,0 +1,18 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "active": true,
+  "active_unit": "ai-bot-v2-orchestrator-arbitration-loop.service",
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "go_no_go": "V2_ORCHESTRATOR_DECISION_STATUS_READY",
+  "live_symbols": [],
+  "newest_operator_runtime_payload": "v2/frontend/public/operator_runtime/v2_feature_pipeline_and_ta_worker/latest/v2_feature_pipeline_and_ta_worker_status.json",
+  "newest_operator_runtime_payload_age_seconds": 4,
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "ts_est": "20260526T003358EST",
+  "ts_iso_est": "2026-05-26T00:49:14-0400",
+  "v2_orchestrator_keys_now": 3,
+  "writes_exchange_orders": false
+}

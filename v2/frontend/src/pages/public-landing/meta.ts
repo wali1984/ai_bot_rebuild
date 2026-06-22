@@ -1,9 +1,9 @@
 import type { PageMeta } from '../../types/page';
 const meta: PageMeta = {
   id: 'public-landing',
-  title: 'AI BOT V2',
+  title: 'NERVYX ONE',
   surface: 'public',
-  description: 'Public landing. Marketing only; no controls; no internal IDs.',
+  description: 'Adaptive Market Intelligence public landing. Marketing only; no controls; no internal IDs.',
   navCategory: 'public',
   dangerousControlIds: [],
 };

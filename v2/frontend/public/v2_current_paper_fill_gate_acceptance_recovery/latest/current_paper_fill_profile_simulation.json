@@ -1,0 +1,615 @@
+{
+  "generated_est": "2026-06-09T15:07:21-04:00",
+  "generated_utc": "2026-06-09T19:07:21Z",
+  "live_affected": false,
+  "profile_applied": false,
+  "profiles": [
+    {
+      "accepted_count": 0,
+      "by_symbol_accepted_count": {},
+      "drawdown_estimate": "NOT_COMPUTED_NO_ACCEPTED_SAMPLE",
+      "expected_after_cost_bps": null,
+      "false_negative_recovery": 0,
+      "false_positive_risk": "UNKNOWN_NO_ACCEPTED_SAMPLE",
+      "held_count": 116,
+      "held_reasons_sample": [
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "JSTUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "TONUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "ASTERUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "EPICUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "BCHUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "1000BONKUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "ADAUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "SUIUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "JTOUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "HEIUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "MONUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "ZROUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "PENDLEUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "MINAUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "AUCTIONUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "XLMUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "1INCHUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "SUNUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "AVAXUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "TRXUSDT"
+        }
+      ],
+      "profile_name": "current_profile"
+    },
+    {
+      "accepted_count": 0,
+      "by_symbol_accepted_count": {},
+      "drawdown_estimate": "NOT_COMPUTED_NO_ACCEPTED_SAMPLE",
+      "expected_after_cost_bps": null,
+      "false_negative_recovery": 0,
+      "false_positive_risk": "UNKNOWN_NO_ACCEPTED_SAMPLE",
+      "held_count": 116,
+      "held_reasons_sample": [
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "JSTUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "TONUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "ASTERUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "EPICUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "BCHUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "1000BONKUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "ADAUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "SUIUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "JTOUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "HEIUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "MONUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "ZROUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "PENDLEUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "MINAUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "AUCTIONUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "XLMUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "1INCHUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "SUNUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "AVAXUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "TRXUSDT"
+        }
+      ],
+      "profile_name": "conservative_paper_profile"
+    },
+    {
+      "accepted_count": 0,
+      "by_symbol_accepted_count": {},
+      "drawdown_estimate": "NOT_COMPUTED_NO_ACCEPTED_SAMPLE",
+      "expected_after_cost_bps": null,
+      "false_negative_recovery": 0,
+      "false_positive_risk": "UNKNOWN_NO_ACCEPTED_SAMPLE",
+      "held_count": 116,
+      "held_reasons_sample": [
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "JSTUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "TONUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "ASTERUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "EPICUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile"
+          ],
+          "symbol": "BCHUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "1000BONKUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "ADAUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "SUIUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "JTOUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "HEIUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "MONUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "ZROUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "PENDLEUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "MINAUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "AUCTIONUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "XLMUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "1INCHUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "SUNUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "AVAXUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "TRXUSDT"
+        }
+      ],
+      "profile_name": "balanced_paper_profile"
+    },
+    {
+      "accepted_count": 0,
+      "by_symbol_accepted_count": {},
+      "drawdown_estimate": "NOT_COMPUTED_NO_ACCEPTED_SAMPLE",
+      "expected_after_cost_bps": null,
+      "false_negative_recovery": 0,
+      "false_positive_risk": "UNKNOWN_NO_ACCEPTED_SAMPLE",
+      "held_count": 116,
+      "held_reasons_sample": [
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "JSTUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "TONUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "ASTERUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "EPICUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile"
+          ],
+          "symbol": "BCHUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "1000BONKUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "ADAUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "SUIUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "JTOUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "HEIUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "MONUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "ZROUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "PENDLEUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "MINAUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "AUCTIONUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "XLMUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "1INCHUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "SUNUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "AVAXUSDT"
+        },
+        {
+          "reasons": [
+            "expected_move_below_profile",
+            "confidence_below_profile"
+          ],
+          "symbol": "TRXUSDT"
+        }
+      ],
+      "profile_name": "actionability_recovery_profile"
+    }
+  ],
+  "schema_version": "current_paper_fill_profile_simulation_v1"
+}

@@ -1,0 +1,10 @@
+{
+  "alive": true,
+  "cmd": [
+    "/home/wali/.local/bin/claude",
+    "..."
+  ],
+  "pid": 31105,
+  "task_id": "claude_fix_v2_gap_trainer_missing_checkpoint_weight_shape_contract",
+  "updated_at": "2026-05-26T17:45:15Z"
+}

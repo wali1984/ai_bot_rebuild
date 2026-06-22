@@ -1,0 +1,24 @@
+[Unit]
+Description=AI BOT V2 Closed-Loop Spark Metrics Exporter
+
+[Service]
+Type=notify
+NotifyAccess=main
+WatchdogSec=45s
+Restart=always
+RestartSec=5s
+StateDirectory=ai-bot-v2/closed-loop
+RuntimeDirectory=ai-bot-v2/closed-loop
+Environment=PYTHONUNBUFFERED=1
+NoNewPrivileges=yes
+PrivateTmp=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ProtectSystem=strict
+ProtectHome=read-only
+Environment="PYTHONPATH=%h/Desktop/AI BOT REBUILD:%h/Desktop/AI BOT REBUILD/claude_worklog/tools"
+ExecStart="%h/Desktop/AI BOT REBUILD/.venv/bin/python3" "%h/Desktop/AI BOT REBUILD/v2/backend/app/closed_loop/services/metrics.py" --db-path=%S/leases.db --host=127.0.0.1 --port=8123
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=ai-bot-v2-closed-loop.target

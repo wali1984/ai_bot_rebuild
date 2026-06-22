@@ -1,0 +1,82 @@
+{
+  "all_top_level_imports_unique": [
+    "__future__",
+    "argparse",
+    "dataclasses",
+    "datetime",
+    "json",
+    "math",
+    "pathlib",
+    "pytest",
+    "subprocess",
+    "sys",
+    "typing",
+    "v2"
+  ],
+  "approves_live": false,
+  "external_dependencies": [],
+  "files_scanned": [
+    {
+      "imports": [
+        "__future__",
+        "dataclasses",
+        "datetime",
+        "math",
+        "typing"
+      ],
+      "loc": 213,
+      "path": "v2/backend/app/services/rl_core/environment.py"
+    },
+    {
+      "imports": [
+        "__future__",
+        "dataclasses",
+        "json",
+        "pathlib",
+        "typing"
+      ],
+      "loc": 164,
+      "path": "v2/backend/app/services/rl_core/observation_builder.py"
+    },
+    {
+      "imports": [
+        "__future__",
+        "dataclasses",
+        "math"
+      ],
+      "loc": 186,
+      "path": "v2/backend/app/services/rl_core/rewards.py"
+    },
+    {
+      "imports": [
+        "__future__",
+        "argparse",
+        "json",
+        "pathlib",
+        "sys",
+        "v2"
+      ],
+      "loc": 262,
+      "path": "v2/backend/app/cli/v2_rl_core_worker.py"
+    },
+    {
+      "imports": [
+        "__future__",
+        "json",
+        "pathlib",
+        "pytest",
+        "subprocess",
+        "sys",
+        "v2"
+      ],
+      "loc": 328,
+      "path": "v2/backend/tests/integration/cli/test_v2_rl_core_p0_2a.py"
+    }
+  ],
+  "forbidden_imports_detected": [],
+  "generated_utc": "2026-05-16",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "subproject": "v2_native_rl_masa_ppo_p0_2a",
+  "unresolved_local_imports": []
+}

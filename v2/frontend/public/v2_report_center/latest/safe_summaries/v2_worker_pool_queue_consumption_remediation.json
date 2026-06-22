@@ -1,0 +1,34 @@
+{
+  "freshness_seconds": 2421931.2646915913,
+  "go_no_go": "V2_WORKER_POOL_QUEUE_CONSUMPTION_REMEDIATION_READY",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "owner": "SYSTEM",
+  "redaction_applied": false,
+  "report_id": "v2_worker_pool_queue_consumption_remediation",
+  "sanitized_summary": {
+    "go_no_go": "V2_WORKER_POOL_QUEUE_CONSUMPTION_REMEDIATION_READY",
+    "pruned": {
+      "blockers": [],
+      "generated_utc": "2026-05-24T23:42:59Z",
+      "go_no_go": "V2_WORKER_POOL_QUEUE_CONSUMPTION_REMEDIATION_READY",
+      "safety": {
+        "approves_canary": false,
+        "approves_legacy_shutdown": false,
+        "approves_live": false,
+        "approves_redis_trim": false,
+        "calls_exchange_mutation": false,
+        "live_gate": "blocked_human_only",
+        "live_symbols": [],
+        "writes_old_redis": false
+      },
+      "schema_version": "v2_worker_pool_queue_consumption_remediation_status_v1"
+    },
+    "redaction_applied": false,
+    "redaction_token": null,
+    "status": "READY"
+  },
+  "stale": true,
+  "status": "READY",
+  "title": "V2 Worker Pool Queue-Consumption Remediation"
+}

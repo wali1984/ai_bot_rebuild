@@ -1,45 +1,37 @@
 import { test, expect } from '@playwright/test';
-import {
-  REVIEWER_ONLY_ADMIN_PATHS,
-  VIEWER_VISIBLE_ADMIN_PATHS,
-  gotoAs,
-} from './_shared';
+import { gotoAs } from './_shared';
+import { mockAuth } from './helpers/auth';
 
 test.describe('rbac_visibility', () => {
-  test('viewer sees only viewer-eligible admin nav entries', async ({ page }) => {
-    await gotoAs(page, '/admin/mission-control', 'viewer');
+  test('admin sees backend-confirmed admin navigation', async ({ page }) => {
+    await mockAuth(page, 'admin');
+    await gotoAs(page, '/admin/system');
     const nav = page.getByTestId('admin-nav');
     await expect(nav).toBeVisible();
-    for (const path of VIEWER_VISIBLE_ADMIN_PATHS) {
-      const id = path.replace('/admin/', '');
-      await expect(page.getByTestId(`nav-item-${id}`)).toBeVisible();
-    }
-    for (const path of REVIEWER_ONLY_ADMIN_PATHS) {
-      const id = path.replace('/admin/', '');
-      await expect(page.getByTestId(`nav-item-${id}`)).toHaveCount(0);
-    }
+    await expect(page.getByTestId('nav-item-system-health')).toBeVisible();
+    await expect(page.getByTestId('nav-item-risk-control')).toBeVisible();
+    await expect(page.getByTestId('nav-item-operator-proof-dashboard')).toHaveCount(0);
   });
 
-  test('reviewer sees viewer + reviewer admin nav entries', async ({ page }) => {
-    await gotoAs(page, '/admin/mission-control', 'reviewer');
+  test('superadmin sees protected evidence navigation', async ({ page }) => {
+    await mockAuth(page, 'superadmin');
+    await gotoAs(page, '/admin/evidence');
     const nav = page.getByTestId('admin-nav');
     await expect(nav).toBeVisible();
-    for (const path of [...VIEWER_VISIBLE_ADMIN_PATHS, ...REVIEWER_ONLY_ADMIN_PATHS]) {
-      const id = path.replace('/admin/', '');
-      await expect(page.getByTestId(`nav-item-${id}`)).toBeVisible();
-    }
+    await expect(page.getByTestId('nav-item-operator-proof-dashboard')).toBeVisible();
   });
 
   test('public actor is redirected away from admin surface', async ({ page }) => {
-    await gotoAs(page, '/admin/mission-control', 'public');
-    await expect(page).toHaveURL(/\/(\?.*)?$/);
-    // Public landing renders, no admin nav present.
+    await mockAuth(page, 'public');
+    await gotoAs(page, '/admin/mission-control');
+    await expect(page).toHaveURL(/\/login/);
     await expect(page.getByTestId('admin-nav')).toHaveCount(0);
   });
 
   test('viewer is redirected away from reviewer-only page', async ({ page }) => {
-    await gotoAs(page, '/admin/risk-control', 'viewer');
-    await expect(page).toHaveURL(/\/(\?.*)?$/);
+    await mockAuth(page, 'viewer');
+    await gotoAs(page, '/admin/risk-control');
+    await expect(page.getByTestId('access-denied')).toBeVisible();
     await expect(page.getByTestId('page-risk-control')).toHaveCount(0);
   });
 });

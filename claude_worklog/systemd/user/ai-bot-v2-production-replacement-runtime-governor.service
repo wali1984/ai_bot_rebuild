@@ -1,0 +1,14 @@
+[Unit]
+Description=AI Bot V2 production replacement runtime governor
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStartPre=/usr/bin/env bash -lc 'exec ./claude_worklog/tools/v2_automation_safety_preflight.sh ai-bot-v2-production-replacement-runtime-governor'
+ExecStart=/usr/bin/env bash -lc 'exec ./.venv/bin/python3 claude_worklog/tools/codex_production_replacement_runtime_governor.py --once'
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

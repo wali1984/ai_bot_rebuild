@@ -1,0 +1,69 @@
+{
+  "active_lanes_below_minimum_flag": false,
+  "active_lanes_count": 5,
+  "active_lanes_minimum": 3,
+  "bridge_data_labeled_as_v2_native": false,
+  "controls_present": false,
+  "currently_active_symbol_count": 3,
+  "dynamic_symbol_count": 25,
+  "fake_readiness": false,
+  "full_migration_claimed": false,
+  "generated_utc": "2026-05-23T22:33:03Z",
+  "go_no_go": "V2_NATIVE_DYNAMIC_INGESTOR_RUNTIME_AND_SYMBOL_EXPANSION_READY",
+  "phase_summaries": [
+    {
+      "marker": "V2_NATIVE_BINANCE_OHLCV_RUNTIME_CONTRACT_DEFINED_CLIENT_DISABLED",
+      "phase": "1_binance_ohlcv_runtime",
+      "status": "CONTRACT_DEFINED_CLIENT_DISABLED"
+    },
+    {
+      "marker": "V2_NATIVE_BINANCE_ORDERBOOK_RUNTIME_CONTRACT_DEFINED_CLIENT_DISABLED",
+      "phase": "2_binance_orderbook_runtime",
+      "status": "CONTRACT_DEFINED_CLIENT_DISABLED"
+    },
+    {
+      "marker": "V2_FEATURE_PIPELINE_DYNAMIC_EXPANSION_RUNTIME_ACTIVE_FOR_ACTIVE_SYMBOLS",
+      "phase": "3_feature_pipeline_dynamic_expansion",
+      "status": "ACTIVE_FOR_3_SYMBOLS_DYNAMIC_EXPANSION_GATED_ON_INGESTORS"
+    },
+    {
+      "marker": "V2_TA_DYNAMIC_SERVICE_RUNTIME_ACTIVE_FOR_ACTIVE_SYMBOLS",
+      "phase": "4_ta_dynamic_service",
+      "status": "ACTIVE_FOR_3_SYMBOLS_DYNAMIC_EXPANSION_GATED_ON_INGESTORS"
+    },
+    {
+      "marker": "V2_NATIVE_DYNAMIC_SYMBOL_COVERAGE_TABLE_REFRESHED",
+      "phase": "5_coverage_and_downstream_refresh",
+      "status": "COVERAGE_TABLE_REFRESHED"
+    }
+  ],
+  "safety_scoreboard": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "did_not_adopt_any_symbol_universe_candidate": true,
+    "did_not_call_exchange_mutation": true,
+    "did_not_change_leverage_or_margin_mode": true,
+    "did_not_claim_full_migration": true,
+    "did_not_claim_trainer_native_readiness": true,
+    "did_not_create_paper_only_shutdown_acceptance_file": true,
+    "did_not_deserialize_legacy_checkpoint": true,
+    "did_not_expose_raw_api_keys": true,
+    "did_not_install_systemd_units_or_scheduler_daemons": true,
+    "did_not_modify_legacy_tree": true,
+    "did_not_mutate_live_symbols_paper_symbols_or_training_symbols": true,
+    "did_not_start_live_network_feed": true,
+    "did_not_stop_codex_governors": true,
+    "did_not_stop_legacy_runtime": true,
+    "did_not_stop_replay_miner": true,
+    "did_not_stop_report_center": true,
+    "did_not_stop_v2_runtime": true,
+    "did_not_weaken_paper_fill_gate": true,
+    "did_not_write_old_redis_keys": true,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "schema_version": "v2_native_dynamic_ingestor_runtime_and_symbol_expansion_v1_operator_dashboard_payload",
+  "trainer_native_readiness_claimed": false
+}

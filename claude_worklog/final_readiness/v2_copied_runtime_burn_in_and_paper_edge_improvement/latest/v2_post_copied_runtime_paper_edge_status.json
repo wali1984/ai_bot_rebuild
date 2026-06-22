@@ -1,0 +1,197 @@
+{
+  "canary_recommendation": "BLOCK_LIVE_PAPER_EDGE_NOT_PROVEN",
+  "edge_proven": false,
+  "generated_est": "2026-06-21T19:31:44-0400",
+  "generated_utc": "2026-06-21T23:31:44Z",
+  "git_head": "d36df906b7e57e4d5515416af79f68af18af3bcf",
+  "go_no_go": "V2_COPIED_RUNTIME_BURN_IN_AND_PAPER_EDGE_IMPROVEMENT_BLOCKED",
+  "live_recommendation": "BLOCK_LIVE_PAPER_EDGE_NOT_PROVEN",
+  "live_safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "exchange_action_taken": false,
+    "legacy_root_runtime_active": false,
+    "leverage_change": false,
+    "live_binance_liquidations_active": false,
+    "live_gate": "blocked_human_only",
+    "live_gate_status": "blocked_human_only",
+    "live_symbols": [],
+    "margin_mode_change": false,
+    "old_redis_writes_detected": false,
+    "places_real_order": false,
+    "v2_canary": 0,
+    "v2_live": 0
+  },
+  "milestone": "v2_copied_runtime_burn_in_and_paper_edge_improvement",
+  "paper_shadow_observation": {
+    "age_seconds": 0,
+    "allowed_intents": 2279,
+    "blocked_intents": 93504,
+    "paper_pnl_current_usdt": 0.0,
+    "path": "v2/frontend/public/operator_runtime/paper_shadow_observation/latest/paper_shadow_observation_status.json",
+    "profitability_proof_status": "PROFITABILITY_PROOF_AVAILABLE",
+    "runtime_state": "PAPER_RUNTIME_ONLINE_ACTIVE",
+    "simulated_fills": 2279,
+    "windows": {
+      "1h": {
+        "allowed_intents": 0,
+        "blocked_intents": 112,
+        "classification": "PAPER_SHADOW_1H_COMPLETE",
+        "confidence_bucket_distribution": {
+          "0.58_to_0.65": 8,
+          "0.65_to_0.75": 15,
+          "0.75_plus": 86,
+          "below_0.58": 3
+        },
+        "event_count": 112,
+        "hours": 1,
+        "paper_pnl_delta_status": "CURRENT_WINDOW_PNL_AVAILABLE",
+        "paper_pnl_delta_usdt": 0.0,
+        "reason_distribution": {
+          "deny_canary_profile_tightening": 109,
+          "deny_low_confidence": 2,
+          "deny_stale_market_feed": 1
+        },
+        "simulated_fills": 0,
+        "symbol_distribution": {
+          "1000BONKUSDT": 112
+        },
+        "window_complete": true
+      },
+      "24h": {
+        "allowed_intents": 0,
+        "blocked_intents": 2839,
+        "classification": "PAPER_SHADOW_24H_COMPLETE",
+        "confidence_bucket_distribution": {
+          "0.58_to_0.65": 308,
+          "0.65_to_0.75": 429,
+          "0.75_plus": 1939,
+          "below_0.58": 163
+        },
+        "event_count": 2839,
+        "hours": 24,
+        "paper_pnl_delta_status": "CURRENT_WINDOW_PNL_AVAILABLE",
+        "paper_pnl_delta_usdt": 0.0,
+        "reason_distribution": {
+          "deny_canary_profile_tightening": 2676,
+          "deny_low_confidence": 109,
+          "deny_orchestrator_held": 53,
+          "deny_stale_market_feed": 1
+        },
+        "simulated_fills": 0,
+        "symbol_distribution": {
+          "1000BONKUSDT": 2839
+        },
+        "window_complete": true
+      },
+      "6h": {
+        "allowed_intents": 0,
+        "blocked_intents": 705,
+        "classification": "PAPER_SHADOW_6H_COMPLETE",
+        "confidence_bucket_distribution": {
+          "0.58_to_0.65": 82,
+          "0.65_to_0.75": 95,
+          "0.75_plus": 481,
+          "below_0.58": 47
+        },
+        "event_count": 705,
+        "hours": 6,
+        "paper_pnl_delta_status": "CURRENT_WINDOW_PNL_AVAILABLE",
+        "paper_pnl_delta_usdt": 0.0,
+        "reason_distribution": {
+          "deny_canary_profile_tightening": 658,
+          "deny_low_confidence": 36,
+          "deny_orchestrator_held": 10,
+          "deny_stale_market_feed": 1
+        },
+        "simulated_fills": 0,
+        "symbol_distribution": {
+          "1000BONKUSDT": 705
+        },
+        "window_complete": true
+      }
+    }
+  },
+  "phase": 5,
+  "post_filter": {
+    "age_seconds": 0,
+    "classification": "POST_FILTER_EDGE_STILL_UNPROVEN_MODEL_REVIEW_REQUIRED",
+    "paper_edge_positive_proven": false,
+    "path": "v2/frontend/public/paper_edge_post_filter_observation_window/latest/operator_dashboard_payload.json",
+    "post_filter_realized_pnl_delta_usdt": -0.225535
+  },
+  "post_hoc_replay": {
+    "after_cost_pnl_delta": -4.879330541891545,
+    "age_seconds": 94,
+    "expected_move_after_cost_bps": -4.879330541891545,
+    "false_negative_rate": 0.0,
+    "false_positive_rate": 0.6143931256713212,
+    "go_no_go": "V2_POST_HOC_REPLAY_OUTCOME_MINER_READY",
+    "minimum_sample_satisfied": false,
+    "operator_thresholds_set": false,
+    "path": "v2/frontend/public/v2_post_hoc_replay_outcome_miner/latest/operator_dashboard_payload.json",
+    "sample_count": 113682,
+    "thresholds_satisfied": {
+      "max_drawdown_bps_rolling": "OPERATOR_DECISION_REQUIRED",
+      "max_false_negative_rate": "OPERATOR_DECISION_REQUIRED",
+      "max_false_positive_rate": "OPERATOR_DECISION_REQUIRED",
+      "min_after_cost_expectancy_bps": "OPERATOR_DECISION_REQUIRED",
+      "min_after_cost_lower_ci_bps": "OPERATOR_DECISION_REQUIRED",
+      "min_downside_pre_cascade_recall": "OPERATOR_DECISION_REQUIRED",
+      "min_sample_count": "OPERATOR_DECISION_REQUIRED",
+      "min_v2_vs_legacy_action_match_rate": "INFORMATIONAL_ONLY"
+    },
+    "verdict": "EDGE_NOT_CLAIMED_OPERATOR_THRESHOLDS_REQUIRED",
+    "verdict_reason": "one or more required thresholds are still OPERATOR_DECISION_REQUIRED; no edge claim is permitted until the operator sets concrete numerics"
+  },
+  "schema_version": "v2_post_copied_runtime_paper_edge_status_v3",
+  "war_room": {
+    "age_seconds": 26,
+    "go_no_go": "V2_8H_CONTINUOUS_WAR_ROOM_READY_PROGRESS_MADE",
+    "governor_summary": {
+      "fail_blockers": [
+        "CONTINUOUS_REMEDIATION_STATUS_STALE:544629",
+        "LEGACY_LOG_V2_GAP_MATRIX_STALE:544629",
+        "V2_OR_REMEDIATION_PROCESS_MISSING:v2_rl_core_inference_loop,production_equivalence_comparator,soak_observer,payload_freshness_refresher,legacy_log_intelligence_observer,continuous_remediation_loop",
+        "V2_REDIS_NAMESPACE_EMPTY:v2_legacy_log_observer",
+        "DUPLICATE_CHECKPOINT_SHAPE_CONTRACT_TASKS",
+        "SOAK_RUNTIME_STATUS_STALE_OR_MISSING:467309",
+        "SOAK_RUNTIME_PROCESS_INTERRUPTION_DETECTED",
+        "SOAK_RUNTIME_V2_NAMESPACE_EMPTY_DETECTED",
+        "SOAK_RUNTIME_1H_NOT_READY",
+        "SOAK_RUNTIME_6H_NOT_READY",
+        "ALT_DATA_CANDIDATE_PUBLISHER_NOT_CANDIDATE_ONLY",
+        "FRONTEND_HIDES_BLOCKERS",
+        "GAP_CLASSIFICATION_REQUIRES_REMEDIATION",
+        "FRONTEND_DOES_NOT_SURFACE_CONTINUOUS_REMEDIATION_GAPS",
+        "FRONTEND_DOES_NOT_SURFACE_FULL_OBSERVATION_BUILDER",
+        "FRONTEND_DOES_NOT_SURFACE_POLICY_ARCHITECTURE_BLOCKER"
+      ],
+      "go_no_go": "CODEX_CONTINUOUS_REMEDIATION_REVIEW_GOVERNOR_BLOCKED",
+      "liquidation_wss_daemon": {
+        "fresh": true,
+        "heartbeat_age_seconds": 46,
+        "key": "v2:market:liquidations:heartbeat",
+        "live_gate": "blocked_human_only",
+        "live_symbols": [],
+        "max_age_seconds": 180,
+        "no_synthetic_liquidation_events": true,
+        "opt_in_enabled": true,
+        "present": true,
+        "process_mode": "persistent_daemon",
+        "service_active": true,
+        "ttl_seconds": 134,
+        "writes_exchange_orders": false,
+        "writes_legacy_redis": false
+      },
+      "soak_6h_ready": false,
+      "soak_minutes_observed": 43898.63,
+      "soak_runtime_active": false,
+      "v2_processes_required": 14,
+      "v2_processes_running": 8
+    },
+    "path": "v2/frontend/public/v2_8h_war_room/latest/operator_dashboard_payload.json"
+  }
+}

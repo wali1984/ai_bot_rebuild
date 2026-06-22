@@ -1,0 +1,163 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "blocked_reason": null,
+  "bridge_vs_v2_native_label_honest": true,
+  "broad_audit": false,
+  "codex_review_command": "codex exec review --uncommitted \"Review only v2/backend/app/services/native_runtime_migration/first_batch_executor.py::task_j_startup_order_parity_control_plane. Fail on old Redis writes, exchange mutation, truthy approval tokens, raw secrets, fake edge claims, or any V2_NATIVE label on bridge data.\"",
+  "codex_review_required": true,
+  "did_not_adopt_any_symbol_universe_candidate": true,
+  "did_not_call_exchange_mutation": true,
+  "did_not_change_leverage_or_margin_mode": true,
+  "did_not_claim_full_migration": true,
+  "did_not_claim_trainer_native_readiness": true,
+  "did_not_create_paper_only_shutdown_acceptance_file": true,
+  "did_not_deserialize_legacy_checkpoint": true,
+  "did_not_expose_raw_api_keys": true,
+  "did_not_install_systemd_units_or_scheduler_daemons": true,
+  "did_not_modify_legacy_tree": true,
+  "did_not_mutate_live_symbols_paper_symbols_or_training_symbols": true,
+  "did_not_start_live_network_feed": true,
+  "did_not_stop_codex_governors": true,
+  "did_not_stop_legacy_runtime": true,
+  "did_not_stop_replay_miner": true,
+  "did_not_stop_report_center": true,
+  "did_not_stop_v2_runtime": true,
+  "did_not_weaken_paper_fill_gate": true,
+  "did_not_write_old_redis_keys": true,
+  "does_not_fake_data": true,
+  "envelope_summary": {
+    "freshness_state_counts": {},
+    "gap_or_bridge": 0,
+    "publishable": 0,
+    "source_label_counts": {},
+    "total": 0
+  },
+  "exchange_mutation": false,
+  "file_lock_group": "v2_startup_parity_control_plane",
+  "forbidden_actions": [
+    "no_live_start",
+    "no_shutdown_approval",
+    "no_systemd_install",
+    "no_daemon_install"
+  ],
+  "generated_utc": "2026-05-23T22:17:11Z",
+  "go_no_go_marker": "V2_STARTUP_ORDER_PARITY_CONTROL_PLANE_SCAFFOLDED",
+  "implementation_artifact": "v2/backend/app/services/native_runtime_migration/first_batch_executor.py::task_j_startup_order_parity_control_plane",
+  "implementation_notes": "Read-only observability layer over the existing startup parity plan. Does not start, stop, or install anything.",
+  "implementation_status": "CONTROL_PLANE_READ_ONLY_OBSERVABILITY",
+  "live_gate": "blocked_human_only",
+  "live_or_shutdown_approval": false,
+  "live_symbols": [],
+  "missing_source_policy": "Emit explicit MISSING_SOURCE, NO_CLIENT_PRESENT, BRIDGE_ONLY, or OPERATOR_DECISION_REQUIRED envelopes instead of fabricating V2-native payloads.",
+  "old_redis_write": false,
+  "parity_plan_available": true,
+  "parity_plan_source": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_legacy_startup_manifest_parity_and_bridge_exit/latest/v2_startup_order_parity_plan.json",
+  "per_symbol_envelopes": [],
+  "phase_statuses": [
+    {
+      "blocks_next_phase": true,
+      "gap": "MISSING_SERVICES_OR_BRIDGE_ONLY",
+      "legacy_phase": "0_5_monitoring",
+      "status": "V2_GAP_PRESENT"
+    },
+    {
+      "blocks_next_phase": true,
+      "gap": "MISSING_SERVICES_OR_BRIDGE_ONLY",
+      "legacy_phase": "0_preflight",
+      "status": "V2_GAP_PRESENT"
+    },
+    {
+      "blocks_next_phase": true,
+      "gap": "MISSING_SERVICES_OR_BRIDGE_ONLY",
+      "legacy_phase": "1_ingestors",
+      "status": "V2_GAP_PRESENT"
+    },
+    {
+      "blocks_next_phase": false,
+      "gap": "NONE",
+      "legacy_phase": "2_5_ta",
+      "status": "V2_NATIVE_PARITY"
+    },
+    {
+      "blocks_next_phase": true,
+      "gap": "MISSING_SERVICES_OR_BRIDGE_ONLY",
+      "legacy_phase": "2_5_validation",
+      "status": "V2_GAP_PRESENT"
+    },
+    {
+      "blocks_next_phase": true,
+      "gap": "MISSING_SERVICES_OR_BRIDGE_ONLY",
+      "legacy_phase": "2_features",
+      "status": "V2_GAP_PRESENT"
+    },
+    {
+      "blocks_next_phase": false,
+      "gap": "NONE",
+      "legacy_phase": "3B_orchestrator",
+      "status": "V2_NATIVE_PARITY"
+    },
+    {
+      "blocks_next_phase": false,
+      "gap": "BRIDGE_ONLY_FOR_SOME_SERVICES",
+      "legacy_phase": "3_trainer",
+      "status": "V2_BRIDGE_PARITY"
+    },
+    {
+      "blocks_next_phase": false,
+      "gap": "NONE",
+      "legacy_phase": "4A_signal_router",
+      "status": "V2_NATIVE_PARITY"
+    },
+    {
+      "blocks_next_phase": true,
+      "gap": "MISSING_SERVICES_OR_BRIDGE_ONLY",
+      "legacy_phase": "4B_traders",
+      "status": "V2_GAP_PRESENT"
+    },
+    {
+      "blocks_next_phase": true,
+      "gap": "MISSING_SERVICES_OR_BRIDGE_ONLY",
+      "legacy_phase": "4C_portfolio",
+      "status": "V2_GAP_PRESENT"
+    },
+    {
+      "blocks_next_phase": true,
+      "gap": "MISSING_SERVICES_OR_BRIDGE_ONLY",
+      "legacy_phase": "5_health",
+      "status": "V2_GAP_PRESENT"
+    },
+    {
+      "blocks_next_phase": false,
+      "gap": "OPERATOR_DECISION_REQUIRED",
+      "legacy_phase": "6_final_status",
+      "status": "OPERATOR_DECISION_PENDING"
+    }
+  ],
+  "public_payload": "v2/frontend/public/v2_startup_parity_first_batch_execution/latest/v2_startup_order_parity_control_plane.json",
+  "queued_not_running": true,
+  "required_v2_phase_order": [
+    "0_preflight",
+    "0_5_monitoring",
+    "1_ingestors",
+    "2_features",
+    "2_5_ta",
+    "2_5_validation",
+    "3_trainer",
+    "3B_orchestrator",
+    "4B_paper_traders",
+    "4C_portfolio",
+    "5_health",
+    "6_final_status"
+  ],
+  "schema_version": "v2_startup_parity_first_batch_execution_v1_task_status",
+  "scope": "v2/backend/app/services/native_runtime_migration/first_batch_executor.py::task_j_startup_order_parity_control_plane",
+  "status": "CONTROL_PLANE_READ_ONLY_OBSERVABILITY",
+  "target_redis_key_patterns": [],
+  "target_v2_keys": [],
+  "task_id": "v2_startup_order_parity_control_plane",
+  "tests_required": true,
+  "trainer_native_claim": false
+}

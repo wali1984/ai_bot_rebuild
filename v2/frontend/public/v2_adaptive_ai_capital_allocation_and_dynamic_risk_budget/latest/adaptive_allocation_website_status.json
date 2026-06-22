@@ -1,0 +1,18 @@
+{
+  "status": "WEBSITE_ADAPTIVE_ALLOCATION_TEXT_SYNCED",
+  "generated_est": "2026-06-11T16:19:38-04:00",
+  "frontend_build_asset": "index-aZ5zSjcz.js",
+  "updated_routes_or_panels": [
+    "/admin/live-readiness",
+    "/trade/paper via operator_runtime/v2_paper_trade_management/latest",
+    "/system/execution via live pre-submit status payloads"
+  ],
+  "fixed_notional_display_removed": true,
+  "shows_adaptive_budget_language": true,
+  "local_dashboard_crawl": "PASS",
+  "production_crawl": "PASS_WITH_ADMIN_CAVEATS",
+  "production_caveats": [
+    "/admin/monitor-center?role=admin repair marker",
+    "/admin/script-registry?role=admin repair marker"
+  ]
+}

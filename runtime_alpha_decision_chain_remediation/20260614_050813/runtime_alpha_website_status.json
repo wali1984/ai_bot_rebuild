@@ -1,0 +1,215 @@
+{
+  "exit_reasons": [
+    "TIER_2_PROFIT_BANK"
+  ],
+  "guaranteed_10k_month": false,
+  "hedge_pnl": {
+    "hedge_benefit_usd": 1.2,
+    "hedge_cost_benefit_tracked": true,
+    "hedge_cost_usd": 0.02,
+    "hedge_id": "hedge_demo",
+    "hedge_notional_usd": 10.0,
+    "net_hedge_benefit_usd": 1.18,
+    "paper_only": true,
+    "places_real_order": false
+  },
+  "hedge_status": {
+    "approved_hedge_notional_usd": 10.0,
+    "hedge_allowed": true,
+    "hedge_blockers": [],
+    "hedge_budget_usd": 10.0,
+    "hedge_exit_reason": "volatility_normalized",
+    "hedge_reason": "volatility_spike_hedge",
+    "hedge_type": "explicit_adaptive_hedge",
+    "paper_only": true,
+    "places_real_order": false,
+    "requires_unhedge_condition": true,
+    "same_symbol_accidental_hedge_blocked": false
+  },
+  "liquidation_proximity": {
+    "distance_to_long_liq_bps": 700.0,
+    "distance_to_short_liq_bps": 550.0
+  },
+  "liquidity_zone_context": {
+    "liquidity_zone_above": 106.0,
+    "liquidity_zone_below": 98.0
+  },
+  "paper_realized_pnl": 1.9388,
+  "paper_unrealized_pnl": 0.0,
+  "strategy_weights": [
+    {
+      "closed_trade_count": 3,
+      "current_weight": 0.35,
+      "expectancy_after_cost_bps": 21.666666666666668,
+      "max_drawdown": 0.0,
+      "profit_factor": 999.0,
+      "recent_pnl": 65.0,
+      "strategy_family": "trend_following",
+      "weight_change_reason": "INSUFFICIENT_SAMPLE_CAP",
+      "win_rate": 1.0
+    },
+    {
+      "closed_trade_count": 1,
+      "current_weight": 0.35,
+      "expectancy_after_cost_bps": -25.0,
+      "max_drawdown": 25.0,
+      "profit_factor": 0.0,
+      "recent_pnl": -25.0,
+      "strategy_family": "mean_reversion",
+      "weight_change_reason": "INSUFFICIENT_SAMPLE_CAP",
+      "win_rate": 0.0
+    },
+    {
+      "closed_trade_count": 0,
+      "current_weight": 0.35,
+      "expectancy_after_cost_bps": 0.0,
+      "max_drawdown": 0.0,
+      "profit_factor": null,
+      "recent_pnl": 0,
+      "strategy_family": "breakout",
+      "weight_change_reason": "INSUFFICIENT_SAMPLE_CAP",
+      "win_rate": 0.0
+    },
+    {
+      "closed_trade_count": 0,
+      "current_weight": 0.35,
+      "expectancy_after_cost_bps": 0.0,
+      "max_drawdown": 0.0,
+      "profit_factor": null,
+      "recent_pnl": 0,
+      "strategy_family": "momentum",
+      "weight_change_reason": "INSUFFICIENT_SAMPLE_CAP",
+      "win_rate": 0.0
+    },
+    {
+      "closed_trade_count": 0,
+      "current_weight": 0.35,
+      "expectancy_after_cost_bps": 0.0,
+      "max_drawdown": 0.0,
+      "profit_factor": null,
+      "recent_pnl": 0,
+      "strategy_family": "funding_oi_divergence",
+      "weight_change_reason": "INSUFFICIENT_SAMPLE_CAP",
+      "win_rate": 0.0
+    },
+    {
+      "closed_trade_count": 0,
+      "current_weight": 0.35,
+      "expectancy_after_cost_bps": 0.0,
+      "max_drawdown": 0.0,
+      "profit_factor": null,
+      "recent_pnl": 0,
+      "strategy_family": "liquidation_cascade",
+      "weight_change_reason": "INSUFFICIENT_SAMPLE_CAP",
+      "win_rate": 0.0
+    },
+    {
+      "closed_trade_count": 0,
+      "current_weight": 0.35,
+      "expectancy_after_cost_bps": 0.0,
+      "max_drawdown": 0.0,
+      "profit_factor": null,
+      "recent_pnl": 0,
+      "strategy_family": "orderbook_imbalance",
+      "weight_change_reason": "INSUFFICIENT_SAMPLE_CAP",
+      "win_rate": 0.0
+    },
+    {
+      "closed_trade_count": 0,
+      "current_weight": 0.35,
+      "expectancy_after_cost_bps": 0.0,
+      "max_drawdown": 0.0,
+      "profit_factor": null,
+      "recent_pnl": 0,
+      "strategy_family": "ta_confirmation",
+      "weight_change_reason": "INSUFFICIENT_SAMPLE_CAP",
+      "win_rate": 0.0
+    },
+    {
+      "closed_trade_count": 0,
+      "current_weight": 0.35,
+      "expectancy_after_cost_bps": 0.0,
+      "max_drawdown": 0.0,
+      "profit_factor": null,
+      "recent_pnl": 0,
+      "strategy_family": "microstructure_reversal",
+      "weight_change_reason": "INSUFFICIENT_SAMPLE_CAP",
+      "win_rate": 0.0
+    },
+    {
+      "closed_trade_count": 0,
+      "current_weight": 0.35,
+      "expectancy_after_cost_bps": 0.0,
+      "max_drawdown": 0.0,
+      "profit_factor": null,
+      "recent_pnl": 0,
+      "strategy_family": "volatility_regime",
+      "weight_change_reason": "INSUFFICIENT_SAMPLE_CAP",
+      "win_rate": 0.0
+    },
+    {
+      "closed_trade_count": 0,
+      "current_weight": 0.35,
+      "expectancy_after_cost_bps": 0.0,
+      "max_drawdown": 0.0,
+      "profit_factor": null,
+      "recent_pnl": 0,
+      "strategy_family": "public_intel_confirmation",
+      "weight_change_reason": "INSUFFICIENT_SAMPLE_CAP",
+      "win_rate": 0.0
+    },
+    {
+      "closed_trade_count": 0,
+      "current_weight": 0.35,
+      "expectancy_after_cost_bps": 0.0,
+      "max_drawdown": 0.0,
+      "profit_factor": null,
+      "recent_pnl": 0,
+      "strategy_family": "no_trade_preservation",
+      "weight_change_reason": "INSUFFICIENT_SAMPLE_CAP",
+      "win_rate": 0.0
+    },
+    {
+      "closed_trade_count": 0,
+      "current_weight": 0.35,
+      "expectancy_after_cost_bps": 0.0,
+      "max_drawdown": 0.0,
+      "profit_factor": null,
+      "recent_pnl": 0,
+      "strategy_family": "hedged_protection",
+      "weight_change_reason": "INSUFFICIENT_SAMPLE_CAP",
+      "win_rate": 0.0
+    },
+    {
+      "closed_trade_count": 0,
+      "current_weight": 0.35,
+      "expectancy_after_cost_bps": 0.0,
+      "max_drawdown": 0.0,
+      "profit_factor": null,
+      "recent_pnl": 0,
+      "strategy_family": "profit_protection",
+      "weight_change_reason": "INSUFFICIENT_SAMPLE_CAP",
+      "win_rate": 0.0
+    },
+    {
+      "closed_trade_count": 0,
+      "current_weight": 0.35,
+      "expectancy_after_cost_bps": 0.0,
+      "max_drawdown": 0.0,
+      "profit_factor": null,
+      "recent_pnl": 0,
+      "strategy_family": "drawdown_recovery",
+      "weight_change_reason": "INSUFFICIENT_SAMPLE_CAP",
+      "win_rate": 0.0
+    }
+  ],
+  "ten_k_target_feasibility": {
+    "closed_trade_count": 1,
+    "goal_status": "INSUFFICIENT_SAMPLE_FOR_10K_TARGET",
+    "guaranteed_profit": false,
+    "monthly_target_net_usdt": 10000,
+    "net_pnl_after_costs": 1.9388,
+    "reason": "runtime alpha chain validates feedback mechanics, but sample is not sufficient for 10k/month feasibility"
+  },
+  "trainer_feedback_rows": 1
+}

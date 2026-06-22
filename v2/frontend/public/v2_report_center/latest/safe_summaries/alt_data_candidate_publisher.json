@@ -1,0 +1,37 @@
+{
+  "freshness_seconds": 214.8839704990387,
+  "go_no_go": "V2_ALT_DATA_SYMBOL_UNIVERSE_CANDIDATE_PUBLISHER_READY",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "owner": "CLAUDE",
+  "redaction_applied": false,
+  "report_id": "alt_data_candidate_publisher",
+  "sanitized_summary": {
+    "go_no_go": "V2_ALT_DATA_SYMBOL_UNIVERSE_CANDIDATE_PUBLISHER_READY",
+    "pruned": {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "candidate_count": 86,
+      "candidate_state_counts": {},
+      "checkpoint_compatibility_claimed": false,
+      "generated_utc": "2026-06-22T00:24:55Z",
+      "go_no_go": "V2_ALT_DATA_SYMBOL_UNIVERSE_CANDIDATE_PUBLISHER_READY",
+      "leverage_changed": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "margin_mode_changed": false,
+      "places_real_order": false,
+      "policy_architecture_parity_claimed": false,
+      "schema_version": "v2_alt_data_symbol_candidate_publisher_payload_v1",
+      "writes_old_redis": false
+    },
+    "redaction_applied": false,
+    "redaction_token": null,
+    "status": "READY"
+  },
+  "stale": false,
+  "status": "READY",
+  "title": "Alt-Data Candidate Publisher"
+}

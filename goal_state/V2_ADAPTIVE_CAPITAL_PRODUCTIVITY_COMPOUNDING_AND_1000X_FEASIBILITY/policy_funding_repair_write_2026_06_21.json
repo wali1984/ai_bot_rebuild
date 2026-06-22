@@ -1,0 +1,114 @@
+{
+  "accepted_rows_seen": 4452,
+  "closed_trade_repair": {
+    "accepted_fill_indexed_lineage_count": 5028,
+    "examples": [
+      {
+        "close_id": "paper_close_paper_pos_AEROUSDT_3_1292021",
+        "funding_pnl_source": null,
+        "funding_pnl_usd": null,
+        "missing_reasons": [
+          "MISSING_FUNDING_RATE_OR_BPS"
+        ],
+        "outcome_label_id": "paper_outcome_paper_close_paper_pos_AEROUSDT_3_1292021",
+        "policy_activated_at": "2026-06-20T07:05:29Z",
+        "side": "long",
+        "status": "unrepairable",
+        "symbol": "AEROUSDT",
+        "timeframe": "1h"
+      },
+      {
+        "close_id": "paper_close_paper_pos_CRVUSDT_1_20012062",
+        "funding_pnl_source": null,
+        "funding_pnl_usd": null,
+        "missing_reasons": [
+          "MISSING_FUNDING_RATE_OR_BPS"
+        ],
+        "outcome_label_id": "paper_outcome_paper_close_paper_pos_CRVUSDT_1_20012062",
+        "policy_activated_at": "2026-06-21T15:34:27Z",
+        "side": "short",
+        "status": "partially_repaired",
+        "symbol": "CRVUSDT",
+        "timeframe": "1h"
+      },
+      {
+        "close_id": "paper_close_paper_pos_POLUSDT_1_2762544",
+        "funding_pnl_source": "FUNDING_RATE",
+        "funding_pnl_usd": -5.302733379720957e-06,
+        "missing_reasons": [],
+        "outcome_label_id": "paper_outcome_paper_close_paper_pos_POLUSDT_1_2762544",
+        "policy_activated_at": "2026-06-21T16:06:03Z",
+        "side": "short",
+        "status": "repaired",
+        "symbol": "POLUSDT",
+        "timeframe": "1h"
+      },
+      {
+        "close_id": "paper_close_paper_pos_TRXUSDT_1_476135",
+        "funding_pnl_source": "FUNDING_RATE",
+        "funding_pnl_usd": -0.0,
+        "missing_reasons": [],
+        "outcome_label_id": "paper_outcome_paper_close_paper_pos_TRXUSDT_1_476135",
+        "policy_activated_at": "2026-06-21T16:11:08Z",
+        "side": "long",
+        "status": "repaired",
+        "symbol": "TRXUSDT",
+        "timeframe": "1m"
+      },
+      {
+        "close_id": "paper_close_paper_pos_JTOUSDT_2_3058302",
+        "funding_pnl_source": "FUNDING_RATE",
+        "funding_pnl_usd": 0.0002693777517485797,
+        "missing_reasons": [],
+        "outcome_label_id": "paper_outcome_paper_close_paper_pos_JTOUSDT_2_3058302",
+        "policy_activated_at": "2026-06-21T16:06:03Z",
+        "side": "short",
+        "status": "repaired",
+        "symbol": "JTOUSDT",
+        "timeframe": "1h"
+      }
+    ],
+    "missing_reason_counts": {
+      "ACCEPTED_FILL_AFTER_CLOSE": 72,
+      "MISSING_FUNDING_RATE_OR_BPS": 2
+    },
+    "policy_rows_seen": 178,
+    "rows_seen": 1620,
+    "status_counts": {
+      "already_accounted": 173,
+      "not_policy_scope": 1442,
+      "partially_repaired": 1,
+      "repaired": 3,
+      "unrepairable": 1
+    }
+  },
+  "closed_trade_rows_seen": 1620,
+  "dry_run": false,
+  "generated_at": "2026-06-21T17:20:53Z",
+  "keys_written": [
+    "v2:paper:closed_trades",
+    "v2:paper:outcome_labels",
+    "v2:paper:ledger"
+  ],
+  "ledger_rows_updated": {
+    "closed_trades": 4,
+    "closes": 4,
+    "outcome_labels": 4
+  },
+  "live_gate": "blocked_human_only",
+  "outcome_label_rows_seen": 1620,
+  "outcome_label_rows_updated": 4,
+  "places_real_order": false,
+  "repair_policy": {
+    "derives_policy_activated_at_from_exit_time_minus_hold_time_when_entry_time_missing": true,
+    "does_not_fabricate_missing_funding_rates": true,
+    "no_live_or_exchange_mutation": true,
+    "requires_funding_rate_or_bps_evidence_before_persisting_funding_pnl": true,
+    "requires_paper_only_accepted_fill_match_for_unversioned_p0_rows": true,
+    "scope": "V2 paper ledger closed trades and outcome labels only",
+    "uses_earliest_safe_accepted_fill_time_for_policy_activated_at": true
+  },
+  "schema_version": "v2_paper_policy_activation_funding_repair_v1",
+  "writes_exchange_orders": false,
+  "writes_redis": true
+}

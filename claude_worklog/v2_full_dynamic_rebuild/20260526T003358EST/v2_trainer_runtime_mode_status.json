@@ -1,0 +1,18 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "active": true,
+  "active_unit": "ai-bot-v2-trainer-bridge.service",
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "go_no_go": "V2_TRAINER_RUNTIME_MODE_STATUS_READY",
+  "live_symbols": [],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "rl_core_inference_loop_active": true,
+  "ts_est": "20260526T003358EST",
+  "ts_iso_est": "2026-05-26T00:49:14-0400",
+  "v2_prediction_keys_now": 50,
+  "v2_rl_keys_now": 0,
+  "writes_exchange_orders": false
+}

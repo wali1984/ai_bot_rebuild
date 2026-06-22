@@ -1,0 +1,37 @@
+{
+  "available_margin_changed_since_last_guard": false,
+  "balance_state_fingerprint": "sha256:9aa193c002f2ec4454124f50de0003416ef63e35c86b55da7f23a44e9016e22c",
+  "blockers": [
+    "ACCOUNT_CRITICAL_SIGNED_READS_NOT_PROVEN",
+    "BALANCE_HOLD_CURRENT_BALANCE_READ_UNAVAILABLE",
+    "BALANCE_HOLD_USING_LAST_KNOWN_CANDIDATE",
+    "BINANCE_ACCOUNT_MARGIN_READ_FAILED",
+    "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER",
+    "LIVE_GATE_NOT_ENABLED",
+    "LIVE_GATE_RUNTIME_NOT_ENABLED",
+    "LIVE_GATE_RUNTIME_STATE_STALE",
+    "LIVE_ORDER_TRANSPORT_SUBMIT_NOT_ENABLED",
+    "LIVE_SYMBOL_SETS_DO_NOT_MATCH_ACCEPTED_SYMBOLS",
+    "NO_ACCEPTED_SYMBOL_SIGNAL_CANDIDATE",
+    "ORDER_TRANSPORT_SUBMIT_NOT_ENABLED",
+    "TRADER_EXECUTION_ENABLED_NOT_TRUE"
+  ],
+  "do_not_retry_same_rejected_order": true,
+  "generated_est": "2026-06-21T20:28:07-04:00",
+  "last_order_candidate_signature": "sha256:5773924eed12b21598785e178b37a29998b1e37321aff77301e55fda816ce4f2",
+  "previous_balance_state_fingerprint": "sha256:9aa193c002f2ec4454124f50de0003416ef63e35c86b55da7f23a44e9016e22c",
+  "raw_credentials_exposed": false,
+  "resume_condition": "available_margin >= required_initial_margin and all transport prechecks pass",
+  "retry_allowed": false,
+  "retry_blocked_reason": "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER",
+  "rules": [
+    "do not retry after insufficient margin unless available_margin changes",
+    "do not retry same rejected order repeatedly",
+    "do not submit if balance_required > available_margin",
+    "do not auto-increase leverage",
+    "do not auto-change margin mode"
+  ],
+  "same_rejected_order_retry_blocked": true,
+  "schema_version": "live_order_retry_guard_status_v1",
+  "status": "RETRY_GUARD_HOLDING_FOR_BALANCE_CHANGE"
+}

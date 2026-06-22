@@ -1,0 +1,759 @@
+{
+  "entries": [
+    {
+      "category": "redis_status_monitor",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_visible_terminal_panel.py --title 'V2 Redis Status Panel' --interval 10 --redis-pattern v2:* --redis-pattern v2:prediction:* --redis-pattern v2:features:latest:* --redis-pattern v2:market:ohlcv:* --redis-pattern v2:technical_analysis:* --redis-pattern orchestrator:* --redis-pattern live_orders:* --redis-pattern exchange:order:*",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [
+        "v2:*"
+      ],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/redis_status_monitor.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": null,
+      "terminal_title": "V2 Redis Status Panel",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "market_runtime",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_visible_terminal_panel.py --title 'V2 Paper Online Runtime' --interval 10 --systemd-unit ai-bot-v2-paper-online-runtime.service --log-file v2/runtime/paper_online_runtime.log --redis-pattern v2:market:ohlcv:* --redis-pattern v2:features:latest:* --payload-dir v2/frontend/public/paper_online",
+      "expected_public_payload": "v2/frontend/public/paper_online",
+      "expected_public_payload_dirs": [
+        "v2/frontend/public/paper_online"
+      ],
+      "expected_redis_keys": [
+        "v2:market:ohlcv:*",
+        "v2:features:latest:*"
+      ],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/market_runtime.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": "ai-bot-v2-paper-online-runtime.service",
+      "terminal_title": "V2 Paper Online Runtime",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "feature_pipeline",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_visible_terminal_panel.py --title 'V2 Feature Snapshot Builder' --interval 10 --systemd-unit ai-bot-v2-feature-snapshot-builder.service --log-file v2/runtime/feature_snapshot_builder.log --redis-pattern v2:features:latest:* --redis-pattern v2:features:ta:*",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [
+        "v2:features:latest:*",
+        "v2:features:ta:*"
+      ],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/feature_pipeline.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": "ai-bot-v2-feature-snapshot-builder.service",
+      "terminal_title": "V2 Feature Snapshot Builder",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "technical_analysis",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_visible_terminal_panel.py --title 'V2 TA Worker' --interval 10 --redis-pattern v2:technical_analysis:* --command-rerun './.venv/bin/python3 -m v2.backend.app.cli.v2_feature_pipeline_and_ta_worker --symbol BTCUSDT --timeframe 1m --once' --command-rerun-every 6",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [
+        "v2:technical_analysis:*"
+      ],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/technical_analysis.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": null,
+      "terminal_title": "V2 TA Worker (periodic rerun)",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "symbol_universe",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_visible_terminal_panel.py --title 'V2 Symbol Universe Publisher' --interval 10 --systemd-unit ai-bot-v2-symbol-universe-publisher.service --log-file v2/runtime/symbol_universe_public_payload.log --payload-dir v2/frontend/public/symbol_universe",
+      "expected_public_payload": "v2/frontend/public/symbol_universe",
+      "expected_public_payload_dirs": [
+        "v2/frontend/public/symbol_universe"
+      ],
+      "expected_redis_keys": [],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/symbol_universe.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": "ai-bot-v2-symbol-universe-publisher.service",
+      "terminal_title": "V2 Symbol Universe Publisher",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "trainer_prediction_publisher",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_visible_terminal_panel.py --title 'V2 Trainer Bridge' --interval 10 --systemd-unit ai-bot-v2-trainer-bridge.service --log-file v2/runtime/v2_trainer_bridge.log --redis-pattern v2:prediction:*",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [
+        "v2:prediction:*"
+      ],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/trainer_prediction_publisher.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": "ai-bot-v2-trainer-bridge.service",
+      "terminal_title": "V2 Trainer Bridge / Prediction Publisher",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "risk_decision_loop",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_visible_terminal_panel.py --title 'V2 Risk Gateway' --interval 10 --redis-pattern v2:risk:* --payload-dir v2/frontend/public/risk_gateway_canary_hard_gates --command-rerun './.venv/bin/python3 -m v2.backend.app.cli.v2_risk_gateway_runtime_worker --once' --command-rerun-every 6",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [
+        "v2:risk:*"
+      ],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/risk_decision_loop.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": null,
+      "terminal_title": "V2 Risk Gateway (periodic rerun)",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "orchestrator_arbitration",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_visible_terminal_panel.py --title 'V2 Orchestrator Arbitration Loop' --interval 10 --systemd-unit ai-bot-v2-orchestrator-arbitration-loop.service --redis-pattern v2:orchestrator:* --payload-dir v2/frontend/public/operator_runtime",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [
+        "v2:orchestrator:*"
+      ],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/orchestrator_arbitration.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": "ai-bot-v2-orchestrator-arbitration-loop.service",
+      "terminal_title": "V2 Orchestrator Arbitration Loop",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "paper_trade_management",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_visible_terminal_panel.py --title 'V2 Paper Trade Management' --interval 10 --systemd-unit ai-bot-v2-trade-management-paper-loop.service --redis-pattern v2:paper:trade_management:* --redis-pattern v2:paper:ledger*",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [
+        "v2:paper:trade_management:*"
+      ],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/paper_trade_management.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": "ai-bot-v2-trade-management-paper-loop.service",
+      "terminal_title": "V2 Paper Trade Management",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "paper_ledger_paper_runtime",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_visible_terminal_panel.py --title 'V2 Paper Shadow Observation' --interval 10 --systemd-unit ai-bot-v2-paper-shadow-observation.service --log-file v2/runtime/paper_shadow_observation.log --redis-pattern v2:paper:shadow* --payload-dir v2/frontend/public/paper_shadow_observation",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [
+        "v2:paper:shadow*"
+      ],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/paper_ledger_paper_runtime.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": "ai-bot-v2-paper-shadow-observation.service",
+      "terminal_title": "V2 Paper Shadow Observation",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "position_history_tracker",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_visible_terminal_panel.py --title 'V2 Position History Tracker' --interval 10 --systemd-unit ai-bot-v2-position-history-persistent-tracker.service --redis-pattern v2:paper:position_history:*",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [
+        "v2:paper:position_history:*"
+      ],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/position_history_tracker.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": "ai-bot-v2-position-history-persistent-tracker.service",
+      "terminal_title": "V2 Position History Tracker",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "liquidation_wss_paper_shadow",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_visible_terminal_panel.py --title 'V2 Liquidation WSS (paper-shadow)' --interval 10 --systemd-unit ai-bot-v2-liquidation-wss-paper-shadow.service --redis-pattern v2:liquidation:* --redis-pattern v2:liquidation:wss:*",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [
+        "v2:liquidation:*"
+      ],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/liquidation_wss_paper_shadow.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": "ai-bot-v2-liquidation-wss-paper-shadow.service",
+      "terminal_title": "V2 Liquidation WSS (paper-shadow)",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "replay_outcome_miner",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_visible_terminal_panel.py --title 'V2 Replay Outcome Miner' --interval 10 --systemd-unit ai-bot-v2-post-hoc-replay-outcome-miner.service --redis-pattern v2:replay:* --payload-dir v2/frontend/public/v2_post_hoc_replay_outcome_miner",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [
+        "v2:replay:*"
+      ],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/replay_outcome_miner.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": "ai-bot-v2-post-hoc-replay-outcome-miner.service",
+      "terminal_title": "V2 Replay Outcome Miner",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "production_equivalence_comparator",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_visible_terminal_panel.py --title 'V2 Production-Equivalence Comparator' --interval 10 --payload-dir v2/frontend/public/v2_production_equivalence_comparator --command-rerun './.venv/bin/python3 -m v2.backend.app.cli.v2_production_equivalence_comparator --once' --command-rerun-every 6",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/production_equivalence_comparator.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": null,
+      "terminal_title": "V2 Production-Equivalence Comparator",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "report_center_indexer",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_visible_terminal_panel.py --title 'V2 Report Center Indexer' --interval 10 --systemd-unit ai-bot-v2-report-center-indexer.service --payload-dir v2/frontend/public/v2_report_center",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/report_center_indexer.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": "ai-bot-v2-report-center-indexer.service",
+      "terminal_title": "V2 Report Center Indexer",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "executive_command_center",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_visible_terminal_panel.py --title 'V2 Executive Command Center' --interval 10 --systemd-unit ai-bot-v2-executive-command-center.service --payload-dir v2/frontend/public/v2_executive_command_center",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/executive_command_center.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": "ai-bot-v2-executive-command-center.service",
+      "terminal_title": "V2 Executive Command Center",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "no_manual_next_action_policy",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_visible_terminal_panel.py --title 'V2 No-Manual Next-Task Policy' --interval 10 --systemd-unit ai-bot-v2-autonomous-no-manual-next-task-policy.service --payload-dir v2/frontend/public/v2_autonomous_no_manual_next_task_policy",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/no_manual_next_action_policy.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": "ai-bot-v2-autonomous-no-manual-next-task-policy.service",
+      "terminal_title": "V2 No-Manual Next-Task Policy",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "spark_worker_pool",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_visible_terminal_panel.py --title 'V2 Spark Worker Pool' --interval 10 --systemd-unit ai-bot-v2-closed-loop-worker-pool.service --payload-dir v2/frontend/public/v2_closed_loop_persistent_worker_pool",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/spark_worker_pool.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": "ai-bot-v2-closed-loop-worker-pool.service",
+      "terminal_title": "V2 Spark Worker Pool",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "claude_workers",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_visible_terminal_panel.py --title 'V2 Claude Closed-Loop Workers' --interval 10 --systemd-unit ai-bot-v2-closed-loop-claude-worker@1.service",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/claude_workers.log",
+      "notes": "panel tracks worker @1; live state for @1..3 is in V2 Automation/Spark monitor",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": null,
+      "terminal_title": "V2 Claude Closed-Loop Workers (1-3)",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "codex_workers",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_visible_terminal_panel.py --title 'V2 Codex Closed-Loop Workers' --interval 10 --systemd-unit ai-bot-v2-closed-loop-codex-worker@1.service",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/codex_workers.log",
+      "notes": "panel tracks worker @1; live state for @1..3 is in V2 Automation/Spark monitor",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": null,
+      "terminal_title": "V2 Codex Closed-Loop Workers (1-3)",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "event_watchers",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_visible_terminal_panel.py --title 'V2 Final-Operator-Decision Event Watcher' --interval 10 --systemd-unit ai-bot-v2-final-operator-decision-event-watcher.service --payload-dir v2/frontend/public/v2_final_operator_decision_and_event_watcher_execution",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/event_watchers.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": "ai-bot-v2-final-operator-decision-event-watcher.service",
+      "terminal_title": "V2 Final-Operator-Decision Event Watcher",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "runtime_cutover_watchdog",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_visible_terminal_panel.py --title 'V2 Automation Liveness Watchdog' --interval 10 --systemd-unit ai-bot-v2-automation-liveness-watchdog.service --payload-dir v2/frontend/public/automation_liveness",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/runtime_cutover_watchdog.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": "ai-bot-v2-automation-liveness-watchdog.service",
+      "terminal_title": "V2 Automation Liveness Watchdog",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "v2_service_monitor",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_legacy_style_monitors.py --monitor service --interval 10",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/v2_service_monitor.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": null,
+      "terminal_title": "V2 Service Monitor",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "v2_resources_monitor",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_legacy_style_monitors.py --monitor resources --interval 10",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/v2_resources_monitor.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": null,
+      "terminal_title": "V2 Memory/GPU Monitor",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "v2_redis_key_monitor",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_legacy_style_monitors.py --monitor redis --interval 10",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/v2_redis_key_monitor.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": null,
+      "terminal_title": "V2 Redis Key Monitor",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "v2_market_data_monitor",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_legacy_style_monitors.py --monitor market --interval 10",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/v2_market_data_monitor.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": null,
+      "terminal_title": "V2 Market Data Monitor",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "v2_predictions_monitor",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_legacy_style_monitors.py --monitor predictions --interval 10",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/v2_predictions_monitor.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": null,
+      "terminal_title": "V2 Predictions Monitor",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "v2_decision_monitor",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_legacy_style_monitors.py --monitor decision --interval 10",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/v2_decision_monitor.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": null,
+      "terminal_title": "V2 Risk/Orchestrator Monitor",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "v2_paper_trading_monitor",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_legacy_style_monitors.py --monitor paper --interval 10",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/v2_paper_trading_monitor.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": null,
+      "terminal_title": "V2 Paper Trading Monitor",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "v2_exchange_readonly_monitor",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_legacy_style_monitors.py --monitor exchange --interval 10",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/v2_exchange_readonly_monitor.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": null,
+      "terminal_title": "V2 Exchange Read-Only Monitor",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "v2_automation_spark_monitor",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_legacy_style_monitors.py --monitor automation --interval 10",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/v2_automation_spark_monitor.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": null,
+      "terminal_title": "V2 Automation/Spark Monitor",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "v2_error_alert_monitor",
+      "command": "./.venv/bin/python3 claude_worklog/tools/v2_legacy_style_monitors.py --monitor errors --interval 10",
+      "expected_public_payload": null,
+      "expected_public_payload_dirs": [],
+      "expected_redis_keys": [],
+      "heartbeat_interval_seconds": 10,
+      "log_path": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/<ts>/v2_error_alert_monitor.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "systemd_unit": null,
+      "terminal_title": "V2 Error/Alert Monitor",
+      "uses_est_timestamps": true,
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    }
+  ],
+  "entry_count": 32,
+  "go_no_go": "V2_GNOME_TERMINAL_VISIBLE_MANIFEST_READY",
+  "legacy_style_monitor_count": 10,
+  "legacy_style_monitor_module": "claude_worklog/tools/v2_legacy_style_monitors.py",
+  "missing_count": 0,
+  "paper_only": true,
+  "repo_root": "/home/wali/Desktop/AI BOT REBUILD",
+  "safety_env_template": {
+    "DISABLE_LIVE_TRADING": "true",
+    "LIVE_GATE": "blocked_human_only",
+    "LIVE_SYMBOLS": "[]",
+    "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+    "V2_PAPER_ONLY": "true"
+  },
+  "service_panels_count": 22,
+  "ts_est": "20260525T231604EST",
+  "uses_est_timestamps": true,
+  "visible_panel_module": "claude_worklog/tools/v2_visible_terminal_panel.py",
+  "writes_exchange_orders": false
+}

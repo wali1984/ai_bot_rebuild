@@ -1,0 +1,325 @@
+{
+  "started_at": "2026-06-19T15:12:23Z",
+  "finished_at": "2026-06-19T15:12:30Z",
+  "worker_id": "v2_trade_management_paper_loop",
+  "classification": "V2_TRADE_MANAGEMENT_PAPER_PRODUCTION_OK",
+  "closed_trade_count": 1085,
+  "open_position_count": 12,
+  "places_real_order": false,
+  "writes_legacy_redis": false,
+  "live_gate": "blocked_human_only",
+  "active_policy_closed": 109,
+  "active_policy_trailing": 10,
+  "trailing_runtime": {
+    "disable_reason": null,
+    "disabled": false,
+    "enabled": true,
+    "filtered_out_sample_count": 558,
+    "minimum_pnl_usd": 0.0,
+    "minimum_sample_count": 50,
+    "minimum_win_rate": 0.4,
+    "paper_only": true,
+    "pnl_usd": 11.068470022075147,
+    "policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+    "policy_version_filter_enabled": true,
+    "reasons": [
+      "TRAILING_RUNTIME_SAMPLE_BELOW_MINIMUM",
+      "TRAILING_RUNTIME_POLICY_SAMPLE_BELOW_MINIMUM"
+    ],
+    "sample_count": 10,
+    "trailing_stop_enabled": true,
+    "unfiltered_sample_count": 568,
+    "win_count": 10,
+    "win_rate": 1.0
+  },
+  "evaluations": [
+    {
+      "close_reason": null,
+      "mark_price_source": "ENTRY_PRICE_FALLBACK_ONLY_FOR_UNCHANGED_MARK",
+      "pnl_bps": -3.273965426924731,
+      "should_close": false,
+      "symbol": "LITUSDT",
+      "tier": null,
+      "trailing_context_decision": {
+        "decision_source": "GLOBAL_TRAILING_RUNTIME_CIRCUIT_BREAKER",
+        "enabled": true,
+        "global_trailing_stop_enabled": true,
+        "market_regime": "TREND",
+        "paper_only": true,
+        "reasons": [
+          "TRAILING_RUNTIME_SAMPLE_BELOW_MINIMUM",
+          "TRAILING_RUNTIME_POLICY_SAMPLE_BELOW_MINIMUM"
+        ],
+        "selected_context": null,
+        "strategy_mode": "reduce_size_mode",
+        "symbol": "LITUSDT",
+        "timeframe": "4h",
+        "trailing_stop_enabled": true
+      }
+    },
+    {
+      "close_reason": null,
+      "mark_price_source": "V2_MARKET_PRICES_TICKER_24HR_LAST_PRICE",
+      "pnl_bps": 87.8669858324599,
+      "should_close": false,
+      "symbol": "ONDOUSDT",
+      "tier": null,
+      "trailing_context_decision": {
+        "decision_source": "GLOBAL_TRAILING_RUNTIME_CIRCUIT_BREAKER",
+        "enabled": true,
+        "global_trailing_stop_enabled": true,
+        "market_regime": "TREND",
+        "paper_only": true,
+        "reasons": [
+          "TRAILING_RUNTIME_SAMPLE_BELOW_MINIMUM",
+          "TRAILING_RUNTIME_POLICY_SAMPLE_BELOW_MINIMUM"
+        ],
+        "selected_context": null,
+        "strategy_mode": "trend_mode",
+        "symbol": "ONDOUSDT",
+        "timeframe": "1h",
+        "trailing_stop_enabled": true
+      }
+    },
+    {
+      "close_reason": null,
+      "mark_price_source": "V2_MARKET_PRICES_TICKER_24HR_LAST_PRICE",
+      "pnl_bps": 8.718650786468206,
+      "should_close": false,
+      "symbol": "SUIUSDT",
+      "tier": null,
+      "trailing_context_decision": {
+        "decision_source": "GLOBAL_TRAILING_RUNTIME_CIRCUIT_BREAKER",
+        "enabled": true,
+        "global_trailing_stop_enabled": true,
+        "market_regime": "MODEL_DISAGREEMENT,RANGE",
+        "paper_only": true,
+        "reasons": [
+          "TRAILING_RUNTIME_SAMPLE_BELOW_MINIMUM",
+          "TRAILING_RUNTIME_POLICY_SAMPLE_BELOW_MINIMUM"
+        ],
+        "selected_context": null,
+        "strategy_mode": "mean_reversion_mode",
+        "symbol": "SUIUSDT",
+        "timeframe": "1m",
+        "trailing_stop_enabled": true
+      }
+    },
+    {
+      "close_reason": null,
+      "mark_price_source": "V2_MARKET_PRICES_TICKER_24HR_LAST_PRICE",
+      "pnl_bps": 109.16289126907961,
+      "should_close": false,
+      "symbol": "ENAUSDT",
+      "tier": null,
+      "trailing_context_decision": {
+        "decision_source": "GLOBAL_TRAILING_RUNTIME_CIRCUIT_BREAKER",
+        "enabled": true,
+        "global_trailing_stop_enabled": true,
+        "market_regime": "RANGE",
+        "paper_only": true,
+        "reasons": [
+          "TRAILING_RUNTIME_SAMPLE_BELOW_MINIMUM",
+          "TRAILING_RUNTIME_POLICY_SAMPLE_BELOW_MINIMUM"
+        ],
+        "selected_context": null,
+        "strategy_mode": "mean_reversion_mode",
+        "symbol": "ENAUSDT",
+        "timeframe": "1m",
+        "trailing_stop_enabled": true
+      }
+    },
+    {
+      "close_reason": null,
+      "mark_price_source": "V2_MARKET_PRICES_TICKER_24HR_LAST_PRICE",
+      "pnl_bps": 73.60742705570335,
+      "should_close": false,
+      "symbol": "LABUSDT",
+      "tier": null,
+      "trailing_context_decision": {
+        "decision_source": "GLOBAL_TRAILING_RUNTIME_CIRCUIT_BREAKER",
+        "enabled": true,
+        "global_trailing_stop_enabled": true,
+        "market_regime": "MODEL_DISAGREEMENT,RANGE",
+        "paper_only": true,
+        "reasons": [
+          "TRAILING_RUNTIME_SAMPLE_BELOW_MINIMUM",
+          "TRAILING_RUNTIME_POLICY_SAMPLE_BELOW_MINIMUM"
+        ],
+        "selected_context": null,
+        "strategy_mode": "mean_reversion_mode",
+        "symbol": "LABUSDT",
+        "timeframe": "1h",
+        "trailing_stop_enabled": true
+      }
+    },
+    {
+      "close_reason": null,
+      "mark_price_source": "V2_MARKET_PRICES_TICKER_24HR_LAST_PRICE",
+      "pnl_bps": 9.815148045150053,
+      "should_close": false,
+      "symbol": "AVAXUSDT",
+      "tier": null,
+      "trailing_context_decision": {
+        "decision_source": "GLOBAL_TRAILING_RUNTIME_CIRCUIT_BREAKER",
+        "enabled": true,
+        "global_trailing_stop_enabled": true,
+        "market_regime": "MODEL_DISAGREEMENT,RANGE",
+        "paper_only": true,
+        "reasons": [
+          "TRAILING_RUNTIME_SAMPLE_BELOW_MINIMUM",
+          "TRAILING_RUNTIME_POLICY_SAMPLE_BELOW_MINIMUM"
+        ],
+        "selected_context": null,
+        "strategy_mode": "mean_reversion_mode",
+        "symbol": "AVAXUSDT",
+        "timeframe": "1m",
+        "trailing_stop_enabled": true
+      }
+    },
+    {
+      "close_reason": null,
+      "mark_price_source": "V2_MARKET_PRICES_TICKER_24HR_LAST_PRICE",
+      "pnl_bps": -21.253985122211024,
+      "should_close": false,
+      "symbol": "ALGOUSDT",
+      "tier": null,
+      "trailing_context_decision": {
+        "decision_source": "GLOBAL_TRAILING_RUNTIME_CIRCUIT_BREAKER",
+        "enabled": true,
+        "global_trailing_stop_enabled": true,
+        "market_regime": "TREND",
+        "paper_only": true,
+        "reasons": [
+          "TRAILING_RUNTIME_SAMPLE_BELOW_MINIMUM",
+          "TRAILING_RUNTIME_POLICY_SAMPLE_BELOW_MINIMUM"
+        ],
+        "selected_context": null,
+        "strategy_mode": "trend_mode",
+        "symbol": "ALGOUSDT",
+        "timeframe": "1h",
+        "trailing_stop_enabled": true
+      }
+    },
+    {
+      "close_reason": null,
+      "mark_price_source": "V2_MARKET_PRICES_TICKER_24HR_LAST_PRICE",
+      "pnl_bps": 11.597377318652594,
+      "should_close": false,
+      "symbol": "CRVUSDT",
+      "tier": null,
+      "trailing_context_decision": {
+        "decision_source": "GLOBAL_TRAILING_RUNTIME_CIRCUIT_BREAKER",
+        "enabled": true,
+        "global_trailing_stop_enabled": true,
+        "market_regime": "MODEL_DISAGREEMENT,RANGE",
+        "paper_only": true,
+        "reasons": [
+          "TRAILING_RUNTIME_SAMPLE_BELOW_MINIMUM",
+          "TRAILING_RUNTIME_POLICY_SAMPLE_BELOW_MINIMUM"
+        ],
+        "selected_context": null,
+        "strategy_mode": "mean_reversion_mode",
+        "symbol": "CRVUSDT",
+        "timeframe": "1h",
+        "trailing_stop_enabled": true
+      }
+    },
+    {
+      "close_reason": null,
+      "mark_price_source": "V2_MARKET_PRICES_TICKER_24HR_LAST_PRICE",
+      "pnl_bps": -21.028564101095693,
+      "should_close": false,
+      "symbol": "ESPORTSUSDT",
+      "tier": null,
+      "trailing_context_decision": {
+        "decision_source": "GLOBAL_TRAILING_RUNTIME_CIRCUIT_BREAKER",
+        "enabled": true,
+        "global_trailing_stop_enabled": true,
+        "market_regime": "MODEL_DISAGREEMENT,RANGE",
+        "paper_only": true,
+        "reasons": [
+          "TRAILING_RUNTIME_SAMPLE_BELOW_MINIMUM",
+          "TRAILING_RUNTIME_POLICY_SAMPLE_BELOW_MINIMUM"
+        ],
+        "selected_context": null,
+        "strategy_mode": "mean_reversion_mode",
+        "symbol": "ESPORTSUSDT",
+        "timeframe": "1m",
+        "trailing_stop_enabled": true
+      }
+    },
+    {
+      "close_reason": null,
+      "mark_price_source": "V2_MARKET_PRICES_TICKER_24HR_LAST_PRICE",
+      "pnl_bps": 41.563602297127716,
+      "should_close": false,
+      "symbol": "INJUSDT",
+      "tier": null,
+      "trailing_context_decision": {
+        "decision_source": "GLOBAL_TRAILING_RUNTIME_CIRCUIT_BREAKER",
+        "enabled": true,
+        "global_trailing_stop_enabled": true,
+        "market_regime": "MODEL_DISAGREEMENT,RANGE",
+        "paper_only": true,
+        "reasons": [
+          "TRAILING_RUNTIME_SAMPLE_BELOW_MINIMUM",
+          "TRAILING_RUNTIME_POLICY_SAMPLE_BELOW_MINIMUM"
+        ],
+        "selected_context": null,
+        "strategy_mode": "mean_reversion_mode",
+        "symbol": "INJUSDT",
+        "timeframe": "1m",
+        "trailing_stop_enabled": true
+      }
+    },
+    {
+      "close_reason": null,
+      "mark_price_source": "V2_MARKET_PRICES_TICKER_24HR_LAST_PRICE",
+      "pnl_bps": 50.89058524173033,
+      "should_close": false,
+      "symbol": "FILUSDT",
+      "tier": null,
+      "trailing_context_decision": {
+        "decision_source": "GLOBAL_TRAILING_RUNTIME_CIRCUIT_BREAKER",
+        "enabled": true,
+        "global_trailing_stop_enabled": true,
+        "market_regime": "MODEL_DISAGREEMENT,RANGE",
+        "paper_only": true,
+        "reasons": [
+          "TRAILING_RUNTIME_SAMPLE_BELOW_MINIMUM",
+          "TRAILING_RUNTIME_POLICY_SAMPLE_BELOW_MINIMUM"
+        ],
+        "selected_context": null,
+        "strategy_mode": "mean_reversion_mode",
+        "symbol": "FILUSDT",
+        "timeframe": "1h",
+        "trailing_stop_enabled": true
+      }
+    },
+    {
+      "close_reason": null,
+      "mark_price_source": "V2_MARKET_PRICES_TICKER_24HR_LAST_PRICE",
+      "pnl_bps": 28.058361391693584,
+      "should_close": false,
+      "symbol": "BIOUSDT",
+      "tier": null,
+      "trailing_context_decision": {
+        "decision_source": "GLOBAL_TRAILING_RUNTIME_CIRCUIT_BREAKER",
+        "enabled": true,
+        "global_trailing_stop_enabled": true,
+        "market_regime": "MODEL_DISAGREEMENT,RANGE",
+        "paper_only": true,
+        "reasons": [
+          "TRAILING_RUNTIME_SAMPLE_BELOW_MINIMUM",
+          "TRAILING_RUNTIME_POLICY_SAMPLE_BELOW_MINIMUM"
+        ],
+        "selected_context": null,
+        "strategy_mode": "mean_reversion_mode",
+        "symbol": "BIOUSDT",
+        "timeframe": "1h",
+        "trailing_stop_enabled": true
+      }
+    }
+  ]
+}

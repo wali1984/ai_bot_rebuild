@@ -1,0 +1,29 @@
+{
+  "agent": "claude",
+  "created_at": "2026-05-25T19:10:27.512926Z",
+  "depends_on_task_id": null,
+  "file_lock_group": "external_source_reconcile_tokenmetrics_unified_feature_family_token_metrics",
+  "lane_group": "proof-claude",
+  "lane_type": "CLAUDE_IMPLEMENTATION",
+  "mission_category": "observation_completeness",
+  "owner": "CLAUDE",
+  "paired_task_id": "codex_review_external_source_reconcile_tokenmetrics_unified_feature_family_token_metrics_adapter_impl",
+  "prompt": "Implement a disabled-by-default V2 external-source adapter for tokenmetrics covering unified_feature_family.token_metrics. Use env var names only in logs/artifacts. Do not read or print raw credential values. Do not activate paid feeds. Do not write old Redis. Do not call exchange mutation. Do not enable live/canary/shutdown. Keep live_gate=blocked_human_only and live_symbols=[].",
+  "safe_envelope": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "scope_paths": [
+    "v2/backend/app/adapters",
+    "v2/backend/app/services/rl_core",
+    "v2/backend/tests"
+  ],
+  "status": "pending",
+  "task_id": "external_source_reconcile_tokenmetrics_unified_feature_family_token_metrics_adapter_impl",
+  "task_type": "CLAUDE_IMPLEMENTATION",
+  "updated_at": "2026-05-25T19:10:56.645228Z"
+}

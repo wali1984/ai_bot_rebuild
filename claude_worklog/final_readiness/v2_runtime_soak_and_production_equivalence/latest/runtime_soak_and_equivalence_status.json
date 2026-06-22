@@ -1,0 +1,57 @@
+{
+  "schema_version": "v2_runtime_soak_and_production_equivalence_v1",
+  "generated_utc": "2026-05-17T02:10:00Z",
+  "git_head": "31a7fd70319f0d586c454b5ea2ea530ba9cb1541",
+  "go_no_go": "V2_RUNTIME_SOAK_AND_PRODUCTION_EQUIVALENCE_READY_SOAKING",
+  "decision_rationale_plain_english": "V2 paper/shadow runtime is persistent, fresh, and continuously compared to legacy. Soak observer + production-equivalence comparator are running on 5-minute cycles, writing observation history and per-symbol comparison artifacts to the operator-facing path. Legacy is read-only reference and is NOT stopped. live_gate stays blocked_human_only. Soak milestones (15m/1h/6h) are progressing autonomously.",
+  "components_added_or_updated": [
+    "v2/backend/app/cli/v2_production_equivalence_comparator.py (V2 vs legacy per-symbol comparison + soak observation at the new path; tolerates legacy hash/list/stream key types)",
+    "v2/backend/scripts/run_v2_replacement_readiness_scoreboard.py (scoreboard emitter)",
+    "v2/backend/app/cli/v2_production_payload_freshness_refresher.py (extended to surface soak progress + comparator status in frontend_truth_payload.json)",
+    "claude_worklog/tools/v2_production_replacement_runtime_guard.py (now requires v2_production_equivalence_comparator process in READY_STABLE)",
+    "claude_worklog/tools/start_v2_production_replacement_runtime.sh / status / stop (extended to manage the equivalence comparator)",
+    "claude_worklog/systemd/user/ai-bot-v2-production-equivalence-comparator.service"
+  ],
+  "current_runtime": {
+    "v2_processes_running_count": 10,
+    "v2_total_redis_key_count": 30,
+    "runtime_guard_classification": "V2_PRODUCTION_REPLACEMENT_RUNTIME_READY_STABLE"
+  },
+  "artifacts": {
+    "soak_observation_jsonl": "claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/soak_observation.jsonl",
+    "soak_status_worklog": "claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/soak_status.json",
+    "soak_status_public": "v2/frontend/public/v2_runtime_soak_and_production_equivalence/latest/soak_status.json",
+    "production_equivalence_comparison_worklog": "claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/production_equivalence_comparison.json",
+    "production_equivalence_comparison_public": "v2/frontend/public/v2_runtime_soak_and_production_equivalence/latest/production_equivalence_comparison.json",
+    "production_equivalence_blocker_burndown": "claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/production_equivalence_blocker_burndown.json",
+    "v2_replacement_readiness_scoreboard": "claude_worklog/final_readiness/v2_runtime_soak_and_production_equivalence/latest/v2_replacement_readiness_scoreboard.json",
+    "operator_dashboard_payload_public": "v2/frontend/public/v2_runtime_soak_and_production_equivalence/latest/operator_dashboard_payload.json",
+    "frontend_truth_payload": "v2/frontend/public/operator_runtime/frontend_truth/latest/frontend_truth_payload.json"
+  },
+  "soak_milestones": {
+    "soak_15m_ready_target": "minutes_observed >= 15 AND all_v2_processes_uninterrupted AND v2_namespaces_never_empty",
+    "soak_1h_ready_target": "minutes_observed >= 60 AND all_v2_processes_uninterrupted AND v2_namespaces_never_empty",
+    "soak_6h_ready_target": "minutes_observed >= 360 AND all_v2_processes_uninterrupted AND v2_namespaces_never_empty"
+  },
+  "what_this_packet_did_not_do": [
+    "Did NOT stop legacy.",
+    "Did NOT write any legacy Redis key.",
+    "Did NOT call any exchange SDK or place/cancel/modify orders.",
+    "Did NOT change leverage or margin mode.",
+    "Did NOT create live, canary, or Redis-trim approval token.",
+    "Did NOT create the paper-only acceptance file.",
+    "Did NOT mark legacy shutdown as safe."
+  ],
+  "safety_state": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "final_live_approval_token_created": false,
+    "legacy_was_stopped_by_this_packet": false,
+    "old_redis_writes_attempted_by_v2_loops": false,
+    "exchange_orders_placed_or_modified": false
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "generated_at": "2026-05-15T23:07:30Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "priority_order": [
+    {
+      "id": "P0.1",
+      "task_id": "claude_rebuild_v2_native_feature_pipeline_worker_from_legacy",
+      "summary": "Build native V2 feature pipeline from preserved legacy feature_pipeline.py behavior."
+    },
+    {
+      "id": "P0.2",
+      "task_id": "claude_rebuild_v2_trainer_full_rl_masa_ppo_reward_stack",
+      "summary": "Build native RL/MASA/PPO/reward stack with environment, observation tensor, reward suite, policy, CPU loop, and GPU parity milestones."
+    },
+    {
+      "id": "P0.3",
+      "task_id": "claude_rebuild_v2_orchestrator_arbitration_from_legacy",
+      "summary": "Build native orchestrator arbitration from legacy proposal scoring, regime filtering, routing, deconflict, and stale/duplicate handling."
+    },
+    {
+      "id": "P0.4",
+      "task_id": "claude_rebuild_v2_stop_tp_stealth_exit_engine_paper_first",
+      "summary": "Build paper-first stop/TP/stealth exit and trade-management engine."
+    },
+    {
+      "id": "P0.5",
+      "task_id": "claude_verify_v2_ingestors_are_native_or_downgrade_to_bridge",
+      "summary": "Prove each V2 ingestor is native WebSocket/REST or downgrade bridge-only workers to READONLY_BRIDGED."
+    }
+  ],
+  "selected_controller_task": "claude_v2_native_core_p0_true_migration_sprint",
+  "shutdown_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE"
+}

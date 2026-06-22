@@ -1,9 +1,7 @@
 import { useState } from 'react';
-import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import type { TradeTerminalState } from '../../hooks/useTradeTerminal';
 import { formatMoney, formatPrice, formatPercent, signedClass } from '../../lib/tradeFormatters';
-import { tradeCopy, TRADE_ENDPOINTS } from '../../lib/tradeCopy';
-import { MissingDataState } from './TradeShared';
+import { tradeCopy } from '../../lib/tradeCopy';
 
 interface PaperPos {
   position_id: string | null;
@@ -15,6 +13,8 @@ interface PaperPos {
   last_mark_price: number | null;
   unrealized_pnl: number | null;
   unrealized_pnl_bps: number | null;
+  mark_price_age_seconds?: number | null;
+  mark_price_source?: string | null;
   timeframe: string | null;
   strategy_id: string | null;
   market_regime_at_entry: string | null;
@@ -32,31 +32,44 @@ function ageStr(sec: number | null | undefined): string {
   return `${m}m`;
 }
 
+function markAgeStr(sec: number | null | undefined): string {
+  if (sec == null) return 'mark age unavailable';
+  if (sec < 1) return 'live mark <1s';
+  if (sec < 60) return `live mark ${Math.round(sec)}s`;
+  return `live mark ${Math.floor(sec / 60)}m`;
+}
+
 export function PositionsTable({ state }: { state: TradeTerminalState }): JSX.Element {
   const [filter, setFilter] = useState('');
 
-  const { envelope } = useRealtimeResource<PaperStatusData>({
-    url: '/api/v2/paper/status',
-    source: '/api/v2/paper/status',
-    pollIntervalMs: 8_000,
-    staleThresholdMs: 20_000,
-    mode: 'paper',
-  });
-
-  const paperPositions = (envelope.data?.positions ?? []).filter(p =>
+  const paperPositions = ((state.paper.activity.positions ?? []) as unknown as PaperPos[]).filter(p =>
     !filter || p.symbol.toLowerCase().includes(filter.toLowerCase()),
   );
+  const summary = state.paper.activity.summary ?? {};
+  const sourceStatus = String(summary.position_source_status ?? (state.paper.connected ? 'websocket' : state.paper.source));
+  const retainedRows = String(summary.frontend_retained_rows ?? '');
 
   // Fall back to typed positions from state if Redis load fails
   const legacyRows = state.portfolio.openPositions;
 
+  // Show spinner on initial load (no data yet at all)
+  if (state.paper.loading && !paperPositions.length && !legacyRows.length) {
+    return (
+      <div style={{ padding: '24px 16px', color: 'var(--text-muted)', fontSize: 13, fontFamily: 'var(--font-mono)' }}>
+        Loading positions…
+      </div>
+    );
+  }
+
   if (!paperPositions.length && !legacyRows.length) {
     return (
-      <MissingDataState
-        title="No open paper positions"
-        detail="No paper position rows found in Redis (v2:paper:positions). The paper engine may not have any active fills."
-        endpoint={TRADE_ENDPOINTS.positions}
-      />
+      <div style={{ padding: '20px 16px', color: 'var(--text-muted)', fontSize: 13, fontFamily: 'var(--font-mono)' }}>
+        No open positions. Positions appear here when the execution engine accepts fills.
+        <br />
+          <span style={{ fontSize: 11, marginTop: 4, display: 'block' }}>
+          Source: execution activity stream · See <strong>Executions</strong> tab for fill history.
+        </span>
+      </div>
     );
   }
 
@@ -76,11 +89,15 @@ export function PositionsTable({ state }: { state: TradeTerminalState }): JSX.El
             }}
           />
           <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-            {paperPositions.length} positions · Redis live
+            {paperPositions.length} positions · {state.paper.connected ? 'WebSocket' : 'HTTP fallback'}
           </span>
+          {retainedRows ? (
+            <span style={{ fontSize: 11, color: 'var(--warn)' }}>last-known rows retained during transient empty frame</span>
+          ) : null}
         </div>
-        <div className="trade-table" role="table" aria-label="Paper Positions">
-          <div className="trade-table__row trade-table__row--head" role="row">
+        <div className="trade-table-shell">
+          <div className="trade-table trade-table--paper-positions" role="table" aria-label="Positions">
+          <div className="trade-table__row trade-table__row--paper-positions trade-table__row--head" role="row">
             <span>Symbol</span>
             <span>Side</span>
             <span>Trade Size</span>
@@ -88,7 +105,7 @@ export function PositionsTable({ state }: { state: TradeTerminalState }): JSX.El
             <span>TF</span>
             <span>Entry</span>
             <span>Mark</span>
-            <span>Unreal. PnL</span>
+            <span>Net PnL</span>
             <span>bps</span>
             <span>Strategy</span>
             <span>Regime</span>
@@ -98,10 +115,9 @@ export function PositionsTable({ state }: { state: TradeTerminalState }): JSX.El
             const isLong = pos.side.toUpperCase().includes('BUY') || pos.side === 'LONG';
             return (
               <div
-                className="trade-table__row"
+                className="trade-table__row trade-table__row--paper-positions"
                 role="row"
                 key={pos.position_id ?? i}
-                style={{ gridTemplateColumns: '1fr 0.7fr 1fr 0.4fr 0.4fr 0.8fr 0.8fr 0.9fr 0.6fr 1fr 0.7fr 0.6fr' }}
               >
                 <span data-label="Symbol" style={{ fontWeight: 700 }}>{pos.symbol}</span>
                 <span data-label="Side" style={{ color: isLong ? 'var(--buy)' : 'var(--sell)', fontWeight: 700 }}>
@@ -111,8 +127,8 @@ export function PositionsTable({ state }: { state: TradeTerminalState }): JSX.El
                 <span data-label="Lev.">{pos.leverage}x</span>
                 <span data-label="TF">{pos.timeframe ?? '—'}</span>
                 <span data-label="Entry">{formatPrice(pos.avg_entry_price)}</span>
-                <span data-label="Mark">{formatPrice(pos.last_mark_price)}</span>
-                <span data-label="Unreal. PnL" className={signedClass(pos.unrealized_pnl)}>
+                <span data-label="Mark" title={String(pos.mark_price_source ?? '')}>{formatPrice(pos.last_mark_price)}</span>
+                <span data-label="Net PnL" className={signedClass(pos.unrealized_pnl)}>
                   {formatMoney(pos.unrealized_pnl)}
                 </span>
                 <span data-label="bps" className={signedClass(pos.unrealized_pnl_bps)}>
@@ -124,9 +140,10 @@ export function PositionsTable({ state }: { state: TradeTerminalState }): JSX.El
               </div>
             );
           })}
+          </div>
         </div>
-        <p className="trade-table__note" style={{ color: 'var(--text-muted)', fontSize: 11 }}>
-          Source: v2:paper:positions · All fills simulated · places_real_order: false
+      <p className="trade-table__note" style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+          Source: {sourceStatus} · {markAgeStr(paperPositions[0]?.mark_price_age_seconds)}
         </p>
       </div>
     );
@@ -151,7 +168,7 @@ export function PositionsTable({ state }: { state: TradeTerminalState }): JSX.El
           <span data-label="Liq. price">Unavailable</span>
           <span data-label="TP/SL">Unavailable</span>
           <span data-label="Risk">{tradeCopy(state.signal.riskDecision)}</span>
-          <span data-label="Mode">Paper</span>
+          <span data-label="Mode">Runtime</span>
         </div>
       ))}
       <p className="trade-table__note">Opened: {legacyRows[0]?.opened_utc ?? '—'}</p>

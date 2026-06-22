@@ -1,0 +1,29 @@
+{
+  "agent": "claude",
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/priority_autoseed_20260531/feature_ta_missing_fields/",
+    "v2/backend/app/",
+    "v2/backend/tests/",
+    "v2/frontend/public/operator_runtime/"
+  ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "lane": "primary_claude_lane",
+  "log_path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/claude_priority_feature_ta_missing_fields_20260531.log",
+  "next_action": "CODEX_TAKEOVER created; operator may resume Claude manually.",
+  "next_gate": "GO_NO_GO.md",
+  "pid_or_job_id": 1385311,
+  "priority": 4650,
+  "prompt": "Remediate missing feature/TA fields. Emit field-by-field contract parity table (legacy expected vs v2 actual) including freshness and nullability. Any unresolved field must include exact blocker and evidence pointer.",
+  "required_output_files": [
+    "claude_worklog/final_readiness/priority_autoseed_20260531/feature_ta_missing_fields/REPORT.md",
+    "claude_worklog/final_readiness/priority_autoseed_20260531/feature_ta_missing_fields/STATUS.json",
+    "claude_worklog/final_readiness/priority_autoseed_20260531/feature_ta_missing_fields/GO_NO_GO.md"
+  ],
+  "risk_level": "L2",
+  "stall_count": 2,
+  "started_at": "2026-05-31T05:29:09Z",
+  "status": "stale",
+  "task_id": "claude_priority_feature_ta_missing_fields_20260531",
+  "updated_at": "2026-05-31T05:29:20Z"
+}

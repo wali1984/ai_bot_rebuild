@@ -3,19 +3,28 @@
   "allowed_output_prefixes": [
     "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/codex_reviews/codex_review_claude_remediate_account_position_monitor_shutdown_parity/"
   ],
+  "completed_at": "2026-05-14T22:07:52.409590+00:00",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "emit_files": true,
   "lane": "shutdown_readiness_remediation",
   "live_gate": "blocked_human_only",
   "managed_by": "codex_legacy_shutdown_readiness_takeover",
   "max_attempts": 2,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
   "prompt": "You are Codex running a read-only shutdown-readiness review. Do not modify source files. Do not mutate legacy, Redis, exchange state, leverage, margin mode, or live trading. Review Claude task claude_remediate_account_position_monitor_shutdown_parity, its emitted files under claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/claude_tasks/claude_remediate_account_position_monitor_shutdown_parity, relevant V2 source/tests, and current readiness payloads. Fail if legacy behavior was silently dropped, old Redis writes or exchange mutations are introduced, live gate is not blocked_human_only, approval tokens appear, required SHA evidence is missing, or tests are missing for touched behavior.\n\nEmit exactly two BEGIN_FILE blocks:\nBEGIN_FILE: claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/codex_reviews/codex_review_claude_remediate_account_position_monitor_shutdown_parity/CODEX_REVIEW.md\n...findings...\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/codex_reviews/codex_review_claude_remediate_account_position_monitor_shutdown_parity/CODEX_GO_NO_GO.md\nCLAUDE_REMEDIATE_ACCOUNT_POSITION_MONITOR_SHUTDOWN_PARITY_CODEX_PASS or CLAUDE_REMEDIATE_ACCOUNT_POSITION_MONITOR_SHUTDOWN_PARITY_CODEX_FAIL\nEND_FILE\n",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/codex_reviews/codex_review_claude_remediate_account_position_monitor_shutdown_parity/CODEX_REVIEW.md",
     "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/codex_reviews/codex_review_claude_remediate_account_position_monitor_shutdown_parity/CODEX_GO_NO_GO.md"
   ],
+  "resolved_from_source_truth": true,
   "risk_level": "L1",
-  "status": "pending",
+  "source_truth_completed_at": "2026-05-14T22:07:52.409590+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/codex_review_claude_remediate_account_position_monitor_shutdown_parity.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
   "task_id": "codex_review_claude_remediate_account_position_monitor_shutdown_parity",
-  "task_timeout_seconds": 1200
+  "task_timeout_seconds": 1200,
+  "updated_at": "2026-06-15T19:54:42Z"
 }

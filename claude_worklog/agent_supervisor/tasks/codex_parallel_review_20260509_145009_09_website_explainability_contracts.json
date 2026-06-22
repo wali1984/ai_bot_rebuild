@@ -1,22 +1,13 @@
 {
-  "task_id": "codex_parallel_review_20260509_145009_09_website_explainability_contracts",
   "agent": "codex",
-  "risk_level": "L1",
-  "status": "pending",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "claude_worklog/codex_parallel_reviews/"
   ],
-  "required_output_files": [
-    "claude_worklog/codex_parallel_reviews/20260509_145009_09_website_explainability_contracts_REPORT.md",
-    "claude_worklog/codex_parallel_reviews/20260509_145009_09_website_explainability_contracts_GO_NO_GO.md"
-  ],
-  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD.\n\nREAD-ONLY PARALLEL REVIEW MODE.\n\nDo not modify /home/wali/Desktop/AI BOT.\nDo not write Redis.\nDo not delete Redis keys.\nDo not restart live services.\nDo not place/cancel orders.\nDo not change leverage/margin.\nDo not enable live trading.\nDo not deploy.\nDo not expose secrets.\n\nReview topic: Website Explainability Contract Readiness\n\nInputs to inspect:\n- v2/frontend\n- v2/backend/app\n- claude_worklog/requirements_inbox/REQ_0009_FULL_DECISION_EXPLAINABILITY_AND_UNDER_THE_HOOD_UI.md\n\nChecks:\n- feature_snapshot_id visibility\n- prediction_id visibility\n- risk_decision_id visibility\n- paper/shadow comparison visibility\n- no fake reasoning\n\nWrite exactly two BEGIN_FILE blocks:\n1. claude_worklog/codex_parallel_reviews/20260509_145009_09_website_explainability_contracts_REPORT.md\n2. claude_worklog/codex_parallel_reviews/20260509_145009_09_website_explainability_contracts_GO_NO_GO.md\n\nThe GO/NO-GO file must contain exactly one line:\nCODEX_PARALLEL_REVIEW_READY or CODEX_PARALLEL_REVIEW_BLOCKED\n\nIf blocked, the report must include concrete blockers and proposed non-live autofix tasks.\n",
-  "lane": "codex_watchdog",
-  "mvp_relevance": "Parallel review of Website Explainability Contract Readiness to accelerate V2_BACKTEST_AND_PAPER_MVP_READY.",
   "blocked_by": [],
-  "next_gate": "CODEX_PARALLEL_REVIEW_READY",
+  "completed_at": "2026-05-09T15:00:37.108412+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "lane": "codex_watchdog",
   "legacy_evidence_consulted": [
     "legacy_readonly_audit",
     "historical_pnl_audit",
@@ -26,5 +17,23 @@
     "under-reviewed MVP milestone risk",
     "manual review bottleneck"
   ],
-  "next_recommended_action": "If READY, continue. If BLOCKED, create non-live Codex autofix task."
+  "mvp_relevance": "Parallel review of Website Explainability Contract Readiness to accelerate V2_BACKTEST_AND_PAPER_MVP_READY.",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_gate": "CODEX_PARALLEL_REVIEW_READY",
+  "next_recommended_action": "If READY, continue. If BLOCKED, create non-live Codex autofix task.",
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD.\n\nREAD-ONLY PARALLEL REVIEW MODE.\n\nDo not modify /home/wali/Desktop/AI BOT.\nDo not write Redis.\nDo not delete Redis keys.\nDo not restart live services.\nDo not place/cancel orders.\nDo not change leverage/margin.\nDo not enable live trading.\nDo not deploy.\nDo not expose secrets.\n\nReview topic: Website Explainability Contract Readiness\n\nInputs to inspect:\n- v2/frontend\n- v2/backend/app\n- claude_worklog/requirements_inbox/REQ_0009_FULL_DECISION_EXPLAINABILITY_AND_UNDER_THE_HOOD_UI.md\n\nChecks:\n- feature_snapshot_id visibility\n- prediction_id visibility\n- risk_decision_id visibility\n- paper/shadow comparison visibility\n- no fake reasoning\n\nWrite exactly two BEGIN_FILE blocks:\n1. claude_worklog/codex_parallel_reviews/20260509_145009_09_website_explainability_contracts_REPORT.md\n2. claude_worklog/codex_parallel_reviews/20260509_145009_09_website_explainability_contracts_GO_NO_GO.md\n\nThe GO/NO-GO file must contain exactly one line:\nCODEX_PARALLEL_REVIEW_READY or CODEX_PARALLEL_REVIEW_BLOCKED\n\nIf blocked, the report must include concrete blockers and proposed non-live autofix tasks.\n",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
+  "required_output_files": [
+    "claude_worklog/codex_parallel_reviews/20260509_145009_09_website_explainability_contracts_REPORT.md",
+    "claude_worklog/codex_parallel_reviews/20260509_145009_09_website_explainability_contracts_GO_NO_GO.md"
+  ],
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-05-09T15:00:37.108412+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/codex_parallel_review_20260509_145009_09_website_explainability_contracts.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "codex_parallel_review_20260509_145009_09_website_explainability_contracts",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

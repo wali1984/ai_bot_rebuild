@@ -1,0 +1,17 @@
+{
+  "generated_est": "2026-06-09T21:56:25-04:00",
+  "implemented_or_replaced": [
+    "native all-valid-symbol all-timeframe CUDA predictions",
+    "valid runtime symbol filtering",
+    "native primary prediction preferred over RL-core sidecar",
+    "continuous trainer guard",
+    "native parallel env rollout proof",
+    "native MASA auxiliary adapter/head",
+    "market-state integrity owns optional provider masking and dirty-state rejection",
+    "risk/orchestrator own action gating/profit/liquidation deconfliction",
+    "live-gate/trader own execution and account mutation fail-closed behavior"
+  ],
+  "remaining_required_missing": [],
+  "remaining_required_missing_count": 0,
+  "status": "NATIVE_TRAINER_GAP_BURNDOWN_READY"
+}

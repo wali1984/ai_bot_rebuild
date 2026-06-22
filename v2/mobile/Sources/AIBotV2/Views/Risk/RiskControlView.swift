@@ -19,8 +19,7 @@ struct RiskControlView: View {
                     riskContent(risk)
                 }
             }
-            .navigationTitle("Risk Control")
-            .safeAreaInset(edge: .top) { LiveBlockBanner() }
+            .navigationTitle("NERVYX GUARD")
             .toolbar { refreshButton }
             .refreshable { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) }
         }
@@ -39,7 +38,7 @@ struct RiskControlView: View {
                 // Risk limits
                 limitsSection(risk)
 
-                // Paper stats
+                // Execution gate stats
                 paperStatsSection(risk)
 
                 // Mobile approval note
@@ -51,7 +50,7 @@ struct RiskControlView: View {
 
     private func liveGateCard(_ gate: LiveGateState) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Live Gate", systemImage: "lock.shield.fill").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+            Label("NERVYX GUARD · Live Gate", systemImage: "lock.shield.fill").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(gate.label)
@@ -94,7 +93,7 @@ struct RiskControlView: View {
 
     private func limitsSection(_ risk: MobileRiskStatus) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Risk Limits", systemImage: "slider.horizontal.3").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+            Label("NERVYX GUARD · Risk Limits", systemImage: "slider.horizontal.3").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
             VStack(spacing: 8) {
                 MetricRow(label: "Max Position Size", value: risk.max_position_size_usd > 0 ? "$\(Int(risk.max_position_size_usd))" : "N/A")
                 MetricRow(label: "Daily Loss Limit", value: risk.daily_loss_limit_usd > 0 ? "$\(Int(risk.daily_loss_limit_usd))" : "N/A")
@@ -112,7 +111,7 @@ struct RiskControlView: View {
 
     private func paperStatsSection(_ risk: MobileRiskStatus) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Paper Gate Activity", systemImage: "chart.bar").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+            Label("NERVYX GUARD · Gate Activity", systemImage: "chart.bar").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
             HStack(spacing: 12) {
                 MetricCard(
                     title: "Accepted",
@@ -132,7 +131,7 @@ struct RiskControlView: View {
 
     private func approvalNote() -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Dangerous Controls", systemImage: "exclamationmark.triangle.fill")
+            Label("NERVYX GUARD · Dangerous Controls", systemImage: "exclamationmark.triangle.fill")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.orange)
             Text("Dangerous controls (enable live trading, change leverage, disable kill switch, etc.) require explicit human approval through the web admin interface. These actions CANNOT be approved from mobile.")

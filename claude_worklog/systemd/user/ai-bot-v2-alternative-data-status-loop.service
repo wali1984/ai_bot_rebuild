@@ -1,0 +1,15 @@
+[Unit]
+Description=AI Bot V2 alternative-data status loop (paper-shadow, V2 namespace only)
+After=network-online.target ai-bot-v2-symbol-universe-publisher.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+ExecStartPre=/usr/bin/env bash -lc 'exec ./claude_worklog/tools/v2_automation_safety_preflight.sh ai-bot-v2-alternative-data-status-loop'
+ExecStart=/usr/bin/env bash -lc 'mkdir -p v2/runtime; while true; do ./.venv/bin/python3 -m v2.backend.app.cli.v2_alternative_data_status --once >> v2/runtime/v2_alternative_data_status_loop.log 2>&1 || true; sleep 300; done'
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

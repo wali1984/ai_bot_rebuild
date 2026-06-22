@@ -1,0 +1,20 @@
+I need permission to edit the V2 CLI file. The path is within the allowed write boundary (`./v2/**`), but the harness is asking. Could you grant write access to `/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/v2_post_hoc_replay_outcome_miner.py`?
+
+The remediation plan, briefly:
+
+**Problem (Codex FAIL):** All three published payloads — `post_hoc_replay_outcome_status.json`, `edge_metrics_summary.json`, `operator_dashboard_payload.json` — are missing the two enrichment keys the task title requires:
+- `false_negative_block_reason_distribution`
+- `false_negative_missing_source_count`
+
+**Fix scope (V2-only, paper-safe):**
+1. Add `_false_negative_gate_reason_enrichment(bundle_dicts)` helper to `v2/backend/app/cli/v2_post_hoc_replay_outcome_miner.py:130` that walks a fixed source-priority list (`paper_gate_decision`, `trainer_output`, `risk_decision`, `orchestrator_decision`) and counts:
+   - per-reason distribution from real evidence
+   - `MISSING_SOURCE` when no source yields anything (no fabrication)
+2. Inject the resulting block into all three payloads (status/metrics/dashboard) at `v2/backend/app/cli/v2_post_hoc_replay_outcome_miner.py:157,190,204`.
+3. Add a test in `v2/backend/tests/integration/cli/test_v2_post_hoc_replay_outcome_miner.py` locking in: FALSE_NEGATIVE bundle with sourced reasons → distribution populated; FALSE_NEGATIVE without any source field → counted in `MISSING_SOURCE`.
+4. Re-run the miner CLI to regenerate the three payloads and confirm both keys are present and `live_gate=blocked_human_only`.
+5. Update remediation task JSON status to `completed` with verification evidence.
+
+**Safety pins held:** legacy untouched, no exchange mutation, `live_gate=blocked_human_only`, `live_symbols=[]`, no new approval markers, no fabricated reasons.
+
+Shall I proceed once you grant the write permission? (No changes outside `v2/**`, `claude_worklog/**`, and the remediation task JSON.)

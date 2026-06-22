@@ -1,0 +1,17 @@
+{
+  "go_no_go_local": "V2_NATIVE_TRAINER_DATASET_PHASE_OK",
+  "labels_loaded": 4783,
+  "minimum_sample_satisfied": false,
+  "non_v2_read_attempts": 0,
+  "paths_written": [
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_native_trainer_dataset_and_baseline_model/latest/v2_native_trainer_dataset_rows.jsonl",
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_native_trainer_dataset_and_baseline_model/latest/v2_native_trainer_dataset_manifest.json",
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_native_trainer_dataset_and_baseline_model/latest/v2_native_trainer_dataset_status.json",
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_native_trainer_dataset_and_baseline_model/latest/v2_native_trainer_dataset_quality_report.md",
+    "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_native_trainer_dataset_and_baseline_model/latest/v2_native_trainer_dataset_status.json"
+  ],
+  "read_errors": 0,
+  "row_count": 10686,
+  "train_rows": 236,
+  "validation_rows": 52
+}

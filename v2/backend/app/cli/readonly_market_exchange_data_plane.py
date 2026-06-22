@@ -7,6 +7,7 @@ from v2.backend.app.proof.readonly_market_exchange_data_plane import (
     GO_NO_GO_MARKER,
     write_readonly_market_exchange_data_plane,
 )
+from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -16,7 +17,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--public-output-dir", default=None)
-    parser.add_argument("--symbol", default="BTCUSDT")
+    parser.add_argument("--symbol", default=None)
+    parser.add_argument("--smoke-test", action="store_true")
     parser.add_argument(
         "--fetch-binance",
         action="store_true",
@@ -32,7 +34,7 @@ def main(argv: list[str] | None = None) -> int:
         Path(args.output_dir),
         public_output_dir=Path(args.public_output_dir) if args.public_output_dir else None,
         fetch_binance=args.fetch_binance,
-        symbol=args.symbol,
+        symbol=(args.symbol or resolve_symbols(smoke_test=args.smoke_test)[0]).strip().upper(),
     )
     print(GO_NO_GO_MARKER)
     print(args.output_dir)

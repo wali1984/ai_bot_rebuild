@@ -1,0 +1,54 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "codex_role": "reviewer_verifier_safe_scoped_fixer",
+  "deprecated_btc_ta_panel_process_remaining": false,
+  "generated_at": "2026-05-26T02:23:26-0400",
+  "go_no_go": "V2_FULL_COPIED_RUNTIME_TRADING_PLATFORM_RESTART_CODEX_FAIL",
+  "legacy_root_process_remaining": false,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "places_real_order": false,
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "redis_mutation_evidence_after_fix": {
+    "*leverage*": 0,
+    "*margin*": 0,
+    "exchange:order:*": 0,
+    "live_orders:*": 0,
+    "orchestrator:*": 0,
+    "order:*": 0,
+    "v2:*": 388
+  },
+  "remaining_blockers": [
+    "non_remediated_v2_source_files_still_contain_btc_or_three_symbol_defaults",
+    "copied_runtime_startup_map_mixes_wrappers_with_raw_copied_scripts",
+    "trainer_bridge_label_overstates_v2_native_readiness",
+    "website_runtime_control_state_needs_rendered_proof",
+    "old_redis_writer_proof_not_equivalent_to_preserved_old_key_counts"
+  ],
+  "remediation_applied": [
+    "active_runtime_dynamic_symbol_defaults",
+    "explicit_three_symbol_smoke_test_guard",
+    "position_history_systemd_symbol_override_removed",
+    "deprecated_btc_only_ta_panel_stopped",
+    "native_ingestor_in_progress_dynamic_payload",
+    "feature_snapshot_builder_safety_fields",
+    "report_center_lane_registered",
+    "dynamic_symbol_default_regression_test"
+  ],
+  "runtime_evidence_after_fix": {
+    "feature_pipeline_native": 27,
+    "feature_snapshot_builder_live_symbols": [],
+    "liquidation_wss": 27,
+    "native_ingestors": 27,
+    "paper_online_symbol": "1000BONKUSDT",
+    "position_history": 27,
+    "rl_core": 27
+  },
+  "status": "FAIL",
+  "writes_exchange_orders": false,
+  "writes_legacy_redis": false
+}

@@ -1,0 +1,54 @@
+{
+  "auto_apply_allowed_by_this_loop": false,
+  "cause": "checkpoint_weight_missing",
+  "completed_at": "2026-05-24T04:44:40.233668+00:00",
+  "created_utc": "2026-05-26T01:52:46Z",
+  "forbidden_actions": [
+    "modify /home/wali/Desktop/AI BOT",
+    "stop or restart legacy",
+    "write old Redis keys",
+    "place/cancel/modify exchange orders",
+    "change leverage or margin",
+    "enable live",
+    "create approval token",
+    "execute legacy monitor scripts",
+    "load torch weights into V2 process"
+  ],
+  "gap_id": "trainer_missing_checkpoint_weight_shape_contract",
+  "kind": "claude_narrow_remediation",
+  "legacy_evidence": {
+    "legacy_action": "OPEN_SHORT",
+    "legacy_log_action": "MISSING_EVIDENCE"
+  },
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "log_path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/claude_fix_v2_gap_trainer_missing_checkpoint_weight_shape_contract.log",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "paired_codex_review_task_id": "codex_review_fix_v2_gap_trainer_missing_checkpoint_weight_shape_contract",
+  "reconciled_from_source_truth_at": "2026-05-26T17:49:17Z",
+  "required_public_payload_update": "v2/frontend/public/operator_runtime/legacy_log_intelligence/latest/legacy_log_intelligence_status.json",
+  "required_v2_files_to_modify": [
+    "v2/backend/app/services/rl_core/checkpoints.py",
+    "v2/backend/app/services/rl_core/policy.py"
+  ],
+  "resolved_from_source_truth": true,
+  "severity": "BLOCKS_PRODUCTION_EQUIVALENCE",
+  "source_log_or_script": "/home/wali/Desktop/AI BOT/logs/hybrid_trainer.log",
+  "source_truth_completed_at": "2026-05-24T04:44:40.233668+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/claude_fix_v2_gap_trainer_missing_checkpoint_weight_shape_contract.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "started_at": "2026-05-26T17:45:15Z",
+  "status": "completed",
+  "symbol": "SOLUSDT",
+  "task_id": "claude_fix_v2_gap_trainer_missing_checkpoint_weight_shape_contract",
+  "tests_required": [
+    "v2/backend/tests/integration/cli/test_v2_rl_core_p0_2c_checkpoint.py"
+  ],
+  "updated_at": "2026-05-26T17:49:17Z",
+  "updated_utc": "2026-05-26T01:52:46Z",
+  "v2_evidence": {
+    "v2_action": "hold",
+    "v2_paper_fill_allowed": false
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "codex_pair_task_id": "069_codex_parallel_review_trainer_liveness_stack",
+  "created_at": "2026-06-15T20:07:06Z",
+  "fail_blockers": [
+    "1. `freshness_metadata` reinstated as a distinct Stage A field.",
+    "1. `StageATrainerRecord`",
+    "1. `LivenessSignalSnapshot`",
+    "1. If `snapshot.last_prediction_ts_ms is not None` and",
+    "1. `StreamIdObservation`",
+    "1. `LivenessSnapshotBaseInputs`",
+    "1. Type-check `base_inputs` is a `LivenessSnapshotBaseInputs`. On",
+    "1. `LivenessSignalSnapshot`",
+    "1. If `snapshot.last_prediction_ts_ms is not None` and",
+    "1. prediction_age,",
+    "1. `freshness_metadata` reinstated as a distinct Stage A field.",
+    "1. `StageATrainerRecord`",
+    "1. `LivenessSignalSnapshot`",
+    "1. If `snapshot.last_prediction_ts_ms is not None` and",
+    "1. prediction_age,",
+    "1. `LivenessSnapshotBaseInputs`"
+  ],
+  "file_lock_group": "codex_parallel_review_trainer_liveness_stack",
+  "next_action": "Remediate the safe V2-side fail blockers listed in fail_blockers. Do not touch legacy. Do not call exchange mutation. Keep live_gate=blocked_human_only and live_symbols=[].",
+  "owner": "CLAUDE",
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "status": "pending",
+  "task_id": "closed_loop_remediation_069_codex_parallel_review_trainer_liveness_stack",
+  "task_type": "REMEDIATION",
+  "updated_at": "2026-06-15T20:07:06Z"
+}

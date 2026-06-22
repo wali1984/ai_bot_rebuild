@@ -1,0 +1,25 @@
+{
+  "agent": "codex",
+  "codex_pair_task_id": "closed_loop_runtime_stability_task_001",
+  "depends_on_task_id": "closed_loop_runtime_stability_task_001",
+  "file_lock_group": "runtime_stability_2",
+  "lane_group": "runtime-codex",
+  "lane_type": "CODEX_REVIEW",
+  "mission_category": "runtime_stability",
+  "owner": "CODEX",
+  "paired_task_id": "closed_loop_runtime_stability_task_001",
+  "prompt": "Review implementation descriptor closed_loop_runtime_stability_task_001",
+  "safe_envelope": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "scope_paths": [],
+  "status": "pending",
+  "task_id": "codex_review_closed_loop_runtime_stability_task_001",
+  "task_type": "CODEX_REVIEW",
+  "title": "Codex review for closed_loop_runtime_stability_task_001"
+}

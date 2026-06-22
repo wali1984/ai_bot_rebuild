@@ -1,0 +1,59 @@
+{
+  "agent": "claude",
+  "created_at": "2026-05-31T00:00:00Z",
+  "current_active": false,
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": null,
+  "duplicate_suppression_key": null,
+  "expected_output_paths": [
+    "claude_worklog/final_readiness/v2_zero_exception_parity_implementation_burndown_20260531/realtime_price_provider_running_partial/IMPLEMENTATION_REPORT.md",
+    "claude_worklog/final_readiness/v2_zero_exception_parity_implementation_burndown_20260531/realtime_price_provider_running_partial/GO_NO_GO.md",
+    "claude_worklog/final_readiness/v2_zero_exception_parity_implementation_burndown_20260531/realtime_price_provider_running_partial/STATUS.json"
+  ],
+  "fail_blockers": [],
+  "file_lock_group": "v2_zero_exception_parity_realtime_price_provider_running_partial",
+  "max_stall_relaunches": 1,
+  "mission_category": "ZERO_EXCEPTION_PARITY",
+  "next_action": "Implement and emit evidence artifacts in scope.",
+  "owner": "CLAUDE",
+  "paired_task_id": "codex_review_v2_zero_exception_parity_realtime_price_provider_running_partial_20260531",
+  "predecessor_task_ids": null,
+  "priority": 9000,
+  "prompt": "Implement V2_RUNNING_PARTIAL: ingest/realtime_price_provider.py as part of V2_ZERO_EXCEPTION_PARITY_IMPLEMENTATION_BURNDOWN_READY. Do not run live, canary, or shutdown operations. Keep V2 scoped writes only and preserve no legacy Redis key writes. Emit concrete evidence artifacts at expected output paths.",
+  "risk_level": "L1",
+  "safe_envelope": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "scope_paths": [
+    "v2/legacy_owned_runtime/ingest/realtime_price_provider.py",
+    "v2/frontend/public/v2_legacy_data_zero_exception_parity_and_full_runtime_startup/latest/v2_full_ingestor_startup_and_validation_status.json"
+  ],
+  "source_matrix_row": "v2_zero_exception_parity_realtime_price_provider_running_partial",
+  "stall_count": 0,
+  "stall_threshold_seconds": 600,
+  "status": "done",
+  "task_id": "claude_v2_zero_exception_parity_realtime_price_provider_running_partial_20260531",
+  "task_type": "CLAUDE_IMPLEMENTATION",
+  "updated_at": "2026-06-01T21:50:28Z",
+  "completion_evidence": {
+    "completed_est": "2026-06-01T17:50:28-0400",
+    "claim": "V2_RUNNING_PARTIAL resolved: order-book top/depth now written to v2:market:orderbook:{symbol} and consumed by the feature pipeline (depth_imbalance + bid_ask_spread_bps real).",
+    "raw_evidence": "`v2:market:orderbook:BTCUSDT` TTL=516s (60s refresh); feature depth_imbalance=0.40957803081044875, bid_ask_spread_bps=0.014072367148878013.",
+    "verification_command": "redis-cli ttl v2:market:orderbook:BTCUSDT; redis-cli get v2:market:orderbook:BTCUSDT | head -c 80",
+    "confidence": "HIGH",
+    "artifact_dir": "claude_worklog/final_readiness/v2_zero_exception_parity_implementation_burndown_20260531/realtime_price_provider_running_partial"
+  }
+}

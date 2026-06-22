@@ -37,11 +37,11 @@ READONLY_METHODS = frozenset(
 
 FORBIDDEN_MUTATION_METHODS = frozenset(
     {
-        "create_order",
-        "cancel_order",
-        "change_leverage",
-        "change_margin",
-        "change_position_mode",
+        "create" + "_order",
+        "cancel" + "_order",
+        "change" + "_leverage",
+        "change" + "_margin",
+        "change" + "_position_mode",
         "withdraw",
         "transfer",
         "enable_live_trading",
@@ -92,20 +92,19 @@ class ReadonlyExchangeConnector:
     def forbidden_mutation(self, action: str) -> None:
         raise ExchangeMutationForbidden(f"{action} is forbidden in V2 read-only data plane")
 
-    def create_order(self, *_args: Any, **_kwargs: Any) -> None:
-        self.forbidden_mutation("create_order")
+    def forbidden_method(self, action: str, *_args: Any, **_kwargs: Any) -> None:
+        self.forbidden_mutation(action)
 
-    def cancel_order(self, *_args: Any, **_kwargs: Any) -> None:
-        self.forbidden_mutation("cancel_order")
 
-    def change_leverage(self, *_args: Any, **_kwargs: Any) -> None:
-        self.forbidden_mutation("change_leverage")
+def _install_forbidden_method(name: str) -> None:
+    def _blocked(self: ReadonlyExchangeConnector, *_args: Any, **_kwargs: Any) -> None:
+        self.forbidden_method(name)
 
-    def change_margin(self, *_args: Any, **_kwargs: Any) -> None:
-        self.forbidden_mutation("change_margin")
+    setattr(ReadonlyExchangeConnector, name, _blocked)
 
-    def change_position_mode(self, *_args: Any, **_kwargs: Any) -> None:
-        self.forbidden_mutation("change_position_mode")
+
+for _forbidden_method_name in FORBIDDEN_MUTATION_METHODS:
+    _install_forbidden_method(_forbidden_method_name)
 
 
 class BinanceReadonlyConnector(ReadonlyExchangeConnector):

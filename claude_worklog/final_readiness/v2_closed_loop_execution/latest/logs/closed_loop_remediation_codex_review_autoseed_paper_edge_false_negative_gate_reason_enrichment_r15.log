@@ -1,0 +1,27 @@
+The harness is blocking my edits to `v2/backend/app/services/edge_proof/replay_miner.py` — the same blocker the previous Claude session hit (per the r15 implementation log, this is why the work never landed and Codex then produced FAIL on the unchanged code).
+
+I've finished the design and have the full edits ready. Before I retry, I want to flag the situation so you can grant the permission for this task. Here's what will land if approved:
+
+**1. `v2/backend/app/services/edge_proof/replay_miner.py`** — new section between `load_filled_bundles()` and the cost-model backfill block. Adds:
+- Constants: `FALSE_NEGATIVE_EVIDENCE_QUALITY_SCHEMA_VERSION`, `EVIDENCE_STATE_EXPLICIT_BLOCK_REASON`, `EVIDENCE_STATE_MISSING_SOURCE`, `FN_BLOCK_REASON_SOURCE_PATHS` (tuple of 3 paths: `paper_gate_decision`, `trainer_output`, `raw_row`).
+- Helpers: `_normalize_reason_list`, `_explicit_block_reasons_with_provenance`, `_paper_fill_gate_state_context`.
+- Public pure function `false_negative_evidence_quality(bundle_dicts, *, primary_outcome_window_id="5m")` that joins each FN bundle to the three source paths, tags `EXPLICIT_BLOCK_REASON` (with provenance) or `MISSING_SOURCE`, never reclassifies, never promotes `FALSE_NEGATIVE → FALSE_BLOCK`, never reads Redis/exchange/FS, includes safety pins (`live_gate=blocked_human_only`, `live_symbols=[]`, `approves_*=False`).
+
+**2. `v2/backend/app/cli/v2_post_hoc_replay_outcome_miner.py`** — call `false_negative_evidence_quality(bundle_dicts)` after `load_filled_bundles()`, write `false_negative_evidence_quality.json` to both `WORKLOG_DIR` and `PUBLIC_DIR`, embed an `evidence_state_counts` + `false_negative_total` summary in the existing status payload.
+
+**3. `v2/backend/tests/integration/cli/test_v2_post_hoc_replay_outcome_miner.py`** — 6 focused unit tests:
+- explicit reasons in `paper_gate_decision` → EXPLICIT with `source_path` provenance
+- explicit reasons in `trainer_output` (gate empty) → EXPLICIT
+- empty everywhere → MISSING_SOURCE
+- non-FN bundles excluded from output
+- input mutation invariant
+- FN label not promoted to FALSE_BLOCK even when explicit reasons present (strict gate semantics)
+- safety scoreboard: no `approves_live/canary/shutdown=true` in output
+
+**4. `claude_worklog/final_readiness/v2_post_hoc_replay_outcome_miner/latest/FALSE_NEGATIVE_EVIDENCE_QUALITY_REPORT.md`** — per-task report (scope, what the join does, 15 FN bundles observed → 15 MISSING_SOURCE expected against current store, files touched, what was NOT changed, safety pins).
+
+**5. Regenerate** `false_negative_evidence_quality.json` by running the CLI once.
+
+Safety pins held throughout: `live_gate=blocked_human_only`, `live_symbols=[]`, no legacy edits, no exchange calls, no `v2:*` writes, no approval markers.
+
+Please approve the file writes (or grant blanket write permission for `v2/**` and `claude_worklog/**` for this task — both are already in CLAUDE.md's allowed write paths). The retry will be one Edit on `replay_miner.py`, one Edit on the CLI, one Edit on the test file, one Write for the report, and one Bash to run the CLI + pytest.

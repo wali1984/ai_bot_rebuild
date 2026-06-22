@@ -1,0 +1,10 @@
+{
+  "alive": true,
+  "cmd": [
+    "/home/wali/.local/bin/claude",
+    "..."
+  ],
+  "pid": 1899896,
+  "task_id": "claude_autoseed_observation_gap_feature_source_burndown_r12",
+  "updated_at": "2026-05-24T23:35:13Z"
+}

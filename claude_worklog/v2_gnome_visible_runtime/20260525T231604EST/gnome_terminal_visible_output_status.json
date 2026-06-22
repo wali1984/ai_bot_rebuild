@@ -1,0 +1,324 @@
+{
+  "already_open_count": 0,
+  "blank_silent_categories": [],
+  "every_terminal_shows_heartbeat_5_15s": true,
+  "failed_categories": [],
+  "go_no_go": "V2_GNOME_TERMINAL_VISIBLE_OUTPUT_READY",
+  "heartbeat_interval_seconds": 10,
+  "launched_terminal_count": 32,
+  "launcher_script": "claude_worklog/tools/start_v2_rebuild_gnome_terminals.sh",
+  "legacy_style_monitor_count": 10,
+  "legacy_style_monitor_module": "claude_worklog/tools/v2_legacy_style_monitors.py",
+  "log_dir": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST",
+  "manifest": "claude_worklog/v2_gnome_visible_runtime/20260525T231604EST/v2_gnome_terminal_startup_manifest.json",
+  "missing_est_stamp_categories": [],
+  "missing_safety_footer_categories": [],
+  "newly_started_count": 32,
+  "per_category_compliance": [
+    {
+      "category": "redis_status_monitor",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 26063,
+      "mtime_age_seconds": 4,
+      "title": "V2 Redis Status Panel"
+    },
+    {
+      "category": "market_runtime",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 27145,
+      "mtime_age_seconds": 6,
+      "title": "V2 Paper Online Runtime"
+    },
+    {
+      "category": "feature_pipeline",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 18671,
+      "mtime_age_seconds": 5,
+      "title": "V2 Feature Snapshot Builder"
+    },
+    {
+      "category": "technical_analysis",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 10772,
+      "mtime_age_seconds": 6,
+      "title": "V2 TA Worker (periodic rerun)"
+    },
+    {
+      "category": "symbol_universe",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 15054,
+      "mtime_age_seconds": 5,
+      "title": "V2 Symbol Universe Publisher"
+    },
+    {
+      "category": "trainer_prediction_publisher",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 15079,
+      "mtime_age_seconds": 5,
+      "title": "V2 Trainer Bridge / Prediction Publisher"
+    },
+    {
+      "category": "risk_decision_loop",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 12032,
+      "mtime_age_seconds": 4,
+      "title": "V2 Risk Gateway (periodic rerun)"
+    },
+    {
+      "category": "orchestrator_arbitration",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 16777,
+      "mtime_age_seconds": 4,
+      "title": "V2 Orchestrator Arbitration Loop"
+    },
+    {
+      "category": "paper_trade_management",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 13449,
+      "mtime_age_seconds": 3,
+      "title": "V2 Paper Trade Management"
+    },
+    {
+      "category": "paper_ledger_paper_runtime",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 18671,
+      "mtime_age_seconds": 3,
+      "title": "V2 Paper Shadow Observation"
+    },
+    {
+      "category": "position_history_tracker",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 14853,
+      "mtime_age_seconds": 3,
+      "title": "V2 Position History Tracker"
+    },
+    {
+      "category": "liquidation_wss_paper_shadow",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 13115,
+      "mtime_age_seconds": 2,
+      "title": "V2 Liquidation WSS (paper-shadow)"
+    },
+    {
+      "category": "replay_outcome_miner",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 14578,
+      "mtime_age_seconds": 2,
+      "title": "V2 Replay Outcome Miner"
+    },
+    {
+      "category": "production_equivalence_comparator",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 10309,
+      "mtime_age_seconds": 0,
+      "title": "V2 Production-Equivalence Comparator"
+    },
+    {
+      "category": "report_center_indexer",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 13301,
+      "mtime_age_seconds": 1,
+      "title": "V2 Report Center Indexer"
+    },
+    {
+      "category": "executive_command_center",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 13199,
+      "mtime_age_seconds": 1,
+      "title": "V2 Executive Command Center"
+    },
+    {
+      "category": "no_manual_next_action_policy",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 13690,
+      "mtime_age_seconds": 1,
+      "title": "V2 No-Manual Next-Task Policy"
+    },
+    {
+      "category": "spark_worker_pool",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 13348,
+      "mtime_age_seconds": 0,
+      "title": "V2 Spark Worker Pool"
+    },
+    {
+      "category": "claude_workers",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 10915,
+      "mtime_age_seconds": 0,
+      "title": "V2 Claude Closed-Loop Workers (1-3)"
+    },
+    {
+      "category": "codex_workers",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 10282,
+      "mtime_age_seconds": 9,
+      "title": "V2 Codex Closed-Loop Workers (1-3)"
+    },
+    {
+      "category": "event_watchers",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 13322,
+      "mtime_age_seconds": 9,
+      "title": "V2 Final-Operator-Decision Event Watcher"
+    },
+    {
+      "category": "runtime_cutover_watchdog",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 12529,
+      "mtime_age_seconds": 9,
+      "title": "V2 Automation Liveness Watchdog"
+    },
+    {
+      "category": "v2_service_monitor",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 25102,
+      "mtime_age_seconds": 8,
+      "title": "V2 Service Monitor"
+    },
+    {
+      "category": "v2_resources_monitor",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 14833,
+      "mtime_age_seconds": 7,
+      "title": "V2 Memory/GPU Monitor"
+    },
+    {
+      "category": "v2_redis_key_monitor",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 20098,
+      "mtime_age_seconds": 5,
+      "title": "V2 Redis Key Monitor"
+    },
+    {
+      "category": "v2_market_data_monitor",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 16393,
+      "mtime_age_seconds": 6,
+      "title": "V2 Market Data Monitor"
+    },
+    {
+      "category": "v2_predictions_monitor",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 33857,
+      "mtime_age_seconds": 5,
+      "title": "V2 Predictions Monitor"
+    },
+    {
+      "category": "v2_decision_monitor",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 9918,
+      "mtime_age_seconds": 6,
+      "title": "V2 Risk/Orchestrator Monitor"
+    },
+    {
+      "category": "v2_paper_trading_monitor",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 14063,
+      "mtime_age_seconds": 5,
+      "title": "V2 Paper Trading Monitor"
+    },
+    {
+      "category": "v2_exchange_readonly_monitor",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 7961,
+      "mtime_age_seconds": 3,
+      "title": "V2 Exchange Read-Only Monitor"
+    },
+    {
+      "category": "v2_automation_spark_monitor",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 17912,
+      "mtime_age_seconds": 5,
+      "title": "V2 Automation/Spark Monitor"
+    },
+    {
+      "category": "v2_error_alert_monitor",
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "is_blank_or_silent": false,
+      "log_size_bytes": 9134,
+      "mtime_age_seconds": 5,
+      "title": "V2 Error/Alert Monitor"
+    }
+  ],
+  "safety": {
+    "LIVE_GATE": "blocked_human_only",
+    "V2_PAPER_ONLY": "true",
+    "credentials_values_exposed": false,
+    "live_symbols": [],
+    "real_order_attempted": false,
+    "writes_exchange_orders": false
+  },
+  "service_panels_count": 22,
+  "skipped_categories": [],
+  "total_terminals_expected": 32,
+  "total_terminals_visible_now": 32,
+  "ts_est": "20260525T231604EST",
+  "ts_human_est": "2026-05-25 23:32:02 EDT",
+  "ts_iso_est": "2026-05-25T23:32:02-0400",
+  "uses_est_timestamps": true,
+  "visible_panel_module": "claude_worklog/tools/v2_visible_terminal_panel.py"
+}

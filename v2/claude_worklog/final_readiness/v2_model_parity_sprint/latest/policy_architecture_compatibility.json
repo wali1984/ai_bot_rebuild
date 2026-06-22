@@ -1,0 +1,63 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "classifications": [
+    "UNKNOWN_METADATA_REQUIRED"
+  ],
+  "generated_utc": "2026-06-15T19:38:40Z",
+  "legacy_action_space_size_resolved": null,
+  "legacy_architecture_facts": {
+    "has_attention": false,
+    "has_cnn": false,
+    "has_ffn": false,
+    "has_lstm": false,
+    "has_moe": false,
+    "has_regime_head": false,
+    "lstm_hidden_size_default": null,
+    "source_files": [
+      "v2/legacy_owned_runtime/rl/enhanced_architectures.py",
+      "v2/legacy_owned_runtime/rl/moe_router.py",
+      "v2/legacy_owned_runtime/rl/gpu_cnn_policy.py"
+    ]
+  },
+  "legacy_largest_observation_dim": null,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "narrow_remediation_tasks_required": [
+    "claude_fix_v2_gap_policy_architecture_shape_contract",
+    "claude_fix_v2_gap_full_observation_vector_builder"
+  ],
+  "no_pickle_loaded": true,
+  "no_torch_imported": true,
+  "observation_dim_gap_legacy_minus_v2": null,
+  "overall_classification": "UNKNOWN_METADATA_REQUIRED",
+  "paired_codex_review_task_ids_required": [
+    "codex_review_fix_v2_gap_policy_architecture_shape_contract",
+    "codex_review_fix_v2_gap_full_observation_vector_builder"
+  ],
+  "schema_version": "v2_policy_architecture_compatibility_v1",
+  "v2_policy_facts": {
+    "action_count": 5,
+    "action_labels": [
+      "hold",
+      "long",
+      "short",
+      "close",
+      "hedge"
+    ],
+    "deterministic_init": true,
+    "expected_move_head": true,
+    "has_attention": false,
+    "has_cnn": false,
+    "has_lstm": false,
+    "has_moe": false,
+    "has_regime_head": false,
+    "hidden_dim": 16,
+    "module": "v2.backend.app.services.rl_core.policy",
+    "obs_dim": 26,
+    "torch_loaded_in_v2_process": false,
+    "value_head": true
+  }
+}

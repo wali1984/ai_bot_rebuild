@@ -1,0 +1,44 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "control_surface": {
+    "cascade_targets": [
+      "ingestors",
+      "features",
+      "ta",
+      "dataset",
+      "trainer",
+      "risk",
+      "orchestrator",
+      "paper",
+      "replay",
+      "backtest"
+    ],
+    "controls_disabled_until_approval": [
+      "enable_live",
+      "enable_canary"
+    ],
+    "endpoint_prefix": "/api/v2/symbols/",
+    "operations": [
+      "pick",
+      "ban",
+      "watch",
+      "lock",
+      "unlock",
+      "set_training_set",
+      "set_paper_set"
+    ]
+  },
+  "credentials_values_exposed": false,
+  "current_runtime_authority": "symbol_universe_publisher_service",
+  "go_no_go": "V2_SYMBOL_CONTROL_RUNTIME_STATUS_READY",
+  "live_symbols": [],
+  "publisher_active": true,
+  "publisher_systemd_unit": "ai-bot-v2-symbol-universe-publisher.service",
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "ts_est": "20260526T003358EST",
+  "ts_iso_est": "2026-05-26T00:49:12-0400",
+  "writes_exchange_orders": false
+}

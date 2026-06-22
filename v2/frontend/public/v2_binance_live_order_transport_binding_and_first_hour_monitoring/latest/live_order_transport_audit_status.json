@@ -1,0 +1,18 @@
+{
+  "blockers": [
+    "LIVE_GATE_NOT_ENABLED",
+    "LIVE_GATE_RUNTIME_NOT_ENABLED",
+    "LIVE_GATE_RUNTIME_STATE_STALE",
+    "LIVE_ORDER_TRANSPORT_SUBMIT_NOT_ENABLED",
+    "LIVE_SYMBOL_SETS_DO_NOT_MATCH_ACCEPTED_SYMBOLS",
+    "NO_ACCEPTED_SYMBOL_SIGNAL_CANDIDATE",
+    "ORDER_TRANSPORT_SUBMIT_NOT_ENABLED",
+    "TRADER_EXECUTION_ENABLED_NOT_TRUE"
+  ],
+  "generated_est": "2026-06-21T20:28:37-04:00",
+  "order_submitted": false,
+  "raw_credentials_exposed": false,
+  "selected_candidate": null,
+  "status": "LIVE_ORDER_TRANSPORT_BLOCKED",
+  "warnings": []
+}

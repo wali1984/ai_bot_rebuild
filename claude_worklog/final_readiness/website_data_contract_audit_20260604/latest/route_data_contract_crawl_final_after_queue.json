@@ -1,0 +1,571 @@
+[
+  {
+    "route": "/dashboard",
+    "status": 200,
+    "finalUrl": "/dashboard?role=admin",
+    "bodyLen": 14909,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {
+      "MISSING_EVIDENCE": 13,
+      "stale": 11,
+      "STALE": 3,
+      "MISSING_EVIDENCE_REGISTER": 1,
+      "Evidence missing": 2
+    },
+    "missingMarkerTotal": 30
+  },
+  {
+    "route": "/markets",
+    "status": 200,
+    "finalUrl": "/markets?role=admin",
+    "bodyLen": 2283,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {
+      "stale": 1,
+      "MISSING_SOURCE": 2,
+      "missing source": 20
+    },
+    "missingMarkerTotal": 23
+  },
+  {
+    "route": "/markets/symbols",
+    "status": 200,
+    "finalUrl": "/markets/symbols?role=admin",
+    "bodyLen": 18856,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {
+      "MISSING_EVIDENCE": 6,
+      "STALE": 1,
+      "MISSING_PROVIDER_STATUS": 1,
+      "MISSING_NO_NETWORK": 1
+    },
+    "missingMarkerTotal": 9
+  },
+  {
+    "route": "/market/BTCUSDT",
+    "status": 200,
+    "finalUrl": "/market/BTCUSDT?role=admin",
+    "bodyLen": 123333,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {
+      "STALE": 109,
+      "MISSING_FIELDSFRESH": 1,
+      "MISSING_PROVIDER_DATA": 1,
+      "stale": 306,
+      "MISSING_NO_NETWORK": 101
+    },
+    "missingMarkerTotal": 518
+  },
+  {
+    "route": "/trade",
+    "status": 200,
+    "finalUrl": "/trade?role=admin",
+    "bodyLen": 3189,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {
+      "missing source": 12,
+      "MISSING_SOURCE": 4
+    },
+    "missingMarkerTotal": 16
+  },
+  {
+    "route": "/trade/paper",
+    "status": 200,
+    "finalUrl": "/trade/paper?role=admin",
+    "bodyLen": 8811,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {
+      "MISSING_EVIDENCE": 5
+    },
+    "missingMarkerTotal": 5
+  },
+  {
+    "route": "/derivatives",
+    "status": 200,
+    "finalUrl": "/derivatives?role=admin",
+    "bodyLen": 2036,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {
+      "missing source": 5
+    },
+    "missingMarkerTotal": 5
+  },
+  {
+    "route": "/signals",
+    "status": 200,
+    "finalUrl": "/signals?role=admin",
+    "bodyLen": 1983,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {},
+    "missingMarkerTotal": 0
+  },
+  {
+    "route": "/ai-predictions",
+    "status": 200,
+    "finalUrl": "/ai-predictions?role=admin",
+    "bodyLen": 4521,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {
+      "MISSING_EVIDENCE": 5
+    },
+    "missingMarkerTotal": 5
+  },
+  {
+    "route": "/ai-predictions/model-state",
+    "status": 200,
+    "finalUrl": "/ai-predictions/model-state?role=admin",
+    "bodyLen": 6928,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {
+      "STALE": 1
+    },
+    "missingMarkerTotal": 1
+  },
+  {
+    "route": "/portfolio",
+    "status": 200,
+    "finalUrl": "/portfolio?role=admin",
+    "bodyLen": 2646,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {},
+    "missingMarkerTotal": 0
+  },
+  {
+    "route": "/portfolio/executions",
+    "status": 200,
+    "finalUrl": "/portfolio/executions?role=admin",
+    "bodyLen": 1429,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {},
+    "missingMarkerTotal": 0
+  },
+  {
+    "route": "/portfolio/history",
+    "status": 200,
+    "finalUrl": "/portfolio/history?role=admin",
+    "bodyLen": 1285,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {},
+    "missingMarkerTotal": 0
+  },
+  {
+    "route": "/backtests",
+    "status": 200,
+    "finalUrl": "/backtests?role=admin",
+    "bodyLen": 2466,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {},
+    "missingMarkerTotal": 0
+  },
+  {
+    "route": "/backtests/replay",
+    "status": 200,
+    "finalUrl": "/backtests/replay?role=admin",
+    "bodyLen": 5628,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {
+      "MISSING_EVIDENCE": 5
+    },
+    "missingMarkerTotal": 5
+  },
+  {
+    "route": "/research",
+    "status": 200,
+    "finalUrl": "/research?role=admin",
+    "bodyLen": 51041,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {
+      "stale": 1,
+      "MISSING_EVIDENCE": 6,
+      "MISSING_NO_NETWORK": 2
+    },
+    "missingMarkerTotal": 9
+  },
+  {
+    "route": "/research/technical-analysis",
+    "status": 200,
+    "finalUrl": "/research/technical-analysis?role=admin",
+    "bodyLen": 1365,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {},
+    "missingMarkerTotal": 0
+  },
+  {
+    "route": "/alerts",
+    "status": 200,
+    "finalUrl": "/alerts?role=admin",
+    "bodyLen": 2314,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {},
+    "missingMarkerTotal": 0
+  },
+  {
+    "route": "/system",
+    "status": 200,
+    "finalUrl": "/system?role=admin",
+    "bodyLen": 5874,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {},
+    "missingMarkerTotal": 0
+  },
+  {
+    "route": "/system/control-center",
+    "status": 200,
+    "finalUrl": "/system/control-center?role=admin",
+    "bodyLen": 8948,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {
+      "STALE": 3,
+      "MISSING_LEGACY_LOG_ACTION_EVIDENCE": 5,
+      "MISSING_ENTRY_PRICE": 3,
+      "MISSING_FIELDS": 1
+    },
+    "missingMarkerTotal": 12
+  },
+  {
+    "route": "/system/ingestors",
+    "status": 200,
+    "finalUrl": "/system/ingestors?role=admin",
+    "bodyLen": 3949,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {},
+    "missingMarkerTotal": 0
+  },
+  {
+    "route": "/system/trainer",
+    "status": 200,
+    "finalUrl": "/system/trainer?role=admin",
+    "bodyLen": 5268,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {
+      "MISSING_EVIDENCE": 5
+    },
+    "missingMarkerTotal": 5
+  },
+  {
+    "route": "/system/orchestrator",
+    "status": 200,
+    "finalUrl": "/system/orchestrator?role=admin",
+    "bodyLen": 5097,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {
+      "STALE": 2,
+      "MISSING_EVIDENCE_RETURNS_MISSING_EVIDENCE_CANNOT_COMPARE": 1,
+      "stale": 1
+    },
+    "missingMarkerTotal": 4
+  },
+  {
+    "route": "/system/risk-controllers",
+    "status": 200,
+    "finalUrl": "/system/risk-controllers?role=admin",
+    "bodyLen": 3716,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {},
+    "missingMarkerTotal": 0
+  },
+  {
+    "route": "/system/strategy-controls",
+    "status": 200,
+    "finalUrl": "/system/strategy-controls?role=admin",
+    "bodyLen": 2912,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {},
+    "missingMarkerTotal": 0
+  },
+  {
+    "route": "/system/execution",
+    "status": 200,
+    "finalUrl": "/system/execution?role=admin",
+    "bodyLen": 3055,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {},
+    "missingMarkerTotal": 0
+  },
+  {
+    "route": "/system/exchanges",
+    "status": 200,
+    "finalUrl": "/system/exchanges?role=admin",
+    "bodyLen": 1585,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {},
+    "missingMarkerTotal": 0
+  },
+  {
+    "route": "/system/config",
+    "status": 200,
+    "finalUrl": "/system/config?role=admin",
+    "bodyLen": 2221,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {
+      "stale": 2
+    },
+    "missingMarkerTotal": 2
+  },
+  {
+    "route": "/system/logs",
+    "status": 200,
+    "finalUrl": "/system/logs?role=admin",
+    "bodyLen": 1427,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {
+      "STALE": 2,
+      "stale": 2
+    },
+    "missingMarkerTotal": 4
+  },
+  {
+    "route": "/system/audit-ledger",
+    "status": 200,
+    "finalUrl": "/system/audit-ledger?role=admin",
+    "bodyLen": 1126,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {},
+    "missingMarkerTotal": 0
+  },
+  {
+    "route": "/system/scripts",
+    "status": 200,
+    "finalUrl": "/system/scripts?role=admin",
+    "bodyLen": 17710,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {
+      "MISSING_EVIDENCE": 2,
+      "Evidence missing": 2
+    },
+    "missingMarkerTotal": 4
+  },
+  {
+    "route": "/system/build-validation",
+    "status": 200,
+    "finalUrl": "/system/build-validation?role=admin",
+    "bodyLen": 2875,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {
+      "stale": 3,
+      "Evidence missing": 2,
+      "MISSING_EVIDENCE": 1,
+      "STALE": 1
+    },
+    "missingMarkerTotal": 7
+  },
+  {
+    "route": "/system/coverage",
+    "status": 200,
+    "finalUrl": "/system/coverage?role=admin",
+    "bodyLen": 3292,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {
+      "STALE": 1
+    },
+    "missingMarkerTotal": 1
+  },
+  {
+    "route": "/system/migrations",
+    "status": 200,
+    "finalUrl": "/system/migrations?role=admin",
+    "bodyLen": 7325,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {
+      "STALE": 6
+    },
+    "missingMarkerTotal": 6
+  },
+  {
+    "route": "/system/users",
+    "status": 200,
+    "finalUrl": "/system/users?role=admin",
+    "bodyLen": 7208,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {
+      "STALE": 6
+    },
+    "missingMarkerTotal": 6
+  },
+  {
+    "route": "/system/ai-tools",
+    "status": 200,
+    "finalUrl": "/system/ai-tools?role=admin",
+    "bodyLen": 4064,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {
+      "stale": 3,
+      "MISSING_EVIDENCE": 1
+    },
+    "missingMarkerTotal": 4
+  },
+  {
+    "route": "/system/readiness",
+    "status": 200,
+    "finalUrl": "/system/readiness?role=admin",
+    "bodyLen": 9262,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {
+      "MISSING_EVIDENCE": 5
+    },
+    "missingMarkerTotal": 5
+  },
+  {
+    "route": "/system/reports",
+    "status": 200,
+    "finalUrl": "/system/reports?role=admin",
+    "bodyLen": 18470,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {
+      "stale": 44,
+      "MISSING_FIELDS": 1
+    },
+    "missingMarkerTotal": 45
+  },
+  {
+    "route": "/system/position-quarantine",
+    "status": 200,
+    "finalUrl": "/system/position-quarantine?role=admin",
+    "bodyLen": 2154,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {
+      "Evidence missing": 2
+    },
+    "missingMarkerTotal": 2
+  },
+  {
+    "route": "/system/evidence",
+    "status": 200,
+    "finalUrl": "/system/evidence?role=admin",
+    "bodyLen": 23043,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {
+      "evidence_missing": 41,
+      "stale": 32,
+      "MISSING_OUTPUTS": 1,
+      "STALE": 5
+    },
+    "missingMarkerTotal": 79
+  },
+  {
+    "route": "/system/executive-summary",
+    "status": 200,
+    "finalUrl": "/system/executive-summary?role=admin",
+    "bodyLen": 7188,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {
+      "MISSING_PAYLOAD": 1
+    },
+    "missingMarkerTotal": 1
+  },
+  {
+    "route": "/system/build-code-review",
+    "status": 200,
+    "finalUrl": "/system/build-code-review?role=admin",
+    "bodyLen": 2611,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {},
+    "missingMarkerTotal": 0
+  },
+  {
+    "route": "/status",
+    "status": 200,
+    "finalUrl": "/status?role=admin",
+    "bodyLen": 1120,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {},
+    "missingMarkerTotal": 0
+  },
+  {
+    "route": "/landing",
+    "status": 200,
+    "finalUrl": "/landing?role=admin",
+    "bodyLen": 2034,
+    "failed": [],
+    "pageErrors": [],
+    "consoleErrors": [],
+    "markerCounts": {},
+    "missingMarkerTotal": 0
+  }
+]

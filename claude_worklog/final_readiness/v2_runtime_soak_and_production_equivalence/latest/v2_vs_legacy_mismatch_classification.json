@@ -1,0 +1,74 @@
+{
+  "schema_version": "v2_vs_legacy_mismatch_classification_v1",
+  "generated_utc": "2026-05-17T02:15:00Z",
+  "git_head": "31a7fd70319f0d586c454b5ea2ea530ba9cb1541",
+  "no_invented_outcomes": true,
+  "classification_categories": [
+    "action_mismatch",
+    "confidence_mismatch",
+    "freshness_mismatch",
+    "v2_missing_prediction",
+    "legacy_missing_prediction",
+    "v2_gate_blocked",
+    "paper_fill_blocked"
+  ],
+  "per_symbol_classification": [
+    {
+      "symbol": "BTCUSDT",
+      "category": "action_mismatch",
+      "detail": "legacy=close_short_open_long, v2=hold",
+      "root_cause_known": "V2 native CPU policy runs from DETERMINISTIC_INIT weights (no operator-approved checkpoint loaded). Legacy hybrid_trainer runs from trained weights and emits a directional call. The strict P0.2F gate is paper-only, so V2 'hold' is a safe default when the trained signal is not loaded.",
+      "remediation_task_id": "CHECKPOINT_WEIGHT_BLOB_OPERATOR_REQUIRED_FOR_PAPER_PROMOTION",
+      "remediation_layer": "rl_core_inference_loop",
+      "operator_action_required": "Provide operator-approved checkpoint blob with sidecar metadata AND authorize a legacy-venv subprocess to inspect tensor shapes (or explicitly accept paper-only-shutdown limitation per the burndown matrix).",
+      "live_gate": "blocked_human_only",
+      "live_symbols": []
+    },
+    {
+      "symbol": "ETHUSDT",
+      "category": "match",
+      "detail": "legacy action and v2 selected_action agree",
+      "root_cause_known": "Both layers currently emit the same side; no mismatch.",
+      "remediation_task_id": null,
+      "remediation_layer": null,
+      "operator_action_required": null,
+      "live_gate": "blocked_human_only",
+      "live_symbols": []
+    },
+    {
+      "symbol": "SOLUSDT",
+      "category": "action_mismatch",
+      "detail": "legacy=open_short, v2=hold",
+      "root_cause_known": "Same as BTCUSDT - deterministic-init V2 policy emits hold; legacy emits directional. Not a runtime fault.",
+      "remediation_task_id": "CHECKPOINT_WEIGHT_BLOB_OPERATOR_REQUIRED_FOR_PAPER_PROMOTION",
+      "remediation_layer": "rl_core_inference_loop",
+      "operator_action_required": "Same as BTCUSDT.",
+      "live_gate": "blocked_human_only",
+      "live_symbols": []
+    }
+  ],
+  "summary": {
+    "symbols_compared": ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+    "match_count": 1,
+    "action_mismatch_count": 2,
+    "confidence_mismatch_count": 0,
+    "freshness_mismatch_count": 0,
+    "v2_missing_prediction_count": 0,
+    "legacy_missing_prediction_count": 0,
+    "v2_gate_blocked_count": 0,
+    "paper_fill_blocked_count": 0,
+    "all_mismatches_root_caused_to_known_blocker": true,
+    "all_remediation_tasks_already_known": true
+  },
+  "safety_state": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "no_invented_outcomes": true,
+    "no_old_redis_writes_attempted_by_this_packet": true,
+    "no_exchange_mutation": true
+  }
+}

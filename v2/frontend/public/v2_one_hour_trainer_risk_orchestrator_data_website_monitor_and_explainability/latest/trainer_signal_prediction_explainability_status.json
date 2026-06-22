@@ -1,0 +1,54 @@
+{
+  "gate": "V2_ONE_HOUR_TRAINER_RISK_ORCHESTRATOR_DATA_WEBSITE_MONITOR_AND_EXPLAINABILITY_READY",
+  "generated_est": "2026-06-10T00:43:45-04:00",
+  "prediction_rows": 655,
+  "native_cuda_primary_rows": 655,
+  "rl_core_sidecar_rows": 131,
+  "timeframes": {
+    "1m": 131,
+    "5m": 131,
+    "15m": 131,
+    "1h": 131,
+    "4h": 131
+  },
+  "action_counts": {
+    "hold": 67,
+    "long": 533,
+    "short": 55
+  },
+  "confidence": {
+    "min": 0.5058305493542049,
+    "mean": 0.5299025949419707,
+    "max": 0.5544955741045778
+  },
+  "expected_move_after_cost_bps": {
+    "min": -38.86129379272461,
+    "mean": 3.59704820850992,
+    "max": 55.65447998046875
+  },
+  "paper_fill_allowed_predictions": 17,
+  "paper_fills_accepted": 5,
+  "paper_fills_blocked": 641,
+  "top_prediction_paper_gate_block_reasons": {
+    "confidence_below_threshold": 630,
+    "expected_move_after_cost_below_threshold": 184
+  },
+  "natural_language_payload": "/operator_runtime/v2_prediction_signal_explanations/latest/prediction_signal_explanations.json",
+  "website_surfaces_updated": [
+    "/admin/signal-explainability?role=admin",
+    "/admin/trainer-prediction-monitor?role=admin",
+    "/admin/signals?role=admin",
+    "/admin/claude-admin-ai?role=admin",
+    "PipelineControlPanel task descriptions"
+  ],
+  "plain_english_summary": "The native CUDA PPO/MASA trainer is producing current predictions across the full valid symbol/timeframe grid. Most rows lean long, but the paper/risk path blocks most candidates because calibrated confidence is only around 50.6%-55.4%, below the active paper gate. The model sees some after-cost edge in selected rows, but it does not yet trust its own calibration enough to route most predictions to paper execution.",
+  "recommended_next_action": "Keep training and paper/shadow running. Improve paper-only exploration through calibrated confidence feedback and false-positive/false-negative review rather than lowering live gates blindly.",
+  "safety": {
+    "real_order_mutation": false,
+    "test_order_called": false,
+    "leverage_or_margin_mutation": false,
+    "old_redis_write": false,
+    "legacy_restart": false,
+    "raw_credentials_emitted": false
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "current_prediction_rows_count": 385,
+  "current_symbol_count": 77,
+  "exchange_unavailable_count": 0,
+  "expected_runtime_universe_source": "operator_runtime/symbol_universe + dynamic discovery + trainer trust reconciliation",
+  "invalid_symbol_count": 0,
+  "missing_closed_candle_count": 0,
+  "previous_prediction_rows_count": 385,
+  "previous_symbol_count": 77,
+  "removal_reason_by_symbol": {},
+  "removed_symbol_count": 0,
+  "removed_symbols": [],
+  "schema_version": "symbol_scope_reconciliation_status_v1",
+  "stale_symbol_count": 0,
+  "symbol_scope_status": "SYMBOL_SCOPE_VALID_DYNAMIC_RUNTIME_UNIVERSE"
+}

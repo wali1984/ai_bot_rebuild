@@ -1,0 +1,2354 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "copied_count": 259,
+  "generated_utc": "2026-05-16T02:01:47Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "records": [
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/ADDITIONAL_CRITICAL_FIXES.py",
+      "legacy_rel": "rl/ADDITIONAL_CRITICAL_FIXES.py",
+      "safe_to_commit": true,
+      "sha256": "8683bf84248d1b661e7d8e4b1959e649222aac9d9a816aab3217d7abea2b78ce",
+      "size_bytes": 23769,
+      "source": "/home/wali/Desktop/AI BOT/rl/ADDITIONAL_CRITICAL_FIXES.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/CRITICAL_HEDGE_AND_PORTFOLIO_FIX.py",
+      "legacy_rel": "rl/CRITICAL_HEDGE_AND_PORTFOLIO_FIX.py",
+      "safe_to_commit": true,
+      "sha256": "ac80e827e9d24057f3926cf16e07797fa4a7e2c7f86d15b792cac44b6c7362a6",
+      "size_bytes": 58166,
+      "source": "/home/wali/Desktop/AI BOT/rl/CRITICAL_HEDGE_AND_PORTFOLIO_FIX.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/POSITION_MANAGER.py",
+      "legacy_rel": "rl/POSITION_MANAGER.py",
+      "safe_to_commit": true,
+      "sha256": "ed0bbff0fdc7c6a3aa536f52b75a7674fb0f98b4b07613444233dab5f0aece9a",
+      "size_bytes": 10982,
+      "source": "/home/wali/Desktop/AI BOT/rl/POSITION_MANAGER.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/WIN_RATE_OPTIMIZER.py",
+      "legacy_rel": "rl/WIN_RATE_OPTIMIZER.py",
+      "safe_to_commit": true,
+      "sha256": "8a1263cf44f1d886b6d98384962b898861e29f80946eaf7e06f30611abd6f4a6",
+      "size_bytes": 17072,
+      "source": "/home/wali/Desktop/AI BOT/rl/WIN_RATE_OPTIMIZER.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/action_ontology.py",
+      "legacy_rel": "rl/action_ontology.py",
+      "safe_to_commit": true,
+      "sha256": "961a0e418a723d790d4cc692fe337cdd2e383b0b53963efbdc051c12d6a7b9ce",
+      "size_bytes": 18533,
+      "source": "/home/wali/Desktop/AI BOT/rl/action_ontology.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/advanced_risk_management.py",
+      "legacy_rel": "rl/advanced_risk_management.py",
+      "safe_to_commit": true,
+      "sha256": "db2fc5c91f270f69790c4d3e25e9b6007384b6c788a2c6dc00cf3305cf829697",
+      "size_bytes": 20633,
+      "source": "/home/wali/Desktop/AI BOT/rl/advanced_risk_management.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/agents/__init__.py",
+      "legacy_rel": "rl/agents/__init__.py",
+      "safe_to_commit": true,
+      "sha256": "54ae4759817cdf0acc7cc79d8ffb7dc6a1a1a6eb6ed12aa039c8a003d01b4547",
+      "size_bytes": 270,
+      "source": "/home/wali/Desktop/AI BOT/rl/agents/__init__.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/agents/masa_agent.py",
+      "legacy_rel": "rl/agents/masa_agent.py",
+      "safe_to_commit": true,
+      "sha256": "0c7496336ca00c0f006d9a294ea67e736e2c3f2a3e4202b98cd6925dff891080",
+      "size_bytes": 21109,
+      "source": "/home/wali/Desktop/AI BOT/rl/agents/masa_agent.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/anti_churn_manager.py",
+      "legacy_rel": "rl/anti_churn_manager.py",
+      "safe_to_commit": true,
+      "sha256": "eed529a0a4c8748022615bb89dacbe4d44a84dc15f4ef42fe3356d499b475ea8",
+      "size_bytes": 13565,
+      "source": "/home/wali/Desktop/AI BOT/rl/anti_churn_manager.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/auto_contraction.py",
+      "legacy_rel": "rl/auto_contraction.py",
+      "safe_to_commit": true,
+      "sha256": "7b17f435c80b5b1667169c00bfd700bed176a7a5cc81c400797e8c61a2213b7c",
+      "size_bytes": 22053,
+      "source": "/home/wali/Desktop/AI BOT/rl/auto_contraction.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/batch_utils.py",
+      "legacy_rel": "rl/batch_utils.py",
+      "safe_to_commit": true,
+      "sha256": "deb232f07445c61cc9c68d4ec0df0fa16219aae6f44805901b6d00c314ce4ab3",
+      "size_bytes": 19496,
+      "source": "/home/wali/Desktop/AI BOT/rl/batch_utils.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/btc_correlation.py",
+      "legacy_rel": "rl/btc_correlation.py",
+      "safe_to_commit": true,
+      "sha256": "9f78638c7982ef21696c7bc8c29e0bde45f92d93c0b94971b8cba48a8f9857cf",
+      "size_bytes": 9608,
+      "source": "/home/wali/Desktop/AI BOT/rl/btc_correlation.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/calibrated_confidence.py",
+      "legacy_rel": "rl/calibrated_confidence.py",
+      "safe_to_commit": true,
+      "sha256": "03c56d7e3345444e9f285de3bee596573b3ca8d05ee4f3a26aef56e032806d90",
+      "size_bytes": 9767,
+      "source": "/home/wali/Desktop/AI BOT/rl/calibrated_confidence.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/checkpoint_manager.py",
+      "legacy_rel": "rl/checkpoint_manager.py",
+      "safe_to_commit": true,
+      "sha256": "151d8808d53b7ba00edc4411569ba2f86519154d52da1997b300cec14c3e1ba8",
+      "size_bytes": 12300,
+      "source": "/home/wali/Desktop/AI BOT/rl/checkpoint_manager.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/churn_veto.py",
+      "legacy_rel": "rl/churn_veto.py",
+      "safe_to_commit": true,
+      "sha256": "2c81e961b69c557dd684293cdcc6540fb7980ad42a404c5c8d08c24f9b241c74",
+      "size_bytes": 5684,
+      "source": "/home/wali/Desktop/AI BOT/rl/churn_veto.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/coinapi_symbol_map.py",
+      "legacy_rel": "rl/coinapi_symbol_map.py",
+      "safe_to_commit": true,
+      "sha256": "12d7e247e20f63c8b9c963ea965b3fa4c7419ed697fd3ecf86e30c2c4d25e99d",
+      "size_bytes": 14322,
+      "source": "/home/wali/Desktop/AI BOT/rl/coinapi_symbol_map.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/confidence_gates.py",
+      "legacy_rel": "rl/confidence_gates.py",
+      "safe_to_commit": true,
+      "sha256": "0f51194d182f58c1c2b885d4682c8b698ecd5fbfc53537d7af8c5621b373ab7c",
+      "size_bytes": 21453,
+      "source": "/home/wali/Desktop/AI BOT/rl/confidence_gates.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/confidence_logger.py",
+      "legacy_rel": "rl/confidence_logger.py",
+      "safe_to_commit": true,
+      "sha256": "4c2ff023e56ac9c39700deb47316f36fa944923d0b3c8d63ac4c5aa070eb79e0",
+      "size_bytes": 7577,
+      "source": "/home/wali/Desktop/AI BOT/rl/confidence_logger.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/constrained_reward.py",
+      "legacy_rel": "rl/constrained_reward.py",
+      "safe_to_commit": true,
+      "sha256": "69ff3c75b53d8d3d7844894954cf9d16f334e79e0c1bd39e9624a4482a459b2e",
+      "size_bytes": 10861,
+      "source": "/home/wali/Desktop/AI BOT/rl/constrained_reward.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/continuous_learner.py",
+      "legacy_rel": "rl/continuous_learner.py",
+      "safe_to_commit": true,
+      "sha256": "0ec6067f907cc6758b111af2b60bc0e1007561759f191feb10a3d04bf5557e73",
+      "size_bytes": 23036,
+      "source": "/home/wali/Desktop/AI BOT/rl/continuous_learner.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/contract_enrichment.py",
+      "legacy_rel": "rl/contract_enrichment.py",
+      "safe_to_commit": true,
+      "sha256": "889b9348b9a490bb2cefafa9965712614d45babcf642a7fedefe28a682b4fed5",
+      "size_bytes": 7037,
+      "source": "/home/wali/Desktop/AI BOT/rl/contract_enrichment.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/cpu_env.py",
+      "legacy_rel": "rl/cpu_env.py",
+      "safe_to_commit": true,
+      "sha256": "dd4c79311cf636456bab8dc5955aaaf42adbd44212319333e45ef98a7bdef0c3",
+      "size_bytes": 47421,
+      "source": "/home/wali/Desktop/AI BOT/rl/cpu_env.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/decision_trace.py",
+      "legacy_rel": "rl/decision_trace.py",
+      "safe_to_commit": true,
+      "sha256": "98a53dbc046c8c9e83b183061503326df865bf113e1a3b5d11434f5d5c5bde28",
+      "size_bytes": 1890,
+      "source": "/home/wali/Desktop/AI BOT/rl/decision_trace.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/drift_monitor.py",
+      "legacy_rel": "rl/drift_monitor.py",
+      "safe_to_commit": true,
+      "sha256": "cf08caeb312943104fbe7e3a0a159d31921b25bd5ef93992d4bcb8c791bedaaa",
+      "size_bytes": 17578,
+      "source": "/home/wali/Desktop/AI BOT/rl/drift_monitor.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/dynamic_position_sizing.py",
+      "legacy_rel": "rl/dynamic_position_sizing.py",
+      "safe_to_commit": true,
+      "sha256": "a8f8dcb5391892d13f3e8f66a84911a971cde7e7792202d90108df91bf71c4a9",
+      "size_bytes": 8922,
+      "source": "/home/wali/Desktop/AI BOT/rl/dynamic_position_sizing.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/dynamic_runner_hedge.py",
+      "legacy_rel": "rl/dynamic_runner_hedge.py",
+      "safe_to_commit": true,
+      "sha256": "24494ad59c88c0badc57fe2ece460ced6fbabc1beae38018f81a34d9f2b53df2",
+      "size_bytes": 33342,
+      "source": "/home/wali/Desktop/AI BOT/rl/dynamic_runner_hedge.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/enhanced_architectures.py",
+      "legacy_rel": "rl/enhanced_architectures.py",
+      "safe_to_commit": true,
+      "sha256": "d7b2071a6c83edee5eb940d50e5578fb0b4dd14d54f9e577c65d2533409b8236",
+      "size_bytes": 23252,
+      "source": "/home/wali/Desktop/AI BOT/rl/enhanced_architectures.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/env_factory.py",
+      "legacy_rel": "rl/env_factory.py",
+      "safe_to_commit": true,
+      "sha256": "a5c19466edc6c6f7a73b4f7fe43840c6c56d8660e828f0f7bfa5648f1a33a326",
+      "size_bytes": 858,
+      "source": "/home/wali/Desktop/AI BOT/rl/env_factory.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/environment.py",
+      "legacy_rel": "rl/environment.py",
+      "safe_to_commit": true,
+      "sha256": "39866005417554c7f9552a64eddc14ec1024db7e22b432c844cfd1a8e7800b1d",
+      "size_bytes": 66775,
+      "source": "/home/wali/Desktop/AI BOT/rl/environment.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/execution_overlay.py",
+      "legacy_rel": "rl/execution_overlay.py",
+      "safe_to_commit": true,
+      "sha256": "9e43d68a2d2203965e2258ba77064f22ad11353fe11c49c75200df59266f9dc2",
+      "size_bytes": 2952,
+      "source": "/home/wali/Desktop/AI BOT/rl/execution_overlay.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/fastlane_detector.py",
+      "legacy_rel": "rl/fastlane_detector.py",
+      "safe_to_commit": true,
+      "sha256": "a43a66af4ae5156f8fa1b8d51604cb360b235b9255a09cc08ae3e572a5a3999e",
+      "size_bytes": 17975,
+      "source": "/home/wali/Desktop/AI BOT/rl/fastlane_detector.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/feature_health.py",
+      "legacy_rel": "rl/feature_health.py",
+      "safe_to_commit": true,
+      "sha256": "24da08060fcf34ecbf3553ff7f113ee91c249fb9a8c11946877dcac604fc9a77",
+      "size_bytes": 14055,
+      "source": "/home/wali/Desktop/AI BOT/rl/feature_health.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/fee_ratio_reward_shaping.py",
+      "legacy_rel": "rl/fee_ratio_reward_shaping.py",
+      "safe_to_commit": true,
+      "sha256": "e7edce3e29a6bf7236329245ba4a14436dc6f6b0a249ad0ad3d05760570bfc06",
+      "size_bytes": 19427,
+      "source": "/home/wali/Desktop/AI BOT/rl/fee_ratio_reward_shaping.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/global_safety_checks.py",
+      "legacy_rel": "rl/global_safety_checks.py",
+      "safe_to_commit": true,
+      "sha256": "894e276acbd88edf57a6d0f19d6ab0e94752f0dff46eb6ca7424466c1b1eb2ab",
+      "size_bytes": 20908,
+      "source": "/home/wali/Desktop/AI BOT/rl/global_safety_checks.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/gpu_batch_env.py",
+      "legacy_rel": "rl/gpu_batch_env.py",
+      "safe_to_commit": true,
+      "sha256": "67a5021d57a3c16658c029da9a4d48cabb983a7d2fbc308ead25acd69743ce9e",
+      "size_bytes": 9954,
+      "source": "/home/wali/Desktop/AI BOT/rl/gpu_batch_env.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/gpu_cnn_policy.py",
+      "legacy_rel": "rl/gpu_cnn_policy.py",
+      "safe_to_commit": true,
+      "sha256": "881cfdad7650e9114e14c24a8d3d7bc2cbb5a4c1ce2a5fa8cb3fe2d50d3b4062",
+      "size_bytes": 7843,
+      "source": "/home/wali/Desktop/AI BOT/rl/gpu_cnn_policy.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/gpu_env_wrapper.py",
+      "legacy_rel": "rl/gpu_env_wrapper.py",
+      "safe_to_commit": true,
+      "sha256": "c92e87e422578c5e60d14156ae31e0d222d20f582e37e07b203ae382bb0344e9",
+      "size_bytes": 4829,
+      "source": "/home/wali/Desktop/AI BOT/rl/gpu_env_wrapper.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/gpu_environment.py",
+      "legacy_rel": "rl/gpu_environment.py",
+      "safe_to_commit": true,
+      "sha256": "ac161654fde76b1e7f941a7cd8a772c08cb70a6bd5823051802dc43ab41465b2",
+      "size_bytes": 55463,
+      "source": "/home/wali/Desktop/AI BOT/rl/gpu_environment.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/gpu_forced_ppo.py",
+      "legacy_rel": "rl/gpu_forced_ppo.py",
+      "safe_to_commit": true,
+      "sha256": "131c7b65a56a2908d6b6c167c1a888a2841bb14e38a489cbea153fe6e1b9bab8",
+      "size_bytes": 14212,
+      "source": "/home/wali/Desktop/AI BOT/rl/gpu_forced_ppo.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/gpu_optimized_trainer.py",
+      "legacy_rel": "rl/gpu_optimized_trainer.py",
+      "safe_to_commit": true,
+      "sha256": "3203fbd34b6976a676d261f3bb2ac16ddc2bef1c80a4befc247e6cdf50bfe822",
+      "size_bytes": 13386,
+      "source": "/home/wali/Desktop/AI BOT/rl/gpu_optimized_trainer.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/gpu_optimizer.py",
+      "legacy_rel": "rl/gpu_optimizer.py",
+      "safe_to_commit": true,
+      "sha256": "77ae441ce01b2939d63cb4bd38c91901ed1257a44cec923ccc4a0f0eacf53407",
+      "size_bytes": 10030,
+      "source": "/home/wali/Desktop/AI BOT/rl/gpu_optimizer.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/gpu_saturation.py",
+      "legacy_rel": "rl/gpu_saturation.py",
+      "safe_to_commit": true,
+      "sha256": "f6a3efab0f2382a0399569e28e4fa23ba9bba8d3eaee20e4fa3aff0d2bc96ddb",
+      "size_bytes": 18118,
+      "source": "/home/wali/Desktop/AI BOT/rl/gpu_saturation.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/gymnasium_wrapper.py",
+      "legacy_rel": "rl/gymnasium_wrapper.py",
+      "safe_to_commit": true,
+      "sha256": "61a086cb4a0a406ca67fe2035cf776b0c991bb9d7391572ce86e77aea0a16574",
+      "size_bytes": 14062,
+      "source": "/home/wali/Desktop/AI BOT/rl/gymnasium_wrapper.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/hedge_action_space.py",
+      "legacy_rel": "rl/hedge_action_space.py",
+      "safe_to_commit": true,
+      "sha256": "bf7869acba78d469a53ca101425284477c66a6e011e9ae6613e8d4bee79b3b70",
+      "size_bytes": 13995,
+      "source": "/home/wali/Desktop/AI BOT/rl/hedge_action_space.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/hedge_budget_governor.py",
+      "legacy_rel": "rl/hedge_budget_governor.py",
+      "safe_to_commit": true,
+      "sha256": "9d9d40f0a62d850fe3bd2a6b23e61746a4c973e1cc1ee963cfa95a838255722b",
+      "size_bytes": 3178,
+      "source": "/home/wali/Desktop/AI BOT/rl/hedge_budget_governor.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/hedge_harvest_engine.py",
+      "legacy_rel": "rl/hedge_harvest_engine.py",
+      "safe_to_commit": true,
+      "sha256": "1368cf021fe6c707bd99bcffc4bbd6fe4785760073a2e7702df3a319732e8cb8",
+      "size_bytes": 14679,
+      "source": "/home/wali/Desktop/AI BOT/rl/hedge_harvest_engine.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/hedge_manager_v3.py",
+      "legacy_rel": "rl/hedge_manager_v3.py",
+      "safe_to_commit": true,
+      "sha256": "8cc0c991bcace41853ec5304a27767d30ee332f669474c27a3d606c38f746edf",
+      "size_bytes": 119769,
+      "source": "/home/wali/Desktop/AI BOT/rl/hedge_manager_v3.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/hedge_position_manager.py",
+      "legacy_rel": "rl/hedge_position_manager.py",
+      "safe_to_commit": true,
+      "sha256": "e30064a51e2fc7ffa1f1d7beb1a23396b8799e0455b9c8eaf031d1c3ec1e5913",
+      "size_bytes": 22805,
+      "source": "/home/wali/Desktop/AI BOT/rl/hedge_position_manager.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/hedge_reward_functions.py",
+      "legacy_rel": "rl/hedge_reward_functions.py",
+      "safe_to_commit": true,
+      "sha256": "54c1a5748ca61da84d3e697cf5260251f15cc802281c951f18b902bf522b41c9",
+      "size_bytes": 16526,
+      "source": "/home/wali/Desktop/AI BOT/rl/hedge_reward_functions.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/hedge_rule_engine.py",
+      "legacy_rel": "rl/hedge_rule_engine.py",
+      "safe_to_commit": true,
+      "sha256": "b0de9aaddad3cc89789406090aa2e4bfd2343b3ca7a220f4e6c83a3ef85684e3",
+      "size_bytes": 19916,
+      "source": "/home/wali/Desktop/AI BOT/rl/hedge_rule_engine.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/historical_csv_loader.py",
+      "legacy_rel": "rl/historical_csv_loader.py",
+      "safe_to_commit": true,
+      "sha256": "9e8bb701e6ab280b2e1c5635ad25b3646b82f02130ba4a583f25588058651670",
+      "size_bytes": 13197,
+      "source": "/home/wali/Desktop/AI BOT/rl/historical_csv_loader.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/historical_data_loader.py",
+      "legacy_rel": "rl/historical_data_loader.py",
+      "safe_to_commit": true,
+      "sha256": "8529f4dc557394586fe487db22064c92d84e9910a01bcb1846c80d330ff0b2c7",
+      "size_bytes": 12283,
+      "source": "/home/wali/Desktop/AI BOT/rl/historical_data_loader.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/historical_data_manager.py",
+      "legacy_rel": "rl/historical_data_manager.py",
+      "safe_to_commit": true,
+      "sha256": "ac621e687b37b21548d315f82abecaf911b4d8fd1d43f9e872c7a079b690e778",
+      "size_bytes": 29727,
+      "source": "/home/wali/Desktop/AI BOT/rl/historical_data_manager.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/hybrid_action_space.py",
+      "legacy_rel": "rl/hybrid_action_space.py",
+      "safe_to_commit": true,
+      "sha256": "abc7ecf1e655e4a018eeedcb4ad675c7bb35e101d4b5a42d432132243aed6c23",
+      "size_bytes": 16553,
+      "source": "/home/wali/Desktop/AI BOT/rl/hybrid_action_space.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/hybrid_trainer.py",
+      "legacy_rel": "rl/hybrid_trainer.py",
+      "safe_to_commit": true,
+      "sha256": "b7dad66b63b57c0d5c29e0fbaf67466d9c2aab81baf7a4f67b6e681e38c5b102",
+      "size_bytes": 3165342,
+      "source": "/home/wali/Desktop/AI BOT/rl/hybrid_trainer.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/increase_signal_validator.py",
+      "legacy_rel": "rl/increase_signal_validator.py",
+      "safe_to_commit": true,
+      "sha256": "6b1dbcb61bac934038d7be3ca16721453e4eda7263c6f7527c5583f23c7d12a0",
+      "size_bytes": 13971,
+      "source": "/home/wali/Desktop/AI BOT/rl/increase_signal_validator.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/ingestor_quality_router.py",
+      "legacy_rel": "rl/ingestor_quality_router.py",
+      "safe_to_commit": true,
+      "sha256": "05b98e8f6c01ca7a62ad1500935bb11f299842ca6fa79b5a198219aebc1222a1",
+      "size_bytes": 20836,
+      "source": "/home/wali/Desktop/AI BOT/rl/ingestor_quality_router.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/intent_engine.py",
+      "legacy_rel": "rl/intent_engine.py",
+      "safe_to_commit": true,
+      "sha256": "7d8d474237f08f3ab1f2775044f6e535c0a3934eb336c757b2cf4443f18b0975",
+      "size_bytes": 6648,
+      "source": "/home/wali/Desktop/AI BOT/rl/intent_engine.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/light_vec_env.py",
+      "legacy_rel": "rl/light_vec_env.py",
+      "safe_to_commit": true,
+      "sha256": "3abce4e72fcbee644659fb5be04bb201b8ec258548c4d4949d4f41f26bde3b0f",
+      "size_bytes": 9587,
+      "source": "/home/wali/Desktop/AI BOT/rl/light_vec_env.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/light_worker.py",
+      "legacy_rel": "rl/light_worker.py",
+      "safe_to_commit": true,
+      "sha256": "406f3d1cc21757d24bb5136459ec8b67ec6ef9aa22dc6dbff8d46699fbbdc3a7",
+      "size_bytes": 3970,
+      "source": "/home/wali/Desktop/AI BOT/rl/light_worker.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/liquidation_prevention.py",
+      "legacy_rel": "rl/liquidation_prevention.py",
+      "safe_to_commit": true,
+      "sha256": "d1ec2a58101bd640c5af1907cd7c3de5c4c2e713be57d765a4ee702da95b0f1e",
+      "size_bytes": 32510,
+      "source": "/home/wali/Desktop/AI BOT/rl/liquidation_prevention.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/market_context.py",
+      "legacy_rel": "rl/market_context.py",
+      "safe_to_commit": true,
+      "sha256": "c7ae964771e6d5c4419b01b9ce1a88410e97bf70753644fd3f645e6bb3ef5254",
+      "size_bytes": 28082,
+      "source": "/home/wali/Desktop/AI BOT/rl/market_context.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/masa_supervised_pretrainer.py",
+      "legacy_rel": "rl/masa_supervised_pretrainer.py",
+      "safe_to_commit": true,
+      "sha256": "ad601984ff88cb303e05d75ffdf7323f1e9b47a31f86971b35aba3b750fa1256",
+      "size_bytes": 11500,
+      "source": "/home/wali/Desktop/AI BOT/rl/masa_supervised_pretrainer.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/metrics_tracker.py",
+      "legacy_rel": "rl/metrics_tracker.py",
+      "safe_to_commit": true,
+      "sha256": "2bbc55abfd4590b0f0857d44187882be4c8db3ba88c80abb29f26c61801cb308",
+      "size_bytes": 7625,
+      "source": "/home/wali/Desktop/AI BOT/rl/metrics_tracker.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/microstructure_aggregator.py",
+      "legacy_rel": "rl/microstructure_aggregator.py",
+      "safe_to_commit": true,
+      "sha256": "92a927e3232b0a58971e471991daee51ebdf16d0565590cfe7f21293cfc9d7f4",
+      "size_bytes": 17421,
+      "source": "/home/wali/Desktop/AI BOT/rl/microstructure_aggregator.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/microstructure_features.py",
+      "legacy_rel": "rl/microstructure_features.py",
+      "safe_to_commit": true,
+      "sha256": "5cf76c803beabfa1a139f11790bbe6837cfaa94147bea0796e192a618d236fea",
+      "size_bytes": 20745,
+      "source": "/home/wali/Desktop/AI BOT/rl/microstructure_features.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/microstructure_overlay.py",
+      "legacy_rel": "rl/microstructure_overlay.py",
+      "safe_to_commit": true,
+      "sha256": "eff2a1e69f5b839e46e8cad2f7dd77eb2697723e1ed945acc643471550d34f3b",
+      "size_bytes": 50596,
+      "source": "/home/wali/Desktop/AI BOT/rl/microstructure_overlay.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/microstructure_proactive.py",
+      "legacy_rel": "rl/microstructure_proactive.py",
+      "safe_to_commit": true,
+      "sha256": "92946a87ebf60c6f6ae271da67b5ca9ab2d867ddd860df52b45c7d1bb9dfe43d",
+      "size_bytes": 65862,
+      "source": "/home/wali/Desktop/AI BOT/rl/microstructure_proactive.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/microstructure_source_router.py",
+      "legacy_rel": "rl/microstructure_source_router.py",
+      "safe_to_commit": true,
+      "sha256": "71d58cb4d46e89eb9ff824dbe5d7c0559039df36a524625c740eb57a84762d7b",
+      "size_bytes": 20858,
+      "source": "/home/wali/Desktop/AI BOT/rl/microstructure_source_router.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/microstructure_tf_modifier.py",
+      "legacy_rel": "rl/microstructure_tf_modifier.py",
+      "safe_to_commit": true,
+      "sha256": "c53746426954bfc1915ef1aa5ef8b0be8164e5b7b2fe7d11b6b102d5e1609039",
+      "size_bytes": 13329,
+      "source": "/home/wali/Desktop/AI BOT/rl/microstructure_tf_modifier.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/minimum_hold_time.py",
+      "legacy_rel": "rl/minimum_hold_time.py",
+      "safe_to_commit": true,
+      "sha256": "6ab470cf50b756134ccb420f42831481d4edc5951f14f8fa2ae7bebcf68fc1ae",
+      "size_bytes": 17687,
+      "source": "/home/wali/Desktop/AI BOT/rl/minimum_hold_time.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/moe_router.py",
+      "legacy_rel": "rl/moe_router.py",
+      "safe_to_commit": true,
+      "sha256": "390c66f303fcff6d43ebc7ddd2149470faac8a97bf3af468083e6871973ecb62",
+      "size_bytes": 15031,
+      "source": "/home/wali/Desktop/AI BOT/rl/moe_router.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/move_shock_engine.py",
+      "legacy_rel": "rl/move_shock_engine.py",
+      "safe_to_commit": true,
+      "sha256": "6fed058a3372fb816229d83737bac2aecf35cbfa25624ad7f48b02589dd4e13e",
+      "size_bytes": 7506,
+      "source": "/home/wali/Desktop/AI BOT/rl/move_shock_engine.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/mtf_position_builder.py",
+      "legacy_rel": "rl/mtf_position_builder.py",
+      "safe_to_commit": true,
+      "sha256": "802799ba7e89f088dc24af94605e7d46f89ce178c879d3dee4c7294f36fd207b",
+      "size_bytes": 14003,
+      "source": "/home/wali/Desktop/AI BOT/rl/mtf_position_builder.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/mtf_scenario_tags.py",
+      "legacy_rel": "rl/mtf_scenario_tags.py",
+      "safe_to_commit": true,
+      "sha256": "c6e669fc072d976e61e85829ca2f28cb17b687290a6205bb6a547b3dddf8a93d",
+      "size_bytes": 2727,
+      "source": "/home/wali/Desktop/AI BOT/rl/mtf_scenario_tags.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/obs_schema.py",
+      "legacy_rel": "rl/obs_schema.py",
+      "safe_to_commit": true,
+      "sha256": "9ec040fa1306ac28f4395aac103b104eb02644866ca8acec5577b155fd925f5f",
+      "size_bytes": 17346,
+      "source": "/home/wali/Desktop/AI BOT/rl/obs_schema.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/orchestrator_worker.py",
+      "legacy_rel": "rl/orchestrator_worker.py",
+      "safe_to_commit": true,
+      "sha256": "a7ff83f992c6b0add14e4563241080cce431906642c0de6aa778d3fb9eb217c6",
+      "size_bytes": 522512,
+      "source": "/home/wali/Desktop/AI BOT/rl/orchestrator_worker.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/portfolio_aware_features.py",
+      "legacy_rel": "rl/portfolio_aware_features.py",
+      "safe_to_commit": true,
+      "sha256": "4224832092df169348a34cfc7b53b23f429a730868e3b58d0517e5deb9d33d53",
+      "size_bytes": 18352,
+      "source": "/home/wali/Desktop/AI BOT/rl/portfolio_aware_features.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/portfolio_policy_manager.py",
+      "legacy_rel": "rl/portfolio_policy_manager.py",
+      "safe_to_commit": true,
+      "sha256": "01b9c54dd88734b0b916f3e7ad6108d1ef57feee5dc0e2ca1fad7c685df89c24",
+      "size_bytes": 61622,
+      "source": "/home/wali/Desktop/AI BOT/rl/portfolio_policy_manager.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/portfolio_recovery_allocator.py",
+      "legacy_rel": "rl/portfolio_recovery_allocator.py",
+      "safe_to_commit": true,
+      "sha256": "d98f7d1b47cbe24c17d69df519b4b77126227ee9041d8e738468c7b25049adea",
+      "size_bytes": 20131,
+      "source": "/home/wali/Desktop/AI BOT/rl/portfolio_recovery_allocator.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/portfolio_risk_features.py",
+      "legacy_rel": "rl/portfolio_risk_features.py",
+      "safe_to_commit": true,
+      "sha256": "9ba168b9e870486b6e1a19d022b445c1daad88d2f077a65b3861a8689f05c30f",
+      "size_bytes": 15814,
+      "source": "/home/wali/Desktop/AI BOT/rl/portfolio_risk_features.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/position_context.py",
+      "legacy_rel": "rl/position_context.py",
+      "safe_to_commit": true,
+      "sha256": "6eea0b34b555455e72504592ab37e77b1e85dee108d3ad7ae1daf27bca0b9ba9",
+      "size_bytes": 5757,
+      "source": "/home/wali/Desktop/AI BOT/rl/position_context.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/position_monitor.py",
+      "legacy_rel": "rl/position_monitor.py",
+      "safe_to_commit": true,
+      "sha256": "43bd067e2f0dbd5c654b6f7f403017d9ec5d73eb46e7a5efcc91869c9287cb16",
+      "size_bytes": 25650,
+      "source": "/home/wali/Desktop/AI BOT/rl/position_monitor.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/profit_bank.py",
+      "legacy_rel": "rl/profit_bank.py",
+      "safe_to_commit": true,
+      "sha256": "dcfb004acf7e0f3254270229215244f5f4bb4f045dacfae6d59be6440996cdee",
+      "size_bytes": 8791,
+      "source": "/home/wali/Desktop/AI BOT/rl/profit_bank.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/profit_freespace_rebalancer.py",
+      "legacy_rel": "rl/profit_freespace_rebalancer.py",
+      "safe_to_commit": true,
+      "sha256": "7568aa44cd1c42348d550aa80ca9d2000192f07ef65f97c3ec58a8dbb89f0925",
+      "size_bytes": 7362,
+      "source": "/home/wali/Desktop/AI BOT/rl/profit_freespace_rebalancer.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/promotion_controller.py",
+      "legacy_rel": "rl/promotion_controller.py",
+      "safe_to_commit": true,
+      "sha256": "ea8b42e030faf6592418e108b04e3bbb196952c6c1b70c8497bb67c2d56504a5",
+      "size_bytes": 38124,
+      "source": "/home/wali/Desktop/AI BOT/rl/promotion_controller.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/proposal_bus.py",
+      "legacy_rel": "rl/proposal_bus.py",
+      "safe_to_commit": true,
+      "sha256": "e6c7657b7b70d32773792005274d9d1bb08df8bce45c95c86e67e1fc61f0934d",
+      "size_bytes": 2012,
+      "source": "/home/wali/Desktop/AI BOT/rl/proposal_bus.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/proposal_hedge_preflight.py",
+      "legacy_rel": "rl/proposal_hedge_preflight.py",
+      "safe_to_commit": true,
+      "sha256": "5dfc002f6ff227c8198a35f0d6177192303d28198851ef28ea7e10a96bde0285",
+      "size_bytes": 2293,
+      "source": "/home/wali/Desktop/AI BOT/rl/proposal_hedge_preflight.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/proposal_schema.py",
+      "legacy_rel": "rl/proposal_schema.py",
+      "safe_to_commit": true,
+      "sha256": "fe56d0396f1b9aebfa231904e17a0ff8aa1c6ba74f49fc2b5bf81fe5fc22e593",
+      "size_bytes": 20810,
+      "source": "/home/wali/Desktop/AI BOT/rl/proposal_schema.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/replay_store.py",
+      "legacy_rel": "rl/replay_store.py",
+      "safe_to_commit": true,
+      "sha256": "9a19bb30285b4bb44219853141315499d2de896d232eb10ad59dd21879556158",
+      "size_bytes": 14588,
+      "source": "/home/wali/Desktop/AI BOT/rl/replay_store.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/reward_functions.py",
+      "legacy_rel": "rl/reward_functions.py",
+      "safe_to_commit": true,
+      "sha256": "87ef4602012cbbd944bdf506fb8f1646375e7732c3a93e87b0946db7a1cca853",
+      "size_bytes": 31805,
+      "source": "/home/wali/Desktop/AI BOT/rl/reward_functions.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/scenario_engine.py",
+      "legacy_rel": "rl/scenario_engine.py",
+      "safe_to_commit": true,
+      "sha256": "d9bc0f20c0c88fe709082bdb80c4338ee84bb8c2ea208730caf51944505627ad",
+      "size_bytes": 2456,
+      "source": "/home/wali/Desktop/AI BOT/rl/scenario_engine.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/scripts/backfill_predictions_stub.py",
+      "legacy_rel": "rl/scripts/backfill_predictions_stub.py",
+      "safe_to_commit": true,
+      "sha256": "dd1e2226d29803b8c983a723158058d3c123fc24fe7bff4ca6f41d71f3f01df8",
+      "size_bytes": 1455,
+      "source": "/home/wali/Desktop/AI BOT/rl/scripts/backfill_predictions_stub.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/scripts/export_audit_pack.py",
+      "legacy_rel": "rl/scripts/export_audit_pack.py",
+      "safe_to_commit": true,
+      "sha256": "c47a6c1222715d71aa1f388a39f2f003d39ca3d0cdd17b6e02f78ac405389931",
+      "size_bytes": 2698,
+      "source": "/home/wali/Desktop/AI BOT/rl/scripts/export_audit_pack.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/scripts/healthcheck_trainer_runtime.py",
+      "legacy_rel": "rl/scripts/healthcheck_trainer_runtime.py",
+      "safe_to_commit": true,
+      "sha256": "a99649e25da96c59538f8601721e664f406d7a12d2504e22d5e33085abe8f756",
+      "size_bytes": 5209,
+      "source": "/home/wali/Desktop/AI BOT/rl/scripts/healthcheck_trainer_runtime.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/scripts/replay_decision.py",
+      "legacy_rel": "rl/scripts/replay_decision.py",
+      "safe_to_commit": true,
+      "sha256": "c06f1dcb4cbe686fad00d040ceb69d1da56813699ae9cd4165a1833eb4268ae3",
+      "size_bytes": 1011,
+      "source": "/home/wali/Desktop/AI BOT/rl/scripts/replay_decision.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/scripts/train_churn_veto.py",
+      "legacy_rel": "rl/scripts/train_churn_veto.py",
+      "safe_to_commit": true,
+      "sha256": "3cc5498a27fb24f3689ed664a8a2c1ffd9d29f6ba34f35b8c7279aaca5e9fa24",
+      "size_bytes": 7326,
+      "source": "/home/wali/Desktop/AI BOT/rl/scripts/train_churn_veto.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/signal_state_manager.py",
+      "legacy_rel": "rl/signal_state_manager.py",
+      "safe_to_commit": true,
+      "sha256": "62c7d46ade7d03cd378e46cba2d06d2ee63bd218b27d9a853ee221a9899e6459",
+      "size_bytes": 22330,
+      "source": "/home/wali/Desktop/AI BOT/rl/signal_state_manager.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/stable_gpu_trainer.py",
+      "legacy_rel": "rl/stable_gpu_trainer.py",
+      "safe_to_commit": true,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "source": "/home/wali/Desktop/AI BOT/rl/stable_gpu_trainer.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/supervised_pretrainer.py",
+      "legacy_rel": "rl/supervised_pretrainer.py",
+      "safe_to_commit": true,
+      "sha256": "e883cd35e2d2b2b47d53065998b5e4a72bb3cd0dc8aa4ed15e720c01aa46703d",
+      "size_bytes": 13742,
+      "source": "/home/wali/Desktop/AI BOT/rl/supervised_pretrainer.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/supervised_trainer.py",
+      "legacy_rel": "rl/supervised_trainer.py",
+      "safe_to_commit": true,
+      "sha256": "8a1c540d642f0fe84177d60a55687017d449497607bd20a518acc9d206f530b8",
+      "size_bytes": 42515,
+      "source": "/home/wali/Desktop/AI BOT/rl/supervised_trainer.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/ta_direction_oracle.py",
+      "legacy_rel": "rl/ta_direction_oracle.py",
+      "safe_to_commit": true,
+      "sha256": "bf210f6ca0d3372d0cda5b5d55ab85301af1ee31e9c1973a3328812c98f56109",
+      "size_bytes": 23754,
+      "source": "/home/wali/Desktop/AI BOT/rl/ta_direction_oracle.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/target_exposure_controller.py",
+      "legacy_rel": "rl/target_exposure_controller.py",
+      "safe_to_commit": true,
+      "sha256": "3a6cfb4b7f39c64e65773b33985cba272bc6255e8b6b27a98477f23490600c2f",
+      "size_bytes": 52977,
+      "source": "/home/wali/Desktop/AI BOT/rl/target_exposure_controller.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/temperature_calibration.py",
+      "legacy_rel": "rl/temperature_calibration.py",
+      "safe_to_commit": true,
+      "sha256": "302355f82bbed15dd4db75600eb058406a0a08bd44ef86ef44f19c43f54cc221",
+      "size_bytes": 4993,
+      "source": "/home/wali/Desktop/AI BOT/rl/temperature_calibration.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/tests/test_move_shock_engine.py",
+      "legacy_rel": "rl/tests/test_move_shock_engine.py",
+      "safe_to_commit": true,
+      "sha256": "68683efccbc3f6f15808f1b8f90c2cbaec22f1f3f1bb6d6739ebd7f2d595a611",
+      "size_bytes": 3634,
+      "source": "/home/wali/Desktop/AI BOT/rl/tests/test_move_shock_engine.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/tests/test_scenario_engine_clamp.py",
+      "legacy_rel": "rl/tests/test_scenario_engine_clamp.py",
+      "safe_to_commit": true,
+      "sha256": "74fbbf9afd44c96fee105dd94ea3d41200f7fb245a421409c85cca29fc75d138",
+      "size_bytes": 1059,
+      "source": "/home/wali/Desktop/AI BOT/rl/tests/test_scenario_engine_clamp.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/tests/test_signal_pipeline.py",
+      "legacy_rel": "rl/tests/test_signal_pipeline.py",
+      "safe_to_commit": true,
+      "sha256": "775ffa8ac388c7ba73650c6f977728cd807fb496b288036b89f43f950e08e320",
+      "size_bytes": 2469,
+      "source": "/home/wali/Desktop/AI BOT/rl/tests/test_signal_pipeline.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/tests/test_tf_aggregator.py",
+      "legacy_rel": "rl/tests/test_tf_aggregator.py",
+      "safe_to_commit": true,
+      "sha256": "62fc9b0be4cf57107399e36fd0b98719f7e348fa999805d318e1bfa3e6667f8b",
+      "size_bytes": 1108,
+      "source": "/home/wali/Desktop/AI BOT/rl/tests/test_tf_aggregator.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/tf_aggregator.py",
+      "legacy_rel": "rl/tf_aggregator.py",
+      "safe_to_commit": true,
+      "sha256": "d20049f79b916723c59362bfb5cf0c74d4d8ae7cc0bf57f8a929b15b83c7f9f4",
+      "size_bytes": 6496,
+      "source": "/home/wali/Desktop/AI BOT/rl/tf_aggregator.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/threshold_ramper.py",
+      "legacy_rel": "rl/threshold_ramper.py",
+      "safe_to_commit": true,
+      "sha256": "759cc7c0234e3bb2926f25821cc0adfbf9802b90a99a7de4bb57e8774482e9dc",
+      "size_bytes": 11633,
+      "source": "/home/wali/Desktop/AI BOT/rl/threshold_ramper.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/toxicity_shield.py",
+      "legacy_rel": "rl/toxicity_shield.py",
+      "safe_to_commit": true,
+      "sha256": "e00f098be80a682d41e5c98b34bf3d98392eb84db57a675ea49a15fe3e924c46",
+      "size_bytes": 6227,
+      "source": "/home/wali/Desktop/AI BOT/rl/toxicity_shield.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/trade_feedback.py",
+      "legacy_rel": "rl/trade_feedback.py",
+      "safe_to_commit": true,
+      "sha256": "b4002932745acd22e8d9006a4ae8eee0d175b71e66f3d434c958ffb3589ccd7d",
+      "size_bytes": 41564,
+      "source": "/home/wali/Desktop/AI BOT/rl/trade_feedback.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/trade_proposal.py",
+      "legacy_rel": "rl/trade_proposal.py",
+      "safe_to_commit": true,
+      "sha256": "9eedce7573883900b0953c7c04f47210ae087bdbdd7241a9e6bbfd22278cf6ef",
+      "size_bytes": 9122,
+      "source": "/home/wali/Desktop/AI BOT/rl/trade_proposal.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/tradeplan_orchestrator.py",
+      "legacy_rel": "rl/tradeplan_orchestrator.py",
+      "safe_to_commit": true,
+      "sha256": "1e4ad19faed9dc3498f15401dc1065f1e1eedb400a662fc7272bed7df12fa4d0",
+      "size_bytes": 64956,
+      "source": "/home/wali/Desktop/AI BOT/rl/tradeplan_orchestrator.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/trainer_enhancements.py",
+      "legacy_rel": "rl/trainer_enhancements.py",
+      "safe_to_commit": true,
+      "sha256": "b8159091cf1f15b536b5e4221c3952a58c6501d84248b14d23a5831c13efca23",
+      "size_bytes": 21186,
+      "source": "/home/wali/Desktop/AI BOT/rl/trainer_enhancements.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/trainer_realtime_mixin.py",
+      "legacy_rel": "rl/trainer_realtime_mixin.py",
+      "safe_to_commit": true,
+      "sha256": "cecfbf68a7fa26eb35fef5e7442979a7825534d1ff07a284b713db864d49925d",
+      "size_bytes": 12633,
+      "source": "/home/wali/Desktop/AI BOT/rl/trainer_realtime_mixin.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/uncertainty.py",
+      "legacy_rel": "rl/uncertainty.py",
+      "safe_to_commit": true,
+      "sha256": "162cd3b3c0e4756dc766562c2911252d5bde346e744945b0cd69a270fa86bf53",
+      "size_bytes": 11968,
+      "source": "/home/wali/Desktop/AI BOT/rl/uncertainty.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/underwater_recovery_controller.py",
+      "legacy_rel": "rl/underwater_recovery_controller.py",
+      "safe_to_commit": true,
+      "sha256": "341b3f3ca4b5b9059a4a76a3969a4e32e7a67dd07f2c232d6596965091fd55e5",
+      "size_bytes": 62545,
+      "source": "/home/wali/Desktop/AI BOT/rl/underwater_recovery_controller.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/unified_feature_builder.py",
+      "legacy_rel": "rl/unified_feature_builder.py",
+      "safe_to_commit": true,
+      "sha256": "2af5c68d812c0a0a5db2e037204f0b2165d9084dea983d1737e09034e8c739a5",
+      "size_bytes": 29925,
+      "source": "/home/wali/Desktop/AI BOT/rl/unified_feature_builder.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/walk_forward_validation.py",
+      "legacy_rel": "rl/walk_forward_validation.py",
+      "safe_to_commit": true,
+      "sha256": "233e376a7af41885799a46cb90cb77e46df20d64ed911cea6926d29dde853c5e",
+      "size_bytes": 8261,
+      "source": "/home/wali/Desktop/AI BOT/rl/walk_forward_validation.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/rl/warm_start.py",
+      "legacy_rel": "rl/warm_start.py",
+      "safe_to_commit": true,
+      "sha256": "4a50417adfdf8b05bcba74443a343c231c615623fb3358526bddf0cac913dd6a",
+      "size_bytes": 14053,
+      "source": "/home/wali/Desktop/AI BOT/rl/warm_start.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/alphavantage_client.py",
+      "legacy_rel": "ingest/alphavantage_client.py",
+      "safe_to_commit": true,
+      "sha256": "3a6c102534bb95a7342cd857a7829a561cb1c017f34ff18ba47518c4fbfc8652",
+      "size_bytes": 199,
+      "source": "/home/wali/Desktop/AI BOT/ingest/alphavantage_client.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/alphavantage_normalizer.py",
+      "legacy_rel": "ingest/alphavantage_normalizer.py",
+      "safe_to_commit": true,
+      "sha256": "25a6c270b3fec6e1940aa18703ee3774232e864d742b6608a24c8d5b0f112085",
+      "size_bytes": 287,
+      "source": "/home/wali/Desktop/AI BOT/ingest/alphavantage_normalizer.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/base_ingestor.py",
+      "legacy_rel": "ingest/base_ingestor.py",
+      "safe_to_commit": true,
+      "sha256": "e010046e3f81745ad78f3bb3242afeb28c43fdb5d4d57896657539d03393c4f1",
+      "size_bytes": 3162,
+      "source": "/home/wali/Desktop/AI BOT/ingest/base_ingestor.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/ccxt_backfill.py",
+      "legacy_rel": "ingest/ccxt_backfill.py",
+      "safe_to_commit": true,
+      "sha256": "d1a12ca9bfe0a159a2e52429661c28b2d3da9684bed65d65def97b1e3f946aa5",
+      "size_bytes": 9917,
+      "source": "/home/wali/Desktop/AI BOT/ingest/ccxt_backfill.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/ccxt_historical.py",
+      "legacy_rel": "ingest/ccxt_historical.py",
+      "safe_to_commit": true,
+      "sha256": "7d021ca95e57f10b5ac458753d921f77c2349569125e2e968772143c4baec1e3",
+      "size_bytes": 48458,
+      "source": "/home/wali/Desktop/AI BOT/ingest/ccxt_historical.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/cdd_enhanced_slow.py",
+      "legacy_rel": "ingest/cdd_enhanced_slow.py",
+      "safe_to_commit": true,
+      "sha256": "f874791578115fc7d685c3a8f00bdb7961af4be2d8087aec900cc5072e46bd3a",
+      "size_bytes": 9403,
+      "source": "/home/wali/Desktop/AI BOT/ingest/cdd_enhanced_slow.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/cdd_historical.py",
+      "legacy_rel": "ingest/cdd_historical.py",
+      "safe_to_commit": true,
+      "sha256": "56d8a2c82013b97ddf4d943969df8f0bf90e7be1262e86c3c4c52c884c6b9684",
+      "size_bytes": 35617,
+      "source": "/home/wali/Desktop/AI BOT/ingest/cdd_historical.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/cdd_to_jsonl.py",
+      "legacy_rel": "ingest/cdd_to_jsonl.py",
+      "safe_to_commit": true,
+      "sha256": "203cd5b01d01ba751c450b3b884bae694b2963c53908ca63ee7a9cfa27829db8",
+      "size_bytes": 11810,
+      "source": "/home/wali/Desktop/AI BOT/ingest/cdd_to_jsonl.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/clients/tokenmetrics_client.py",
+      "legacy_rel": "ingest/clients/tokenmetrics_client.py",
+      "safe_to_commit": true,
+      "sha256": "bcd56ce09e97860aa46000f22efd19968345f68f31e7402f4b112d86d477e43f",
+      "size_bytes": 2998,
+      "source": "/home/wali/Desktop/AI BOT/ingest/clients/tokenmetrics_client.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/coinank_pipeline_monitor.py",
+      "legacy_rel": "ingest/coinank_pipeline_monitor.py",
+      "safe_to_commit": true,
+      "sha256": "55820c3eb988afd2041bc8b392db2650e297ac75ac82180068737a9d2ab96ced",
+      "size_bytes": 11701,
+      "source": "/home/wali/Desktop/AI BOT/ingest/coinank_pipeline_monitor.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/liquidation_bridge.py",
+      "legacy_rel": "ingest/liquidation_bridge.py",
+      "safe_to_commit": true,
+      "sha256": "5d70e395938228b61162b531310cd751403ddfeebb8920429e73cdcdbe35d48a",
+      "size_bytes": 6327,
+      "source": "/home/wali/Desktop/AI BOT/ingest/liquidation_bridge.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/liquidation_levels_engine.py",
+      "legacy_rel": "ingest/liquidation_levels_engine.py",
+      "safe_to_commit": true,
+      "sha256": "fed3c90b5193c27d24dc183089730bda49ff69a1758b597e23a154397f839df7",
+      "size_bytes": 18539,
+      "source": "/home/wali/Desktop/AI BOT/ingest/liquidation_levels_engine.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/live_alphavantage_news.py",
+      "legacy_rel": "ingest/live_alphavantage_news.py",
+      "safe_to_commit": true,
+      "sha256": "a69fca63f0bbe3e0cd694e040ff82443bc71906ef167c0fa627dcd281e3e478d",
+      "size_bytes": 8800,
+      "source": "/home/wali/Desktop/AI BOT/ingest/live_alphavantage_news.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/live_binance.py",
+      "legacy_rel": "ingest/live_binance.py",
+      "safe_to_commit": true,
+      "sha256": "6c1eb771a3842e2d94b797eedd55aa624075c51c6d50aec701397f81dbace798",
+      "size_bytes": 125730,
+      "source": "/home/wali/Desktop/AI BOT/ingest/live_binance.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/live_binance_liquidations.py",
+      "legacy_rel": "ingest/live_binance_liquidations.py",
+      "safe_to_commit": true,
+      "sha256": "19711590a3d194fd05ae3be85ef7bd6dec397f6394d02f7e91008c44c310131b",
+      "size_bytes": 46088,
+      "source": "/home/wali/Desktop/AI BOT/ingest/live_binance_liquidations.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/live_ccxt.py",
+      "legacy_rel": "ingest/live_ccxt.py",
+      "safe_to_commit": true,
+      "sha256": "c5a358664567e010aaa2bf2b7900218010982b484a99e4cc2f4826d32510120a",
+      "size_bytes": 16413,
+      "source": "/home/wali/Desktop/AI BOT/ingest/live_ccxt.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/live_coinank.py",
+      "legacy_rel": "ingest/live_coinank.py",
+      "safe_to_commit": true,
+      "sha256": "cd13dab55c0906c379e4116102c05f960908dd28d6b6e883ca76347cd1f144c8",
+      "size_bytes": 127414,
+      "source": "/home/wali/Desktop/AI BOT/ingest/live_coinank.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/live_coinank_global_aggregator.py",
+      "legacy_rel": "ingest/live_coinank_global_aggregator.py",
+      "safe_to_commit": true,
+      "sha256": "1f85c4532e4829aa99ddadbd6a5cd2325ef9e5c4012208eb05876c1b0187eeae",
+      "size_bytes": 14475,
+      "source": "/home/wali/Desktop/AI BOT/ingest/live_coinank_global_aggregator.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/live_coinapi_rest.py",
+      "legacy_rel": "ingest/live_coinapi_rest.py",
+      "safe_to_commit": true,
+      "sha256": "9000eb37fbd1d25fa719175c703fff4eaba678edcb67e3208cbfedbdc12639d0",
+      "size_bytes": 18409,
+      "source": "/home/wali/Desktop/AI BOT/ingest/live_coinapi_rest.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/live_coinapi_v1.py",
+      "legacy_rel": "ingest/live_coinapi_v1.py",
+      "safe_to_commit": true,
+      "sha256": "c8ca17d21b972510b92c4e84c477cd3440b3cfd1e2ec8e7411624a7454cee280",
+      "size_bytes": 28497,
+      "source": "/home/wali/Desktop/AI BOT/ingest/live_coinapi_v1.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/live_coinapi_wsds.py",
+      "legacy_rel": "ingest/live_coinapi_wsds.py",
+      "safe_to_commit": true,
+      "sha256": "a6973d887d1c52a4bb48f3b6f222b04e97d92e500ab889e94d6026cf504471b6",
+      "size_bytes": 77253,
+      "source": "/home/wali/Desktop/AI BOT/ingest/live_coinapi_wsds.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/live_kucoin.py",
+      "legacy_rel": "ingest/live_kucoin.py",
+      "safe_to_commit": true,
+      "sha256": "73b852db1bf69062d4028091cf17c126f5cb666e94bf784cdb2bb9b47328a976",
+      "size_bytes": 36382,
+      "source": "/home/wali/Desktop/AI BOT/ingest/live_kucoin.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/live_technical_analysis.py",
+      "legacy_rel": "ingest/live_technical_analysis.py",
+      "safe_to_commit": true,
+      "sha256": "5cdd4ea1d43271d0199e1ca92ecad3a8b76308838898a611df6ef4602f7388ac",
+      "size_bytes": 6103,
+      "source": "/home/wali/Desktop/AI BOT/ingest/live_technical_analysis.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/live_tokenmetrics.py",
+      "legacy_rel": "ingest/live_tokenmetrics.py",
+      "safe_to_commit": true,
+      "sha256": "1378d8961a961a8ac101392e444de23a4de8029a4ad81baf24490e01fd68ec20",
+      "size_bytes": 44485,
+      "source": "/home/wali/Desktop/AI BOT/ingest/live_tokenmetrics.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/load_historical.py",
+      "legacy_rel": "ingest/load_historical.py",
+      "safe_to_commit": true,
+      "sha256": "6d5357cf9c40aad237bc1e699f7cb6a00c89ca0c354558d220aeb556114bb7bb",
+      "size_bytes": 10557,
+      "source": "/home/wali/Desktop/AI BOT/ingest/load_historical.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/realtime_price_provider.py",
+      "legacy_rel": "ingest/realtime_price_provider.py",
+      "safe_to_commit": true,
+      "sha256": "dfdc2568368c134b9afcc4fa0faff312cc93a6ecc501ecaac747e7c20d7344ba",
+      "size_bytes": 45009,
+      "source": "/home/wali/Desktop/AI BOT/ingest/realtime_price_provider.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/technical_analysis.py",
+      "legacy_rel": "ingest/technical_analysis.py",
+      "safe_to_commit": true,
+      "sha256": "909437e7e77bcf6a03371c546b074a20e7a216bcd72b13ba783dcd78154dbee0",
+      "size_bytes": 34191,
+      "source": "/home/wali/Desktop/AI BOT/ingest/technical_analysis.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/tm_ids.py",
+      "legacy_rel": "ingest/tm_ids.py",
+      "safe_to_commit": true,
+      "sha256": "3c145fac5094e65baea6d5dfae65030db0a24390dd83747196bf0da8b55abcfb",
+      "size_bytes": 1221,
+      "source": "/home/wali/Desktop/AI BOT/ingest/tm_ids.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/tm_spec.py",
+      "legacy_rel": "ingest/tm_spec.py",
+      "safe_to_commit": true,
+      "sha256": "8fd36e94140fad1db63c1d2686874cbb8ef6fef955ce39c6367182270af79b17",
+      "size_bytes": 10338,
+      "source": "/home/wali/Desktop/AI BOT/ingest/tm_spec.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/ingest/tokenmetrics_normalizer.py",
+      "legacy_rel": "ingest/tokenmetrics_normalizer.py",
+      "safe_to_commit": true,
+      "sha256": "b0ec90591dd494efad164dde7aa6798759d46748988c9059f565aedebcd0d4ac",
+      "size_bytes": 210,
+      "source": "/home/wali/Desktop/AI BOT/ingest/tokenmetrics_normalizer.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/action_constants.py",
+      "legacy_rel": "trading/action_constants.py",
+      "safe_to_commit": true,
+      "sha256": "1714cc668b53f86b6fd40c5251b7402e553ce681e91420e6b0755337309d41f6",
+      "size_bytes": 9053,
+      "source": "/home/wali/Desktop/AI BOT/trading/action_constants.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/adaptive_edge_gate.py",
+      "legacy_rel": "trading/adaptive_edge_gate.py",
+      "safe_to_commit": true,
+      "sha256": "f50455f52e53eb5e2476cae4d2722d5050980cca66a6204c2f0ecf5526054632",
+      "size_bytes": 69019,
+      "source": "/home/wali/Desktop/AI BOT/trading/adaptive_edge_gate.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/adaptive_hedge_builder.py",
+      "legacy_rel": "trading/adaptive_hedge_builder.py",
+      "safe_to_commit": true,
+      "sha256": "55464cec53f7c2d6daec11a43a9c58cb874a34aafc556e09bcbad02730e83e85",
+      "size_bytes": 25287,
+      "source": "/home/wali/Desktop/AI BOT/trading/adaptive_hedge_builder.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/adaptive_threshold_engine.py",
+      "legacy_rel": "trading/adaptive_threshold_engine.py",
+      "safe_to_commit": true,
+      "sha256": "6bb198376377e5872619f007ee3420199c3a0a09fb570752cf78d7146e014629",
+      "size_bytes": 38109,
+      "source": "/home/wali/Desktop/AI BOT/trading/adaptive_threshold_engine.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/assert_governor.py",
+      "legacy_rel": "trading/assert_governor.py",
+      "safe_to_commit": true,
+      "sha256": "e870e06a87e8ac1049050f678edab8bd1a261b5ebd5b680f2541dced9ace9608",
+      "size_bytes": 1078,
+      "source": "/home/wali/Desktop/AI BOT/trading/assert_governor.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/base_executor.py",
+      "legacy_rel": "trading/base_executor.py",
+      "safe_to_commit": true,
+      "sha256": "b3672f5eba18d491c9bcb2efba22e61ea585448de5f7c2d3fc9586f8ebc1fa08",
+      "size_bytes": 94182,
+      "source": "/home/wali/Desktop/AI BOT/trading/base_executor.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/churn_prevention.py",
+      "legacy_rel": "trading/churn_prevention.py",
+      "safe_to_commit": true,
+      "sha256": "f258b87233fc68d7d73e05f13fece322774bdf2a6e95ad8c081b83cbc3771d1f",
+      "size_bytes": 22085,
+      "source": "/home/wali/Desktop/AI BOT/trading/churn_prevention.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/coinank_signal_adapter.py",
+      "legacy_rel": "trading/coinank_signal_adapter.py",
+      "safe_to_commit": true,
+      "sha256": "80af567877f88d974a6668ba9ab0242910b5b8ef80fae07f6cb9b7a73acebe4c",
+      "size_bytes": 8409,
+      "source": "/home/wali/Desktop/AI BOT/trading/coinank_signal_adapter.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/depth_execution_gate.py",
+      "legacy_rel": "trading/depth_execution_gate.py",
+      "safe_to_commit": true,
+      "sha256": "6d920451d54622dc1c3d4529bce0eb7f66be861d4dc84fd00281e9fb348383e5",
+      "size_bytes": 16831,
+      "source": "/home/wali/Desktop/AI BOT/trading/depth_execution_gate.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/dynamic_adaptive_hedge.py",
+      "legacy_rel": "trading/dynamic_adaptive_hedge.py",
+      "safe_to_commit": true,
+      "sha256": "745f5c2a2fc5eaee14622b731d2caade7cd0786e147c68c0dab67a4736528cf4",
+      "size_bytes": 50990,
+      "source": "/home/wali/Desktop/AI BOT/trading/dynamic_adaptive_hedge.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/dynamic_adaptive_stops.py",
+      "legacy_rel": "trading/dynamic_adaptive_stops.py",
+      "safe_to_commit": true,
+      "sha256": "523ef574f6f6729c831047e73ce53bfad3d980cb562a386bf8b648b22d9d061f",
+      "size_bytes": 47578,
+      "source": "/home/wali/Desktop/AI BOT/trading/dynamic_adaptive_stops.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/dynamic_margin_manager.py",
+      "legacy_rel": "trading/dynamic_margin_manager.py",
+      "safe_to_commit": true,
+      "sha256": "a45e408e3d815eb9e9c009a079a3de87d95ee1600e33547829d8e23aaee253d5",
+      "size_bytes": 14595,
+      "source": "/home/wali/Desktop/AI BOT/trading/dynamic_margin_manager.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/dynamic_tp_engine.py",
+      "legacy_rel": "trading/dynamic_tp_engine.py",
+      "safe_to_commit": true,
+      "sha256": "54bf102e9d5cfedb00f22f953c4894c4592a1b627a16bad51c034a7069c1e908",
+      "size_bytes": 72213,
+      "source": "/home/wali/Desktop/AI BOT/trading/dynamic_tp_engine.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/execution_engine.py",
+      "legacy_rel": "trading/execution_engine.py",
+      "safe_to_commit": true,
+      "sha256": "f4311b8196c7130c81e41626e6ff27257387d1dc451324699b1416d9d4a64888",
+      "size_bytes": 13565,
+      "source": "/home/wali/Desktop/AI BOT/trading/execution_engine.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/exit_coordinator.py",
+      "legacy_rel": "trading/exit_coordinator.py",
+      "safe_to_commit": true,
+      "sha256": "fb0591c2a4ef29a40695556c536ef7998657135222dab86938a3ae4219941bc4",
+      "size_bytes": 21471,
+      "source": "/home/wali/Desktop/AI BOT/trading/exit_coordinator.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/fee_ratio_gate.py",
+      "legacy_rel": "trading/fee_ratio_gate.py",
+      "safe_to_commit": true,
+      "sha256": "c1829afcbdb6848fb8dffd76e14b78a140832c663bb9c2f16e75029b0e7f8e7f",
+      "size_bytes": 14577,
+      "source": "/home/wali/Desktop/AI BOT/trading/fee_ratio_gate.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/hedge_context.py",
+      "legacy_rel": "trading/hedge_context.py",
+      "safe_to_commit": true,
+      "sha256": "b7d40b6b41025df0c106b918c474b9a9900c8b637e820a8bde4f61f3b59a230a",
+      "size_bytes": 60519,
+      "source": "/home/wali/Desktop/AI BOT/trading/hedge_context.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/hedge_intelligence_engine.py",
+      "legacy_rel": "trading/hedge_intelligence_engine.py",
+      "safe_to_commit": true,
+      "sha256": "c177b29b8f0ea9a6c54ed7089732b051645f70679206a33e85f1f85459279724",
+      "size_bytes": 41087,
+      "source": "/home/wali/Desktop/AI BOT/trading/hedge_intelligence_engine.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/hedge_pair_coordinator.py",
+      "legacy_rel": "trading/hedge_pair_coordinator.py",
+      "safe_to_commit": true,
+      "sha256": "b7059809f8946a8be812da61c227705d128422c3d75b5c51081b01d0abee40c8",
+      "size_bytes": 13527,
+      "source": "/home/wali/Desktop/AI BOT/trading/hedge_pair_coordinator.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/leg_manager.py",
+      "legacy_rel": "trading/leg_manager.py",
+      "safe_to_commit": true,
+      "sha256": "1da61c132ffd96649f31511398610d39ab49e38bdb22adfa9a38d32632679474",
+      "size_bytes": 22683,
+      "source": "/home/wali/Desktop/AI BOT/trading/leg_manager.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/lifecycle_controller.py",
+      "legacy_rel": "trading/lifecycle_controller.py",
+      "safe_to_commit": true,
+      "sha256": "cbe9472229be257701c2fc4d48f52ad6baab6a869947d55c8a8faf430d4fd6ed",
+      "size_bytes": 4173,
+      "source": "/home/wali/Desktop/AI BOT/trading/lifecycle_controller.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/maker_execution.py",
+      "legacy_rel": "trading/maker_execution.py",
+      "safe_to_commit": true,
+      "sha256": "5199d3893e5c3dc8f10d8b79ee4664e9ee0e4fb80ebe4a04ce96dffef80025b8",
+      "size_bytes": 26095,
+      "source": "/home/wali/Desktop/AI BOT/trading/maker_execution.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/market_intelligence.py",
+      "legacy_rel": "trading/market_intelligence.py",
+      "safe_to_commit": true,
+      "sha256": "bc783efc90c8d9e0669041b96596d1bbf09113371094af8b10c3b9603e51c266",
+      "size_bytes": 77710,
+      "source": "/home/wali/Desktop/AI BOT/trading/market_intelligence.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/market_regime_detector.py",
+      "legacy_rel": "trading/market_regime_detector.py",
+      "safe_to_commit": true,
+      "sha256": "714511302a2cd2826f2c7a6763db5001c2d0abac0030ff10756d716934ac5d87",
+      "size_bytes": 36243,
+      "source": "/home/wali/Desktop/AI BOT/trading/market_regime_detector.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/opportunity_tracker.py",
+      "legacy_rel": "trading/opportunity_tracker.py",
+      "safe_to_commit": true,
+      "sha256": "3cd62f238dca7acc3dc010ead505033522b74d2a0bf6dc028ca171453e1c92cb",
+      "size_bytes": 7966,
+      "source": "/home/wali/Desktop/AI BOT/trading/opportunity_tracker.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/position_reporter.py",
+      "legacy_rel": "trading/position_reporter.py",
+      "safe_to_commit": true,
+      "sha256": "da0958cb11f8106593049bdfb7c48d2603bb009ed9b3f2b76ce5043b0e6aabd2",
+      "size_bytes": 15390,
+      "source": "/home/wali/Desktop/AI BOT/trading/position_reporter.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/redesign_v2_helpers.py",
+      "legacy_rel": "trading/redesign_v2_helpers.py",
+      "safe_to_commit": true,
+      "sha256": "ba57163e83a494e8f2ac94d5a330cd08b1b5adbfea1f945033fa79c288b37638",
+      "size_bytes": 32625,
+      "source": "/home/wali/Desktop/AI BOT/trading/redesign_v2_helpers.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/redis_stream_reader.py",
+      "legacy_rel": "trading/redis_stream_reader.py",
+      "safe_to_commit": true,
+      "sha256": "08f1864b4b030aac26f532e1e26553fe3ebddb7eaab118235859d25676c1c87a",
+      "size_bytes": 14476,
+      "source": "/home/wali/Desktop/AI BOT/trading/redis_stream_reader.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/signal_router.py",
+      "legacy_rel": "trading/signal_router.py",
+      "safe_to_commit": true,
+      "sha256": "fbcad02f232512fefd33753ea0e387a163d5330ef1145f4f52d939de9d1758f3",
+      "size_bytes": 12454,
+      "source": "/home/wali/Desktop/AI BOT/trading/signal_router.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/smart_entry_gate.py",
+      "legacy_rel": "trading/smart_entry_gate.py",
+      "safe_to_commit": true,
+      "sha256": "92e00347bbbd7e864603c27f95191dbb6736b13a2c0745b44049fad33612421e",
+      "size_bytes": 34958,
+      "source": "/home/wali/Desktop/AI BOT/trading/smart_entry_gate.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/stealth_dynamic_integration.py",
+      "legacy_rel": "trading/stealth_dynamic_integration.py",
+      "safe_to_commit": true,
+      "sha256": "0e1f5ab2ccd0dc20af7cbca8c258f0d69c05f64507191ce6960e6c06cf003d52",
+      "size_bytes": 7320,
+      "source": "/home/wali/Desktop/AI BOT/trading/stealth_dynamic_integration.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/stealth_stops.py",
+      "legacy_rel": "trading/stealth_stops.py",
+      "safe_to_commit": true,
+      "sha256": "a76de1902e7c2a754f2e90a39fa9aac23d991ec059d5c54d6e0772b79b8a47cf",
+      "size_bytes": 389228,
+      "source": "/home/wali/Desktop/AI BOT/trading/stealth_stops.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/trader-asjad.py",
+      "legacy_rel": "trading/trader-asjad.py",
+      "safe_to_commit": true,
+      "sha256": "0a6c4e4e7e00612f2987f25c9b6e84bdca6a4408ded818c8eed3ff255293bd4d",
+      "size_bytes": 1552,
+      "source": "/home/wali/Desktop/AI BOT/trading/trader-asjad.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/trader.py",
+      "legacy_rel": "trading/trader.py",
+      "safe_to_commit": true,
+      "sha256": "8c56fb44a770d5016f2d5b07a74d527d8fca36d77cdd1ba37ea490bc72748583",
+      "size_bytes": 1456456,
+      "source": "/home/wali/Desktop/AI BOT/trading/trader.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/trading/trader_websocket_helper.py",
+      "legacy_rel": "trading/trader_websocket_helper.py",
+      "safe_to_commit": true,
+      "sha256": "79cca6583c5a55df03c724b6540602525aec3d2fec6e3ded94885b07f4b5c9a3",
+      "size_bytes": 37620,
+      "source": "/home/wali/Desktop/AI BOT/trading/trader_websocket_helper.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/risk/__init__.py",
+      "legacy_rel": "risk/__init__.py",
+      "safe_to_commit": true,
+      "sha256": "19d6d8ddf04495275a2eeb14dacd751c0f4ae5f63805fdf147adfd28385cea6a",
+      "size_bytes": 26,
+      "source": "/home/wali/Desktop/AI BOT/risk/__init__.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/risk/adaptive_gate.py",
+      "legacy_rel": "risk/adaptive_gate.py",
+      "safe_to_commit": true,
+      "sha256": "a5057ea4ad4542881a6ebf14b9d789cbeed7873fc763c9d74d06c7c781674bce",
+      "size_bytes": 35074,
+      "source": "/home/wali/Desktop/AI BOT/risk/adaptive_gate.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/risk/assertions.py",
+      "legacy_rel": "risk/assertions.py",
+      "safe_to_commit": true,
+      "sha256": "ebf903ef080176aa7a9c5fa574922a8b262e4b441f39a1a90ce842be27e1856d",
+      "size_bytes": 20177,
+      "source": "/home/wali/Desktop/AI BOT/risk/assertions.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/risk/auto_deleverager.py",
+      "legacy_rel": "risk/auto_deleverager.py",
+      "safe_to_commit": true,
+      "sha256": "76652e99ec0b0717a3bfea887c25f78746df7765ba3f5e4eff6a21d0e820a377",
+      "size_bytes": 85148,
+      "source": "/home/wali/Desktop/AI BOT/risk/auto_deleverager.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/risk/global_breadth.py",
+      "legacy_rel": "risk/global_breadth.py",
+      "safe_to_commit": true,
+      "sha256": "77bb8e4573b0ba9e8c557315345a0139b735da5b227121e232070ee240ba2bed",
+      "size_bytes": 11578,
+      "source": "/home/wali/Desktop/AI BOT/risk/global_breadth.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/risk/halt_manager.py",
+      "legacy_rel": "risk/halt_manager.py",
+      "safe_to_commit": true,
+      "sha256": "49504d73a9fef319eb0ac6282d571492714a62526bc1c9849148685ad7eac314",
+      "size_bytes": 22707,
+      "source": "/home/wali/Desktop/AI BOT/risk/halt_manager.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/risk/hedge_cage_manager.py",
+      "legacy_rel": "risk/hedge_cage_manager.py",
+      "safe_to_commit": true,
+      "sha256": "5b100f43ac003889977254a601c8e7afff294621c4beb5d1d63e3f67eae9b593",
+      "size_bytes": 17936,
+      "source": "/home/wali/Desktop/AI BOT/risk/hedge_cage_manager.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/risk/intelligent_close_guard.py",
+      "legacy_rel": "risk/intelligent_close_guard.py",
+      "safe_to_commit": true,
+      "sha256": "7edf6d5eca3e8654bc17f0fad22831e4daedb411138d576904a29ab0a352c3ee",
+      "size_bytes": 47000,
+      "source": "/home/wali/Desktop/AI BOT/risk/intelligent_close_guard.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/risk/kill_switch.py",
+      "legacy_rel": "risk/kill_switch.py",
+      "safe_to_commit": true,
+      "sha256": "bf730c6fa425097aa0c246dfbab88e4f8d158afdd606a905c8f9e3c7695df59e",
+      "size_bytes": 6143,
+      "source": "/home/wali/Desktop/AI BOT/risk/kill_switch.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/risk/ltf_reversal.py",
+      "legacy_rel": "risk/ltf_reversal.py",
+      "safe_to_commit": true,
+      "sha256": "8d68dd32de6db155fbe51c77f1230356490205c38d3660dc36dab2a46866b84f",
+      "size_bytes": 22189,
+      "source": "/home/wali/Desktop/AI BOT/risk/ltf_reversal.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/risk/margin_governor.py",
+      "legacy_rel": "risk/margin_governor.py",
+      "safe_to_commit": true,
+      "sha256": "e8448d2ee70697a97fbb4af27555adabe2af590d8185ebfc644b965070376eee",
+      "size_bytes": 38468,
+      "source": "/home/wali/Desktop/AI BOT/risk/margin_governor.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/risk/market_regime.py",
+      "legacy_rel": "risk/market_regime.py",
+      "safe_to_commit": true,
+      "sha256": "1504593a301e268749c9a1f0e6c29a2abacf0db5e8c8adba354afce902c0bc13",
+      "size_bytes": 26986,
+      "source": "/home/wali/Desktop/AI BOT/risk/market_regime.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/risk/market_state_contract.py",
+      "legacy_rel": "risk/market_state_contract.py",
+      "safe_to_commit": true,
+      "sha256": "7a0b423f680271050ea7eb06de43098345e9bff49cc17d7c6c4315a19fdb4814",
+      "size_bytes": 12360,
+      "source": "/home/wali/Desktop/AI BOT/risk/market_state_contract.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/risk/microstructure_toxicity.py",
+      "legacy_rel": "risk/microstructure_toxicity.py",
+      "safe_to_commit": true,
+      "sha256": "5103e3078e15734eaca310e9ae58dd8e89725ebf4317a98313f078c8bd74beef",
+      "size_bytes": 10715,
+      "source": "/home/wali/Desktop/AI BOT/risk/microstructure_toxicity.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/risk/phase_controller.py",
+      "legacy_rel": "risk/phase_controller.py",
+      "safe_to_commit": true,
+      "sha256": "ecd566ca7537551a9e6e267da4880a41764d346a1d43137d4088003951211ee1",
+      "size_bytes": 13441,
+      "source": "/home/wali/Desktop/AI BOT/risk/phase_controller.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/risk/reduce_only_latch.py",
+      "legacy_rel": "risk/reduce_only_latch.py",
+      "safe_to_commit": true,
+      "sha256": "e0dc68486a5cc2fa0fc0ea1d1197f66373f8c090deb889a403257e187c7ac611",
+      "size_bytes": 5935,
+      "source": "/home/wali/Desktop/AI BOT/risk/reduce_only_latch.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/risk/reversal_detector.py",
+      "legacy_rel": "risk/reversal_detector.py",
+      "safe_to_commit": true,
+      "sha256": "fba7c0c839d2a06ed46fcd41f2e0ae5271aea460571fcff4fbadde3e15d63634",
+      "size_bytes": 11521,
+      "source": "/home/wali/Desktop/AI BOT/risk/reversal_detector.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/risk/risk_budget_allocator.py",
+      "legacy_rel": "risk/risk_budget_allocator.py",
+      "safe_to_commit": true,
+      "sha256": "e0a178d139695f97541e67f00ecaf7d8e7b7928e0290ba6a54edc0cfcfb1e832",
+      "size_bytes": 22010,
+      "source": "/home/wali/Desktop/AI BOT/risk/risk_budget_allocator.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/risk/risk_state_machine.py",
+      "legacy_rel": "risk/risk_state_machine.py",
+      "safe_to_commit": true,
+      "sha256": "2bca8a985f0cb3415108b9e86260a0ad7611ed3a4680717cde496dfc63fee486",
+      "size_bytes": 19619,
+      "source": "/home/wali/Desktop/AI BOT/risk/risk_state_machine.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/risk/shared_risk_gate.py",
+      "legacy_rel": "risk/shared_risk_gate.py",
+      "safe_to_commit": true,
+      "sha256": "62c2403f2cf2ce5dec71522b919f1db6a2f6908e338903e359e021c75c59dd7f",
+      "size_bytes": 18022,
+      "source": "/home/wali/Desktop/AI BOT/risk/shared_risk_gate.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/risk/trainer_alignment.py",
+      "legacy_rel": "risk/trainer_alignment.py",
+      "safe_to_commit": true,
+      "sha256": "ddd73997d9126ec8d03b93b763cce03d01fd3f608ff40a2fa959ee2cb50e4217",
+      "size_bytes": 17889,
+      "source": "/home/wali/Desktop/AI BOT/risk/trainer_alignment.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/risk/trainer_intent.py",
+      "legacy_rel": "risk/trainer_intent.py",
+      "safe_to_commit": true,
+      "sha256": "4a76f18a9a04f3d94563bab8449746efdcda93c954b4406677328da2ac37262f",
+      "size_bytes": 12741,
+      "source": "/home/wali/Desktop/AI BOT/risk/trainer_intent.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/services/__init__.py",
+      "legacy_rel": "services/__init__.py",
+      "safe_to_commit": true,
+      "sha256": "d32d5bcb1c2e6f289492c3d12922d45d3c5c9cc18819e2ae47cbd6af3c1d64f4",
+      "size_bytes": 667,
+      "source": "/home/wali/Desktop/AI BOT/services/__init__.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/services/data_archiver.py",
+      "legacy_rel": "services/data_archiver.py",
+      "safe_to_commit": true,
+      "sha256": "5563536027deacc7d9257c78c7b1c029f1fd86e42fda671ac8c13735e716ee38",
+      "size_bytes": 15716,
+      "source": "/home/wali/Desktop/AI BOT/services/data_archiver.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/services/liquidation_intelligence.py",
+      "legacy_rel": "services/liquidation_intelligence.py",
+      "safe_to_commit": true,
+      "sha256": "5a4773312ae0d0da58c2838d06b952946531083f53803b338f8b9590b6ea1f2c",
+      "size_bytes": 6421,
+      "source": "/home/wali/Desktop/AI BOT/services/liquidation_intelligence.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/services/live_decision_evaluator.py",
+      "legacy_rel": "services/live_decision_evaluator.py",
+      "safe_to_commit": true,
+      "sha256": "2e79bbce4fa102ba1c59f16a9cd96d3e91155a3aa328d3ad827d335b02c7d2a5",
+      "size_bytes": 18405,
+      "source": "/home/wali/Desktop/AI BOT/services/live_decision_evaluator.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/services/onchain_analyzer.py",
+      "legacy_rel": "services/onchain_analyzer.py",
+      "safe_to_commit": true,
+      "sha256": "3fc8a4270204c44136517eab17055a303a7a15d92160747f0403813892e249df",
+      "size_bytes": 19100,
+      "source": "/home/wali/Desktop/AI BOT/services/onchain_analyzer.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/services/portfolio_publisher.py",
+      "legacy_rel": "services/portfolio_publisher.py",
+      "safe_to_commit": true,
+      "sha256": "32eabec0658d8f7eb5b7a127f9f5e6178e044b8ad23ac7bc8ff13bb562b50cd7",
+      "size_bytes": 3023,
+      "source": "/home/wali/Desktop/AI BOT/services/portfolio_publisher.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/services/portfolio_state.py",
+      "legacy_rel": "services/portfolio_state.py",
+      "safe_to_commit": true,
+      "sha256": "0802dac418006e16f5ec4fec57df7fda25029c3240471a41054c02209f98d2d7",
+      "size_bytes": 17760,
+      "source": "/home/wali/Desktop/AI BOT/services/portfolio_state.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/services/service_monitor.py",
+      "legacy_rel": "services/service_monitor.py",
+      "safe_to_commit": true,
+      "sha256": "7593d78319d5f329d5d91a67adf04818235b48e818b807273d060343acc41cce",
+      "size_bytes": 19474,
+      "source": "/home/wali/Desktop/AI BOT/services/service_monitor.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/utils/ai_coins_manager.py",
+      "legacy_rel": "utils/ai_coins_manager.py",
+      "safe_to_commit": true,
+      "sha256": "11e7fe675e8851c8ab5813bcd8ee93d61cd43dcffdd48f33ad7044920a14dc0d",
+      "size_bytes": 10011,
+      "source": "/home/wali/Desktop/AI BOT/utils/ai_coins_manager.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/utils/binance_rate_limiter.py",
+      "legacy_rel": "utils/binance_rate_limiter.py",
+      "safe_to_commit": true,
+      "sha256": "b5cd60cba9593dda159d6a72af35eeae9496282eeeb2898c16d8f9297f0447a5",
+      "size_bytes": 9712,
+      "source": "/home/wali/Desktop/AI BOT/utils/binance_rate_limiter.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/utils/data_manager.py",
+      "legacy_rel": "utils/data_manager.py",
+      "safe_to_commit": true,
+      "sha256": "bed11032e5f6ba514571c76b5457c9eb9d67f5680aa8762b86de8c385b4dd37a",
+      "size_bytes": 3662,
+      "source": "/home/wali/Desktop/AI BOT/utils/data_manager.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/utils/data_normalizer.py",
+      "legacy_rel": "utils/data_normalizer.py",
+      "safe_to_commit": true,
+      "sha256": "58da31183ab434213218431f99e39ba1b3cdb3d8f49b7ffdda7b70d07c5e221f",
+      "size_bytes": 18452,
+      "source": "/home/wali/Desktop/AI BOT/utils/data_normalizer.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/utils/decision_bus.py",
+      "legacy_rel": "utils/decision_bus.py",
+      "safe_to_commit": true,
+      "sha256": "075112b344c96d6ac8ec2b8721798070fe12af61095c6c4d2da7fe0cf49377fb",
+      "size_bytes": 2309,
+      "source": "/home/wali/Desktop/AI BOT/utils/decision_bus.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/utils/ensemble_diagnostics.py",
+      "legacy_rel": "utils/ensemble_diagnostics.py",
+      "safe_to_commit": true,
+      "sha256": "9113e67c9bbef22a5f4a31cf928f267eb4265b56e1050e9830ea4b2ed1d26812",
+      "size_bytes": 1406,
+      "source": "/home/wali/Desktop/AI BOT/utils/ensemble_diagnostics.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/utils/healthbeat.py",
+      "legacy_rel": "utils/healthbeat.py",
+      "safe_to_commit": true,
+      "sha256": "1b21a229e4fe8d348743de190b6000d6876dd1955a1c9ced06f4e68fbc48dcae",
+      "size_bytes": 2360,
+      "source": "/home/wali/Desktop/AI BOT/utils/healthbeat.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/utils/interpreter_guard.py",
+      "legacy_rel": "utils/interpreter_guard.py",
+      "safe_to_commit": true,
+      "sha256": "0f84f4d55b43afe233617e20ce9d1d64449bd9fc184338343a11563cbdc98578",
+      "size_bytes": 843,
+      "source": "/home/wali/Desktop/AI BOT/utils/interpreter_guard.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/utils/interrupt_lock.py",
+      "legacy_rel": "utils/interrupt_lock.py",
+      "safe_to_commit": true,
+      "sha256": "2b89122079d6e96ba533230c9b56e5f9da0a00db8595f393f97b52b99056598e",
+      "size_bytes": 3131,
+      "source": "/home/wali/Desktop/AI BOT/utils/interrupt_lock.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/utils/logger.py",
+      "legacy_rel": "utils/logger.py",
+      "safe_to_commit": true,
+      "sha256": "1c5c711ca9d182e8e2435179c6eb99f02ae0904988e664f4c3e5c935905f9b37",
+      "size_bytes": 1751,
+      "source": "/home/wali/Desktop/AI BOT/utils/logger.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/utils/metrics.py",
+      "legacy_rel": "utils/metrics.py",
+      "safe_to_commit": true,
+      "sha256": "75a0c83b7e752d25a3cd1bacce833b65bfd530c4723161f5813ca98d13184269",
+      "size_bytes": 486,
+      "source": "/home/wali/Desktop/AI BOT/utils/metrics.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/utils/preflight.py",
+      "legacy_rel": "utils/preflight.py",
+      "safe_to_commit": true,
+      "sha256": "9ac990839b4042e274d0d38c21a84bd28cc0fe9f404744bf304b7f1fb5407cfd",
+      "size_bytes": 1654,
+      "source": "/home/wali/Desktop/AI BOT/utils/preflight.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/utils/redis_client.py",
+      "legacy_rel": "utils/redis_client.py",
+      "safe_to_commit": true,
+      "sha256": "5424ec0d20920da9265b69a60d3a6ec86b9462405684683a802399809faf4fb0",
+      "size_bytes": 12565,
+      "source": "/home/wali/Desktop/AI BOT/utils/redis_client.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/utils/redis_hardening.py",
+      "legacy_rel": "utils/redis_hardening.py",
+      "safe_to_commit": true,
+      "sha256": "31d0ec83620c70a0c59dfe319fb17693677fe086d21140335515ce1927ab0110",
+      "size_bytes": 801,
+      "source": "/home/wali/Desktop/AI BOT/utils/redis_hardening.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/utils/redis_key_audit.py",
+      "legacy_rel": "utils/redis_key_audit.py",
+      "safe_to_commit": true,
+      "sha256": "d19c96d0f88958d5b5a639ed8f262085dd83834742f3da738ebd34cb08ad02e4",
+      "size_bytes": 6325,
+      "source": "/home/wali/Desktop/AI BOT/utils/redis_key_audit.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/utils/runtime_flags.py",
+      "legacy_rel": "utils/runtime_flags.py",
+      "safe_to_commit": true,
+      "sha256": "b7fb174cc1a37d3dbc18368f4d8c48f2f89fc042983b0e26b7ce8f2077a29e3e",
+      "size_bytes": 4009,
+      "source": "/home/wali/Desktop/AI BOT/utils/runtime_flags.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/utils/signal_publish.py",
+      "legacy_rel": "utils/signal_publish.py",
+      "safe_to_commit": true,
+      "sha256": "6b72fdd8d9541ea4813b1f34db40c7eead14216d0e364706de4978e070d71562",
+      "size_bytes": 4270,
+      "source": "/home/wali/Desktop/AI BOT/utils/signal_publish.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/utils/signal_schema.py",
+      "legacy_rel": "utils/signal_schema.py",
+      "safe_to_commit": true,
+      "sha256": "917bf3d6f0bbaa2c82064a7e2bc792a0862199707827a21372330655c2c9274a",
+      "size_bytes": 2312,
+      "source": "/home/wali/Desktop/AI BOT/utils/signal_schema.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/utils/symbol_manager.py",
+      "legacy_rel": "utils/symbol_manager.py",
+      "safe_to_commit": true,
+      "sha256": "108105249afdd1ec12da31a0df0b7181a5c922381388f56f3b1c8576560e48fa",
+      "size_bytes": 22661,
+      "source": "/home/wali/Desktop/AI BOT/utils/symbol_manager.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/utils/unified_position_loader.py",
+      "legacy_rel": "utils/unified_position_loader.py",
+      "safe_to_commit": true,
+      "sha256": "5e8b5e5dfb736a1808f3e638ea51c25cab7c33c50d34abf210cc863854c21abe",
+      "size_bytes": 10293,
+      "source": "/home/wali/Desktop/AI BOT/utils/unified_position_loader.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/utils/websocket_limits.py",
+      "legacy_rel": "utils/websocket_limits.py",
+      "safe_to_commit": true,
+      "sha256": "5cb7ceafff5f85a1ca3edc94a5be1c59d5af3aa7d342745eeb1c5acf32d23afd",
+      "size_bytes": 4612,
+      "source": "/home/wali/Desktop/AI BOT/utils/websocket_limits.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/monitoring/audit_api.py",
+      "legacy_rel": "monitoring/audit_api.py",
+      "safe_to_commit": true,
+      "sha256": "89ad09792d10a3d046b62a5ac0ce6b0254983133e633ebffe9c740d696c4662f",
+      "size_bytes": 14951,
+      "source": "/home/wali/Desktop/AI BOT/monitoring/audit_api.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/monitoring/deep_troubleshooter.py",
+      "legacy_rel": "monitoring/deep_troubleshooter.py",
+      "safe_to_commit": true,
+      "sha256": "b293e876155af5af923a9aa2e0c8ece84e0d87e58a37028ee95ebc0f5a364271",
+      "size_bytes": 187031,
+      "source": "/home/wali/Desktop/AI BOT/monitoring/deep_troubleshooter.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/monitoring/enhanced_audit_api.py",
+      "legacy_rel": "monitoring/enhanced_audit_api.py",
+      "safe_to_commit": true,
+      "sha256": "9858448a1fc0f3fff8d3c8296a162760228220d87a231ade20413c9bd93a4239",
+      "size_bytes": 25294,
+      "source": "/home/wali/Desktop/AI BOT/monitoring/enhanced_audit_api.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/monitoring/live_system_auditor.py",
+      "legacy_rel": "monitoring/live_system_auditor.py",
+      "safe_to_commit": true,
+      "sha256": "1a72674aab6c2cc14d2915f5dea8e975ca03a89adaebfc7fd0542ddf511cadd4",
+      "size_bytes": 82362,
+      "source": "/home/wali/Desktop/AI BOT/monitoring/live_system_auditor.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/monitoring/oom_monitor.py",
+      "legacy_rel": "monitoring/oom_monitor.py",
+      "safe_to_commit": true,
+      "sha256": "6fdf878ea8cfbfef7b97c8832ca9a34479763eb42936d2c5a770fab8a4041d57",
+      "size_bytes": 15428,
+      "source": "/home/wali/Desktop/AI BOT/monitoring/oom_monitor.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/monitoring/regression_alarms.py",
+      "legacy_rel": "monitoring/regression_alarms.py",
+      "safe_to_commit": true,
+      "sha256": "1bceec7b6756cdda877bf600d0671cdafb008bcfaaf80166c5a457271e8079aa",
+      "size_bytes": 17756,
+      "source": "/home/wali/Desktop/AI BOT/monitoring/regression_alarms.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/monitoring/run_periodic_audits.py",
+      "legacy_rel": "monitoring/run_periodic_audits.py",
+      "safe_to_commit": true,
+      "sha256": "1763cae39f4d776134c8f166fa7065d9200fc020ac30a70717d076181bca39cd",
+      "size_bytes": 10026,
+      "source": "/home/wali/Desktop/AI BOT/monitoring/run_periodic_audits.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/monitoring/troubleshoot_api.py",
+      "legacy_rel": "monitoring/troubleshoot_api.py",
+      "safe_to_commit": true,
+      "sha256": "6caa65879c44d5748b58f3b2695cf266f5468daa15b01d7c0754110b267f1076",
+      "size_bytes": 17901,
+      "source": "/home/wali/Desktop/AI BOT/monitoring/troubleshoot_api.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/config/settings.py",
+      "legacy_rel": "config/settings.py",
+      "safe_to_commit": true,
+      "sha256": "6396450ce479ab96c118372d88ca6b35195e6078c630dc95f396d7eee34b7d1b",
+      "size_bytes": 1974,
+      "source": "/home/wali/Desktop/AI BOT/config/settings.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/api/app.py",
+      "legacy_rel": "api/app.py",
+      "safe_to_commit": true,
+      "sha256": "42dfdbac6761573dbb7a656aa7670f99b0c60fd0125ff82129c0f3465834d13d",
+      "size_bytes": 10368,
+      "source": "/home/wali/Desktop/AI BOT/api/app.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/api/auth.py",
+      "legacy_rel": "api/auth.py",
+      "safe_to_commit": true,
+      "sha256": "cdfa902c5b7527a3d39b50ba886cc5d09094718153efbf22e2792aa9ab633392",
+      "size_bytes": 9651,
+      "source": "/home/wali/Desktop/AI BOT/api/auth.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/api/grpc/cloudflare_pb2.py",
+      "legacy_rel": "api/grpc/cloudflare_pb2.py",
+      "safe_to_commit": true,
+      "sha256": "7fa2e368cadf1d16e14b00c83911bac08bce3324d0c0a89249976086829b4809",
+      "size_bytes": 6513,
+      "source": "/home/wali/Desktop/AI BOT/api/grpc/cloudflare_pb2.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/api/grpc/cloudflare_pb2_grpc.py",
+      "legacy_rel": "api/grpc/cloudflare_pb2_grpc.py",
+      "safe_to_commit": true,
+      "sha256": "626265f11257bcbd6dd8812c5827be7bd9aaa8ee85900dde9f7c2f23bae8b60b",
+      "size_bytes": 10533,
+      "source": "/home/wali/Desktop/AI BOT/api/grpc/cloudflare_pb2_grpc.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/api/grpc_server.py",
+      "legacy_rel": "api/grpc_server.py",
+      "safe_to_commit": true,
+      "sha256": "3245c914e5e8fc70d69fc9b6a5a0512146d5d90a67019ba60c040b508eba614c",
+      "size_bytes": 15859,
+      "source": "/home/wali/Desktop/AI BOT/api/grpc_server.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/api/routes/auth_routes.py",
+      "legacy_rel": "api/routes/auth_routes.py",
+      "safe_to_commit": true,
+      "sha256": "e1f83a60cee91ae15bb059f6241e9dec3e6525fd08107ea00309ca76097faf7b",
+      "size_bytes": 11454,
+      "source": "/home/wali/Desktop/AI BOT/api/routes/auth_routes.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/api/routes/config_routes.py",
+      "legacy_rel": "api/routes/config_routes.py",
+      "safe_to_commit": true,
+      "sha256": "b7fd14a5ea36193d077189cd8156c9ecaace6c66272550f38525e818777e9c92",
+      "size_bytes": 18437,
+      "source": "/home/wali/Desktop/AI BOT/api/routes/config_routes.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/api/routes/frontend_routes.py",
+      "legacy_rel": "api/routes/frontend_routes.py",
+      "safe_to_commit": true,
+      "sha256": "7cffd82f589b7ed253d049d3f17dfba6499cdfb8797a8887049df07e53b86e64",
+      "size_bytes": 16829,
+      "source": "/home/wali/Desktop/AI BOT/api/routes/frontend_routes.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/api/routes/monitoring_routes.py",
+      "legacy_rel": "api/routes/monitoring_routes.py",
+      "safe_to_commit": true,
+      "sha256": "d355af6b553b4843bc9a884931aa88ff764e3ee2cf51ed0bfedfbeb6494bcced",
+      "size_bytes": 14099,
+      "source": "/home/wali/Desktop/AI BOT/api/routes/monitoring_routes.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/api/routes/redis_routes.py",
+      "legacy_rel": "api/routes/redis_routes.py",
+      "safe_to_commit": true,
+      "sha256": "110f4e006640ed8194e8e176c848bc3ee947c0fa88b32736512edcae4dc3ee06",
+      "size_bytes": 13885,
+      "source": "/home/wali/Desktop/AI BOT/api/routes/redis_routes.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/api/routes/service_routes.py",
+      "legacy_rel": "api/routes/service_routes.py",
+      "safe_to_commit": true,
+      "sha256": "bba5dc541d8ceb8e512bf075b07635f8928ed309d5baeeeb2140d10517c252c2",
+      "size_bytes": 13677,
+      "source": "/home/wali/Desktop/AI BOT/api/routes/service_routes.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/api/routes/system_routes.py",
+      "legacy_rel": "api/routes/system_routes.py",
+      "safe_to_commit": true,
+      "sha256": "326c06341c8cfda5c38b12e4028608c33af46b6ffc00dd429c1b36d1aab61133",
+      "size_bytes": 9463,
+      "source": "/home/wali/Desktop/AI BOT/api/routes/system_routes.py"
+    },
+    {
+      "classification": "SAFE_REQUIRED_RUNTIME_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+      "destination": "v2/legacy_owned_runtime/api/routes/trading_routes.py",
+      "legacy_rel": "api/routes/trading_routes.py",
+      "safe_to_commit": true,
+      "sha256": "feb867aa030aa8393affa5e288de97f5e28e06ccf0847c70ae08710675e194ce",
+      "size_bytes": 19935,
+      "source": "/home/wali/Desktop/AI BOT/api/routes/trading_routes.py"
+    }
+  ],
+  "required_dirs": [
+    "rl",
+    "ingest",
+    "trading",
+    "risk",
+    "services",
+    "utils",
+    "monitoring",
+    "config",
+    "api"
+  ]
+}

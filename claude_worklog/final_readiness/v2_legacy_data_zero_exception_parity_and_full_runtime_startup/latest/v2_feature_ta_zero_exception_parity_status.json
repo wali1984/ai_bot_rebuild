@@ -1,0 +1,38 @@
+{
+  "schema_version": "v2_feature_ta_zero_exception_parity_status_v1",
+  "milestone": "v2_legacy_data_zero_exception_parity_and_full_runtime_startup",
+  "phase": 6,
+  "generated_est": "2026-05-31T01:10:00-0400",
+  "generated_utc": "2026-05-31T05:10:00Z",
+  "legacy_ta_field_count_per_symbol_tf": 160,
+  "legacy_unified_feature_count_per_symbol_tf": 562,
+  "v2_active_feature_field_count_per_symbol_tf": 23,
+  "v2_active_feature_loop_module": "v2/backend/app/cli/v2_feature_pipeline_native_loop.py",
+  "v2_hardcoded_ta_constants": {
+    "rsi_14": 50.0,
+    "macd": 0.0,
+    "macd_signal": 0.0,
+    "macd_hist": 0.0,
+    "htf_rsi_14": 50.0,
+    "depth_imbalance": 0.0,
+    "toxicity_proxy": 0.0,
+    "oi_change_pct": 0.0,
+    "last_liq_bps_24h": 0.0
+  },
+  "pure_python_ta_available_but_unwired": "v2/backend/app/services/feature_pipeline_and_ta/service.py (RSI/MACD/ATR/SMA/EMA)",
+  "missing_feature_categories": [
+    "TA (160 fields)",
+    "regime",
+    "volatility scalar",
+    "microstructure (27 fields)",
+    "CoinAnk per-category endpoints",
+    "KuCoin features",
+    "TokenMetrics grades",
+    "AlphaVantage news sentiment"
+  ],
+  "verdict": "FEATURE_TA_PARITY_BLOCKED_23_OF_562_FIELDS_MOSTLY_HARDCODED_CONSTANTS",
+  "live_safety": {
+    "live_gate_status": "blocked_human_only",
+    "live_symbols": []
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "goal_id": "V2_STOP_THE_LINE_FULL_SYSTEM_TRAINER_PAPER_ALPHA_LIVE_GRADE_REMEDIATION",
+  "phases": {
+    "phase_0": {
+      "name": "Goal lock + tracking files + current runtime snapshot",
+      "status": "IN_PROGRESS",
+      "started": "2026-06-16T06:30:00Z",
+      "completed": null
+    },
+    "phase_5": {
+      "name": "Stale prediction root cause fix",
+      "status": "IN_PROGRESS",
+      "started": "2026-06-16T06:30:00Z",
+      "completed": null,
+      "root_causes_found": [
+        "Binance FAPI returned HTTP 418 (rate limit ban) → ticker_24hr=None → num_trades/quote_volume/taker_buy_base_vol/taker_buy_quote_vol missing",
+        "Missing volume features not classified as optional in OPTIONAL_OR_EVENT_FEATURE_TOKENS → MISSING_CRITICAL_FEATURE_FAMILY always fires",
+        "trusted_only=True returns 0 examples when feature families missing",
+        "Trainer crashes with ValueError: min() arg is an empty sequence when prediction_examples is empty but replay_buffer is non-empty",
+        "ValueError not caught by except RuntimeError in run_one_persistent_cycle",
+        "Crash cycle: persistent loop restarts → same conditions → same crash",
+        "740 prediction keys remain from last successful cycle 72+ min ago, never refreshed"
+      ],
+      "fixes_applied": [
+        "hybrid_cuda_trainer/runtime.py:249 — guard min() with default=0.0",
+        "persistent_cuda_trainer_runtime.py:1327 — catch ValueError alongside RuntimeError",
+        "market_state_integrity/scoring.py — add num_trades, quote_volume, taker_buy, quote_volume to OPTIONAL_OR_EVENT_FEATURE_TOKENS"
+      ]
+    },
+    "phase_1": {"name": "Legacy-to-V2 critical behavior gap status", "status": "PENDING", "started": null, "completed": null},
+    "phase_2": {"name": "Trainer feedback quarantine fix", "status": "PENDING", "started": null, "completed": null},
+    "phase_3": {"name": "No-trade mode fix", "status": "PENDING", "started": null, "completed": null},
+    "phase_4": {"name": "Major-move detection full universe", "status": "PENDING", "started": null, "completed": null},
+    "phase_6": {"name": "Durable trainer learning verification", "status": "PENDING", "started": null, "completed": null},
+    "phase_7": {"name": "Adaptive strategy, hedge, exit, PnL repair", "status": "PENDING", "started": null, "completed": null},
+    "phase_8": {"name": "90%/10k feasibility", "status": "PENDING", "started": null, "completed": null},
+    "phase_9": {"name": "Website truth updates", "status": "PENDING", "started": null, "completed": null},
+    "phase_10": {"name": "Post-fix one-shot run", "status": "PENDING", "started": null, "completed": null},
+    "phase_11": {"name": "1h smoke + 12h soak restart", "status": "PENDING", "started": null, "completed": null},
+    "phase_12": {"name": "Final validation + GO_NO_GO", "status": "PENDING", "started": null, "completed": null}
+  }
+}

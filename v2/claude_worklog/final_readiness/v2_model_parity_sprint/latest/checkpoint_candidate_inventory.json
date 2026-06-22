@@ -1,0 +1,50 @@
+{
+  "approved_local_roots_scanned": [
+    ".local_models",
+    ".local_secrets",
+    "v2/runtime"
+  ],
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "candidate_count_approved_local": 0,
+  "candidate_count_legacy_reference": 0,
+  "candidate_count_total": 0,
+  "candidates": [],
+  "candidates_truncated": false,
+  "candidates_truncated_per_root_max": 200,
+  "extension_counts_exhaustive_approved": {
+    ".ckpt": 0,
+    ".pickle": 0,
+    ".pkl": 0,
+    ".pt": 0,
+    ".pth": 0,
+    ".safetensors": 0
+  },
+  "extension_counts_exhaustive_legacy": {
+    ".ckpt": 0,
+    ".pickle": 0,
+    ".pkl": 0,
+    ".pt": 0,
+    ".pth": 0,
+    ".safetensors": 0
+  },
+  "legacy_readonly_roots_scanned": [
+    "v2/legacy_owned_runtime",
+    "legacy_reference"
+  ],
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "no_blob_deserialized": true,
+  "no_legacy_filesystem_modified": true,
+  "no_pickle_loaded": true,
+  "no_torch_imported": true,
+  "schema_version": "v2_checkpoint_candidate_inventory_v1",
+  "source_classification_counts": {
+    "APPROVED_LOCAL_MODEL_CANDIDATE": 0,
+    "BLOCKED_NO_OPERATOR_APPROVAL": 0,
+    "LEGACY_REFERENCE_ONLY": 0,
+    "UNSAFE_PICKLE_NO_LOAD": 0
+  }
+}

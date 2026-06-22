@@ -1,0 +1,37 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "blockers": [],
+  "generated_utc": "2026-05-16T02:47:06Z",
+  "go_no_go": "V2_NATIVE_FEATURE_PIPELINE_P0_1_TRAINER_CONSUMABLE_SNAPSHOT_CODEX_PASS",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "p0_2_begin_work_allowed": true,
+  "p0_2_blocker_cleared": "NO_NATIVE_FEATURE_SNAPSHOT_PAYLOAD_FOUND",
+  "p0_2_completion_allowed": false,
+  "schema_version": "1.0.0",
+  "snapshot_metadata": {
+    "categories_present": [
+      "ohlcv_derived",
+      "ta_indicators",
+      "multi_timeframe",
+      "microstructure",
+      "funding_oi_liquidation",
+      "portfolio_aware",
+      "freshness"
+    ],
+    "feature_count": 23,
+    "feature_dict_len": 23,
+    "feature_freshness_state": "CURRENT",
+    "feature_snapshot_id": "v2_fsnap_98299c9f90d79b4b3d263eb86a2845cb24abe4739c56ed33764cf066d18f5ed6",
+    "trainer_consumable": true
+  },
+  "snapshots": {
+    "identical": true,
+    "public_path": "v2/frontend/public/operator_runtime/v2_feature_pipeline_native/latest/latest_feature_snapshot.json",
+    "runtime_path": "v2/runtime/v2_feature_pipeline_native/latest/latest_feature_snapshot.json"
+  },
+  "tests": "PASS_19"
+}

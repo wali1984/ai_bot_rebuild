@@ -3,6 +3,7 @@
   "allowed_output_prefixes": [
     "claude_worklog/final_readiness/paper_edge_post_filter_observation_window/latest/codex_review/"
   ],
+  "completed_at": "2026-05-15T02:03:31Z",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "depends_on": [
     "paper_edge_post_filter_observation_window"
@@ -12,13 +13,21 @@
   "live_gate": "blocked_human_only",
   "managed_by": "codex_legacy_shutdown_readiness_takeover",
   "max_attempts": 1,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
   "prompt": "You are Codex running the paper-edge post-filter observation review. Review the Claude outputs, current paper runtime/shadow payloads, paper execution worker status, and current shutdown controller state. Do not modify source files. Do not mutate legacy, old Redis, exchange state, leverage, margin mode, or live trading. Keep live_gate=blocked_human_only.\n\nFail if old negative PnL is mislabeled as post-filter PnL, paper edge is marked proven without post-filter evidence, live readiness is implied, shutdown is recommended, old Redis write evidence appears, exchange mutation evidence appears, approval tokens appear, live_symbols is non-empty, or GO_NO_GO.md does not contain exactly one allowed post-filter classification.\n\nEmit exactly two BEGIN_FILE blocks:\nBEGIN_FILE: claude_worklog/final_readiness/paper_edge_post_filter_observation_window/latest/codex_review/CODEX_REVIEW.md\n...findings with PASS/FAIL rationale...\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/paper_edge_post_filter_observation_window/latest/codex_review/CODEX_GO_NO_GO.md\nPAPER_EDGE_POST_FILTER_OBSERVATION_WINDOW_CODEX_FAIL\nEND_FILE\nUse PAPER_EDGE_POST_FILTER_OBSERVATION_WINDOW_CODEX_PASS instead only if every review condition passes.\n",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/final_readiness/paper_edge_post_filter_observation_window/latest/codex_review/CODEX_REVIEW.md",
     "claude_worklog/final_readiness/paper_edge_post_filter_observation_window/latest/codex_review/CODEX_GO_NO_GO.md"
   ],
+  "resolved_from_source_truth": true,
   "risk_level": "L1",
-  "status": "pending",
+  "source_truth_completed_at": "2026-05-15T02:03:31Z",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/codex_review_paper_edge_post_filter_observation_window.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
   "task_id": "codex_review_paper_edge_post_filter_observation_window",
-  "task_timeout_seconds": 1200
+  "task_timeout_seconds": 1200,
+  "updated_at": "2026-06-15T19:54:42Z"
 }

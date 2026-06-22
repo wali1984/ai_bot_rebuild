@@ -1,106 +1,106 @@
 {
-  "generated_at": "2026-05-12T20:12:14.657Z",
+  "generated_at": "2026-06-18T05:33:23.452Z",
   "base_url": "http://127.0.0.1:5173",
   "phase": "local",
   "route_count": 29,
-  "passed_count": 29,
-  "failed_count": 0,
+  "passed_count": 0,
+  "failed_count": 29,
   "routes": [
     {
       "route": "/",
       "requested_url": "http://127.0.0.1:5173/",
-      "final_url": "http://127.0.0.1:5173/admin/mission-control?role=admin",
+      "final_url": "http://127.0.0.1:5173/",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_.png",
-      "console_errors": [],
-      "network_errors": [
-        {
-          "url": "https://widget-sheriff.tradingview-widget.com/sheriff/api/v1/rules/search?origin=http%3A%2F%2F127.0.0.1%3A5173",
-          "method": "GET",
-          "failure": "net::ERR_ABORTED"
-        }
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
       ],
+      "network_errors": [],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness BLOCKEDlive_gate_status: blocked_human_only REALTIME OPERATOR TRUTH / NO GUESSING Mission Control Truth Deck This surface separates runtime evidence, static proof fixtures, stale payloads, and missing evidence. It does not promote any proof marker to live truth. LIVE TRADING: BLOCKED_HUMAN_ONLY CONTROL_PLANE_DAEMON_NOT_OBSERVED V2_PAPER_TRAINER_WRAPPER_CURRENT LEGACY TRAINER: LEGACY_TRAINER_PROCESS_OBSERVED OBSERVER: V2_LIVE_OBSERVER_SHADOW_TWIN_ACTIVE PAPER_ONLINE_CANONICAL_TRUTH_ACTIVE REDIS TRIM: DEFERRED_NON_BLOCKING SUPERVISOR HEARTBEAT CONTROL_PLANE_DAEMON_NOT_OBSERVED MASTER_PLANNER_NOT_RUNNING; AUTONOMOUS_GOVERNOR_NOT_OBSERVED; active workers 0; snapshot fresh PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE CURRENT TASK NO_ACTIVE_SUPERVISOR_TASK Last completed: codex_parallel_review_20260512_200006_08_historical_pnl_inte",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Home Markets Status Sign in LIVE TRADING BLOCKED Paper / read-only execution only — exchange orders, leverage changes, and margin mutations are permanently disabled. MARKET FEEDS Connecting... BTC PRICE ... ETH PRICE ... DATA SOURCE Polling... EXECUTION Paper only LIVE TRADING BLOCKED PAPER TRADING INTELLIGENCE PLATFORM AlphaForge V2 — Paper Trading Intelligence Platform AI-powered signals, real-time derivatives analytics, risk-gated paper execution. Professional-grade trading infrastructure in a safe, read-only simulation environment. View Markets → Sign In View Signals BTC LOADING Connecting... — 24h BTC LOADING Connecting... — 24h BTC LOADING Connecting... — 24h BTC LOADING Connecting... — 24h 01 / MARKET PULSE Live Gainers & Losers Connecting to market data... 02 / PLATFORM CAPABILITIES Professional-Grade Trading Infrastructure 🤖 AI Signals Evidence-based signals with confidence scores, feature snapshots, calibration metadata, and full explainability for every prediction. 🛡️ Risk Gating Multi-layer risk validation before any execution. Every signal passes through the risk gateway — no exceptions, no overrides. 📄 Paper Trading Full paper trading simulation with position tracking, P&L, and execution ledger. Live trading permanently blocked. 📊 Derivatives Analytics Funding rates, open interest, liquidation levels, long/short ratios, and basis tracking across 600+ symbols. 🔍 Signal Explainability Every prediction includes exact input data, feature freshness, model version, checkpoint reference, and source evidence. 📋 Audit Ledger Full audit trail for every signal, decision, and paper execution. Immutable evidence chain for review and compliance. 🚀 Ready to explore the platform? Sign in to access ",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
-        "route_redirect_wrong": false,
+        "route_redirect_wrong": true,
         "placeholder_only": false,
         "evidence_gap_only": false,
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
-        "legacy_bridge_visible": true,
-        "chart_exists": true,
+        "current_paper_runtime_visible": false,
+        "legacy_bridge_visible": false,
+        "chart_exists": false,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
+        "console_error_count": 1,
         "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin",
       "requested_url": "http://127.0.0.1:5173/admin",
-      "final_url": "http://127.0.0.1:5173/admin/mission-control?role=admin",
+      "final_url": "http://127.0.0.1:5173/login",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin.png",
-      "console_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
       "network_errors": [
         {
-          "url": "https://widget-sheriff.tradingview-widget.com/sheriff/api/v1/rules/search?origin=http%3A%2F%2F127.0.0.1%3A5173",
+          "url": "http://127.0.0.1:5173/api/auth/me",
           "method": "GET",
           "failure": "net::ERR_ABORTED"
         }
       ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness BLOCKEDlive_gate_status: blocked_human_only REALTIME OPERATOR TRUTH / NO GUESSING Mission Control Truth Deck This surface separates runtime evidence, static proof fixtures, stale payloads, and missing evidence. It does not promote any proof marker to live truth. LIVE TRADING: BLOCKED_HUMAN_ONLY CONTROL_PLANE_DAEMON_NOT_OBSERVED V2_PAPER_TRAINER_WRAPPER_CURRENT LEGACY TRAINER: LEGACY_TRAINER_PROCESS_OBSERVED OBSERVER: V2_LIVE_OBSERVER_SHADOW_TWIN_ACTIVE PAPER_ONLINE_CANONICAL_TRUTH_ACTIVE REDIS TRIM: DEFERRED_NON_BLOCKING SUPERVISOR HEARTBEAT CONTROL_PLANE_DAEMON_NOT_OBSERVED MASTER_PLANNER_NOT_RUNNING; AUTONOMOUS_GOVERNOR_NOT_OBSERVED; active workers 0; snapshot fresh PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE CURRENT TASK NO_ACTIVE_SUPERVISOR_TASK Last completed: codex_parallel_review_20260512_200006_08_historical_pnl_inte",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Home Markets Status Sign in AF AlphaForge V2 AI-powered trading intelligence platform Sign in to your account EMAIL ADDRESS @ PASSWORD * SHOW Sign in Backend-authenticated access only. Browser role overrides do not grant elevated access. Simulated trading platform · Live trading permanently disabled",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
-        "route_redirect_wrong": false,
+        "route_redirect_wrong": true,
         "placeholder_only": false,
         "evidence_gap_only": false,
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
-        "legacy_bridge_visible": true,
-        "chart_exists": true,
+        "current_paper_runtime_visible": false,
+        "legacy_bridge_visible": false,
+        "chart_exists": false,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 2,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin/mission-control?role=admin",
       "requested_url": "http://127.0.0.1:5173/admin/mission-control?role=admin",
-      "final_url": "http://127.0.0.1:5173/admin/mission-control?role=admin",
+      "final_url": "http://127.0.0.1:5173/dashboard",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin_mission-control_role_admin.png",
-      "console_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
       "network_errors": [
         {
-          "url": "https://widget-sheriff.tradingview-widget.com/sheriff/api/v1/rules/search?origin=http%3A%2F%2F127.0.0.1%3A5173",
+          "url": "http://127.0.0.1:5173/assets/index-Cbqj0zxL.js",
           "method": "GET",
           "failure": "net::ERR_ABORTED"
         }
       ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness BLOCKEDlive_gate_status: blocked_human_only REALTIME OPERATOR TRUTH / NO GUESSING Mission Control Truth Deck This surface separates runtime evidence, static proof fixtures, stale payloads, and missing evidence. It does not promote any proof marker to live truth. LIVE TRADING: BLOCKED_HUMAN_ONLY CONTROL_PLANE_DAEMON_NOT_OBSERVED V2_PAPER_TRAINER_WRAPPER_CURRENT LEGACY TRAINER: LEGACY_TRAINER_PROCESS_OBSERVED OBSERVER: V2_LIVE_OBSERVER_SHADOW_TWIN_ACTIVE PAPER_ONLINE_CANONICAL_TRUTH_ACTIVE REDIS TRIM: DEFERRED_NON_BLOCKING SUPERVISOR HEARTBEAT CONTROL_PLANE_DAEMON_NOT_OBSERVED MASTER_PLANNER_NOT_RUNNING; AUTONOMOUS_GOVERNOR_NOT_OBSERVED; active workers 0; snapshot fresh PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE CURRENT TASK NO_ACTIVE_SUPERVISOR_TASK Last completed: codex_parallel_review_20260512_200006_08_historical_pnl_inte",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Dashboard Binance Trade Markets Research Signals AI Portfolio Backtests Replay Alerts Sign in Live data loading… Mission Control V2 Paper trading system · Read-only · Thu, Jun 18, 01:33 AM LIVE GATE BLOCKED MODE PAPER ORCHESTRATOR OK RISK GATEWAY OK FAIL CLOSED YES PAPER EQUITY $10,000.00 Starting capital $10K OPEN POSITIONS 32 $3.55K notional TOTAL FILLS 183 All paper fills AVG CONFIDENCE 64.4% Across all fills SIGNALS SEEN 797 By orchestrator AI DIRECTION SHORT 71.9% conf ACTIVE SIGNAL STALE → BTCUSDT SHORT 1h ago CONFIDENCE 71.9% Target $63,073.49 Exp. Move -132 bps Data Coverage 79.7% State Score 96.3% Risk Result Paper Fill Open Fill Allowed YES Model: v2h_53d3a73e3466686ae72f99fbcd67f8cb ORCHESTRATOR290 predictions seen LIVE → NIGHTUSDT SHORT 63.9% 5s IPUSDT SHORT 64.6% 5s ZROUSDT SHORT 66.0% 5s LITUSDT SHORT 64.6% 5s WLDUSDT SHORT 64.6% 5s NIGHTUSDT SHORT 63.9% 5s 290 arbitrated Live: BLOCKED RISK GATEWAYconservative_min_executable OK → Max Leverage 1x Max Notional/Trade $64.86 Max Open Positions 1 Min Confidence 66.0% Min Move 12.0 bps Max Daily Loss 15.0% Max Drawdown 75.0% Cooldown 20m Last decision: ZROUSDT → ALLOW 58 decisions · Fail-closed: YES PAPER FILLS120 total · L:0 / S:120 · avg conf 64.4% → POSITIONS 32 NOTIONAL $3.55K SIGNALS SEEN 797 ACCEPTED 64 BLOCKED 194 TIME SYMBOL SIDE PRICE NOTIONAL CONF REGIME 01:33:10 AM AAVEUSDT SHORT 73.14 $57.54 64.6% TREND 01:33:10 AM ADAUSDT SHORT 0.1647 $68.62 67.4% TREND 01:33:10 AM AEROUSDT SHORT 0.4375 $57.25 64.6% TREND 01:33:10 AM ALGOUSDT SHORT 0.0969 $49.65 62.6% TREND 01:33:10 AM APTUSDT SHORT 0.6412 $57.54 64.6% TREND 01:33:10 AM ARBUSDT SHORT 0.08389 $57.54 64.6% TREND 01:33:10 AM AVAXUSDT SHORT 6.599 $63.00 66.0% TREND 01:33:10 AM BCHUSDT S",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
         "route_redirect_wrong": false,
         "placeholder_only": false,
@@ -108,31 +108,39 @@
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
-        "legacy_bridge_visible": true,
-        "chart_exists": true,
-        "chart_broken": false,
+        "current_paper_runtime_visible": false,
+        "legacy_bridge_visible": false,
+        "chart_exists": false,
+        "chart_broken": true,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 1,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin/monitor-center?role=admin",
       "requested_url": "http://127.0.0.1:5173/admin/monitor-center?role=admin",
-      "final_url": "http://127.0.0.1:5173/admin/monitor-center?role=admin",
+      "final_url": "http://127.0.0.1:5173/login",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin_monitor-center_role_admin.png",
-      "console_errors": [],
-      "network_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "network_errors": [
+        {
+          "url": "http://127.0.0.1:5173/api/auth/me",
+          "method": "GET",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness MONITOR CENTER Monitor Center Every monitor script with owner, status, evidence, and rejection state per CLAUDE.md. LIVE TRADING: BLOCKED_HUMAN_ONLY NON-LIVE OPERATOR SURFACE RUNTIME_MONITOR_PAYLOAD / V2_PROOF_ARTIFACT RUNTIME MONITOR ROWS READ-ONLY STATUS FRESHNESS REQUIRED NO SERVICE RESTART MONITOR CENTER TRUTH SUMMARY Current evidence state CONTROL PLANE CONTROL_PLANE_DAEMON_NOT_OBSERVED Dashboard must disclose missing control-plane daemons and stale historical status files separately. PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE TRAINER V2_PAPER_TRAINER_WRAPPER_CURRENT No prediction can be explained unless runtime evidence exists. REALTIME_RUNTIME_EVIDENCE SIGNAL LINEAGE REALTIME_RUNTIME_EVIDENCE Static proof lineage is not current runtime truth. REALTIME_RUNTIME_EVIDENCE PAYLOADS 13 stale 1 static fixtures; 0 missing. P",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Home Markets Status Sign in AF AlphaForge V2 AI-powered trading intelligence platform Sign in to your account EMAIL ADDRESS @ PASSWORD * SHOW Sign in Backend-authenticated access only. Browser role overrides do not grant elevated access. Simulated trading platform · Live trading permanently disabled",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
         "route_redirect_wrong": false,
         "placeholder_only": false,
@@ -140,31 +148,39 @@
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
+        "current_paper_runtime_visible": false,
         "legacy_bridge_visible": false,
         "chart_exists": false,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 2,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin/script-registry?role=admin",
       "requested_url": "http://127.0.0.1:5173/admin/script-registry?role=admin",
-      "final_url": "http://127.0.0.1:5173/admin/script-registry?role=admin",
+      "final_url": "http://127.0.0.1:5173/login",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin_script-registry_role_admin.png",
-      "console_errors": [],
-      "network_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "network_errors": [
+        {
+          "url": "http://127.0.0.1:5173/assets/index-Cbqj0zxL.js",
+          "method": "GET",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness SCRIPT REGISTRY Script Registry Scripts with usage or non-usage evidence per Completeness Override. MAPPED SCRIPTS (4194) PATH CLASSIFICATION RISK REDIS WRITES EXCHANGE ACTIONS V2 ACTION .claude/hooks/block_dangerous.sh unsafe_unknown TIER_A_EXCHANGE_REVIEW_REQUIRED xdel, xtrim, flushall, flushdb create_order, cancel_order, change_leverage, change_margin, change_margin_type, change_position_mode classify_before_live_readiness claude_worklog/tools/agent_supervisor.py active_manual TIER_A_REDIS_WRITER_REVIEW_REQUIRED xadd, xdel, flushall, flushdb none monitor claude_worklog/tools/agent_supervisor_dashboard.py active_manual TIER_A_REDIS_WRITER_REVIEW_REQUIRED set( none monitor claude_worklog/tools/autonomous_non_live_rebuild_controller.py active_manual TIER_A_EXCHANGE_REVIEW_REQUIRED xadd, set(, xdel, flushall, flushdb ",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Home Markets Status Sign in AF AlphaForge V2 AI-powered trading intelligence platform Sign in to your account EMAIL ADDRESS @ PASSWORD * SHOW Sign in Backend-authenticated access only. Browser role overrides do not grant elevated access. Simulated trading platform · Live trading permanently disabled",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
         "route_redirect_wrong": false,
         "placeholder_only": false,
@@ -172,31 +188,39 @@
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
+        "current_paper_runtime_visible": false,
         "legacy_bridge_visible": false,
         "chart_exists": false,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 1,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin/trainer-prediction-monitor?role=admin",
       "requested_url": "http://127.0.0.1:5173/admin/trainer-prediction-monitor?role=admin",
-      "final_url": "http://127.0.0.1:5173/admin/trainer-prediction-monitor?role=admin",
+      "final_url": "http://127.0.0.1:5173/ai-predictions",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin_trainer-prediction-monitor_role_admin.png",
-      "console_errors": [],
-      "network_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "network_errors": [
+        {
+          "url": "http://127.0.0.1:5173/api/auth/me",
+          "method": "GET",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness TRAINER PREDICTION MONITOR Trainer Prediction Monitor Reads evidence_packets + liveness_confidence_level. Subprocess boundary, no live mutation. LIVE TRADING: BLOCKED_HUMAN_ONLY NON-LIVE OPERATOR SURFACE V2_PROOF_ARTIFACT / LINEAGE PAYLOAD PREDICTION_ID FEATURE_SNAPSHOT_ID MODEL CHECKPOINT CONFIDENCE CALIBRATION MISSING EVIDENCE WARNINGS TRAINER PREDICTION MONITOR TRUTH SUMMARY Current evidence state CONTROL PLANE CONTROL_PLANE_DAEMON_NOT_OBSERVED Dashboard must disclose missing control-plane daemons and stale historical status files separately. PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE TRAINER V2_PAPER_TRAINER_WRAPPER_CURRENT No prediction can be explained unless runtime evidence exists. REALTIME_RUNTIME_EVIDENCE SIGNAL LINEAGE REALTIME_RUNTIME_EVIDENCE Static proof lineage is not current runtime truth. REALTIME_RUNTIME_E",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Dashboard Binance Trade Markets Research Signals AI Portfolio Backtests Replay Alerts Sign in Live data loading… 🧠 AI Predictions RAW MODEL OUTPUT Action probability distributions · Softmax output · Confidence calibration (temperature + coverage) · MASA/policy signals · 40 active predictions Live · 0ms DB Redis trainer prediction publisher (matrix scan) Refresh 🧠 TRAINER ACTIVE_REDIS_EVIDENCE CHECKPOINT v2_hybrid_ckpt_b8119… Live · 3ms TOTAL PREDICTIONS 40 AVG CALIBRATED CONF 67.2% AVG FEATURE COVERAGE 75.5% LONG BIAS 0 SHORT BIAS 31 HOLD 9 IN UNIVERSE 151 SYMBOLS All (151) BTC ETH SOL BNB XRP DOGE AVAX ADA TIMEFRAMES 1m 5m 15m 1h 4h SYMBOL ↑ TF PREDICTION CONF CAL. TOP PROBS PRICE TARGET COVERAGE MISSING AGE ADAUSDT 15m SHORT 67.4% /100.0% short 100% — 76% 36 2m ▶ ADAUSDT 1h SHORT 67.4% /100.0% short 100% — 76% 36 2m ▶ ADAUSDT 1m SHORT 67.4% /100.0% short 100% — 76% 36 2m ▶ ADAUSDT 4h SHORT 67.4% /100.0% short 100% — 76% 36 2m ▶ ADAUSDT 5m SHORT 67.4% /100.0% short 100% — 76% 36 2m ▶ AVAXUSDT 15m SHORT 66.0% /100.0% short 100% — 74% 38 2m ▶ AVAXUSDT 1h SHORT 66.0% /100.0% short 100% — 74% 38 2m ▶ AVAXUSDT 1m SHORT 66.0% /100.0% short 100% — 74% 38 2m ▶ AVAXUSDT 4h SHORT 66.0% /100.0% short 100% — 74% 38 2m ▶ AVAXUSDT 5m SHORT 66.0% /100.0% short 100% — 74% 38 2m ▶ BNBUSDT 15m SHORT 64.6% /100.0% short 100% — 73% 40 2m ▶ BNBUSDT 1h SHORT 64.6% /100.0% short 100% — 73% 40 2m ▶ BNBUSDT 1m SHORT 61.0% /93.9% short 93% hold 7% — 73% 40 2m ▶ BNBUSDT 4h SHORT 64.6% /100.0% short 100% — 73% 40 2m ▶ BNBUSDT 5m SHORT 64.2% /99.8% short 97% — 73% 40 2m ▶ BTCUSDT 15m HOLD 68.1% /100.0% hold 50% short 50% — 76% 35 1.3h ▶ BTCUSDT 1h HOLD 70.4% /100.0% hold 50% short 50% — 78% 32 1.3h ▶ BTCUSDT 1m HOLD 68.9% /100.0",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
         "route_redirect_wrong": false,
         "placeholder_only": false,
@@ -204,31 +228,39 @@
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
-        "legacy_bridge_visible": true,
+        "current_paper_runtime_visible": false,
+        "legacy_bridge_visible": false,
         "chart_exists": false,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 2,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin/signal-explainability?role=admin",
       "requested_url": "http://127.0.0.1:5173/admin/signal-explainability?role=admin",
-      "final_url": "http://127.0.0.1:5173/admin/signal-explainability?role=admin",
+      "final_url": "http://127.0.0.1:5173/login",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin_signal-explainability_role_admin.png",
-      "console_errors": [],
-      "network_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "network_errors": [
+        {
+          "url": "http://127.0.0.1:5173/assets/index-Cbqj0zxL.js",
+          "method": "GET",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness SIGNAL EXPLAINABILITY Signal Explainability Per-signal lineage drilldown and confidence_explainability_block per CLAUDE.md. LIVE TRADING: BLOCKED_HUMAN_ONLY NON-LIVE OPERATOR SURFACE V2_PROOF_ARTIFACT / NO-GUESSING CONTRACT FEATURE ATTRIBUTION SOURCE FRESHNESS RISK REASON ORCHESTRATOR REASON NO GUESSING SIGNAL EXPLAINABILITY TRUTH SUMMARY Current evidence state CONTROL PLANE CONTROL_PLANE_DAEMON_NOT_OBSERVED Dashboard must disclose missing control-plane daemons and stale historical status files separately. PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE TRAINER V2_PAPER_TRAINER_WRAPPER_CURRENT No prediction can be explained unless runtime evidence exists. REALTIME_RUNTIME_EVIDENCE SIGNAL LINEAGE REALTIME_RUNTIME_EVIDENCE Static proof lineage is not current runtime truth. REALTIME_RUNTIME_EVIDENCE PAYLOADS 13 stale 1 static fixtu",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Home Markets Status Sign in AF AlphaForge V2 AI-powered trading intelligence platform Sign in to your account EMAIL ADDRESS @ PASSWORD * SHOW Sign in Backend-authenticated access only. Browser role overrides do not grant elevated access. Simulated trading platform · Live trading permanently disabled",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
         "route_redirect_wrong": false,
         "placeholder_only": false,
@@ -236,31 +268,39 @@
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
-        "legacy_bridge_visible": true,
+        "current_paper_runtime_visible": false,
+        "legacy_bridge_visible": false,
         "chart_exists": false,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 1,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin/symbols?role=admin",
       "requested_url": "http://127.0.0.1:5173/admin/symbols?role=admin",
-      "final_url": "http://127.0.0.1:5173/admin/symbols?role=admin",
+      "final_url": "http://127.0.0.1:5173/markets",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin_symbols_role_admin.png",
-      "console_errors": [],
-      "network_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "network_errors": [
+        {
+          "url": "http://127.0.0.1:5173/api/auth/me",
+          "method": "GET",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness MARKET / PRODUCTION ROUTE Symbols Universe member view across exchanges. LIVE TRADING: BLOCKED_HUMAN_ONLY NEEDS CURRENT SYMBOL UNIVERSE PAYLOAD READONLY_MARKET_FEED / SYMBOL UNIVERSE REGISTRY SYMBOLS PRODUCTION SURFACE LIVE GATE blocked_human_only SUPERVISOR CURRENT_OR_LOADING CURRENT TASK none NEXT TASK codex_recover_codex_recover_codex_recover_177_phase2t_decision_explainability_replay_backtest_projection_implementation TRAINER RUNTIME V2_PAPER_TRAINER_WRAPPER_CURRENT SIGNAL LINEAGE REALTIME_RUNTIME_EVIDENCE Purpose Universe member view across exchanges. Source: READONLY_MARKET_FEED / symbol universe registry Next source/task needed Wire V2 symbol universe payload with exchange/source freshness and selection status. Runtime truth rule Static proof fixtures and historical examples are not current runtime truth. Evid",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Home Markets Status Sign in Sign in to access full trader features: portfolio, signals, AI predictions, and trade terminal. Sign in Markets USD-M perpetual futures · 627 symbols Refresh TOTAL 627 GAINERS 135 LOSERS 489 24H TURNOVER $53.48B Overview627 Gainers135 Losers489 Watchlist5 ★ SYMBOL PRICE 24H % TURNOVER 24H ↓ VOLUME 24H ★ BTC/USDT 63,888.00 -2.94% $13.84B $213.0K ★ ETH/USDT 1,727.23 -3.67% $10.12B $5.75M ☆ SPCX/USDT 190.11 -6.79% $3.55B $17.91M ★ SOL/USDT 70.88 -3.80% $2.00B $27.61M ☆ HYPE/USDT 69.24 -6.91% $2.00B $27.52M ☆ XAU/USDT 4,323.91 -0.14% $1.89B $440.0K ☆ XAG/USDT 69.21 -1.57% $1.23B $17.79M ☆ ZEC/USDT 460.16 -10.73% $1.11B $2.27M ☆ MU/USDT 1,080.95 +1.54% $846.14M $799.5K ☆ SNDK/USDT 2,025.77 -1.25% $741.57M $370.0K ☆ SOXL/USDT 251.74 +5.00% $714.30M $2.91M ☆ CL/USDT 74.01 -0.86% $707.08M $9.31M ★ XRP/USDT 1.16 -4.49% $655.34M $548.63M ☆ ASTER/USDT 0.65 -3.16% $608.44M $833.20M ☆ WLD/USDT 0.62 -8.54% $553.42M $842.04M ☆ ESPORTS/USDT 0.18 +1.32% $547.29M $4.06B ☆ UNI/USDT 3.08 -12.52% $430.67M $127.33M ★ BNB/USDT 588.71 -3.22% $394.20M $653.6K ☆ DOGE/USDT 0.08 -3.79% $363.14M $4.22B ☆ XPL/USDT 0.11 +9.62% $317.92M $2.83B ☆ INTC/USDT 129.70 +8.58% $278.64M $2.28M ☆ NEAR/USDT 2.15 -7.32% $263.76M $116.05M ☆ XLM/USDT 0.23 +2.24% $262.87M $1.15B ☆ BZ/USDT 77.56 -0.60% $252.54M $3.18M ☆ MRVL/USDT 297.58 +2.62% $252.06M $858.7K ☆ BEAT/USDT 1.69 -25.80% $236.08M $126.97M ☆ LAB/USDT 14.24 +2.40% $231.88M $17.02M ☆ BSB/USDT 0.58 +20.85% $228.02M $405.06M ☆ ENA/USDT 0.09 +6.10% $220.59M $2.41B ☆ AGT/USDT 0.03 +1.02% $220.38M $8.57B ☆ SKHYNIX/USDT 1,773.44 +6.40% $216.14M $127.1K ☆ ADA/USDT 0.16 -4.98% $209.83M $1.25B ☆ SUI/USDT 0.74 -8.07% $203.78M $261.43M ☆ H/USDT 0.25 -4.59% $203.13M $999.56",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
         "route_redirect_wrong": false,
         "placeholder_only": false,
@@ -268,31 +308,39 @@
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
+        "current_paper_runtime_visible": false,
         "legacy_bridge_visible": false,
         "chart_exists": false,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 2,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin/signals?role=admin",
       "requested_url": "http://127.0.0.1:5173/admin/signals?role=admin",
-      "final_url": "http://127.0.0.1:5173/admin/signals?role=admin",
+      "final_url": "http://127.0.0.1:5173/signals",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin_signals_role_admin.png",
-      "console_errors": [],
-      "network_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "network_errors": [
+        {
+          "url": "http://127.0.0.1:5173/assets/index-Cbqj0zxL.js",
+          "method": "GET",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness MARKET / PRODUCTION ROUTE Signals Recent signals with lineage chain rendering. LIVE TRADING: BLOCKED_HUMAN_ONLY CURRENT RUNTIME SIGNAL LINEAGE REQUIRED RUNTIME_MONITOR_PAYLOAD / SIGNAL LINEAGE SIGNALS PRODUCTION SURFACE LIVE GATE blocked_human_only SUPERVISOR CURRENT_OR_LOADING CURRENT TASK none NEXT TASK codex_recover_codex_recover_codex_recover_177_phase2t_decision_explainability_replay_backtest_projection_implementation TRAINER RUNTIME V2_PAPER_TRAINER_WRAPPER_CURRENT SIGNAL LINEAGE REALTIME_RUNTIME_EVIDENCE Purpose Recent signals with lineage chain rendering. Source: RUNTIME_MONITOR_PAYLOAD / signal lineage Next source/task needed Connect current signal stream with prediction_id, signal_id, confidence, and risk result. Runtime truth rule Static proof fixtures and historical examples are not current runtime truth.",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Dashboard Binance Trade Markets Research Signals AI Portfolio Backtests Replay Alerts Sign in Live data loading… Signals Published signal routing · Trainer → Risk Gate → Paper/Live Engine · 40 signals · 151 symbols in scope Live · 0ms DB Redis paper signal publisher (matrix scan) Refresh TOTAL SIGNALS 40 PAPER ROUTED 0 LIVE ROUTED 0 LONG 0 SHORT 40 AVG CONFIDENCE 67.2% FILTER BY ROUTING All 📋 Paper ⚡ Live 🔒 Blocked 40 shown SYMBOLS All (151) BTC/ETH/SOL BTC ETH SOL BNB XRP DOGE AVAX ADA TIMEFRAMES 1m 5m 15m 1h 4h SYMBOL ↑ TF DIRECTION CONFIDENCE PRICE TARGET ROUTING COVERAGE AGE ADAUSDT 15m ▼ SHORT 67.4% $0.16 -1.32% 📋 PAPER ROUTED 76% 1m ▶ ADAUSDT 1h ▼ SHORT 67.4% $0.16 -1.32% 📋 PAPER ROUTED 76% 1m ▶ ADAUSDT 1m ▼ SHORT 67.4% $0.16 -1.32% 📋 PAPER ROUTED 76% 1m ▶ ADAUSDT 4h ▼ SHORT 67.4% $0.16 -1.32% 📋 PAPER ROUTED 76% 1m ▶ ADAUSDT 5m ▼ SHORT 67.4% $0.16 -1.32% 📋 PAPER ROUTED 76% 1m ▶ AVAXUSDT 15m ▼ SHORT 66.0% $6.51 -1.32% 📋 PAPER ROUTED 74% 1m ▶ AVAXUSDT 1h ▼ SHORT 66.0% $6.51 -1.32% 📋 PAPER ROUTED 74% 1m ▶ AVAXUSDT 1m ▼ SHORT 66.0% $6.51 -1.32% 📋 PAPER ROUTED 74% 1m ▶ AVAXUSDT 4h ▼ SHORT 66.0% $6.51 -1.32% 📋 PAPER ROUTED 74% 1m ▶ AVAXUSDT 5m ▼ SHORT 66.0% $6.51 -1.32% 📋 PAPER ROUTED 74% 1m ▶ BNBUSDT 15m ▼ SHORT 64.6% $580.99 -1.32% 📋 PAPER ROUTED 73% 1m ▶ BNBUSDT 1h ▼ SHORT 64.6% $580.99 -1.32% 📋 PAPER ROUTED 73% 1m ▶ BNBUSDT 1m ▼ SHORT 61.0% $582.57 -1.05% 📋 PAPER ROUTED — 1m ▶ BNBUSDT 4h ▼ SHORT 64.6% $580.99 -1.32% 📋 PAPER ROUTED 73% 1m ▶ BNBUSDT 5m ▼ SHORT 64.2% $580.99 -1.32% 📋 PAPER ROUTED 73% 1m ▶ BTCUSDT 15m ▼ SHORT 68.1% $63,073.49 -1.32% 📋 PAPER ROUTED 76% 1.3h ▶ BTCUSDT 1h ▼ SHORT 70.4% $63,073.49 -1.32% 📋 PAPER ROUTED 78% 1.3h ▶ BTCUSDT 1m ▼ SHORT 68.9% $63,073.49 -1.32%",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
         "route_redirect_wrong": false,
         "placeholder_only": false,
@@ -300,31 +348,39 @@
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
+        "current_paper_runtime_visible": false,
         "legacy_bridge_visible": false,
         "chart_exists": false,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 1,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin/executions?role=admin",
       "requested_url": "http://127.0.0.1:5173/admin/executions?role=admin",
-      "final_url": "http://127.0.0.1:5173/admin/executions?role=admin",
+      "final_url": "http://127.0.0.1:5173/portfolio/executions",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin_executions_role_admin.png",
-      "console_errors": [],
-      "network_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "network_errors": [
+        {
+          "url": "http://127.0.0.1:5173/api/auth/me",
+          "method": "GET",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness EXECUTION / PRODUCTION ROUTE Executions Execution intents and fills (paper-only by default). LIVE TRADING: BLOCKED_HUMAN_ONLY PAPER ONLY; LIVE EXECUTION BLOCKED V2_PROOF_ARTIFACT / PAPER EXECUTION LEDGER EXECUTIONS PRODUCTION SURFACE LIVE GATE blocked_human_only SUPERVISOR CURRENT_OR_LOADING CURRENT TASK none NEXT TASK codex_recover_codex_recover_codex_recover_177_phase2t_decision_explainability_replay_backtest_projection_implementation TRAINER RUNTIME V2_PAPER_TRAINER_WRAPPER_CURRENT SIGNAL LINEAGE REALTIME_RUNTIME_EVIDENCE Purpose Execution intents and fills (paper-only by default). Source: V2_PROOF_ARTIFACT / paper execution ledger Next source/task needed Wire current paper execution ledger and execution_intent_id evidence. Runtime truth rule Static proof fixtures and historical examples are not current runtime tr",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Dashboard Binance Trade Markets Research Signals AI Portfolio Backtests Replay Alerts Sign in Live data loading… Overview Executions History Executions Fills · Orders · Rejects · Slippage · Fees · Risk denials · Public read-only preview Simulated Live trading disabled TRADER Public preview ACCOUNT Public paper preview EXCHANGE Exchange account unavailable EXECUTIONS 120 EQUITY Data unavailable SOURCE Paper activity stream Executions (120) SYMBOL SIDE QUANTITY PRICE FEE STATUS AAVEUSDT SHORT 0.7867205385 Data unavailable Data unavailable filled ADAUSDT SHORT 416.6524621459 Data unavailable Data unavailable filled AEROUSDT SHORT 130.8585041972 Data unavailable Data unavailable filled ALGOUSDT SHORT 512.37221705 Data unavailable Data unavailable filled APTUSDT SHORT 89.739145639 Data unavailable Data unavailable filled ARBUSDT SHORT 685.9070232893 Data unavailable Data unavailable filled AVAXUSDT SHORT 9.5471711858 Data unavailable Data unavailable filled BCHUSDT SHORT 0.1600686993 Data unavailable Data unavailable filled BEATUSDT SHORT 32.3145802233 Data unavailable Data unavailable filled BIOUSDT SHORT 1686.728459814 Data unavailable Data unavailable filled BNBUSDT SHORT 0.0730292944 Data unavailable Data unavailable filled BSBUSDT SHORT 73.4038624626 Data unavailable Data unavailable filled CHZUSDT SHORT 2116.3200269458 Data unavailable Data unavailable filled CRVUSDT SHORT 259.1925233502 Data unavailable Data unavailable filled DASHUSDT SHORT 1.5614728861 Data unavailable Data unavailable filled DOTUSDT SHORT 64.8166488219 Data unavailable Data unavailable filled ENAUSDT SHORT 628.8605484562 Data unavailable Data unavailable filled FETUSDT SHORT 252.5374762571 Data unavailable Data unavailable filled F",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
         "route_redirect_wrong": false,
         "placeholder_only": false,
@@ -332,31 +388,39 @@
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
+        "current_paper_runtime_visible": false,
         "legacy_bridge_visible": false,
         "chart_exists": false,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 4,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin/positions?role=admin",
       "requested_url": "http://127.0.0.1:5173/admin/positions?role=admin",
-      "final_url": "http://127.0.0.1:5173/admin/positions?role=admin",
+      "final_url": "http://127.0.0.1:5173/portfolio",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin_positions_role_admin.png",
-      "console_errors": [],
-      "network_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "network_errors": [
+        {
+          "url": "http://127.0.0.1:5173/assets/index-Cbqj0zxL.js",
+          "method": "GET",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness EXECUTION / PRODUCTION ROUTE Positions Open positions (paper-only by default). LIVE TRADING: BLOCKED_HUMAN_ONLY PAPER/READ-ONLY POSITIONS ONLY READONLY_ACCOUNT_FEED / PAPER POSITION PAYLOAD POSITIONS PRODUCTION SURFACE LIVE GATE blocked_human_only SUPERVISOR CURRENT_OR_LOADING CURRENT TASK none NEXT TASK codex_recover_codex_recover_codex_recover_177_phase2t_decision_explainability_replay_backtest_projection_implementation TRAINER RUNTIME V2_PAPER_TRAINER_WRAPPER_CURRENT SIGNAL LINEAGE REALTIME_RUNTIME_EVIDENCE Purpose Open positions (paper-only by default). Source: READONLY_ACCOUNT_FEED / paper position payload Next source/task needed Wire paper/shadow positions and external/manual quarantine state. Runtime truth rule Static proof fixtures and historical examples are not current runtime truth. Evidence missing — cann",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Dashboard Binance Trade Markets Research Signals AI Portfolio Backtests Replay Alerts Sign in Live data loading… Overview Executions History Portfolio Positions · Balances · Exposure · PnL · Public read-only preview · Live trading disabled Simulated Live trading disabled EQUITY Data unavailable REALIZED PNL $0.00 UNREALIZED PNL $2.99 OPEN POSITIONS 32 ACCOUNT SCOPE TRADER Public preview ACCOUNT Public paper preview EXCHANGE Exchange account unavailable ACCESS Sign in for trader-specific account MODE Simulated SOURCE Sign in to view trader-specific paper account Open Positions (32) AAVEUSDT SHORT QTY 1.5439390568 ENTRY $73.14 MARK Data unavailable UNREALIZED PNL -0.0212% ADAUSDT SHORT QTY 817.6804569613 ENTRY $0.1647 MARK Data unavailable UNREALIZED PNL 0.3968% AEROUSDT SHORT QTY 257.4481326014 ENTRY $0.4375 MARK Data unavailable UNREALIZED PNL -0.0875% ALGOUSDT SHORT QTY 1005.5304759607 ENTRY $0.0969 MARK Data unavailable UNREALIZED PNL 0.1755% APTUSDT SHORT QTY 176.1130733166 ENTRY $0.6412 MARK Data unavailable UNREALIZED PNL 0.0951% ARBUSDT SHORT QTY 1346.0925332052 ENTRY $0.08389 MARK Data unavailable UNREALIZED PNL 0.1053% AVAXUSDT SHORT QTY 18.7363234521 ENTRY $6.599 MARK Data unavailable UNREALIZED PNL 0.0417% BCHUSDT SHORT QTY 0.4153249889 ENTRY $206.90 MARK Data unavailable UNREALIZED PNL 0.1022% BEATUSDT SHORT QTY 63.4173636882 ENTRY $1.698 MARK Data unavailable UNREALIZED PNL 0.5711% BIOUSDT SHORT QTY 3311.3386806074 ENTRY $0.03409 MARK Data unavailable UNREALIZED PNL 0.1893% BNBUSDT SHORT QTY 0.1670964226 ENTRY $588.76 MARK Data unavailable UNREALIZED PNL -0.0223% BSBUSDT SHORT QTY 154.5141020242 ENTRY $0.58571 MARK Data unavailable UNREALIZED PNL 0.196% CHZUSDT SHORT QTY 4153.2780528812 ENTR",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
         "route_redirect_wrong": false,
         "placeholder_only": false,
@@ -364,31 +428,39 @@
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
+        "current_paper_runtime_visible": false,
         "legacy_bridge_visible": false,
         "chart_exists": false,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 3,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin/risk-control?role=admin",
       "requested_url": "http://127.0.0.1:5173/admin/risk-control?role=admin",
-      "final_url": "http://127.0.0.1:5173/admin/risk-control?role=admin",
+      "final_url": "http://127.0.0.1:5173/login",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin_risk-control_role_admin.png",
-      "console_errors": [],
-      "network_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "network_errors": [
+        {
+          "url": "http://127.0.0.1:5173/api/auth/me",
+          "method": "GET",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness RISK CONTROL Risk Control Policy bundles, kill switch, mandatory stop. Mutations require L4/L5 approval. LIVE TRADING: BLOCKED_HUMAN_ONLY DANGEROUS CONTROLS DISABLED V2_PROOF_ARTIFACT / FAIL-CLOSED POLICY Dangerous controls (default-deny) Disable kill switchRequires L5 approval Disable mandatory stopRequires L5 approval Increase daily loss limitRequires L4 approval KILL SWITCH DEFAULT-DENY RISK GATEWAY FINAL AUTHORITY NO ADJUST_LEVERAGE BYPASS LIVE APPROVAL REQUIRED RISK CONTROL TRUTH SUMMARY Current evidence state CONTROL PLANE CONTROL_PLANE_DAEMON_NOT_OBSERVED Dashboard must disclose missing control-plane daemons and stale historical status files separately. PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE TRAINER V2_PAPER_TRAINER_WRAPPER_CURRENT No prediction can be explained unless runtime evidence exists. REALTIME_RUNTIME_EV",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Home Markets Status Sign in AF AlphaForge V2 AI-powered trading intelligence platform Sign in to your account EMAIL ADDRESS @ PASSWORD * SHOW Sign in Backend-authenticated access only. Browser role overrides do not grant elevated access. Simulated trading platform · Live trading permanently disabled",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
         "route_redirect_wrong": false,
         "placeholder_only": false,
@@ -396,31 +468,39 @@
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
-        "legacy_bridge_visible": true,
+        "current_paper_runtime_visible": false,
+        "legacy_bridge_visible": false,
         "chart_exists": false,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 2,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin/exchange-manager?role=admin",
       "requested_url": "http://127.0.0.1:5173/admin/exchange-manager?role=admin",
-      "final_url": "http://127.0.0.1:5173/admin/exchange-manager?role=admin",
+      "final_url": "http://127.0.0.1:5173/login",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin_exchange-manager_role_admin.png",
-      "console_errors": [],
-      "network_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "network_errors": [
+        {
+          "url": "http://127.0.0.1:5173/assets/index-Cbqj0zxL.js",
+          "method": "GET",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness EXCHANGE MANAGER Exchange Manager Read-only first exchange linking for Binance, KuCoin, and MEXC. Trading permissions stay blocked. ORDER METHODS DISABLED EXCHANGE MANAGER - READ ONLY LINKING Binance USD-M STATUS ready READ-ONLY KEY not_configured TRADE PERMISSION order_methods_absent ORDER CAPABILITY BLOCKED IP RESTRICTION missing fresh / READONLY_MARKET_FEED Read-only data-plane status. No order/cancel/leverage/margin method is available. KuCoin STATUS design_only READ-ONLY KEY not_configured TRADE PERMISSION read_only_required ORDER CAPABILITY BLOCKED IP RESTRICTION missing missing / MISSING Read-only data-plane status. No order/cancel/leverage/margin method is available. MEXC STATUS design_only READ-ONLY KEY not_configured TRADE PERMISSION read_only_required_no_sandbox_assumption ORDER CAPABILITY BLOCKED IP RESTR",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Home Markets Status Sign in AF AlphaForge V2 AI-powered trading intelligence platform Sign in to your account EMAIL ADDRESS @ PASSWORD * SHOW Sign in Backend-authenticated access only. Browser role overrides do not grant elevated access. Simulated trading platform · Live trading permanently disabled",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
         "route_redirect_wrong": false,
         "placeholder_only": false,
@@ -428,31 +508,39 @@
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
+        "current_paper_runtime_visible": false,
         "legacy_bridge_visible": false,
         "chart_exists": false,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 1,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin/config-admin?role=admin",
       "requested_url": "http://127.0.0.1:5173/admin/config-admin?role=admin",
-      "final_url": "http://127.0.0.1:5173/admin/config-admin?role=admin",
+      "final_url": "http://127.0.0.1:5173/login",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin_config-admin_role_admin.png",
-      "console_errors": [],
-      "network_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "network_errors": [
+        {
+          "url": "http://127.0.0.1:5173/api/auth/me",
+          "method": "GET",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness CONFIG ADMIN Config Admin Versioned config. Live-trading and margin toggles require L4/L5. LIVE TRADING: BLOCKED_HUMAN_ONLY LIVE-IMPACTING CHANGES REQUIRE APPROVAL V2_PROOF_ARTIFACT / CLASSIFIED SETTINGS Dangerous controls (default-deny) Enable live tradingRequires L5 approval Enable ADJUST_LEVERAGERequires L4 approval Switch paper to liveRequires L5 approval Enable CROSS marginRequires L4 approval SAFE_TO_EDIT REQUIRES_VALIDATION REQUIRES_EXPLICIT_HUMAN_APPROVAL READ_ONLY REMOVE_OR_REPLACE CONFIG ADMIN TRUTH SUMMARY Current evidence state CONTROL PLANE CONTROL_PLANE_DAEMON_NOT_OBSERVED Dashboard must disclose missing control-plane daemons and stale historical status files separately. PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE TRAINER V2_PAPER_TRAINER_WRAPPER_CURRENT No prediction can be explained unless runtime evidence ex",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Home Markets Status Sign in AF AlphaForge V2 AI-powered trading intelligence platform Sign in to your account EMAIL ADDRESS @ PASSWORD * SHOW Sign in Backend-authenticated access only. Browser role overrides do not grant elevated access. Simulated trading platform · Live trading permanently disabled",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
         "route_redirect_wrong": false,
         "placeholder_only": false,
@@ -460,31 +548,39 @@
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
+        "current_paper_runtime_visible": false,
         "legacy_bridge_visible": false,
         "chart_exists": false,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 2,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin/strategy-admin?role=admin",
       "requested_url": "http://127.0.0.1:5173/admin/strategy-admin?role=admin",
-      "final_url": "http://127.0.0.1:5173/admin/strategy-admin?role=admin",
+      "final_url": "http://127.0.0.1:5173/login",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin_strategy-admin_role_admin.png",
-      "console_errors": [],
-      "network_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "network_errors": [
+        {
+          "url": "http://127.0.0.1:5173/assets/index-Cbqj0zxL.js",
+          "method": "GET",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness ADMIN / PRODUCTION ROUTE Strategy Admin Strategy registration and lifecycle. Hedge/DCA toggles are L4. LIVE TRADING: BLOCKED_HUMAN_ONLY DANGEROUS STRATEGY TOGGLES APPROVAL-GATED V2 STRATEGY REGISTRY Dangerous controls (default-deny) Enable hedge / DCARequires L4 approval STRATEGY ADMIN PRODUCTION SURFACE LIVE GATE blocked_human_only SUPERVISOR CURRENT_OR_LOADING CURRENT TASK none NEXT TASK codex_recover_codex_recover_codex_recover_177_phase2t_decision_explainability_replay_backtest_projection_implementation TRAINER RUNTIME V2_PAPER_TRAINER_WRAPPER_CURRENT SIGNAL LINEAGE REALTIME_RUNTIME_EVIDENCE Purpose Strategy registration and lifecycle. Hedge/DCA toggles are L4. Source: V2 strategy registry Next source/task needed Expose strategy registry with validation, rollback, and approval classification. Runtime truth rule S",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Home Markets Status Sign in AF AlphaForge V2 AI-powered trading intelligence platform Sign in to your account EMAIL ADDRESS @ PASSWORD * SHOW Sign in Backend-authenticated access only. Browser role overrides do not grant elevated access. Simulated trading platform · Live trading permanently disabled",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
         "route_redirect_wrong": false,
         "placeholder_only": false,
@@ -492,31 +588,39 @@
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
+        "current_paper_runtime_visible": false,
         "legacy_bridge_visible": false,
         "chart_exists": false,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 1,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin/trainer-admin?role=admin",
       "requested_url": "http://127.0.0.1:5173/admin/trainer-admin?role=admin",
-      "final_url": "http://127.0.0.1:5173/admin/trainer-admin?role=admin",
+      "final_url": "http://127.0.0.1:5173/login",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin_trainer-admin_role_admin.png",
-      "console_errors": [],
-      "network_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "network_errors": [
+        {
+          "url": "http://127.0.0.1:5173/api/auth/me",
+          "method": "GET",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness TRAINER / PRODUCTION ROUTE Trainer Admin Trainer adapter status. Subprocess-only; no direct trainer module imports. LIVE TRADING: BLOCKED_HUMAN_ONLY TRAINER RUNTIME MONITOR MISSING UNTIL PROVEN CURRENT TRAINER_RUNTIME_EVIDENCE / TRAINER CONFIG TRAINER ADMIN PRODUCTION SURFACE LIVE GATE blocked_human_only SUPERVISOR CURRENT_OR_LOADING CURRENT TASK none NEXT TASK codex_recover_codex_recover_codex_recover_177_phase2t_decision_explainability_replay_backtest_projection_implementation TRAINER RUNTIME V2_PAPER_TRAINER_WRAPPER_CURRENT SIGNAL LINEAGE REALTIME_RUNTIME_EVIDENCE Purpose Trainer adapter status. Subprocess-only; no direct trainer module imports. Source: TRAINER_RUNTIME_EVIDENCE / trainer config Next source/task needed Run TRAINER_RUNTIME_MONITOR_REPAIR_OR_STARTUP_DECISION before treating trainer as current. Runtim",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Home Markets Status Sign in AF AlphaForge V2 AI-powered trading intelligence platform Sign in to your account EMAIL ADDRESS @ PASSWORD * SHOW Sign in Backend-authenticated access only. Browser role overrides do not grant elevated access. Simulated trading platform · Live trading permanently disabled",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
         "route_redirect_wrong": false,
         "placeholder_only": false,
@@ -524,31 +628,39 @@
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
+        "current_paper_runtime_visible": false,
         "legacy_bridge_visible": false,
         "chart_exists": false,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 2,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin/orchestrator-admin?role=admin",
       "requested_url": "http://127.0.0.1:5173/admin/orchestrator-admin?role=admin",
-      "final_url": "http://127.0.0.1:5173/admin/orchestrator-admin?role=admin",
+      "final_url": "http://127.0.0.1:5173/login",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin_orchestrator-admin_role_admin.png",
-      "console_errors": [],
-      "network_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "network_errors": [
+        {
+          "url": "http://127.0.0.1:5173/api/auth/me",
+          "method": "GET",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness ADMIN / PRODUCTION ROUTE Orchestrator Admin Orchestrator adapter. Proposes only; risk gateway validates. LIVE TRADING: BLOCKED_HUMAN_ONLY ORCHESTRATOR PROPOSES ONLY RUNTIME_MONITOR_PAYLOAD / ORCHESTRATOR EVIDENCE ORCHESTRATOR ADMIN PRODUCTION SURFACE LIVE GATE blocked_human_only SUPERVISOR CURRENT_OR_LOADING CURRENT TASK none NEXT TASK codex_recover_codex_recover_codex_recover_177_phase2t_decision_explainability_replay_backtest_projection_implementation TRAINER RUNTIME V2_PAPER_TRAINER_WRAPPER_CURRENT SIGNAL LINEAGE REALTIME_RUNTIME_EVIDENCE Purpose Orchestrator adapter. Proposes only; risk gateway validates. Source: RUNTIME_MONITOR_PAYLOAD / orchestrator evidence Next source/task needed Wire current orchestrator decisions to Risk Gateway decision evidence. Runtime truth rule Static proof fixtures and historical exam",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Home Markets Status Sign in AF AlphaForge V2 AI-powered trading intelligence platform Sign in to your account EMAIL ADDRESS @ PASSWORD * SHOW Sign in Backend-authenticated access only. Browser role overrides do not grant elevated access. Simulated trading platform · Live trading permanently disabled",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
         "route_redirect_wrong": false,
         "placeholder_only": false,
@@ -556,31 +668,39 @@
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
+        "current_paper_runtime_visible": false,
         "legacy_bridge_visible": false,
         "chart_exists": false,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 2,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin/execution-admin?role=admin",
       "requested_url": "http://127.0.0.1:5173/admin/execution-admin?role=admin",
-      "final_url": "http://127.0.0.1:5173/admin/execution-admin?role=admin",
+      "final_url": "http://127.0.0.1:5173/login",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin_execution-admin_role_admin.png",
-      "console_errors": [],
-      "network_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "network_errors": [
+        {
+          "url": "http://127.0.0.1:5173/assets/index-Cbqj0zxL.js",
+          "method": "GET",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness ADMIN / PRODUCTION ROUTE Execution Admin Execution router. Paper-only by default; paper-to-live and live keys are L4/L5. LIVE TRADING: BLOCKED_HUMAN_ONLY PAPER/SHADOW ONLY; LIVE METHODS DISABLED V2 EXECUTION ADAPTER REGISTRY Dangerous controls (default-deny) Switch paper to liveRequires L5 approval Increase max position sizeRequires L4 approval Add or activate live API keysRequires L5 approval EXECUTION ADMIN PRODUCTION SURFACE LIVE GATE blocked_human_only SUPERVISOR CURRENT_OR_LOADING CURRENT TASK none NEXT TASK codex_recover_codex_recover_codex_recover_177_phase2t_decision_explainability_replay_backtest_projection_implementation TRAINER RUNTIME V2_PAPER_TRAINER_WRAPPER_CURRENT SIGNAL LINEAGE REALTIME_RUNTIME_EVIDENCE Purpose Execution router. Paper-only by default; paper-to-live and live keys are L4/L5. Source: V2 ",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Home Markets Status Sign in AF AlphaForge V2 AI-powered trading intelligence platform Sign in to your account EMAIL ADDRESS @ PASSWORD * SHOW Sign in Backend-authenticated access only. Browser role overrides do not grant elevated access. Simulated trading platform · Live trading permanently disabled",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
         "route_redirect_wrong": false,
         "placeholder_only": false,
@@ -588,31 +708,39 @@
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
+        "current_paper_runtime_visible": false,
         "legacy_bridge_visible": false,
         "chart_exists": false,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 1,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin/paper-trading?role=admin",
       "requested_url": "http://127.0.0.1:5173/admin/paper-trading?role=admin",
-      "final_url": "http://127.0.0.1:5173/admin/paper-trading?role=admin",
+      "final_url": "http://127.0.0.1:5173/trade",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin_paper-trading_role_admin.png",
-      "console_errors": [],
-      "network_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "network_errors": [
+        {
+          "url": "http://127.0.0.1:5173/api/auth/me",
+          "method": "GET",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness PAPER / SHADOW RUNTIME Paper Trading Paper-mode loop view. No exchange-side mutation possible. LIVE TRADING: BLOCKED_HUMAN_ONLY NOT VALID FOR LIVE READINESS WITHOUT CURRENT RUNTIME CONTINUOUS_NON_LIVE / V2_PROOF_ARTIFACT PAPER ONLY SHADOW ONLY NO EXCHANGE ORDERS NO LEGACY REDIS WRITES LIVE GATE BLOCKED PAPER TRADING TRUTH SUMMARY Current evidence state CONTROL PLANE CONTROL_PLANE_DAEMON_NOT_OBSERVED Dashboard must disclose missing control-plane daemons and stale historical status files separately. PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE TRAINER V2_PAPER_TRAINER_WRAPPER_CURRENT No prediction can be explained unless runtime evidence exists. REALTIME_RUNTIME_EVIDENCE SIGNAL LINEAGE REALTIME_RUNTIME_EVIDENCE Static proof lineage is not current runtime truth. REALTIME_RUNTIME_EVIDENCE PAYLOADS 13 stale 1 static fixtures; 0 mi",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Dashboard Binance Trade Markets Research Signals AI Portfolio Backtests Replay Alerts Sign in Live data loading… AAVEUSDT ADAUSDT AEROUSDT ALGOUSDT APTUSDT ARBUSDT AVAXUSDT BCHUSDT BEATUSDT BIOUSDT BNBUSDT BSBUSDT CHZUSDT CRVUSDT DASHUSDT DOTUSDT ENAUSDT FETUSDT FILUSDT HBARUSDT HUSDT HYPEUSDT ICPUSDT INJUSDT IPUSDT JTOUSDT LDOUSDT LITUSDT MEGAUSDT MITOUSDT NEARUSDT NIGHTUSDT BTCUSDT AAVEUSDT Perpetual Professional paper trading terminal · Public paper preview PAPER / READ-ONLY SIGN IN FOR TRADER ACCOUNT SCOPE LIVE TRADING DISABLED TRADE DATA: TIMESTAMP PENDING Last Data unavailable Mark Data unavailable Index Data unavailable 24h Data unavailable High Data unavailable Low Data unavailable Volume Data unavailable Turnover Data unavailable Funding Data unavailable Next funding Time unavailable Open interest Data unavailable OI change Data unavailable Spread Data unavailable AI direction Short Confidence 64.5931% Risk Paper Fill Open Live data · paper engine · WebSocket stream · 33 symbols AAVEUSDT Paper Balance $10,002.59 Realized PnL $0.00 Unrealized PnL $2.59 Open Notional $3549 Open Positions 32 AI Signal SHORT Confidence 64.5931% Risk Gate Paper Fill Open Last Price Data unavailable Funding Data unavailable Mode Paper Trading Account Public paper preview AI SIGNAL SHORT · 64.5931% AAVEUSDT · Floor 64.5931% LIVE GATE BLOCKED HUMAN ONLY LIVE GATE BLOCKED AUDITED ACCEPTANCE R EXECUTION DISABLED 85 symbols monitored TRAINER ACTIVE_REDIS_EVIDENCE WR — · ckpt 44047e94 PIPELINE MODES trainer_cycle · replay… 85 symbols in scope AAVEUSDT CHART Candlestick Chart 5S AGO 1m 3m 5m 15m 1h 4h 1d 1w MA unavailable EMA unavailable VWAP unavailable RSI unavailable MACD unavailable Loading chart data Last close $73.17 ",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
         "route_redirect_wrong": false,
         "placeholder_only": false,
@@ -620,31 +748,39 @@
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
+        "current_paper_runtime_visible": false,
         "legacy_bridge_visible": false,
-        "chart_exists": false,
+        "chart_exists": true,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 4,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin/replay?role=admin",
       "requested_url": "http://127.0.0.1:5173/admin/replay?role=admin",
-      "final_url": "http://127.0.0.1:5173/admin/replay?role=admin",
+      "final_url": "http://127.0.0.1:5173/backtests",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin_replay_role_admin.png",
-      "console_errors": [],
-      "network_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "network_errors": [
+        {
+          "url": "http://127.0.0.1:5173/assets/index-Cbqj0zxL.js",
+          "method": "GET",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness REPLAY Replay Deterministic replay UI for past windows. LIVE TRADING: BLOCKED_HUMAN_ONLY OFFLINE DETERMINISTIC PROOF ONLY STATIC_PROOF_FIXTURE / HISTORICAL REPLAY DETERMINISTIC REPLAY STATIC PROOF FIXTURE NOT CONTINUOUS RUNTIME NOT LIVE READINESS REPLAY TRUTH SUMMARY Current evidence state CONTROL PLANE CONTROL_PLANE_DAEMON_NOT_OBSERVED Dashboard must disclose missing control-plane daemons and stale historical status files separately. PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE TRAINER V2_PAPER_TRAINER_WRAPPER_CURRENT No prediction can be explained unless runtime evidence exists. REALTIME_RUNTIME_EVIDENCE SIGNAL LINEAGE REALTIME_RUNTIME_EVIDENCE Static proof lineage is not current runtime truth. REALTIME_RUNTIME_EVIDENCE PAYLOADS 13 stale 1 static fixtures; 0 missing. PUBLIC_PAYLOAD_AUDIT HISTORICAL REPLAY PROOF STATUS STATI",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Dashboard Binance Trade Markets Research Signals AI Portfolio Backtests Replay Alerts Sign in Live data loading… Backtests Replay 📈 Backtest Engine Historical replay of AI signals against real OHLCV data · Equity curves · Trade journal · Paper only Live · 0ms API redis:v2:backtest:results:* Refresh Manual Backtest Run SYMBOL BTCUSDT ETHUSDT SOLUSDT BNBUSDT XRPUSDT DOGEUSDT AVAXUSDT ADAUSDT LTCUSDT DOTUSDT TIMEFRAME 1m 5m 15m 1h 4h LOOKBACK CANDLES HOLD CANDLES TP (BPS) SL (BPS) ▶ Run Backtest All Results 4 runs in Redis All Symbols BTCUSDT ETHUSDT SOLUSDT BNBUSDT XRPUSDT DOGEUSDT AVAXUSDT ADAUSDT LTCUSDT DOTUSDT All TFs 1m 5m 15m 1h 4h BTC 1h bt_BTCUSDT_1… · — total PnL WIN RATE — TRADES — SHARPE — MAX DD — CANDLES — — BTC 1h bt_BTCUSDT_1… · — total PnL WIN RATE — TRADES — SHARPE — MAX DD — CANDLES — — BTC 1h bt_BTCUSDT_1… · — total PnL WIN RATE — TRADES — SHARPE — MAX DD — CANDLES — — BTC 1h bt_BTCUSDT_1… · — total PnL WIN RATE — TRADES — SHARPE — MAX DD — CANDLES — — Backtest reads: Redis OHLCV (v2:market:ohlcv:binance:*) + signal direction (v2:signals:paper:*) · Fees: 0.05% per side · No exchange orders placed · Results TTL 7 days",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
         "route_redirect_wrong": false,
         "placeholder_only": false,
@@ -652,31 +788,39 @@
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
+        "current_paper_runtime_visible": false,
         "legacy_bridge_visible": false,
         "chart_exists": false,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 1,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin/audit-ledger?role=admin",
       "requested_url": "http://127.0.0.1:5173/admin/audit-ledger?role=admin",
-      "final_url": "http://127.0.0.1:5173/admin/audit-ledger?role=admin",
+      "final_url": "http://127.0.0.1:5173/login",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin_audit-ledger_role_admin.png",
-      "console_errors": [],
-      "network_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "network_errors": [
+        {
+          "url": "http://127.0.0.1:5173/api/auth/me",
+          "method": "GET",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness AUDIT / PRODUCTION ROUTE Audit Ledger Append-only chain of every governance event and decision. LIVE TRADING: BLOCKED_HUMAN_ONLY APPEND-ONLY AUDIT PROOF REQUIRED V2 AUDIT LEDGER AUDIT LEDGER PRODUCTION SURFACE LIVE GATE blocked_human_only SUPERVISOR CURRENT_OR_LOADING CURRENT TASK none NEXT TASK codex_recover_codex_recover_codex_recover_177_phase2t_decision_explainability_replay_backtest_projection_implementation TRAINER RUNTIME V2_PAPER_TRAINER_WRAPPER_CURRENT SIGNAL LINEAGE REALTIME_RUNTIME_EVIDENCE Purpose Append-only chain of every governance event and decision. Source: V2 audit ledger Next source/task needed Wire durable audit ledger tail and chain integrity checks. Runtime truth rule Static proof fixtures and historical examples are not current runtime truth. Evidence missing — cannot explain without guessing. ",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Home Markets Status Sign in AF AlphaForge V2 AI-powered trading intelligence platform Sign in to your account EMAIL ADDRESS @ PASSWORD * SHOW Sign in Backend-authenticated access only. Browser role overrides do not grant elevated access. Simulated trading platform · Live trading permanently disabled",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
         "route_redirect_wrong": false,
         "placeholder_only": false,
@@ -684,31 +828,39 @@
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
+        "current_paper_runtime_visible": false,
         "legacy_bridge_visible": false,
         "chart_exists": false,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 2,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin/system-health?role=admin",
       "requested_url": "http://127.0.0.1:5173/admin/system-health?role=admin",
-      "final_url": "http://127.0.0.1:5173/admin/system-health?role=admin",
+      "final_url": "http://127.0.0.1:5173/login",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin_system-health_role_admin.png",
-      "console_errors": [],
-      "network_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "network_errors": [
+        {
+          "url": "http://127.0.0.1:5173/assets/index-Cbqj0zxL.js",
+          "method": "GET",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness OBSERVABILITY / PRODUCTION ROUTE System Health Per-dimension status across monitor packets. LIVE TRADING: BLOCKED_HUMAN_ONLY CURRENT/STALE/CONFLICTING SURFACED OPERATOR TRUTH PAYLOAD / MONITOR CENTER SYSTEM HEALTH PRODUCTION SURFACE LIVE GATE blocked_human_only SUPERVISOR CURRENT_OR_LOADING CURRENT TASK none NEXT TASK codex_recover_codex_recover_codex_recover_177_phase2t_decision_explainability_replay_backtest_projection_implementation TRAINER RUNTIME V2_PAPER_TRAINER_WRAPPER_CURRENT SIGNAL LINEAGE REALTIME_RUNTIME_EVIDENCE Purpose Per-dimension status across monitor packets. Source: operator truth payload / monitor center Next source/task needed Keep build:operator-truth fresh and repair stale control-plane daemons separately. Runtime truth rule Static proof fixtures and historical examples are not current runtime t",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Home Markets Status Sign in AF AlphaForge V2 AI-powered trading intelligence platform Sign in to your account EMAIL ADDRESS @ PASSWORD * SHOW Sign in Backend-authenticated access only. Browser role overrides do not grant elevated access. Simulated trading platform · Live trading permanently disabled",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
         "route_redirect_wrong": false,
         "placeholder_only": false,
@@ -716,63 +868,79 @@
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
+        "current_paper_runtime_visible": false,
         "legacy_bridge_visible": false,
         "chart_exists": false,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 1,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin/live-readiness?role=admin",
       "requested_url": "http://127.0.0.1:5173/admin/live-readiness?role=admin",
-      "final_url": "http://127.0.0.1:5173/admin/live-readiness?role=admin",
+      "final_url": "http://127.0.0.1:5173/login",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin_live-readiness_role_admin.png",
-      "console_errors": [],
-      "network_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "network_errors": [
+        {
+          "url": "http://127.0.0.1:5173/api/auth/me",
+          "method": "GET",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness LIVE READINESS Live Readiness GO inputs for live mode. L4/L5 buttons disabled until criteria met. LIVE TRADING: BLOCKED_HUMAN_ONLY FINAL LIVE CAPITAL APPROVAL REQUIRED GO_NO_GO / FINAL LIVE GATE POLICY Dangerous controls (default-deny) Enable live tradingRequires L5 approval Increase leverageRequires L4 approval LIVE BLOCKED HUMAN-ONLY FINAL GATE DANGEROUS CONTROLS DISABLED PAPER/SHADOW FIRST LIVE READINESS TRUTH SUMMARY Current evidence state CONTROL PLANE CONTROL_PLANE_DAEMON_NOT_OBSERVED Dashboard must disclose missing control-plane daemons and stale historical status files separately. PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE TRAINER V2_PAPER_TRAINER_WRAPPER_CURRENT No prediction can be explained unless runtime evidence exists. REALTIME_RUNTIME_EVIDENCE SIGNAL LINEAGE REALTIME_RUNTIME_EVIDENCE Static proof lineage is n",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Home Markets Status Sign in AF AlphaForge V2 AI-powered trading intelligence platform Sign in to your account EMAIL ADDRESS @ PASSWORD * SHOW Sign in Backend-authenticated access only. Browser role overrides do not grant elevated access. Simulated trading platform · Live trading permanently disabled",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
         "route_redirect_wrong": false,
         "placeholder_only": false,
         "evidence_gap_only": false,
         "proof_dump_primary": false,
-        "stale_payload_primary": true,
+        "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
+        "current_paper_runtime_visible": false,
         "legacy_bridge_visible": false,
         "chart_exists": false,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 2,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin/claude-admin-ai?role=admin",
       "requested_url": "http://127.0.0.1:5173/admin/claude-admin-ai?role=admin",
-      "final_url": "http://127.0.0.1:5173/admin/claude-admin-ai?role=admin",
+      "final_url": "http://127.0.0.1:5173/login",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin_claude-admin-ai_role_admin.png",
-      "console_errors": [],
-      "network_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "network_errors": [
+        {
+          "url": "http://127.0.0.1:5173/assets/index-Cbqj0zxL.js",
+          "method": "GET",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness CLAUDE ADMIN AI Claude Admin AI Claude supervision dashboard. No live mutation. LIVE TRADING: BLOCKED_HUMAN_ONLY CANNOT ENABLE LIVE TRADING AUTONOMOUS_GOVERNOR_PAYLOAD / NON-LIVE ONLY CLAUDE PRIMARY BUILDER CODEX PARALLEL AUDITOR OLLAMA DRAFT-ONLY HELPER FINAL LIVE GATE HUMAN-ONLY CLAUDE ADMIN AI TRUTH SUMMARY Current evidence state CONTROL PLANE CONTROL_PLANE_DAEMON_NOT_OBSERVED Dashboard must disclose missing control-plane daemons and stale historical status files separately. PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE TRAINER V2_PAPER_TRAINER_WRAPPER_CURRENT No prediction can be explained unless runtime evidence exists. REALTIME_RUNTIME_EVIDENCE SIGNAL LINEAGE REALTIME_RUNTIME_EVIDENCE Static proof lineage is not current runtime truth. REALTIME_RUNTIME_EVIDENCE PAYLOADS 13 stale 1 static fixtures; 0 missing. PUBLIC_PAYLOA",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Home Markets Status Sign in AF AlphaForge V2 AI-powered trading intelligence platform Sign in to your account EMAIL ADDRESS @ PASSWORD * SHOW Sign in Backend-authenticated access only. Browser role overrides do not grant elevated access. Simulated trading platform · Live trading permanently disabled",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
         "route_redirect_wrong": false,
         "placeholder_only": false,
@@ -780,31 +948,39 @@
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
+        "current_paper_runtime_visible": false,
         "legacy_bridge_visible": false,
         "chart_exists": false,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 1,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin/ollama-local-assistant?role=admin",
       "requested_url": "http://127.0.0.1:5173/admin/ollama-local-assistant?role=admin",
-      "final_url": "http://127.0.0.1:5173/admin/ollama-local-assistant?role=admin",
+      "final_url": "http://127.0.0.1:5173/login",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin_ollama-local-assistant_role_admin.png",
-      "console_errors": [],
-      "network_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "network_errors": [
+        {
+          "url": "http://127.0.0.1:5173/api/auth/me",
+          "method": "GET",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness AI / PRODUCTION ROUTE Ollama Local Assistant Ollama health and outputs. Cannot make final safety claims. LIVE TRADING: BLOCKED_HUMAN_ONLY DRAFT-ONLY; NEVER FINAL TRUTH OLLAMA DRAFT-ONLY EVIDENCE HELPER OLLAMA LOCAL ASSISTANT PRODUCTION SURFACE LIVE GATE blocked_human_only SUPERVISOR CURRENT_OR_LOADING CURRENT TASK none NEXT TASK codex_recover_codex_recover_codex_recover_177_phase2t_decision_explainability_replay_backtest_projection_implementation TRAINER RUNTIME V2_PAPER_TRAINER_WRAPPER_CURRENT SIGNAL LINEAGE REALTIME_RUNTIME_EVIDENCE Purpose Ollama health and outputs. Cannot make final safety claims. Source: Ollama draft-only evidence helper Next source/task needed Show Ollama helper availability and verification requirements. Runtime truth rule Static proof fixtures and historical examples are not current runtime t",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Home Markets Status Sign in AF AlphaForge V2 AI-powered trading intelligence platform Sign in to your account EMAIL ADDRESS @ PASSWORD * SHOW Sign in Backend-authenticated access only. Browser role overrides do not grant elevated access. Simulated trading platform · Live trading permanently disabled",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
         "route_redirect_wrong": false,
         "placeholder_only": false,
@@ -812,31 +988,39 @@
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
+        "current_paper_runtime_visible": false,
         "legacy_bridge_visible": false,
         "chart_exists": false,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 2,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin/codex-review-center?role=admin",
       "requested_url": "http://127.0.0.1:5173/admin/codex-review-center?role=admin",
-      "final_url": "http://127.0.0.1:5173/admin/codex-review-center?role=admin",
+      "final_url": "http://127.0.0.1:5173/login",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin_codex-review-center_role_admin.png",
-      "console_errors": [],
-      "network_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "network_errors": [
+        {
+          "url": "http://127.0.0.1:5173/assets/index-Cbqj0zxL.js",
+          "method": "GET",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness AUDIT / PRODUCTION ROUTE Codex Review Center Codex review status across milestones. LIVE TRADING: BLOCKED_HUMAN_ONLY PARALLEL AUDITOR ONLY CODEX REVIEW ARTIFACTS CODEX REVIEW CENTER PRODUCTION SURFACE LIVE GATE blocked_human_only SUPERVISOR CURRENT_OR_LOADING CURRENT TASK none NEXT TASK codex_recover_codex_recover_codex_recover_177_phase2t_decision_explainability_replay_backtest_projection_implementation TRAINER RUNTIME V2_PAPER_TRAINER_WRAPPER_CURRENT SIGNAL LINEAGE REALTIME_RUNTIME_EVIDENCE Purpose Codex review status across milestones. Source: Codex review artifacts Next source/task needed Wire latest Codex PASS/FAIL matrix and remediation links. Runtime truth rule Static proof fixtures and historical examples are not current runtime truth. Evidence missing — cannot explain without guessing. REQUIRED PRODUCTION DA",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Home Markets Status Sign in AF AlphaForge V2 AI-powered trading intelligence platform Sign in to your account EMAIL ADDRESS @ PASSWORD * SHOW Sign in Backend-authenticated access only. Browser role overrides do not grant elevated access. Simulated trading platform · Live trading permanently disabled",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
         "route_redirect_wrong": false,
         "placeholder_only": false,
@@ -844,31 +1028,39 @@
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
+        "current_paper_runtime_visible": false,
         "legacy_bridge_visible": false,
         "chart_exists": false,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 1,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin/build-validation-status?role=admin",
       "requested_url": "http://127.0.0.1:5173/admin/build-validation-status?role=admin",
-      "final_url": "http://127.0.0.1:5173/admin/build-validation-status?role=admin",
+      "final_url": "http://127.0.0.1:5173/login",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin_build-validation-status_role_admin.png",
-      "console_errors": [],
-      "network_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "network_errors": [
+        {
+          "url": "http://127.0.0.1:5173/api/auth/me",
+          "method": "GET",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness BUILD VALIDATION STATUS Build/Validation Status Lists claude_worklog/v2_build/* artifacts and READY/BLOCKED states. LIVE TRADING: BLOCKED_HUMAN_ONLY NON-LIVE OPERATOR SURFACE V2_PROOF_ARTIFACT / GO-NO-GO MARKERS PROOF FRESHNESS GO_NO_GO MARKERS CODEX REVIEW STATUS MISSING EVIDENCE GAPS BUILD VALIDATION STATUS TRUTH SUMMARY Current evidence state CONTROL PLANE CONTROL_PLANE_DAEMON_NOT_OBSERVED Dashboard must disclose missing control-plane daemons and stale historical status files separately. PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE TRAINER V2_PAPER_TRAINER_WRAPPER_CURRENT No prediction can be explained unless runtime evidence exists. REALTIME_RUNTIME_EVIDENCE SIGNAL LINEAGE REALTIME_RUNTIME_EVIDENCE Static proof lineage is not current runtime truth. REALTIME_RUNTIME_EVIDENCE PAYLOADS 13 stale 1 static fixtures; 0 missing. ",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Home Markets Status Sign in AF AlphaForge V2 AI-powered trading intelligence platform Sign in to your account EMAIL ADDRESS @ PASSWORD * SHOW Sign in Backend-authenticated access only. Browser role overrides do not grant elevated access. Simulated trading platform · Live trading permanently disabled",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
         "route_redirect_wrong": false,
         "placeholder_only": false,
@@ -876,31 +1068,39 @@
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
+        "current_paper_runtime_visible": false,
         "legacy_bridge_visible": false,
         "chart_exists": false,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 2,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin/operator-proof-dashboard?role=admin",
       "requested_url": "http://127.0.0.1:5173/admin/operator-proof-dashboard?role=admin",
-      "final_url": "http://127.0.0.1:5173/admin/operator-proof-dashboard?role=admin",
+      "final_url": "http://127.0.0.1:5173/login",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin_operator-proof-dashboard_role_admin.png",
-      "console_errors": [],
-      "network_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "network_errors": [
+        {
+          "url": "http://127.0.0.1:5173/assets/index-Cbqj0zxL.js",
+          "method": "GET",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness PROFESSIONAL NON-LIVE OPERATOR COCKPIT Operator Proof Dashboard Read-only non-live replay, paper, risk, explainability, and shadow proof artifacts. PROFESSIONAL_OPERATOR_GUI_AND_DECISION_EXPLAINABILITY_READY blocked_human_only GENERATED 2026-05-09T19:12:41.891856+00:00 GIT f8fc8c7 Codex watchdog recover dirty non-live automation artifacts QUEUE READY_FOR_CODEX_RERUN CURRENT TASK evidence_missing LIVE GATE blocked_human_only Mission Control Monitor Center System Atlas Trainer Prediction Monitor Signal Explainability Feature Attribution Symbol Universe Orchestrator Decisions Risk Gateway External Manual Quarantine Trader Fleet Config Admin Audit Ledger Replay / Historical Proof Live Readiness Automation Status Remaining Blockers Mission Control Human Attention 0 Stale Running 0 Automation idle_ready_for_next_task 2026-",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Home Markets Status Sign in AF AlphaForge V2 AI-powered trading intelligence platform Sign in to your account EMAIL ADDRESS @ PASSWORD * SHOW Sign in Backend-authenticated access only. Browser role overrides do not grant elevated access. Simulated trading platform · Live trading permanently disabled",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
         "route_redirect_wrong": false,
         "placeholder_only": false,
@@ -908,31 +1108,39 @@
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
+        "current_paper_runtime_visible": false,
         "legacy_bridge_visible": false,
         "chart_exists": false,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 1,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     },
     {
       "route": "/admin/mobile-iphone-readiness?role=admin",
       "requested_url": "http://127.0.0.1:5173/admin/mobile-iphone-readiness?role=admin",
-      "final_url": "http://127.0.0.1:5173/admin/mobile-iphone-readiness?role=admin",
+      "final_url": "http://127.0.0.1:5173/login",
       "http_status": 200,
       "title": "AI BOT V2 — Control Plane",
       "screenshot": "screenshots/local/_admin_mobile-iphone-readiness_role_admin.png",
-      "console_errors": [],
-      "network_errors": [],
+      "console_errors": [
+        "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      ],
+      "network_errors": [
+        {
+          "url": "http://127.0.0.1:5173/api/auth/me",
+          "method": "GET",
+          "failure": "net::ERR_ABORTED"
+        }
+      ],
       "navigation_error": null,
-      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) PRODUCTION OPERATOR COCKPIT AI BOT V2 LIVE: BLOCKED_HUMAN_ONLY SUPERVISOR: CURRENT CURRENT: NONE NEXT: CODEX_RECOVER_CODEX_RECOVER_CODEX_RECOVER_177_PHASE2T_DECISION_EXPLAINABILITY_REPLAY_BACKTEST_PROJECTION_IMPLEMENTATION TRAINER: V2_PAPER_TRAINER_WRAPPER_CURRENT Operator role admin Supervisor snapshot loaded OPERATE 13 Mission Control INSPECT Monitor Center System Health TRAINER / SIGNALS Trainer Prediction Monitor Signal Explainability Trainer Admin RISK 1 Risk Control External / Manual Position Quarantine Live Readiness EXECUTION Executions Positions Paper Trading Replay MARKET Symbols Signals OPERATE Exchange Manager ADMIN Config Admin Strategy Admin Orchestrator Admin Execution Admin PROOF / AUDIT 13 Coverage / System Atlas Script Registry Audit Ledger Codex Review Center Build/Validation Status Operator Proof Dashboard AI CONTROL Claude Admin AI Ollama Local Assistant SYSTEM Mobile / iPhone Readiness MOBILE / IPHONE READINESS Mobile / iPhone Readiness PWA + future RN/SwiftUI bridge readiness. No background trade actions. LIVE TRADING: BLOCKED_HUMAN_ONLY NO BACKGROUND TRADE ACTIONS V2_PROOF_ARTIFACT / MOBILE READINESS CHECKLIST RESPONSIVE COCKPIT FUTURE PWA PATH FUTURE IPHONE BRIDGE LIVE GATE STILL HUMAN-ONLY MOBILE / IPHONE READINESS TRUTH SUMMARY Current evidence state CONTROL PLANE CONTROL_PLANE_DAEMON_NOT_OBSERVED Dashboard must disclose missing control-plane daemons and stale historical status files separately. PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE TRAINER V2_PAPER_TRAINER_WRAPPER_CURRENT No prediction can be explained unless runtime evidence exists. REALTIME_RUNTIME_EVIDENCE SIGNAL LINEAGE REALTIME_RUNTIME_EVIDENCE Static proof lineage is not current runtime truth. REALTIME_RUNTIME_EVIDENCE PAYLOADS 13 stale 1",
+      "visible_text_excerpt": "LIVE TRADING: BLOCKED (banner cannot be dismissed) AF AlphaForge V2 Home Markets Status Sign in AF AlphaForge V2 AI-powered trading intelligence platform Sign in to your account EMAIL ADDRESS @ PASSWORD * SHOW Sign in Backend-authenticated access only. Browser role overrides do not grant elevated access. Simulated trading platform · Live trading permanently disabled",
       "classification": {
-        "production_ready": true,
+        "production_ready": false,
         "route_404": false,
         "route_redirect_wrong": false,
         "placeholder_only": false,
@@ -940,16 +1148,16 @@
         "proof_dump_primary": false,
         "stale_payload_primary": false,
         "static_fixture_as_current": false,
-        "current_paper_runtime_visible": true,
+        "current_paper_runtime_visible": false,
         "legacy_bridge_visible": false,
         "chart_exists": false,
         "chart_broken": false,
         "live_block_banner_visible": true,
         "live_controls_visible": false,
-        "console_error_count": 0,
-        "network_error_count": 0,
-        "operator_useful": true,
-        "needs_repair": false
+        "console_error_count": 2,
+        "network_error_count": 1,
+        "operator_useful": false,
+        "needs_repair": true
       }
     }
   ]

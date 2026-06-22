@@ -1,0 +1,396 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "did_not_adopt_any_symbol_universe_candidate": true,
+  "did_not_call_exchange_mutation": true,
+  "did_not_change_leverage_or_margin_mode": true,
+  "did_not_create_paper_only_shutdown_acceptance_file": true,
+  "did_not_deserialize_legacy_checkpoint": true,
+  "did_not_expose_raw_api_keys": true,
+  "did_not_install_systemd_units_or_scheduler_daemons": true,
+  "did_not_modify_legacy_tree": true,
+  "did_not_mutate_live_symbols_paper_symbols_or_training_symbols": true,
+  "did_not_stop_codex_governors": true,
+  "did_not_stop_legacy_runtime": true,
+  "did_not_stop_replay_miner": true,
+  "did_not_stop_report_center": true,
+  "did_not_stop_v2_runtime": true,
+  "did_not_weaken_paper_fill_gate": true,
+  "did_not_write_old_redis_keys": true,
+  "generated_utc": "2026-05-23T21:40:06Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "planner_does_not_run_tasks_only_queues_them": true,
+  "schema_version": "v2_legacy_startup_manifest_parity_and_bridge_exit_v1_first_batch_startup_parity_task_dispatch",
+  "task_count": 10,
+  "tasks": [
+    {
+      "broad_audit": false,
+      "claude_task_descriptor": "Implement v2_native_binance_ohlcv_dynamic_symbol_ingestor against scope v2/backend/app/services/native_ingestors/binance_ohlcv*.py",
+      "codex_review_descriptor": "codex exec review --uncommitted \"Review scope v2/backend/app/services/native_ingestors/binance_ohlcv*.py. no_old_redis_writes, no_exchange_mutation, no_live_or_canary_approval, no_legacy_mutation, no_paper_fill_gate_weakening.\"",
+      "codex_review_required": true,
+      "does_not_run_task": true,
+      "exact_source_files": [
+        "v2/backend/app/services/native_ingestors/binance_ohlcv*.py"
+      ],
+      "exact_target_v2_files": [
+        "v2/backend/app/services/**",
+        "v2/backend/app/cli/**",
+        "v2/backend/tests/**"
+      ],
+      "file_lock_group": "v2/backend/app/services/native_ingestors/binance_ohlcv*.py",
+      "forbidden_actions": [
+        "no_old_redis_writes",
+        "no_exchange_mutation",
+        "no_live_or_canary_approval",
+        "no_legacy_mutation",
+        "no_paper_fill_gate_weakening"
+      ],
+      "go_no_go_token": "V2_NATIVE_BINANCE_OHLCV_DYNAMIC_SYMBOL_INGESTOR_READY",
+      "public_payload_output": "v2/frontend/public/operator_runtime/**",
+      "scope": "v2/backend/app/services/native_ingestors/binance_ohlcv*.py",
+      "status": "QUEUED_NOT_RUNNING",
+      "task_id": "v2_native_binance_ohlcv_dynamic_symbol_ingestor",
+      "tests_required": true,
+      "writes": [
+        "v2:market:ohlcv:binance:{symbol}:{timeframe}"
+      ],
+      "writes_only": [
+        "v2:market:ohlcv:binance:{symbol}:{timeframe}"
+      ]
+    },
+    {
+      "broad_audit": false,
+      "claude_task_descriptor": "Implement v2_native_binance_orderbook_dynamic_symbol_ingestor against scope v2/backend/app/services/native_ingestors/binance_orderbook*.py",
+      "codex_review_descriptor": "codex exec review --uncommitted \"Review scope v2/backend/app/services/native_ingestors/binance_orderbook*.py. no_old_redis_writes, no_exchange_mutation, no_live_or_canary_approval, no_legacy_mutation, no_paper_fill_gate_weakening.\"",
+      "codex_review_required": true,
+      "does_not_run_task": true,
+      "exact_source_files": [
+        "v2/backend/app/services/native_ingestors/binance_orderbook*.py"
+      ],
+      "exact_target_v2_files": [
+        "v2/backend/app/services/**",
+        "v2/backend/app/cli/**",
+        "v2/backend/tests/**"
+      ],
+      "file_lock_group": "v2/backend/app/services/native_ingestors/binance_orderbook*.py",
+      "forbidden_actions": [
+        "no_old_redis_writes",
+        "no_exchange_mutation",
+        "no_live_or_canary_approval",
+        "no_legacy_mutation",
+        "no_paper_fill_gate_weakening"
+      ],
+      "go_no_go_token": "V2_NATIVE_BINANCE_ORDERBOOK_DYNAMIC_SYMBOL_INGESTOR_READY",
+      "public_payload_output": "v2/frontend/public/operator_runtime/**",
+      "scope": "v2/backend/app/services/native_ingestors/binance_orderbook*.py",
+      "status": "QUEUED_NOT_RUNNING",
+      "task_id": "v2_native_binance_orderbook_dynamic_symbol_ingestor",
+      "tests_required": true,
+      "writes": [
+        "v2:market:orderbook:binance:{symbol}"
+      ],
+      "writes_only": [
+        "v2:market:orderbook:binance:{symbol}"
+      ]
+    },
+    {
+      "broad_audit": false,
+      "claude_task_descriptor": "Implement v2_native_coinank_dynamic_symbol_ingestor against scope v2/backend/app/services/coinank_bridge/**",
+      "codex_review_descriptor": "codex exec review --uncommitted \"Review scope v2/backend/app/services/coinank_bridge/**. no_old_redis_writes, no_exchange_mutation, no_live_or_canary_approval, no_legacy_mutation, no_paper_fill_gate_weakening, no_paid_aggregator_adoption_without_operator_decision.\"",
+      "codex_review_required": true,
+      "does_not_run_task": true,
+      "exact_source_files": [
+        "v2/backend/app/services/coinank_bridge/**"
+      ],
+      "exact_target_v2_files": [
+        "v2/backend/app/services/**",
+        "v2/backend/app/cli/**",
+        "v2/backend/tests/**"
+      ],
+      "file_lock_group": "v2/backend/app/services/coinank_bridge/**",
+      "forbidden_actions": [
+        "no_old_redis_writes",
+        "no_exchange_mutation",
+        "no_live_or_canary_approval",
+        "no_legacy_mutation",
+        "no_paper_fill_gate_weakening",
+        "no_paid_aggregator_adoption_without_operator_decision"
+      ],
+      "go_no_go_token": "V2_NATIVE_COINANK_DYNAMIC_SYMBOL_INGESTOR_READY",
+      "public_payload_output": "v2/frontend/public/operator_runtime/**",
+      "scope": "v2/backend/app/services/coinank_bridge/**",
+      "status": "QUEUED_NOT_RUNNING",
+      "task_id": "v2_native_coinank_dynamic_symbol_ingestor",
+      "tests_required": true,
+      "writes": [
+        "v2:altdata:coinank:funding_aggregate:{symbol}",
+        "v2:altdata:coinank:long_short:{symbol}",
+        "v2:altdata:coinank:liquidation_aggregate:{symbol}"
+      ],
+      "writes_only": [
+        "v2:altdata:coinank:funding_aggregate:{symbol}",
+        "v2:altdata:coinank:long_short:{symbol}",
+        "v2:altdata:coinank:liquidation_aggregate:{symbol}"
+      ]
+    },
+    {
+      "broad_audit": false,
+      "claude_task_descriptor": "Implement v2_native_kucoin_dynamic_symbol_ingestor against scope v2/backend/app/services/native_ingestors/kucoin.py",
+      "codex_review_descriptor": "codex exec review --uncommitted \"Review scope v2/backend/app/services/native_ingestors/kucoin.py. no_old_redis_writes, no_exchange_mutation, no_live_or_canary_approval, no_legacy_mutation, no_paper_fill_gate_weakening, no_kucoin_writes_until_operator_decision.\"",
+      "codex_review_required": true,
+      "does_not_run_task": true,
+      "exact_source_files": [
+        "v2/backend/app/services/native_ingestors/kucoin.py"
+      ],
+      "exact_target_v2_files": [
+        "v2/backend/app/services/**",
+        "v2/backend/app/cli/**",
+        "v2/backend/tests/**"
+      ],
+      "file_lock_group": "v2/backend/app/services/native_ingestors/kucoin.py",
+      "forbidden_actions": [
+        "no_old_redis_writes",
+        "no_exchange_mutation",
+        "no_live_or_canary_approval",
+        "no_legacy_mutation",
+        "no_paper_fill_gate_weakening",
+        "no_kucoin_writes_until_operator_decision"
+      ],
+      "go_no_go_token": "V2_NATIVE_KUCOIN_DYNAMIC_SYMBOL_INGESTOR_READY",
+      "public_payload_output": "v2/frontend/public/operator_runtime/**",
+      "scope": "v2/backend/app/services/native_ingestors/kucoin.py",
+      "status": "QUEUED_NOT_RUNNING",
+      "task_id": "v2_native_kucoin_dynamic_symbol_ingestor",
+      "tests_required": true,
+      "writes": [
+        "v2:market:prices:kucoin:{symbol}"
+      ],
+      "writes_only": [
+        "v2:market:prices:kucoin:{symbol}"
+      ]
+    },
+    {
+      "broad_audit": false,
+      "claude_task_descriptor": "Implement v2_native_coinapi_wsds_dynamic_symbol_ingestor against scope v2/backend/app/services/native_ingestors/coinapi_wsds.py",
+      "codex_review_descriptor": "codex exec review --uncommitted \"Review scope v2/backend/app/services/native_ingestors/coinapi_wsds.py. no_old_redis_writes, no_exchange_mutation, no_live_or_canary_approval, no_legacy_mutation, no_paper_fill_gate_weakening, no_coinapi_writes_until_operator_decision.\"",
+      "codex_review_required": true,
+      "does_not_run_task": true,
+      "exact_source_files": [
+        "v2/backend/app/services/native_ingestors/coinapi_wsds.py"
+      ],
+      "exact_target_v2_files": [
+        "v2/backend/app/services/**",
+        "v2/backend/app/cli/**",
+        "v2/backend/tests/**"
+      ],
+      "file_lock_group": "v2/backend/app/services/native_ingestors/coinapi_wsds.py",
+      "forbidden_actions": [
+        "no_old_redis_writes",
+        "no_exchange_mutation",
+        "no_live_or_canary_approval",
+        "no_legacy_mutation",
+        "no_paper_fill_gate_weakening",
+        "no_coinapi_writes_until_operator_decision"
+      ],
+      "go_no_go_token": "V2_NATIVE_COINAPI_WSDS_DYNAMIC_SYMBOL_INGESTOR_READY",
+      "public_payload_output": "v2/frontend/public/operator_runtime/**",
+      "scope": "v2/backend/app/services/native_ingestors/coinapi_wsds.py",
+      "status": "QUEUED_NOT_RUNNING",
+      "task_id": "v2_native_coinapi_wsds_dynamic_symbol_ingestor",
+      "tests_required": true,
+      "writes": [
+        "v2:market:coinapi:wsds:{symbol}"
+      ],
+      "writes_only": [
+        "v2:market:coinapi:wsds:{symbol}"
+      ]
+    },
+    {
+      "broad_audit": false,
+      "claude_task_descriptor": "Implement v2_native_feature_pipeline_dynamic_symbol_expansion against scope v2/backend/app/services/feature_pipeline_native/**",
+      "codex_review_descriptor": "codex exec review --uncommitted \"Review scope v2/backend/app/services/feature_pipeline_native/**. no_old_redis_writes, no_exchange_mutation, no_live_or_canary_approval, no_legacy_mutation, no_paper_fill_gate_weakening.\"",
+      "codex_review_required": true,
+      "does_not_run_task": true,
+      "exact_source_files": [
+        "v2/backend/app/services/feature_pipeline_native/**"
+      ],
+      "exact_target_v2_files": [
+        "v2/backend/app/services/**",
+        "v2/backend/app/cli/**",
+        "v2/backend/tests/**"
+      ],
+      "file_lock_group": "v2/backend/app/services/feature_pipeline_native/**",
+      "forbidden_actions": [
+        "no_old_redis_writes",
+        "no_exchange_mutation",
+        "no_live_or_canary_approval",
+        "no_legacy_mutation",
+        "no_paper_fill_gate_weakening"
+      ],
+      "go_no_go_token": "V2_NATIVE_FEATURE_PIPELINE_DYNAMIC_SYMBOL_EXPANSION_READY",
+      "public_payload_output": "v2/frontend/public/operator_runtime/**",
+      "scope": "v2/backend/app/services/feature_pipeline_native/**",
+      "status": "QUEUED_NOT_RUNNING",
+      "task_id": "v2_native_feature_pipeline_dynamic_symbol_expansion",
+      "tests_required": true,
+      "writes": [
+        "v2:features:latest:{symbol}:{timeframe}",
+        "v2:features:ta:{symbol}:{timeframe}"
+      ],
+      "writes_only": [
+        "v2:features:latest:{symbol}:{timeframe}",
+        "v2:features:ta:{symbol}:{timeframe}"
+      ]
+    },
+    {
+      "broad_audit": false,
+      "claude_task_descriptor": "Implement v2_native_technical_analysis_dynamic_symbol_service against scope v2/backend/app/services/feature_pipeline_native/**",
+      "codex_review_descriptor": "codex exec review --uncommitted \"Review scope v2/backend/app/services/feature_pipeline_native/**. no_old_redis_writes, no_exchange_mutation, no_live_or_canary_approval, no_legacy_mutation, no_paper_fill_gate_weakening.\"",
+      "codex_review_required": true,
+      "does_not_run_task": true,
+      "exact_source_files": [
+        "v2/backend/app/services/feature_pipeline_native/**"
+      ],
+      "exact_target_v2_files": [
+        "v2/backend/app/services/**",
+        "v2/backend/app/cli/**",
+        "v2/backend/tests/**"
+      ],
+      "file_lock_group": "v2/backend/app/services/feature_pipeline_native/**",
+      "forbidden_actions": [
+        "no_old_redis_writes",
+        "no_exchange_mutation",
+        "no_live_or_canary_approval",
+        "no_legacy_mutation",
+        "no_paper_fill_gate_weakening"
+      ],
+      "go_no_go_token": "V2_NATIVE_TECHNICAL_ANALYSIS_DYNAMIC_SYMBOL_SERVICE_READY",
+      "public_payload_output": "v2/frontend/public/operator_runtime/**",
+      "scope": "v2/backend/app/services/feature_pipeline_native/**",
+      "status": "QUEUED_NOT_RUNNING",
+      "task_id": "v2_native_technical_analysis_dynamic_symbol_service",
+      "tests_required": true,
+      "writes": [
+        "v2:features:ta:{symbol}:{timeframe}"
+      ],
+      "writes_only": [
+        "v2:features:ta:{symbol}:{timeframe}"
+      ]
+    },
+    {
+      "broad_audit": false,
+      "claude_task_descriptor": "Implement v2_trainer_bridge_exit_native_prediction_publisher_contract against scope v2/backend/app/services/trainer_bridge/**",
+      "codex_review_descriptor": "codex exec review --uncommitted \"Review scope v2/backend/app/services/trainer_bridge/**. no_old_redis_writes, no_exchange_mutation, no_live_or_canary_approval, no_legacy_mutation, no_paper_fill_gate_weakening, no_checkpoint_deserialization_in_control_plane.\"",
+      "codex_review_required": true,
+      "does_not_run_task": true,
+      "exact_source_files": [
+        "v2/backend/app/services/trainer_bridge/**"
+      ],
+      "exact_target_v2_files": [
+        "v2/backend/app/services/**",
+        "v2/backend/app/cli/**",
+        "v2/backend/tests/**"
+      ],
+      "file_lock_group": "v2/backend/app/services/trainer_bridge/**",
+      "forbidden_actions": [
+        "no_old_redis_writes",
+        "no_exchange_mutation",
+        "no_live_or_canary_approval",
+        "no_legacy_mutation",
+        "no_paper_fill_gate_weakening",
+        "no_checkpoint_deserialization_in_control_plane"
+      ],
+      "go_no_go_token": "V2_TRAINER_BRIDGE_EXIT_NATIVE_PREDICTION_PUBLISHER_CONTRACT_READY",
+      "public_payload_output": "v2/frontend/public/operator_runtime/**",
+      "scope": "v2/backend/app/services/trainer_bridge/**",
+      "status": "QUEUED_NOT_RUNNING",
+      "task_id": "v2_trainer_bridge_exit_native_prediction_publisher_contract",
+      "tests_required": true,
+      "writes": [
+        "v2:prediction:{symbol}:{timeframe}",
+        "v2:trainer:heartbeat"
+      ],
+      "writes_only": [
+        "v2:prediction:{symbol}:{timeframe}",
+        "v2:trainer:heartbeat"
+      ]
+    },
+    {
+      "broad_audit": false,
+      "claude_task_descriptor": "Implement v2_trainer_dataset_builder_from_v2_replay_features against scope v2/backend/app/services/trainer_bridge/**",
+      "codex_review_descriptor": "codex exec review --uncommitted \"Review scope v2/backend/app/services/trainer_bridge/**. no_old_redis_writes, no_exchange_mutation, no_live_or_canary_approval, no_legacy_mutation, no_paper_fill_gate_weakening, no_checkpoint_compatibility_claim, no_policy_architecture_parity_claim.\"",
+      "codex_review_required": true,
+      "does_not_run_task": true,
+      "exact_source_files": [
+        "v2/backend/app/services/trainer_bridge/**"
+      ],
+      "exact_target_v2_files": [
+        "v2/backend/app/services/**",
+        "v2/backend/app/cli/**",
+        "v2/backend/tests/**"
+      ],
+      "file_lock_group": "v2/backend/app/services/trainer_bridge/**",
+      "forbidden_actions": [
+        "no_old_redis_writes",
+        "no_exchange_mutation",
+        "no_live_or_canary_approval",
+        "no_legacy_mutation",
+        "no_paper_fill_gate_weakening",
+        "no_checkpoint_compatibility_claim",
+        "no_policy_architecture_parity_claim"
+      ],
+      "go_no_go_token": "V2_TRAINER_DATASET_BUILDER_FROM_V2_REPLAY_FEATURES_READY",
+      "public_payload_output": "v2/frontend/public/operator_runtime/**",
+      "scope": "v2/backend/app/services/trainer_bridge/**",
+      "status": "QUEUED_NOT_RUNNING",
+      "task_id": "v2_trainer_dataset_builder_from_v2_replay_features",
+      "tests_required": true,
+      "writes": [
+        "v2:trainer:dataset:manifest"
+      ],
+      "writes_only": [
+        "v2:trainer:dataset:manifest"
+      ]
+    },
+    {
+      "broad_audit": false,
+      "claude_task_descriptor": "Implement v2_startup_order_parity_control_plane against scope v2/backend/app/services/legacy_startup_parity/**",
+      "codex_review_descriptor": "codex exec review --uncommitted \"Review scope v2/backend/app/services/legacy_startup_parity/**. no_old_redis_writes, no_exchange_mutation, no_live_or_canary_approval, no_legacy_mutation, no_paper_fill_gate_weakening, no_systemd_install, no_daemon_install.\"",
+      "codex_review_required": true,
+      "does_not_run_task": true,
+      "exact_source_files": [
+        "v2/backend/app/services/legacy_startup_parity/**"
+      ],
+      "exact_target_v2_files": [
+        "v2/backend/app/services/**",
+        "v2/backend/app/cli/**",
+        "v2/backend/tests/**"
+      ],
+      "file_lock_group": "v2/backend/app/services/legacy_startup_parity/**",
+      "forbidden_actions": [
+        "no_old_redis_writes",
+        "no_exchange_mutation",
+        "no_live_or_canary_approval",
+        "no_legacy_mutation",
+        "no_paper_fill_gate_weakening",
+        "no_systemd_install",
+        "no_daemon_install"
+      ],
+      "go_no_go_token": "V2_STARTUP_ORDER_PARITY_CONTROL_PLANE_READY",
+      "public_payload_output": "v2/frontend/public/operator_runtime/**",
+      "scope": "v2/backend/app/services/legacy_startup_parity/**",
+      "status": "QUEUED_NOT_RUNNING",
+      "task_id": "v2_startup_order_parity_control_plane",
+      "tests_required": true,
+      "writes": [
+        "v2:*"
+      ],
+      "writes_only": [
+        "v2:*"
+      ]
+    }
+  ]
+}

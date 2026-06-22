@@ -1,0 +1,186 @@
+{
+  "blockers": [],
+  "bridge_status": {
+    "active_state": "inactive",
+    "compliant": true,
+    "unit": "ai-bot-v2-trainer-bridge.service",
+    "unit_file_state": "masked"
+  },
+  "gate": "V2_NATIVE_HYBRID_TRAINER_FULL_FUNCTION_PARITY_AND_PAPER_REVERIFY_READY",
+  "generated_est": "2026-06-09T21:56:25-04:00",
+  "paper_equity": {
+    "accepted_fill_count": 9,
+    "current_session_equity": 10000.0,
+    "current_session_pnl": 0.0,
+    "equity_source": "v2:portfolio:state + v2:paper:ledger",
+    "generated_est": "2026-06-09T21:56:19-04:00",
+    "held_row_count": 0,
+    "stale_minus_49_display_current_session": false,
+    "status": "PAPER_EQUITY_CURRENT_LEDGER_SOURCE_REVERIFIED"
+  },
+  "paper_runtime": {
+    "accepted_fill_count": 9,
+    "generated_est": "2026-06-09T21:56:19-04:00",
+    "held_row_count": 0,
+    "native_prediction_to_paper_chain_required": [
+      "prediction_id",
+      "risk_decision_id",
+      "orchestrator_decision_id",
+      "paper_intent_id",
+      "paper_ledger_id"
+    ],
+    "open_positions_count": 0,
+    "portfolio_equity": 10000.0,
+    "portfolio_pnl": 0.0,
+    "shadow_observation_count": 0,
+    "source_keys": [
+      "v2:paper:ledger",
+      "v2:portfolio:state",
+      "v2:paper:positions"
+    ],
+    "status": "PAPER_RUNTIME_CURRENT_SOURCE_REVERIFIED"
+  },
+  "parity": {
+    "classification_counts": {
+      "NATIVELY_REPLACED": 152,
+      "NATIVELY_REPLACED_BY_MARKET_STATE_INTEGRITY": 66,
+      "NATIVELY_REPLACED_BY_SERVICE_COMPOSITION": 9,
+      "NATIVELY_REPLACED_BY_V2_RISK_ORCHESTRATOR": 46,
+      "NATIVELY_REPLACED_BY_V2_SIGNAL_RISK_ORCHESTRATOR": 12,
+      "NOT_NEEDED_IN_TRAINER_MOVED_TO_V2_RUNTIME": 28,
+      "UNSAFE_IN_TRAINER_FAIL_CLOSED": 11
+    },
+    "legacy_method_count": 324,
+    "required_missing_count": 0
+  },
+  "prediction_status": {
+    "blocked_prediction_rows": 0,
+    "checkpoint_lineage_present": true,
+    "feature_snapshot_lineage_present": true,
+    "generated_est": "2026-06-09T21:56:19-04:00",
+    "prediction_rows": 655,
+    "rl_core_fallback_rows": [],
+    "source_payload_generated_est": "2026-06-09T21:55:51-04:00",
+    "status": "TRAINER_OUTPUT_REVERIFIED",
+    "status_counts": {
+      "PRESENT_CURRENT": 655
+    },
+    "timeframe_counts": {
+      "15m": 131,
+      "1h": 131,
+      "1m": 131,
+      "4h": 131,
+      "5m": 131
+    },
+    "trainer_source_counts": {
+      "V2_NATIVE_RL_MASA_PPO_CUDA_TRAINER_PAPER_SHADOW": 655
+    }
+  },
+  "safety": {
+    "legacy_hybrid_trainer_wrapper_run": false,
+    "legacy_restart": false,
+    "leverage_or_margin_mutation": false,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_orders": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "validation": {
+    "bridge_wrapper_label_scan": "PASS: expected inventory/reference strings only; trainer bridge inactive/masked",
+    "cuda_prediction_grid": "PASS: 655/655 PRESENT_CURRENT, 0 blocked, 0 invalid symbols",
+    "exchange_mutation_scan": "PASS: no order/test-order/cancel/modify/leverage/margin calls in changed files",
+    "focused_backend_tests": "PASS: 20 passed, 1 warning",
+    "frontend_build": "PASS",
+    "frontend_typecheck": "PASS",
+    "local_route_probe": "PASS: 9/9 routes HTTP 200",
+    "old_redis_scan": "PASS: changed runtime writes v2:* only; RL-core sidecar namespace only",
+    "production_route_probe": "PASS: 9/9 routes HTTP 200",
+    "py_compile": "PASS",
+    "raw_secret_scan": "PASS",
+    "rl_core_primary_prediction_overwrite_regression": "PASS: sidecar-only test added"
+  },
+  "website": {
+    "generated_est": "2026-06-09T21:56:25-04:00",
+    "production_ok_count": 9,
+    "production_routes": [
+      {
+        "content_length": 537,
+        "error": null,
+        "http_status": 200,
+        "ok": true,
+        "url": "https://dashboard.wajidali.us/dashboard"
+      },
+      {
+        "content_length": 537,
+        "error": null,
+        "http_status": 200,
+        "ok": true,
+        "url": "https://dashboard.wajidali.us/trade"
+      },
+      {
+        "content_length": 537,
+        "error": null,
+        "http_status": 200,
+        "ok": true,
+        "url": "https://dashboard.wajidali.us/trade/paper"
+      },
+      {
+        "content_length": 537,
+        "error": null,
+        "http_status": 200,
+        "ok": true,
+        "url": "https://dashboard.wajidali.us/derivatives"
+      },
+      {
+        "content_length": 537,
+        "error": null,
+        "http_status": 200,
+        "ok": true,
+        "url": "https://dashboard.wajidali.us/signals"
+      },
+      {
+        "content_length": 537,
+        "error": null,
+        "http_status": 200,
+        "ok": true,
+        "url": "https://dashboard.wajidali.us/ai-predictions"
+      },
+      {
+        "content_length": 537,
+        "error": null,
+        "http_status": 200,
+        "ok": true,
+        "url": "https://dashboard.wajidali.us/portfolio"
+      },
+      {
+        "content_length": 537,
+        "error": null,
+        "http_status": 200,
+        "ok": true,
+        "url": "https://dashboard.wajidali.us/system/trainer"
+      },
+      {
+        "content_length": 537,
+        "error": null,
+        "http_status": 200,
+        "ok": true,
+        "url": "https://dashboard.wajidali.us/system/readiness"
+      }
+    ],
+    "production_total": 9,
+    "routes": [
+      "/dashboard",
+      "/trade",
+      "/trade/paper",
+      "/derivatives",
+      "/signals",
+      "/ai-predictions",
+      "/portfolio",
+      "/system/trainer",
+      "/system/readiness"
+    ],
+    "status": "PRODUCTION_ROUTES_PROBED"
+  }
+}

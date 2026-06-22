@@ -1,0 +1,168 @@
+{
+  "active_claude_task": "NEEDS_DISPATCH:claude_12h_p0_2c_checkpoint_metadata_loading",
+  "active_codex_task": "GOVERNOR_MONITOR_AND_PHASE_REVIEWS",
+  "active_phase": "P0.2C",
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "blocked_or_incomplete_phases": [
+    "P12"
+  ],
+  "claude_task_created": "claude_worklog/agent_supervisor/tasks/claude_12h_p0_2c_checkpoint_metadata_loading.json",
+  "codex_passed_phases": [
+    "P0.2B"
+  ],
+  "codex_review_task_created": "claude_worklog/agent_supervisor/tasks/codex_review_12h_p0_2c_checkpoint_metadata_loading.json",
+  "current_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",
+  "exchange_mutation_state": "none_found_in_p0_2b_active_scan",
+  "final_go_no_go_current": "TWELVE_HOUR_NATIVE_CORE_MIGRATION_CODEX_FAIL_CORE_INCOMPLETE",
+  "frontend_truth_state": "UPDATED_PUBLIC_PAYLOAD_PAPER_ONLY_BLOCKED",
+  "generated_utc": "2026-05-16T03:31:52Z",
+  "governor_status": "ACTIVE_INITIALIZED",
+  "latest_codex_phase_review": "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2b/latest/codex_review/CODEX_REVIEW.md",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "next_required_action": "dispatch_or_continue claude_12h_p0_2c_checkpoint_metadata_loading",
+  "non_drift_selected_primary_task": "claude_v2_native_core_p0_true_migration_sprint",
+  "old_redis_write_state": "none_found_in_p0_2b_active_scan",
+  "pending_phases": [
+    "P0.2C",
+    "P0.2D",
+    "P0.2E",
+    "P0.2F",
+    "P0.3",
+    "P0.4",
+    "P0.5",
+    "P9",
+    "P10",
+    "P11"
+  ],
+  "phase_summary": [
+    {
+      "blockers": [],
+      "codex_status": "CODEX_30M_STATUS_ACTIVE",
+      "go_no_go": "SPRINT_CONTROLLER_READY",
+      "name": "Sprint controller and status packet",
+      "phase_id": "P0",
+      "status": "CODEX_GOVERNOR_INITIALIZED"
+    },
+    {
+      "blockers": [
+        "FULL_TRAINER_MIGRATION_NOT_CLAIMED",
+        "CHECKPOINT_DEFERRED_TO_P0_2C",
+        "CPU_UPDATE_DEFERRED_TO_P0_2D",
+        "GPU_PARITY_DEFERRED_TO_P0_2E",
+        "TRAINER_OUTPUT_CONTRACT_DEFERRED_TO_P0_2F"
+      ],
+      "codex_status": "PASS",
+      "go_no_go": "V2_NATIVE_RL_MASA_PPO_P0_2B_CODEX_PASS",
+      "name": "MASA/PPO CPU-first forward-pass policy",
+      "phase_id": "P0.2B",
+      "status": "READY_SCOPE_LIMITED"
+    },
+    {
+      "blockers": [
+        "AWAITING_CLAUDE_IMPLEMENTATION"
+      ],
+      "codex_status": "PENDING",
+      "go_no_go": null,
+      "name": "Checkpoint metadata and safe weight loading",
+      "phase_id": "P0.2C",
+      "status": "NEXT_REQUIRED"
+    },
+    {
+      "blockers": [],
+      "codex_status": "PENDING",
+      "go_no_go": null,
+      "name": "Tiny CPU PPO update loop",
+      "phase_id": "P0.2D",
+      "status": "PENDING"
+    },
+    {
+      "blockers": [
+        "DEPENDS_ON_P0_2D"
+      ],
+      "codex_status": "PENDING",
+      "go_no_go": null,
+      "name": "GPU training loop parity",
+      "phase_id": "P0.2E",
+      "status": "PENDING"
+    },
+    {
+      "blockers": [],
+      "codex_status": "PENDING",
+      "go_no_go": null,
+      "name": "Trainer output contract (expected move, confidence, attribution)",
+      "phase_id": "P0.2F",
+      "status": "PENDING"
+    },
+    {
+      "blockers": [],
+      "codex_status": "PENDING",
+      "go_no_go": null,
+      "name": "Orchestrator arbitration native paper-first",
+      "phase_id": "P0.3",
+      "status": "PENDING"
+    },
+    {
+      "blockers": [],
+      "codex_status": "PENDING",
+      "go_no_go": null,
+      "name": "Stop/TP/stealth/hedge/anti-churn paper engine",
+      "phase_id": "P0.4",
+      "status": "PENDING"
+    },
+    {
+      "blockers": [],
+      "codex_status": "PENDING",
+      "go_no_go": null,
+      "name": "Native ingestor verification/build",
+      "phase_id": "P0.5",
+      "status": "PENDING"
+    },
+    {
+      "blockers": [],
+      "codex_status": "PENDING",
+      "go_no_go": null,
+      "name": "Integration: V2-owned non-live startup",
+      "phase_id": "P9",
+      "status": "PENDING"
+    },
+    {
+      "blockers": [
+        "BLOCKED_UNTIL_PHASES_1_THROUGH_9_CODEX_PASS"
+      ],
+      "codex_status": "PENDING",
+      "go_no_go": null,
+      "name": "Legacy shutdown readiness gate",
+      "phase_id": "P10",
+      "status": "PENDING"
+    },
+    {
+      "blockers": [],
+      "codex_status": "PENDING",
+      "go_no_go": null,
+      "name": "Frontend truth and user pages",
+      "phase_id": "P11",
+      "status": "PENDING"
+    },
+    {
+      "blockers": [
+        "P0_2C_THROUGH_P10_INCOMPLETE"
+      ],
+      "codex_status": "FAIL_CORE_INCOMPLETE",
+      "go_no_go": "TWELVE_HOUR_NATIVE_CORE_MIGRATION_CODEX_FAIL_CORE_INCOMPLETE",
+      "name": "Final 12-hour packet",
+      "phase_id": "P12",
+      "status": "BLOCKED"
+    }
+  ],
+  "raw_secrets_publication_state": "not_detected_in_local_secret_vault_outputs",
+  "schema": "codex_12h_native_core_governor_30m_status_v1",
+  "sprint_id": "TWELVE_HOUR_NATIVE_CORE_MIGRATION_AND_SHUTDOWN_READINESS_SPRINT",
+  "supervisor_current_status": "pending",
+  "supervisor_current_task": null,
+  "supervisor_next_pending_task": "claude_v2_native_core_p0_true_migration_sprint",
+  "supervisor_running_task": null
+}

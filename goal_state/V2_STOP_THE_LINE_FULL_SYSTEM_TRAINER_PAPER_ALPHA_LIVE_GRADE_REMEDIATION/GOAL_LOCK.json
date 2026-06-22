@@ -1,0 +1,40 @@
+{
+  "goal_id": "V2_STOP_THE_LINE_FULL_SYSTEM_TRAINER_PAPER_ALPHA_LIVE_GRADE_REMEDIATION",
+  "locked_at": "2026-06-16T06:30:00Z",
+  "objective": "Fix the full runtime chain: market_data → feature → trainer → strategy → risk → paper lifecycle → exits → PnL → trainer_feedback → website. Do not produce audit-only artifacts. Fix, test, validate.",
+  "hard_safety_constraints": {
+    "no_real_orders": true,
+    "no_test_order": true,
+    "no_cancel_modify_real_exchange_orders": true,
+    "no_change_exchange_leverage": true,
+    "no_change_exchange_margin_mode": true,
+    "no_transfer_withdraw_funds": true,
+    "no_write_old_redis": true,
+    "no_restart_legacy": true,
+    "no_trim_redis": true,
+    "no_expose_raw_credentials": true,
+    "no_unmask_trainer_bridge": true,
+    "no_reintroduce_v2_paper_trainer_wrapper": true,
+    "no_rl_core_overwrite_primary_cuda_predictions": true,
+    "no_fixed_runtime_sizing": true,
+    "no_static_leverage_or_margin_policy": true,
+    "no_guarantee_profit_or_winrate": true,
+    "live_remains_balance_held_no_live_execution": true
+  },
+  "phases": [
+    "Phase 0: Goal lock + tracking files + current runtime snapshot",
+    "Phase 1: Legacy-to-V2 critical behavior gap status",
+    "Phase 2: Trainer feedback quarantine fix",
+    "Phase 3: No-trade mode fix (strategy actionability)",
+    "Phase 4: Major-move detection full universe",
+    "Phase 5: Stale prediction root cause fix (ACTIVE)",
+    "Phase 6: Durable trainer learning verification",
+    "Phase 7: Adaptive strategy, hedge, exit, PnL repair",
+    "Phase 8: 90%/10k feasibility",
+    "Phase 9: Website truth updates",
+    "Phase 10-11: Post-fix one-shot + soak restart",
+    "Phase 12: Final validation + GO_NO_GO"
+  ],
+  "places_real_order": false,
+  "exchange_mutation": false
+}

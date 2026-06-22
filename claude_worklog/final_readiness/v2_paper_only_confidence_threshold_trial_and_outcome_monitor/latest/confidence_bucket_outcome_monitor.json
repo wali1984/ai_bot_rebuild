@@ -1,0 +1,86 @@
+{
+  "alerts": [
+    "PAPER_CONFIDENCE_TRIAL_DRAWDOWN_EXCEEDED",
+    "PAPER_CONFIDENCE_TRIAL_ALLOWED_LOSER_RATE_HIGH",
+    "PAPER_CONFIDENCE_TRIAL_NO_EDGE_AFTER_60M"
+  ],
+  "bucket_monitor": {
+    "0.500-0.520": {
+      "after_cost_correct_count": 0,
+      "avg_confidence": 0.5150844461981979,
+      "avg_expected_move_after_cost_bps": 11.185826105229994,
+      "matched_completed_outcomes": 0,
+      "paper_allowed_before": 0,
+      "prediction_count": 51,
+      "trial_candidate_count": 0,
+      "would_have_beaten_costs_count": 0
+    },
+    "0.520-0.530": {
+      "after_cost_correct_count": 0,
+      "avg_confidence": 0.5258634931561933,
+      "avg_expected_move_after_cost_bps": 1.4067947524562279,
+      "matched_completed_outcomes": 0,
+      "paper_allowed_before": 0,
+      "prediction_count": 373,
+      "trial_candidate_count": 0,
+      "would_have_beaten_costs_count": 0
+    },
+    "0.530-0.540": {
+      "after_cost_correct_count": 0,
+      "avg_confidence": 0.5335593533409797,
+      "avg_expected_move_after_cost_bps": 2.1843573088558874,
+      "matched_completed_outcomes": 0,
+      "paper_allowed_before": 0,
+      "prediction_count": 178,
+      "trial_candidate_count": 0,
+      "would_have_beaten_costs_count": 0
+    },
+    "0.540-0.545": {
+      "after_cost_correct_count": 0,
+      "avg_confidence": 0.542562341256718,
+      "avg_expected_move_after_cost_bps": 1.319891357421875,
+      "matched_completed_outcomes": 0,
+      "paper_allowed_before": 0,
+      "prediction_count": 20,
+      "trial_candidate_count": 8,
+      "would_have_beaten_costs_count": 0
+    },
+    "0.545-0.550": {
+      "after_cost_correct_count": 0,
+      "avg_confidence": 0.5475080273004104,
+      "avg_expected_move_after_cost_bps": 2.986078675587972,
+      "matched_completed_outcomes": 0,
+      "paper_allowed_before": 0,
+      "prediction_count": 15,
+      "trial_candidate_count": 7,
+      "would_have_beaten_costs_count": 0
+    },
+    "0.550-0.600": {
+      "after_cost_correct_count": 0,
+      "avg_confidence": 0.5529010652688148,
+      "avg_expected_move_after_cost_bps": -17.876374145348866,
+      "matched_completed_outcomes": 0,
+      "paper_allowed_before": 21,
+      "prediction_count": 24,
+      "trial_candidate_count": 0,
+      "would_have_beaten_costs_count": 0
+    },
+    "below-0.500": {
+      "after_cost_correct_count": 0,
+      "avg_confidence": 0.49461232283239187,
+      "avg_expected_move_after_cost_bps": 14.734941959381104,
+      "matched_completed_outcomes": 0,
+      "paper_allowed_before": 0,
+      "prediction_count": 4,
+      "trial_candidate_count": 0,
+      "would_have_beaten_costs_count": 0
+    }
+  },
+  "completed_observations": 488,
+  "generated_est": "2026-06-10T21:02:51-04:00",
+  "monitor_window_minutes": 60,
+  "schema_version": "v2_paper_only_confidence_threshold_trial_v1_bucket_outcome_monitor",
+  "shadow_observations_total": 500,
+  "status": "CONFIDENCE_BUCKET_OUTCOME_MONITOR_ARMED",
+  "trial_threshold": 0.54
+}

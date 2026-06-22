@@ -1,0 +1,28 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "go_no_go": "V2_TECHNICAL_ANALYSIS_RUNTIME_STATUS_READY",
+  "indicators_in_scope": [
+    "RSI",
+    "MACD",
+    "EMA",
+    "SMA",
+    "ATR",
+    "volatility_bands",
+    "momentum",
+    "multi_timeframe_confirmation",
+    "support_resistance",
+    "liquidation_levels_when_available"
+  ],
+  "live_symbols": [],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "ta_key_count_now": 25,
+  "talib_worker_exists": true,
+  "talib_worker_module": "v2/backend/app/cli/v2_feature_pipeline_and_ta_worker.py",
+  "ts_est": "20260526T003358EST",
+  "ts_iso_est": "2026-05-26T00:49:14-0400",
+  "writes_exchange_orders": false
+}

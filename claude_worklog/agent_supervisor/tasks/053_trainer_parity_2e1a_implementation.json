@@ -1,16 +1,43 @@
 {
-  "task_id": "053_trainer_parity_2e1a_implementation",
   "agent": "claude",
-  "risk_level": "L1",
-  "status": "pending",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "v2/backend/app/adapters/trainer/",
     "v2/backend/tests/unit/adapters/trainer/",
     "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/",
     "claude_worklog/agent_supervisor/runs/053_trainer_parity_2e1a_implementation/"
   ],
+  "auto_commit": false,
+  "completed_at": "2026-05-02T21:01:18.475239+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": [],
+  "emit_files": true,
+  "forbidden_output_prefixes": [
+    "v2/backend/adapters/trainer/"
+  ],
+  "go_no_go_marker": "PHASE2E1A_TRAINER_PARITY_IMPL_READY_FOR_LOCAL_VALIDATION",
+  "last_recovery_note": "053 previously emitted valid BEGIN_FILE blocks under v2/backend/adapters/trainer/ and mismatched report/test names. Prompt tightened to exact app adapter root and required outputs.",
+  "max_attempts": 1,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_recommended_action": "Materialize 053 emit-only outputs, run local compile/pytest/no-live/secret validations, then promote 08_2E1A_GO_NO_GO.md to PHASE2E1A_TRAINER_PARITY_IMPL_READY_FOR_CODEX_REVIEW only if validation passes. Do not run 054 before validation.",
+  "phase2_requirements": [
+    "Phase 2E plan Codex rerun2 PASS marker present",
+    "subprocess boundary only \u2014 no legacy import into FastAPI process",
+    "argv vocabulary read_only|status|export only",
+    "no env passthrough; explicit allowlist only",
+    "audit event per invoke",
+    "no Redis client used at runtime",
+    "no real legacy spawn in tests",
+    "no shell=True anywhere",
+    "no modification of legacy_reference/**",
+    "no access to /home/wali/Desktop/AI BOT",
+    "no Redis-state modification",
+    "no exchange-side action",
+    "no leverage- or margin-config-write action",
+    "no switch from non-live to live mode"
+  ],
+  "priority": 0,
+  "prompt": "You are local Claude executing supervisor task 053 in headless emit-only mode. Do not use tools. Do not write files directly. Do not ask for permission. Output only BEGIN_FILE / END_FILE blocks. No prose outside file blocks. END_FILE must be alone on its line with no path suffix. Implement Phase 2E1.A exactly per claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/02_PHASE_2E1A_SUBPROCESS_ADAPTER_SPEC.md and 03_PHASE_2E1A_TEST_PLAN.md. Honor every constraint in 04_PHASE_2E1A_SAFETY_BOUNDARIES.md. Do not modify legacy_reference/**. Do not access /home/wali/Desktop/AI BOT. Do not import any legacy trainer module into the adapter file. Do not import redis. Do not call subprocess.* in the adapter file; only default_runner.py may call subprocess.run and it must use shell=False. Do not spawn the legacy trainer in tests; use the injected FakeRunner from conftest.py. Do not write to any path outside the allowed_output_prefixes. Do not modify .env files. Do not emit secret values. Do not perform any Redis-state modification, exchange-side action, leverage- or margin-config-write action, switch from non-live to live mode, deployment, or production migration. Emit every required_output_file. The implementation report must describe each file emitted and how each spec rule maps to a test. The test invocation log must list the exact local validation command that the supervisor/operator must run after materialization: pytest -q v2/backend/tests/unit/adapters/trainer/. Since you cannot run tools in headless emit-only mode, do not claim tests were executed. The GO/NO-GO file must contain exactly one line: PHASE2E1A_TRAINER_PARITY_IMPL_READY_FOR_LOCAL_VALIDATION. Do not emit PHASE2E1A_TRAINER_PARITY_IMPL_READY_FOR_CODEX_REVIEW; that marker is reserved for the operator after local validation passes. Strict path contract: every adapter source file MUST be emitted under v2/backend/app/adapters/trainer/ exactly. Do not emit any file under v2/backend/adapters/trainer/ or any other trainer adapter root. All imports in tests and adapter modules MUST use v2.backend.app.adapters.trainer, not v2.backend.adapters.trainer. Emit exactly the required_output_files list and no extra implementation/test/report paths. Use exactly these report filenames: 06_2E1A_IMPLEMENTATION_REPORT.md, 07_2E1A_TEST_INVOCATION_LOG.md, and 08_2E1A_GO_NO_GO.md. Split tests into the exact required test filenames; do not collapse them into test_subprocess_adapter.py or add test_default_runner.py unless it is also one of required_output_files.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "v2/backend/app/adapters/trainer/__init__.py",
     "v2/backend/app/adapters/trainer/modes.py",
@@ -30,31 +57,13 @@
     "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/07_2E1A_TEST_INVOCATION_LOG.md",
     "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/08_2E1A_GO_NO_GO.md"
   ],
-  "depends_on": [],
-  "max_attempts": 1,
-  "priority": 0,
-  "auto_commit": false,
-  "prompt": "You are local Claude executing supervisor task 053 in headless emit-only mode. Do not use tools. Do not write files directly. Do not ask for permission. Output only BEGIN_FILE / END_FILE blocks. No prose outside file blocks. END_FILE must be alone on its line with no path suffix. Implement Phase 2E1.A exactly per claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/02_PHASE_2E1A_SUBPROCESS_ADAPTER_SPEC.md and 03_PHASE_2E1A_TEST_PLAN.md. Honor every constraint in 04_PHASE_2E1A_SAFETY_BOUNDARIES.md. Do not modify legacy_reference/**. Do not access /home/wali/Desktop/AI BOT. Do not import any legacy trainer module into the adapter file. Do not import redis. Do not call subprocess.* in the adapter file; only default_runner.py may call subprocess.run and it must use shell=False. Do not spawn the legacy trainer in tests; use the injected FakeRunner from conftest.py. Do not write to any path outside the allowed_output_prefixes. Do not modify .env files. Do not emit secret values. Do not perform any Redis-state modification, exchange-side action, leverage- or margin-config-write action, switch from non-live to live mode, deployment, or production migration. Emit every required_output_file. The implementation report must describe each file emitted and how each spec rule maps to a test. The test invocation log must list the exact local validation command that the supervisor/operator must run after materialization: pytest -q v2/backend/tests/unit/adapters/trainer/. Since you cannot run tools in headless emit-only mode, do not claim tests were executed. The GO/NO-GO file must contain exactly one line: PHASE2E1A_TRAINER_PARITY_IMPL_READY_FOR_LOCAL_VALIDATION. Do not emit PHASE2E1A_TRAINER_PARITY_IMPL_READY_FOR_CODEX_REVIEW; that marker is reserved for the operator after local validation passes. Strict path contract: every adapter source file MUST be emitted under v2/backend/app/adapters/trainer/ exactly. Do not emit any file under v2/backend/adapters/trainer/ or any other trainer adapter root. All imports in tests and adapter modules MUST use v2.backend.app.adapters.trainer, not v2.backend.adapters.trainer. Emit exactly the required_output_files list and no extra implementation/test/report paths. Use exactly these report filenames: 06_2E1A_IMPLEMENTATION_REPORT.md, 07_2E1A_TEST_INVOCATION_LOG.md, and 08_2E1A_GO_NO_GO.md. Split tests into the exact required test filenames; do not collapse them into test_subprocess_adapter.py or add test_default_runner.py unless it is also one of required_output_files.",
-  "next_recommended_action": "Materialize 053 emit-only outputs, run local compile/pytest/no-live/secret validations, then promote 08_2E1A_GO_NO_GO.md to PHASE2E1A_TRAINER_PARITY_IMPL_READY_FOR_CODEX_REVIEW only if validation passes. Do not run 054 before validation.",
-  "phase2_requirements": [
-    "Phase 2E plan Codex rerun2 PASS marker present",
-    "subprocess boundary only \u2014 no legacy import into FastAPI process",
-    "argv vocabulary read_only|status|export only",
-    "no env passthrough; explicit allowlist only",
-    "audit event per invoke",
-    "no Redis client used at runtime",
-    "no real legacy spawn in tests",
-    "no shell=True anywhere",
-    "no modification of legacy_reference/**",
-    "no access to /home/wali/Desktop/AI BOT",
-    "no Redis-state modification",
-    "no exchange-side action",
-    "no leverage- or margin-config-write action",
-    "no switch from non-live to live mode"
-  ],
-  "go_no_go_marker": "PHASE2E1A_TRAINER_PARITY_IMPL_READY_FOR_LOCAL_VALIDATION",
-  "forbidden_output_prefixes": [
-    "v2/backend/adapters/trainer/"
-  ],
-  "last_recovery_note": "053 previously emitted valid BEGIN_FILE blocks under v2/backend/adapters/trainer/ and mismatched report/test names. Prompt tightened to exact app adapter root and required outputs."
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-05-02T21:01:18.475239+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/053_trainer_parity_2e1a_implementation.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "053_trainer_parity_2e1a_implementation",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

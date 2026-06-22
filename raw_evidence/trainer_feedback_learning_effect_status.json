@@ -1,0 +1,12 @@
+{
+  "schema_version": "v2_continuous_hourly_monitor_v1",
+  "generated_at": "2026-06-21T23:02:29Z",
+  "backfill_wired": true,
+  "backfill_method": "backfill_realized_outcome in _push_decisions_to_redis on POSITION_CLOSED_PAPER_ONLY",
+  "feedback_consumed": 7,
+  "feedback_quarantined": 0,
+  "trainer_source": "protected_ml_runtime_subprocess_boundary",
+  "trainer_note": "feedback_consumed = closed trades that triggered backfill_realized_outcome (one per closed trade). The trainer is a protected ML runtime. V2 writes realized outcomes to v2:prediction:{sym}:{tf} Redis keys via backfill_realized_outcome(). Feedback effect measurable only after trainer restart reads updated outcomes.",
+  "gate_status": "blocked_human_only",
+  "mutates_exchange": false
+}

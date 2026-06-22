@@ -1,0 +1,617 @@
+{
+  "Codex_FAIL_count_last_hour": 4,
+  "autoseed_followup": {
+    "duplicate_suppressed": [],
+    "generated_tasks": [],
+    "invoked": false,
+    "reason": "queue_not_empty_or_no_blockers",
+    "refused": []
+  },
+  "blocker_burndown_matrix": {
+    "baseline_source": "previous_burndown_status",
+    "blocker_count_after": 4,
+    "blocker_count_before": 4,
+    "blockers_after": [
+      {
+        "external_event_position_dependent": false,
+        "go_no_go": "CODEX_24H_PARALLEL_RECOVERY_WAR_ROOM_GOVERNOR_BLOCKED",
+        "mission_categories": [
+          "runtime stability"
+        ],
+        "operator_gated": false,
+        "report_id": "codex_24h_parallel_recovery_war_room_governor",
+        "status": "BLOCKED",
+        "title": "Codex 24H Parallel Recovery War-Room Governor"
+      },
+      {
+        "external_event_position_dependent": false,
+        "go_no_go": "CODEX_RUNTIME_SOAK_AND_PRODUCTION_EQUIVALENCE_GOVERNOR_BLOCKED",
+        "mission_categories": [
+          "runtime stability"
+        ],
+        "operator_gated": false,
+        "report_id": "runtime_soak_and_production_equivalence",
+        "status": "BLOCKED",
+        "title": "Runtime Soak + Production-Equivalence"
+      },
+      {
+        "external_event_position_dependent": false,
+        "go_no_go": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+        "mission_categories": [
+          "observation completeness"
+        ],
+        "operator_gated": false,
+        "report_id": "full_observation_builder",
+        "status": "BLOCKED",
+        "title": "Full Observation Builder Status"
+      },
+      {
+        "external_event_position_dependent": false,
+        "go_no_go": "V2_CHECKPOINT_PROMOTION_OPERATOR_REQUIRED",
+        "mission_categories": [
+          "checkpoint readiness"
+        ],
+        "operator_gated": true,
+        "report_id": "checkpoint_promotion",
+        "status": "OPERATOR_DECISION_REQUIRED",
+        "title": "Checkpoint Promotion"
+      }
+    ],
+    "blockers_before": [
+      {
+        "external_event_position_dependent": false,
+        "go_no_go": "CODEX_24H_PARALLEL_RECOVERY_WAR_ROOM_GOVERNOR_BLOCKED",
+        "mission_categories": [
+          "runtime stability"
+        ],
+        "operator_gated": false,
+        "report_id": "codex_24h_parallel_recovery_war_room_governor",
+        "status": "BLOCKED",
+        "title": "Codex 24H Parallel Recovery War-Room Governor"
+      },
+      {
+        "external_event_position_dependent": false,
+        "go_no_go": "CODEX_RUNTIME_SOAK_AND_PRODUCTION_EQUIVALENCE_GOVERNOR_BLOCKED",
+        "mission_categories": [
+          "runtime stability"
+        ],
+        "operator_gated": false,
+        "report_id": "runtime_soak_and_production_equivalence",
+        "status": "BLOCKED",
+        "title": "Runtime Soak + Production-Equivalence"
+      },
+      {
+        "external_event_position_dependent": false,
+        "go_no_go": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+        "mission_categories": [
+          "observation completeness"
+        ],
+        "operator_gated": false,
+        "report_id": "full_observation_builder",
+        "status": "BLOCKED",
+        "title": "Full Observation Builder Status"
+      },
+      {
+        "external_event_position_dependent": false,
+        "go_no_go": "V2_CHECKPOINT_PROMOTION_OPERATOR_REQUIRED",
+        "mission_categories": [
+          "checkpoint readiness"
+        ],
+        "operator_gated": true,
+        "report_id": "checkpoint_promotion",
+        "status": "OPERATOR_DECISION_REQUIRED",
+        "title": "Checkpoint Promotion"
+      }
+    ],
+    "blockers_burned_down": [],
+    "blockers_newly_discovered": [],
+    "external_event_position_dependent_blockers": [],
+    "generated_utc": "2026-05-25T00:02:21Z",
+    "operator_gated_blockers": [
+      {
+        "external_event_position_dependent": false,
+        "go_no_go": "V2_CHECKPOINT_PROMOTION_OPERATOR_REQUIRED",
+        "mission_categories": [
+          "checkpoint readiness"
+        ],
+        "operator_gated": true,
+        "report_id": "checkpoint_promotion",
+        "status": "OPERATOR_DECISION_REQUIRED",
+        "title": "Checkpoint Promotion"
+      }
+    ],
+    "safety": {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "calls_exchange_mutation": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "modifies_legacy_repo": false,
+      "writes_old_redis": false
+    },
+    "schema_version": "v2_autonomous_mission_blocker_burndown_matrix_v1"
+  },
+  "blocker_count_after": 4,
+  "blocker_count_before": 4,
+  "burndown_ready_gate_status": {
+    "additional_blockers": [],
+    "fail_map_summary": {
+      "Codex_FAIL_count_last_hour": 4,
+      "any_unmapped": false,
+      "codex_fail_to_remediation_loop_visible": true,
+      "duplicate_suppressed_count": 0,
+      "new_remediation_descriptor_count": 0,
+      "operator_required_count": 1,
+      "unsafe_to_fix_count": 0
+    },
+    "flat_reason_summary": {
+      "blocker_count_after": 4,
+      "blocker_count_before": 4,
+      "is_flat": true,
+      "ready_allowed": true,
+      "reason_code": "IMPLEMENTATION_COMPLETED_AWAITING_CODEX_REVIEW"
+    },
+    "gate_blockers": [],
+    "generated_utc": "2026-05-25T00:02:21Z",
+    "ready": true,
+    "safety": {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "calls_exchange_mutation": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "modifies_legacy_repo": false,
+      "writes_old_redis": false
+    },
+    "schema_version": "v2_burndown_ready_gate_status_v1"
+  },
+  "codex_fail_to_remediation_loop_visible": true,
+  "codex_fail_to_remediation_map": {
+    "Codex_FAIL_count_last_hour": 4,
+    "any_unmapped": false,
+    "codex_fail_to_remediation_loop_visible": true,
+    "duplicate_suppressed_count": 0,
+    "generated_utc": "2026-05-25T00:02:21Z",
+    "mapping": [
+      {
+        "codex_fail_id": "codex_review_autoseed_baseline_after_cost_calibration_r15",
+        "codex_review_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/codex_review_outputs/codex_review_autoseed_baseline_after_cost_calibration_r15/CODEX_GO_NO_GO.md",
+        "duplicate_suppressed": false,
+        "existing_remediation_descriptor_path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_baseline_after_cost_calibration_r15.json",
+        "fail_blockers": [
+          "1. Add `AfterCostCalibration` dataclass + `_fit_after_cost_calibration(train_rows, model)` doing simple OLS on `(predicted p, after_cost_return_bps)` over V2-owned `ROW_TRAINABLE` rows only; defensively excludes `insufficient_evidence` and `None` after-cost rows; requires `MIN_CALIBRATION_SAMPLES = 16`."
+        ],
+        "failed_gate": "V2_AUTONOMOUS_BASELINE_AFTER_COST_CALIBRATION_CODEX_FAIL",
+        "next_action": "Existing remediation descriptor handles this FAIL (status=completed).",
+        "not_automatable_reason": null,
+        "operator_required": false,
+        "remediation_descriptor_created": false,
+        "remediation_descriptor_path": null,
+        "remediation_required": true,
+        "terminal_classification": "EXISTING_REMEDIATION_REFERENCED",
+        "unsafe_to_fix": false
+      },
+      {
+        "codex_fail_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r15",
+        "codex_review_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/codex_review_outputs/codex_review_autoseed_observation_gap_feature_source_burndown_r15/CODEX_GO_NO_GO.md",
+        "duplicate_suppressed": false,
+        "existing_remediation_descriptor_path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_observation_gap_feature_source_burndown_r15.json",
+        "fail_blockers": [
+          "1. Decide whether to extend V2-native unified_features beyond the current",
+          "1. `_project_liquidations` \u2014 accept and forward `v2_liquidation_per_symbol`"
+        ],
+        "failed_gate": "V2_AUTONOMOUS_OBSERVATION_GAP_FEATURE_SOURCE_BURNDOWN_CODEX_FAIL",
+        "next_action": "Existing remediation descriptor handles this FAIL (status=completed).",
+        "not_automatable_reason": null,
+        "operator_required": false,
+        "remediation_descriptor_created": false,
+        "remediation_descriptor_path": null,
+        "remediation_required": true,
+        "terminal_classification": "EXISTING_REMEDIATION_REFERENCED",
+        "unsafe_to_fix": false
+      },
+      {
+        "codex_fail_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r14",
+        "codex_review_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/codex_review_outputs/codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r14/CODEX_GO_NO_GO.md",
+        "duplicate_suppressed": false,
+        "existing_remediation_descriptor_path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r14.json",
+        "fail_blockers": [
+          "1. Appends the current ``v2:market:prices:{symbol}`` snapshot to a"
+        ],
+        "failed_gate": "V2_AUTONOMOUS_FALSE_NEGATIVE_GATE_REASON_ENRICHMENT_CODEX_FAIL",
+        "next_action": "Existing remediation descriptor handles this FAIL (status=completed).",
+        "not_automatable_reason": null,
+        "operator_required": false,
+        "remediation_descriptor_created": false,
+        "remediation_descriptor_path": null,
+        "remediation_required": true,
+        "terminal_classification": "EXISTING_REMEDIATION_REFERENCED",
+        "unsafe_to_fix": false
+      },
+      {
+        "codex_fail_id": "codex_review_fix_v2_gap_trainer_missing_checkpoint_weight_shape_contract",
+        "codex_review_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/codex_review_outputs/codex_review_fix_v2_gap_trainer_missing_checkpoint_weight_shape_contract/CODEX_GO_NO_GO.md",
+        "duplicate_suppressed": false,
+        "existing_remediation_descriptor_path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_fix_v2_gap_trainer_missing_checkpoint_weight_shape_contract.json",
+        "fail_blockers": [
+          "1. Realized PnL credit (signed)",
+          "1. Realized PnL credit (signed)",
+          "1. Realized PnL credit (signed)",
+          "1. Realized PnL credit (signed)",
+          "1. Realized PnL credit (signed)",
+          "1. Provide an operator-approved checkpoint blob under",
+          "1. The CLAUDE.md protected runtime policy forbids mutating or",
+          "1. The CLAUDE.md protected runtime policy forbids mutating or",
+          "1. The blob:",
+          "Blocking finding:",
+          "Blocking finding:",
+          "Blocking findings:",
+          "1. [P1] `v2/backend/app/services/rl_core/checkpoint_promotion.py` declares promoted checkpoint tensor shapes as `w1=[26,16]` and `w2=[16,5]`, but a torch `Linear(in_features, out_features).weight` sidecar is output-first (`[16,26]` and `[5,16]`). A compatible operator-provided torch checkpoint sidecar would be rejected as `CHECKPOINT_METADATA_PRESENT_SHAPE_MISMATCH`, so the checkpoint weight-shape contract gap remains unresolved.",
+          "1. [P1] `v2/backend/app/services/rl_core/checkpoint_promotion.py` declares promoted checkpoint tensor shapes as `w1=[26,16]` and `w2=[16,5]`, but a torch `Linear(in_features, out_features).weight` sidecar is output-first (`[16,26]` and `[5,16]`). A compatible operator-provided torch checkpoint sidecar would be rejected as `CHECKPOINT_METADATA_PRESENT_SHAPE_MISMATCH`, so the checkpoint weight-shape contract gap remains unresolved.",
+          "1. **Protocol document** ([CHECKPOINT_PROMOTION_PROTOCOL.md](claude_worklog/final_readiness/v2_checkpoint_promotion/latest/CHECKPOINT_PROMOTION_PROTOCOL.md))",
+          "1. The blob:"
+        ],
+        "failed_gate": "CODEX_REVIEW_FIX_V2_GAP_TRAINER_MISSING_CHECKPOINT_WEIGHT_SHAPE_CONTRACT_CODEX_FAIL",
+        "next_action": "Operator action required to resolve underlying blocker (e.g. operator-approved checkpoint blob, protected runtime change).",
+        "not_automatable_reason": "operator_approval_required",
+        "operator_required": true,
+        "remediation_descriptor_created": false,
+        "remediation_descriptor_path": null,
+        "remediation_required": false,
+        "terminal_classification": "OPERATOR_REQUIRED",
+        "unsafe_to_fix": false
+      }
+    ],
+    "new_remediation_descriptor_count": 0,
+    "operator_required_count": 1,
+    "safety": {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "calls_exchange_mutation": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "modifies_legacy_repo": false,
+      "writes_old_redis": false
+    },
+    "schema_version": "v2_burndown_fail_to_remediation_map_v1",
+    "unsafe_to_fix_count": 0
+  },
+  "flat_blocker_count_reason": {
+    "blocker_count_after": 4,
+    "blocker_count_before": 4,
+    "collective_rolls": {
+      "all_event_dependent": false,
+      "all_external": false,
+      "all_operator_required": false,
+      "all_position_dependent": false
+    },
+    "explanation": "Implementation work completed in the last hour but paired Codex reviews have not yet confirmed the burndown.",
+    "failed_remediations_last_hour_count": 0,
+    "generated_utc": "2026-05-25T00:02:21Z",
+    "implementation_completed_last_hour_count": 48,
+    "is_flat": true,
+    "new_remediation_descriptor_count": 0,
+    "ready_allowed": true,
+    "reason_code": "IMPLEMENTATION_COMPLETED_AWAITING_CODEX_REVIEW",
+    "remaining_blockers": [
+      {
+        "external_event_position_dependent": false,
+        "go_no_go": "CODEX_24H_PARALLEL_RECOVERY_WAR_ROOM_GOVERNOR_BLOCKED",
+        "mission_categories": [
+          "runtime stability"
+        ],
+        "operator_gated": false,
+        "report_id": "codex_24h_parallel_recovery_war_room_governor",
+        "status": "BLOCKED",
+        "title": "Codex 24H Parallel Recovery War-Room Governor"
+      },
+      {
+        "external_event_position_dependent": false,
+        "go_no_go": "CODEX_RUNTIME_SOAK_AND_PRODUCTION_EQUIVALENCE_GOVERNOR_BLOCKED",
+        "mission_categories": [
+          "runtime stability"
+        ],
+        "operator_gated": false,
+        "report_id": "runtime_soak_and_production_equivalence",
+        "status": "BLOCKED",
+        "title": "Runtime Soak + Production-Equivalence"
+      },
+      {
+        "external_event_position_dependent": false,
+        "go_no_go": "FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS",
+        "mission_categories": [
+          "observation completeness"
+        ],
+        "operator_gated": false,
+        "report_id": "full_observation_builder",
+        "status": "BLOCKED",
+        "title": "Full Observation Builder Status"
+      },
+      {
+        "external_event_position_dependent": false,
+        "go_no_go": "V2_CHECKPOINT_PROMOTION_OPERATOR_REQUIRED",
+        "mission_categories": [
+          "checkpoint readiness"
+        ],
+        "operator_gated": true,
+        "report_id": "checkpoint_promotion",
+        "status": "OPERATOR_DECISION_REQUIRED",
+        "title": "Checkpoint Promotion"
+      }
+    ],
+    "running_remediations_present": false,
+    "safety": {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "calls_exchange_mutation": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "modifies_legacy_repo": false,
+      "writes_old_redis": false
+    },
+    "schema_version": "v2_burndown_flat_blocker_count_reason_v1"
+  },
+  "generated_utc": "2026-05-25T00:02:21Z",
+  "go_no_go": "V2_AUTONOMOUS_MISSION_BURNDOWN_FAIL_TO_REMEDIATION_REMEDIATION_READY",
+  "ready": true,
+  "remediation_flow_status": {
+    "Codex_FAIL_count_last_hour": 4,
+    "codex_fail_to_remediation_loop_visible": true,
+    "codex_fail_to_remediation_map": {
+      "Codex_FAIL_count_last_hour": 4,
+      "any_unmapped": false,
+      "codex_fail_to_remediation_loop_visible": true,
+      "duplicate_suppressed_count": 0,
+      "generated_utc": "2026-05-25T00:02:21Z",
+      "mapping": [
+        {
+          "codex_fail_id": "codex_review_autoseed_baseline_after_cost_calibration_r15",
+          "codex_review_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/codex_review_outputs/codex_review_autoseed_baseline_after_cost_calibration_r15/CODEX_GO_NO_GO.md",
+          "duplicate_suppressed": false,
+          "existing_remediation_descriptor_path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_baseline_after_cost_calibration_r15.json",
+          "fail_blockers": [
+            "1. Add `AfterCostCalibration` dataclass + `_fit_after_cost_calibration(train_rows, model)` doing simple OLS on `(predicted p, after_cost_return_bps)` over V2-owned `ROW_TRAINABLE` rows only; defensively excludes `insufficient_evidence` and `None` after-cost rows; requires `MIN_CALIBRATION_SAMPLES = 16`."
+          ],
+          "failed_gate": "V2_AUTONOMOUS_BASELINE_AFTER_COST_CALIBRATION_CODEX_FAIL",
+          "next_action": "Existing remediation descriptor handles this FAIL (status=completed).",
+          "not_automatable_reason": null,
+          "operator_required": false,
+          "remediation_descriptor_created": false,
+          "remediation_descriptor_path": null,
+          "remediation_required": true,
+          "terminal_classification": "EXISTING_REMEDIATION_REFERENCED",
+          "unsafe_to_fix": false
+        },
+        {
+          "codex_fail_id": "codex_review_autoseed_observation_gap_feature_source_burndown_r15",
+          "codex_review_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/codex_review_outputs/codex_review_autoseed_observation_gap_feature_source_burndown_r15/CODEX_GO_NO_GO.md",
+          "duplicate_suppressed": false,
+          "existing_remediation_descriptor_path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_observation_gap_feature_source_burndown_r15.json",
+          "fail_blockers": [
+            "1. Decide whether to extend V2-native unified_features beyond the current",
+            "1. `_project_liquidations` \u2014 accept and forward `v2_liquidation_per_symbol`"
+          ],
+          "failed_gate": "V2_AUTONOMOUS_OBSERVATION_GAP_FEATURE_SOURCE_BURNDOWN_CODEX_FAIL",
+          "next_action": "Existing remediation descriptor handles this FAIL (status=completed).",
+          "not_automatable_reason": null,
+          "operator_required": false,
+          "remediation_descriptor_created": false,
+          "remediation_descriptor_path": null,
+          "remediation_required": true,
+          "terminal_classification": "EXISTING_REMEDIATION_REFERENCED",
+          "unsafe_to_fix": false
+        },
+        {
+          "codex_fail_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r14",
+          "codex_review_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/codex_review_outputs/codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r14/CODEX_GO_NO_GO.md",
+          "duplicate_suppressed": false,
+          "existing_remediation_descriptor_path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r14.json",
+          "fail_blockers": [
+            "1. Appends the current ``v2:market:prices:{symbol}`` snapshot to a"
+          ],
+          "failed_gate": "V2_AUTONOMOUS_FALSE_NEGATIVE_GATE_REASON_ENRICHMENT_CODEX_FAIL",
+          "next_action": "Existing remediation descriptor handles this FAIL (status=completed).",
+          "not_automatable_reason": null,
+          "operator_required": false,
+          "remediation_descriptor_created": false,
+          "remediation_descriptor_path": null,
+          "remediation_required": true,
+          "terminal_classification": "EXISTING_REMEDIATION_REFERENCED",
+          "unsafe_to_fix": false
+        },
+        {
+          "codex_fail_id": "codex_review_fix_v2_gap_trainer_missing_checkpoint_weight_shape_contract",
+          "codex_review_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/codex_review_outputs/codex_review_fix_v2_gap_trainer_missing_checkpoint_weight_shape_contract/CODEX_GO_NO_GO.md",
+          "duplicate_suppressed": false,
+          "existing_remediation_descriptor_path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_fix_v2_gap_trainer_missing_checkpoint_weight_shape_contract.json",
+          "fail_blockers": [
+            "1. Realized PnL credit (signed)",
+            "1. Realized PnL credit (signed)",
+            "1. Realized PnL credit (signed)",
+            "1. Realized PnL credit (signed)",
+            "1. Realized PnL credit (signed)",
+            "1. Provide an operator-approved checkpoint blob under",
+            "1. The CLAUDE.md protected runtime policy forbids mutating or",
+            "1. The CLAUDE.md protected runtime policy forbids mutating or",
+            "1. The blob:",
+            "Blocking finding:",
+            "Blocking finding:",
+            "Blocking findings:",
+            "1. [P1] `v2/backend/app/services/rl_core/checkpoint_promotion.py` declares promoted checkpoint tensor shapes as `w1=[26,16]` and `w2=[16,5]`, but a torch `Linear(in_features, out_features).weight` sidecar is output-first (`[16,26]` and `[5,16]`). A compatible operator-provided torch checkpoint sidecar would be rejected as `CHECKPOINT_METADATA_PRESENT_SHAPE_MISMATCH`, so the checkpoint weight-shape contract gap remains unresolved.",
+            "1. [P1] `v2/backend/app/services/rl_core/checkpoint_promotion.py` declares promoted checkpoint tensor shapes as `w1=[26,16]` and `w2=[16,5]`, but a torch `Linear(in_features, out_features).weight` sidecar is output-first (`[16,26]` and `[5,16]`). A compatible operator-provided torch checkpoint sidecar would be rejected as `CHECKPOINT_METADATA_PRESENT_SHAPE_MISMATCH`, so the checkpoint weight-shape contract gap remains unresolved.",
+            "1. **Protocol document** ([CHECKPOINT_PROMOTION_PROTOCOL.md](claude_worklog/final_readiness/v2_checkpoint_promotion/latest/CHECKPOINT_PROMOTION_PROTOCOL.md))",
+            "1. The blob:"
+          ],
+          "failed_gate": "CODEX_REVIEW_FIX_V2_GAP_TRAINER_MISSING_CHECKPOINT_WEIGHT_SHAPE_CONTRACT_CODEX_FAIL",
+          "next_action": "Operator action required to resolve underlying blocker (e.g. operator-approved checkpoint blob, protected runtime change).",
+          "not_automatable_reason": "operator_approval_required",
+          "operator_required": true,
+          "remediation_descriptor_created": false,
+          "remediation_descriptor_path": null,
+          "remediation_required": false,
+          "terminal_classification": "OPERATOR_REQUIRED",
+          "unsafe_to_fix": false
+        }
+      ],
+      "new_remediation_descriptor_count": 0,
+      "operator_required_count": 1,
+      "safety": {
+        "approves_canary": false,
+        "approves_legacy_shutdown": false,
+        "approves_live": false,
+        "approves_redis_trim": false,
+        "calls_exchange_mutation": false,
+        "live_gate": "blocked_human_only",
+        "live_symbols": [],
+        "modifies_legacy_repo": false,
+        "writes_old_redis": false
+      },
+      "schema_version": "v2_burndown_fail_to_remediation_map_v1",
+      "unsafe_to_fix_count": 0
+    },
+    "duplicate_suppressed_codex_fails_count": 0,
+    "generated_utc": "2026-05-25T00:02:21Z",
+    "new_remediation_descriptor_count_last_hour": 0,
+    "operator_required_codex_fails_count": 1,
+    "remediations_completed_last_hour": [
+      {
+        "completed_at": "2026-05-24T23:55:55Z",
+        "descriptor_only_progress_counted": false,
+        "mission_categories": [
+          "live-readiness gate",
+          "risk control",
+          "runtime stability",
+          "symbol selection"
+        ],
+        "path": "claude_worklog/agent_supervisor/tasks/claude_v2_runtime_soak_and_production_equivalence_remediation.json",
+        "report_only_work": false,
+        "status": "completed",
+        "task_id": "claude_v2_runtime_soak_and_production_equivalence_remediation",
+        "task_type": "REMEDIATION"
+      },
+      {
+        "completed_at": "2026-05-24T23:52:17Z",
+        "descriptor_only_progress_counted": false,
+        "mission_categories": [
+          "live-readiness gate",
+          "model/policy readiness",
+          "risk control",
+          "symbol selection"
+        ],
+        "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_baseline_after_cost_calibration_r15.json",
+        "report_only_work": false,
+        "status": "completed",
+        "task_id": "closed_loop_remediation_codex_review_autoseed_baseline_after_cost_calibration_r15",
+        "task_type": "REMEDIATION"
+      },
+      {
+        "completed_at": "2026-05-24T23:57:17Z",
+        "descriptor_only_progress_counted": false,
+        "mission_categories": [
+          "live-readiness gate",
+          "observation completeness",
+          "risk control",
+          "symbol selection"
+        ],
+        "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_observation_gap_feature_source_burndown_r15.json",
+        "report_only_work": false,
+        "status": "completed",
+        "task_id": "closed_loop_remediation_codex_review_autoseed_observation_gap_feature_source_burndown_r15",
+        "task_type": "REMEDIATION"
+      },
+      {
+        "completed_at": "2026-05-24T23:58:28Z",
+        "descriptor_only_progress_counted": false,
+        "mission_categories": [
+          "live-readiness gate",
+          "paper edge",
+          "risk control",
+          "symbol selection"
+        ],
+        "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r14.json",
+        "report_only_work": false,
+        "status": "completed",
+        "task_id": "closed_loop_remediation_codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r14",
+        "task_type": "REMEDIATION"
+      }
+    ],
+    "remediations_created_last_hour": [
+      {
+        "created_at": "2026-05-24T23:48:15Z",
+        "mission_categories": [
+          "live-readiness gate",
+          "model/policy readiness",
+          "risk control",
+          "symbol selection"
+        ],
+        "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_baseline_after_cost_calibration_r15.json",
+        "task_id": "closed_loop_remediation_codex_review_autoseed_baseline_after_cost_calibration_r15"
+      },
+      {
+        "created_at": "2026-05-24T23:49:31Z",
+        "mission_categories": [
+          "live-readiness gate",
+          "observation completeness",
+          "risk control",
+          "symbol selection"
+        ],
+        "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_observation_gap_feature_source_burndown_r15.json",
+        "task_id": "closed_loop_remediation_codex_review_autoseed_observation_gap_feature_source_burndown_r15"
+      },
+      {
+        "created_at": "2026-05-24T23:51:16Z",
+        "mission_categories": [
+          "live-readiness gate",
+          "paper edge",
+          "risk control",
+          "symbol selection"
+        ],
+        "path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r14.json",
+        "task_id": "closed_loop_remediation_codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r14"
+      }
+    ],
+    "safety": {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "calls_exchange_mutation": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "modifies_legacy_repo": false,
+      "writes_old_redis": false
+    },
+    "schema_version": "v2_autonomous_mission_remediation_flow_status_v2",
+    "unsafe_to_fix_codex_fails_count": 0
+  },
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "schema_version": "v2_autonomous_mission_burndown_fail_to_remediation_remediation_v1",
+  "source_burndown_marker": "V2_AUTONOMOUS_MISSION_EXECUTION_BURNDOWN_READY",
+  "source_burndown_status_path": "claude_worklog/final_readiness/v2_autonomous_mission_execution_burndown/latest/mission_execution_burndown_status.json",
+  "what_changed_this_remediation": [
+    "Added Codex FAIL to remediation mapper (v2_burndown_fail_to_remediation_mapper.py).",
+    "Every Codex FAIL now resolves to one of: NEW_REMEDIATION_CREATED, EXISTING_REMEDIATION_REFERENCED, DUPLICATE_SUPPRESSED_EXISTING_REMEDIATION, OPERATOR_REQUIRED, UNSAFE_TO_FIX_AUTOMATION_BLOCKED.",
+    "Flat blocker_count cycles now require an explicit reason from a fixed allowlist or remain BLOCKED.",
+    "READY gate now BLOCKS when any Codex FAIL is unmapped, loop is not visible, or flat reason is BLOCKER_UNCHANGED_DUE_CODEX_FAIL / BLOCKER_UNCHANGED_DUE_FAILED_REMEDIATION / NO_MEASURABLE_BURNDOWN_THIS_CYCLE_BLOCKED.",
+    "Empty-queue-with-automatable-blockers triggers an autoseed follow-up without operator prompt.",
+    "Regression tests cover: unmapped FAIL blocks, existing remediation references, operator-required classification, unsafe classification, flat-no-reason blocks, flat-due-codex-fail blocks, flat-due-impl-completed allows, blocker-decrease allows, report-only refused."
+  ]
+}

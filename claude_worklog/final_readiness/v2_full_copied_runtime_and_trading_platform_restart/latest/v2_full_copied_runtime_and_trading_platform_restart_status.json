@@ -1,0 +1,190 @@
+{
+  "schema_version": "v2_full_copied_runtime_and_trading_platform_restart_status_v1",
+  "task_id": "v2_full_copied_runtime_and_trading_platform_restart",
+  "generated_utc": "2026-05-26T18:30:00Z",
+  "git_head": "10513bbe0517fd81c9c87e4672bb15486a083c02",
+  "go_no_go": "V2_FULL_COPIED_RUNTIME_AND_TRADING_PLATFORM_RESTART_BLOCKED",
+  "verdict_reason": "symbol-drift portion of Codex 5.5 punch list resolved; liquidation_bridge.py and liquidation_levels_engine.py copied-script wrapping remains operator-approval gated; live_binance_liquidations.py confirmed excluded from all running services; trading-platform UI verification not in this turn's scope",
+  "purpose": "Close the BTC-only / BTC-ETH-SOL default-drift blockers Codex flagged in V2_FULL_COPIED_RUNTIME_TRADING_PLATFORM_RESTART_CODEX_FAIL by routing every patched module through the dynamic universe resolver and giving the legacy 3-symbol pin a clear opt-in. Surface remaining residuals (liquidation wrappers, trainer-role labeling, trading-platform UI verification) explicitly.",
+
+  "remediated_in_this_turn": {
+    "modules_patched_to_resolver": [
+      {
+        "path": "v2/backend/app/cli/v2_alt_data_symbol_universe_scoring.py",
+        "sha256": "3f6850046a3711e09438123eed0995c83d7200a621f6bf1134f24d44cddeec0d",
+        "change": "run_once() symbols default flipped from BTC/ETH/SOL tuple to None; explicit resolve_symbols() call; smoke_test kwarg threaded through"
+      },
+      {
+        "path": "v2/backend/app/cli/v2_full_observation_builder_status.py",
+        "sha256": "b63589d990060e678d4e4076a2d42ccd00ddf7a0931b0ab0bcbccfced8d1fa29",
+        "change": "argparse --symbols default removed; resolver wired; --smoke-test flag added"
+      },
+      {
+        "path": "v2/backend/app/cli/v2_nansen_altdata_ingestor.py",
+        "sha256": "2b0fc9f1900bff6d33ce0ed1c67f65d7808bcab675a0a232ba45b5fd2fe25cc8",
+        "change": "argparse --symbols default removed; resolver wired; --smoke-test flag added"
+      },
+      {
+        "path": "v2/backend/app/cli/v2_alt_data_symbol_candidate_publisher.py",
+        "sha256": "7665f548fe599ca9c480c30e4cd113c00024255bed75dc3f930745408bb1e4ca",
+        "change": "DEFAULT_SYMBOLS constant resolved via _resolve_default_symbols() at module import time using resolve_symbols(smoke_test=False)"
+      },
+      {
+        "path": "v2/backend/app/cli/v2_feature_pipeline_native.py",
+        "sha256": "5671e938dea4a7a02bfb852cc9baee40e743bd27e6781abbdb465144267b3a70",
+        "change": "argparse --symbol default removed; resolver supplies first symbol if omitted; --smoke-test flag added"
+      },
+      {
+        "path": "v2/backend/app/cli/v2_market_ingestor.py",
+        "sha256": "3b20ee1b731ae21f20fdeed5cccf67c59d799cf989829d67776ed4cdcf685dd5",
+        "change": "argparse --symbol default removed; run_once() falls back to resolver first symbol if not passed; --smoke-test flag added"
+      },
+      {
+        "path": "v2/backend/app/cli/v2_alternative_data_status.py",
+        "sha256": "306a9103bdfe0e538d9a758cdb1f8d0b2b34367b70ef3cac4df6a82e6fd29ac6",
+        "change": "run_once() default flipped to None + resolver; argparse --symbols default removed; --smoke-test flag added"
+      },
+      {
+        "path": "v2/backend/app/cli/v2_website_redis_bridge_status.py",
+        "sha256": "1633f38a4c0837c2781a261d4182621da0037b89cff81d97140b2dd9c95c99dd",
+        "change": "run() symbols default flipped to None + resolver; smoke_test kwarg added"
+      },
+      {
+        "path": "v2/backend/app/cli/v2_lunarcrush_altdata_ingestor.py",
+        "sha256": "4f697dd86af0c196be10996bdc408536e62e0f681ee5e817a7e093f2681f3e64",
+        "change": "argparse --symbols default removed; resolver wired; --smoke-test flag added"
+      },
+      {
+        "path": "v2/backend/app/cli/readonly_market_exchange_data_plane.py",
+        "sha256": "28bbf18515daa168e4782f6a49af445860963d6a8798ee942a5b61fdd51cffa8",
+        "change": "argparse --symbol default removed; main() supplies resolver first symbol; --smoke-test flag added"
+      },
+      {
+        "path": "v2/backend/app/services/native_runtime_migration/safety.py",
+        "sha256": "97a708f3429bd75a264aa3bbf67718913da3611e78a7340c0e81987325af2c03",
+        "change": "V2_NATIVE_ACTIVE_SYMBOLS renamed semantically to V2_NATIVE_INITIAL_BRIDGE_SYMBOLS (with backwards-compat alias preserved); added v2_native_currently_active_symbols() helper that resolves dynamically"
+      },
+      {
+        "path": "v2/backend/app/services/native_runtime_migration/v2_paper_startup_manifest.py",
+        "sha256": "bfdee5d4e119550d7e575ffc06034b587f9bdde6515c609ba06701d227ce0be9",
+        "change": "build_dynamic_symbol_paper_runtime_coverage() now emits dynamic currently_active_symbols via resolve_symbols() plus initial_bridge_migration_symbols + currently_active_symbols_source + currently_active_symbol_count; backwards-compat constant alias preserved"
+      }
+    ],
+    "tests_added": [
+      {
+        "path": "v2/backend/tests/unit/cli/test_v2_full_copied_runtime_default_symbol_drift.py",
+        "sha256": "e896b91495edffd803b1f83810e41faed88910f5765fcc0b502dd8c5d0616d77",
+        "test_count": 18,
+        "coverage": "per-module source-string drift guards + resolver behavior contract + manifest dynamic-resolution contract + safety-module initial-bridge constant contract"
+      }
+    ],
+    "tests_updated": [
+      {
+        "path": "v2/backend/tests/integration/cli/test_v2_alt_data_symbol_universe_scoring.py",
+        "sha256": "27459325b48b788e5985e8149db471e6b288ea965a42b0183fcda056918cf048",
+        "change": "test_run_once_reads_no_v2_paper_or_v2_risk_keys_during_full_pipeline now passes smoke_test=True to acknowledge its explicit BTC/ETH/SOL test set (resolver fails closed without explicit opt-in)"
+      }
+    ]
+  },
+
+  "verification": {
+    "new_symbol_drift_regression_suite": {
+      "command": "PYTHONPATH=. ./.venv/bin/pytest v2/backend/tests/unit/cli/test_v2_full_copied_runtime_default_symbol_drift.py -v",
+      "result": "18 passed in 0.08s"
+    },
+    "prior_dynamic_symbol_defaults_suite": {
+      "command": "PYTHONPATH=. ./.venv/bin/pytest v2/backend/tests/unit/cli/test_v2_dynamic_runtime_symbol_defaults.py -v",
+      "result": "4 passed in 0.07s"
+    },
+    "all_patched_module_tests": {
+      "command": "PYTHONPATH=. ./.venv/bin/pytest v2/backend/tests/integration/cli/test_v2_alt_data_symbol_universe_scoring.py v2/backend/tests/integration/cli/test_v2_alternative_data_status.py v2/backend/tests/integration/cli/test_v2_lunarcrush_altdata_ingestor.py v2/backend/tests/integration/cli/test_v2_nansen_altdata_ingestor.py v2/backend/tests/integration/cli/test_v2_full_observation_builder_status.py v2/backend/tests/integration/cli/test_v2_feature_pipeline_native.py v2/backend/tests/integration/cli/test_v2_feature_pipeline_native_trainer_snapshot.py v2/backend/tests/integration/cli/test_v2_market_ingestor.py v2/backend/tests/unit/proof/test_readonly_market_exchange_data_plane.py v2/backend/tests/integration/cli/test_v2_alt_data_symbol_candidate_publisher.py v2/backend/tests/integration/cli/test_v2_alt_data_symbol_candidate_publisher_frontend_wiring.py -q",
+      "result": "171 passed in 0.33s"
+    },
+    "native_runtime_migration_consumer_tests": {
+      "command": "PYTHONPATH=. ./.venv/bin/pytest v2/backend/tests/integration/cli/test_v2_startup_parity_first_batch_execution.py v2/backend/tests/integration/cli/test_v2_full_paper_only_startup_manifest_runtime.py v2/backend/tests/integration/cli/test_v2_native_dynamic_ingestor_runtime_and_symbol_expansion.py v2/backend/tests/integration/cli/test_v2_legacy_startup_manifest_parity_and_bridge_exit.py v2/backend/tests/integration/cli/test_v2_native_runtime_bridge_exit_and_dynamic_symbol_migration.py v2/backend/tests/integration/cli/test_v2_native_dynamic_runtime_and_trainer_bridge_exit_execution.py -q",
+      "result": "65 passed in 1.27s"
+    },
+    "totals": {
+      "tests_run": 258,
+      "tests_passed": 258,
+      "tests_failed": 0
+    }
+  },
+
+  "live_runtime_health_snapshot": {
+    "active_ai_bot_v2_user_services_count": 56,
+    "expected_active_timers_count": "25+",
+    "supervisor_pid": 3526,
+    "supervisor_lock_held": true,
+    "wma_audits_freeze_storm_cleared": true,
+    "wma_audits_restart_storm_delta_60s_after_disable": 0,
+    "freeze_root_cause_remediated": true,
+    "freeze_root_cause": "wma-audits.service restart loop (26,057 attempts) on a systemd unit pointing at a legacy script path bash could not resolve; cleared by sudo systemctl stop/disable/reset-failed"
+  },
+
+  "residual_blockers_for_full_ready_marker": [
+    {
+      "id": "liquidation_bridge_not_yet_wrapped_in_systemd",
+      "scope": "Wrap v2/legacy_preserved/startup_baseline/ingest/liquidation_bridge.py and liquidation_levels_engine.py as paper-only systemd units (after auditing for old-Redis writes and adding v2:* adapters where needed). Operator approval required to add new systemd unit files.",
+      "owner": "operator",
+      "live_binance_liquidations_status": "CONFIRMED_EXCLUDED: no service references live_binance_liquidations.py; only ai-bot-v2-liquidation-wss-paper-shadow.service (public Binance WSS forceOrder shadow) is active"
+    },
+    {
+      "id": "trading_platform_ui_rendered_proof_missing",
+      "scope": "Codex 5.5 previously flagged 'Website is trading platform, not coding/report page — PARTIAL: packet is declarative; rendered proof of runtime/control-state coverage is still missing.' The frontend already has trader/paper-trading/risk-control/monitor-center routes (see v2/frontend/src/router.tsx); a rendered evidence artifact (screenshot+route inventory) needs to be produced separately."
+    },
+    {
+      "id": "trainer_role_labeling_in_packet",
+      "scope": "Codex 5.5 previously flagged 'Trainer bridge/parity mode is still described too strongly as V2-native in packet status'. The trainer role must stay labelled copied/parity/baseline bridge until a native trainer checkpoint and native training path are proven. This labeling fix is out of scope for this turn (no trainer-runtime files are in the modified list)."
+    },
+    {
+      "id": "copied_runtime_startup_map_audit_partial",
+      "scope": "Codex 5.5 previously flagged the copied-runtime startup map as mixing raw copied scripts, V2 wrappers, and blocked old-Redis components. The current 56 active ai-bot-v2-* services are all paper-only V2 wrappers, but a side-by-side proof artifact comparing 'copied safe scripts running' vs 'raw copied scripts blocked' needs to be produced separately."
+    }
+  ],
+
+  "out_of_scope_for_this_turn": [
+    "creating new systemd unit files for liquidation_bridge and liquidation_levels_engine",
+    "auditing copied liquidation scripts for old-Redis writes and adding v2:* adapters",
+    "trading platform UI rendered evidence (screenshots, route inventory artifact)",
+    "trainer role relabeling in packet status",
+    "GNOME terminal launcher refresh (already paper-only-safe per start_full_copied_v2_runtime_gnome.sh; refusal-on-legacy-process logic intact)",
+    "live trading approval",
+    "canary approval",
+    "legacy shutdown approval",
+    "Redis trim approval"
+  ],
+
+  "what_did_NOT_happen": {
+    "did_not_call_v2_full_rebuild_ready": true,
+    "did_not_redispatch_completed_tasks": true,
+    "did_not_call_checkpoint_shape_pass_model_ready": true,
+    "did_not_leave_three_symbol_or_btc_defaults": true,
+    "did_not_start_raw_old_redis_writers": true,
+    "did_not_restart_legacy_root": true,
+    "did_not_enable_live_or_canary": true,
+    "did_not_leave_website_as_coding_report_dashboard": true,
+    "did_not_modify_legacy_directory": true,
+    "did_not_place_exchange_order": true,
+    "did_not_write_old_redis_keys": true,
+    "did_not_load_torch_or_deserialize_pickle": true,
+    "did_not_let_checkpoint_tasks_distract": true
+  },
+
+  "safety_invariants_preserved": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "places_real_order": false,
+    "writes_exchange_orders": false,
+    "writes_old_redis_keys": false,
+    "legacy_directory_modified": false,
+    "v2_runtime_restarted_by_this_turn": false,
+    "live_binance_liquidations_wrapped_in_service": false,
+    "scheduler_installed": true,
+    "wma_audits_restart_storm_active": false
+  }
+}

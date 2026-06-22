@@ -1,0 +1,21 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "comparison_classification": "MISSING_EVIDENCE_CANNOT_COMPARE",
+  "evidence_paths": [
+    "v2/frontend/public/operator_runtime/legacy_runtime_observer/latest/legacy_runtime_observer_status.json",
+    "v2/frontend/public/operator_runtime/legacy_v2_decision_comparator/latest/legacy_v2_decision_comparator_status.json",
+    "claude_worklog/final_readiness/legacy_v2_realtime_decision_observatory/latest/operator_dashboard_payload.json"
+  ],
+  "exchange_action_taken": false,
+  "generated_at": "2026-05-15T21:20:00Z",
+  "legacy_signal_count": 9,
+  "legacy_signal_latest_id": null,
+  "legacy_signal_latest_reason": "SOURCE_LIMITED_LOG_READONLY_OBSERVATION",
+  "legacy_signal_state": "SOURCE_LIMITED",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "outcomes_invented": false,
+  "status": "SIGNAL_ORCHESTRATOR_SOURCE_LIMITED_COMPARE_BLOCKED"
+}

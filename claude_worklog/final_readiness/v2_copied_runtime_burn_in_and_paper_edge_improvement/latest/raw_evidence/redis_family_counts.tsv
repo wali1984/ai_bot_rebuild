@@ -1,0 +1,16 @@
+v2:market:*	128
+v2:features:*	64
+v2:unified_features:*	170
+v2:paper:*	89
+v2:liquidations:*	1
+v2:altdata:*	1
+v2:risk:*	1
+v2:symbol_universe:*	1
+v2:orchestrator:*	3
+v2:execution:*	0
+v2:strategy:*	0
+v2:trainer:*	4
+v2:market:liquidation_levels:*	0
+live_orders:*	0
+exchange:order:*	0
+orchestrator:*	0

@@ -18,7 +18,7 @@ struct MonitorView: View {
                     monitorContent
                 }
             }
-            .navigationTitle("Monitor")
+            .navigationTitle("NERVYX OBSERVE")
             .toolbar { refreshButton }
             .refreshable { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) }
         }
@@ -68,7 +68,7 @@ struct MonitorView: View {
 
     private func trainerHealth(_ t: HealthTrainer) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Trainer", systemImage: "brain").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+            Label("NERVYX CORE · Trainer", systemImage: "brain").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
             VStack(spacing: 8) {
                 MetricRow(label: "State", value: t.state, valueColor: t.training_active ? .green : .orange)
                 MetricRow(label: "CUDA", value: t.cuda_active ? "Active" : "Inactive", valueColor: t.cuda_active ? .green : .red)
@@ -85,7 +85,7 @@ struct MonitorView: View {
 
     private func gpuHealth(_ g: HealthGPU) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("GPU — \(g.name.isEmpty ? "Unknown" : g.name)", systemImage: "cpu.fill")
+            Label("NERVYX CORE · GPU — \(g.name.isEmpty ? "Unknown" : g.name)", systemImage: "cpu.fill")
                 .font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
             VStack(spacing: 8) {
                 GaugeCard(title: "Utilization", value: g.utilization_pct, max: 100, unit: "%",
@@ -104,7 +104,7 @@ struct MonitorView: View {
 
     private func paperHealth(_ p: HealthPaper) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label("Paper Loop", systemImage: "doc.plaintext").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+            Label("NERVYX EXECUTE · Runtime Loop", systemImage: "bolt.horizontal.circle").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
             VStack(spacing: 8) {
                 MetricRow(label: "Open Positions", value: "\(p.open_positions)")
                 MetricRow(label: "Intents Accepted", value: "\(p.intents_accepted)", valueColor: .green)

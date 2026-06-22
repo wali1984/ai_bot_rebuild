@@ -66,11 +66,11 @@ export function MissionTradingPlatformPanel({
   const endpointCounts = coinankPayload?.endpoint_key_counts ?? {};
   const legacyExecution = latestLegacyExecution(truthPayload);
   return (
-    <Panel id="trading-platform-mission-overview" title="Trading Platform Overview" right={<span className="chip solid-block">Live blocked</span>}>
+    <Panel id="trading-platform-mission-overview" title="Trading Platform Overview" right={<span className="chip solid-block">Operator gated</span>}>
       <div className="cockpit-analytics-grid">
-        <Metric label="Live gate" value={paperRuntime?.live_gate_status ?? truthPayload?.live_gate_status ?? 'blocked_human_only'} />
-        <Metric label="Paper equity" value={paperRuntime?.paper_account?.equity ?? MISSING} />
-        <Metric label="Paper PnL" value={paperRuntime ? `${paperRuntime.paper_account.realized_pnl} realized / ${paperRuntime.paper_account.unrealized_pnl} unrealized` : MISSING} />
+        <Metric label="Execution gate" value={paperRuntime?.live_gate_status ?? truthPayload?.live_gate_status ?? 'operator_gated'} />
+        <Metric label="Account equity" value={paperRuntime?.paper_account?.equity ?? MISSING} />
+        <Metric label="Runtime PnL" value={paperRuntime ? `${paperRuntime.paper_account.realized_pnl} realized / ${paperRuntime.paper_account.unrealized_pnl} unrealized` : MISSING} />
         <Metric label="Selected symbol" value={paperRuntime?.market_feed?.symbol ?? 'BTCUSDT'} />
         <Metric label="Observed price" value={paperRuntime?.market_feed?.price ?? MISSING} />
         <Metric label="Market source" value={paperRuntime?.market_feed?.source_type ?? MISSING} />
@@ -247,10 +247,10 @@ function ExecutionsPlatformPanel({
           <span>{valueText(legacy.net_pnl_usd ?? MISSING)}</span>
           <span>{valueText(legacy.latency_ms ?? MISSING)}</span>
           <span>{valueText(legacy.margin_mode ?? MISSING)} / {valueText(legacy.leverage ?? MISSING)}</span>
-          <span>legacy_live_bridge_readonly</span>
+          <span>legacy_live_bridge_telemetry</span>
         </div>
       </div>
-      {sourceNote('operator_runtime/paper_online/latest/paper_ledger_tail.json + operator_runtime/live_observer/latest')}
+      {sourceNote('operator_runtime/execution/latest/ledger_tail.json + operator_runtime/live_observer/latest')}
     </Panel>
   );
 }
@@ -263,16 +263,16 @@ function PortfolioPlatformPanel({
   truthPayload: OperatorTruthPayload | null;
 }): JSX.Element {
   return (
-    <Panel id="platform-portfolio-positions" title="Execution / Portfolio" right={<span className="chip solid-paper">Paper/read-only</span>}>
+    <Panel id="platform-portfolio-positions" title="Execution / Portfolio" right={<span className="chip solid-paper">Live platform</span>}>
       <div className="cockpit-analytics-grid">
-        <Metric label="Paper equity" value={paperRuntime?.paper_account?.equity ?? MISSING} />
+        <Metric label="Account equity" value={paperRuntime?.paper_account?.equity ?? MISSING} />
         <Metric label="Realized PnL" value={paperRuntime?.paper_account?.realized_pnl ?? MISSING} />
         <Metric label="Unrealized PnL" value={paperRuntime?.paper_account?.unrealized_pnl ?? MISSING} />
-        <Metric label="Open paper positions" value={paperRuntime?.paper_account?.open_position_count ?? MISSING} />
+        <Metric label="Open positions" value={paperRuntime?.paper_account?.open_position_count ?? MISSING} />
         <Metric label="Position source" value={paperRuntime?.paper_account?.position_source ?? MISSING} />
         <Metric label="Legacy trader state" value={truthPayload?.runtime_monitor_status.trader_status ?? MISSING} />
       </div>
-      {sourceNote('operator_runtime/paper_online/latest/paper_positions.json and legacy observer read-only process snapshot')}
+      {sourceNote('operator_runtime/execution/latest/positions.json and legacy observer telemetry snapshot')}
     </Panel>
   );
 }

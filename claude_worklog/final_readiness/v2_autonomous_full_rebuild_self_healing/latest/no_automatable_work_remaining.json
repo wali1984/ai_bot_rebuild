@@ -1,0 +1,100 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "automatable_remaining": 0,
+  "generated_utc": "2026-05-24T04:28:38Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "next_action": "await operator-approved next gate (policy architecture, checkpoint artifact, paid alt-data, external sources, event-dependent, position-dependent)",
+  "operator_owned_blockers": [
+    {
+      "category": "EXTERNAL_SOURCE_REQUIRED",
+      "evidence": {
+        "category": "EXTERNAL_SOURCE_REQUIRED_ONCHAIN_BTC",
+        "dim_count": 45
+      },
+      "owner": "OPERATOR",
+      "remediation": "operator-approved gate or external feed required",
+      "severity": "P2",
+      "source": "remaining_dim_queue:EXTERNAL_SOURCE_REQUIRED_ONCHAIN_BTC"
+    },
+    {
+      "category": "EXTERNAL_SOURCE_REQUIRED",
+      "evidence": {
+        "category": "EXTERNAL_SOURCE_REQUIRED_ONCHAIN_ETH",
+        "dim_count": 45
+      },
+      "owner": "OPERATOR",
+      "remediation": "operator-approved gate or external feed required",
+      "severity": "P2",
+      "source": "remaining_dim_queue:EXTERNAL_SOURCE_REQUIRED_ONCHAIN_ETH"
+    },
+    {
+      "category": "EXTERNAL_SOURCE_REQUIRED",
+      "evidence": {
+        "category": "EXTERNAL_SOURCE_REQUIRED_TOKEN_METRICS",
+        "dim_count": 54
+      },
+      "owner": "OPERATOR",
+      "remediation": "operator-approved gate or external feed required",
+      "severity": "P2",
+      "source": "remaining_dim_queue:EXTERNAL_SOURCE_REQUIRED_TOKEN_METRICS"
+    },
+    {
+      "category": "OPERATOR_DECISION_REQUIRED",
+      "evidence": {
+        "category": "OPERATOR_DECISION_REQUIRED_CCXT_OHLCV",
+        "dim_count": 30
+      },
+      "owner": "OPERATOR",
+      "remediation": "operator-approved gate or external feed required",
+      "severity": "P2",
+      "source": "remaining_dim_queue:OPERATOR_DECISION_REQUIRED_CCXT_OHLCV"
+    },
+    {
+      "category": "EVENT_DEPENDENT",
+      "evidence": {
+        "category": "V2_EVENT_DEPENDENT_LIQUIDATION_WSS",
+        "dim_count": 12
+      },
+      "owner": "OPERATOR",
+      "remediation": "operator-approved gate or external feed required",
+      "severity": "P2",
+      "source": "remaining_dim_queue:V2_EVENT_DEPENDENT_LIQUIDATION_WSS"
+    },
+    {
+      "category": "POSITION_DEPENDENT",
+      "evidence": {
+        "category": "V2_POSITION_DEPENDENT_OPEN_POSITION_REQUIRED",
+        "dim_count": 60
+      },
+      "owner": "OPERATOR",
+      "remediation": "operator-approved gate or external feed required",
+      "severity": "P2",
+      "source": "remaining_dim_queue:V2_POSITION_DEPENDENT_OPEN_POSITION_REQUIRED"
+    }
+  ],
+  "schema_version": "v2_autonomous_full_rebuild_self_healing_work_selection_v1",
+  "selected_work": null,
+  "skipped_categories": [
+    {
+      "category": "EXTERNAL_SOURCE_REQUIRED",
+      "reason": "never_auto_pick"
+    },
+    {
+      "category": "OPERATOR_DECISION_REQUIRED",
+      "reason": "never_auto_pick"
+    },
+    {
+      "category": "EVENT_DEPENDENT",
+      "reason": "never_auto_pick"
+    },
+    {
+      "category": "POSITION_DEPENDENT",
+      "reason": "never_auto_pick"
+    }
+  ],
+  "status": "NO_AUTOMATABLE_WORK_REMAINING"
+}

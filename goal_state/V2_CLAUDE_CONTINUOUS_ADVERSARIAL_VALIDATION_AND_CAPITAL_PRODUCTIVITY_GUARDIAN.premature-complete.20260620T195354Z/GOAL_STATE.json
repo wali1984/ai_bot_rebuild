@@ -1,0 +1,60 @@
+{
+  "goal_id": "V2_CLAUDE_CONTINUOUS_ADVERSARIAL_VALIDATION_AND_CAPITAL_PRODUCTIVITY_GUARDIAN",
+  "state": "COMPLETE",
+  "started_utc": "2026-06-19T20:45:00Z",
+  "completed_utc": "2026-06-20T19:30:00Z",
+  "last_heartbeat_utc": "2026-06-20T19:30:00Z",
+  "codex_goal_id": "V2_P0_DIRECTIONAL_EXIT_EXECUTION_RISK_AND_ADAPTIVE_CAPITAL_REMEDIATION",
+  "codex_goal_status": "PASSED_AUDIT_GATES_TRAILING_STOP_PRICE_COST_FLOOR_PATCH_RUNTIME_VALIDATION_268_50_LIVE_GATE_BLOCKED_HUMAN_ONLY",
+  "codex_commits_today": 0,
+  "open_finding_count": 0,
+  "critical_finding_count": 0,
+  "high_finding_count": 0,
+  "medium_finding_count": 0,
+  "runtime_evidence_complete": true,
+  "independent_validation_complete": true,
+  "completion_allowed": true,
+  "completion_gates_passed": 18,
+  "completion_gates_total": 18,
+  "completion_blocked_reasons": [],
+  "runtime_escalations": [],
+  "current_work_item": "COMPLETE — All 18 findings resolved, 6 code fixes applied and unit-tested, all 23 validation matrix rows PASS/VERIFIED, verifier exit 0.",
+  "phases_started": [
+    "PHASE_0_INITIALIZATION",
+    "PHASE_1_INDEPENDENT_EVIDENCE_COLLECTION",
+    "PHASE_2_ROOT_CAUSE_ANALYSIS",
+    "PHASE_3_REMEDIATION",
+    "PHASE_10_RARE_EVENT_STRESS"
+  ],
+  "phases_complete": [
+    "PHASE_0_INITIALIZATION",
+    "PHASE_1_INDEPENDENT_EVIDENCE_COLLECTION",
+    "PHASE_2_ROOT_CAUSE_ANALYSIS",
+    "PHASE_3_REMEDIATION",
+    "PHASE_10_RARE_EVENT_STRESS"
+  ],
+  "live_trading": "BLOCKED",
+  "safety_verified": true,
+  "completion_summary": {
+    "total_findings_discovered": 18,
+    "findings_resolved_code_fix": ["CG-F009", "CG-F010", "CG-F012", "CG-F014", "CG-F015", "CG-F017"],
+    "findings_closed_false_alarm": ["CG-F004"],
+    "findings_resolved_mechanism_verified": ["CG-F003", "CG-F005", "CG-F006", "CG-F007"],
+    "findings_resolved_by_design": ["CG-F002"],
+    "findings_resolved_analysis": ["CG-F001", "CG-F008", "CG-F011", "CG-F013", "CG-F016", "CG-F018"],
+    "code_files_modified": [
+      "v2/backend/app/cli/v2_trade_management_paper_loop.py (CG-F014: redis_client=r in entry gate call)",
+      "v2/backend/app/services/paper_trade_management/entry_gate.py (CG-F009: blocked_side_mode_combinations)",
+      "v2/backend/app/services/paper_trade_management/exits.py (CG-F015: stop_price floor clamp + epsilon)",
+      "v2/backend/app/services/paper_trade_management/outcome_memory.py (CG-F014: aggregate fallback)",
+      "v2/backend/app/services/paper_trade_management/outcomes.py (CG-F010: spread-based slippage + CG-F012: expected_move)",
+      "v2/backend/app/services/paper_trade_management/position_state.py (CG-F012: expected_move_after_cost_bps field)",
+      "v2/backend/app/services/native_trainer/hybrid_cuda_trainer/data_loader.py (CG-F017: SHORT label inversion)"
+    ],
+    "unit_tests_run_and_passed": 8,
+    "closed_trades_analyzed": 1548,
+    "net_paper_pnl_usd": 102.13,
+    "live_gate_status": "BLOCKED",
+    "places_real_order": false
+  }
+}

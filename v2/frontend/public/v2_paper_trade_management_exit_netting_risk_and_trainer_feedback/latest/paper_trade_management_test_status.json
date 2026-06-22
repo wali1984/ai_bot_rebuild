@@ -1,0 +1,30 @@
+{
+  "gate": "V2_PAPER_TRADE_MANAGEMENT_EXIT_NETTING_RISK_AND_TRAINER_FEEDBACK_READY",
+  "status": "PASS",
+  "generated_utc": "2026-06-11T20:27:36Z",
+  "focused_backend_tests": "PASS: 137 passed",
+  "test_command": "./.venv/bin/python -m pytest v2/backend/tests/unit/services/adaptive_capital_allocator/test_allocator.py v2/backend/tests/unit/services/paper_trade_management/test_lifecycle.py v2/backend/tests/unit/services/risk_gateway v2/backend/tests/integration/cli/test_v2_trade_management_paper_worker.py v2/backend/tests/unit/services/live_gate/test_binance_live_order_transport.py v2/backend/tests/integration/cli/test_v2_paper_execution_worker.py",
+  "covered_cases": [
+    "same-symbol repeated long signals net into one position",
+    "long then short reduces or closes before reverse",
+    "symbol exposure cap blocks entry",
+    "total exposure cap blocks entry",
+    "time-based exit closes stale position",
+    "trailing stop closes after reversal",
+    "take-profit closes profitable position",
+    "stop-loss closes losing position",
+    "close writes realized PnL",
+    "closed trade writes outcome label",
+    "trainer feedback loader consumes outcome label",
+    "risk evaluators are called before allow",
+    "kill switch blocks entry",
+    "halt blocks entry",
+    "budget exhaustion blocks entry",
+    "margin governor blocks entry",
+    "reduce-only latch blocks entry but allows close",
+    "live remains balance/margin-held",
+    "paper/live use adaptive allocator contract",
+    "no fixed 200 USDT runtime allocation"
+  ]
+}
+

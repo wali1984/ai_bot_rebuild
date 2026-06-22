@@ -1,0 +1,42 @@
+{
+  "agent": "codex",
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/8h_trade_readiness/latest/codex_reviews/frontend/"
+  ],
+  "allowed_paths": [
+    "v2/**",
+    "claude_worklog/**"
+  ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "forbidden": [
+    "legacy_mutation",
+    "old_redis_write",
+    "exchange_action",
+    "leverage_change",
+    "margin_mode_change",
+    "live_gate_unlock",
+    "approval_token_creation",
+    "redis_trim_approval_creation",
+    "mock_current_data",
+    "stale_data_marked_current",
+    "readiness_claim_without_payload"
+  ],
+  "lane": "8h_trade_readiness_review",
+  "live_gate": "blocked_human_only",
+  "managed_by": "codex_8h_trade_readiness_war_room",
+  "max_attempts": 1,
+  "predecessor_task_ids": [
+    "claude_8h_frontend_trade_readiness_command_center"
+  ],
+  "priority": 299,
+  "prompt": "Review the 8-hour frontend command center packet. Fail if pages are blank, raw JSON only, stale data is shown as current, blockers are hidden, enabled live controls appear, frontend claims unsupported readiness, or payload evidence paths/last updated states are missing. Emit CODEX_REVIEW.md and CODEX_GO_NO_GO.md.",
+  "required_output_files": [
+    "claude_worklog/final_readiness/8h_trade_readiness/latest/codex_reviews/frontend/CODEX_REVIEW.md",
+    "claude_worklog/final_readiness/8h_trade_readiness/latest/codex_reviews/frontend/CODEX_GO_NO_GO.md"
+  ],
+  "risk_level": "L1",
+  "status": "completed",
+  "task_id": "codex_review_8h_frontend_trade_readiness_command_center",
+  "task_timeout_seconds": 1200
+}

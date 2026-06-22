@@ -1,0 +1,73 @@
+{
+  "schema_version": "v2_position_history_source_probe_v1",
+  "go_no_go": "V2_POSITION_HISTORY_SOURCE_PROBE_READY",
+  "generated_utc": "2026-05-17T21:06:00Z",
+  "purpose": "Map V2 paper-history data available for MFE/MAE/ROE/hold-time style fields in extended portfolio_state and position_context. Read-only; full_observation_builder.py is not modified.",
+  "probed_redis_patterns": [
+    "v2:paper:positions_history*",
+    "v2:paper:positions*",
+    "v2:paper:ledger_history*",
+    "v2:paper:ledger*",
+    "v2:paper:intents_history*",
+    "v2:paper:intents*",
+    "v2:paper:fills*",
+    "v2:trade_history*"
+  ],
+  "probed_redis_patterns_match_count": {
+    "v2:paper:positions_history*": 0,
+    "v2:paper:positions*": "snapshot only (no history)",
+    "v2:paper:ledger_history*": 0,
+    "v2:paper:ledger*": "snapshot only (no history)",
+    "v2:paper:intents_history*": 0,
+    "v2:paper:intents*": "snapshot only (no history)",
+    "v2:paper:fills*": 0,
+    "v2:trade_history*": 0
+  },
+  "v2_native_history_source_present": false,
+  "v2_native_snapshot_only_keys_present": [
+    "v2:paper:positions (latest snapshot only)",
+    "v2:paper:ledger (latest snapshot only; held_by_paper_fill_gate snapshot inside)",
+    "v2:paper:intents (latest snapshot only)",
+    "v2:risk:decisions (latest snapshot only)",
+    "v2:orchestrator:decisions (latest snapshot only)"
+  ],
+  "mfe_mae_roe_hold_time_buildable_today": false,
+  "rationale": "V2 paper Redis publishes snapshots, not time-series histories. There is no Redis stream, list, or `*_history` key carrying per-position trajectory data. MFE (Maximum Favorable Excursion), MAE (Maximum Adverse Excursion), ROE-over-position, and hold-time-statistics all require continuous per-position state captured over the position's lifetime; V2 does not record this today.",
+  "alternative_v2_native_sources": [
+    "v2/runtime/paper_shadow_observation.log (paper shadow observation publisher writes a log line per cycle; not Redis-queryable but contains time-series state).",
+    "claude_worklog/agent_supervisor/logs/control_plane/v2_trade_management_paper_loop.log (per-cycle paper-loop log).",
+    "v2:paper:ledger.accepted/blocked (snapshot lists; could be tracked over time by a new history aggregator, but doing so requires a new V2 service)."
+  ],
+  "operator_decision_required": true,
+  "operator_decision_options": [
+    "DEFER_POSITION_HISTORY: keep MFE/MAE/ROE/hold-time slots explicit-missing (current default).",
+    "APPROVE_V2_POSITION_HISTORY_AGGREGATOR: build v2/backend/app/cli/v2_paper_position_history_aggregator_loop.py reading paper snapshots into time-series; new Codex review pair required."
+  ],
+  "current_default_state": "DEFER_POSITION_HISTORY",
+  "fields_that_would_become_buildable_under_approve": [
+    "position_mfe_bps",
+    "position_mae_bps",
+    "position_roe_pct",
+    "position_hold_time_seconds",
+    "position_age_seconds",
+    "drawdown_over_position",
+    "max_favorable_excursion_since_entry",
+    "max_adverse_excursion_since_entry",
+    "average_unrealized_bps_over_window",
+    "win_rate_over_window"
+  ],
+  "modifies_full_observation_builder": false,
+  "modifies_legacy": false,
+  "creates_external_feed": false,
+  "creates_credentials": false,
+  "loads_any_blob": false,
+  "exchange_mutation": false,
+  "writes_old_redis": false,
+  "no_raw_credentials_in_packet": true,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false
+}

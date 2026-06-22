@@ -1,0 +1,78 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "go_no_go": "COPIED_RUNTIME_PERSISTENCE_READY",
+  "live_symbols": [],
+  "persistent_via_durable_gnome_loop": [
+    {
+      "name": "scripts.memory_monitor",
+      "title": "V2 Memory/GPU Monitor"
+    },
+    {
+      "name": "scripts.monitor_trainer_predictions",
+      "title": "V2 Predictions Monitor"
+    },
+    {
+      "name": "ingest.live_coinank",
+      "title": "V2 CoinAnk Bridge (dynamic+baseline)"
+    },
+    {
+      "name": "ingest.live_coinank_global_aggregator",
+      "title": "V2 CoinAnk Bridge (dynamic+baseline)"
+    },
+    {
+      "name": "ingest.live_technical_analysis",
+      "title": "V2 TA Worker (dynamic-first symbol)"
+    },
+    {
+      "name": "monitor.redis",
+      "title": "V2 Redis Key Monitor"
+    },
+    {
+      "name": "monitor.memory_gpu",
+      "title": "V2 Memory/GPU Monitor"
+    },
+    {
+      "name": "monitor.error_alert",
+      "title": "V2 Error/Alert Monitor"
+    }
+  ],
+  "persistent_via_durable_gnome_loop_count": 8,
+  "persistent_via_systemd": [
+    {
+      "name": "ingest.live_binance",
+      "unit": "ai-bot-v2-paper-online-runtime.service"
+    },
+    {
+      "name": "ingest.realtime_price_provider",
+      "unit": "ai-bot-v2-paper-online-runtime.service"
+    },
+    {
+      "name": "feature_pipeline",
+      "unit": "ai-bot-v2-feature-pipeline-native-loop.service"
+    },
+    {
+      "name": "rl.hybrid_trainer",
+      "unit": "ai-bot-v2-trainer-bridge.service"
+    },
+    {
+      "name": "rl.orchestrator_worker",
+      "unit": "ai-bot-v2-orchestrator-arbitration-loop.service"
+    }
+  ],
+  "persistent_via_systemd_count": 5,
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "rules": [
+    "One-shot runs do NOT count as full runtime",
+    "Every safe component runs either as a systemd .service or via a durable GNOME loop with sleep-infinity hold + periodic --once rerun",
+    "Logs are tee-ed to per-category log files",
+    "EST heartbeat visible at <=10s interval",
+    "Payload freshness tracked per component"
+  ],
+  "ts_est": "20260526T014445EST",
+  "ts_iso_est": "2026-05-26T01:50:04-0400",
+  "writes_exchange_orders": false
+}

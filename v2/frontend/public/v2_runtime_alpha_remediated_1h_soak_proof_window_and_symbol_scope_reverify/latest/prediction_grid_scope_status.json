@@ -1,0 +1,13 @@
+{
+  "current_prediction_count": 385,
+  "expected_prediction_rows_count": 385,
+  "missing_prediction_rows_count": 0,
+  "non_current_prediction_rows_count": 0,
+  "prediction_rows_count": 385,
+  "prediction_rows_match_expected": true,
+  "schema_version": "prediction_grid_scope_status_v1",
+  "stale_prediction_rows_count": 0,
+  "status": "ALL_SYMBOL_ALL_TIMEFRAME_CUDA_PREDICTIONS_READY",
+  "symbols_count": 77,
+  "timeframes_count": 5
+}

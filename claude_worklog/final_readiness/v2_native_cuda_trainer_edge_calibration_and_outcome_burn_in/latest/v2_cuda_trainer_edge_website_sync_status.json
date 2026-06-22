@@ -1,0 +1,41 @@
+{
+  "approves_canary": false,
+  "approves_live": false,
+  "execution_live_symbols": [],
+  "generated_est": "2026-06-04T17:25:23-04:00",
+  "live_gate": "blocked_human_only",
+  "live_switch": {
+    "backend_live_enable_callable": false,
+    "disabled_reason": "LIVE_GATE=blocked_human_only; CUDA trainer edge/outcome proof is not live approval.",
+    "enabled": false,
+    "visible": true
+  },
+  "live_symbols": [],
+  "must_show": {
+    "confidence_calibration": "CONFIDENCE_CALIBRATION_READY",
+    "cuda_trainer_active": true,
+    "current_after_cost_edge": -7.039571167326742,
+    "false_negatives": 43,
+    "false_positives": 0,
+    "high_confidence_losers": 0,
+    "next_automatic_action": "Continue CUDA trainer paper/shadow burn-in, outcome mining, and calibration; do not enable live/canary.",
+    "outcome_sample_count": 197,
+    "why_live_blocked": [
+      "BLOCK_LIVE_PAPER_EDGE_NOT_PROVEN",
+      "BLOCK_LIVE_MODEL_SIGNAL_QUALITY_NOT_READY",
+      "BLOCK_LIVE_RISK_CAPS_OPERATOR_REQUIRED"
+    ]
+  },
+  "payload_path": "/v2_native_cuda_trainer_edge_calibration_and_outcome_burn_in/latest/operator_dashboard_payload.json",
+  "schema_version": "v2_native_cuda_trainer_edge_calibration_outcome_burn_in_v1_website_sync",
+  "status": "WEBSITE_SYNCED",
+  "surfaces_synced": [
+    "AI Brain",
+    "Live Readiness",
+    "Paper Trading",
+    "Risk",
+    "Orchestrator",
+    "Replay / Edge",
+    "Symbols"
+  ]
+}

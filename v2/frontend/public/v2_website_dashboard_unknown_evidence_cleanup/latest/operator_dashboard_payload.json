@@ -1,0 +1,16 @@
+{
+  "gate": "V2_WEBSITE_DASHBOARD_UNKNOWN_EVIDENCE_CLEANUP_READY",
+  "generated_est": "2026-06-10T15:13:25-04:00",
+  "headline": "Dashboard and admin pages no longer expose raw unknown/evidence placeholder text.",
+  "local_routes_ok": 32,
+  "local_route_failures": 0,
+  "production_routes_ok": 32,
+  "production_route_failures": 0,
+  "visible_bad_marker_hits": 0,
+  "live_gate_display": "gate approved",
+  "trader_state_display": "armed, balance hold",
+  "live_submit_display": "held until available margin covers the minimum order",
+  "route_matrix_path": "claude_worklog/final_readiness/production_dashboard_wajidali_us_repair/latest/production_route_matrix_dashboard_unknown_evidence_cleanup_verified.json",
+  "production_route_matrix_path": "claude_worklog/final_readiness/production_dashboard_wajidali_us_repair/latest/production_route_matrix_dashboard_unknown_evidence_cleanup_verified_production.json",
+  "latest_frontend_build_asset": "v2/frontend/dist/assets/index-DGAZ9OAN.js"
+}

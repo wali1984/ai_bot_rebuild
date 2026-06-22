@@ -1,0 +1,70 @@
+{
+  "agent": "codex",
+  "autoseed_metadata": {
+    "dependency_promoted_at": "2026-05-24T19:50:32Z",
+    "fail_marker": "V2_AUTONOMOUS_OBSERVATION_GAP_FEATURE_SOURCE_BURNDOWN_CODEX_FAIL",
+    "generated_at": "2026-05-24T19:37:49Z",
+    "pass_marker": "V2_AUTONOMOUS_OBSERVATION_GAP_FEATURE_SOURCE_BURNDOWN_CODEX_PASS",
+    "source": "v2_autonomous_mission_backlog_autoseed",
+    "task_role": "codex_review",
+    "title": "Observation gap feature-source burndown"
+  },
+  "codex_cli_form": "codex_exec_review",
+  "codex_pair_task_id": "claude_autoseed_observation_gap_feature_source_burndown",
+  "completed_at": "2026-05-24T19:37:54.044537+00:00",
+  "created_at": "2026-05-24T19:37:49Z",
+  "current_active": true,
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": [
+    "claude_autoseed_observation_gap_feature_source_burndown"
+  ],
+  "duplicate_suppression_key": "autoseed:observation_gap_feature_source_burndown:codex_review",
+  "fail_blockers": [
+    "1. Decide whether to extend V2-native unified_features beyond the current",
+    "1. **Edit** `v2/backend/app/cli/v2_orchestrator_arbitration_loop.py` \u2014 reorder per-cycle writes and stamp `v2_orchestrator_keys_written_count` into the `v2:orchestrator:decisions` payload."
+  ],
+  "file_lock_group": "v2_observation_gap_feature_source_burndown",
+  "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/codex_review_autoseed_observation_gap_feature_source_burndown_codex.log",
+  "mission_categories": [
+    "observation completeness",
+    "model/policy readiness",
+    "decision match"
+  ],
+  "mission_progress_countable": false,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "owner": "CODEX",
+  "predecessor_task_ids": [
+    "claude_autoseed_observation_gap_feature_source_burndown"
+  ],
+  "prompt": "Review the paired V2 implementation task `claude_autoseed_observation_gap_feature_source_burndown` for `Observation gap feature-source burndown`.\n\nVerify that the work is a narrow implementation, not a broad audit or UI-only change; bridge data is labelled honestly; missing data is marked MISSING_SOURCE rather than fabricated; V2 writes stay in V2/public surfaces; no operator approval drift appears; live_gate remains blocked_human_only and live_symbols remains [].\n\nPASS exactly: `V2_AUTONOMOUS_OBSERVATION_GAP_FEATURE_SOURCE_BURNDOWN_CODEX_PASS`\nFAIL exactly: `V2_AUTONOMOUS_OBSERVATION_GAP_FEATURE_SOURCE_BURNDOWN_CODEX_FAIL`\n",
+  "reconciled_from_source_truth_at": "2026-05-26T17:49:17Z",
+  "report_only_work": false,
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "scope_paths": [
+    "v2/backend/app/services/full_observation",
+    "claude_worklog/final_readiness/v2_full_observation_builder/latest",
+    "v2/frontend/public/operator_runtime/v2_rl_core/latest"
+  ],
+  "source_truth_completed_at": "2026-05-24T19:37:54.044537+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/codex_review_autoseed_observation_gap_feature_source_burndown.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "started_at": "2026-05-24T19:50:32Z",
+  "status": "completed",
+  "task_id": "codex_review_autoseed_observation_gap_feature_source_burndown",
+  "task_type": "CODEX_REVIEW",
+  "ui_only_work": false,
+  "updated_at": "2026-05-26T17:49:17Z"
+}

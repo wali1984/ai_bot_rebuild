@@ -1,0 +1,49 @@
+{
+  "task_id": "claude_fix_v2_gap_full_observation_vector_builder",
+  "kind": "claude_narrow_remediation",
+  "gap_id": "full_observation_vector_builder",
+  "severity": "OPERATOR_DECISION_REQUIRED",
+  "cause": "LEGACY_OBSERVATION_VECTOR_MISMATCH",
+  "created_utc": "2026-05-17T18:00:00Z",
+  "updated_utc": "2026-05-17T18:00:00Z",
+  "status": "pending_operator_decision",
+  "auto_apply_allowed_by_this_loop": false,
+  "summary": "V2 native compact observation = 26 dims. Legacy V3 production observation = 1911 dims (unified_features=1430, portfolio_state=401, onchain_btc=15, onchain_eth=15, position_context=50). Missing 1885 dims of V2 native sources. The v2_full_observation_builder scaffold reports FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS with specific named categories.",
+  "missing_observation_categories": [
+    "unified_features",
+    "onchain_btc",
+    "onchain_eth"
+  ],
+  "partial_observation_categories": [
+    "portfolio_state",
+    "position_context"
+  ],
+  "required_v2_files_to_modify_when_operator_approves": [
+    "v2/backend/app/services/rl_core/full_observation_builder.py",
+    "v2/backend/app/services/feature_pipeline_native/unified_features.py (new)",
+    "v2/backend/app/services/feature_pipeline_native/onchain_features.py (new)",
+    "v2/backend/app/services/feature_pipeline_native/portfolio_state_extended.py (new)"
+  ],
+  "tests_required_when_implementation_starts": [
+    "v2/backend/tests/integration/cli/test_v2_full_observation_builder.py (extend)"
+  ],
+  "forbidden_actions": [
+    "modify /home/wali/Desktop/AI BOT",
+    "stop or restart legacy",
+    "write old Redis keys",
+    "place or cancel exchange orders",
+    "change leverage or margin",
+    "enable live",
+    "create approval token",
+    "execute legacy monitor scripts",
+    "fabricate observation dimensions with zeros or random values",
+    "commit checkpoint blobs to Git"
+  ],
+  "paired_codex_review_task_id": "codex_review_fix_v2_gap_full_observation_vector_builder",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false
+}

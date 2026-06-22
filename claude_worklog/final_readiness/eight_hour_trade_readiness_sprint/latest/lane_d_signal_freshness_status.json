@@ -1,0 +1,37 @@
+{
+  "lane": "D",
+  "name": "signal_orchestrator_freshness",
+  "go_no_go": "LANE_D_SIGNAL_FRESHNESS_READ_ONLY_REPORT_READY_TWO_STALE_PAYLOADS",
+  "generated_utc": "2026-05-15",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false,
+  "payloads_inspected": [
+    {"path": "v2/frontend/public/operator_runtime/legacy_v2_decision_comparator/latest/legacy_v2_decision_comparator_status.json", "fresh": true},
+    {"path": "v2/frontend/public/operator_runtime/v2_signal_lineage_worker/latest/v2_signal_lineage_worker_status.json", "age_seconds": 81298, "fresh": true, "note": "near 24h boundary"},
+    {"path": "v2/frontend/public/operator_runtime/v2_orchestrator_adapter/latest/v2_orchestrator_adapter_status.json", "age_seconds": 135908, "fresh": false},
+    {"path": "v2/frontend/public/operator_runtime/v2_signal_publisher/latest/v2_signal_publisher_status.json", "age_seconds": 134967, "fresh": false},
+    {"path": "v2/frontend/public/operator_runtime/legacy_runtime_observer/latest/legacy_runtime_observer_status.json", "fresh": true},
+    {"path": "v2/frontend/public/operator_runtime/legacy_signal_outcome_observer/latest/legacy_signal_outcome_observer_status.json", "fresh": true}
+  ],
+  "stale_payloads": [
+    "v2_orchestrator_adapter",
+    "v2_signal_publisher"
+  ],
+  "decision_quality_status": "INSUFFICIENT_SAMPLE",
+  "comparator_invariants_verified": {
+    "legacy_mutation_performed": false,
+    "old_redis_write_performed": false,
+    "exchange_action_taken": false,
+    "approval_token_created": false,
+    "redis_trim_approval_created": false,
+    "live_blocked": true,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "no_invented_outcomes": true,
+  "remediation_suggestion": "Dispatch republish for v2_orchestrator_adapter and v2_signal_publisher via worker porting orchestrator. This lane is read-only."
+}

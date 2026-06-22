@@ -1,0 +1,62 @@
+{
+  "goal_id": "V2_STOP_THE_LINE_FULL_SYSTEM_TRAINER_PAPER_ALPHA_LIVE_GRADE_REMEDIATION",
+  "generated": "2026-06-16T06:30:00Z",
+  "blockers": [
+    {
+      "id": "B001",
+      "priority": "P0",
+      "title": "Binance FAPI HTTP 418 rate limit ban",
+      "impact": "ticker_24hr/orderbook/funding return None → features missing → reduced data_coverage",
+      "status": "EXTERNAL_DEPENDENCY — cannot fix in code, must wait for ban to lift",
+      "mitigation_applied": "Added num_trades/quote_volume/taker_buy to OPTIONAL tokens so examples are not fully rejected",
+      "expected_recovery": "Auto-recovery when Binance 418 ban lifts (typically minutes to hours)"
+    },
+    {
+      "id": "B002",
+      "priority": "P0",
+      "title": "Trainer crash: ValueError min() on empty predictions",
+      "impact": "Persistent loop crashes repeatedly when fresh_examples=0 but replay_buffer non-empty",
+      "status": "FIXED — runtime.py:249 guarded, persistent_cuda_trainer_runtime.py:1327 catch broadened",
+      "fix_files": [
+        "v2/backend/app/services/native_trainer/hybrid_cuda_trainer/runtime.py",
+        "v2/backend/app/services/native_trainer/persistent_cuda_trainer_runtime.py"
+      ]
+    },
+    {
+      "id": "B003",
+      "priority": "P0",
+      "title": "0 trusted training examples due to MISSING_CRITICAL_FEATURE_FAMILY",
+      "impact": "trusted_only=True returns 0 examples → no fresh predictions → stale for 72+ min",
+      "status": "PARTIALLY_FIXED — volume tokens added to optional set; ban lift needed for full restoration",
+      "fix_files": [
+        "v2/backend/app/services/market_state_integrity/scoring.py"
+      ]
+    },
+    {
+      "id": "B004",
+      "priority": "P0",
+      "title": "Publisher GATE_BLOCKED: 15-condition AND-gate fails on any sub-condition",
+      "impact": "Publisher always returns GATE_BLOCKED when any of 15 conditions fails",
+      "status": "ROOT_CAUSE_IDENTIFIED — structural design issue; predictions are written separately from gate",
+      "note": "The GATE_BLOCKED is the go/no-go status for trading approval, not for prediction writes. Predictions ARE written via publish_v2_keys regardless. The GATE_BLOCKED correctly reflects system state."
+    },
+    {
+      "id": "B005",
+      "priority": "P0",
+      "title": "Trainer feedback pipeline: 0 forward_paper_accepted_candidate_rows",
+      "impact": "Trainer not learning from live paper trades despite 446 ALLOW_WITH_SIZE decisions",
+      "status": "NOT_YET_DIAGNOSED — Phase 2 work",
+      "phase": "Phase 2"
+    },
+    {
+      "id": "B006",
+      "priority": "P0",
+      "title": "721,919 v2:replay:snapshots:* keys accumulating without TTL",
+      "impact": "Potential Redis memory pressure; disk I/O pressure; possible future OOM",
+      "status": "IDENTIFIED — keys have no TTL (TTL=-1); needs cleanup strategy",
+      "note": "Do not blindly delete — these are audit evidence. Need TTL policy for new writes."
+    }
+  ],
+  "places_real_order": false,
+  "exchange_mutation": false
+}

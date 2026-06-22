@@ -1,0 +1,17 @@
+{
+  "agent": "claude",
+  "completed_at": "2026-05-24T18:56:30.193170+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "prompt": "Fix V2 runtime soak and production-equivalence implementation blockers only. Do not modify /home/wali/Desktop/AI BOT. Do not stop legacy. Do not write old Redis. Do not call exchange mutation. Do not enable live. live_gate remains blocked_human_only and live_symbols remains []. Current Codex blockers: V2_REQUIRED_PROCESS_MISSING: production_equivalence_comparator, soak_observer, payload_freshness_refresher; PAYLOAD_STALE_OR_MISSING: soak_observer; REPLACEMENT_SCOREBOARD_V2_RUNTIME_NOT_RUNNING; V2_RUNTIME_SOAK_1H_NOT_READY_AFTER_60M; V2_RUNTIME_SOAK_6H_NOT_READY_AFTER_360M",
+  "reconciled_from_source_truth_at": "2026-06-22T00:26:57Z",
+  "resolved_from_source_truth": true,
+  "risk_level": "L2",
+  "source_truth_completed_at": "2026-05-24T18:56:30.193170+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/claude_v2_runtime_soak_and_production_equivalence_remediation.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "claude_v2_runtime_soak_and_production_equivalence_remediation",
+  "updated_at": "2026-06-22T00:26:57Z"
+}

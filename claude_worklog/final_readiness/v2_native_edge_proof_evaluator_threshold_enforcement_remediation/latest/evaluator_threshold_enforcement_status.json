@@ -1,0 +1,76 @@
+{
+  "schema_version": "v2_native_edge_proof_evaluator_threshold_enforcement_remediation_status_v1",
+  "generated_utc": "2026-05-23T05:25:48Z",
+  "go_no_go": "V2_NATIVE_EDGE_PROOF_EVALUATOR_THRESHOLD_ENFORCEMENT_REMEDIATION_READY",
+  "codex_fail_blockers_resolved": [
+    "evaluator did not enforce max_drawdown_bps_rolling",
+    "default cost model did not surface the literal OPERATOR_DECISION_REQUIRED"
+  ],
+  "required_thresholds_enforced": [
+    "min_sample_count",
+    "min_after_cost_expectancy_bps",
+    "min_after_cost_lower_ci_bps",
+    "max_drawdown_bps_rolling",
+    "min_downside_pre_cascade_recall",
+    "max_false_positive_rate",
+    "max_false_negative_rate"
+  ],
+  "evidence_states_supported": [
+    "NUMERIC_CHECK_PASSED",
+    "NUMERIC_CHECK_FAILED",
+    "OPERATOR_DECISION_REQUIRED",
+    "INSUFFICIENT_EVIDENCE",
+    "INVALID_THRESHOLD"
+  ],
+  "verdict_logic": {
+    "any_operator_pending": "EDGE_NOT_CLAIMED_OPERATOR_THRESHOLDS_REQUIRED",
+    "any_invalid_threshold": "EDGE_NOT_CLAIMED_OPERATOR_THRESHOLDS_REQUIRED",
+    "sample_count_below_minimum": "EDGE_NOT_PROVEN_INSUFFICIENT_SAMPLES",
+    "any_insufficient_evidence_on_required": "EDGE_NOT_PROVEN",
+    "any_numeric_check_failed": "EDGE_NOT_PROVEN",
+    "all_required_passed": "EDGE_PROVISIONAL_PAPER_PASS"
+  },
+  "drawdown_observation_source": "max of |drawdown_bps| across every bundle's every outcome window",
+  "cost_model_marker_literal": "OPERATOR_DECISION_REQUIRED",
+  "cost_model_marker_full": "DEFAULT_PAPER_COST_MODEL_PENDING_OPERATOR_OVERRIDE_OPERATOR_DECISION_REQUIRED",
+  "cost_model_operator_override_required": true,
+  "default_fee_bps_visible": 5.0,
+  "default_slippage_estimate_bps_visible": 2.0,
+  "tests_focused_evaluator": "34 of 34 passed",
+  "tests_focused_miner": "18 of 18 passed",
+  "tests_combined_regression": "74 of 74 passed",
+  "validation_scans": {
+    "py_compile": "PASS",
+    "json_validation": "PASS (refreshed artifacts parsed)",
+    "old_redis_write_scan_edge_proof_code": "PASS (0 hits)",
+    "exchange_mutation_scan_edge_proof_code": "PASS (0 hits)",
+    "approval_token_truthy_scan_artifacts": "PASS (0 hits)",
+    "raw_secret_scan_artifacts": "PASS (0 hits for AKIA / ASIA / PEM headers / local_secrets/)"
+  },
+  "artifacts_refreshed": [
+    "claude_worklog/final_readiness/v2_native_edge_proof/latest/native_edge_proof_status.json",
+    "claude_worklog/final_readiness/v2_native_edge_proof/latest/edge_metrics_summary.json",
+    "claude_worklog/final_readiness/v2_native_edge_proof/latest/replay_bundle_schema.json",
+    "v2/frontend/public/v2_native_edge_proof/latest/operator_dashboard_payload.json",
+    "v2/frontend/public/v2_native_edge_proof/latest/edge_metrics_summary.json",
+    "v2/frontend/public/v2_native_edge_proof/latest/replay_bundle_schema.json",
+    "claude_worklog/final_readiness/v2_post_hoc_replay_outcome_miner/latest/post_hoc_replay_outcome_status.json",
+    "claude_worklog/final_readiness/v2_post_hoc_replay_outcome_miner/latest/edge_metrics_summary.json",
+    "claude_worklog/final_readiness/v2_post_hoc_replay_outcome_miner/latest/operator_dashboard_payload.json",
+    "claude_worklog/final_readiness/v2_post_hoc_replay_outcome_miner/latest/replay_outcome_bundles.jsonl",
+    "v2/frontend/public/v2_post_hoc_replay_outcome_miner/latest/*"
+  ],
+  "did_not_install_or_enable_replay_miner_timer": true,
+  "did_not_modify_legacy_bot": true,
+  "did_not_stop_v2_runtime": true,
+  "did_not_write_old_redis": true,
+  "did_not_call_exchange": true,
+  "did_not_create_approval_marker": true,
+  "did_not_enable_live": true,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false
+}

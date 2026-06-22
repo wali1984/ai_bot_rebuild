@@ -1,0 +1,52 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "can_shutdown_old_system_simple_english": "No. Codex failed the full legacy root source-scope lock because the packet only used audit-mentioned paths, while Codex counted 16,802 Python files under the legacy root. Full filesystem enumeration is still required.",
+  "codex_findings": {
+    "decision": "FAIL_FULL_ROOT_NOT_ENUMERATED",
+    "legacy_python_file_count_readonly_codex": 16802,
+    "lower_level_checks": "dependency closure, py_compile, strict smokes, frontend truth, old Redis scan, and exchange mutation scan passed",
+    "packet_candidate_path_count": 210,
+    "v2_legacy_owned_python_file_count": 278
+  },
+  "codex_go_no_go": "FULL_LEGACY_ROOT_EXHAUSTIVE_SOURCE_SCOPE_LOCK_CODEX_FAIL",
+  "codex_review_path": "claude_worklog/final_readiness/full_legacy_root_source_scope_lock/latest/codex_review/CODEX_FULL_LEGACY_ROOT_SOURCE_SCOPE_LOCK_REVIEW.md",
+  "delivered": {
+    "enumeration_method": "AUDIT_MENTIONED_PATHS_ONLY",
+    "filesystem_enumeration_status": "BLOCKED_AUTO_MODE_CLASSIFIER_DENIES_LISTDIR",
+    "phase_A_candidate_paths_probed": 210,
+    "phase_A_readable_count": 166,
+    "phase_A_unreadable_count": 44,
+    "phase_B_already_present_count": 156,
+    "phase_C_copied_count": 19,
+    "phase_D_closure_py_files": 278,
+    "phase_D_parse_errors": 0,
+    "phase_D_smoke_fail_count": 0,
+    "phase_D_smoke_pass_count": 6,
+    "phase_D_tests_passed": 16,
+    "phase_D_unresolved_local_imports": 0
+  },
+  "evidence_paths": [
+    "claude_worklog/final_readiness/full_legacy_root_source_scope_lock/latest/GO_NO_GO.md",
+    "claude_worklog/final_readiness/full_legacy_root_source_scope_lock/latest/FULL_LEGACY_ROOT_SOURCE_INVENTORY.md",
+    "claude_worklog/final_readiness/full_legacy_root_source_scope_lock/latest/LEGACY_TO_V2_OWNED_DIFF.md",
+    "claude_worklog/final_readiness/full_legacy_root_source_scope_lock/latest/full_legacy_root_source_inventory.json",
+    "claude_worklog/final_readiness/full_legacy_root_source_scope_lock/latest/legacy_to_v2_owned_diff.json",
+    "claude_worklog/final_readiness/full_legacy_root_source_scope_lock/latest/full_root_copy_amendment.json",
+    "claude_worklog/final_readiness/full_legacy_root_source_scope_lock/latest/CODEX_REVIEW_REQUEST.md",
+    "claude_worklog/final_readiness/full_legacy_root_source_scope_lock/latest/codex_review/CODEX_FULL_LEGACY_ROOT_SOURCE_SCOPE_LOCK_REVIEW.md",
+    "claude_worklog/final_readiness/full_legacy_root_source_scope_lock/latest/codex_review/CODEX_GO_NO_GO.md"
+  ],
+  "final_approval_token": "absent",
+  "generated_utc": "2026-05-16",
+  "go_no_go": "FULL_LEGACY_ROOT_EXHAUSTIVE_SOURCE_SCOPE_LOCK_BLOCKED",
+  "headline_blocker": "LEGACY_ROOT_FILESYSTEM_ENUMERATION_DENIED",
+  "last_updated": "2026-05-16T01:55:24Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "redis_trim_approval_token": "absent",
+  "shutdown_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",
+  "worker_id": "full_legacy_root_source_scope_lock"
+}

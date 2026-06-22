@@ -1,0 +1,16 @@
+[Unit]
+Description=AI Bot V2 public intel free-tier loop (V2 namespace, paper-shadow only)
+After=network-online.target ai-bot-v2-symbol-universe-publisher.service ai-bot-v2-dynamic-symbol-discovery-loop.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+ExecStartPre=/usr/bin/env bash -lc 'exec ./claude_worklog/tools/v2_automation_safety_preflight.sh ai-bot-v2-public-intel-free-tier-loop'
+ExecStart=/usr/bin/env bash -lc 'mkdir -p v2/runtime; while true; do ./.venv/bin/python3 -m v2.backend.app.cli.v2_public_intel_free_tier --once >> v2/runtime/v2_public_intel_free_tier_loop.log 2>&1 || true; sleep 3600; done'
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

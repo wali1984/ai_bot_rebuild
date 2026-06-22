@@ -1,0 +1,77 @@
+{
+  "schema_version": "v2_legacy_autorestart_disable_status_v1",
+  "generated_utc": "2026-05-25T21:30:00Z",
+  "git_head": "10513bbe0517fd81c9c87e4672bb15486a083c02",
+  "lane_id": "v2_legacy_runtime_freeze_and_primary_paper_cutover",
+  "scope": "PHASE_4_DISABLE_LEGACY_AUTO_RESTART",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "auto_restart_audit": {
+    "legacy_systemd_user_units": {
+      "count_observed": 0,
+      "note": "Pre-freeze precheck enumerated user systemd units. No non-v2 ai-bot* units exist. All ai-bot-codex-* and ai-bot-v2-* units belong to V2/Codex governance and must be preserved."
+    },
+    "legacy_tmux_sessions": {
+      "count_observed": 0,
+      "sessions_inspected": ["ai_bot_codex_non_live_watchdog"],
+      "note": "Only tmux session belongs to V2 codex governance. No legacy auto-restart tmux session exists."
+    },
+    "legacy_cron_entries": {
+      "scope_checked": "user_crontab",
+      "count_observed": 0,
+      "note": "User crontab not used for legacy auto-restart."
+    },
+    "legacy_supervisor_scripts": {
+      "count_observed": 0,
+      "note": "No supervisor or watchdog script was the parent of any of the 12 legacy PIDs. All 12 legacy processes were parented by VSCode terminal bash shells - manual operator-started, no automatic restart."
+    },
+    "legacy_screen_sessions": {
+      "count_observed": 0
+    }
+  },
+  "disabled_or_stopped_count": 0,
+  "disabled_or_stopped_units": [],
+  "not_deleted_anything": true,
+  "preservation_intent_honored": true,
+  "auto_restart_risk_assessment": "NEGLIGIBLE_LEGACY_PROCESSES_WERE_MANUALLY_STARTED_FROM_VSCODE_TERMINALS_NO_AUTOMATIC_RESTART_MECHANISM_EXISTS",
+  "operator_action_to_prevent_manual_restart": "Operator should NOT re-run any of the original VSCode terminal commands (start scripts under the legacy bot root) until they explicitly choose to lift the freeze.",
+  "v2_systemd_units_preserved_count": 22,
+  "v2_systemd_units_sample": [
+    "ai-bot-v2-report-center-indexer.timer",
+    "ai-bot-v2-post-hoc-replay-outcome-miner.timer",
+    "ai-bot-v2-closed-loop-worker-pool.timer",
+    "ai-bot-v2-claude-task-runner.timer",
+    "ai-bot-v2-autonomous-mission-backlog.timer",
+    "ai-bot-v2-final-operator-decision-event-watcher.timer",
+    "ai-bot-v2-executive-command-center.timer",
+    "ai-bot-v2-autonomous-full-rebuild-self-healing-controller.timer",
+    "ai-bot-v2-automation-liveness-watchdog.timer",
+    "ai-bot-v2-live-canary-dry-run.timer",
+    "ai-bot-codex-runtime-soak-production-equivalence-governor.timer",
+    "ai-bot-codex-8h-war-room-review-governor.timer",
+    "ai-bot-codex-continuous-remediation-review-governor.timer"
+  ],
+  "v2_systemd_units_disabled_in_this_lane_count": 0,
+  "tokenmetrics_excluded": true,
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "writes_old_redis": false,
+    "calls_exchange_mutation": false,
+    "creates_approval_tokens": false,
+    "deletes_legacy_files": false,
+    "trims_or_flushes_redis": false,
+    "removes_legacy_redis_keys": false,
+    "modifies_legacy_repo": false,
+    "stops_v2_runtime": false,
+    "stops_report_center": false,
+    "stops_replay_miner": false,
+    "stops_spark_or_worker_pool": false,
+    "stops_codex_governor": false,
+    "deletes_systemd_unit_files": false
+  }
+}

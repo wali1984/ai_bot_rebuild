@@ -1,0 +1,183 @@
+{
+  "schema_version": "v2_full_observation_unified_features_burndown_status_v1",
+  "go_no_go": "V2_FULL_OBSERVATION_UNIFIED_FEATURES_BURNDOWN_READY_PARTIAL_PROGRESS",
+  "generated_utc": "2026-05-21T23:55:00Z",
+  "packet_name": "v2_full_observation_unified_features_burndown",
+  "purpose": "Continue 1911-dim full-observation burndown by expanding V2-buildable subfamilies inside unified_features. This packet completes the coinank subfamily (16/22 -> 22/22 per symbol) using strictly V2-native derivations from existing v2:market:funding, v2:market:open_interest, and v2:market:prices payloads. No new Redis read. No paid aggregator. No legacy source. No silent zero-fill.",
+  "code_changes": [
+    "v2/backend/app/services/rl_core/full_observation_builder.py (extended _project_coinank with 6 V2-derivable fields)"
+  ],
+  "new_coinank_fields": [
+    "coinank.seconds_until_next_funding",
+    "coinank.funding_payload_age_seconds",
+    "coinank.oi_payload_age_seconds",
+    "coinank.funding_oi_direction_agreement",
+    "coinank.funding_rate_bps",
+    "coinank.mark_premium_to_index_bps"
+  ],
+  "new_coinank_field_sources_when_present": {
+    "coinank.seconds_until_next_funding": "V2_DERIVED_FROM_FUNDING",
+    "coinank.funding_payload_age_seconds": "V2_DERIVED_FROM_FUNDING_TIMESTAMP",
+    "coinank.oi_payload_age_seconds": "V2_DERIVED_FROM_OPEN_INTEREST_TIMESTAMP",
+    "coinank.funding_oi_direction_agreement": "V2_DERIVED_FROM_FUNDING_AND_FEATURES",
+    "coinank.funding_rate_bps": "V2_DERIVED_FROM_FUNDING",
+    "coinank.mark_premium_to_index_bps": "V2_DERIVED_FROM_FUNDING"
+  },
+  "consumed_v2_redis_keys_unchanged": [
+    "v2:market:funding:{symbol}",
+    "v2:market:open_interest:{symbol}",
+    "v2:market:prices:{symbol}",
+    "v2:features:latest:{symbol}:{timeframe}"
+  ],
+  "did_not_add_redis_consumer": true,
+  "did_not_call_paid_aggregator": true,
+  "did_not_call_external_service": true,
+  "generated_dim_before_per_symbol": {
+    "BTCUSDT": 217,
+    "ETHUSDT": 217,
+    "SOLUSDT": 207
+  },
+  "generated_dim_after_per_symbol": {
+    "BTCUSDT": 223,
+    "ETHUSDT": 223,
+    "SOLUSDT": 213
+  },
+  "generated_dim_delta_per_symbol": {
+    "BTCUSDT": 6,
+    "ETHUSDT": 6,
+    "SOLUSDT": 6
+  },
+  "aggregate_dim_delta": 18,
+  "missing_field_count_per_symbol": {
+    "BTCUSDT": 1688,
+    "ETHUSDT": 1688,
+    "SOLUSDT": 1698
+  },
+  "target_full_observation_dim": 1911,
+  "subfamily_present_counts_total_after": {
+    "binance_klines": 60,
+    "binance_orderbook": 45,
+    "ccxt_ohlcv": 0,
+    "coinank": 66,
+    "liquidations": 24,
+    "portfolio_state_unified": 45,
+    "technical_analysis": 72,
+    "token_metrics": 0
+  },
+  "subfamily_target_counts_total": {
+    "binance_klines": 60,
+    "binance_orderbook": 45,
+    "ccxt_ohlcv": 30,
+    "coinank": 66,
+    "liquidations": 36,
+    "portfolio_state_unified": 45,
+    "technical_analysis": 75,
+    "token_metrics": 54
+  },
+  "subfamily_gap_total_after": {
+    "binance_klines": 0,
+    "binance_orderbook": 0,
+    "ccxt_ohlcv": 30,
+    "coinank": 0,
+    "liquidations": 12,
+    "portfolio_state_unified": 0,
+    "technical_analysis": 3,
+    "token_metrics": 54
+  },
+  "subfamily_filled_in_this_packet": "coinank",
+  "next_required_family": "liquidations",
+  "remaining_blockers_for_full_1911_parity": [
+    "unified_features.liquidations (12 dim gap) -- requires real V2 WSS event publisher to write v2:market:liquidations:latest:{sym} and v2:market:liquidations:aggregate:{sym}; cannot expand without fabricating",
+    "unified_features.technical_analysis (3 dim gap) -- macd_signal_strength None when macd==0; honest mathematically-degenerate state, not a slot to expand",
+    "unified_features.ccxt_ohlcv (30 dim gap) -- OPERATOR_DECISION_REQUIRED_SECONDARY_EXCHANGE_OHLCV",
+    "unified_features.token_metrics (54 dim gap) -- EXTERNAL_SOURCE_REQUIRED (Glassnode / CryptoQuant / IntoTheBlock)",
+    "unified_features (1430 dim slice -- 1293 dims explicitly MISSING_LEGACY_V3_EXTRA_NO_V2_SOURCE)",
+    "portfolio_state (401 dim slice -- residual V2-native field gap)",
+    "onchain_btc (15 dim) -- EXTERNAL_SOURCE_REQUIRED",
+    "onchain_eth (15 dim) -- EXTERNAL_SOURCE_REQUIRED"
+  ],
+  "explicit_missing_categories_unchanged": [
+    "token_metrics",
+    "onchain_btc",
+    "onchain_eth",
+    "ccxt_ohlcv"
+  ],
+  "explicit_missing_categories_source_labels_unchanged": {
+    "token_metrics": "EXTERNAL_SOURCE_REQUIRED_NO_V2_NATIVE_TOKEN_METRICS",
+    "onchain_btc": "ONCHAIN_FEATURE_SOURCE_MISSING",
+    "onchain_eth": "ONCHAIN_FEATURE_SOURCE_MISSING",
+    "ccxt_ohlcv": "OPERATOR_DECISION_REQUIRED_SECONDARY_EXCHANGE_OHLCV"
+  },
+  "liquidation_expansion_attempted": false,
+  "liquidation_expansion_blocked_reason": "V2_MARKET_LIQUIDATIONS_LATEST_AND_AGGREGATE_REDIS_KEYS_ABSENT_NO_WSS_PUBLISHER",
+  "tests": {
+    "v2/backend/tests/integration/cli/test_v2_full_observation_unified_features_burndown.py": {
+      "tests_total": 16,
+      "tests_passed": 16,
+      "tests_failed": 0
+    },
+    "v2/backend/tests/integration/cli/test_v2_full_observation_builder.py": {
+      "tests_total": 8,
+      "tests_passed": 8,
+      "tests_failed": 0,
+      "note": "no regression"
+    },
+    "v2/backend/tests/integration/cli/test_v2_full_observation_position_history_tracker_only_consumption.py": {
+      "tests_total": 10,
+      "tests_passed": 10,
+      "tests_failed": 0,
+      "note": "no regression"
+    },
+    "v2/backend/tests/integration/cli/test_v2_full_observation_post_tracker_position_feature_expansion.py": {
+      "tests_total": 15,
+      "tests_passed": 15,
+      "tests_failed": 0,
+      "note": "no regression"
+    }
+  },
+  "validation_sweep_status": "PASS",
+  "validation_sweep_files_scanned": 22,
+  "validation_sweep_secret_hits": 0,
+  "validation_sweep_approval_true_hits": 0,
+  "validation_sweep_legacy_redis_hits": 0,
+  "validation_sweep_exchange_mutation_hits": 0,
+  "validation_sweep_json_parse_failures": 0,
+  "py_compile_status": "PASS",
+  "zero_filled_field_count": 0,
+  "checkpoint_compatibility_claimed": false,
+  "policy_architecture_parity_claimed": false,
+  "no_zero_fill_for_unknown_fields": true,
+  "no_torch_imported": true,
+  "no_pickle_loaded": true,
+  "no_legacy_filesystem_read": true,
+  "no_legacy_features_consumed_as_current_truth": true,
+  "no_fabricated_excursion_metrics": true,
+  "compact_observation_v1_dim": 26,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "writes_legacy_redis": false,
+  "writes_old_redis": false,
+  "writes_exchange_orders": false,
+  "leverage_changed": false,
+  "margin_mode_changed": false,
+  "places_real_order": false,
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "raw_credential_in_payload": "NEVER",
+  "provider_network_calls_attempted": false,
+  "did_not_modify_legacy_bot": true,
+  "did_not_stop_legacy": true,
+  "did_not_stop_v2_runtime": true,
+  "did_not_change_leverage_or_margin": true,
+  "did_not_create_approval_marker": true,
+  "did_not_start_policy_architecture": true,
+  "did_not_claim_checkpoint_compatibility": true,
+  "did_not_change_slice_sizes": true,
+  "did_not_modify_tracker_writer_scope": true,
+  "did_not_modify_consumption_gate": true,
+  "tracker_consumption_state_at_publish": "ALLOWED_AFTER_CODEX_PASS_AND_FRESH_HEARTBEAT"
+}

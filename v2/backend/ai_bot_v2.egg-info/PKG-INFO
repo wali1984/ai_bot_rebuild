@@ -1,0 +1,26 @@
+Metadata-Version: 2.4
+Name: ai-bot-v2
+Version: 0.0.0
+Summary: AI BOT V2 control-plane scaffold (paper/read_only by default; live trading blocked).
+Requires-Python: >=3.11
+Requires-Dist: fastapi==0.115.0
+Requires-Dist: pydantic==2.13.4
+Requires-Dist: pydantic-settings==2.5.2
+Requires-Dist: uvicorn==0.30.6
+Requires-Dist: SQLAlchemy==2.0.35
+Requires-Dist: alembic==1.13.3
+Requires-Dist: redis==5.0.8
+Requires-Dist: httpx==0.27.2
+Requires-Dist: structlog==24.4.0
+Requires-Dist: python-multipart==0.0.10
+Requires-Dist: websockets==15.0.1
+Requires-Dist: binance-sdk-derivatives-trading-usds-futures @ git+https://github.com/binance/binance-connector-python.git@22af475b45db45bb90ad730babcdd32b8db1424d#subdirectory=clients/derivatives_trading_usds_futures
+Provides-Extra: dev
+Requires-Dist: pytest==8.3.3; extra == "dev"
+Requires-Dist: pytest-asyncio==0.24.0; extra == "dev"
+Requires-Dist: hypothesis==6.112.1; extra == "dev"
+Requires-Dist: mypy==1.11.2; extra == "dev"
+Requires-Dist: ruff==0.6.8; extra == "dev"
+Requires-Dist: grimp==3.4.1; extra == "dev"
+Requires-Dist: testcontainers==4.8.1; extra == "dev"
+Requires-Dist: psycopg[binary]==3.2.1; extra == "dev"

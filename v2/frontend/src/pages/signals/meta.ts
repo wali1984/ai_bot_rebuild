@@ -2,7 +2,7 @@ import type { PageMeta } from '../../types/page';
 const meta: PageMeta = {
   id: 'signals',
   title: 'Signals',
-  surface: 'admin',
+  surface: 'app',
   description: 'Recent signals with lineage chain rendering.',
   navCategory: 'market',
   dangerousControlIds: [],

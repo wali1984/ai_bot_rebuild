@@ -1,14 +1,14 @@
 # Legacy V2 Realtime Decision Observatory Report
 
-Generated: `2026-05-15T18:02:40Z`
+Generated: `2026-06-22T00:27:53Z`
 
 This observatory is read-only against legacy evidence. It does not approve live trading, canary trading, or legacy shutdown.
 
 ## Runtime Health
 
-- legacy ingestion health: `STALE`
-- legacy trainer health: `RUNNING_READONLY_OBSERVED`
-- legacy signal health: `STALE`
+- legacy ingestion health: `MISSING_EVIDENCE`
+- legacy trainer health: `NOT_OBSERVED`
+- legacy signal health: `MISSING_EVIDENCE`
 - V2 decision quality: `EDGE_PENDING_INSUFFICIENT_SAMPLE`
 - legacy-vs-V2 agreement: `LEGACY_SIGNAL_MISSING_V2_PRESENT`
 - after-cost correctness: `PENDING_OUTCOME`

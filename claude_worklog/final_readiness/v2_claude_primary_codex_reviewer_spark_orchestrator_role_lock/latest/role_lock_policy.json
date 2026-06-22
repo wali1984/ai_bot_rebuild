@@ -1,0 +1,167 @@
+{
+  "schema_version": "v2_claude_primary_codex_reviewer_spark_orchestrator_role_lock_policy_v1",
+  "generated_utc": "2026-05-26T02:10:00Z",
+  "git_head": "10513bbe0517fd81c9c87e4672bb15486a083c02",
+  "lane_id": "v2_claude_primary_codex_reviewer_spark_orchestrator_role_lock",
+  "policy_id": "V2_CLAUDE_PRIMARY_CODEX_REVIEWER_SPARK_ORCHESTRATOR_ROLE_LOCK",
+  "go_no_go": "V2_CLAUDE_PRIMARY_CODEX_REVIEWER_SPARK_ORCHESTRATOR_ROLE_LOCK_READY",
+  "policy_effective_at_utc": "2026-05-26T02:10:00Z",
+  "policy_status": "ACTIVE",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "upstream_codex_gate": "V2_LEGACY_RUNTIME_FREEZE_PRIMARY_PAPER_CUTOVER_CODEX_PASS",
+  "principle": "Spark is the orchestrator/control-plane. Claude Code is the primary implementation executor. Codex is the reviewer/approver and safe scoped fixer. Spark may dispatch, lease, heartbeat, autoseed, and report, but it must not be credited as the implementation or review owner.",
+  "roles": {
+    "CLAUDE": {
+      "label": "Claude Code",
+      "responsibility": "primary implementation executor",
+      "owns_task_types": ["runtime_implementation", "model_or_trainer_implementation", "evidence_or_proof_implementation", "remediation_implementation"],
+      "agent_field_value": "claude",
+      "owner_field_value": "CLAUDE",
+      "must_not_act_as": ["reviewer", "approver", "orchestrator"]
+    },
+    "CODEX": {
+      "label": "Codex",
+      "responsibility": "reviewer/approver and safe scoped fixer",
+      "owns_task_types": ["runtime_review", "model_or_trainer_review", "evidence_or_proof_review", "scoped_remediation_fix"],
+      "agent_field_value": "codex",
+      "owner_field_value": "CODEX",
+      "must_not_act_as": ["primary_implementation_executor", "orchestrator"]
+    },
+    "SPARK": {
+      "label": "Spark",
+      "responsibility": "orchestrator and control-plane only",
+      "owns_task_types": ["task_dispatch", "lease_management", "heartbeat", "autoseed", "metrics", "report_center_truth", "infrastructure_control"],
+      "agent_field_value": "spark_or_closed_loop_spark_or_autonomous_mission_backlog",
+      "owner_field_value": "SPARK",
+      "must_not_act_as": ["primary_implementation_executor", "reviewer", "approver"],
+      "may_modify_v2_runtime_code": "ORCHESTRATION_OR_CONTROL_PLANE_SCOPE_ONLY_NEVER_RUNTIME_IMPLEMENTATION"
+    }
+  },
+  "policy_rules": [
+    {
+      "rule_id": "rule_1_implementation_ownership",
+      "rule": "owner=CLAUDE for code/runtime implementation tasks. agent=claude or claude_code for primary implementation. Spark may create/lease/dispatch the task but must NOT be listed as implementation owner.",
+      "applies_to": "every task whose category implies V2 runtime/model/proof implementation",
+      "violation_response": "REJECT_TASK_DESCRIPTOR"
+    },
+    {
+      "rule_id": "rule_2_review_ownership",
+      "rule": "owner=CODEX for review tasks. agent=codex for review/approval. Spark may enqueue the review task but must NOT be listed as reviewer.",
+      "applies_to": "every paired review task that follows a Claude implementation task",
+      "violation_response": "REJECT_TASK_DESCRIPTOR"
+    },
+    {
+      "rule_id": "rule_3_spark_ownership_scope",
+      "rule": "owner=SPARK only for orchestration, queue, lease, timer, metrics, report-center truth, and infrastructure-control tasks. Spark cannot replace Claude implementation lanes. Spark cannot replace Codex review lanes.",
+      "applies_to": "every Spark-authored task",
+      "violation_response": "REJECT_TASK_DESCRIPTOR"
+    },
+    {
+      "rule_id": "rule_4_lane_registry_enforcement",
+      "rule": "runtime-claude lanes execute runtime implementation. model-claude lanes execute model/trainer implementation. proof-claude lanes execute evidence/proof implementation. runtime-codex / model-codex / proof-codex lanes review corresponding Claude output. Spark lanes only coordinate.",
+      "applies_to": "report center lane registration and dispatch routing",
+      "lane_kinds": {
+        "runtime-claude": "Claude implementation of runtime services",
+        "model-claude": "Claude implementation of model/trainer code",
+        "proof-claude": "Claude implementation of evidence/proof generators",
+        "runtime-codex": "Codex review of runtime-claude output",
+        "model-codex": "Codex review of model-claude output",
+        "proof-codex": "Codex review of proof-claude output",
+        "spark-orchestration": "Spark orchestration/control-plane (no runtime implementation, no review)"
+      },
+      "violation_response": "REJECT_LANE_REGISTRATION"
+    },
+    {
+      "rule_id": "rule_5_descriptor_validation",
+      "rule": "Reject any task descriptor where (a) implementation task owner is SPARK instead of CLAUDE, (b) review task owner is SPARK instead of CODEX, (c) Spark task modifies V2 runtime code outside orchestration/control-plane scope, (d) Spark task claims Codex PASS/FAIL, (e) Spark task claims Claude implementation completed.",
+      "violation_response": "REJECT_TASK_DESCRIPTOR_AND_EMIT_ROLE_VIOLATION_TO_REPORT_CENTER"
+    },
+    {
+      "rule_id": "rule_6_report_center_wording",
+      "rule": "Report Center must surface verbatim: Executor=Claude Code, Reviewer=Codex, Orchestrator=Spark, Runtime=V2 primary paper/shadow, Live=blocked.",
+      "applies_to": "operator_dashboard_payload.json, executive_status_payload.json, and safe_summaries",
+      "violation_response": "REJECT_PAYLOAD_RENDER"
+    },
+    {
+      "rule_id": "rule_7_backward_compatibility",
+      "rule": "Existing Spark wrappers remain compatible. Existing V2 timers remain active. Existing Claude/Codex worker services remain active. No worker/timer is stopped, restarted, or replaced by this lane.",
+      "violation_response": "REJECT_OPERATION"
+    }
+  ],
+  "hard_prohibitions": [
+    "do_not_stop_v2_runtime",
+    "do_not_restart_legacy",
+    "do_not_write_old_redis",
+    "do_not_call_exchange_mutation",
+    "do_not_enable_live",
+    "do_not_enable_canary",
+    "do_not_create_approval_tokens",
+    "do_not_credit_spark_as_implementation_owner",
+    "do_not_credit_spark_as_reviewer",
+    "do_not_credit_spark_as_codex_pass_or_fail_emitter",
+    "do_not_credit_spark_as_claude_implementation_completer"
+  ],
+  "report_center_wording_required": {
+    "Executor": "Claude Code",
+    "Reviewer": "Codex",
+    "Orchestrator": "Spark",
+    "Runtime": "V2 primary paper/shadow",
+    "Live": "blocked"
+  },
+  "do_not_stop_protected_processes": [
+    "ai-bot-v2-report-center-indexer",
+    "ai-bot-v2-post-hoc-replay-outcome-miner",
+    "ai-bot-v2-closed-loop-worker-pool",
+    "ai-bot-v2-claude-task-runner",
+    "ai-bot-v2-autonomous-mission-backlog",
+    "ai-bot-v2-final-operator-decision-event-watcher",
+    "ai-bot-v2-executive-command-center",
+    "ai-bot-v2-autonomous-full-rebuild-self-healing-controller",
+    "ai-bot-v2-automation-liveness-watchdog",
+    "ai-bot-v2-live-canary-dry-run",
+    "V2_paper_runtime",
+    "codex_governors",
+    "claude_workers_claude_1_2_3",
+    "codex_workers_codex_1_2_3"
+  ],
+  "current_assertions": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "writes_old_redis": false,
+    "calls_exchange_mutation": false,
+    "creates_approval_tokens": false,
+    "stops_v2_runtime": false,
+    "stops_legacy": false,
+    "stops_report_center": false,
+    "stops_replay_miner": false,
+    "stops_spark_or_worker_pool": false,
+    "stops_codex_governor": false,
+    "stops_claude_or_codex_workers": false,
+    "restarts_legacy": false
+  },
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "writes_old_redis": false,
+    "calls_exchange_mutation": false,
+    "creates_approval_tokens": false,
+    "creates_approval_artifacts": false,
+    "modifies_legacy_repo": false,
+    "stops_v2_runtime": false,
+    "stops_legacy": false,
+    "restarts_legacy": false,
+    "stops_report_center": false,
+    "stops_replay_miner": false,
+    "stops_spark_or_worker_pool": false,
+    "stops_codex_governor": false
+  }
+}

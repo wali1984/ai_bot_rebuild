@@ -1,0 +1,23 @@
+{
+  "ccxt_ohlcv": {
+    "aggregate_dim_count": 30,
+    "category": "OPERATOR_DECISION_REQUIRED_CCXT_OHLCV",
+    "field_groups": [
+      {
+        "dim_count": 30,
+        "name": "ccxt_ohlcv"
+      }
+    ]
+  },
+  "coinank_paid_aggregator": {
+    "aggregate_dim_count": 0,
+    "category": "OPERATOR_DECISION_REQUIRED_COINANK_PAID_AGGREGATOR",
+    "field_groups": []
+  },
+  "generated_utc": "2026-05-23T02:22:09Z",
+  "operator_decisions_pending": [
+    "OPERATOR_DECISION_REQUIRED_CCXT_OHLCV",
+    "OPERATOR_DECISION_REQUIRED_COINANK_PAID_AGGREGATOR"
+  ],
+  "schema_version": "v2_full_observation_operator_decision_required_fields_v1"
+}

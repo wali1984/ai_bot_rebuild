@@ -1,0 +1,376 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "blocked_count": 19,
+  "credentials_values_exposed": false,
+  "go_no_go": "V2_FULL_RUNTIME_STARTUP_STATUS_READY",
+  "items": [
+    {
+      "blocker_if_not_running": null,
+      "component": "binance_realtime_prices",
+      "gnome_terminal_title": "V2 Paper Online Runtime",
+      "started": true,
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-paper-online-runtime.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "binance_ohlcv",
+      "gnome_terminal_title": "V2 Market Data Monitor",
+      "started": true,
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-paper-online-runtime.service"
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "binance_mark_price",
+      "gnome_terminal_title": null,
+      "started": false,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "binance_funding",
+      "gnome_terminal_title": null,
+      "started": false,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "binance_open_interest",
+      "gnome_terminal_title": null,
+      "started": false,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "binance_orderbook",
+      "gnome_terminal_title": null,
+      "started": false,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "binance_liquidation_stream",
+      "gnome_terminal_title": "V2 Liquidation WSS (paper-shadow)",
+      "started": true,
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-liquidation-wss-paper-shadow.service"
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "liquidation_bridge",
+      "gnome_terminal_title": null,
+      "started": false,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "liquidation_levels_engine",
+      "gnome_terminal_title": null,
+      "started": false,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "coinank_full_poller",
+      "gnome_terminal_title": null,
+      "started": false,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "coinank_global_aggregator",
+      "gnome_terminal_title": null,
+      "started": false,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "kucoin_ingestor",
+      "gnome_terminal_title": null,
+      "started": false,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "copied legacy file exists but no V2 wrapper yet; do not start raw legacy (writes old Redis)",
+      "component": "coinapi_rest",
+      "gnome_terminal_title": null,
+      "started": false,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "copied legacy file exists but no V2 wrapper yet; do not start raw legacy (writes old Redis)",
+      "component": "coinapi_wsds",
+      "gnome_terminal_title": null,
+      "started": false,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "realtime_price_provider",
+      "gnome_terminal_title": "V2 Paper Online Runtime",
+      "started": true,
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-paper-online-runtime.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "technical_analysis",
+      "gnome_terminal_title": "V2 TA Worker (periodic rerun)",
+      "started": true,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "feature_pipeline",
+      "gnome_terminal_title": "V2 Feature Snapshot Builder",
+      "started": true,
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-feature-pipeline-native-loop.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "symbol_universe",
+      "gnome_terminal_title": "V2 Symbol Universe Publisher",
+      "started": true,
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-symbol-universe-publisher.service"
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "nansen_ingestor",
+      "gnome_terminal_title": null,
+      "started": false,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "lunarcrush_ingestor",
+      "gnome_terminal_title": null,
+      "started": false,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "arkham_ingestor",
+      "gnome_terminal_title": null,
+      "started": false,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "credential(s) absent by name: ['ALPHAVANTAGE_API_KEY']",
+      "component": "alphavantage_news",
+      "gnome_terminal_title": null,
+      "started": false,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "copied legacy file exists but no V2 wrapper yet; do not start raw legacy (writes old Redis)",
+      "component": "ccxt_aggregator",
+      "gnome_terminal_title": null,
+      "started": false,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "trainer_prediction_publisher",
+      "gnome_terminal_title": "V2 Trainer Bridge / Prediction Publisher",
+      "started": true,
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-trainer-bridge.service"
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "dataset_builder",
+      "gnome_terminal_title": null,
+      "started": false,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "copied legacy file exists but no V2 wrapper yet; do not start raw legacy (writes old Redis)",
+      "component": "strategy_engine",
+      "gnome_terminal_title": null,
+      "started": false,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": "v2 cli exists but no dedicated systemd unit; covered by ad-hoc panel terminal",
+      "component": "backtest_engine",
+      "gnome_terminal_title": null,
+      "started": false,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "risk_gateway",
+      "gnome_terminal_title": "V2 Risk Gateway (periodic rerun)",
+      "started": true,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "orchestrator",
+      "gnome_terminal_title": "V2 Orchestrator Arbitration Loop",
+      "started": true,
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-orchestrator-arbitration-loop.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "paper_trade_management",
+      "gnome_terminal_title": "V2 Paper Trade Management",
+      "started": true,
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-trade-management-paper-loop.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "paper_ledger",
+      "gnome_terminal_title": "V2 Paper Shadow Observation",
+      "started": true,
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-paper-shadow-observation.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "position_history",
+      "gnome_terminal_title": "V2 Position History Tracker",
+      "started": true,
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-position-history-persistent-tracker.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "replay_miner",
+      "gnome_terminal_title": "V2 Replay Outcome Miner",
+      "started": true,
+      "v2_systemd_active": false,
+      "v2_systemd_unit": "ai-bot-v2-post-hoc-replay-outcome-miner.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "report_center",
+      "gnome_terminal_title": "V2 Report Center Indexer",
+      "started": true,
+      "v2_systemd_active": false,
+      "v2_systemd_unit": "ai-bot-v2-report-center-indexer.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "website_backend",
+      "gnome_terminal_title": null,
+      "started": true,
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-public-website-backend.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "spark_worker_pool",
+      "gnome_terminal_title": "V2 Spark Worker Pool",
+      "started": true,
+      "v2_systemd_active": false,
+      "v2_systemd_unit": "ai-bot-v2-closed-loop-worker-pool.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "claude_workers",
+      "gnome_terminal_title": "V2 Claude Closed-Loop Workers (1-3)",
+      "started": true,
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-closed-loop-claude-worker@1.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "codex_workers",
+      "gnome_terminal_title": "V2 Codex Closed-Loop Workers (1-3)",
+      "started": true,
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-closed-loop-codex-worker@1.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "event_watchers",
+      "gnome_terminal_title": "V2 Final-Operator-Decision Event Watcher",
+      "started": true,
+      "v2_systemd_active": false,
+      "v2_systemd_unit": "ai-bot-v2-final-operator-decision-event-watcher.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "runtime_watchdog",
+      "gnome_terminal_title": "V2 Automation Liveness Watchdog",
+      "started": true,
+      "v2_systemd_active": false,
+      "v2_systemd_unit": "ai-bot-v2-automation-liveness-watchdog.service"
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "redis_monitor",
+      "gnome_terminal_title": "V2 Redis Key Monitor",
+      "started": true,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "memory_gpu_monitor",
+      "gnome_terminal_title": "V2 Memory/GPU Monitor",
+      "started": true,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "error_alert_monitor",
+      "gnome_terminal_title": "V2 Error/Alert Monitor",
+      "started": true,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "trainer_predictions_monitors",
+      "gnome_terminal_title": "V2 Predictions Monitor",
+      "started": true,
+      "v2_systemd_active": null,
+      "v2_systemd_unit": null
+    },
+    {
+      "blocker_if_not_running": null,
+      "component": "trainer_predicted_price_all_tfs",
+      "gnome_terminal_title": "V2 Trainer Bridge / Prediction Publisher",
+      "started": true,
+      "v2_systemd_active": true,
+      "v2_systemd_unit": "ai-bot-v2-trainer-bridge.service"
+    }
+  ],
+  "live_symbols": [],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "running_count": 26,
+  "ts_est": "20260526T003358EST",
+  "writes_exchange_orders": false
+}

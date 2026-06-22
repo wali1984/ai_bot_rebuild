@@ -1,0 +1,72 @@
+{
+  "freshness_seconds": 3100.0628867149353,
+  "go_no_go": "V2_DYNAMIC_93_SYMBOL_RUNTIME_BURN_IN_EDGE_AND_WEBSITE_SYNC_BLOCKED",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "owner": "CODEX",
+  "redaction_applied": true,
+  "report_id": "v2_dynamic_93_symbol_runtime_burn_in_edge_and_website_sync",
+  "sanitized_summary": {
+    "go_no_go": "V2_DYNAMIC_93_SYMBOL_RUNTIME_BURN_IN_EDGE_AND_WEBSITE_SYNC_BLOCKED",
+    "pruned": {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "blockers": [
+        {
+          "detail": "symbol_count=86",
+          "id": "SYMBOL_COUNT_NOT_93"
+        },
+        {
+          "detail": "EDGE_NOT_CLAIMED_OPERATOR_THRESHOLDS_REQUIRED",
+          "id": "PAPER_BACKTEST_EDGE_NOT_PROVEN"
+        },
+        {
+          "detail": "Symbols page does not read the dynamic 93 payload.",
+          "id": "WEBSITE_SYMBOLS_PAGE_NOT_WIRED"
+        }
+      ],
+      "calls_exchange_mutation": false,
+      "execution_live_symbols": [],
+      "generated_at": "2026-06-21T19:36:10-04:00",
+      "generated_est": "2026-06-21T19:36:10-04:00",
+      "generated_utc": "2026-06-21T23:36:10Z",
+      "go_no_go": "V2_DYNAMIC_93_SYMBOL_RUNTIME_BURN_IN_EDGE_AND_WEBSITE_SYNC_BLOCKED",
+      "leverage_changed": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "margin_mode_changed": false,
+      "places_real_order": false,
+      "schema_version": "v2_dynamic_93_symbol_runtime_burn_in_edge_and_website_sync_dashboard_v1",
+      "status": "BLOCKED",
+      "summary": {
+        "after_cost_expectancy_bps": -4.879330541891545,
+        "candidate_count": 86,
+        "candidate_state_counts": {},
+        "dynamic_symbol_count": 86,
+        "edge_proven": false,
+        "edge_verdict": "EDGE_NOT_CLAIMED_OPERATOR_THRESHOLDS_REQUIRED",
+        "execution_live_symbols": 0,
+        "live_data_symbols": 0,
+        "live_symbols": 0,
+        "paper_symbols": 75,
+        "primary_live_recommendation": "BLOCK_LIVE_PAPER_EDGE_NOT_PROVEN",
+        "target_dynamic_symbol_count": 93,
+        "trained_model_available": false,
+        "trainer_row_count": 172,
+        "trainer_train_rows": 0,
+        "trainer_validation_rows": 0,
+        "training_symbols": 86,
+        "website_sync_status": "WEBSITE_SYNC_BLOCKED_PAYLOAD_NOT_WIRED"
+      },
+      "writes_old_redis": false
+    },
+    "redaction_applied": true,
+    "redaction_token": "***REDACTED***",
+    "status": "BLOCKED"
+  },
+  "stale": true,
+  "status": "BLOCKED",
+  "title": "V2 Dynamic 93-Symbol Burn-In, Edge, and Website Sync"
+}

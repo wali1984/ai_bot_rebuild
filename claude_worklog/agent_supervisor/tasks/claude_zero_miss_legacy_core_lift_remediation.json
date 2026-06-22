@@ -1,0 +1,38 @@
+{
+  "agent": "claude",
+  "allowed_paths": [
+    "v2/**",
+    "claude_worklog/**",
+    "requirements/**"
+  ],
+  "forbidden": [
+    "modify_/home/wali/Desktop/AI BOT",
+    "old_redis_write",
+    "exchange_order_place_cancel_modify",
+    "leverage_change",
+    "margin_mode_change",
+    "live_enable",
+    "final_approval_token_creation",
+    "redis_trim_approval_creation",
+    "bridge_only_marked_migrated",
+    "wrapper_only_marked_full_parity",
+    "legacy_behavior_dropped_silently",
+    "missing_sha256_citation",
+    "smoke_pass_with_unresolved_imports"
+  ],
+  "lane": "zero_miss_legacy_core_lift_remediation",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "managed_by": "codex_zero_miss_governor",
+  "max_attempts": 1,
+  "prompt": "Remediate the zero-miss legacy core lift blockers found by Codex without touching /home/wali/Desktop/AI BOT. Codex already tightened the V2-owned smoke wrappers, copied seven omitted preserved RL environment files, repaired copied microstructure indentation errors, regenerated closure/atlases, and kept CODEX FAIL. Your task is to fix or explicitly classify the remaining blockers only inside AI BOT REBUILD: LEGACY_ROOT_READ_ACCESS_DENIED_FULL_216K_LOC_TREE_NOT_MIRRORED, DEPENDENCY_CLOSURE_UNRESOLVED_LOCAL_IMPORT_TOOLS, V2_OWNED_RUNTIME_SMOKE_FAILURES_IMPORTS_AND_EXTERNALS, CONFIG_KEYS_UNMAPPED_1917_OPERATOR_DECISION_REQUIRED, INGEST_TECHNICAL_ANALYSIS_SOURCE_MISSING_FROM_PRESERVED_COPY, MONITORING_SOURCE_MISSING_FROM_PRESERVED_COPY, and NATIVE_ALGORITHMIC_CORE_NOT_MIGRATED. Do not call bridge-only or wrapper-only work migrated. Do not loosen smoke policy. Do not install or require live/exchange credentials. Produce exact remediation or OPERATOR_DECISION_REQUIRED classifications with SHA/evidence paths. Keep live_gate=blocked_human_only and live_symbols=[].",
+  "required_output_files": [
+    "claude_worklog/final_readiness/zero_miss_legacy_core_lift/latest/remediation/ZERO_MISS_REMEDIATION_REPORT.md",
+    "claude_worklog/final_readiness/zero_miss_legacy_core_lift/latest/remediation/zero_miss_remediation_status.json",
+    "v2/frontend/public/zero_miss_legacy_core_lift/remediation/latest/operator_dashboard_payload.json"
+  ],
+  "risk_level": "L2",
+  "status": "pending",
+  "task_id": "claude_zero_miss_legacy_core_lift_remediation",
+  "task_timeout_seconds": 7200
+}

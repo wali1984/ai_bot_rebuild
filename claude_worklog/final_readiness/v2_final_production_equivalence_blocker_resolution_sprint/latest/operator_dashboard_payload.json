@@ -1,0 +1,90 @@
+{
+  "codex_review_required_mapped": true,
+  "event_watcher_count": 2,
+  "exact_remaining_blocker_count": 23,
+  "external_source_packet_count": 1,
+  "generated_utc": "2026-06-22T00:26:47Z",
+  "go_no_go": "V2_FINAL_PRODUCTION_EQUIVALENCE_BLOCKER_RESOLUTION_SPRINT_BLOCKED",
+  "operator_decision_packet_count": 6,
+  "ready": false,
+  "recommendation": {
+    "canary_ready": false,
+    "codex_review_required_mapping": {
+      "classification": "EXISTING_REMEDIATION_REFERENCED",
+      "remediation_lane": "v2_autonomous_mission_burndown_fail_to_remediation_remediation",
+      "remediation_verdict": "V2_AUTONOMOUS_MISSION_BURNDOWN_FAIL_TO_REMEDIATION_REMEDIATION_CODEX_PASS"
+    },
+    "final_recommendation": "BLOCK_LEGACY_SHUTDOWN_PRODUCTION_EQUIVALENCE_INCOMPLETE",
+    "generated_utc": "2026-06-22T00:26:47Z",
+    "live_ready": false,
+    "not_required_for_paper_only": [],
+    "paper_only_shutdown_decision_ready": false,
+    "production_equivalence_ready": false,
+    "reason": "Shutdown remains blocked until Codex-review lane clears and operator/external/event blockers are accepted or resolved.",
+    "remaining_codex_review_blockers": [
+      "report_lane.current_v2_migration_audit",
+      "report_lane.v2_full_dynamic_rebuild_implementation",
+      "report_lane.v2_full_dynamic_rebuild_blocker_execution",
+      "report_lane.v2_dynamic_symbol_remediation",
+      "report_lane.v2_full_copied_runtime_restart",
+      "report_lane.v2_copied_runtime_burn_in_and_paper_edge_improvement",
+      "report_lane.continuous_remediation_governor",
+      "report_lane.v2_final_production_equivalence_blocker_resolution_sprint",
+      "report_lane.v2_autonomous_mission_execution_burndown",
+      "report_lane.v2_autonomous_no_manual_next_task_policy",
+      "report_lane.v2_no_status_change_sla_watchdog",
+      "report_lane.v2_dynamic_93_symbol_runtime_burn_in_edge_and_website_sync",
+      "report_lane.v2_dynamic_93_edge_recovery_and_signal_quality_burndown"
+    ],
+    "remaining_event_dependent_blockers": [
+      "full_observation_builder.event_dependent",
+      "paper_edge_not_proven"
+    ],
+    "remaining_external_blockers": [
+      "full_observation_builder.external_sources"
+    ],
+    "remaining_operator_blockers": [
+      "full_observation_builder.operator_decision_families",
+      "checkpoint_promotion",
+      "legacy_shutdown.legacy_runtime_owner",
+      "legacy_shutdown.legacy_redis_keys_active",
+      "risk_caps_canary_hard_gates_unset",
+      "capital_recovery_gate_unset"
+    ],
+    "remaining_technical_blockers": [
+      "runtime_soak_production_equivalence.governor_stale_or_blocked"
+    ],
+    "safety": {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "calls_exchange_mutation": false,
+      "creates_approval_tokens": false,
+      "fabricates_edge": false,
+      "fabricates_missing_observations": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "modifies_legacy_repo": false,
+      "writes_old_redis": false
+    },
+    "schema_version": "v2_final_production_equivalence_recommendation_v1",
+    "shutdown_safe": false
+  },
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "creates_approval_tokens": false,
+    "fabricates_edge": false,
+    "fabricates_missing_observations": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "schema_version": "v2_final_production_equivalence_blocker_resolution_sprint_status_v1",
+  "technical_blocker_resolved": false
+}

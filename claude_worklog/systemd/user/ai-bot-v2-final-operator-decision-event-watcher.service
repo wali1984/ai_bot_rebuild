@@ -1,0 +1,22 @@
+[Unit]
+Description=AI BOT V2 final operator decision and event watcher execution cycle
+ConditionPathExists=/home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools/v2_final_operator_decision_event_watcher_cycle.py
+After=default.target ai-bot-v2-report-center-indexer.service ai-bot-v2-post-hoc-replay-outcome-miner.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment=PYTHONUNBUFFERED=1
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools:/home/wali/Desktop/AI BOT REBUILD"
+Environment="LIVE_GATE=blocked_human_only"
+ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python" "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools/v2_final_operator_decision_event_watcher_cycle.py" --json'
+SuccessExitStatus=2
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=false
+
+[Install]
+WantedBy=default.target

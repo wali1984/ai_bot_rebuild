@@ -1,0 +1,270 @@
+{
+  "closed_trade_count": 1047,
+  "open_position_count": 13,
+  "active_policy_closed_count": 71,
+  "active_policy_trailing_count": 0,
+  "active_policy_strategy_counts": [
+    {
+      "mode": "mean_reversion_mode",
+      "count": 14
+    },
+    {
+      "mode": "reduce_size_mode",
+      "count": 51
+    },
+    {
+      "mode": "trend_mode",
+      "count": 6
+    }
+  ],
+  "active_policy_close_reason_counts": [
+    {
+      "reason": "TIER_1_ATR_VOLATILITY_STOP",
+      "count": 48
+    },
+    {
+      "reason": "TIER_2_PROFIT_BANK",
+      "count": 6
+    },
+    {
+      "reason": "TIER_2_PROFIT_LOCK",
+      "count": 4
+    },
+    {
+      "reason": "TIER_2_TAKE_PROFIT",
+      "count": 11
+    },
+    {
+      "reason": "TIER_3_MODEL_REVERSAL_NETTING",
+      "count": 2
+    }
+  ],
+  "active_policy_trailing_candidates_by_non_trailing_reason": [
+    {
+      "reason": "TIER_1_ATR_VOLATILITY_STOP",
+      "count": 4
+    },
+    {
+      "reason": "TIER_2_PROFIT_BANK",
+      "count": 4
+    },
+    {
+      "reason": "TIER_2_PROFIT_LOCK",
+      "count": 4
+    },
+    {
+      "reason": "TIER_2_TAKE_PROFIT",
+      "count": 10
+    }
+  ],
+  "open_positions": [
+    {
+      "symbol": "LITUSDT",
+      "side": "long",
+      "timeframe": "4h",
+      "strategy_selected_mode": "reduce_size_mode",
+      "avg_entry_price": 1.5272,
+      "last_mark_price": 1.5267,
+      "best_favorable_price": 1.5272,
+      "trailing_stop_history_count": 0,
+      "trailing_stop_price": null,
+      "mfe_bps": 0.0,
+      "mae_bps": 3.273965426924731,
+      "unrealized_pnl_bps": -3.273965426924731,
+      "trail_gap_bps": null,
+      "drawdown_from_best_bps": 3.273965426924731
+    },
+    {
+      "symbol": "CRVUSDT",
+      "side": "long",
+      "timeframe": "1h",
+      "strategy_selected_mode": "mean_reversion_mode",
+      "avg_entry_price": 0.21517102180865186,
+      "last_mark_price": 0.2169,
+      "best_favorable_price": 0.2175,
+      "trailing_stop_history_count": 59,
+      "trailing_stop_price": 0.2164125,
+      "mfe_bps": 111.57601115760043,
+      "mae_bps": 8.260796809860805,
+      "unrealized_pnl_bps": 80.35367294419898,
+      "trail_gap_bps": 22.475795297372144,
+      "drawdown_from_best_bps": 27.586206896551236
+    },
+    {
+      "symbol": "ENAUSDT",
+      "side": "long",
+      "timeframe": "15m",
+      "strategy_selected_mode": "mean_reversion_mode",
+      "avg_entry_price": 0.08992355945404275,
+      "last_mark_price": 0.08997,
+      "best_favorable_price": 0.0902,
+      "trailing_stop_history_count": 0,
+      "trailing_stop_price": null,
+      "mfe_bps": 37.83663476519107,
+      "mae_bps": 21.524887940147234,
+      "unrealized_pnl_bps": 5.164447030255829,
+      "trail_gap_bps": null,
+      "drawdown_from_best_bps": 25.49889135255077
+    },
+    {
+      "symbol": "ESPORTSUSDT",
+      "side": "short",
+      "timeframe": "1m",
+      "strategy_selected_mode": "mean_reversion_mode",
+      "avg_entry_price": 0.03191315568372703,
+      "last_mark_price": 0.03204,
+      "best_favorable_price": 0.03171,
+      "trailing_stop_history_count": 32,
+      "trailing_stop_price": 0.032042737918356996,
+      "mfe_bps": 112.2544434050512,
+      "mae_bps": 49.14722875649257,
+      "unrealized_pnl_bps": -39.74671684932957,
+      "trail_gap_bps": 0.8545313224086364,
+      "drawdown_from_best_bps": 104.06811731314946
+    },
+    {
+      "symbol": "BIOUSDT",
+      "side": "short",
+      "timeframe": "1h",
+      "strategy_selected_mode": "mean_reversion_mode",
+      "avg_entry_price": 0.03607076408851338,
+      "last_mark_price": 0.03596,
+      "best_favorable_price": 0.03596,
+      "trailing_stop_history_count": 1,
+      "trailing_stop_price": 0.03613979999999999,
+      "mfe_bps": 69.04170118751733,
+      "mae_bps": 38.60076574617282,
+      "unrealized_pnl_bps": 30.707441694770168,
+      "trail_gap_bps": 49.999999999998295,
+      "drawdown_from_best_bps": 0
+    },
+    {
+      "symbol": "ALGOUSDT",
+      "side": "long",
+      "timeframe": "1h",
+      "strategy_selected_mode": "trend_mode",
+      "avg_entry_price": 0.09509845202833675,
+      "last_mark_price": 0.0952,
+      "best_favorable_price": 0.0956,
+      "trailing_stop_history_count": 11,
+      "trailing_stop_price": 0.095122,
+      "mfe_bps": 63.15789473684245,
+      "mae_bps": 10.352642575865742,
+      "unrealized_pnl_bps": 10.678193966080407,
+      "trail_gap_bps": 8.193277310925275,
+      "drawdown_from_best_bps": 41.841004184100164
+    },
+    {
+      "symbol": "AVAXUSDT",
+      "side": "long",
+      "timeframe": "1m",
+      "strategy_selected_mode": "mean_reversion_mode",
+      "avg_entry_price": 6.141068976247678,
+      "last_mark_price": 6.136,
+      "best_favorable_price": 6.149,
+      "trailing_stop_history_count": 0,
+      "trailing_stop_price": null,
+      "mfe_bps": 12.91472833638166,
+      "mae_bps": 16.27074520012982,
+      "unrealized_pnl_bps": -8.254224577648584,
+      "trail_gap_bps": null,
+      "drawdown_from_best_bps": 21.141649048625627
+    },
+    {
+      "symbol": "BEATUSDT",
+      "side": "short",
+      "timeframe": "1h",
+      "strategy_selected_mode": "trend_mode",
+      "avg_entry_price": 1.9786432251818808,
+      "last_mark_price": 1.984,
+      "best_favorable_price": 1.977,
+      "trailing_stop_history_count": 0,
+      "trailing_stop_price": null,
+      "mfe_bps": 8.304807865145623,
+      "mae_bps": 50.581689428426955,
+      "unrealized_pnl_bps": -27.072969749898853,
+      "trail_gap_bps": null,
+      "drawdown_from_best_bps": 35.407182599898306
+    },
+    {
+      "symbol": "JTOUSDT",
+      "side": "long",
+      "timeframe": "15m",
+      "strategy_selected_mode": "mean_reversion_mode",
+      "avg_entry_price": 0.7350042652564353,
+      "last_mark_price": 0.7376,
+      "best_favorable_price": 0.7376,
+      "trailing_stop_history_count": 8,
+      "trailing_stop_price": 0.733912,
+      "mfe_bps": 69.6245733788395,
+      "mae_bps": 34.07143842303419,
+      "unrealized_pnl_bps": 35.315914019344596,
+      "trail_gap_bps": 50.000000000000334,
+      "drawdown_from_best_bps": 0
+    },
+    {
+      "symbol": "MEGAUSDT",
+      "side": "short",
+      "timeframe": "1h",
+      "strategy_selected_mode": "mean_reversion_mode",
+      "avg_entry_price": 0.055769334311905845,
+      "last_mark_price": 0.05589,
+      "best_favorable_price": 0.05563,
+      "trailing_stop_history_count": 0,
+      "trailing_stop_price": null,
+      "mfe_bps": 24.984037128106916,
+      "mae_bps": 46.737371921625616,
+      "unrealized_pnl_bps": -21.636565969982694,
+      "trail_gap_bps": null,
+      "drawdown_from_best_bps": 46.737371921625616
+    },
+    {
+      "symbol": "SUIUSDT",
+      "side": "short",
+      "timeframe": "1m",
+      "strategy_selected_mode": "mean_reversion_mode",
+      "avg_entry_price": 0.7140144841051629,
+      "last_mark_price": 0.7129,
+      "best_favorable_price": 0.7129,
+      "trailing_stop_history_count": 0,
+      "trailing_stop_price": null,
+      "mfe_bps": 30.764927982100126,
+      "mae_bps": 15.202995443397693,
+      "unrealized_pnl_bps": 15.608704444695263,
+      "trail_gap_bps": null,
+      "drawdown_from_best_bps": 0
+    },
+    {
+      "symbol": "OPUSDT",
+      "side": "long",
+      "timeframe": "1h",
+      "strategy_selected_mode": "trend_mode",
+      "avg_entry_price": 0.1041,
+      "last_mark_price": 0.1044,
+      "best_favorable_price": 0.1044,
+      "trailing_stop_history_count": 0,
+      "trailing_stop_price": null,
+      "mfe_bps": 28.818443804035407,
+      "mae_bps": 0.0,
+      "unrealized_pnl_bps": 28.818443804035407,
+      "trail_gap_bps": null,
+      "drawdown_from_best_bps": 0
+    },
+    {
+      "symbol": "CHZUSDT",
+      "side": "short",
+      "timeframe": "1h",
+      "strategy_selected_mode": "mean_reversion_mode",
+      "avg_entry_price": 0.02204,
+      "last_mark_price": 0.02204,
+      "best_favorable_price": 0.02204,
+      "trailing_stop_history_count": 0,
+      "trailing_stop_price": null,
+      "mfe_bps": 0.0,
+      "mae_bps": 0.0,
+      "unrealized_pnl_bps": 0.0,
+      "trail_gap_bps": null,
+      "drawdown_from_best_bps": 0
+    }
+  ]
+}

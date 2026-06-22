@@ -1,0 +1,88 @@
+{
+  "active_claude_workers": 3,
+  "active_codex_workers": 3,
+  "active_lane_count": 6,
+  "active_lane_shortfall_reason": null,
+  "current_automatable_count": 7,
+  "current_automatable_count_by_lane": {
+    "CLAUDE_IMPLEMENTATION": 4,
+    "CODEX_REVIEW": 0,
+    "CODEX_TAKEOVER": 0,
+    "REMEDIATION": 3
+  },
+  "current_task_assignments": [
+    {
+      "child_process_pid": 2046727,
+      "descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_v2_runtime_soak_and_production_equivalence_remediation.json",
+      "expected_output_paths": [],
+      "file_lock_group": "claude_v2_runtime_soak_and_production_equivalence_remediation",
+      "heartbeat_at": "2026-05-25T01:15:46Z",
+      "lane_type": "REMEDIATION",
+      "lease_id": "e95749d1169d47ed894e1ec47103d695",
+      "lease_status": "running",
+      "leased_at": "2026-05-25T01:10:16Z",
+      "log_path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/claude_v2_runtime_soak_and_production_equivalence_remediation.log",
+      "task_id": "claude_v2_runtime_soak_and_production_equivalence_remediation",
+      "worker_current_lease_id": "e95749d1169d47ed894e1ec47103d695",
+      "worker_heartbeat": "2026-05-25T01:15:46Z",
+      "worker_id": "claude-3",
+      "worker_pid": 1573127,
+      "worker_state": "busy"
+    },
+    {
+      "child_process_pid": 2048021,
+      "descriptor_path": "claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r16.json",
+      "expected_output_paths": [],
+      "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
+      "heartbeat_at": "2026-05-25T01:15:49Z",
+      "lane_type": "REMEDIATION",
+      "lease_id": "c4f8b758cfca4d97b4d1059fc6d07b5a",
+      "lease_status": "running",
+      "leased_at": "2026-05-25T01:11:04Z",
+      "log_path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/closed_loop_remediation_codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r16.log",
+      "task_id": "closed_loop_remediation_codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_r16",
+      "worker_current_lease_id": "c4f8b758cfca4d97b4d1059fc6d07b5a",
+      "worker_heartbeat": "2026-05-25T01:15:49Z",
+      "worker_id": "claude-1",
+      "worker_pid": 1573506,
+      "worker_state": "busy"
+    },
+    {
+      "child_process_pid": 2051274,
+      "descriptor_path": "claude_worklog/agent_supervisor/tasks/claude_autoseed_paper_fill_gate_block_reason_recording_r2.json",
+      "expected_output_paths": [
+        "claude_worklog/final_readiness/v2_autonomous_mission_backlog/per_task/paper_fill_gate_block_reason_recording/IMPLEMENTATION_REPORT.md"
+      ],
+      "file_lock_group": "v2_paper_fill_gate_block_reason_recording",
+      "heartbeat_at": "2026-05-25T01:15:43Z",
+      "lane_type": "CLAUDE_IMPLEMENTATION",
+      "lease_id": "6ef6ff1a74054deca3d0140892dd880e",
+      "lease_status": "running",
+      "leased_at": "2026-05-25T01:13:43Z",
+      "log_path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/claude_autoseed_paper_fill_gate_block_reason_recording_r2.log",
+      "task_id": "claude_autoseed_paper_fill_gate_block_reason_recording_r2",
+      "worker_current_lease_id": "6ef6ff1a74054deca3d0140892dd880e",
+      "worker_heartbeat": "2026-05-25T01:15:43Z",
+      "worker_id": "claude-2",
+      "worker_pid": 1572990,
+      "worker_state": "busy"
+    }
+  ],
+  "generated_utc": "2026-05-25T01:15:52Z",
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "schema_version": "v2_closed_loop_persistent_worker_pool_utilization_v1",
+  "worker_count_active": 6,
+  "worker_count_busy": 3,
+  "worker_count_idle_ready": 2,
+  "worker_count_total": 6
+}

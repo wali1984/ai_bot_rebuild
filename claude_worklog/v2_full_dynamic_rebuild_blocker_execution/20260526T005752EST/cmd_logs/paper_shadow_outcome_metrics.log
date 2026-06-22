@@ -1,0 +1,1 @@
+{"affects_pnl_ledger": false, "counted_as_accepted_position": false, "go_no_go": "V2_SHADOW_OBSERVATION_OUTCOME_METRICS_READY", "outcome_count": 50, "writes_exchange_orders": false, "writes_legacy_redis": false}

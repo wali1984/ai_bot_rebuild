@@ -1,0 +1,16 @@
+{
+  "generated_est": "2026-06-09T23:01:25-04:00",
+  "rows": [
+    {
+      "entry_price": 55.877,
+      "mark_price": 55.933,
+      "mark_price_age_seconds": null,
+      "mark_price_source": "v2:market:prices.ticker_24hr.lastPrice",
+      "price_delta": 0.055999999999997385,
+      "status": "MARK_PRICE_OK",
+      "symbol": "HYPEUSDT",
+      "unrealized_pnl": -0.025055031587235082
+    }
+  ],
+  "schema_version": "paper_mark_price_source_status_v1"
+}

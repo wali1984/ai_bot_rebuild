@@ -1,0 +1,69 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "codex_go_no_go": "V2_NATIVE_ALGORITHMIC_CORE_MIGRATION_CODEX_FAIL",
+  "delegated_claude_task_id": "claude_v2_native_algorithmic_core_full_migration_from_deep_audit",
+  "exchange_mutation_observed": false,
+  "generated_at": "2026-05-15T22:49:00Z",
+  "legacy_mutation_observed": false,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "old_redis_write_observed": false,
+  "overall_classification": "NATIVE_ALGORITHMIC_CORE_NOT_MIGRATED",
+  "review_paths": {
+    "go_no_go": "claude_worklog/final_readiness/v2_native_algorithmic_core_migration/latest/codex_review/CODEX_GO_NO_GO.md",
+    "review": "claude_worklog/final_readiness/v2_native_algorithmic_core_migration/latest/codex_review/CODEX_NATIVE_ALGORITHMIC_CORE_REVIEW.md"
+  },
+  "subproject_summary": {
+    "feature_intelligence": {
+      "classification": "PARTIALLY_MIGRATED",
+      "missing": [
+        "full_unified_feature_builder_2000_plus_features",
+        "cross_timeframe_aggregations",
+        "funding_oi_derived_features",
+        "ingestor_layer_websocket_rest_native",
+        "regime_hysteresis_state_machine"
+      ]
+    },
+    "orchestrator_arbitration": {
+      "classification": "PARTIALLY_MIGRATED",
+      "missing": [
+        "full_10523_line_orchestrator_worker_arbitration_logic",
+        "hedge_cage_arbitration_overlays",
+        "asjad_account_publish_path",
+        "intent_engine_higher_timeframe_consensus_full_runtime",
+        "tradeplan_orchestrator_protection_demand_score"
+      ]
+    },
+    "rl_core": {
+      "classification": "PARTIALLY_MIGRATED",
+      "missing": [
+        "ppo_masa_policy_network_MISSING_IN_V2",
+        "gymnasium_env_step_reset_loop_MISSING_IN_V2",
+        "gpu_training_loop_MISSING_IN_V2",
+        "unified_feature_builder_tensor_assembly_MISSING_IN_V2",
+        "checkpoint_weight_loader_MISSING_IN_V2",
+        "lagrangian_multiplier_state_persistence_MISSING_IN_V2"
+      ]
+    },
+    "trade_management_paper": {
+      "classification": "PARTIALLY_MIGRATED",
+      "missing": [
+        "full_legacy_stealth_stops_state_machine",
+        "full_dynamic_tp_engine_regime_adaptive_ladders",
+        "full_dynamic_adaptive_stops_regime_adaptive_distance",
+        "adaptive_hedge_builder",
+        "dynamic_adaptive_hedge",
+        "hedge_pair_coordinator",
+        "leg_manager",
+        "exit_coordinator"
+      ]
+    }
+  },
+  "tests_run": {
+    "feature_intelligence": "16 passed",
+    "rl_trade_orchestrator": "55 passed"
+  }
+}

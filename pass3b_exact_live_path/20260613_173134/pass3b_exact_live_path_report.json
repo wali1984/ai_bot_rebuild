@@ -1,0 +1,1364 @@
+{
+  "active_stale_count": 0,
+  "all_blockers": [
+    "ADAPTIVE_ALLOCATOR_BLOCK_INSUFFICIENT_MARGIN",
+    "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER",
+    "LIVE_CANARY:HUMAN_OPERATOR_ARM_REQUIRED",
+    "LIVE_CANARY:LIVE_CANARY_DISABLED",
+    "LIVE_CANARY:LIVE_TRADING_DISABLED",
+    "LIVE_CANARY:NOTIONAL_NOT_POSITIVE",
+    "LIVE_CANARY:ORDER_TRANSPORT_SUBMIT_DISABLED",
+    "LIVE_CANARY:QUANTITY_NOT_POSITIVE",
+    "LIVE_CANARY:RELEASE_MODE_NON_LIVE",
+    "LIVE_CANARY_PREFLIGHT_BLOCKED",
+    "LIVE_GATE_RUNTIME_NOT_ENABLED",
+    "LIVE_ORDER_TRANSPORT_SUBMIT_NOT_ENABLED",
+    "ORDER_QUANTITY_NOT_POSITIVE"
+  ],
+  "canary_cap_result": {
+    "allowed": false,
+    "blockers": [
+      "LIVE_CANARY_DISABLED",
+      "HUMAN_OPERATOR_ARM_REQUIRED"
+    ]
+  },
+  "candidate": {
+    "action": "long",
+    "available_at": "engineering_probe_not_model_output",
+    "candidate_source": "ENGINEERING_CANARY_PROBE",
+    "decision_id": "probe_20260613_173134",
+    "feature_cutoff": "engineering_probe_not_model_output",
+    "live_order_allowed": false,
+    "mtf_snapshot_id": "engineering_probe_mtf_not_model_output",
+    "order_type": "MARKET",
+    "prediction_id": "probe_20260613_173134",
+    "probe_label": "NON_STRATEGY_TEST",
+    "quantity": 0.001,
+    "reduce_only": false,
+    "replay_snapshot_id": "engineering_probe_replay_not_model_output",
+    "requested_notional_usdt": 5.0,
+    "routes_to_live": false,
+    "side": "BUY",
+    "symbol": "BTCUSDT"
+  },
+  "candidate_type": "ENGINEERING_CANARY_PROBE",
+  "counted_in_edge_proof": false,
+  "critical_failures": 0,
+  "dry_run_runtime_overlay": {
+    "accepted_live_symbols": [
+      "BNBUSDT",
+      "BTCUSDT",
+      "ETHUSDT",
+      "PAXGUSDT",
+      "XAUTUSDT",
+      "ZECUSDT"
+    ],
+    "allowed_symbols": [
+      "BTCUSDT"
+    ],
+    "live_canary_enabled": false,
+    "live_gate": "blocked_human_only",
+    "live_trading_enabled": false,
+    "max_notional_usd": 10.0,
+    "order_transport_submit_enabled": false,
+    "order_transport_write_guard_enabled": true,
+    "release_mode": "NON_LIVE"
+  },
+  "evidence_status": {
+    "recorded": {
+      "decisions_loaded": 22,
+      "execution_records_loaded": 721,
+      "features_loaded": 665,
+      "future_feature_leak_count": 0,
+      "invalid_state_count": 18,
+      "invalid_state_rate": 0.012784,
+      "masa_ppo_cutoff_mismatch_count": 0,
+      "position_transition_reject_count": 0,
+      "records_loaded": 8967,
+      "trades_blocked_by_data_quality": 0,
+      "training_samples_loaded": 0,
+      "training_samples_rejected_count": 0
+    },
+    "strict": {
+      "critical_failures": 0,
+      "failures": 180,
+      "passes": 4,
+      "total_findings": 184,
+      "warnings": 0
+    }
+  },
+  "exchange_action_taken": false,
+  "exchange_local_reconciliation_result": {
+    "blockers": [],
+    "exchange_position": {
+      "margin_mode": "cross",
+      "quantity": 0.0,
+      "side": "FLAT",
+      "symbol": "BTCUSDT"
+    },
+    "local_position": {
+      "quantity": 0.0,
+      "side": "FLAT",
+      "symbol": "BTCUSDT"
+    },
+    "mismatch_reason": null,
+    "open_orders": [],
+    "reconciled": true,
+    "signed_read_age_ms": 1555
+  },
+  "final_submit_allowed_from_transport": false,
+  "final_submit_block_reason": "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER",
+  "generated_at": "2026-06-13T17:31:35Z",
+  "leverage_changed": false,
+  "lifecycle_safety_result": {
+    "status": "READY"
+  },
+  "live_order_submitted": false,
+  "margin_mode_changed": false,
+  "output_dir": "pass3b_exact_live_path/20260613_173134",
+  "pass3c_can_be_considered": false,
+  "persisted_probe_as_paper_intent": false,
+  "persisted_probe_as_paper_signal": false,
+  "persisted_probe_as_prediction": false,
+  "places_real_order": false,
+  "post_run_live_control": {
+    "live_gate_state": {
+      "accepted_live_symbols": [
+        "BNBUSDT",
+        "BTCUSDT",
+        "ETHUSDT",
+        "PAXGUSDT",
+        "XAUTUSDT",
+        "ZECUSDT"
+      ],
+      "accepted_risk_audit_id": "live_gate_risk_d72f2d3f5e7f4667bae74c8931a78049",
+      "accepted_symbols_audit_id": "live_gate_symbols_aca7a192fba941b8873df0cf864f5c52",
+      "allowed_runtime_keys": [
+        "v2:live_gate:state",
+        "v2:risk:active_profile",
+        "v2:trader:accepted_live_symbols",
+        "v2:trader:execution_state"
+      ],
+      "enable_audit_id": "live_gate_enable_a625277031184b56a17cef3f7b620de8",
+      "enabled_at_est": "2026-06-07T22:29:57-04:00",
+      "enabled_by": "wali",
+      "exchange_action_taken": false,
+      "execution_live_symbols": [],
+      "final_approval_audit_id": "live_gate_final_1df15ae557ff43b994ddee7fcee75d2f",
+      "generated_est": "2026-06-12T17:59:32-04:00",
+      "kill_switch_active": false,
+      "kill_switch_conditions": [
+        "any_mutation_before_final_gate",
+        "daily_loss_cap_breach",
+        "drawdown_cap_breach"
+      ],
+      "kill_switch_enabled": true,
+      "legacy_restart_allowed": false,
+      "leverage_mutation_allowed": false,
+      "live_blocked": true,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "live_trading_enabled": false,
+      "margin_mutation_allowed": false,
+      "max_leverage": 1.0,
+      "old_redis_write_allowed": false,
+      "operator_approval_required": true,
+      "operator_approved": false,
+      "order_lineage_required": [
+        "prediction_id",
+        "risk_decision_id",
+        "orchestrator_decision_id",
+        "signal_id",
+        "live_gate_audit_id",
+        "risk_profile_audit_id",
+        "symbols_audit_id"
+      ],
+      "order_transport_submit_enabled": false,
+      "order_transport_submit_source": "pass1a_live_submit_disarm",
+      "order_transport_write_guard_enabled": true,
+      "order_transport_write_guard_source": "audited_live_gate_runtime_state",
+      "places_real_order": false,
+      "reason": "Pass 1A release gate: live submit disabled before paper/shadow validation",
+      "redis_trim_allowed": false,
+      "release_mode": "NON_LIVE",
+      "risk_profile": {
+        "fields": {
+          "cooldown_seconds": 1200,
+          "kill_switch_conditions": [
+            "any_mutation_before_final_gate",
+            "daily_loss_cap_breach",
+            "drawdown_cap_breach"
+          ],
+          "max_daily_loss": 15.0,
+          "max_drawdown": 75.0,
+          "max_leverage": 1.0,
+          "max_notional_per_trade": 64.86,
+          "max_open_positions": 1,
+          "max_slippage_bps": 2.0,
+          "max_spread_bps": 3.5,
+          "max_symbol_exposure": 64.86,
+          "max_total_exposure": 100.0,
+          "min_confidence_calibrated": 0.66,
+          "min_expected_move_after_cost_bps": 12.0
+        },
+        "profile_id": "conservative_min_executable",
+        "profile_name": "conservative_min_executable"
+      },
+      "runtime_heartbeat_source": "audited_live_gate_runtime_state_refresh",
+      "runtime_refreshed_at_est": "2026-06-12T17:59:32-04:00",
+      "schema_version": "v2_live_gate_runtime_execution_state_v1",
+      "source": "v2.backend.app.services.live_gate.runtime_execution_state",
+      "source_payload_ids": [
+        "sha256:7b1719af9d8312c9a1fd21d3016ac4ad8c13a305095c60a71b5f92fc332382b6",
+        "sha256:988731ca7889bb51f7cf0b8e8a46b20723d61eaa15781bd80537c5525cd6e1f5",
+        "sha256:7b1719af9d8312c9a1fd21d3016ac4ad8c13a305095c60a71b5f92fc332382b6+sha256:988731ca7889bb51f7cf0b8e8a46b20723d61eaa15781bd80537c5525cd6e1f5"
+      ],
+      "trader_execution_enabled": false,
+      "updated_by": "pass1a_live_submit_disarm"
+    },
+    "live_order_transport_status": {
+      "accepted_symbols": [
+        "BNBUSDT",
+        "BTCUSDT",
+        "ETHUSDT",
+        "PAXGUSDT",
+        "XAUTUSDT",
+        "ZECUSDT"
+      ],
+      "account_margin_status": {
+        "available_balance_checked": true,
+        "available_balance_redacted": true,
+        "balances_redacted": true,
+        "can_trade": null,
+        "endpoint": "GET /fapi/v3/account",
+        "error_type": null,
+        "ok": true,
+        "source": "binance_signed_readonly",
+        "status_code": 200,
+        "unrealized_pnl_checked": true,
+        "unrealized_pnl_redacted": true,
+        "wallet_balance_checked": true,
+        "wallet_balance_redacted": true
+      },
+      "blockers": [
+        "LIVE_GATE_NOT_ENABLED",
+        "LIVE_GATE_RUNTIME_NOT_ENABLED",
+        "LIVE_ORDER_TRANSPORT_SUBMIT_NOT_ENABLED",
+        "LIVE_SYMBOL_SETS_DO_NOT_MATCH_ACCEPTED_SYMBOLS",
+        "NO_ACCEPTED_SYMBOL_SIGNAL_CANDIDATE",
+        "ORDER_TRANSPORT_SUBMIT_NOT_ENABLED",
+        "TRADER_EXECUTION_ENABLED_NOT_TRUE"
+      ],
+      "credential_status": {
+        "api_key_present": true,
+        "api_secret_present": true,
+        "env_source": "/home/wali/Desktop/AI BOT REBUILD/v2/.env.local",
+        "key_names_used": {
+          "api_key": "BINANCE_API_KEY",
+          "api_secret": "BINANCE_API_SECRET"
+        },
+        "raw_credential_in_payload": "NEVER"
+      },
+      "dry_run": true,
+      "generated_est": "2026-06-13T13:31:18-04:00",
+      "kill_switch_active": false,
+      "kill_switch_source": "unset",
+      "legacy_restart_attempted": false,
+      "leverage_changed": false,
+      "live_canary_preflight": {
+        "blockers": [
+          "NO_CANDIDATE_EVALUATED"
+        ],
+        "live_canary_enabled": false,
+        "reason_code": "NO_CANDIDATE_EVALUATED",
+        "submit_allowed": false
+      },
+      "live_order_transport_bound": true,
+      "live_submit_release_mode_approved": false,
+      "margin_mode_changed": false,
+      "order_submitted": false,
+      "places_real_order": false,
+      "position_mode_status": {
+        "dual_side_position": true,
+        "endpoint": "GET /fapi/v1/positionSide/dual",
+        "error_type": null,
+        "ok": true,
+        "source": "binance_signed_readonly",
+        "status_code": 200
+      },
+      "position_read_status": "OK",
+      "raw_credentials_exposed": false,
+      "real_order_endpoint": null,
+      "redis_trim_attempted": false,
+      "release_mode": "NON_LIVE",
+      "required_lineage_fields": [
+        "prediction_id",
+        "risk_decision_id",
+        "orchestrator_decision_id",
+        "signal_id",
+        "live_gate_audit_id",
+        "risk_profile_audit_id",
+        "symbols_audit_id"
+      ],
+      "runtime_state_source": "v2:live_gate:state",
+      "runtime_state_validation": {
+        "age_seconds": 70297.960795,
+        "blockers": [
+          "LIVE_GATE_NOT_ENABLED",
+          "TRADER_EXECUTION_ENABLED_NOT_TRUE",
+          "LIVE_SYMBOL_SETS_DO_NOT_MATCH_ACCEPTED_SYMBOLS",
+          "ORDER_TRANSPORT_SUBMIT_NOT_ENABLED"
+        ],
+        "max_age_seconds": 86400,
+        "valid": false
+      },
+      "runtime_submit_enabled": false,
+      "runtime_write_guard_enabled": true,
+      "schema_version": "v2_binance_live_order_transport_binding_v1",
+      "selected_candidate": null,
+      "status": "LIVE_ORDER_TRANSPORT_BLOCKED",
+      "submit_result": null,
+      "test_order_endpoint_attempted": false,
+      "transfer_or_withdrawal_attempted": false,
+      "transport_force_disabled": false,
+      "transport_submit_enabled": false,
+      "warnings": [],
+      "would_submit": false,
+      "writes_exchange_orders": false,
+      "writes_old_redis": false
+    },
+    "trader_execution_state": {
+      "accepted_live_symbols": [
+        "BNBUSDT",
+        "BTCUSDT",
+        "ETHUSDT",
+        "PAXGUSDT",
+        "XAUTUSDT",
+        "ZECUSDT"
+      ],
+      "accepted_risk_audit_id": "live_gate_risk_d72f2d3f5e7f4667bae74c8931a78049",
+      "accepted_symbols_audit_id": "live_gate_symbols_aca7a192fba941b8873df0cf864f5c52",
+      "allowed_runtime_keys": [
+        "v2:live_gate:state",
+        "v2:risk:active_profile",
+        "v2:trader:accepted_live_symbols",
+        "v2:trader:execution_state"
+      ],
+      "enable_audit_id": "live_gate_enable_a625277031184b56a17cef3f7b620de8",
+      "enabled_at_est": "2026-06-07T22:29:57-04:00",
+      "enabled_by": "wali",
+      "exchange_action_taken": false,
+      "execution_live_symbols": [],
+      "final_approval_audit_id": "live_gate_final_1df15ae557ff43b994ddee7fcee75d2f",
+      "generated_est": "2026-06-12T17:59:32-04:00",
+      "kill_switch_active": false,
+      "kill_switch_conditions": [
+        "any_mutation_before_final_gate",
+        "daily_loss_cap_breach",
+        "drawdown_cap_breach"
+      ],
+      "kill_switch_enabled": true,
+      "legacy_restart_allowed": false,
+      "leverage_mutation_allowed": false,
+      "live_blocked": true,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "live_trading_enabled": false,
+      "margin_mutation_allowed": false,
+      "max_leverage": 1.0,
+      "old_redis_write_allowed": false,
+      "operator_approval_required": true,
+      "operator_approved": false,
+      "order_lineage_required": [
+        "prediction_id",
+        "risk_decision_id",
+        "orchestrator_decision_id",
+        "signal_id",
+        "live_gate_audit_id",
+        "risk_profile_audit_id",
+        "symbols_audit_id"
+      ],
+      "order_transport_submit_enabled": false,
+      "order_transport_submit_source": "pass1a_live_submit_disarm",
+      "order_transport_write_guard_enabled": true,
+      "order_transport_write_guard_source": "audited_live_gate_runtime_state",
+      "places_real_order": false,
+      "reason": "Pass 1A release gate: live submit disabled before paper/shadow validation",
+      "redis_trim_allowed": false,
+      "release_mode": "NON_LIVE",
+      "risk_profile": {
+        "fields": {
+          "cooldown_seconds": 1200,
+          "kill_switch_conditions": [
+            "any_mutation_before_final_gate",
+            "daily_loss_cap_breach",
+            "drawdown_cap_breach"
+          ],
+          "max_daily_loss": 15.0,
+          "max_drawdown": 75.0,
+          "max_leverage": 1.0,
+          "max_notional_per_trade": 64.86,
+          "max_open_positions": 1,
+          "max_slippage_bps": 2.0,
+          "max_spread_bps": 3.5,
+          "max_symbol_exposure": 64.86,
+          "max_total_exposure": 100.0,
+          "min_confidence_calibrated": 0.66,
+          "min_expected_move_after_cost_bps": 12.0
+        },
+        "profile_id": "conservative_min_executable",
+        "profile_name": "conservative_min_executable"
+      },
+      "runtime_heartbeat_source": "audited_live_gate_runtime_state_refresh",
+      "runtime_refreshed_at_est": "2026-06-12T17:59:32-04:00",
+      "schema_version": "v2_live_gate_runtime_execution_state_v1",
+      "source": "v2.backend.app.services.live_gate.runtime_execution_state",
+      "source_payload_ids": [
+        "sha256:7b1719af9d8312c9a1fd21d3016ac4ad8c13a305095c60a71b5f92fc332382b6",
+        "sha256:988731ca7889bb51f7cf0b8e8a46b20723d61eaa15781bd80537c5525cd6e1f5",
+        "sha256:7b1719af9d8312c9a1fd21d3016ac4ad8c13a305095c60a71b5f92fc332382b6+sha256:988731ca7889bb51f7cf0b8e8a46b20723d61eaa15781bd80537c5525cd6e1f5"
+      ],
+      "trader_execution_enabled": false,
+      "updated_by": "pass1a_live_submit_disarm"
+    }
+  },
+  "post_run_live_control_check": {
+    "mismatches": {},
+    "ok": true
+  },
+  "pre_run_live_control": {
+    "live_gate_state": {
+      "accepted_live_symbols": [
+        "BNBUSDT",
+        "BTCUSDT",
+        "ETHUSDT",
+        "PAXGUSDT",
+        "XAUTUSDT",
+        "ZECUSDT"
+      ],
+      "accepted_risk_audit_id": "live_gate_risk_d72f2d3f5e7f4667bae74c8931a78049",
+      "accepted_symbols_audit_id": "live_gate_symbols_aca7a192fba941b8873df0cf864f5c52",
+      "allowed_runtime_keys": [
+        "v2:live_gate:state",
+        "v2:risk:active_profile",
+        "v2:trader:accepted_live_symbols",
+        "v2:trader:execution_state"
+      ],
+      "enable_audit_id": "live_gate_enable_a625277031184b56a17cef3f7b620de8",
+      "enabled_at_est": "2026-06-07T22:29:57-04:00",
+      "enabled_by": "wali",
+      "exchange_action_taken": false,
+      "execution_live_symbols": [],
+      "final_approval_audit_id": "live_gate_final_1df15ae557ff43b994ddee7fcee75d2f",
+      "generated_est": "2026-06-12T17:59:32-04:00",
+      "kill_switch_active": false,
+      "kill_switch_conditions": [
+        "any_mutation_before_final_gate",
+        "daily_loss_cap_breach",
+        "drawdown_cap_breach"
+      ],
+      "kill_switch_enabled": true,
+      "legacy_restart_allowed": false,
+      "leverage_mutation_allowed": false,
+      "live_blocked": true,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "live_trading_enabled": false,
+      "margin_mutation_allowed": false,
+      "max_leverage": 1.0,
+      "old_redis_write_allowed": false,
+      "operator_approval_required": true,
+      "operator_approved": false,
+      "order_lineage_required": [
+        "prediction_id",
+        "risk_decision_id",
+        "orchestrator_decision_id",
+        "signal_id",
+        "live_gate_audit_id",
+        "risk_profile_audit_id",
+        "symbols_audit_id"
+      ],
+      "order_transport_submit_enabled": false,
+      "order_transport_submit_source": "pass1a_live_submit_disarm",
+      "order_transport_write_guard_enabled": true,
+      "order_transport_write_guard_source": "audited_live_gate_runtime_state",
+      "places_real_order": false,
+      "reason": "Pass 1A release gate: live submit disabled before paper/shadow validation",
+      "redis_trim_allowed": false,
+      "release_mode": "NON_LIVE",
+      "risk_profile": {
+        "fields": {
+          "cooldown_seconds": 1200,
+          "kill_switch_conditions": [
+            "any_mutation_before_final_gate",
+            "daily_loss_cap_breach",
+            "drawdown_cap_breach"
+          ],
+          "max_daily_loss": 15.0,
+          "max_drawdown": 75.0,
+          "max_leverage": 1.0,
+          "max_notional_per_trade": 64.86,
+          "max_open_positions": 1,
+          "max_slippage_bps": 2.0,
+          "max_spread_bps": 3.5,
+          "max_symbol_exposure": 64.86,
+          "max_total_exposure": 100.0,
+          "min_confidence_calibrated": 0.66,
+          "min_expected_move_after_cost_bps": 12.0
+        },
+        "profile_id": "conservative_min_executable",
+        "profile_name": "conservative_min_executable"
+      },
+      "runtime_heartbeat_source": "audited_live_gate_runtime_state_refresh",
+      "runtime_refreshed_at_est": "2026-06-12T17:59:32-04:00",
+      "schema_version": "v2_live_gate_runtime_execution_state_v1",
+      "source": "v2.backend.app.services.live_gate.runtime_execution_state",
+      "source_payload_ids": [
+        "sha256:7b1719af9d8312c9a1fd21d3016ac4ad8c13a305095c60a71b5f92fc332382b6",
+        "sha256:988731ca7889bb51f7cf0b8e8a46b20723d61eaa15781bd80537c5525cd6e1f5",
+        "sha256:7b1719af9d8312c9a1fd21d3016ac4ad8c13a305095c60a71b5f92fc332382b6+sha256:988731ca7889bb51f7cf0b8e8a46b20723d61eaa15781bd80537c5525cd6e1f5"
+      ],
+      "trader_execution_enabled": false,
+      "updated_by": "pass1a_live_submit_disarm"
+    },
+    "live_order_transport_status": {
+      "accepted_symbols": [
+        "BNBUSDT",
+        "BTCUSDT",
+        "ETHUSDT",
+        "PAXGUSDT",
+        "XAUTUSDT",
+        "ZECUSDT"
+      ],
+      "account_margin_status": {
+        "available_balance_checked": true,
+        "available_balance_redacted": true,
+        "balances_redacted": true,
+        "can_trade": null,
+        "endpoint": "GET /fapi/v3/account",
+        "error_type": null,
+        "ok": true,
+        "source": "binance_signed_readonly",
+        "status_code": 200,
+        "unrealized_pnl_checked": true,
+        "unrealized_pnl_redacted": true,
+        "wallet_balance_checked": true,
+        "wallet_balance_redacted": true
+      },
+      "blockers": [
+        "LIVE_GATE_NOT_ENABLED",
+        "LIVE_GATE_RUNTIME_NOT_ENABLED",
+        "LIVE_ORDER_TRANSPORT_SUBMIT_NOT_ENABLED",
+        "LIVE_SYMBOL_SETS_DO_NOT_MATCH_ACCEPTED_SYMBOLS",
+        "NO_ACCEPTED_SYMBOL_SIGNAL_CANDIDATE",
+        "ORDER_TRANSPORT_SUBMIT_NOT_ENABLED",
+        "TRADER_EXECUTION_ENABLED_NOT_TRUE"
+      ],
+      "credential_status": {
+        "api_key_present": true,
+        "api_secret_present": true,
+        "env_source": "/home/wali/Desktop/AI BOT REBUILD/v2/.env.local",
+        "key_names_used": {
+          "api_key": "BINANCE_API_KEY",
+          "api_secret": "BINANCE_API_SECRET"
+        },
+        "raw_credential_in_payload": "NEVER"
+      },
+      "dry_run": true,
+      "generated_est": "2026-06-13T13:31:18-04:00",
+      "kill_switch_active": false,
+      "kill_switch_source": "unset",
+      "legacy_restart_attempted": false,
+      "leverage_changed": false,
+      "live_canary_preflight": {
+        "blockers": [
+          "NO_CANDIDATE_EVALUATED"
+        ],
+        "live_canary_enabled": false,
+        "reason_code": "NO_CANDIDATE_EVALUATED",
+        "submit_allowed": false
+      },
+      "live_order_transport_bound": true,
+      "live_submit_release_mode_approved": false,
+      "margin_mode_changed": false,
+      "order_submitted": false,
+      "places_real_order": false,
+      "position_mode_status": {
+        "dual_side_position": true,
+        "endpoint": "GET /fapi/v1/positionSide/dual",
+        "error_type": null,
+        "ok": true,
+        "source": "binance_signed_readonly",
+        "status_code": 200
+      },
+      "position_read_status": "OK",
+      "raw_credentials_exposed": false,
+      "real_order_endpoint": null,
+      "redis_trim_attempted": false,
+      "release_mode": "NON_LIVE",
+      "required_lineage_fields": [
+        "prediction_id",
+        "risk_decision_id",
+        "orchestrator_decision_id",
+        "signal_id",
+        "live_gate_audit_id",
+        "risk_profile_audit_id",
+        "symbols_audit_id"
+      ],
+      "runtime_state_source": "v2:live_gate:state",
+      "runtime_state_validation": {
+        "age_seconds": 70297.960795,
+        "blockers": [
+          "LIVE_GATE_NOT_ENABLED",
+          "TRADER_EXECUTION_ENABLED_NOT_TRUE",
+          "LIVE_SYMBOL_SETS_DO_NOT_MATCH_ACCEPTED_SYMBOLS",
+          "ORDER_TRANSPORT_SUBMIT_NOT_ENABLED"
+        ],
+        "max_age_seconds": 86400,
+        "valid": false
+      },
+      "runtime_submit_enabled": false,
+      "runtime_write_guard_enabled": true,
+      "schema_version": "v2_binance_live_order_transport_binding_v1",
+      "selected_candidate": null,
+      "status": "LIVE_ORDER_TRANSPORT_BLOCKED",
+      "submit_result": null,
+      "test_order_endpoint_attempted": false,
+      "transfer_or_withdrawal_attempted": false,
+      "transport_force_disabled": false,
+      "transport_submit_enabled": false,
+      "warnings": [],
+      "would_submit": false,
+      "writes_exchange_orders": false,
+      "writes_old_redis": false
+    },
+    "trader_execution_state": {
+      "accepted_live_symbols": [
+        "BNBUSDT",
+        "BTCUSDT",
+        "ETHUSDT",
+        "PAXGUSDT",
+        "XAUTUSDT",
+        "ZECUSDT"
+      ],
+      "accepted_risk_audit_id": "live_gate_risk_d72f2d3f5e7f4667bae74c8931a78049",
+      "accepted_symbols_audit_id": "live_gate_symbols_aca7a192fba941b8873df0cf864f5c52",
+      "allowed_runtime_keys": [
+        "v2:live_gate:state",
+        "v2:risk:active_profile",
+        "v2:trader:accepted_live_symbols",
+        "v2:trader:execution_state"
+      ],
+      "enable_audit_id": "live_gate_enable_a625277031184b56a17cef3f7b620de8",
+      "enabled_at_est": "2026-06-07T22:29:57-04:00",
+      "enabled_by": "wali",
+      "exchange_action_taken": false,
+      "execution_live_symbols": [],
+      "final_approval_audit_id": "live_gate_final_1df15ae557ff43b994ddee7fcee75d2f",
+      "generated_est": "2026-06-12T17:59:32-04:00",
+      "kill_switch_active": false,
+      "kill_switch_conditions": [
+        "any_mutation_before_final_gate",
+        "daily_loss_cap_breach",
+        "drawdown_cap_breach"
+      ],
+      "kill_switch_enabled": true,
+      "legacy_restart_allowed": false,
+      "leverage_mutation_allowed": false,
+      "live_blocked": true,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "live_trading_enabled": false,
+      "margin_mutation_allowed": false,
+      "max_leverage": 1.0,
+      "old_redis_write_allowed": false,
+      "operator_approval_required": true,
+      "operator_approved": false,
+      "order_lineage_required": [
+        "prediction_id",
+        "risk_decision_id",
+        "orchestrator_decision_id",
+        "signal_id",
+        "live_gate_audit_id",
+        "risk_profile_audit_id",
+        "symbols_audit_id"
+      ],
+      "order_transport_submit_enabled": false,
+      "order_transport_submit_source": "pass1a_live_submit_disarm",
+      "order_transport_write_guard_enabled": true,
+      "order_transport_write_guard_source": "audited_live_gate_runtime_state",
+      "places_real_order": false,
+      "reason": "Pass 1A release gate: live submit disabled before paper/shadow validation",
+      "redis_trim_allowed": false,
+      "release_mode": "NON_LIVE",
+      "risk_profile": {
+        "fields": {
+          "cooldown_seconds": 1200,
+          "kill_switch_conditions": [
+            "any_mutation_before_final_gate",
+            "daily_loss_cap_breach",
+            "drawdown_cap_breach"
+          ],
+          "max_daily_loss": 15.0,
+          "max_drawdown": 75.0,
+          "max_leverage": 1.0,
+          "max_notional_per_trade": 64.86,
+          "max_open_positions": 1,
+          "max_slippage_bps": 2.0,
+          "max_spread_bps": 3.5,
+          "max_symbol_exposure": 64.86,
+          "max_total_exposure": 100.0,
+          "min_confidence_calibrated": 0.66,
+          "min_expected_move_after_cost_bps": 12.0
+        },
+        "profile_id": "conservative_min_executable",
+        "profile_name": "conservative_min_executable"
+      },
+      "runtime_heartbeat_source": "audited_live_gate_runtime_state_refresh",
+      "runtime_refreshed_at_est": "2026-06-12T17:59:32-04:00",
+      "schema_version": "v2_live_gate_runtime_execution_state_v1",
+      "source": "v2.backend.app.services.live_gate.runtime_execution_state",
+      "source_payload_ids": [
+        "sha256:7b1719af9d8312c9a1fd21d3016ac4ad8c13a305095c60a71b5f92fc332382b6",
+        "sha256:988731ca7889bb51f7cf0b8e8a46b20723d61eaa15781bd80537c5525cd6e1f5",
+        "sha256:7b1719af9d8312c9a1fd21d3016ac4ad8c13a305095c60a71b5f92fc332382b6+sha256:988731ca7889bb51f7cf0b8e8a46b20723d61eaa15781bd80537c5525cd6e1f5"
+      ],
+      "trader_execution_enabled": false,
+      "updated_by": "pass1a_live_submit_disarm"
+    }
+  },
+  "pre_run_live_control_check": {
+    "mismatches": {},
+    "ok": true
+  },
+  "primary_blockers": [
+    "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER",
+    "REALISTIC_PREFLIGHT:RELEASE_MODE_NON_LIVE",
+    "REALISTIC_PREFLIGHT:ORDER_TRANSPORT_SUBMIT_DISABLED",
+    "REALISTIC_PREFLIGHT:LIVE_TRADING_DISABLED",
+    "REALISTIC_PREFLIGHT:LIVE_CANARY_DISABLED",
+    "REALISTIC_PREFLIGHT:HUMAN_OPERATOR_ARM_REQUIRED"
+  ],
+  "realistic_candidate_preflight": {
+    "audit_payload": {
+      "mtf_snapshot_exists": true,
+      "notional_usd": 5.0,
+      "pass2a_trusted_decision_ok": true,
+      "quantity": 0.001,
+      "replay_snapshot_exists": true,
+      "requested_action": "long",
+      "strict_pipeline_trust_ok": true,
+      "symbol": "BTCUSDT"
+    },
+    "blockers": [
+      "RELEASE_MODE_NON_LIVE",
+      "ORDER_TRANSPORT_SUBMIT_DISABLED",
+      "LIVE_TRADING_DISABLED",
+      "LIVE_CANARY_DISABLED",
+      "HUMAN_OPERATOR_ARM_REQUIRED"
+    ],
+    "canary_caps": {
+      "allowed": false,
+      "blockers": [
+        "LIVE_CANARY_DISABLED",
+        "HUMAN_OPERATOR_ARM_REQUIRED"
+      ]
+    },
+    "config": {
+      "allow_averaging_down": false,
+      "allow_direct_flip": false,
+      "allow_hedge_mode": false,
+      "allow_leverage_mutation": false,
+      "allow_margin_mode_mutation": false,
+      "allowed_symbols": [
+        "BTCUSDT"
+      ],
+      "expected_hedge_mode": false,
+      "expected_margin_mode": "cross",
+      "live_canary_enabled": false,
+      "max_daily_loss_usd": 10.0,
+      "max_daily_orders": 3,
+      "max_notional_usd": 10.0,
+      "max_open_positions": 1,
+      "max_signed_read_age_ms": 5000,
+      "quantity_tolerance": 1e-08,
+      "require_human_operator_arm": true,
+      "require_kill_switch_clear": true,
+      "require_mtf_snapshot": true,
+      "require_pass2a_trusted_decision": true,
+      "require_reduce_only_for_closes": true,
+      "require_replay_snapshot": true,
+      "require_strict_pipeline_trust": true
+    },
+    "exchange_local_reconciliation": {
+      "blockers": [],
+      "exchange_position": {
+        "margin_mode": "cross",
+        "quantity": 0.0,
+        "side": "FLAT",
+        "symbol": "BTCUSDT"
+      },
+      "local_position": {
+        "quantity": 0.0,
+        "side": "FLAT",
+        "symbol": "BTCUSDT"
+      },
+      "mismatch_reason": null,
+      "open_orders": [],
+      "reconciled": true,
+      "signed_read_age_ms": 1556
+    },
+    "live_canary_enabled": false,
+    "order_lifecycle": {
+      "status": "READY"
+    },
+    "reason_code": "RELEASE_MODE_NON_LIVE",
+    "state_machine": {
+      "allowed": true,
+      "audit_fields": {
+        "exchange_quantity": 0.0,
+        "exchange_side": "FLAT",
+        "local_quantity": 0.0,
+        "local_side": "FLAT",
+        "notional_usd": 5.0,
+        "quantity": 0.001,
+        "requested_action": "long",
+        "symbol": "BTCUSDT"
+      },
+      "blockers": [],
+      "expected_position_after": {
+        "quantity": 0.001,
+        "side": "LONG",
+        "symbol": "BTCUSDT"
+      },
+      "reason_code": "ALLOW",
+      "required_order_flags": {
+        "reduce_only": false
+      },
+      "transition_type": "FLAT_TO_LONG_OPEN"
+    },
+    "submit_allowed": false,
+    "trust_contract": {
+      "allowed": true,
+      "blockers": []
+    }
+  },
+  "recorded_state_verifier_exit": 0,
+  "redis_url": "redis://127.0.0.1:6379/0",
+  "redis_write_attempts_blocked": [
+    "v2:live_order_transport:status",
+    "v2:live_order_transport:audit"
+  ],
+  "run_id": "20260613_173134",
+  "signed_read_available": true,
+  "signed_read_status": {
+    "account_margin_status": {
+      "_available_balance_usdt": 0.0,
+      "_wallet_balance_usdt": 0.0,
+      "available_balance_checked": true,
+      "available_balance_redacted": true,
+      "endpoint": "GET /fapi/v3/account",
+      "margin_mode": "cross",
+      "ok": true,
+      "signed_read_ts_ms": 1781371894301
+    },
+    "available": true,
+    "exchange_position": {
+      "margin_mode": "cross",
+      "quantity": 0.0,
+      "side": "FLAT",
+      "symbol": "BTCUSDT"
+    },
+    "margin_mode": "cross",
+    "open_orders": [],
+    "position_mode_status": {
+      "dual_side_position": false,
+      "ok": true,
+      "source": "pass3b_signed_read"
+    },
+    "signed_read_ts_ms": 1781371894301,
+    "symbol_filter_status": {
+      "min_notional": "5",
+      "min_qty": "0.000001",
+      "ok": true,
+      "status": "TRADING",
+      "step_size": "0.000001",
+      "symbol": "BTCUSDT"
+    }
+  },
+  "state_machine_result": {
+    "allowed": false,
+    "audit_fields": {
+      "exchange_quantity": 0.0,
+      "exchange_side": "FLAT",
+      "local_quantity": 0.0,
+      "local_side": "FLAT",
+      "notional_usd": 0.0,
+      "quantity": 0.0,
+      "requested_action": "long",
+      "symbol": "BTCUSDT"
+    },
+    "blockers": [
+      "QUANTITY_NOT_POSITIVE",
+      "NOTIONAL_NOT_POSITIVE"
+    ],
+    "expected_position_after": {
+      "quantity": 0.0,
+      "side": "LONG",
+      "symbol": "BTCUSDT"
+    },
+    "reason_code": "QUANTITY_NOT_POSITIVE",
+    "required_order_flags": {
+      "reduce_only": false
+    },
+    "transition_type": "FLAT_TO_LONG_OPEN"
+  },
+  "status": "PASS3B_BLOCKED_INSUFFICIENT_AVAILABLE_BALANCE",
+  "strict_verifier_exit": 0,
+  "submit_allowed": false,
+  "submit_function_called": false,
+  "submit_guard_exception": null,
+  "training_sample_created": false,
+  "transport_raw_blockers": [
+    "ADAPTIVE_ALLOCATOR_BLOCK_INSUFFICIENT_MARGIN",
+    "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER",
+    "LIVE_CANARY:HUMAN_OPERATOR_ARM_REQUIRED",
+    "LIVE_CANARY:LIVE_CANARY_DISABLED",
+    "LIVE_CANARY:LIVE_TRADING_DISABLED",
+    "LIVE_CANARY:NOTIONAL_NOT_POSITIVE",
+    "LIVE_CANARY:ORDER_TRANSPORT_SUBMIT_DISABLED",
+    "LIVE_CANARY:QUANTITY_NOT_POSITIVE",
+    "LIVE_CANARY:RELEASE_MODE_NON_LIVE",
+    "LIVE_CANARY_PREFLIGHT_BLOCKED",
+    "LIVE_GATE_RUNTIME_NOT_ENABLED",
+    "LIVE_ORDER_TRANSPORT_SUBMIT_NOT_ENABLED",
+    "ORDER_QUANTITY_NOT_POSITIVE"
+  ],
+  "transport_result": {
+    "accepted_symbols": [
+      "BNBUSDT",
+      "BTCUSDT",
+      "ETHUSDT",
+      "PAXGUSDT",
+      "XAUTUSDT",
+      "ZECUSDT"
+    ],
+    "account_margin_status": {
+      "available_balance_checked": true,
+      "available_balance_redacted": true,
+      "available_balance_sufficient": true,
+      "endpoint": "GET /fapi/v3/account",
+      "margin_mode": "cross",
+      "ok": true,
+      "required_initial_margin_usdt": 0.0,
+      "required_notional_usdt": 0.0,
+      "signed_read_ts_ms": 1781371894301,
+      "source": "binance_signed_readonly"
+    },
+    "blockers": [
+      "ADAPTIVE_ALLOCATOR_BLOCK_INSUFFICIENT_MARGIN",
+      "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER",
+      "LIVE_CANARY:HUMAN_OPERATOR_ARM_REQUIRED",
+      "LIVE_CANARY:LIVE_CANARY_DISABLED",
+      "LIVE_CANARY:LIVE_TRADING_DISABLED",
+      "LIVE_CANARY:NOTIONAL_NOT_POSITIVE",
+      "LIVE_CANARY:ORDER_TRANSPORT_SUBMIT_DISABLED",
+      "LIVE_CANARY:QUANTITY_NOT_POSITIVE",
+      "LIVE_CANARY:RELEASE_MODE_NON_LIVE",
+      "LIVE_CANARY_PREFLIGHT_BLOCKED",
+      "LIVE_GATE_RUNTIME_NOT_ENABLED",
+      "LIVE_ORDER_TRANSPORT_SUBMIT_NOT_ENABLED",
+      "ORDER_QUANTITY_NOT_POSITIVE"
+    ],
+    "credential_status": {
+      "api_key_present": true,
+      "api_secret_present": true,
+      "env_source": "/home/wali/Desktop/AI BOT REBUILD/v2/.env.local",
+      "key_names_used": {
+        "api_key": "BINANCE_API_KEY",
+        "api_secret": "BINANCE_API_SECRET"
+      },
+      "raw_credential_in_payload": "NEVER"
+    },
+    "dry_run": false,
+    "generated_est": "2026-06-13T13:31:35-04:00",
+    "kill_switch_active": false,
+    "kill_switch_source": "unset",
+    "legacy_restart_attempted": false,
+    "leverage_changed": false,
+    "live_canary_preflight": {
+      "audit_payload": {
+        "mtf_snapshot_exists": true,
+        "notional_usd": 0.0,
+        "pass2a_trusted_decision_ok": true,
+        "quantity": 0.0,
+        "replay_snapshot_exists": true,
+        "requested_action": "long",
+        "strict_pipeline_trust_ok": true,
+        "symbol": "BTCUSDT"
+      },
+      "blockers": [
+        "RELEASE_MODE_NON_LIVE",
+        "ORDER_TRANSPORT_SUBMIT_DISABLED",
+        "LIVE_TRADING_DISABLED",
+        "LIVE_CANARY_DISABLED",
+        "HUMAN_OPERATOR_ARM_REQUIRED",
+        "QUANTITY_NOT_POSITIVE",
+        "NOTIONAL_NOT_POSITIVE"
+      ],
+      "canary_caps": {
+        "allowed": false,
+        "blockers": [
+          "LIVE_CANARY_DISABLED",
+          "HUMAN_OPERATOR_ARM_REQUIRED"
+        ]
+      },
+      "config": {
+        "allow_averaging_down": false,
+        "allow_direct_flip": false,
+        "allow_hedge_mode": false,
+        "allow_leverage_mutation": false,
+        "allow_margin_mode_mutation": false,
+        "allowed_symbols": [
+          "BTCUSDT"
+        ],
+        "expected_hedge_mode": false,
+        "expected_margin_mode": "cross",
+        "live_canary_enabled": false,
+        "max_daily_loss_usd": 10.0,
+        "max_daily_orders": 3,
+        "max_notional_usd": 10.0,
+        "max_open_positions": 1,
+        "max_signed_read_age_ms": 5000,
+        "quantity_tolerance": 1e-08,
+        "require_human_operator_arm": true,
+        "require_kill_switch_clear": true,
+        "require_mtf_snapshot": true,
+        "require_pass2a_trusted_decision": true,
+        "require_reduce_only_for_closes": true,
+        "require_replay_snapshot": true,
+        "require_strict_pipeline_trust": true
+      },
+      "exchange_local_reconciliation": {
+        "blockers": [],
+        "exchange_position": {
+          "margin_mode": "cross",
+          "quantity": 0.0,
+          "side": "FLAT",
+          "symbol": "BTCUSDT"
+        },
+        "local_position": {
+          "quantity": 0.0,
+          "side": "FLAT",
+          "symbol": "BTCUSDT"
+        },
+        "mismatch_reason": null,
+        "open_orders": [],
+        "reconciled": true,
+        "signed_read_age_ms": 1555
+      },
+      "live_canary_enabled": false,
+      "order_lifecycle": {
+        "status": "READY"
+      },
+      "reason_code": "RELEASE_MODE_NON_LIVE",
+      "state_machine": {
+        "allowed": false,
+        "audit_fields": {
+          "exchange_quantity": 0.0,
+          "exchange_side": "FLAT",
+          "local_quantity": 0.0,
+          "local_side": "FLAT",
+          "notional_usd": 0.0,
+          "quantity": 0.0,
+          "requested_action": "long",
+          "symbol": "BTCUSDT"
+        },
+        "blockers": [
+          "QUANTITY_NOT_POSITIVE",
+          "NOTIONAL_NOT_POSITIVE"
+        ],
+        "expected_position_after": {
+          "quantity": 0.0,
+          "side": "LONG",
+          "symbol": "BTCUSDT"
+        },
+        "reason_code": "QUANTITY_NOT_POSITIVE",
+        "required_order_flags": {
+          "reduce_only": false
+        },
+        "transition_type": "FLAT_TO_LONG_OPEN"
+      },
+      "submit_allowed": false,
+      "trust_contract": {
+        "allowed": true,
+        "blockers": []
+      }
+    },
+    "live_order_transport_bound": true,
+    "live_submit_release_mode_approved": false,
+    "margin_mode_changed": false,
+    "order_submitted": false,
+    "places_real_order": false,
+    "position_mode_status": {
+      "dual_side_position": false,
+      "ok": true,
+      "source": "binance_signed_readonly"
+    },
+    "position_read_status": "HTTP_200",
+    "raw_credentials_exposed": false,
+    "real_order_endpoint": null,
+    "redis_trim_attempted": false,
+    "release_mode": "NON_LIVE",
+    "required_lineage_fields": [
+      "prediction_id",
+      "risk_decision_id",
+      "orchestrator_decision_id",
+      "signal_id",
+      "live_gate_audit_id",
+      "risk_profile_audit_id",
+      "symbols_audit_id"
+    ],
+    "runtime_state_source": "pass3b_read_only_overlay",
+    "runtime_state_validation": {
+      "blockers": [],
+      "valid": true
+    },
+    "runtime_submit_enabled": false,
+    "runtime_write_guard_enabled": true,
+    "schema_version": "v2_binance_live_order_transport_binding_v1",
+    "selected_candidate": {
+      "account_margin_status": {
+        "available_balance_checked": true,
+        "available_balance_redacted": true,
+        "available_balance_sufficient": true,
+        "endpoint": "GET /fapi/v3/account",
+        "margin_mode": "cross",
+        "ok": true,
+        "required_initial_margin_usdt": 0.0,
+        "required_notional_usdt": 0.0,
+        "signed_read_ts_ms": 1781371894301,
+        "source": "binance_signed_readonly"
+      },
+      "adaptive_allocation": {
+        "action": "long",
+        "allocation_id": "alloc_f896fc00cd24d9ae3a2c48bc",
+        "allocator_decision": "BLOCK_INSUFFICIENT_MARGIN",
+        "confidence_calibrated": 1.0,
+        "correlation_adjustment": 1.0,
+        "drawdown_adjustment": 1.0,
+        "exchange_min_order_adjustment": 5.0,
+        "expected_move_after_cost_bps": 999.0,
+        "exposure_adjustment": 1.0,
+        "final_size_reason": "available_margin_missing_or_zero",
+        "lineage_ids": {
+          "live_gate_audit_id": "live_gate_enable_a625277031184b56a17cef3f7b620de8",
+          "orchestrator_decision_id": "orch_probe_20260613_173134",
+          "prediction_id": "probe_20260613_173134",
+          "risk_decision_id": "risk_sig_probe_20260613_173134",
+          "risk_profile_audit_id": "live_gate_risk_d72f2d3f5e7f4667bae74c8931a78049",
+          "signal_id": "sig_probe_20260613_173134",
+          "symbols_audit_id": "live_gate_symbols_aca7a192fba941b8873df0cf864f5c52"
+        },
+        "liquidity_adjustment": 1.0,
+        "market_state_integrity_score": 100.0,
+        "model_inputs": {
+          "available_margin": 0.0,
+          "correlation_exposure_pct": 0.0,
+          "drawdown_bps": 0.0,
+          "equity": 0.0,
+          "liquidity_score": 1.0,
+          "min_notional": 5.0,
+          "min_qty": 1e-06,
+          "mode": "live",
+          "price": 50000.0,
+          "regime_score": 1.0,
+          "risk_envelope": {
+            "emergency_absolute_cap_usdt": null,
+            "max_correlation_exposure_pct": 0.18,
+            "max_daily_drawdown_pct": 0.05,
+            "max_loss_per_trade_pct": 0.01,
+            "max_single_symbol_exposure_pct": 0.08,
+            "max_total_portfolio_risk_pct": 0.6,
+            "min_available_margin_buffer_pct": 0.15
+          },
+          "slippage_bps": 2.0,
+          "spread_bps": 2.0,
+          "step_size": 1e-06,
+          "symbol_exposure_usdt": 0.0,
+          "total_exposure_usdt": 0.0,
+          "volatility_bps": 50.0,
+          "wallet_balance": 0.0
+        },
+        "regime_adjustment": 1.0,
+        "risk_budget_pct": 0.0,
+        "risk_budget_pct_of_available_margin": 0.0,
+        "risk_budget_pct_of_equity": 0.0,
+        "risk_veto_reason_if_blocked": "available_margin_missing_or_zero",
+        "spread_slippage_adjustment": 0.99601196,
+        "symbol": "BTCUSDT",
+        "target_notional_usdt": 0.0,
+        "target_quantity": 0.0,
+        "timeframe": "1m",
+        "volatility_adjustment": 1.25
+      },
+      "confidence": 1.0,
+      "expected_move_after_cost_bps": 999.0,
+      "final_approval_audit_id": "live_gate_final_1df15ae557ff43b994ddee7fcee75d2f",
+      "lineage": {
+        "live_gate_audit_id": "live_gate_enable_a625277031184b56a17cef3f7b620de8",
+        "orchestrator_decision_id": "orch_probe_20260613_173134",
+        "prediction_id": "probe_20260613_173134",
+        "risk_decision_id": "risk_sig_probe_20260613_173134",
+        "risk_profile_audit_id": "live_gate_risk_d72f2d3f5e7f4667bae74c8931a78049",
+        "signal_id": "sig_probe_20260613_173134",
+        "symbols_audit_id": "live_gate_symbols_aca7a192fba941b8873df0cf864f5c52"
+      },
+      "live_canary_preflight": {
+        "audit_payload": {
+          "mtf_snapshot_exists": true,
+          "notional_usd": 0.0,
+          "pass2a_trusted_decision_ok": true,
+          "quantity": 0.0,
+          "replay_snapshot_exists": true,
+          "requested_action": "long",
+          "strict_pipeline_trust_ok": true,
+          "symbol": "BTCUSDT"
+        },
+        "blockers": [
+          "RELEASE_MODE_NON_LIVE",
+          "ORDER_TRANSPORT_SUBMIT_DISABLED",
+          "LIVE_TRADING_DISABLED",
+          "LIVE_CANARY_DISABLED",
+          "HUMAN_OPERATOR_ARM_REQUIRED",
+          "QUANTITY_NOT_POSITIVE",
+          "NOTIONAL_NOT_POSITIVE"
+        ],
+        "canary_caps": {
+          "allowed": false,
+          "blockers": [
+            "LIVE_CANARY_DISABLED",
+            "HUMAN_OPERATOR_ARM_REQUIRED"
+          ]
+        },
+        "config": {
+          "allow_averaging_down": false,
+          "allow_direct_flip": false,
+          "allow_hedge_mode": false,
+          "allow_leverage_mutation": false,
+          "allow_margin_mode_mutation": false,
+          "allowed_symbols": [
+            "BTCUSDT"
+          ],
+          "expected_hedge_mode": false,
+          "expected_margin_mode": "cross",
+          "live_canary_enabled": false,
+          "max_daily_loss_usd": 10.0,
+          "max_daily_orders": 3,
+          "max_notional_usd": 10.0,
+          "max_open_positions": 1,
+          "max_signed_read_age_ms": 5000,
+          "quantity_tolerance": 1e-08,
+          "require_human_operator_arm": true,
+          "require_kill_switch_clear": true,
+          "require_mtf_snapshot": true,
+          "require_pass2a_trusted_decision": true,
+          "require_reduce_only_for_closes": true,
+          "require_replay_snapshot": true,
+          "require_strict_pipeline_trust": true
+        },
+        "exchange_local_reconciliation": {
+          "blockers": [],
+          "exchange_position": {
+            "margin_mode": "cross",
+            "quantity": 0.0,
+            "side": "FLAT",
+            "symbol": "BTCUSDT"
+          },
+          "local_position": {
+            "quantity": 0.0,
+            "side": "FLAT",
+            "symbol": "BTCUSDT"
+          },
+          "mismatch_reason": null,
+          "open_orders": [],
+          "reconciled": true,
+          "signed_read_age_ms": 1555
+        },
+        "live_canary_enabled": false,
+        "order_lifecycle": {
+          "status": "READY"
+        },
+        "reason_code": "RELEASE_MODE_NON_LIVE",
+        "state_machine": {
+          "allowed": false,
+          "audit_fields": {
+            "exchange_quantity": 0.0,
+            "exchange_side": "FLAT",
+            "local_quantity": 0.0,
+            "local_side": "FLAT",
+            "notional_usd": 0.0,
+            "quantity": 0.0,
+            "requested_action": "long",
+            "symbol": "BTCUSDT"
+          },
+          "blockers": [
+            "QUANTITY_NOT_POSITIVE",
+            "NOTIONAL_NOT_POSITIVE"
+          ],
+          "expected_position_after": {
+            "quantity": 0.0,
+            "side": "LONG",
+            "symbol": "BTCUSDT"
+          },
+          "reason_code": "QUANTITY_NOT_POSITIVE",
+          "required_order_flags": {
+            "reduce_only": false
+          },
+          "transition_type": "FLAT_TO_LONG_OPEN"
+        },
+        "submit_allowed": false,
+        "trust_contract": {
+          "allowed": true,
+          "blockers": []
+        }
+      },
+      "position_side": null,
+      "price_reference": 50000.0,
+      "quantity": 0.0,
+      "requested_notional_usdt": 0.0,
+      "risk_gateway_record": {
+        "legacy_live_blocked_label": "LEGACY_LIVE_PATH_BLOCKED_NOT_V2",
+        "live_blocked": true,
+        "risk_action": "allow",
+        "risk_decision_id": "risk_sig_probe_20260613_173134",
+        "risk_reason_code": null
+      },
+      "side": "BUY",
+      "source_generated_est": "2026-06-13T17:31:34.301531Z",
+      "source_signal_live_gate": "blocked_human_only",
+      "source_signal_live_symbols": [],
+      "symbol": "BTCUSDT",
+      "symbol_filter_status": {
+        "min_notional": "5",
+        "min_qty": "0.000001",
+        "ok": true,
+        "status": "TRADING",
+        "step_size": "0.000001",
+        "symbol": "BTCUSDT"
+      }
+    },
+    "status": "LIVE_ORDER_TRANSPORT_BLOCKED",
+    "submit_result": null,
+    "test_order_endpoint_attempted": false,
+    "transfer_or_withdrawal_attempted": false,
+    "transport_force_disabled": false,
+    "transport_submit_enabled": false,
+    "warnings": [
+      "RISK_GATEWAY_LEGACY_LIVE_BLOCKED_TRUE_PRESENT"
+    ],
+    "would_submit": false,
+    "writes_exchange_orders": false,
+    "writes_old_redis": false
+  }
+}

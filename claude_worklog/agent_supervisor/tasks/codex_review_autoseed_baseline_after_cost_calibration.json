@@ -1,0 +1,69 @@
+{
+  "agent": "codex",
+  "autoseed_metadata": {
+    "dependency_promoted_at": "2026-05-24T19:48:31Z",
+    "fail_marker": "V2_AUTONOMOUS_BASELINE_AFTER_COST_CALIBRATION_CODEX_FAIL",
+    "generated_at": "2026-05-24T19:43:24Z",
+    "pass_marker": "V2_AUTONOMOUS_BASELINE_AFTER_COST_CALIBRATION_CODEX_PASS",
+    "source": "v2_autonomous_mission_backlog_autoseed",
+    "task_role": "codex_review",
+    "title": "Baseline after-cost calibration"
+  },
+  "codex_cli_form": "codex_exec_review",
+  "codex_pair_task_id": "claude_autoseed_baseline_after_cost_calibration",
+  "completed_at": "2026-05-24T19:49:00.451396+00:00",
+  "created_at": "2026-05-24T19:43:24Z",
+  "current_active": true,
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": [
+    "claude_autoseed_baseline_after_cost_calibration"
+  ],
+  "duplicate_suppression_key": "autoseed:baseline_after_cost_calibration:codex_review",
+  "fail_blockers": [
+    "1. Add `_fit_after_cost_calibration()` \u2014 closed-form least-squares of `after_cost_return_bps ~ a + b\u00b7p` on TRAINABLE rows only, gated by sample count and RMSE-improvement vs the hardcoded `(p\u22120.5)\u00b750 \u2212 7` formula."
+  ],
+  "file_lock_group": "v2_native_baseline_after_cost_calibration",
+  "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/codex_review_autoseed_baseline_after_cost_calibration_codex.log",
+  "mission_categories": [
+    "model/policy readiness",
+    "paper edge",
+    "risk control"
+  ],
+  "mission_progress_countable": false,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "owner": "CODEX",
+  "predecessor_task_ids": [
+    "claude_autoseed_baseline_after_cost_calibration"
+  ],
+  "prompt": "Review the paired V2 implementation task `claude_autoseed_baseline_after_cost_calibration` for `Baseline after-cost calibration`.\n\nVerify that the work is a narrow implementation, not a broad audit or UI-only change; bridge data is labelled honestly; missing data is marked MISSING_SOURCE rather than fabricated; V2 writes stay in V2/public surfaces; no operator approval drift appears; live_gate remains blocked_human_only and live_symbols remains [].\n\nPASS exactly: `V2_AUTONOMOUS_BASELINE_AFTER_COST_CALIBRATION_CODEX_PASS`\nFAIL exactly: `V2_AUTONOMOUS_BASELINE_AFTER_COST_CALIBRATION_CODEX_FAIL`\n",
+  "reconciled_from_source_truth_at": "2026-05-26T17:49:17Z",
+  "report_only_work": false,
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "scope_paths": [
+    "v2/backend/app/services/native_trainer",
+    "claude_worklog/final_readiness/v2_native_trainer_dataset_and_baseline_model/latest",
+    "v2/frontend/public/v2_native_trainer_dataset_and_baseline_model/latest"
+  ],
+  "source_truth_completed_at": "2026-05-24T19:49:00.451396+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/codex_review_autoseed_baseline_after_cost_calibration.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "started_at": "2026-05-24T19:48:32Z",
+  "status": "completed",
+  "task_id": "codex_review_autoseed_baseline_after_cost_calibration",
+  "task_type": "CODEX_REVIEW",
+  "ui_only_work": false,
+  "updated_at": "2026-05-26T17:49:17Z"
+}

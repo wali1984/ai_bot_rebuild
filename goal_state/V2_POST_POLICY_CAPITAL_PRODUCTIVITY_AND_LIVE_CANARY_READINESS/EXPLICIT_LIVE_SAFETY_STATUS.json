@@ -1,0 +1,18 @@
+{
+  "generated_utc": "2026-06-21T00:44:10.179589+00:00",
+  "places_real_order_false_all_cohort": true,
+  "trader_execution_enabled": false,
+  "live_gate_status": "blocked_human_only",
+  "account_mode": "paper_shadow_only",
+  "writes_exchange_orders": false,
+  "writes_legacy_redis": false,
+  "live_symbols": [],
+  "exchange_order_redis_key_count": 0,
+  "order_submit_count": 0,
+  "order_test_count": 0,
+  "order_modify_count": 0,
+  "order_cancel_count": 0,
+  "order_counter_gap": "Portfolio state does not expose named integer counters for submitted/test/modify/cancel orders. writes_exchange_orders=False is the authoritative guard. ACTION: add explicit counters.",
+  "status": "PASS",
+  "status_note": "All active safety guards clear. Counter gap is documentation only."
+}

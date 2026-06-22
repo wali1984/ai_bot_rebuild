@@ -1,0 +1,113 @@
+{
+  "schema_version": "v2_native_rl_p0_2b_legacy_behavior_mapping_v1",
+  "phase_id": "P0.2B",
+  "phase_name": "MASA/PPO CPU-first forward-pass policy (paper-only)",
+  "legacy_to_v2_behavior_mapping": [
+    {
+      "legacy_symbol": "MASAAgent.get_action_and_value",
+      "legacy_path": "v2/legacy_owned_runtime/rl/agents/masa_agent.py",
+      "legacy_sha256": "0c7496336ca00c0f006d9a294ea67e736e2c3f2a3e4202b98cd6925dff891080",
+      "legacy_size_bytes": 21109,
+      "v2_symbol": "V2MASAAdapter.get_action_and_value",
+      "v2_path": "v2/backend/app/services/rl_core/masa_adapter.py",
+      "behavior_parity_classification": "PARTIAL_FORWARD_PASS_ONLY_NO_TORCH_NO_WEIGHTS",
+      "parity_gap": [
+        "no AMP path",
+        "no GPU tensor placement",
+        "no clipped value function loss",
+        "no GAE advantage estimation",
+        "no checkpoint weights"
+      ]
+    },
+    {
+      "legacy_symbol": "GPUOptimizedMASANetwork.forward",
+      "legacy_path": "v2/legacy_owned_runtime/rl/agents/masa_agent.py",
+      "legacy_sha256": "0c7496336ca00c0f006d9a294ea67e736e2c3f2a3e4202b98cd6925dff891080",
+      "v2_symbol": "V2NativeCPUPolicy.forward",
+      "v2_path": "v2/backend/app/services/rl_core/policy.py",
+      "behavior_parity_classification": "DETERMINISTIC_CPU_FORWARD_PASS",
+      "parity_gap": [
+        "no convolutional feature extractor",
+        "no residual block stack",
+        "no value head (uses expected-move scalar head instead)",
+        "no torch tensor ops"
+      ]
+    },
+    {
+      "legacy_symbol": "HybridPPO.predict",
+      "legacy_path": "v2/legacy_owned_runtime/rl/agents/masa_agent.py",
+      "legacy_sha256": "0c7496336ca00c0f006d9a294ea67e736e2c3f2a3e4202b98cd6925dff891080",
+      "v2_symbol": "V2NativePPOPolicy.predict",
+      "v2_path": "v2/backend/app/services/rl_core/ppo_policy.py",
+      "behavior_parity_classification": "PARTIAL_PREDICT_ONLY_NO_TRAINING",
+      "parity_gap": [
+        "no AdamW optimizer state",
+        "no PPO clip loss",
+        "no SB3 callback machinery",
+        "no replay buffer"
+      ]
+    },
+    {
+      "legacy_symbol": "HybridActionDecoder.decode_action / HybridActionHead.forward",
+      "legacy_path": "v2/legacy_owned_runtime/rl/hybrid_action_space.py",
+      "legacy_sha256": "abc7ecf1e655e4a018eeedcb4ad675c7bb35e101d4b5a42d432132243aed6c23",
+      "legacy_size_bytes": 16553,
+      "v2_symbol": "ACTION_LABELS + selected_action / selected_action_index",
+      "v2_path": "v2/backend/app/services/rl_core/policy.py",
+      "behavior_parity_classification": "ACTION_LABEL_PARITY_ONLY",
+      "parity_gap": [
+        "no continuous leverage head",
+        "no continuous size head",
+        "no confidence-based sizer",
+        "no dynamic leverage scheduler"
+      ]
+    },
+    {
+      "legacy_symbol": "RecurrentFeatureExtractor",
+      "legacy_path": "v2/legacy_owned_runtime/rl/enhanced_architectures.py",
+      "legacy_sha256": "d7b2071a6c83edee5eb940d50e5578fb0b4dd14d54f9e577c65d2533409b8236",
+      "legacy_size_bytes": 23252,
+      "v2_symbol": "_linear + _tanh",
+      "v2_path": "v2/backend/app/services/rl_core/policy.py",
+      "behavior_parity_classification": "FEED_FORWARD_ONLY_NO_RECURRENCE",
+      "parity_gap": [
+        "no LSTM/GRU recurrence",
+        "no hidden state cache",
+        "no regime observer head"
+      ]
+    },
+    {
+      "legacy_symbol": "GPU CNN policy",
+      "legacy_path": "v2/legacy_owned_runtime/rl/gpu_cnn_policy.py",
+      "legacy_sha256": "881cfdad7650e9114e14c24a8d3d7bc2cbb5a4c1ce2a5fa8cb3fe2d50d3b4062",
+      "legacy_size_bytes": 7843,
+      "v2_symbol": "n/a",
+      "v2_path": "n/a",
+      "behavior_parity_classification": "DEFERRED_TO_P0_2E",
+      "parity_gap": [
+        "GPU policy not implemented in P0.2B; deferred to P0.2E"
+      ]
+    }
+  ],
+  "config_env_mapping": {
+    "MASAConfig.obs_dim": "v2 native: POLICY_OBSERVATION_DIM=26 (matches OBSERVATION_FEATURE_ORDER length)",
+    "MASAConfig.action_dim": "v2 native: ACTION_COUNT=5 (hold, long, short, close, hedge)",
+    "MASAConfig.amp_enabled": "not used in v2 (no torch, no AMP)",
+    "torch.optim.AdamW": "not used in v2 (no optimizer in P0.2B)",
+    "redis://.*": "not used in v2 (policy is pure stdlib)"
+  },
+  "v2_implementation_files": [
+    "v2/backend/app/services/rl_core/policy.py",
+    "v2/backend/app/services/rl_core/masa_adapter.py",
+    "v2/backend/app/services/rl_core/ppo_policy.py"
+  ],
+  "v2_test_files": [
+    "v2/backend/tests/integration/cli/test_v2_rl_core_p0_2b_policy.py"
+  ],
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false
+}

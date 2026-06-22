@@ -1,0 +1,61 @@
+{
+  "agent": "claude",
+  "autoseed_metadata": {
+    "generated_at": "2026-05-25T01:13:53Z",
+    "iteration": 20,
+    "source": "v2_autonomous_mission_backlog_autoseed",
+    "task_role": "implementation",
+    "title": "Baseline after-cost calibration"
+  },
+  "completed_at": "2026-05-25T01:28:01Z",
+  "created_at": "2026-05-25T01:13:53Z",
+  "current_active": true,
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "duplicate_suppression_key": "autoseed:baseline_after_cost_calibration:implementation:r20",
+  "expected_output_paths": [
+    "claude_worklog/final_readiness/v2_autonomous_mission_backlog/per_task/baseline_after_cost_calibration/IMPLEMENTATION_REPORT.md"
+  ],
+  "fail_blockers": [
+    "running_descriptor_without_active_lease_reset"
+  ],
+  "file_lock_group": "v2_native_baseline_after_cost_calibration",
+  "lease_id": "e588ff4e90df4a829d2fd31981c10a26",
+  "log_path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/claude_autoseed_baseline_after_cost_calibration_r20.log",
+  "mission_categories": [
+    "model/policy readiness",
+    "paper edge",
+    "risk control"
+  ],
+  "mission_progress_countable": true,
+  "next_action": "Run narrow V2 implementation task baseline_after_cost_calibration",
+  "owner": "CLAUDE",
+  "paired_codex_review_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r20",
+  "pid_or_job_id": 2075076,
+  "prompt": "Implement a narrow V2 baseline-model calibration improvement using only V2-owned trainer dataset rows. Focus on expected_move_after_cost_bps calibration and false-negative separation. Preserve NOT_PRODUCTION_READY model readiness unless independently proven, exclude insufficient-evidence rows from trainable labels, and emit a per-task implementation report.",
+  "report_only_work": false,
+  "risk_level": "L1",
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "scope_paths": [
+    "v2/backend/app/services/native_trainer",
+    "claude_worklog/final_readiness/v2_native_trainer_dataset_and_baseline_model/latest",
+    "v2/frontend/public/v2_native_trainer_dataset_and_baseline_model/latest"
+  ],
+  "stall_count": 1,
+  "started_at": "2026-05-25T01:27:33Z",
+  "status": "completed",
+  "task_id": "claude_autoseed_baseline_after_cost_calibration_r20",
+  "task_type": "CLAUDE_IMPLEMENTATION",
+  "ui_only_work": false,
+  "updated_at": "2026-05-25T01:28:01Z",
+  "worker_id": "claude-3"
+}

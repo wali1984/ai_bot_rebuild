@@ -1,0 +1,120 @@
+{
+  "action_space": {
+    "joint_action_count": 59049,
+    "joint_action_count_expr": "3 ** len(SYMBOLS)",
+    "joint_action_decomposition": "joint_action_id = sum(action_for_symbol[i] * (3 ** i) for i in range(N))",
+    "n_symbols_expr": "len(SYMBOLS)",
+    "per_symbol_action_labels_hint": [
+      "hold",
+      "long",
+      "short"
+    ],
+    "per_symbol_actions": 3
+  },
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "architecture_components_present": {
+    "cnn": true,
+    "expected_move_head": false,
+    "feed_forward_network": true,
+    "layer_norm": true,
+    "lstm": true,
+    "moe": true,
+    "multihead_attention": true,
+    "policy_head": true,
+    "regime_head": true,
+    "value_head": true
+  },
+  "architecture_defaults": {
+    "features_dim_default": null,
+    "lstm_hidden_size_default": null,
+    "lstm_num_layers_default": null,
+    "multihead_attention_embed_dim_expr": "lstm_hidden_size",
+    "regime_head_class_count": 4,
+    "uses_ActorCriticPolicy": true
+  },
+  "checkpoint_compatibility_claimed": false,
+  "generated_utc": "2026-05-17T19:42:48Z",
+  "go_no_go": "V2_POLICY_ARCHITECTURE_SHAPE_CONTRACT_PREP_READY",
+  "input_observation": {
+    "schema_version": "V3",
+    "slices": [
+      {
+        "description": "Comprehensive unified features",
+        "name": "unified_features",
+        "optional": false,
+        "size": 1430
+      },
+      {
+        "description": "Extended portfolio state",
+        "name": "portfolio_state",
+        "optional": false,
+        "size": 401
+      },
+      {
+        "description": "BTC on-chain features",
+        "name": "onchain_btc",
+        "optional": true,
+        "size": 15
+      },
+      {
+        "description": "ETH on-chain features",
+        "name": "onchain_eth",
+        "optional": true,
+        "size": 15
+      },
+      {
+        "description": "Position MFE/MAE/ROE context",
+        "name": "position_context",
+        "optional": true,
+        "size": 50
+      }
+    ],
+    "target_dim": 1911
+  },
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "next_required_step": "Codex review of the full observation builder must pass first; only then is the policy architecture port a parity candidate.",
+  "no_legacy_filesystem_modified": true,
+  "no_pickle_loaded": true,
+  "no_torch_imported": true,
+  "operator_decision_required_to_implement_port": true,
+  "policy_port_implementation_claimed": false,
+  "schema_version": "v2_policy_architecture_shape_contract_v1",
+  "source_files": {
+    "enhanced_architectures": "v2/legacy_owned_runtime/rl/enhanced_architectures.py",
+    "environment": "v2/legacy_owned_runtime/rl/environment.py",
+    "gpu_cnn_policy": "v2/legacy_owned_runtime/rl/gpu_cnn_policy.py",
+    "gymnasium_wrapper": "v2/legacy_owned_runtime/rl/gymnasium_wrapper.py",
+    "moe_router": "v2/legacy_owned_runtime/rl/moe_router.py",
+    "v2_trainer_output": "v2/backend/app/services/rl_core/trainer_output.py"
+  },
+  "v2_trainer_output_contract": {
+    "note": "Any future V2 policy port must continue to emit these fields so the P0.2F strict paper-fill gate and downstream comparator passthrough remain intact.",
+    "source_file": "v2/backend/app/services/rl_core/trainer_output.py",
+    "v2_trainer_output_fields": [
+      "checkpoint_blocker",
+      "checkpoint_id",
+      "confidence_calibrated",
+      "confidence_raw",
+      "expected_move_after_cost_bps",
+      "expected_move_bps",
+      "feature_freshness_state",
+      "feature_snapshot_id",
+      "generated_utc",
+      "hedge_action_classification",
+      "live_gate",
+      "live_symbols",
+      "paper_fill_allowed",
+      "paper_fill_gate_block_reasons",
+      "paper_fill_gate_status",
+      "policy_action_probabilities",
+      "prediction_id",
+      "selected_action",
+      "selected_action_index",
+      "trainer_source"
+    ]
+  }
+}

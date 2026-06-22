@@ -1,0 +1,18 @@
+[Unit]
+Description=AI BOT V2 CoinAPI REST fallback loop (paper-only, V2 namespace only)
+After=network-online.target redis.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+Environment="LIVE_GATE=blocked_human_only"
+ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -m v2.backend.app.cli.v2_coinapi_rest_ingestor_worker --loop --interval-seconds 300 --max-rps 0.5 --write-v2-redis --v2-redis-ttl-seconds 900'
+StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-coinapi-rest-fallback-loop.log
+StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-coinapi-rest-fallback-loop.err
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=default.target

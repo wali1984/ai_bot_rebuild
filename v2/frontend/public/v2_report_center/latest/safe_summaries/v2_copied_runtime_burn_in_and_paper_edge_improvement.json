@@ -1,0 +1,46 @@
+{
+  "freshness_seconds": 3256.947350025177,
+  "go_no_go": "V2_COPIED_RUNTIME_BURN_IN_AND_PAPER_EDGE_IMPROVEMENT_BLOCKED",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "owner": "CLAUDE+CODEX+SPARK",
+  "redaction_applied": true,
+  "report_id": "v2_copied_runtime_burn_in_and_paper_edge_improvement",
+  "sanitized_summary": {
+    "go_no_go": "V2_COPIED_RUNTIME_BURN_IN_AND_PAPER_EDGE_IMPROVEMENT_BLOCKED",
+    "pruned": {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "blockers": [
+        "required_runtime_services_missing",
+        "required_runtime_services_inactive",
+        "burn_in_12h_window_not_complete",
+        "dynamic_symbol_baseline_not_held",
+        "v2_market_liquidation_levels_zero_keys",
+        "paper_edge_not_proven",
+        "operator_edge_thresholds_not_set"
+      ],
+      "calls_exchange_mutation": false,
+      "generated_est": "2026-06-21T19:31:44-0400",
+      "generated_utc": "2026-06-21T23:31:44Z",
+      "go_no_go": "V2_COPIED_RUNTIME_BURN_IN_AND_PAPER_EDGE_IMPROVEMENT_BLOCKED",
+      "leverage_changed": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "margin_mode_changed": false,
+      "next_action": "Continue paper/shadow burn-in, diagnose liquidation event absence, improve paper edge, and wait for operator edge thresholds.",
+      "places_real_order": false,
+      "schema_version": "operator_dashboard_payload_v3",
+      "status": "BLOCKED",
+      "writes_old_redis": false
+    },
+    "redaction_applied": true,
+    "redaction_token": "***REDACTED***",
+    "status": "BLOCKED"
+  },
+  "stale": true,
+  "status": "BLOCKED",
+  "title": "V2 Copied Runtime Burn-In And Paper Edge Improvement"
+}

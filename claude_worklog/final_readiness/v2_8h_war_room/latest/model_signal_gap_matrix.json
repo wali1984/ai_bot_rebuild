@@ -1,0 +1,83 @@
+{
+  "aggregated_classification_counts": {
+    "ALT_DATA_PROVIDER_FORBIDDEN_OR_MISSING": 6,
+    "FULL_OBSERVATION_PARTIAL": 3,
+    "MISSING_LEGACY_LOG_ACTION_EVIDENCE": 3,
+    "V2_POSITION_HISTORY_FLAT": 3
+  },
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_real": false,
+  "approves_redis_trim": false,
+  "gate": "blocked_human_only",
+  "generated_utc": "2026-06-21T23:37:26Z",
+  "invented_outcomes": false,
+  "legacy_evidence_consumed_as_current_truth": false,
+  "missing_provider_data_converted_to_numeric_score": false,
+  "per_symbol": [
+    {
+      "classifications": [
+        "ALT_DATA_PROVIDER_FORBIDDEN_OR_MISSING:lunarcrush_payload_missing",
+        "ALT_DATA_PROVIDER_FORBIDDEN_OR_MISSING:nansen_payload_missing",
+        "FULL_OBSERVATION_PARTIAL",
+        "MISSING_LEGACY_LOG_ACTION_EVIDENCE",
+        "V2_POSITION_HISTORY_FLAT:NO_OPEN_POSITION"
+      ],
+      "feature_freshness_state": "CURRENT",
+      "held_by_paper_fill_gate": false,
+      "lunarcrush_payload_present": false,
+      "nansen_payload_present": false,
+      "price_track_missing_flags": [
+        "FLAT_NO_OPEN_POSITION"
+      ],
+      "symbol": "BTCUSDT",
+      "v2_prediction_present": true
+    },
+    {
+      "classifications": [
+        "ALT_DATA_PROVIDER_FORBIDDEN_OR_MISSING:lunarcrush_payload_missing",
+        "ALT_DATA_PROVIDER_FORBIDDEN_OR_MISSING:nansen_payload_missing",
+        "FULL_OBSERVATION_PARTIAL",
+        "MISSING_LEGACY_LOG_ACTION_EVIDENCE",
+        "V2_POSITION_HISTORY_FLAT:NO_OPEN_POSITION"
+      ],
+      "feature_freshness_state": "CURRENT",
+      "held_by_paper_fill_gate": false,
+      "lunarcrush_payload_present": false,
+      "nansen_payload_present": false,
+      "price_track_missing_flags": [
+        "FLAT_NO_OPEN_POSITION"
+      ],
+      "symbol": "ETHUSDT",
+      "v2_prediction_present": true
+    },
+    {
+      "classifications": [
+        "ALT_DATA_PROVIDER_FORBIDDEN_OR_MISSING:lunarcrush_payload_missing",
+        "ALT_DATA_PROVIDER_FORBIDDEN_OR_MISSING:nansen_payload_missing",
+        "FULL_OBSERVATION_PARTIAL",
+        "MISSING_LEGACY_LOG_ACTION_EVIDENCE",
+        "V2_POSITION_HISTORY_FLAT:NO_OPEN_POSITION"
+      ],
+      "feature_freshness_state": "CURRENT",
+      "held_by_paper_fill_gate": false,
+      "lunarcrush_payload_present": false,
+      "nansen_payload_present": false,
+      "price_track_missing_flags": [
+        "FLAT_NO_OPEN_POSITION"
+      ],
+      "symbol": "SOLUSDT",
+      "v2_prediction_present": true
+    }
+  ],
+  "schema_version": "v2_8h_war_room_model_signal_gap_matrix_v1",
+  "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+  ],
+  "symbols_real": [],
+  "tier": "15m",
+  "writes_exchange_orders": false,
+  "writes_legacy_redis": false
+}

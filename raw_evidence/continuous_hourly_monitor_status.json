@@ -1,0 +1,17 @@
+{
+  "schema_version": "v2_continuous_hourly_monitor_v1",
+  "generated_at": "2026-06-21T23:02:29Z",
+  "hourly_windows_computed": 3,
+  "cumulative_artifacts_written": 7,
+  "outcome_memory_buckets_updated": 1,
+  "loss_recovery_tightening_active": false,
+  "loss_recovery_losing_windows": 0,
+  "closed_trades_all_time": 7,
+  "closed_trades_3h_windows": 0,
+  "soak_progress_pct": 1.4,
+  "quality_verdict_3h": "3H_EDGE_NOT_YET_VALIDATED",
+  "shap_blocker_status": "OPEN",
+  "gate_status": "blocked_human_only",
+  "mutates_exchange": false,
+  "writes_old_redis": false
+}

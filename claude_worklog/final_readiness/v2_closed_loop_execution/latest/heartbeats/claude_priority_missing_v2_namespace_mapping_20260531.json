@@ -1,0 +1,10 @@
+{
+  "alive": true,
+  "cmd": [
+    "/home/wali/.local/bin/claude",
+    "..."
+  ],
+  "pid": 1429277,
+  "task_id": "claude_priority_missing_v2_namespace_mapping_20260531",
+  "updated_at": "2026-05-31T05:52:22Z"
+}

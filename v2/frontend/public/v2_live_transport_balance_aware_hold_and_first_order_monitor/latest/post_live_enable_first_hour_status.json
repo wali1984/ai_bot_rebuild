@@ -1,0 +1,30 @@
+{
+  "accepted_symbols": [
+    "BNBUSDT",
+    "BTCUSDT",
+    "ETHUSDT",
+    "PAXGUSDT",
+    "XAUTUSDT",
+    "ZECUSDT"
+  ],
+  "auto_freeze_conditions": [
+    "symbol outside accepted list",
+    "missing prediction_id/risk_decision_id/orchestrator_decision_id",
+    "leverage/margin mutation attempted",
+    "old Redis write detected",
+    "raw credential leak",
+    "risk gateway unavailable",
+    "unexpected order endpoint"
+  ],
+  "balance_hold_status": "LIVE_TRANSPORT_BALANCE_HOLD_ACTIVE",
+  "compliance_hold_active": false,
+  "critical_account_read_gate_status": "CRITICAL_ACCOUNT_READ_GATE_BLOCKED",
+  "generated_est": "2026-06-21T20:28:07-04:00",
+  "kill_switch_active": false,
+  "latest_transport_status": "LIVE_ORDER_TRANSPORT_BLOCKED",
+  "monitor_status": "BALANCE_HOLD_ACTIVE",
+  "orders_attempted": 0,
+  "orders_rejected": 0,
+  "orders_submitted": 0,
+  "schema_version": "post_live_enable_first_hour_status_v1"
+}

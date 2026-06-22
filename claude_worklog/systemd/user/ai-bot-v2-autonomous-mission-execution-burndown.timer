@@ -1,0 +1,12 @@
+[Unit]
+Description=Run AI Bot V2 autonomous mission execution burndown refresh
+
+[Timer]
+OnBootSec=90s
+OnUnitActiveSec=300s
+AccuracySec=20s
+Persistent=true
+Unit=ai-bot-v2-autonomous-mission-execution-burndown.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,29 @@
+{
+  "agent": "claude",
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/priority_autoseed_20260531/missing_dynamic_symbol_coverage/",
+    "v2/backend/app/",
+    "v2/backend/tests/",
+    "v2/frontend/public/operator_runtime/"
+  ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "lane": "primary_claude_lane",
+  "log_path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/claude_priority_missing_dynamic_symbol_coverage_20260531.log",
+  "next_action": "CODEX_TAKEOVER created; operator may resume Claude manually.",
+  "next_gate": "GO_NO_GO.md",
+  "pid_or_job_id": 1429275,
+  "priority": 4700,
+  "prompt": "Close missing dynamic symbol coverage with explicit separation of discovered, observed, training, paper, and live_blocked symbols. Validate each source feed and mark any missing source with exact blocker. Do not auto-train or auto-trade all discovered symbols.",
+  "required_output_files": [
+    "claude_worklog/final_readiness/priority_autoseed_20260531/missing_dynamic_symbol_coverage/REPORT.md",
+    "claude_worklog/final_readiness/priority_autoseed_20260531/missing_dynamic_symbol_coverage/STATUS.json",
+    "claude_worklog/final_readiness/priority_autoseed_20260531/missing_dynamic_symbol_coverage/GO_NO_GO.md"
+  ],
+  "risk_level": "L2",
+  "stall_count": 2,
+  "started_at": "2026-05-31T05:52:22Z",
+  "status": "stale",
+  "task_id": "claude_priority_missing_dynamic_symbol_coverage_20260531",
+  "updated_at": "2026-05-31T05:52:22Z"
+}

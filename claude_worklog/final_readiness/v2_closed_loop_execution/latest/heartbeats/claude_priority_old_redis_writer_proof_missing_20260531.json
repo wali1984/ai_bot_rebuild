@@ -1,0 +1,10 @@
+{
+  "alive": true,
+  "cmd": [
+    "/home/wali/.local/bin/claude",
+    "..."
+  ],
+  "pid": 1456667,
+  "task_id": "claude_priority_old_redis_writer_proof_missing_20260531",
+  "updated_at": "2026-05-31T06:04:14Z"
+}

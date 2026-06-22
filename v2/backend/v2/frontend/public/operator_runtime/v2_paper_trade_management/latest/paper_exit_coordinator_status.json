@@ -1,0 +1,13 @@
+{
+  "close_reasons": {
+    "UNKNOWN_CLOSE_REASON": 1
+  },
+  "evaluations": [],
+  "tiers_enabled": [
+    "TIER_0",
+    "TIER_1",
+    "TIER_2",
+    "TIER_3",
+    "TIER_4"
+  ]
+}

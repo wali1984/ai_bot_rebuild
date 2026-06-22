@@ -1,0 +1,117 @@
+{
+  "active_p0_blockers": [
+    "PAPER_EDGE_UNPROVEN"
+  ],
+  "account_permission_state": {
+    "credentials_status": "MISSING",
+    "operator_decision_required_for_paper_only": true,
+    "trade_permission_status": "TRADE_PERMISSION_UNKNOWN_BLOCKS_CANARY"
+  },
+  "approval_tokens": "absent",
+  "claude_tasks": {
+    "account": "claude_8h_account_trade_permission_readonly_evidence",
+    "frontend": "claude_8h_frontend_trade_readiness_command_center",
+    "paper_edge": "claude_8h_paper_edge_expected_move_model_repair",
+    "risk": "claude_8h_risk_trader_action_parity_tests",
+    "signals": "claude_8h_signal_orchestrator_freshness_and_decision_comparison",
+    "trainer": "claude_8h_trainer_native_edge_evidence_or_acceptance"
+  },
+  "codex_review_tasks": {
+    "account": "codex_review_8h_account_trade_permission_readonly_evidence",
+    "frontend": "codex_review_8h_frontend_trade_readiness_command_center",
+    "paper_edge": "codex_review_8h_paper_edge_expected_move_model_repair",
+    "risk": "codex_review_8h_risk_trader_action_parity_tests",
+    "signals": "codex_review_8h_signal_orchestrator_freshness_and_decision_comparison",
+    "trainer": "codex_review_8h_trainer_native_edge_evidence_or_acceptance"
+  },
+  "completed_fixes": [
+    "active_public_freshness_count_reduced_to_0",
+    "account_trade_permission_classified_fail_closed_operator_decision_required",
+    "expected_move_review_refreshed_current_enough_for_false_block_tolerance",
+    "signal_orchestrator_comparison_classified_source_limited",
+    "strict_paper_gate_kept"
+  ],
+  "deadline_utc": "2026-05-16T05:13:42Z",
+  "exchange_actions": "absent",
+  "failed_reviews": [],
+  "final_go_no_go": "EIGHT_HOUR_TRADE_READINESS_NO_GO_EDGE_NOT_PROVEN",
+  "final_packet_status": "EMITTED_EARLY_NO_GO",
+  "frontend_truth_state": {
+    "expected_move_review_current": true,
+    "missing_payloads": [],
+    "stale_payloads": []
+  },
+  "generated_at": "2026-05-15T21:42:00Z",
+  "lanes": [
+    {
+      "id": "paper_edge",
+      "priority": "P0",
+      "selected_primary": false,
+      "status": "completed_by_codex_takeover_keep_gate_strict_edge_unproven",
+      "task_id": "claude_8h_paper_edge_expected_move_model_repair"
+    },
+    {
+      "id": "trainer",
+      "priority": "P0_SUPPORT",
+      "selected_primary": false,
+      "status": "completed_by_codex_takeover_acceptance_required",
+      "task_id": "claude_8h_trainer_native_edge_evidence_or_acceptance"
+    },
+    {
+      "id": "risk",
+      "priority": "P0_SUPPORT",
+      "selected_primary": false,
+      "status": "completed_by_codex_takeover_explicit_gaps",
+      "task_id": "claude_8h_risk_trader_action_parity_tests"
+    },
+    {
+      "id": "signals",
+      "priority": "P1_SUPPORT",
+      "selected_primary": false,
+      "status": "completed_by_codex_direct_evidence",
+      "task_id": "claude_8h_signal_orchestrator_freshness_and_decision_comparison"
+    },
+    {
+      "id": "account",
+      "priority": "OPERATOR_DECISION_SUPPORT",
+      "selected_primary": false,
+      "status": "completed_by_codex_direct_evidence",
+      "task_id": "claude_8h_account_trade_permission_readonly_evidence"
+    },
+    {
+      "id": "frontend",
+      "priority": "SUPPORT_ONLY",
+      "selected_primary": false,
+      "status": "queued",
+      "task_id": "claude_8h_frontend_trade_readiness_command_center"
+    }
+  ],
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "old_redis_writes": "absent",
+  "paper_edge_state": {
+    "completed_observations": 364,
+    "edge_status": "EDGE_PENDING_MODEL_REVIEW_REQUIRED",
+    "expected_move_review": "V2_EXPECTED_MOVE_MODEL_REVIEW_READY_KEEP_GATE_STRICT",
+    "false_block_count": 128,
+    "no_trade_correct_count": 236,
+    "safe_threshold_candidates": 0
+  },
+  "public_freshness": {
+    "active_stale_count": 0,
+    "status": "clean"
+  },
+  "risk_test_state": {
+    "status": "queued_for_8h_parity_expansion"
+  },
+  "selected_primary_task": "",
+  "shutdown_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",
+  "signal_freshness_state": {
+    "status": "source_limited_or_stale_until_lane_completes"
+  },
+  "trainer_parity_state": {
+    "status": "BLOCKS_LEGACY_SHUTDOWN",
+    "operator_decision_required": true
+  },
+  "war_room_marker": "EIGHT_HOUR_TRADE_READINESS_NO_GO_EDGE_NOT_PROVEN"
+}

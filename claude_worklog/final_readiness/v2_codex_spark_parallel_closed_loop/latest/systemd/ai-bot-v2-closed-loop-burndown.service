@@ -1,0 +1,9 @@
+[Unit]
+Description=AI BOT V2 Closed-Loop Spark Burndown
+
+[Service]
+Type=oneshot
+Environment="PYTHONPATH=%h/Desktop/AI BOT REBUILD:%h/Desktop/AI BOT REBUILD/claude_worklog/tools"
+ExecStart="%h/Desktop/AI BOT REBUILD/.venv/bin/python3" -m v2.backend.app.closed_loop.cli.burndown
+StandardOutput=journal
+StandardError=journal

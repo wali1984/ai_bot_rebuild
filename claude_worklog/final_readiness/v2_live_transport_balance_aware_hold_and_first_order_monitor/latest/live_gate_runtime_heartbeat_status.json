@@ -1,0 +1,16 @@
+{
+  "blockers": [
+    "LIVE_GATE_NOT_ENABLED",
+    "TRADER_EXECUTION_ENABLED_NOT_TRUE",
+    "LIVE_SYMBOL_SETS_DO_NOT_MATCH_ACCEPTED_SYMBOLS",
+    "ORDER_TRANSPORT_SUBMIT_NOT_ENABLED"
+  ],
+  "exchange_mutation_attempted": false,
+  "generated_est": "2026-06-21T20:26:46-04:00",
+  "leverage_margin_mutation_attempted": false,
+  "ok": false,
+  "old_redis_write_attempted": false,
+  "schema_version": "v2_live_gate_runtime_heartbeat_status_v1",
+  "source": "v2:live_gate:state",
+  "status": "LIVE_GATE_RUNTIME_HEARTBEAT_BLOCKED"
+}

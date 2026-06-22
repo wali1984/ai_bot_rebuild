@@ -1,0 +1,26 @@
+{
+  "approval_artifact_created": false,
+  "next_operator_only_action": {
+    "allowed_classification": true,
+    "classification": "OPERATOR_DECISION_REQUIRED",
+    "classification_protocol": "AUTOMATABLE_NOW",
+    "classification_reason": "PRIOR_CODEX_FAIL_MAPPED_TO_OPERATOR_REQUIRED",
+    "current_blockers": [],
+    "mission_category": "runtime_stability",
+    "next_action": null,
+    "owner": "CODEX",
+    "report_id": "current_v2_migration_audit",
+    "source": "top_blockers",
+    "source_key": "top_blockers_current_v2_migration_audit_blocked_current_v2_migration_audit",
+    "status": "BLOCKED",
+    "title": "Current V2 Migration Audit"
+  },
+  "operator_decisions_not_auto_accepted": true,
+  "protocol_classification_counts": {
+    "AUTOMATABLE_NOW": 17,
+    "EXTERNAL_REQUIRED": 2,
+    "OPERATOR_REQUIRED": 4,
+    "UNSAFE_TO_AUTOMATE": 1
+  },
+  "remaining_operator_decisions": 19
+}

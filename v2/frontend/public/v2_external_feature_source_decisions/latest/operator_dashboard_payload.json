@@ -1,0 +1,82 @@
+{
+  "schema_version": "v2_external_feature_source_decisions_dashboard_v1",
+  "generated_utc": "2026-05-17T19:55:00Z",
+  "go_no_go": "V2_EXTERNAL_FEATURE_SOURCE_DECISION_PACKETS_READY",
+  "packet_count": 4,
+  "families": [
+    {
+      "family_id": "unified_feature_family.token_metrics",
+      "target_dims": 18,
+      "current_default_state": "DEFER_TOKEN_METRICS",
+      "optional_for_checkpoint_compatibility": "OPERATOR_DECISION_REQUIRED",
+      "operator_decision_required": true,
+      "creates_external_feed": false,
+      "creates_credentials": false,
+      "no_raw_credentials_in_packet": true,
+      "packet_md": "claude_worklog/final_readiness/v2_external_feature_source_decisions/latest/token_metrics_source_decision.md",
+      "packet_json": "claude_worklog/final_readiness/v2_external_feature_source_decisions/latest/token_metrics_source_decision.json"
+    },
+    {
+      "family_id": "onchain_btc",
+      "target_dims": 15,
+      "current_default_state": "DEFER_ONCHAIN_BTC",
+      "optional_for_checkpoint_compatibility": "OPTIONAL_BY_LEGACY_V3_SCHEMA",
+      "operator_decision_required": true,
+      "creates_external_feed": false,
+      "creates_credentials": false,
+      "no_raw_credentials_in_packet": true,
+      "packet_md": "claude_worklog/final_readiness/v2_external_feature_source_decisions/latest/onchain_btc_source_decision.md",
+      "packet_json": "claude_worklog/final_readiness/v2_external_feature_source_decisions/latest/onchain_btc_source_decision.json"
+    },
+    {
+      "family_id": "onchain_eth",
+      "target_dims": 15,
+      "current_default_state": "DEFER_ONCHAIN_ETH",
+      "optional_for_checkpoint_compatibility": "OPTIONAL_BY_LEGACY_V3_SCHEMA",
+      "operator_decision_required": true,
+      "creates_external_feed": false,
+      "creates_credentials": false,
+      "no_raw_credentials_in_packet": true,
+      "packet_md": "claude_worklog/final_readiness/v2_external_feature_source_decisions/latest/onchain_eth_source_decision.md",
+      "packet_json": "claude_worklog/final_readiness/v2_external_feature_source_decisions/latest/onchain_eth_source_decision.json"
+    },
+    {
+      "family_id": "unified_feature_family.ccxt_ohlcv",
+      "target_dims": 10,
+      "current_default_state": "DEFER_CCXT_OHLCV",
+      "optional_for_checkpoint_compatibility": "OPTIONAL_FOR_CHECKPOINT_COMPATIBILITY_IF_NATIVE_BINANCE_OHLCV_PRESENT",
+      "operator_decision_required": true,
+      "creates_external_feed": false,
+      "creates_credentials": false,
+      "no_raw_credentials_in_packet": true,
+      "packet_md": "claude_worklog/final_readiness/v2_external_feature_source_decisions/latest/ccxt_ohlcv_source_decision.md",
+      "packet_json": "claude_worklog/final_readiness/v2_external_feature_source_decisions/latest/ccxt_ohlcv_source_decision.json"
+    }
+  ],
+  "summary": {
+    "external_source_required_families": [
+      "unified_feature_family.token_metrics",
+      "onchain_btc",
+      "onchain_eth"
+    ],
+    "operator_decision_required_families": [
+      "unified_feature_family.ccxt_ohlcv"
+    ],
+    "all_default_states_are_DEFER": true,
+    "internal_observation_expansion_unblocked": true
+  },
+  "no_raw_secrets_in_payload": true,
+  "creates_external_feed": false,
+  "creates_credentials": false,
+  "creates_paper_only_shutdown_acceptance_file": false,
+  "modifies_legacy": false,
+  "loads_any_blob": false,
+  "exchange_mutation": false,
+  "writes_old_redis": false,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false
+}

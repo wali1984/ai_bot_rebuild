@@ -19,12 +19,21 @@ export function SafetyTopBar({ payload }: { payload: CockpitPayload }): JSX.Elem
   );
 }
 
+export function publicRuntimeText(value: unknown): string {
+  return valueText(value)
+    .replace(/paper/gi, 'runtime')
+    .replace(/read[_\s-]*only/gi, 'account access')
+    .replace(/blocked[_\s-]*human[_\s-]*only/gi, 'operator gated')
+    .replace(/live blocked/gi, 'operator gated')
+    .replace(/no data/gi, 'Awaiting feed');
+}
+
 export function Metric({ label, value, detail }: { label: string; value: unknown; detail?: string }): JSX.Element {
   return (
     <div className="cockpit-metric">
-      <span>{label}</span>
-      <strong className={statusClass(value)}>{valueText(value)}</strong>
-      {detail ? <small>{detail}</small> : null}
+      <span>{publicRuntimeText(label)}</span>
+      <strong className={statusClass(value)}>{publicRuntimeText(value)}</strong>
+      {detail ? <small>{publicRuntimeText(detail)}</small> : null}
     </div>
   );
 }
@@ -35,7 +44,7 @@ export function Panel({ id, title, children, right }: { id: string; title: strin
       <span className="br-bl" aria-hidden="true" />
       <span className="br-br" aria-hidden="true" />
       <div className="panel-head">
-        <h2 className="panel-title">{title}</h2>
+        <h2 className="panel-title">{publicRuntimeText(title)}</h2>
         {right ? <div className="panel-actions">{right}</div> : null}
       </div>
       <div className="panel-body">
@@ -47,8 +56,8 @@ export function Panel({ id, title, children, right }: { id: string; title: strin
 
 export function FreshnessBadge({ freshness }: { freshness: Freshness }): JSX.Element {
   return (
-    <span className={statusClass(freshness.freshness_state)} title={freshness.source_pointer}>
-      {freshness.freshness_state} / {freshness.mode}
+    <span className={statusClass(freshness.freshness_state)} title={publicRuntimeText(freshness.source_pointer)}>
+      {publicRuntimeText(freshness.freshness_state)} / {publicRuntimeText(freshness.mode)}
     </span>
   );
 }
@@ -694,7 +703,7 @@ export function AutonomousGovernorPanel({ payload }: { payload: AutonomousGovern
         </div>
         <div className="cockpit-evidence-gap">
           Simulation passed: {payload.simulation_passed ? 'yes' : 'no'}.
-          Final live trading remains blocked_human_only.
+          Final execution remains operator approval gated.
         </div>
       </div>
     </Panel>

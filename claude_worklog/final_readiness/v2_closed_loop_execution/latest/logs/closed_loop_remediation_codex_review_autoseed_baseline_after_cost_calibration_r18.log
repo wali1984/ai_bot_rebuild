@@ -1,0 +1,13 @@
+The harness write-permission gate is denying edits to `v2/backend/app/services/native_trainer/baseline_model.py` — the same blocker that stalled r17 and r18. The path is on the CLAUDE.md whitelist, but the permission layer still requires an explicit per-file approval click from you.
+
+Designed change (single file, plus tests):
+
+**`v2/backend/app/services/native_trainer/baseline_model.py`** — add `ROW_INSUFFICIENT_EVIDENCE` import; add `BaselineCalibration` dataclass (5-bin empirical calibrator over `ROW_TRAINABLE`-only with `mean_after_cost_bps`/`positive_share`/`negative_share`/`sample_counts`, exposing `bin_index_for()`, `empirical_after_cost_bps()`, `false_negative_separation_score()`, `to_jsonable()`); add `fit_calibration(model, rows, *, bin_count=5)` with exclusion guard counting non-`ROW_TRAINABLE` rows; add `LogisticModel.calibration: BaselineCalibration | None` wired through `to_jsonable()`; add in-function guard inside `train_logistic_model` that filters to `ROW_TRAINABLE` rows; extend `EvaluationResult` with `calibration_exclusion_audit` and have `evaluate_all_baselines` call `fit_calibration` after `train_logistic_model`; update `build_baseline_prediction` to use empirical calibration for `expected_move_after_cost_bps` clamped to ±25bps with heuristic fallback, plus additive payload fields `expected_move_after_cost_bps_source`, `false_negative_separation_score`, `predicted_false_negative_risk`, `calibration_bin_index`. `REQUIRED_PUBLISHABLE_FIELDS` unchanged.
+
+**`v2/backend/tests/integration/cli/test_v2_native_trainer_dataset_and_baseline_model.py`** — 5 new tests: insufficient-evidence exclusion, empirical-override semantics, FN-separation sign in FN-dominated bins, safety pins after calibration, JSON round-trip.
+
+**Safety pins preserved:** `paper_fill_allowed=False`, `live_gate=blocked_human_only`, `live_symbols=[]`, `model_readiness=NOT_PRODUCTION_READY`, `approves_* = False`. No legacy mutation, no exchange call, no old-Redis write.
+
+To unblock the loop: please approve the `Edit` permission prompt(s) for these two paths (or grant the session blanket write to `v2/**` and `claude_worklog/**`). Once approved, I'll land the edits, run the targeted pytest, write the IMPLEMENTATION_REPORT, and flip the closed-loop remediation task to `completed` so the next codex_review iteration can be autoseeded.
+
+I have not modified the legacy AI BOT directory, called exchange mutation endpoints, or altered `live_gate`. Closed-loop status remains paused on the same harness write-gate that caused r17/r18 to FAIL — the implementation is fully designed and ready to land verbatim on approval.

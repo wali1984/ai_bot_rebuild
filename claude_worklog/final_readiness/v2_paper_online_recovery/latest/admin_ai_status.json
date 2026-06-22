@@ -7,11 +7,11 @@
     "live blockers"
   ],
   "forbidden_actions": [
-    "enable_live_trading",
-    "change_leverage",
-    "change_margin",
-    "place_or_cancel_orders"
+    "enable-live-trading",
+    "change-leverage",
+    "change-margin",
+    "place-or-cancel-orders"
   ],
-  "generated_at": "2026-05-12T20:27:46Z",
+  "generated_at": "2026-06-17T15:13:35-04:00",
   "status": "NON_LIVE_QUERY_SURFACE_READY_FROM_OPERATOR_PAYLOADS"
 }

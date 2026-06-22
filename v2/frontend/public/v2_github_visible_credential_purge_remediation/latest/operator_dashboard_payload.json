@@ -1,0 +1,34 @@
+{
+  "controls_present": false,
+  "fake_readiness": false,
+  "generated_utc": "2026-05-24T01:39:37Z",
+  "go_no_go": "V2_GITHUB_VISIBLE_CREDENTIAL_PURGE_REMEDIATION_READY",
+  "safety_scoreboard": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "did_not_delete_local_models": true,
+    "did_not_delete_local_secrets": true,
+    "did_not_delete_runtime_env_file": true,
+    "did_not_print_raw_secret_value": true,
+    "did_not_rewrite_git_history": true,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "local_runtime_credentials_untouched": true
+  },
+  "schema_version": "v2_github_visible_credential_purge_remediation_v1_operator_dashboard_payload",
+  "summary": {
+    "classification_counts_after": {},
+    "classification_counts_before": {
+      "CONFIRMED_SECRET": 4
+    },
+    "files_redacted_count": 1,
+    "git_history_rewrite_required": true,
+    "git_history_rewrite_status": "OPERATOR_DECISION_REQUIRED_GIT_HISTORY_REWRITE",
+    "redactions_applied": 4,
+    "unresolved_confirmed_public_payload_secret_count": 0,
+    "unresolved_confirmed_tracked_secret_count": 0,
+    "unresolved_confirmed_worklog_secret_count": 0
+  }
+}

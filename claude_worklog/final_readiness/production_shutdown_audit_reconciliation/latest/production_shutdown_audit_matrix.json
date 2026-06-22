@@ -1,0 +1,187 @@
+{
+  "schema_version": "v2_production_shutdown_audit_reconciliation_matrix_v1",
+  "generated_utc": "2026-05-17T01:00:00Z",
+  "git_head": "31a7fd70319f0d586c454b5ea2ea530ba9cb1541",
+  "reconciliation_go_no_go": "PRODUCTION_SHUTDOWN_AUDIT_HARD_NO_GO",
+  "decision_rationale_plain_english": "Legacy is actively producing production ingestion, trainer signals, orchestrator output, portfolio monitors, and Redis predictions/signals. V2 is paper/shadow/observer only. V2 writes zero v2:* Redis keys. Multiple V2 files self-declare MISSING_IN_V2, FAIL_CLOSED_STUB, or PAPER_ONLY. Legacy shutdown is structurally NO-GO until V2 owns production-equivalent runtime, regardless of any paper-only operator acceptance file.",
+  "gates": {
+    "PAPER_ONLY_ACCEPTANCE_GATE": {
+      "applies_to": "Operator paper-only-shutdown acceptance file",
+      "current_state": "OPERATOR_ACCEPTANCE_FILE_ABSENT",
+      "blocks_shutdown": true,
+      "reason": "claude_worklog/approvals/OPERATOR_ACCEPTS_V2_PAPER_ONLY_SHUTDOWN_LIMITATIONS.md not present."
+    },
+    "PRODUCTION_EQUIVALENCE_GATE": {
+      "applies_to": "V2 must own equivalent production runtime",
+      "current_state": "NOT_MET",
+      "blocks_shutdown": true,
+      "reason": "Legacy still owns production. V2 writes no v2:* Redis keys."
+    },
+    "LIVE_TRADING_GATE": {
+      "applies_to": "Live trading must stay blocked_human_only",
+      "current_state": "BLOCKED_HUMAN_ONLY",
+      "blocks_shutdown": true,
+      "reason": "No final live approval token created or to be created."
+    }
+  },
+  "audit_claims": [
+    {
+      "id": "AUDIT_LEGACY_PRODUCTION_INGESTION_STILL_RUNNING",
+      "audit_claim": "Legacy processes still running production ingestion.",
+      "v2_evidence": "v2_native_ingestors registry classifies ingestors at config-layer scope only; no V2 production ingestion daemons run.",
+      "legacy_process_evidence": [
+        "ingest/live_binance.py ~3d02h",
+        "ingest/live_binance_liquidations.py ~3d02h",
+        "ingest/live_coinank.py ~3d02h",
+        "ingest/live_kucoin.py ~3d02h",
+        "ingest/live_coinapi_v1.py ~3d01h",
+        "ingest/live_coinapi_wsds.py ~3d01h"
+      ],
+      "redis_evidence": [
+        "kc:* legacy KuCoin keys",
+        "heartbeat:writer:coinank",
+        "heartbeat:OrderBook:* legacy OrderBook writers",
+        "binance:force:raw"
+      ],
+      "verdict": "AUDIT_CLAIM_CONFIRMED",
+      "required_remediation": "Implement V2-owned production ingestor daemons; do not shut down legacy until V2 ingestion is operator-approved and Codex-passed."
+    },
+    {
+      "id": "AUDIT_LEGACY_TRAINER_STILL_RUNNING",
+      "audit_claim": "Legacy hybrid_trainer running and producing signals.",
+      "v2_evidence": "V2 RL core paper-only; migration_classification=PAPER_ONLY_TRAINER_ALGO_READY_P0_2G; checkpoint_weight_status=CHECKPOINT_WEIGHT_BLOB_OPERATOR_REQUIRED; only trainer-related V2 daemon is v2_trainer_bridge --readonly-only.",
+      "legacy_process_evidence": [
+        "rl.hybrid_trainer --mode hybrid --epochs 1000 --batch-size 64 ~3d02h"
+      ],
+      "redis_evidence": [
+        "prediction:BTCUSDT:5m",
+        "prediction:ETHUSDT:1h",
+        "rl:metrics:1m",
+        "rl:obs_length"
+      ],
+      "verdict": "AUDIT_CLAIM_CONFIRMED",
+      "required_remediation": "Production V2 trainer with operator-approved checkpoint and Codex full-PPO/GAE pass required before shutdown."
+    },
+    {
+      "id": "AUDIT_LEGACY_ORCHESTRATOR_STILL_RUNNING",
+      "audit_claim": "Legacy rl.orchestrator_worker running and producing arbitrated signals.",
+      "v2_evidence": "V2 orchestrator_arbitration paper-only in-process bus; service.py components_missing_in_v2 includes full_10523_line_orchestrator_worker_arbitration_logic and live_redis_proposal_bus_integration.",
+      "legacy_process_evidence": ["rl.orchestrator_worker ~3d01h"],
+      "redis_evidence": [
+        "signals:trading:asjad",
+        "signals:ensemble:diagnostic",
+        "signals:overlay:intents",
+        "signals:execution:skips",
+        "signals:proactive:alerts"
+      ],
+      "verdict": "AUDIT_CLAIM_CONFIRMED",
+      "required_remediation": "Production V2 orchestrator daemon writing V2-namespace signals with parity coverage required before shutdown."
+    },
+    {
+      "id": "AUDIT_LEGACY_FEATURE_PIPELINE_STILL_RUNNING",
+      "audit_claim": "Legacy feature_pipeline.py running.",
+      "v2_evidence": "V2 native feature pipeline emits trainer snapshot at v2/runtime/v2_feature_pipeline_native/latest/latest_feature_snapshot.json; current sample expected_move_after_cost_bps=-68.46 blocked by strict P0.2F gate; runs --read-from-paper-runtime --interval 60.",
+      "legacy_process_evidence": ["feature_pipeline.py ~3d02h"],
+      "redis_evidence": ["legacy feature/ta caches consumed by hybrid_trainer"],
+      "verdict": "AUDIT_CLAIM_CONFIRMED",
+      "required_remediation": "V2 production feature pipeline daemon with proven equivalence and Codex pass required."
+    },
+    {
+      "id": "AUDIT_LEGACY_PORTFOLIO_MONITOR_STILL_RUNNING",
+      "audit_claim": "Legacy portfolio monitor still running.",
+      "v2_evidence": "V2 v2_account_position_monitor is a read-only observer only.",
+      "legacy_process_evidence": ["monitor_portfolio_primary.py ~3d01h"],
+      "redis_evidence": ["legacy portfolio monitor reads exchange state directly"],
+      "verdict": "AUDIT_CLAIM_CONFIRMED",
+      "required_remediation": "Production V2 portfolio monitor before retiring legacy."
+    },
+    {
+      "id": "AUDIT_LEGACY_REDIS_SIGNAL_PRODUCTION",
+      "audit_claim": "Legacy produces Redis signals; V2 writes no production v2:* keys.",
+      "v2_evidence": "Direct redis-cli SCAN v2:* returned 0 keys.",
+      "legacy_process_evidence": "All legacy ingestors + orchestrator + trainer running.",
+      "redis_evidence": [
+        "v2:* count=0",
+        "prediction:* populated by legacy",
+        "signals:* populated by legacy",
+        "kc:* populated by legacy",
+        "rl:* populated by legacy",
+        "DBSIZE 12742"
+      ],
+      "verdict": "AUDIT_CLAIM_CONFIRMED",
+      "required_remediation": "V2 production daemons writing v2:* at production rate AND legacy drained of production responsibility required before shutdown."
+    },
+    {
+      "id": "AUDIT_V2_PAPER_SHADOW_OBSERVER_ONLY",
+      "audit_claim": "V2 is paper/shadow/observer only.",
+      "v2_evidence": "Running V2 processes: v2_feature_snapshot_builder paper runtime read-only, v2_trainer_bridge --readonly-only, observatory and watchdog daemons. No production ingestion/trainer/orchestrator daemons.",
+      "legacy_process_evidence": "n/a",
+      "redis_evidence": "v2:* count=0",
+      "verdict": "AUDIT_CLAIM_CONFIRMED",
+      "required_remediation": "Build V2 production daemons before considering shutdown."
+    },
+    {
+      "id": "AUDIT_V2_FILES_SELF_DECLARE_MISSING",
+      "audit_claim": "Multiple V2 files self-declare missing production functionality.",
+      "v2_evidence": [
+        "rl_core/service.py components_missing: ppo_masa_policy_network_MISSING_IN_V2, gymnasium_env_step_reset_loop_MISSING_IN_V2, gpu_training_loop_MISSING_IN_V2, unified_feature_builder_tensor_assembly_MISSING_IN_V2, checkpoint_weight_loader_MISSING_IN_V2",
+        "rl_core/environment.py scope=PAPER_ONLY_SIMULATION, approves_legacy_shutdown=False",
+        "trade_management_paper/service.py hedge/DCA=FAIL_CLOSED_STUB, scope=PAPER_ONLY",
+        "rl_core/trainer_output.py strictly blocks current negative-edge sample",
+        "orchestrator_arbitration/service.py components_missing_in_v2 includes full_10523_line_orchestrator_worker_arbitration_logic and live_redis_proposal_bus_integration"
+      ],
+      "legacy_process_evidence": "n/a",
+      "redis_evidence": "n/a",
+      "verdict": "AUDIT_CLAIM_CONFIRMED",
+      "required_remediation": "Implement or explicitly accept each declared limitation; not yet sufficient for production-equivalent shutdown."
+    }
+  ],
+  "runtime_snapshot": {
+    "legacy_processes_running": [
+      "ingest/live_binance.py",
+      "ingest/live_binance_liquidations.py",
+      "ingest/live_coinank.py",
+      "ingest/live_kucoin.py",
+      "ingest/live_coinapi_v1.py",
+      "ingest/live_coinapi_wsds.py",
+      "feature_pipeline.py",
+      "rl.hybrid_trainer --mode hybrid --epochs 1000 --batch-size 64",
+      "rl.orchestrator_worker",
+      "monitor_portfolio_primary.py"
+    ],
+    "v2_processes_running_paper_or_observer_only": [
+      "v2.backend.app.cli.v2_feature_snapshot_builder --loop --read-from-paper-runtime --interval 60",
+      "v2.backend.app.cli.v2_trainer_bridge --once --readonly-only in loop",
+      "claude_worklog/tools/v2_worker_porting_orchestrator.py --daemon",
+      "claude_worklog/tools/codex_legacy_v2_realtime_decision_observatory.py --daemon",
+      "claude_worklog/tools/codex_non_live_watchdog.py --daemon",
+      "vite frontend dev server"
+    ],
+    "v2_namespace_redis_key_count": 0,
+    "legacy_namespace_redis_keys_present_examples": [
+      "prediction:BTCUSDT:5m",
+      "prediction:ETHUSDT:1h",
+      "kc:kline:SOLUSDT:15m",
+      "kc:funding:SOLUSDT",
+      "signals:trading:asjad",
+      "rl:metrics:1m",
+      "heartbeat:writer:coinank",
+      "heartbeat:OrderBook:SOLUSDT",
+      "binance:force:raw"
+    ],
+    "redis_dbsize_total": 12742
+  },
+  "safety_invariants": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "final_live_approval_token_created": false,
+    "operator_paper_only_acceptance_file_created": false,
+    "legacy_was_stopped_by_this_packet": false,
+    "old_redis_writes_attempted_by_this_packet": false,
+    "exchange_orders_placed_or_modified": false
+  }
+}

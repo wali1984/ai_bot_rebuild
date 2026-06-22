@@ -1,0 +1,30 @@
+{
+  "agent": "codex",
+  "created_at": "2026-05-24T04:18:37Z",
+  "current_active": true,
+  "expected_output_paths": [],
+  "fail_blockers": [
+    "CLOSED_LOOP_CODEX_REVIEW_UNDETERMINED"
+  ],
+  "file_lock_group": "real_mode_probe_codex_gamma",
+  "max_stall_relaunches": 0,
+  "owner": "CODEX",
+  "prompt": "Run a single-shot heartbeat review for the V2 closed-loop engine. Print only the literal token V2_CLOSED_LOOP_LANE_HEARTBEAT_OK_CODEX_PASS and then exit. Do not approve live, canary, legacy shutdown, or Redis trim.",
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "stall_threshold_seconds": 90,
+  "started_at": "2026-05-24T04:21:02Z",
+  "status": "failed",
+  "task_id": "real_mode_probe_codex_gamma",
+  "task_type": "CODEX_REVIEW",
+  "updated_at": "2026-05-24T04:21:02Z"
+}

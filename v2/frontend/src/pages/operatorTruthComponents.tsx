@@ -106,7 +106,7 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
       <div className="operator-command-deck__header">
         <div>
           <p className="eyebrow">Realtime operator truth / no guessing</p>
-          <h1>Mission Control Truth Deck</h1>
+          <h1>NERVYX OBSERVE Truth Deck</h1>
           <p>
             This surface separates runtime evidence, static proof fixtures, stale payloads, and missing evidence. It does not promote any proof marker to live truth.
           </p>
@@ -254,13 +254,13 @@ export function LiveObserverShadowTwinPanel({ payload }: { payload: OperatorTrut
         <div><span>legacy symbol/action</span><strong>{nestedText(observer, ['legacy_shadow_twin', 'normalized_signal', 'symbol'])} / {nestedText(observer, ['legacy_shadow_twin', 'normalized_signal', 'action'])}</strong></div>
         <div><span>Risk Gateway result</span><strong className={statusClass(riskResult)}>{riskResult}</strong></div>
         <div><span>risk reason</span><strong>{riskReason}</strong></div>
-        <div><span>paper result</span><strong>{paperResult}</strong></div>
+        <div><span>execution result</span><strong>{paperResult}</strong></div>
         <div><span>audit ledger</span><strong>{nestedText(observer, ['audit_ledger', 'status'])}</strong></div>
         <div><span>V2 Redis namespace</span><strong>{nestedText(observer, ['v2_bounded_redis_namespace', 'status'])}</strong></div>
         <div><span>trainer parity</span><strong>{nestedText(observer, ['trainer_bridge_parity', 'parity_status'])}</strong></div>
       </div>
       <p className="cockpit-evidence-note">
-        This bridge observes legacy read-only evidence and mirrors it into V2 paper/shadow records. It does not write old Redis, does not command the legacy trader, and Risk Gateway remains final authority.
+        This bridge observes legacy account-access evidence and mirrors it into V2 execution/shadow records. It does not write old Redis, does not command the legacy trader, and Risk Gateway remains final authority.
       </p>
       {visibleRecords ? (
         <div className="truth-working-grid">
@@ -471,7 +471,7 @@ export function ActualRuntimeNowPanel({ payload }: { payload: OperatorTruthPaylo
       note: payload.trainer_monitor_status.status === 'TRAINER_RUNTIME_EVIDENCE_MISSING'
         ? 'Trainer runtime evidence is missing. Fixture predictions are separated from current trainer state.'
         : payload.trainer_monitor_status.status === 'V2_PAPER_TRAINER_WRAPPER_CURRENT'
-          ? 'Current V2 paper-only trainer wrapper evidence is present; legacy trainer process parity is still a separate live-readiness blocker.'
+        ? 'Current V2 runtime trainer wrapper evidence is present; legacy trainer process parity is still a separate readiness blocker.'
           : 'Trainer process evidence is present in the read-only process snapshot.',
     },
   ];
@@ -657,8 +657,8 @@ export function WhatIsWorkingPanel({ payload }: { payload: OperatorTruthPayload 
     ['trainer predictions', payload.trainer_monitor_status.status],
     ['signal lineage', payload.signal_lineage_status.status],
     ['risk gateway', payload.source_files.some((path) => path.includes('risk_gateway')) ? 'V2_PROOF_ARTIFACT' : 'MISSING_EVIDENCE'],
-    ['paper online', payload.runtime_monitor_status.paper_online_runtime_status?.status ?? 'MISSING_EVIDENCE'],
-    ['paper/shadow proof', payload.proof_artifact_statuses.find((row) => row.label.includes('paper'))?.status ?? 'MISSING_EVIDENCE'],
+    ['execution online', payload.runtime_monitor_status.paper_online_runtime_status?.status ?? 'MISSING_EVIDENCE'],
+    ['execution/shadow proof', payload.proof_artifact_statuses.find((row) => row.label.includes('paper'))?.status ?? 'MISSING_EVIDENCE'],
     ['website payload freshness', payload.dashboard_freshness_status.stale_payload_count ? 'STALE_PAYLOADS_PRESENT' : 'CURRENT_SNAPSHOT'],
   ];
   return (

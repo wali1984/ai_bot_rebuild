@@ -1,0 +1,75 @@
+{
+  "blockers": [
+    "MODEL_TOO_SMALL_TO_SATURATE_GPU",
+    "GPU_UTILIZATION_OR_VRAM_TARGET_NOT_MET"
+  ],
+  "current_trainer_metrics": {
+    "batch_size": 505,
+    "dataloader_workers": 30,
+    "gradient_accumulation_steps": 1,
+    "mixed_precision_enabled": true,
+    "persistent_workers": true,
+    "pinned_memory": true,
+    "predictions_per_second": 562.319249,
+    "prefetch_factor": 4,
+    "tensor_rows_per_second": 562.319249,
+    "training_steps_per_minute": 133.620416,
+    "vram_allocated_mb": 32.35546875,
+    "vram_reserved_mb": 52.0
+  },
+  "do_not_fake_utilization": true,
+  "execution_live_symbols": [],
+  "generated_est": "2026-06-05T00:54:38-04:00",
+  "hardware": {
+    "gpu": {
+      "gpu_utilization_percent": 23.0,
+      "name": "NVIDIA GeForce RTX 5080",
+      "nvidia_smi_available": true,
+      "rtx_5080_detected": true,
+      "vram_total_mb": 16303.0,
+      "vram_used_mb": 678.0
+    },
+    "system": {
+      "cpu_logical_cores": 32,
+      "cpu_percent": 20.6,
+      "cpu_physical_cores": 16,
+      "ram_percent": 22.8,
+      "ram_total_gb": 123.379,
+      "ram_used_gb": 28.149
+    },
+    "torch": {
+      "cuda_available": true,
+      "device_count": 1,
+      "gpu_name": "NVIDIA GeForce RTX 5080",
+      "torch_available": true,
+      "vram_allocated_mb": 0.0,
+      "vram_reserved_mb": 0.0,
+      "vram_total_mb": 15795.062
+    }
+  },
+  "implemented_or_configured_optimizations": {
+    "async_prediction_generation": true,
+    "gpu_batch_auto_tuning": true,
+    "gradient_accumulation": 1,
+    "mixed_precision": true,
+    "parallel_backtest_workers": true,
+    "persistent_workers": true,
+    "pinned_memory": true,
+    "prefetch": true,
+    "ryzen_worker_target": 30,
+    "target_gpu_utilization_percent": [
+      50,
+      85
+    ],
+    "target_vram_usage_gb": [
+      8,
+      12
+    ],
+    "tensor_cache_for_feature_batches": true
+  },
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "schema_version": "v2_cuda_trainer_gpu_trader_binance_live_gate_single_pass_v1_resource_utilization",
+  "status": "CUDA_TRAINER_RESOURCE_UTILIZATION_MEASURED_BLOCKED",
+  "verdict": "MODEL_TOO_SMALL_TO_SATURATE_GPU"
+}

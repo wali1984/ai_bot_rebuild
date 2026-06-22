@@ -1,0 +1,24 @@
+[Unit]
+Description=AI BOT V2 Report Center Indexer (one-shot)
+Documentation=file:%h/Desktop/AI%20BOT%20REBUILD/claude_worklog/final_readiness/v2_report_center/latest/GO_NO_GO.md
+ConditionPathExists=%h/Desktop/AI BOT REBUILD/v2/backend/app/cli/v2_report_center_indexer.py
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Desktop/AI BOT REBUILD
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=%h/Desktop/AI BOT REBUILD
+# Paths must be quoted because "AI BOT REBUILD" contains spaces;
+# without quoting systemd splits the ExecStart at the spaces and
+# emits exit 203/EXEC.
+ExecStart="%h/Desktop/AI BOT REBUILD/.venv/bin/python3" "%h/Desktop/AI BOT REBUILD/v2/backend/app/cli/v2_report_center_indexer.py"
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=false
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,19 @@
+{
+  "artifact_path_status": "RUNTIME_ALPHA_1H_ARTIFACT_PATH_READY",
+  "blockers": [
+    "1h completion window has not reached 3600 seconds",
+    "observation density is not CLEAR"
+  ],
+  "exchange_leverage_mutation": false,
+  "exchange_margin_mode_mutation": false,
+  "gate": "V2_RUNTIME_ALPHA_REMEDIATED_1H_SOAK_PROOF_WINDOW_AND_SYMBOL_SCOPE_REVERIFY_BLOCKED",
+  "generated_est": "2026-06-15T15:04:17-04:00",
+  "generated_utc": "2026-06-15T19:04:17Z",
+  "live_order_submitted": false,
+  "prediction_grid_status": "ALL_SYMBOL_ALL_TIMEFRAME_CUDA_PREDICTIONS_READY",
+  "proof_window_anchor_status": "PROOF_WINDOW_ANCHORED",
+  "schema_version": "runtime_alpha_1h_soak_proof_window_symbol_scope_reverify_operator_v1",
+  "status": "PENDING_1H_OBSERVATION",
+  "symbol_scope_status": "SYMBOL_SCOPE_VALID_DYNAMIC_RUNTIME_UNIVERSE",
+  "test_order_called": false
+}

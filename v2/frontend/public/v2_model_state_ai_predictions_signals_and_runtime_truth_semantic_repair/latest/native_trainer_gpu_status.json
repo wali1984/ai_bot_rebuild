@@ -1,0 +1,20 @@
+{
+  "actual_batch_size": 635,
+  "amp_enabled": true,
+  "cpu_utilization_percent": 12.26,
+  "cuda_active": true,
+  "dataloader_workers": 0,
+  "generated_est": "2026-06-14T17:01:46-04:00",
+  "gpu_name": "NVIDIA GeForce RTX 5080",
+  "gpu_utilization_percent": 22.0,
+  "nvidia_smi_available": true,
+  "pinned_memory": true,
+  "ram_total_gb": 123.379,
+  "ram_used_gb": 37.627,
+  "resource_bottleneck_reason": "APPROVED_SAMPLE_SET_BELOW_TARGET_BATCH",
+  "schema_version": "native_trainer_gpu_status_v1",
+  "target_batch_size": 8192,
+  "vram_reserved_mb": 76.0,
+  "vram_total_mb": 16303.0,
+  "vram_used_mb": 1237.0
+}

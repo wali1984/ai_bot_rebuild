@@ -1,0 +1,38 @@
+{
+  "agent": "claude",
+  "allowed_paths": [
+    "v2/**",
+    "claude_worklog/**",
+    "requirements/**"
+  ],
+  "forbidden": [
+    "modify_/home/wali/Desktop/AI BOT",
+    "old_redis_write",
+    "exchange_order_place_cancel_modify",
+    "leverage_change",
+    "margin_mode_change",
+    "live_enable",
+    "final_approval_token_creation",
+    "redis_trim_approval_creation",
+    "fake_empty_tools_shim",
+    "strict_smoke_pass_with_unresolved_imports",
+    "legacy_shutdown_approval"
+  ],
+  "lane": "zero_miss_legacy_core_remediation_round_2",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "managed_by": "codex_zero_miss_governor",
+  "max_attempts": 1,
+  "prompt": "Implement ZERO_MISS_LEGACY_CORE_REMEDIATION_ROUND_2_READY. Fix the exact source ownership/import/smoke blockers from the previous Codex FAIL: tools import unresolved, ingest.technical_analysis missing from V2-owned runtime, monitoring.* missing from V2-owned runtime, dependency closure unresolved_local=1, strict smoke failures for ingestors and monitoring, and stale LEGACY_ROOT_READ_ACCESS_DENIED. Do not start native algorithmic-core migration. Read legacy only and write only inside AI BOT REBUILD. live_gate remains blocked_human_only and live_symbols remains []. Required outputs: GO_NO_GO.md containing exactly ZERO_MISS_LEGACY_CORE_REMEDIATION_ROUND_2_READY or ZERO_MISS_LEGACY_CORE_REMEDIATION_ROUND_2_BLOCKED; ZERO_MISS_LEGACY_CORE_REMEDIATION_ROUND_2_REPORT.md; operator dashboard payloads. Do not mark READY unless tools import is resolved without a fake shim, ingest.technical_analysis is copied/classified, monitoring.* is copied/classified, unresolved_local=0, ingestor and monitoring strict smokes pass, no old Redis writes occur, no exchange mutation occurs, and live remains blocked.",
+  "required_output_files": [
+    "claude_worklog/final_readiness/zero_miss_legacy_core_lift_remediation/latest/GO_NO_GO.md",
+    "claude_worklog/final_readiness/zero_miss_legacy_core_lift_remediation/latest/ZERO_MISS_LEGACY_CORE_REMEDIATION_ROUND_2_REPORT.md",
+    "claude_worklog/final_readiness/zero_miss_legacy_core_lift_remediation/latest/operator_dashboard_payload.json",
+    "v2/frontend/public/zero_miss_legacy_core_lift_remediation/latest/operator_dashboard_payload.json"
+  ],
+  "risk_level": "L2",
+  "status": "completed",
+  "task_id": "claude_zero_miss_legacy_core_remediation_round_2",
+  "task_timeout_seconds": 7200,
+  "completion_note": "Codex directly completed the safe mechanical remediation in AI BOT REBUILD after routing this task: copied readable source files, updated proofs, reran closure/smokes, and left live blocked."
+}

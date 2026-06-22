@@ -27,7 +27,7 @@ struct LoginView: View {
                 }
                 .padding()
             }
-            .navigationTitle("AI BOT V2")
+            .navigationTitle("NERVYX ONE")
             .navigationBarTitleDisplayMode(.large)
         }
         .onAppear {
@@ -37,12 +37,20 @@ struct LoginView: View {
 
     private var header: some View {
         VStack(spacing: 8) {
-            Image(systemName: "cpu.fill")
-                .font(.system(size: 52))
-                .foregroundStyle(.blue)
-            Text("AI Trading System")
+            Image(NervyxAssets.mark)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 72, height: 72)
+                .accessibilityLabel("NERVYX ONE mark")
+            Text(NervyxBrand.productName)
                 .font(.title2.weight(.semibold))
-            Text("Paper Mode — Live Trading Blocked")
+            Text(NervyxBrand.descriptor)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Text(NervyxBrand.tagline)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(NervyxColors.signalAccent)
+            Text(NervyxBrand.paperStatus)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+from types import SimpleNamespace
 from datetime import datetime
 from pathlib import Path
 
@@ -179,6 +180,70 @@ def test_paper_outcome_model_status_is_present_when_risk_already_denied() -> Non
     assert "paper_outcome_model" in gated["risk_decision"]["required_blocks_checked"]
 
 
+def test_paper_online_redis_writes_do_not_clobber_authoritative_paper_keys(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Diagnostic paper-online output must not overwrite trade-management paper truth."""
+
+    class FakeRedis:
+        def __init__(self) -> None:
+            self.store: dict[str, str] = {}
+
+        def ping(self) -> bool:
+            return True
+
+        def get(self, key: str) -> str | None:
+            return self.store.get(key)
+
+        def set(self, key: str, value: str, *args: object, **kwargs: object) -> bool:
+            self.store[key] = value
+            return True
+
+    fake = FakeRedis()
+    monkeypatch.setitem(sys.modules, "redis", SimpleNamespace(Redis=lambda **_: fake))
+
+    payload = {
+        "generated_at": "2026-06-18T13:00:00Z",
+        "market_feed": {"symbol": "BTCUSDT"},
+        "current_signal_lineage": {
+            "lineage_ids": {
+                "prediction_id": "pred_unit",
+                "signal_id": "sig_unit",
+                "risk_decision_id": "risk_unit",
+                "orchestrator_decision_id": "orch_unit",
+                "execution_intent_id": "intent_unit",
+            },
+            "signal": {"signal_id": "sig_unit", "symbol": "BTCUSDT"},
+            "risk_decision": {
+                "risk_decision_id": "risk_unit",
+                "risk_action": "deny",
+                "risk_result": "BLOCKED",
+            },
+            "orchestrator_decision": {"orchestrator_decision_id": "orch_unit"},
+            "execution_intent": {
+                "execution_intent_id": "intent_unit",
+                "symbol": "BTCUSDT",
+                "side": "long",
+                "exchange_order_allowed": False,
+                "paper_only": True,
+            },
+        },
+        "paper_ledger_tail": [
+            {
+                "paper_ledger_entry_id": "ledger_unit",
+                "paper_result": "NO_FILL_RISK_BLOCKED",
+            }
+        ],
+    }
+
+    paper_runtime._push_decisions_to_redis(payload)
+
+    assert paper_runtime.PAPER_ONLINE_INTENTS_KEY in fake.store
+    assert paper_runtime.PAPER_ONLINE_LEDGER_KEY in fake.store
+    assert "v2:paper:intents" not in fake.store
+    assert "v2:paper:ledger" not in fake.store
+
+
 def test_native_trainer_bridge_expected_move_flows_to_paper_gate(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -196,6 +261,7 @@ def test_native_trainer_bridge_expected_move_flows_to_paper_gate(
                 "model_version": "legacy_hybrid_trainer_live_legacy",
                 "checkpoint_id": "legacy_live_checkpoint_unit",
                 "expected_move_bps": 20.0,
+                "expected_move_after_cost_bps": 14.0,
                 "expected_move_source": "native_legacy_trainer_price_target",
                 "expected_move_evidence_mode": "NATIVE_FIELD_PRESENT",
                 "live_gate": "blocked_human_only",
@@ -223,7 +289,10 @@ def test_native_trainer_bridge_expected_move_flows_to_paper_gate(
     )
 
     assert prediction["raw_output"]["expected_move_bps"] == 20.0
+    assert prediction["raw_output"]["expected_move_after_cost_bps"] == 14.0
+    assert prediction["expected_move_after_cost_bps"] == 14.0
     assert prediction["trainer_source"] == "LEGACY_HYBRID_TRAINER_REDIS_READONLY"
+    assert lineage["signal"]["expected_move_after_cost_bps"] == 14.0
     assert gated["risk_decision"]["expected_move_source"] == "native_trainer_expected_move_bps"
     assert gated["risk_decision"]["expected_move_bps"] == 20.0
     assert gated["risk_decision"]["expected_move_after_cost_bps"] == 14.0
@@ -481,6 +550,97 @@ def test_paper_outcome_model_opens_and_closes_non_live_position(
     assert close_lifecycle["open_position"] is None
 
 
+def test_position_lifecycle_records_policy_activation_and_signed_funding_pnl(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bridge_status = tmp_path / "v2_trainer_bridge_status.json"
+    monkeypatch.setattr(paper_runtime, "TRAINER_BRIDGE_STATUS_FILE", bridge_status)
+    bridge_status.write_text(
+        json.dumps(
+            {
+                "prediction_symbol": "BTCUSDT",
+                "prediction_timeframe": "1m",
+                "prediction_id": "legacy_redis_pred_unit",
+                "prediction_source_type": "LEGACY_HYBRID_TRAINER_REDIS_READONLY",
+                "trainer_parity_status": "BLOCKS_LEGACY_SHUTDOWN",
+                "model_version": "legacy_hybrid_trainer_live_legacy",
+                "checkpoint_id": "legacy_live_checkpoint_unit",
+                "expected_move_bps": 22.0,
+                "expected_move_after_cost_bps": 16.0,
+                "expected_move_source": "native_legacy_trainer_price_target",
+                "expected_move_evidence_mode": "NATIVE_FIELD_PRESENT",
+                "live_gate": "blocked_human_only",
+                "live_symbols": [],
+            }
+        )
+    )
+    market = _market()
+    feature = build_feature_snapshot(market, "tick_unit")
+    feature["features"]["funding_rate"] = 0.0001
+    prediction = build_trainer_prediction(feature, "tick_unit")
+    prediction["confidence_calibrated"] = 0.8
+    lineage = build_signal_lineage(
+        tick_id="tick_unit",
+        generated_at="2026-05-13T07:30:00Z",
+        feature_snapshot=feature,
+        prediction=prediction,
+        market=market,
+    )
+    gated = apply_paper_tightening_gate(
+        lineage,
+        generated_at="2026-05-13T07:30:00Z",
+        recent_events=[],
+        now_ms=1_778_648_401_000,
+    )
+    open_ledger, open_account = build_paper_ledger_entry(
+        tick_id="tick_open",
+        generated_at="2026-05-13T07:30:00Z",
+        market=market,
+        lineage=gated,
+        previous_equity=10000.0,
+    )
+    open_position = paper_position_lifecycle_from_entry(
+        ledger_entry=open_ledger,
+        lineage=gated,
+    )["open_position"]
+    close_market = MarketSnapshot(
+        symbol="BTCUSDT",
+        price=float(open_position["entry_price"]) * (0.998 if open_position["side"] == "short" else 1.002),
+        source_type="READONLY_MARKET_FEED",
+        source="unit_test",
+        source_pointer="unit_test",
+        generated_at="2026-05-13T07:33:01Z",
+        last_event_at="2026-05-13T07:33:00Z",
+        age_seconds=1,
+        freshness_state="CURRENT",
+        errors=[],
+        candles=[],
+    )
+    close_ledger, close_account, close_lifecycle = build_position_lifecycle_entry(
+        tick_id="tick_close",
+        generated_at="2026-05-13T07:33:01Z",
+        market=close_market,
+        lineage=gated,
+        previous_position=open_position,
+        previous_account=open_account,
+    )
+    side_sign = -1.0 if open_position["side"] == "long" else 1.0
+    expected_funding = round(25.0 * 0.0001 * (181 / 28800) * side_sign, 6)
+
+    assert open_ledger["policy_activated_at"] == "2026-05-13T07:30:00Z"
+    assert open_position["policy_activated_at"] == "2026-05-13T07:30:00Z"
+    assert open_position["funding_rate"] == 0.0001
+    assert open_position["funding_pnl_accounting_status"] == "READY_FUNDING_PNL_ACCRUED"
+    assert close_ledger["policy_activated_at"] == "2026-05-13T07:30:00Z"
+    assert close_ledger["funding_pnl_accounting_status"] == "READY_FUNDING_PNL_ACCRUED"
+    assert close_ledger["funding_pnl_usd"] == pytest.approx(expected_funding)
+    assert close_lifecycle["last_closed_position"]["funding_pnl_usd"] == pytest.approx(expected_funding)
+    assert close_account["realized_pnl"] == pytest.approx(
+        round(open_account["realized_pnl"] + close_ledger["realized_delta_usdt"], 6)
+    )
+
+
 def test_runtime_payload_retains_last_closed_position_after_flat_blocked_tick(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -704,3 +864,122 @@ def test_append_paper_event_accepts_signal_confidence_calibrated(tmp_path: Path)
     assert event["live_symbols"] == []
     assert event["canary_profile_tightening_blockers"] == ["missing_expected_move_after_costs"]
     assert event["exchange_order"] is False
+
+
+def _base_append_payload(*, result: str = "NO_FILL_RISK_BLOCKED", side: str = "long") -> dict:
+    return {
+        "generated_at": "2026-06-17T10:00:00Z",
+        "paper_loop": {"tick_id": "tick_new_fields"},
+        "current_signal_lineage": {
+            "lineage_ids": {"prediction_id": "pred_nf", "feature_snapshot_id": "fs_nf"},
+            "signal": {"signal_id": "sig_nf"},
+            "execution_intent": {"execution_intent_id": "pei_nf", "side": side},
+        },
+        "current_risk_decision": {
+            "risk_action": "deny" if result == "NO_FILL_RISK_BLOCKED" else "allow",
+            "risk_result": "BLOCKED" if result == "NO_FILL_RISK_BLOCKED" else "APPROVED_FOR_PAPER_ONLY",
+            "risk_reason_code": "deny_canary_profile_tightening" if result == "NO_FILL_RISK_BLOCKED" else "allow_proceed_long",
+            "canary_profile_tightening_blockers": [],
+        },
+        "trainer_prediction": {
+            "trainer_source": "LEGACY",
+            "trainer_bridge_status": "OK",
+            "model_version": "v1",
+            "model_checkpoint": "ckpt1",
+            "confidence_raw": 0.8,
+            "confidence_calibrated": 0.8,
+            "timeframe": "15m",
+        },
+        "feature_snapshot": {
+            "freshness_state": "CURRENT",
+            "stale_feature_flags": [],
+            "missing_feature_flags": [],
+        },
+        "paper_account": {"equity": 9999.0, "realized_pnl": -1.0},
+        "paper_ledger_tail": [
+            {
+                "paper_ledger_entry_id": "pledger_nf",
+                "execution_intent_id": "pei_nf",
+                "risk_decision_id": "risk_nf",
+                "signal_id": "sig_nf",
+                "symbol": "BTCUSDT",
+                "ledger_action": "PAPER_INTENT_BLOCKED" if result == "NO_FILL_RISK_BLOCKED" else "PAPER_FILL_SIMULATED",
+                "paper_result": result,
+                "notional_usdt": 0.0 if result == "NO_FILL_RISK_BLOCKED" else 25.0,
+                "fee_usdt": 0.0,
+                "slippage_bps": 2.0,
+                "funding_assumption": "zero_until_funding_feed_adapter_current",
+            }
+        ],
+    }
+
+
+def test_append_paper_event_emits_timeframe_and_side(tmp_path: Path) -> None:
+    payload = _base_append_payload()
+    append_paper_event(tmp_path, payload, {"weekly_loss_gate_required": True, "weekly_loss_breach": False})
+    event = json.loads((tmp_path / "paper_events.jsonl").read_text())
+    assert event["timeframe"] == "15m"
+    assert event["side"] == "long"
+    assert event["paper_action"] == "paper_long"
+
+
+def test_append_paper_event_feedback_sent_false_for_blocked(tmp_path: Path) -> None:
+    payload = _base_append_payload(result="NO_FILL_RISK_BLOCKED")
+    append_paper_event(tmp_path, payload, {"weekly_loss_gate_required": True, "weekly_loss_breach": False})
+    event = json.loads((tmp_path / "paper_events.jsonl").read_text())
+    assert event["feedback_sent"] is False
+
+
+def test_append_paper_event_feedback_sent_false_for_fill(tmp_path: Path) -> None:
+    payload = _base_append_payload(result="FILLED_PAPER_ONLY")
+    append_paper_event(tmp_path, payload, {"weekly_loss_gate_required": True, "weekly_loss_breach": False})
+    event = json.loads((tmp_path / "paper_events.jsonl").read_text())
+    assert event["feedback_sent"] is False
+
+
+def test_append_paper_event_feedback_sent_true_for_closed(tmp_path: Path) -> None:
+    payload = _base_append_payload(result="POSITION_CLOSED_PAPER_ONLY")
+    payload["paper_ledger_tail"][0]["paper_result"] = "POSITION_CLOSED_PAPER_ONLY"
+    append_paper_event(tmp_path, payload, {"weekly_loss_gate_required": True, "weekly_loss_breach": False})
+    event = json.loads((tmp_path / "paper_events.jsonl").read_text())
+    assert event["feedback_sent"] is True
+
+
+def test_append_paper_event_leverage_recommendation_none_when_absent(tmp_path: Path) -> None:
+    payload = _base_append_payload()
+    append_paper_event(tmp_path, payload, {"weekly_loss_gate_required": True, "weekly_loss_breach": False})
+    event = json.loads((tmp_path / "paper_events.jsonl").read_text())
+    assert event["leverage_recommendation"] is None
+
+
+def test_append_paper_event_leverage_recommendation_present_when_set(tmp_path: Path) -> None:
+    payload = _base_append_payload(result="FILLED_PAPER_ONLY")
+    payload["current_risk_decision"]["leverage_recommendation"] = {
+        "recommended_leverage": 2,
+        "margin_mode": "isolated",
+        "mutates_exchange": False,
+    }
+    append_paper_event(tmp_path, payload, {"weekly_loss_gate_required": True, "weekly_loss_breach": False})
+    event = json.loads((tmp_path / "paper_events.jsonl").read_text())
+    assert isinstance(event["leverage_recommendation"], dict)
+    assert event["leverage_recommendation"]["recommended_leverage"] == 2
+    assert event["leverage_recommendation"]["mutates_exchange"] is False
+
+
+def test_append_paper_event_anti_mm_blocked_false_when_absent(tmp_path: Path) -> None:
+    payload = _base_append_payload()
+    append_paper_event(tmp_path, payload, {"weekly_loss_gate_required": True, "weekly_loss_breach": False})
+    event = json.loads((tmp_path / "paper_events.jsonl").read_text())
+    assert event["anti_mm_entry_blocked"] is False
+
+
+def test_append_paper_event_exchange_order_always_false(tmp_path: Path) -> None:
+    for result in ("NO_FILL_RISK_BLOCKED", "FILLED_PAPER_ONLY", "POSITION_CLOSED_PAPER_ONLY"):
+        payload = _base_append_payload(result=result)
+        if result == "POSITION_CLOSED_PAPER_ONLY":
+            payload["paper_ledger_tail"][0]["paper_result"] = result
+        p = tmp_path / result
+        p.mkdir()
+        append_paper_event(p, payload, {"weekly_loss_gate_required": True, "weekly_loss_breach": False})
+        event = json.loads((p / "paper_events.jsonl").read_text())
+        assert event["exchange_order"] is False, f"exchange_order must be False for {result}"

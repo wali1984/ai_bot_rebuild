@@ -1,0 +1,12 @@
+{
+  "btc_eth_sol_direction_correct": true,
+  "btc_eth_sol_move_detected": false,
+  "btc_eth_sol_paper_actionable": false,
+  "btc_eth_sol_predictions_current": true,
+  "config_parity_audit_status": "GO",
+  "durable_weight_checkpoint_proven": true,
+  "final_interpretation": "Config audit passed, but runtime false-negative remediation is still required.",
+  "generated_est": "2026-06-15T18:09:53-04:00",
+  "paper_runtime_grid_aligned": true,
+  "runtime_prediction_failure_status": "BLOCKED"
+}

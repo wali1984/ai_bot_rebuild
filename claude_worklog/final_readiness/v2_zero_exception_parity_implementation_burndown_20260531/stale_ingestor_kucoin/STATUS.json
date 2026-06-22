@@ -1,0 +1,28 @@
+{
+  "schema_version": "zero_exception_task_status_v1",
+  "task_id": "claude_v2_zero_exception_parity_stale_ingestor_kucoin_20260531",
+  "status": "done",
+  "generated_est": "2026-06-03T18:32:40-0400",
+  "generated_utc": "2026-06-03T22:32:40Z",
+  "implemented_files": [
+    "v2/backend/app/cli/v2_kucoin_ingestor_worker.py"
+  ],
+  "public_payload": "v2/frontend/public/operator_runtime/v2_kucoin_ingestor/latest/v2_kucoin_ingestor_status.json",
+  "verification_commands": [
+    "PYTHONPATH=$PWD ./.venv/bin/python3 -m v2.backend.app.cli.v2_kucoin_ingestor_worker --write-evidence --fetch-public-rest --fetch-symbol-limit 2 --symbols BTCUSDT,ETHUSDT --fetch-timeframes 1m --write-v2-redis"
+  ],
+  "live_safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "writes_legacy_redis": false,
+    "places_exchange_orders": false
+  },
+  "evidence": {
+    "classification": "NATIVE_V2_PUBLIC_REST_OK",
+    "v2_market_kucoin_key_count": 11,
+    "v2_features_kucoin_key_count": 2
+  }
+}

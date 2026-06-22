@@ -1,0 +1,73 @@
+{
+  "schema_version": "liquidation_event_flow_diagnosis_v1",
+  "milestone": "v2_copied_runtime_burn_in_remediation_execution",
+  "generated_est": "2026-05-30T23:59:00-0400",
+  "generated_utc": "2026-05-31T03:59:00Z",
+  "symptom": {
+    "redis_xlen_v2_liquidations_events": 0,
+    "expected": "> 0 if Binance forceOrder stream is open AND a producer is wired to v2:binance:force:raw OR v2:raw:coinank:liquidation_orders:global"
+  },
+  "active_services": {
+    "ai-bot-v2-liquidation-bridge.service": {
+      "role": "consume v2:binance:force:raw + v2:raw:coinank:liquidation_orders:global -> XADD v2:liquidations:events",
+      "active": true
+    },
+    "ai-bot-v2-liquidation-levels-engine.service": {
+      "role": "consume v2:liquidations:events -> write v2:unified_features:{symbol}:{tf}",
+      "active": true
+    },
+    "ai-bot-v2-liquidation-wss-paper-shadow.service": {
+      "role": "Binance Futures forceOrder WSS -> write v2:market:liquidations:{symbol} (per-symbol)",
+      "active": true
+    }
+  },
+  "code_evidence": [
+    {
+      "file": "v2/legacy_owned_runtime/ingest/liquidation_bridge.py",
+      "lines": "44-67",
+      "fact": "Bridge consumes BINANCE_KEY=v2:binance:force:raw (list) and COINANK_KEY=v2:raw:coinank:liquidation_orders:global (string JSON)."
+    },
+    {
+      "file": "v2/backend/app/cli/v2_liquidation_wss_loop.py",
+      "lines": "1-25",
+      "fact": "WSS client writes per-symbol observations to v2:market:liquidations:* (NOT to v2:binance:force:raw)."
+    },
+    {
+      "file": "grep -rln 'v2:binance:force:raw' v2/backend/ v2/legacy_owned_runtime/",
+      "lines": "n/a",
+      "fact": "Only writer references are the bridge consumer and a test wrapper. NO active V2 producer writes v2:binance:force:raw."
+    }
+  ],
+  "redis_evidence": {
+    "v2_binance_force_raw_llen": 0,
+    "v2_raw_coinank_liquidation_orders_global_strlen": 0,
+    "v2_cursor_liq_bridge_binance_force_raw_get": "",
+    "v2_market_liquidations_heartbeat_strlen": 1572,
+    "v2_market_liquidations_per_symbol_scan_count": 1
+  },
+  "root_cause": "Bridge inputs (v2:binance:force:raw, v2:raw:coinank:liquidation_orders:global) have ZERO upstream producers in the active V2 runtime. The bridge consumer is wired correctly but starves. The WSS client publishes per-symbol observations to a different namespace (v2:market:liquidations:*) and does NOT XADD into v2:binance:force:raw.",
+  "remediation_options_paper_only": [
+    {
+      "option": "wire_wss_loop_to_v2_binance_force_raw",
+      "description": "Add a tap in v2_liquidation_wss_loop.py that LPUSHes raw force-order events to v2:binance:force:raw so the bridge can consume them. Paper-only (V2 namespace only).",
+      "requires_operator_gate": false,
+      "implementation_owner": "claude",
+      "review_owner": "codex",
+      "blast_radius": "v2_namespace_only_no_exchange_action"
+    },
+    {
+      "option": "wire_coinank_client_to_v2_raw_coinank_liquidation_orders_global",
+      "description": "Have the CoinAnk REST client emit its raw liquidation_orders snapshot to v2:raw:coinank:liquidation_orders:global so the bridge can dedupe and publish into v2:liquidations:events.",
+      "requires_operator_gate": false,
+      "implementation_owner": "claude",
+      "review_owner": "codex",
+      "blast_radius": "v2_namespace_only_no_exchange_action"
+    }
+  ],
+  "no_synthetic_events_injected": true,
+  "live_safety": {
+    "live_gate_status": "blocked_human_only",
+    "live_symbols": []
+  },
+  "verdict": "ROOT_CAUSE_IDENTIFIED_BRIDGE_INPUTS_HAVE_NO_PRODUCER_REMEDIATION_OPTIONS_QUEUED"
+}

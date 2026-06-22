@@ -1,0 +1,73 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "go_no_go": "V2_TRAINER_PREDICTION_QUALITY_STATUS_READY",
+  "live_symbols": [],
+  "prediction_key_count": 50,
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "required_fields": [
+    "selected_action",
+    "expected_move_bps",
+    "confidence_calibrated",
+    "trainer_source",
+    "model_source"
+  ],
+  "sampled_keys": [
+    {
+      "field_presence": {
+        "confidence_calibrated": true,
+        "expected_move_bps": true,
+        "model_source": true,
+        "selected_action": false,
+        "trainer_source": true
+      },
+      "key": "v2:prediction:1000BONKUSDT:1m"
+    },
+    {
+      "field_presence": {
+        "confidence_calibrated": true,
+        "expected_move_bps": true,
+        "model_source": true,
+        "selected_action": false,
+        "trainer_source": true
+      },
+      "key": "v2:prediction:1000PEPEUSDT:5m"
+    },
+    {
+      "field_presence": {
+        "confidence_calibrated": true,
+        "expected_move_bps": true,
+        "model_source": true,
+        "selected_action": false,
+        "trainer_source": true
+      },
+      "key": "v2:prediction:DOGEUSDT:1m"
+    },
+    {
+      "field_presence": {
+        "confidence_calibrated": true,
+        "expected_move_bps": true,
+        "model_source": true,
+        "selected_action": false,
+        "trainer_source": true
+      },
+      "key": "v2:prediction:RIVERUSDT:5m"
+    },
+    {
+      "field_presence": {
+        "confidence_calibrated": true,
+        "expected_move_bps": true,
+        "model_source": true,
+        "selected_action": false,
+        "trainer_source": true
+      },
+      "key": "v2:prediction:XRPUSDT:1m"
+    }
+  ],
+  "ts_est": "20260526T003358EST",
+  "ts_iso_est": "2026-05-26T00:49:14-0400",
+  "writes_exchange_orders": false
+}

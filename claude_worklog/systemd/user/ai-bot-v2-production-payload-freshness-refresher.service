@@ -1,0 +1,17 @@
+[Unit]
+Description=AI BOT V2 production payload freshness refresher (paper-only)
+After=ai-bot-v2-trade-management-paper-loop.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+Environment="LIVE_GATE=blocked_human_only"
+ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -m v2.backend.app.cli.v2_production_payload_freshness_refresher --loop --interval-seconds 60'
+StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_production_payload_freshness_refresher.log
+StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_production_payload_freshness_refresher.err
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,103 @@
+{
+  "claude_reported_go_no_go": "V2_FULL_COPIED_RUNTIME_AND_TRADING_PLATFORM_RESTART_BLOCKED",
+  "evidence": {
+    "public_payload": "v2/frontend/public/v2_full_copied_runtime_and_trading_platform_restart/latest/operator_dashboard_payload.json",
+    "route_matrix": "claude_worklog/final_readiness/v2_full_copied_runtime_and_trading_platform_restart/latest/production_route_matrix_codex_after.json",
+    "route_report": "claude_worklog/final_readiness/v2_full_copied_runtime_and_trading_platform_restart/latest/PRODUCTION_ROUTE_CRAWL_CODEX_AFTER_REPORT.md",
+    "runtime": {
+      "baseline_25_retained": true,
+      "redis_counts": {
+        "*leverage*": 0,
+        "*margin*": 0,
+        "cursor:liq*": 1,
+        "dedup:liq*": 0,
+        "exchange:order:*": 0,
+        "liquidations:*": 0,
+        "live_orders:*": 0,
+        "orchestrator:*": 0,
+        "order:*": 0,
+        "unified_features:*": 0,
+        "v2:*": 557,
+        "v2:cursor:liq*": 0,
+        "v2:dedup:liq*": 0,
+        "v2:liquidations:*": 1,
+        "v2:unified_features:*": 170
+      },
+      "services": [
+        {
+          "ActiveState": "active",
+          "Environment": "\"PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD\" PYTHONUNBUFFERED=1 CUDA_VISIBLE_DEVICES= LIVE_GATE=blocked_human_only V2_LIVE=0 V2_CANARY=0 V2_REDIS_PREFIX=v2: LIQ_EVENTS_STREAM=v2:liquidations:events LIQ_SOURCE_BINANCE_FORCE_KEY=v2:binance:force:raw LIQ_SOURCE_COINANK_ORDERS_KEY=v2:raw:coinank:liquidation_orders:global",
+          "ExecMainStatus": "0",
+          "Id": "ai-bot-v2-liquidation-bridge.service",
+          "MainPID": "146143",
+          "NRestarts": "0",
+          "SubState": "running"
+        },
+        {
+          "ActiveState": "active",
+          "Environment": "\"PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD\" PYTHONUNBUFFERED=1 CUDA_VISIBLE_DEVICES= LIVE_GATE=blocked_human_only V2_LIVE=0 V2_CANARY=0 V2_REDIS_PREFIX=v2: LIQ_EVENTS_STREAM=v2:liquidations:events",
+          "ExecMainStatus": "0",
+          "Id": "ai-bot-v2-liquidation-levels-engine.service",
+          "MainPID": "146144",
+          "NRestarts": "0",
+          "SubState": "running"
+        }
+      ],
+      "symbol_count": 27
+    },
+    "screenshots": "claude_worklog/final_readiness/v2_full_copied_runtime_and_trading_platform_restart/latest/screenshots/codex_after",
+    "startup_map": "claude_worklog/final_readiness/v2_full_copied_runtime_and_trading_platform_restart/latest/copied_runtime_startup_map_codex.json",
+    "test_results": {
+      "frontend_build": "PASS",
+      "frontend_typecheck": "PASS",
+      "integration_subset": "88 passed",
+      "route_crawl": "34 passed / 0 failed",
+      "symbol_and_liquidation_unit_tests": "43 passed"
+    }
+  },
+  "generated_est": "2026-05-26T16:28:27-04:00",
+  "generated_utc": "2026-05-26T20:28:27Z",
+  "go_no_go": "V2_FULL_COPIED_RUNTIME_TRADING_PLATFORM_RESTART_CODEX_PASS",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "pass_fail_matrix": {
+    "agents_are_not_trading_agents": "PASS",
+    "baseline_25_symbols_retained": "PASS",
+    "binance_liquidation_script_not_started": "PASS",
+    "copied_safe_scripts_started_from_ai_bot_rebuild": "PASS",
+    "dynamic_symbol_universe_default": "PASS",
+    "liquidation_bridge_and_levels_started_or_blocked": "PASS",
+    "live_gate_blocked_human_only": "PASS",
+    "live_symbols_empty": "PASS",
+    "no_btc_or_three_symbol_default_in_active_runtime_lanes": "PASS",
+    "no_live_canary_shutdown_approvals": "PASS",
+    "no_old_redis_writes": "PASS",
+    "partial_bridge_scaffold_runtime_stopped_or_superseded": "PASS",
+    "trainer_risk_orchestrator_trader_roles_correct": "PASS",
+    "website_is_trading_platform_rendered": "PASS"
+  },
+  "reviewer": "Codex 5.5",
+  "safe_fixes_applied": [
+    "Adapted copied liquidation_bridge.py to read/write v2:* keys and dynamic symbols.",
+    "Adapted copied liquidation_levels_engine.py to consume v2:liquidations:events and write v2:unified_features:* only.",
+    "Added persistent paper-only user systemd units for copied liquidation bridge and levels engine.",
+    "Patched remaining active V2 CLI/runtime symbol defaults and fallbacks through v2_symbol_runtime_universe.",
+    "Added/expanded regression tests for copied liquidation V2 namespace mapping and active runtime symbol-default drift.",
+    "Fixed trainer-prediction-monitor null numeric rendering and public-status import path, rebuilt frontend bundle, and captured rendered screenshots.",
+    "Registered the current full copied runtime restart lane in Report Center."
+  ],
+  "safety_invariants": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "exchange_mutation": false,
+    "legacy_root_restarted": false,
+    "leverage_or_margin_mutation": false,
+    "live_binance_liquidations_started": false,
+    "places_real_order": false,
+    "real_order_attempted": false,
+    "writes_exchange_orders": false
+  },
+  "schema_version": "codex_review_v2_full_copied_runtime_trading_platform_restart_v1"
+}

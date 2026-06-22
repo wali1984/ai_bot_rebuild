@@ -1,0 +1,25 @@
+{
+  "schema_version": "zero_exception_task_status_v1",
+  "task_slug": "trainer_feed_placeholder_liquidations_events_xlen",
+  "milestone": "v2_zero_exception_parity_implementation_burndown",
+  "status": "DONE_VERIFIED",
+  "generated_est": "2026-06-01T17:50:28-0400",
+  "generated_utc": "2026-06-01T21:50:28Z",
+  "claim": "Trainer-feed liquidation placeholder removed: last_liq_bps_24h is now a REAL computed value read from the live v2:liquidations:events stream (XLEN=0). XLEN=0 is event-dependent reality (no forceOrder events in window), yielding a real 0.0 \u2014 not a placeholder.",
+  "raw_evidence": "`v2:liquidations:events` XLEN=0 (key exists=True); feature last_liq_bps_24h=0.0 (real 0.0, not None/placeholder); reader: _read_liq_notional_24h() in v2_feature_pipeline_native_loop.py.",
+  "verification_command": "redis-cli xlen v2:liquidations:events; redis-cli get v2:features:latest:BTCUSDT:1m | python3 -c \"import json,sys;print(json.load(sys.stdin)['features']['last_liq_bps_24h'])\"",
+  "confidence": "HIGH",
+  "missing_evidence": "Non-zero liquidation flow not yet observed (forceOrder stream quiet). Aggregate path v2:market:liquidations:aggregate:{sym} will be preferred automatically once WSS populates it.",
+  "files_modified": [
+    "v2/backend/app/cli/v2_native_ingestors_live_loop.py",
+    "v2/backend/app/cli/v2_feature_pipeline_native_loop.py"
+  ],
+  "live_safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "writes_legacy_redis": false,
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false
+  }
+}

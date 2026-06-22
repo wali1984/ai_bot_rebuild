@@ -1,21 +1,13 @@
 {
-  "task_id": "codex_review_online_readiness_aggregator",
   "agent": "codex",
-  "risk_level": "L1",
-  "status": "pending",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "claude_worklog/final_readiness/online_readiness_codex_review/latest/"
   ],
-  "required_output_files": [
-    "claude_worklog/final_readiness/online_readiness_codex_review/latest/CODEX_ONLINE_READINESS_AGGREGATOR_REVIEW.md",
-    "claude_worklog/final_readiness/online_readiness_codex_review/latest/CODEX_GO_NO_GO.md"
-  ],
-  "priority": 2580,
-  "lane": "online_readiness_audit",
-  "mvp_relevance": "Codex must independently confirm the new V2-owned online-readiness aggregator is read-only, never imports Redis/exchange/legacy modules, and accurately reflects the five required lanes.",
   "blocked_by": [],
+  "completed_at": "2026-05-11T07:21:39.951996+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "lane": "online_readiness_audit",
   "legacy_evidence_consulted": [
     "claude_worklog/final_readiness/online_readiness/latest/ONLINE_READINESS_ROLLUP.json",
     "claude_worklog/final_readiness/online_readiness/latest/ONLINE_READINESS_CONTRACT.md",
@@ -25,6 +17,23 @@
     "claude_worklog/final_readiness/readonly_market_exchange_data_plane/latest/GO_NO_GO.md",
     "claude_worklog/final_readiness/decision_explainability_lineage/latest/069D2_GO_NO_GO.md"
   ],
+  "mvp_relevance": "Codex must independently confirm the new V2-owned online-readiness aggregator is read-only, never imports Redis/exchange/legacy modules, and accurately reflects the five required lanes.",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_recommended_action": "If PASS, unblock claude_wire_online_readiness_banner_api. If FAIL, queue remediation task scoped to the specific finding before any UI-side work proceeds.",
+  "priority": 2580,
   "prompt": "You are Codex parallel reviewer for the new V2 online-readiness aggregator. Do not modify source code. Do not touch /home/wali/Desktop/AI BOT. Do not write/delete/trim Redis. Do not place/cancel/modify exchange orders. Do not change leverage/margin/position mode. Do not enable live trading. Read v2/backend/app/proof/online_readiness_aggregator.py, v2/backend/app/proof/__init__.py, and v2/backend/tests/unit/proof/test_online_readiness_aggregator.py. Confirm: (a) the module never imports redis/ccxt/websockets/requests or invokes subprocess; (b) the module only writes inside its caller-supplied output_dir, never inside claude_worklog/final_readiness/**/latest sources; (c) the five required lanes match the actual marker files and required marker strings; (d) the tests exercise READY, BLOCKED-missing, BLOCKED-divergent, and write-side paths; (e) live_gate_status remains 'blocked_human_only'. Emit exactly two BEGIN_FILE blocks under claude_worklog/final_readiness/online_readiness_codex_review/latest/. CODEX_GO_NO_GO.md must contain exactly one line: CODEX_ONLINE_READINESS_AGGREGATOR_PASS or CODEX_ONLINE_READINESS_AGGREGATOR_FAIL.",
-  "next_recommended_action": "If PASS, unblock claude_wire_online_readiness_banner_api. If FAIL, queue remediation task scoped to the specific finding before any UI-side work proceeds."
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
+  "required_output_files": [
+    "claude_worklog/final_readiness/online_readiness_codex_review/latest/CODEX_ONLINE_READINESS_AGGREGATOR_REVIEW.md",
+    "claude_worklog/final_readiness/online_readiness_codex_review/latest/CODEX_GO_NO_GO.md"
+  ],
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-05-11T07:21:39.951996+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/codex_review_online_readiness_aggregator.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "codex_review_online_readiness_aggregator",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

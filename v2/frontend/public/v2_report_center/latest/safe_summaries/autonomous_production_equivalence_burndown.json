@@ -1,0 +1,37 @@
+{
+  "freshness_seconds": 2589667.175491333,
+  "go_no_go": "V2_AUTONOMOUS_PRODUCTION_EQUIVALENCE_BURNDOWN_CONTROLLER_READY",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "owner": "CLAUDE",
+  "redaction_applied": false,
+  "report_id": "autonomous_production_equivalence_burndown",
+  "sanitized_summary": {
+    "go_no_go": "V2_AUTONOMOUS_PRODUCTION_EQUIVALENCE_BURNDOWN_CONTROLLER_READY",
+    "pruned": {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "controller": "v2_autonomous_production_equivalence_burndown_controller",
+      "duplicate_suppression_count": 0,
+      "go_no_go": "V2_AUTONOMOUS_PRODUCTION_EQUIVALENCE_BURNDOWN_CONTROLLER_READY",
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "mode": "loop",
+      "next_action": "operator-approved next gate (policy architecture, checkpoint artifact, paid alt-data, or external sources)",
+      "preflight": {
+        "timestamp_utc": "2026-05-23T01:07:22Z"
+      },
+      "queue_loaded_task_count": 0,
+      "status": "V2_OBSERVATION_BUILDABLE_QUEUE_EXHAUSTED_NEXT_GATE_READY",
+      "timestamp_utc": "2026-05-23T01:07:22Z"
+    },
+    "redaction_applied": false,
+    "redaction_token": null,
+    "status": "READY"
+  },
+  "stale": true,
+  "status": "READY",
+  "title": "Autonomous Production-Equivalence Burndown Controller"
+}

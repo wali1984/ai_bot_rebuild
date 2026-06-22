@@ -1,0 +1,10 @@
+{
+  "frontend_truth_live_gate": "enabled_operator_approved",
+  "generated_est": "2026-06-09T19:13:31-04:00",
+  "paper_runtime_trainer_source": "V2_NATIVE_RL_MASA_PPO_CUDA_TRAINER_PAPER_SHADOW",
+  "routes_crawled_local": "PASS: dashboard crawl returned HTTP 200 for listed routes",
+  "runtime_truth_trainer_inference_count": 610,
+  "runtime_truth_trainer_status": "V2_NATIVE_RL_MASA_PPO_CUDA_TRAINER_PAPER_SHADOW",
+  "signals_live_gate": "enabled_operator_approved",
+  "stale_trainer_bridge_current_payload_scan": "PASS"
+}

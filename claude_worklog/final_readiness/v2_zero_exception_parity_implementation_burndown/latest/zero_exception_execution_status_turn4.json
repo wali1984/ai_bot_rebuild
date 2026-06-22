@@ -1,0 +1,71 @@
+{
+  "schema_version": "zero_exception_execution_status_v1",
+  "milestone": "v2_zero_exception_parity_implementation_burndown",
+  "turn": 4,
+  "generated_est": "2026-06-03T22:40:00-0400",
+  "generated_utc": "2026-06-04T02:40:00Z",
+  "tasks_closed_done_verified": [
+    "1: V2_MISSING_IMPLEMENTATION — opportunity_tracker port: v2_opportunity_tracker_publisher.py, writes v2:opportunity:{sym} + v2:opportunity:summary (TTL=900s), 29 keys live",
+    "2: V2_MISSING_IMPLEMENTATION — portfolio:state publisher: v2_portfolio_state_publisher.py, writes v2:portfolio:state (TTL=900s), symbols_tracked=28, held=50",
+    "3: Operator review publisher: v2_operator_review_publisher.py, writes v2:operator:review:status (TTL=600s), approvals=7, predictions_seen=52",
+    "4: website PARTIAL→enriched: codex-review-center (Operator Decisions) — was 7-line stub, now full page with 5 panels reading live operator review payload",
+    "5: website PARTIAL→enriched: coverage-system-atlas (Feature Pipeline) — added V2 live TA keys panel + Ingestors panel reading fresh payloads",
+    "6: 8 new systemd services created and started (all active, 0 failed): ingestors-status, technical-analysis-status, liquidation-bridge-status, log-errors-status, paper-decision-lineage, opportunity-tracker, portfolio-state, operator-review"
+  ],
+  "implemented_this_turn": [
+    "v2/backend/app/cli/v2_opportunity_tracker_publisher.py",
+    "v2/backend/app/cli/v2_portfolio_state_publisher.py",
+    "v2/backend/app/cli/v2_operator_review_publisher.py",
+    "v2/frontend/src/pages/codex-review-center/index.tsx (stub → full page)",
+    "v2/frontend/src/pages/coverage-system-atlas/index.tsx (enriched with live V2 panels)",
+    "~/.config/systemd/user/ai-bot-v2-{8 publisher services}.service"
+  ],
+  "redis_verified": {
+    "v2:portfolio:state": "TTL=900s, symbols_tracked=28, held_by_fill_gate=50",
+    "v2:opportunity:summary": "TTL=900s, symbols_scanned=28, high=0",
+    "v2:opportunity:{sym}": "29 keys, TTL=900s each",
+    "v2:operator:review:status": "TTL=600s, approvals=7, predictions_seen=52"
+  },
+  "services_running": {
+    "ai-bot-v2-opportunity-tracker-publisher": "active/running",
+    "ai-bot-v2-portfolio-state-publisher": "active/running",
+    "ai-bot-v2-operator-review-publisher": "active/running",
+    "ai-bot-v2-ingestors-status-publisher": "active/running",
+    "ai-bot-v2-technical-analysis-status-publisher": "active/running",
+    "ai-bot-v2-liquidation-bridge-status-publisher": "active/running",
+    "ai-bot-v2-log-errors-status-publisher": "active/running",
+    "ai-bot-v2-paper-decision-lineage-publisher": "active/running"
+  },
+  "failed_services": 0,
+  "website_page_status_after_this_turn": {
+    "MISSING": 0,
+    "PARTIAL": 3,
+    "EXISTS_ENRICHED": 2,
+    "EXISTS": 13,
+    "note": "codex-review-center: stub→EXISTS. coverage-system-atlas: enriched. Remaining PARTIAL: mission-control, monitor-center, admin-war-room"
+  },
+  "matrix_status_this_turn": {
+    "V2_MISSING_IMPLEMENTATION_closed": ["opportunity_tracker", "portfolio:state publisher"],
+    "V2_MISSING_IMPLEMENTATION_remaining": ["kucoin_wss_fetcher (REST already running OK)", "legacy kucoin stub audit needed"],
+    "website_PARTIAL_remaining": ["mission-control (Trading Dashboard)", "monitor-center (Provider Freshness)", "admin-war-room (Automation)"]
+  },
+  "still_pending_next_priority": [
+    "1: remaining PARTIAL pages — mission-control, monitor-center, admin-war-room enrichment",
+    "2: V2_ADAPTER_REQUIRED — alphavantage normalizer, tokenmetrics normalizer (operator-gated)",
+    "3: backtest edge proof — edge proof requires 300+ samples (currently 3)",
+    "4: old Redis writer proof strengthening",
+    "5: kucoin WSS fetcher audit (REST is running OK, classify WSS as V2_OPERATOR_REQUIRED or implement)"
+  ],
+  "still_pending_credential_required": [
+    "COINANK_API_KEY",
+    "LUNARCRUSH_API_KEY",
+    "ALPHAVANTAGE_API_KEY",
+    "COINAPI_API_KEY"
+  ],
+  "live_safety": {
+    "live_gate_status": "blocked_human_only",
+    "live_symbols": [],
+    "writes_exchange_orders": false,
+    "writes_legacy_redis": false
+  }
+}

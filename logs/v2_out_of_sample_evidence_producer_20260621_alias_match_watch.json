@@ -1,0 +1,403 @@
+{
+  "schema_version": "v2_out_of_sample_reverify_evidence_producer_v1",
+  "generated_utc": "2026-06-21T22:59:58Z",
+  "selector_policy_fingerprint": "c4b8fb1ed12aabcb87224723f1758563eefff10de90288be09866d2bf3fa74b5",
+  "producer": "realtime",
+  "paper_only": true,
+  "places_real_order": false,
+  "test_orders": false,
+  "leverage_mutation": false,
+  "margin_mode_mutation": false,
+  "old_redis_writes": false,
+  "realtime_watch": {
+    "schema_version": "v2_out_of_sample_reverify_evidence_producer_v1",
+    "generated_utc": "2026-06-21T23:00:17Z",
+    "producer": "realtime_watch",
+    "status": "NO_COUNTABLE_REALTIME_ROWS_APPENDED",
+    "cycles_requested": 2,
+    "cycles_completed": 2,
+    "poll_seconds": 1.0,
+    "include_redis": true,
+    "redis_scan_limit": 5000,
+    "selector_policy_fingerprint": "c4b8fb1ed12aabcb87224723f1758563eefff10de90288be09866d2bf3fa74b5",
+    "totals": {
+      "accepted_appended_count": 0,
+      "pending_appended_count": 0,
+      "rejected_appended_count": 467,
+      "duplicate_skipped_count": 6751
+    },
+    "last_cycle": {
+      "cycle_index": 1,
+      "generated_utc": "2026-06-21T23:00:10Z",
+      "status": "NO_COUNTABLE_REALTIME_ROWS_APPENDED",
+      "processed_source_row_count": 3609,
+      "accepted_appended_count": 0,
+      "pending_appended_count": 0,
+      "rejected_appended_count": 0,
+      "duplicate_skipped_count": 3609,
+      "rejection_reason_counts": {}
+    },
+    "cycle_summaries": [
+      {
+        "cycle_index": 0,
+        "generated_utc": "2026-06-21T22:59:58Z",
+        "status": "NO_COUNTABLE_REALTIME_ROWS_APPENDED",
+        "processed_source_row_count": 3609,
+        "accepted_appended_count": 0,
+        "pending_appended_count": 0,
+        "rejected_appended_count": 467,
+        "duplicate_skipped_count": 3142,
+        "rejection_reason_counts": {
+          "ALLOCATOR_BLOCKED_CANDIDATE": 216,
+          "DYNAMIC_BUCKET_NOT_A_GRADE_ELIGIBLE": 467,
+          "GENERATED_AT_AFTER_DECISION_TIME": 250,
+          "MISSING_ACCOUNTING_ALLOCATED_MARGIN": 467,
+          "MISSING_ACCOUNTING_DEPTH_IMPACT": 251,
+          "MISSING_ACCOUNTING_FEES": 251,
+          "MISSING_ACCOUNTING_FUNDING": 251,
+          "MISSING_ACCOUNTING_GROSS_NOTIONAL": 467,
+          "MISSING_ACCOUNTING_HEDGE": 251,
+          "MISSING_ACCOUNTING_LEVERAGE": 251,
+          "MISSING_ACCOUNTING_LIQUIDATION_BUFFER": 467,
+          "MISSING_ACCOUNTING_MARGIN_MODE": 251,
+          "MISSING_ACCOUNTING_OBSERVED_SPREAD": 251,
+          "MISSING_ACCOUNTING_PORTFOLIO_CORRELATION": 251,
+          "MISSING_ACCOUNTING_SLIPPAGE": 251,
+          "MISSING_ACCOUNTING_STOP_DISTANCE": 251,
+          "MISSING_ACCOUNTING_TAKE_PROFIT_STRUCTURE": 467,
+          "NON_DIRECTIONAL_SIDE": 466,
+          "NON_POSITIVE_DECISION_TIME_EXPECTED_EDGE": 467
+        }
+      },
+      {
+        "cycle_index": 1,
+        "generated_utc": "2026-06-21T23:00:10Z",
+        "status": "NO_COUNTABLE_REALTIME_ROWS_APPENDED",
+        "processed_source_row_count": 3609,
+        "accepted_appended_count": 0,
+        "pending_appended_count": 0,
+        "rejected_appended_count": 0,
+        "duplicate_skipped_count": 3609,
+        "rejection_reason_counts": {}
+      }
+    ],
+    "paper_only": true,
+    "places_real_order": false,
+    "test_orders": false,
+    "leverage_mutation": false,
+    "margin_mode_mutation": false,
+    "old_redis_writes": false,
+    "notes": "Bounded local watcher for genuine realtime paper evidence. It polls read-only sources and appends only immutable sidecar/hash-chain records through produce_realtime."
+  },
+  "realtime": {
+    "schema_version": "v2_out_of_sample_reverify_evidence_producer_v1",
+    "generated_utc": "2026-06-21T23:00:10Z",
+    "producer": "realtime",
+    "status": "NO_COUNTABLE_REALTIME_ROWS_APPENDED",
+    "selector_policy_fingerprint": "c4b8fb1ed12aabcb87224723f1758563eefff10de90288be09866d2bf3fa74b5",
+    "source_statuses": [
+      {
+        "source": "redis",
+        "status": "READY_READ_ONLY_REDIS_SOURCE",
+        "row_count": 3609,
+        "read_only": true,
+        "scan_limit": 5000,
+        "source_group_counts": {
+          "redis_paper_intent": 216,
+          "redis_paper_signal": 755,
+          "redis_prediction": 755,
+          "redis_paper_ledger_accepted": 238,
+          "redis_paper_ledger_open": 0,
+          "redis_paper_ledger_closed": 1645
+        },
+        "paper_signal_row_count": 755,
+        "prediction_row_count": 755,
+        "latest_feature_row_count": 500,
+        "archived_feature_row_count": 46,
+        "accepted_fill_reconciliation": {
+          "source": "v2:paper:ledger.closed_trades + v2:paper:ledger.accepted",
+          "reconciliation_policy": "P0 closed outcomes may inherit adaptive capital policy and missing mandatory allocation fields only from paper-only accepted fills sharing exact lineage IDs and with accepted fill time <= close time; unambiguous policy activation and funding-term metadata may be carried for audit visibility, but funding_pnl_usd is never synthesized by this read-only reconciliation",
+          "accepted_adaptive_fill_count": 238,
+          "candidate_closed_match_count": 2,
+          "reconciled_closed_outcome_count": 0,
+          "complete_reconciled_closed_outcome_count": 0,
+          "filled_policy_funding_metadata_counts": {},
+          "ambiguous_policy_funding_metadata_counts": {},
+          "rejected_reason_counts": {
+            "ACCEPTED_FILL_AFTER_CLOSE": 2
+          },
+          "sample": []
+        },
+        "durable_accepted_counterfactual_evidence": {
+          "source": "v2:paper:ledger.accepted",
+          "accepted_candidate_row_count": 4481,
+          "counterfactual_row_count": 238,
+          "bounded_to_current_source_symbol_timeframe_cells": true,
+          "current_source_symbol_timeframe_cell_count": 755,
+          "excluded_row_count": 4243,
+          "excluded_reason_counts": {
+            "NOT_ADAPTIVE_CAPITAL_POLICY_ROW": 4243
+          },
+          "status": "READY"
+        }
+      }
+    ],
+    "bucket_matrix_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/a_grade_bucket_performance_matrix.json",
+    "eligible_bucket_count": 5,
+    "processed_source_row_count": 3609,
+    "include_redis": true,
+    "redis_scan_limit": 5000,
+    "accepted_appended_count": 0,
+    "pending_appended_count": 0,
+    "rejected_appended_count": 0,
+    "duplicate_skipped_count": 3609,
+    "rejection_reason_counts": {},
+    "sidecar_summary": {
+      "source_status": {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_realtime_paper_reverify_rows.jsonl",
+        "exists": true,
+        "scanned_line_count": 0,
+        "parse_error_count": 0,
+        "parse_error_sample": [],
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "row_count": 0,
+      "symbol_count": 0,
+      "symbols_sample": [],
+      "side_counts": {},
+      "expectancy_metric": null,
+      "profit_factor": null,
+      "profit_factor_numeric": null,
+      "profit_concentration_status": {
+        "symbol": {
+          "dimension": "symbol",
+          "top_profit_share": null,
+          "status": "NO_GROSS_PROFIT"
+        },
+        "timeframe": {
+          "dimension": "timeframe",
+          "top_profit_share": null,
+          "status": "NO_GROSS_PROFIT"
+        },
+        "regime": {
+          "dimension": "regime",
+          "top_profit_share": null,
+          "status": "NO_GROSS_PROFIT"
+        },
+        "strategy": {
+          "dimension": "strategy",
+          "top_profit_share": null,
+          "status": "NO_GROSS_PROFIT"
+        }
+      }
+    },
+    "hash_chain_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_realtime_paper_reverify_rows.jsonl.hash_chain.jsonl",
+    "replay_projection_expectancy_after_cost_bps": 41.76153327,
+    "minimum_realtime_expectancy_after_cost_bps": 20.88076664,
+    "paper_only": true,
+    "places_real_order": false,
+    "test_orders": false,
+    "leverage_mutation": false,
+    "margin_mode_mutation": false,
+    "old_redis_writes": false
+  },
+  "holdout": {
+    "schema_version": "v2_out_of_sample_reverify_evidence_producer_v1",
+    "generated_utc": "2026-06-21T22:24:19Z",
+    "producer": "holdout",
+    "status": "NO_COUNTABLE_HOLDOUT_ROWS_APPENDED",
+    "selector_policy_fingerprint": "c4b8fb1ed12aabcb87224723f1758563eefff10de90288be09866d2bf3fa74b5",
+    "source_status": {
+      "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/closed_candle_replay_evidence_rows.jsonl",
+      "exists": true,
+      "scanned_line_count": 19800,
+      "parse_error_count": 0,
+      "parse_error_sample": [],
+      "sha256": "0f04e7a8590970c5859b9f15c4b3e4deb514d43e519b6ad35242efa8e12dc395"
+    },
+    "bucket_matrix_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/a_grade_bucket_performance_matrix.json",
+    "eligible_bucket_count": 5,
+    "registry_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_window_registry.json",
+    "registry_status": "NO_ELIGIBLE_HOLDOUT_WINDOWS_REGISTERED",
+    "registered_window_count": 0,
+    "processed_source_row_count": 19800,
+    "accepted_appended_count": 0,
+    "pending_appended_count": 0,
+    "rejected_appended_count": 0,
+    "duplicate_skipped_count": 19800,
+    "rejection_reason_counts": {},
+    "sidecar_summary": {
+      "source_status": {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_reverify_rows.jsonl",
+        "exists": true,
+        "scanned_line_count": 0,
+        "parse_error_count": 0,
+        "parse_error_sample": [],
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "row_count": 0,
+      "symbol_count": 0,
+      "symbols_sample": [],
+      "side_counts": {},
+      "expectancy_metric": null,
+      "profit_factor": null,
+      "profit_factor_numeric": null,
+      "profit_concentration_status": {
+        "symbol": {
+          "dimension": "symbol",
+          "top_profit_share": null,
+          "status": "NO_GROSS_PROFIT"
+        },
+        "timeframe": {
+          "dimension": "timeframe",
+          "top_profit_share": null,
+          "status": "NO_GROSS_PROFIT"
+        },
+        "regime": {
+          "dimension": "regime",
+          "top_profit_share": null,
+          "status": "NO_GROSS_PROFIT"
+        },
+        "strategy": {
+          "dimension": "strategy",
+          "top_profit_share": null,
+          "status": "NO_GROSS_PROFIT"
+        }
+      }
+    },
+    "hash_chain_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_reverify_rows.jsonl.hash_chain.jsonl",
+    "paper_only": true,
+    "places_real_order": false,
+    "test_orders": false,
+    "leverage_mutation": false,
+    "margin_mode_mutation": false,
+    "old_redis_writes": false
+  },
+  "integrity": {
+    "schema_version": "v2_out_of_sample_reverify_evidence_producer_v1",
+    "generated_utc": "2026-06-21T22:59:58Z",
+    "producer": "verify",
+    "status": "PASSED_EVIDENCE_INTEGRITY",
+    "selector_policy_fingerprint": "c4b8fb1ed12aabcb87224723f1758563eefff10de90288be09866d2bf3fa74b5",
+    "holdout": {
+      "schema_version": "v2_out_of_sample_reverify_evidence_producer_v1",
+      "generated_utc": "2026-06-21T22:59:58Z",
+      "status": "PASSED_HASH_CHAIN_INTEGRITY",
+      "chain_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_reverify_rows.jsonl.hash_chain.jsonl",
+      "chain_status": {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_reverify_rows.jsonl.hash_chain.jsonl",
+        "exists": true,
+        "scanned_line_count": 19800,
+        "parse_error_count": 0,
+        "parse_error_sample": [],
+        "sha256": "778fa21f3fdc2485960f16261f8c5582af86992a81bc88567ccf6af042c806c8"
+      },
+      "sidecar_statuses": {
+        "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_reverify_rows.jsonl": {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_reverify_rows.jsonl",
+          "exists": true,
+          "scanned_line_count": 0,
+          "parse_error_count": 0,
+          "parse_error_sample": [],
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "row_count": 0
+        },
+        "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_reverify_pending.jsonl": {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_reverify_pending.jsonl",
+          "exists": false,
+          "scanned_line_count": 0,
+          "parse_error_count": 0,
+          "parse_error_sample": [],
+          "sha256": null,
+          "row_count": 0
+        },
+        "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_reverify_rejected.jsonl": {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_holdout_reverify_rejected.jsonl",
+          "exists": true,
+          "scanned_line_count": 19800,
+          "parse_error_count": 0,
+          "parse_error_sample": [],
+          "sha256": "c712107813be22e98f0a82c5933da0cba5e2960c17f94161df3bb4b93f2fc89a",
+          "row_count": 19800
+        }
+      },
+      "chain_record_count": 19800,
+      "verified_sidecar_record_count": 19800,
+      "event_type_counts": {
+        "holdout_rejected": 19800
+      },
+      "unchained_sidecar_row_counts": {},
+      "failure_count": 0,
+      "failure_sample": []
+    },
+    "realtime": {
+      "schema_version": "v2_out_of_sample_reverify_evidence_producer_v1",
+      "generated_utc": "2026-06-21T22:59:58Z",
+      "status": "PASSED_HASH_CHAIN_INTEGRITY",
+      "chain_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_realtime_paper_reverify_rows.jsonl.hash_chain.jsonl",
+      "chain_status": {
+        "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_realtime_paper_reverify_rows.jsonl.hash_chain.jsonl",
+        "exists": true,
+        "scanned_line_count": 84900,
+        "parse_error_count": 0,
+        "parse_error_sample": [],
+        "sha256": "631d9746190e2986a28e0bb9b9714237cc88bf17290cd9641bbfe178a1094c5b"
+      },
+      "sidecar_statuses": {
+        "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_realtime_paper_reverify_rows.jsonl": {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_realtime_paper_reverify_rows.jsonl",
+          "exists": true,
+          "scanned_line_count": 0,
+          "parse_error_count": 0,
+          "parse_error_sample": [],
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "row_count": 0
+        },
+        "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_realtime_paper_reverify_pending.jsonl": {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_realtime_paper_reverify_pending.jsonl",
+          "exists": false,
+          "scanned_line_count": 0,
+          "parse_error_count": 0,
+          "parse_error_sample": [],
+          "sha256": null,
+          "row_count": 0
+        },
+        "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_realtime_paper_reverify_rejected.jsonl": {
+          "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_realtime_paper_reverify_rejected.jsonl",
+          "exists": true,
+          "scanned_line_count": 84900,
+          "parse_error_count": 0,
+          "parse_error_sample": [],
+          "sha256": "601ea4820bc1f84f323e7d571eb2c6ed0b39841c85c699baa6768a20b430c7b3",
+          "row_count": 84900
+        }
+      },
+      "chain_record_count": 84900,
+      "verified_sidecar_record_count": 84900,
+      "event_type_counts": {
+        "realtime_rejected": 84900
+      },
+      "unchained_sidecar_row_counts": {},
+      "failure_count": 0,
+      "failure_sample": []
+    },
+    "paper_only": true,
+    "places_real_order": false,
+    "test_orders": false,
+    "leverage_mutation": false,
+    "margin_mode_mutation": false,
+    "old_redis_writes": false
+  },
+  "status_regeneration": {
+    "command": [
+      "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python",
+      "-m",
+      "v2.backend.app.cli.v2_adaptive_capital_productivity_status",
+      "--horizon-years",
+      "5.0"
+    ],
+    "returncode": 2,
+    "duration_seconds": 140.24491549,
+    "log_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/out_of_sample_evidence_producer_status_regeneration.log"
+  }
+}

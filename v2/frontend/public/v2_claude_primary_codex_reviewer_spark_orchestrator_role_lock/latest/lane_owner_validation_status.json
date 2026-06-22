@@ -1,0 +1,88 @@
+{
+  "schema_version": "v2_lane_owner_validation_status_v1",
+  "generated_utc": "2026-05-26T02:10:00Z",
+  "git_head": "10513bbe0517fd81c9c87e4672bb15486a083c02",
+  "lane_id": "v2_claude_primary_codex_reviewer_spark_orchestrator_role_lock",
+  "scope": "LANE_OWNER_VALIDATION_FOR_REGISTERED_LANE_KINDS",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "lane_kinds_defined": [
+    {"lane_kind": "runtime-claude", "owner": "CLAUDE", "purpose": "Claude implementation of runtime services"},
+    {"lane_kind": "model-claude", "owner": "CLAUDE", "purpose": "Claude implementation of model/trainer code"},
+    {"lane_kind": "proof-claude", "owner": "CLAUDE", "purpose": "Claude implementation of evidence/proof generators"},
+    {"lane_kind": "runtime-codex", "owner": "CODEX", "purpose": "Codex review of runtime-claude output"},
+    {"lane_kind": "model-codex", "owner": "CODEX", "purpose": "Codex review of model-claude output"},
+    {"lane_kind": "proof-codex", "owner": "CODEX", "purpose": "Codex review of proof-claude output"},
+    {"lane_kind": "spark-orchestration", "owner": "SPARK", "purpose": "Spark orchestration/control-plane only"}
+  ],
+  "lane_owner_validation_rules": [
+    {
+      "rule_id": "runtime_or_model_or_proof_claude_lane_must_have_owner_CLAUDE",
+      "rule": "If lane_kind in {runtime-claude, model-claude, proof-claude} then owner MUST be CLAUDE.",
+      "violation_response": "REJECT_LANE_REGISTRATION"
+    },
+    {
+      "rule_id": "runtime_or_model_or_proof_codex_lane_must_have_owner_CODEX",
+      "rule": "If lane_kind in {runtime-codex, model-codex, proof-codex} then owner MUST be CODEX.",
+      "violation_response": "REJECT_LANE_REGISTRATION"
+    },
+    {
+      "rule_id": "spark_lane_must_only_orchestrate",
+      "rule": "If lane_kind is spark-orchestration then owner MUST be SPARK and the lane MUST NOT modify V2 runtime code outside orchestration/control-plane scope.",
+      "violation_response": "REJECT_LANE_REGISTRATION"
+    },
+    {
+      "rule_id": "spark_lane_must_not_claim_codex_pass_or_fail",
+      "rule": "Spark lane payload must not emit codex_pass_emitted=true or codex_fail_emitted=true.",
+      "violation_response": "REJECT_PAYLOAD_RENDER"
+    },
+    {
+      "rule_id": "spark_lane_must_not_claim_claude_implementation_completed",
+      "rule": "Spark lane payload must not emit claude_implementation_completed=true.",
+      "violation_response": "REJECT_PAYLOAD_RENDER"
+    }
+  ],
+  "report_center_lane_kind_assignment_sample": [
+    {"lane_id": "v2_post_hoc_replay_outcome_miner", "lane_kind": "proof-claude", "owner": "CLAUDE"},
+    {"lane_id": "v2_full_observation_builder", "lane_kind": "runtime-claude", "owner": "CLAUDE"},
+    {"lane_id": "v2_native_rl_masa_ppo_p0_2c", "lane_kind": "model-claude", "owner": "CLAUDE"},
+    {"lane_id": "v2_live_canary_dry_run_service", "lane_kind": "runtime-claude", "owner": "CLAUDE"},
+    {"lane_id": "v2_legacy_runtime_freeze_and_primary_paper_cutover", "lane_kind": "runtime-claude", "owner": "CLAUDE"},
+    {"lane_id": "v2_executive_command_center", "lane_kind": "spark-orchestration", "owner": "SPARK"},
+    {"lane_id": "v2_report_center", "lane_kind": "spark-orchestration", "owner": "SPARK"},
+    {"lane_id": "v2_autonomous_mission_backlog", "lane_kind": "spark-orchestration", "owner": "SPARK"},
+    {"lane_id": "v2_closed_loop_persistent_worker_pool", "lane_kind": "spark-orchestration", "owner": "SPARK"},
+    {"lane_id": "v2_closed_loop_spark", "lane_kind": "spark-orchestration", "owner": "SPARK"},
+    {"lane_id": "v2_no_status_change_sla_watchdog", "lane_kind": "spark-orchestration", "owner": "SPARK"},
+    {"lane_id": "codex_executive_governor", "lane_kind": "runtime-codex", "owner": "CODEX"},
+    {"lane_id": "codex_runtime_soak_and_production_equivalence_governor", "lane_kind": "runtime-codex", "owner": "CODEX"}
+  ],
+  "validation_summary": {
+    "lane_kinds_registered_count": 7,
+    "claude_owned_lane_kinds_count": 3,
+    "codex_owned_lane_kinds_count": 3,
+    "spark_owned_lane_kinds_count": 1,
+    "violations_count": 0,
+    "all_lanes_in_sample_pass_owner_validation": true
+  },
+  "spark_implementation_takeover_observed": false,
+  "spark_review_takeover_observed": false,
+  "spark_codex_pass_or_fail_emit_observed": false,
+  "spark_claude_implementation_complete_emit_observed": false,
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "writes_old_redis": false,
+    "calls_exchange_mutation": false,
+    "creates_approval_tokens": false,
+    "modifies_legacy_repo": false,
+    "stops_v2_runtime": false,
+    "stops_legacy": false,
+    "stops_report_center": false,
+    "stops_spark_or_worker_pool": false
+  }
+}

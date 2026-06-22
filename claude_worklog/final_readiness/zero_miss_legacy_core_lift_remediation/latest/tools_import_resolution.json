@@ -1,0 +1,30 @@
+{
+  "approves_live": false,
+  "copied_source": {
+    "classification": "SAFE_SOURCE_COPIED_TO_V2_OWNED_RUNTIME",
+    "copied_to_v2": true,
+    "destination": "v2/legacy_owned_runtime/tools/health.py",
+    "exists": true,
+    "path": "/home/wali/Desktop/AI BOT/tools/health.py",
+    "readable": true,
+    "safe_to_commit": true,
+    "sha256": "5e535062b387a501e9c266d0b45681497bd3bf084e40606594223eb2da445dce",
+    "size_bytes": 481,
+    "source_rel": "tools/health.py"
+  },
+  "generated_utc": "2026-05-16T01:30:30Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "name": "tools_import_resolution_round_2",
+  "phase": "B_ROUND_2",
+  "resolution": "COPIED_READABLE_LEGACY_SOURCE_NOT_FAKE_SHIM",
+  "tools_dir_present_in_v2_legacy_owned_runtime": [
+    "v2/legacy_owned_runtime/tools/health.py"
+  ],
+  "tools_import_hit_count": 4,
+  "tools_import_resolved": true,
+  "unique_tools_import_paths": [
+    "tools.health"
+  ],
+  "unresolved_local_import_tools_gone": true
+}

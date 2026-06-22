@@ -1,0 +1,24 @@
+{
+  "generated_at": "2026-06-14T21:28:57Z",
+  "keys_written": [
+    "v2:market:mtf_snapshot:mtf_58a497e6260cd7b6aff4a824",
+    "v2:replay:snapshots:v2h_c58b4e43ee585d6886c7d00836e56700",
+    "v2:prediction:1000BONKUSDT:1m"
+  ],
+  "live_order_allowed": false,
+  "mtf_snapshot_id": "mtf_58a497e6260cd7b6aff4a824",
+  "mtf_snapshot_key": "v2:market:mtf_snapshot:mtf_58a497e6260cd7b6aff4a824",
+  "paper_fill_allowed": false,
+  "prediction_id": "v2h_c58b4e43ee585d6886c7d00836e56700",
+  "prediction_key": "v2:prediction:1000BONKUSDT:1m",
+  "published_prediction_present": true,
+  "replay_snapshot_id": "decision_58a497e6260cd7b6aff4a824",
+  "replay_snapshot_key": "v2:replay:snapshots:v2h_c58b4e43ee585d6886c7d00836e56700",
+  "routes_to_live": false,
+  "routes_to_orchestrator": false,
+  "status": "PUBLISHER_PROOF_WRITTEN",
+  "success": true,
+  "symbol": "1000BONKUSDT",
+  "timeframe": "1m",
+  "trust_schema_version": "pipeline_trust_v3"
+}

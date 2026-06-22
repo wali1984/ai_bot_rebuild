@@ -1,0 +1,17 @@
+[Unit]
+Description=AI BOT V2 production replacement runtime guard
+After=ai-bot-v2-trade-management-paper-loop.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+Environment="LIVE_GATE=blocked_human_only"
+ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools/v2_production_replacement_runtime_guard.py" --loop --interval-seconds 120'
+StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_production_replacement_runtime_guard.log
+StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_production_replacement_runtime_guard.err
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=default.target

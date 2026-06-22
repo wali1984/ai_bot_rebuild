@@ -1,0 +1,38 @@
+{
+  "agent": "claude",
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/priority_autoseed_20260531/director/",
+    "claude_worklog/autonomous_governor/latest/",
+    "v2/frontend/public/non_drift_governor_lock/latest/",
+    "claude_worklog/final_readiness/non_drift_governor_lock/latest/"
+  ],
+  "completed_at": "2026-05-31T05:22:31.058013+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "lane": "primary_claude_lane",
+  "log_path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/claude_priority_director_legacy_audit_omission_closure_20260531.log",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_gate": "PRIORITY_DIRECTOR_GO_NO_GO.md",
+  "next_recommended_action": "Keep dispatching and refreshing pending omission tasks until all listed omissions are represented, every data source has status, every omission has exact blocker, and website truth status is synchronized.",
+  "priority": 5000,
+  "prompt": "Top-priority autonomous orchestration. Do not wait for manual next task. Work only in AI BOT REBUILD. Keep live blocked_human_only; do not write old Redis or mutate legacy/live systems.\n\nObjectives:\n1) Ensure each omission item has an active task descriptor and explicit blocker state.\n2) Ensure every legacy audit item is represented in LEGACY_AUDIT_ITEM_COVERAGE_MATRIX.json.\n3) Ensure every data source is validated (PASS/BLOCKED/MISSING_EVIDENCE) in DATA_SOURCE_VALIDATION_MATRIX.json.\n4) Ensure every omission has exact blocker in OMISSION_BLOCKER_LEDGER.json.\n5) Ensure website truth payload/status is aligned to runtime evidence or explicitly marked stale/missing evidence.\n\nEmit required files only via BEGIN_FILE blocks.\nPRIORITY_DIRECTOR_GO_NO_GO.md must be exactly one line: PRIORITY_OMISSION_CLOSURE_READY or PRIORITY_OMISSION_CLOSURE_BLOCKED.",
+  "reconciled_from_source_truth_at": "2026-05-31T05:23:05Z",
+  "required_output_files": [
+    "claude_worklog/final_readiness/priority_autoseed_20260531/director/PRIORITY_DIRECTOR_REPORT.md",
+    "claude_worklog/final_readiness/priority_autoseed_20260531/director/PRIORITY_DIRECTOR_STATUS.json",
+    "claude_worklog/final_readiness/priority_autoseed_20260531/director/PRIORITY_DIRECTOR_GO_NO_GO.md",
+    "claude_worklog/final_readiness/priority_autoseed_20260531/director/LEGACY_AUDIT_ITEM_COVERAGE_MATRIX.json",
+    "claude_worklog/final_readiness/priority_autoseed_20260531/director/DATA_SOURCE_VALIDATION_MATRIX.json",
+    "claude_worklog/final_readiness/priority_autoseed_20260531/director/OMISSION_BLOCKER_LEDGER.json"
+  ],
+  "resolved_from_source_truth": true,
+  "risk_level": "L2",
+  "source_truth_completed_at": "2026-05-31T05:22:31.058013+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/claude_priority_director_legacy_audit_omission_closure_20260531.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "started_at": "2026-05-31T05:19:03Z",
+  "status": "completed",
+  "task_id": "claude_priority_director_legacy_audit_omission_closure_20260531",
+  "updated_at": "2026-05-31T05:23:05Z"
+}

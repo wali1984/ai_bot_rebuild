@@ -1,0 +1,30 @@
+{
+  "blocker_id": "report_lane.v2_autonomous_mission_execution_burndown",
+  "burndown_review_verdict": "V2_AUTONOMOUS_MISSION_EXECUTION_BURNDOWN_CODEX_FAIL",
+  "classification": "CODEX_REVIEW_REQUIRED",
+  "generated_utc": "2026-06-22T00:26:47Z",
+  "mapping": {
+    "classification": "EXISTING_REMEDIATION_REFERENCED",
+    "remediation_lane": "v2_autonomous_mission_burndown_fail_to_remediation_remediation",
+    "remediation_verdict": "V2_AUTONOMOUS_MISSION_BURNDOWN_FAIL_TO_REMEDIATION_REMEDIATION_CODEX_PASS"
+  },
+  "reason": "Original burndown Codex FAIL is not hidden; fail-to-remediation remediation has passed, but the burndown lane remains blocked until its failed remediation cycle succeeds.",
+  "remaining_blocker": true,
+  "reviewed": true,
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "creates_approval_tokens": false,
+    "fabricates_edge": false,
+    "fabricates_missing_observations": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "schema_version": "v2_final_codex_review_required_resolution_status_v1",
+  "status": "MAPPED_TO_EXISTING_REMEDIATION"
+}

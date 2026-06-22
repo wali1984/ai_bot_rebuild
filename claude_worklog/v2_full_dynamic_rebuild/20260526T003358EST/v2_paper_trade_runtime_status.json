@@ -1,0 +1,28 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "go_no_go": "V2_PAPER_TRADE_RUNTIME_STATUS_READY",
+  "live_symbols": [],
+  "newest_shadow_observation_payload": null,
+  "newest_shadow_observation_payload_age_seconds": null,
+  "paper_units_active": [
+    "ai-bot-v2-trade-management-paper-loop.service",
+    "ai-bot-v2-paper-online-runtime.service",
+    "ai-bot-v2-paper-shadow-observation.service",
+    "ai-bot-v2-position-history-persistent-tracker.service"
+  ],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "ts_est": "20260526T003358EST",
+  "ts_iso_est": "2026-05-26T00:49:14-0400",
+  "v2_paper_keys": {
+    "v2:paper:intents": 2,
+    "v2:paper:ledger": 1,
+    "v2:paper:position_history": 4,
+    "v2:paper:positions": 1,
+    "v2:paper:shadow_outcome": 26
+  },
+  "writes_exchange_orders": false
+}

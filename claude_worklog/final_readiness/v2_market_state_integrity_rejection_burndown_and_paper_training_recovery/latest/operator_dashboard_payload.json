@@ -1,0 +1,43 @@
+{
+  "accepted_paper_fills_after": 6,
+  "accepted_paper_fills_before": 6,
+  "accepted_training_rows_after": 603,
+  "accepted_training_rows_before": 0,
+  "blockers": [
+    "LIVE_SUBMIT_STILL_HELD_BY_BINANCE_451"
+  ],
+  "generated_est": "2026-06-09T15:07:22-04:00",
+  "generated_utc": "2026-06-09T19:07:22Z",
+  "go_no_go": "V2_MARKET_STATE_INTEGRITY_REJECTION_BURNDOWN_AND_PAPER_TRAINING_RECOVERY_READY",
+  "held_rows_after": 116,
+  "held_rows_before": 116,
+  "live_order_submit_allowed": false,
+  "live_order_submit_blocker": "BINANCE_SIGNED_READ_RESTRICTED_LOCATION_451",
+  "paper_current_session_equity": 10000.0,
+  "paper_current_session_pnl": 0.0,
+  "production_bundle_status": "PRODUCTION_BUNDLE_CURRENT",
+  "rejected_training_rows_after": 7,
+  "rejected_training_rows_before": 732,
+  "safety": {
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "old_fills_fabricated": false,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_orders": false,
+    "redis_trim": false,
+    "test_order": false,
+    "vpn_proxy_evasion": false
+  },
+  "schema_version": "operator_dashboard_payload_v1",
+  "service_id": "v2_market_state_integrity_rejection_burndown_and_paper_training_recovery",
+  "validation": {
+    "py_compile": {
+      "cmd": "python3 -m py_compile v2/backend/app/services/market_state_integrity/scoring.py v2/backend/app/services/market_state_integrity/publisher.py v2/backend/app/services/operator_truth/realtime_runtime_truth.py v2/backend/app/cli/v2_orchestrator_arbitration_loop.py v2/backend/app/cli/v2_market_state_integrity_rejection_burndown_and_paper_training_recovery.py",
+      "duration_seconds": 0.036,
+      "returncode": 0,
+      "stderr_tail": "",
+      "stdout_tail": ""
+    }
+  }
+}

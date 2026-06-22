@@ -1,0 +1,36 @@
+{
+  "matrix_id": "data_source_validation_matrix_20260531",
+  "generated_at": "2026-05-31T05:30:00Z",
+  "source_of_truth": "V2_VS_LEGACY_AUDIT_2026-05-31.md",
+  "sources": [
+    {"id": "DS01_binance_rest_price",             "owner": "v2_native_ingestors_live_loop",                       "status": "PASS",             "evidence": "V2_VS_LEGACY_AUDIT_2026-05-31.md:50,190", "freshness": "~60s"},
+    {"id": "DS02_binance_rest_funding",           "owner": "v2_native_ingestors_live_loop",                       "status": "PASS",             "evidence": "V2_VS_LEGACY_AUDIT_2026-05-31.md:93,191", "freshness": "~60s"},
+    {"id": "DS03_binance_rest_open_interest",     "owner": "v2_native_ingestors_live_loop",                       "status": "PASS",             "evidence": "V2_VS_LEGACY_AUDIT_2026-05-31.md:94,192", "freshness": "~60s"},
+    {"id": "DS04_binance_rest_ohlcv",             "owner": "v2_native_ingestors_live_loop",                       "status": "BLOCKED",          "evidence": "V2_VS_LEGACY_AUDIT_2026-05-31.md:193",    "freshness": "partial 37/125 keys", "blocker": "ohlcv_coverage_incomplete_per_symbol_tf"},
+    {"id": "DS05_binance_ws_liquidations",        "owner": "v2_liquidation_wss_loop",                             "status": "PASS",             "evidence": "V2_VS_LEGACY_AUDIT_2026-05-31.md:66,194", "freshness": "live ws"},
+    {"id": "DS06_liquidation_bridge_levels",      "owner": "v2/legacy_owned_runtime/ingest/liquidation_bridge.py","status": "PASS",             "evidence": "V2_VS_LEGACY_AUDIT_2026-05-31.md:49,195", "freshness": "per event"},
+    {"id": "DS07_paper_position_history",         "owner": "v2_position_history_persistent_tracker",              "status": "PASS",             "evidence": "V2_VS_LEGACY_AUDIT_2026-05-31.md:65,196", "freshness": "per tick"},
+    {"id": "DS08_v2_technical_analysis",          "owner": "v2_feature_pipeline_native_loop",                     "status": "BLOCKED",          "evidence": "V2_VS_LEGACY_AUDIT_2026-05-31.md:121-122,197","freshness": "~60s", "blocker": "structural_mismatch_nested_json_vs_legacy_160_field_flat_hash"},
+    {"id": "DS09_v2_feature_snapshots",           "owner": "v2_feature_snapshot_builder",                         "status": "BLOCKED",          "evidence": "V2_VS_LEGACY_AUDIT_2026-05-31.md:198",    "freshness": "~60s", "blocker": "shallow_38_keys_no_unified_feature_depth"},
+    {"id": "DS10_v2_unified_features",            "owner": "v2_feature_pipeline_native_loop + liquidation_bridge","status": "BLOCKED",          "evidence": "V2_VS_LEGACY_AUDIT_2026-05-31.md:130-132","freshness": "per event", "blocker": "14_of_562_fields_full_legacy_unified_feature_builder_MISSING"},
+    {"id": "DS11_v2_prediction",                  "owner": "v2_rl_core_inference_loop",                           "status": "BLOCKED",          "evidence": "V2_VS_LEGACY_AUDIT_2026-05-31.md:141-143","freshness": "n/a", "blocker": "native_trainer_not_implemented_0_of_6_components"},
+    {"id": "DS12_legacy_coinank_features",        "owner": "[legacy] live_coinank.py",                            "status": "BLOCKED",          "evidence": "V2_VS_LEGACY_AUDIT_2026-05-31.md:149-152","freshness": "5d+ stale", "blocker": "legacy_ingestor_stopped_20260526_no_v2_native_writer"},
+    {"id": "DS13_v2_coinank_market_intelligence", "owner": "coinank_market_intelligence",                         "status": "MISSING_EVIDENCE", "evidence": "V2_VS_LEGACY_AUDIT_2026-05-31.md:151,235", "freshness": "freshness_seconds=0", "blocker": "running_but_no_writes_proof_required"},
+    {"id": "DS14_microstructure",                 "owner": "[legacy] live_coinapi_wsds.py",                       "status": "MISSING_EVIDENCE", "evidence": "V2_VS_LEGACY_AUDIT_2026-05-31.md:113",    "freshness": "n/a", "blocker": "no_v2_equivalent_built"},
+    {"id": "DS15_kucoin_full",                    "owner": "v2_kucoin_ingestor",                                  "status": "BLOCKED",          "evidence": "V2_VS_LEGACY_AUDIT_2026-05-31.md:112,232", "freshness": "partial", "blocker": "approves_legacy_shutdown_false_partial_coverage"},
+    {"id": "DS16_orderbook_depth",                "owner": "[legacy] realtime_price_provider.py",                 "status": "MISSING_EVIDENCE", "evidence": "V2_VS_LEGACY_AUDIT_2026-05-31.md:109,216","freshness": "n/a", "blocker": "no_v2_equivalent_built"},
+    {"id": "DS17_tokenmetrics",                   "owner": "[legacy] live_tokenmetrics.py",                       "status": "BLOCKED",          "evidence": "V2_VS_LEGACY_AUDIT_2026-05-31.md:177-180","freshness": "stale", "blocker": "writer_not_running_no_v2_native_writer"},
+    {"id": "DS18_signals_trading_primary",        "owner": "[legacy] orchestrator_worker.py",                     "status": "BLOCKED",          "evidence": "V2_VS_LEGACY_AUDIT_2026-05-31.md:91,158",  "freshness": "frozen_since_20260513", "blocker": "no_upstream_predictions"},
+    {"id": "DS19_v2_orchestrator_proposals",      "owner": "v2_orchestrator_arbitration_loop",                    "status": "BLOCKED",          "evidence": "V2_VS_LEGACY_AUDIT_2026-05-31.md:159,228", "freshness": "n/a", "blocker": "no_input_predictions_from_v2_rl_core"},
+    {"id": "DS20_v2_signals_paper",               "owner": "v2_orchestrator_arbitration_loop",                    "status": "BLOCKED",          "evidence": "V2_VS_LEGACY_AUDIT_2026-05-31.md:160",    "freshness": "n/a", "blocker": "no_upstream_v2_predictions"},
+    {"id": "DS21_v2_paper_positions",             "owner": "v2_trade_management_paper_loop",                      "status": "PASS",             "evidence": "V2_VS_LEGACY_AUDIT_2026-05-31.md:171",    "freshness": "per tick"},
+    {"id": "DS22_nansen_alt_data",                "owner": "v2_nansen_altdata_client",                            "status": "MISSING_EVIDENCE", "evidence": "V2_VS_LEGACY_AUDIT_2026-05-31.md:239",    "freshness": "running",        "blocker": "no_runtime_freshness_emitted_in_audit"},
+    {"id": "DS23_lunarcrush_alt_data",            "owner": "v2_lunarcrush_altdata_client",                        "status": "MISSING_EVIDENCE", "evidence": "V2_VS_LEGACY_AUDIT_2026-05-31.md:240",    "freshness": "running",        "blocker": "no_runtime_freshness_emitted_in_audit"}
+  ],
+  "summary": {
+    "total": 23,
+    "pass": 7,
+    "blocked": 9,
+    "missing_evidence": 7
+  }
+}

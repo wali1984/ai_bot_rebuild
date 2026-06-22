@@ -1,0 +1,32 @@
+{
+  "blockers": [],
+  "classification": "V2_SIGNAL_LINEAGE_READY",
+  "current_lineage_classification": null,
+  "generated_est": "2026-06-03T22:40:39-04:00",
+  "generated_utc": "2026-06-04T02:40:39Z",
+  "historical_aggregate_index": {
+    "available": true,
+    "record_count": 0,
+    "source": "v2_signal_lineage_worker"
+  },
+  "live_safety": {
+    "exchange_action_taken": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "places_real_order": false,
+    "trader_execution_enabled": false,
+    "writes_exchange_orders": false,
+    "writes_legacy_redis": false
+  },
+  "missing_ids": [],
+  "required_lineage_ids": [
+    "prediction_id",
+    "feature_snapshot_id",
+    "signal_id",
+    "risk_decision_id",
+    "execution_intent_id"
+  ],
+  "schema_version": "v2_signal_lineage_status_v1",
+  "source": "v2.backend.app.services.signal_lineage",
+  "worker_payload_classification": "PRESENT"
+}

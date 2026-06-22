@@ -1,0 +1,29 @@
+{
+  "closed_positions_count": 0,
+  "generated_est": "2026-06-09T23:01:25-04:00",
+  "open_positions_count": 1,
+  "positions_by_symbol": [
+    {
+      "avg_entry_price": 55.877,
+      "closed_fill_count": 0,
+      "fill_count": 1,
+      "gross_notional": 25.0,
+      "last_mark_price": 55.933,
+      "last_mark_price_source": "v2:market:prices.ticker_24hr.lastPrice",
+      "net_quantity": -0.44741127834350447,
+      "open_position": true,
+      "position_age_seconds": null,
+      "realized_pnl": 0.0,
+      "side": "short",
+      "source_fill_ids": [
+        "v2h_037f0f28a74b2d369741581edcae5ab7"
+      ],
+      "symbol": "HYPEUSDT",
+      "unrealized_pnl": -0.025055031587235082
+    }
+  ],
+  "realized_pnl": 0.0,
+  "schema_version": "paper_position_reconstruction_status_v1",
+  "status": "LEDGER_TO_PORTFOLIO_PIPE_OK",
+  "unrealized_pnl": -0.02505503
+}

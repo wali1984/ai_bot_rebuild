@@ -1,0 +1,32 @@
+{
+  "btc_current_rows_seen": 5,
+  "btc_eth_sol_current_rows_seen": 15,
+  "btc_eth_sol_rows_seen": 15,
+  "btc_rows_seen": 5,
+  "eth_current_rows_seen": 5,
+  "eth_rows_seen": 5,
+  "generated_est": "2026-06-15T21:44:08-04:00",
+  "native_cuda_primary_only": true,
+  "paper_candidate_rows_seen": 15,
+  "paper_runtime_grid_aligned": true,
+  "prediction_rows_seen": 415,
+  "rl_core_sidecar_excluded_from_primary": true,
+  "single_symbol_only": false,
+  "sol_current_rows_seen": 5,
+  "sol_rows_seen": 5,
+  "stale_payload_used": false,
+  "status": "READY",
+  "symbols_seen": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+  ],
+  "timeframes": [
+    "1m",
+    "5m",
+    "15m",
+    "1h",
+    "4h"
+  ],
+  "valid_symbols_count": 3
+}

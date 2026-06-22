@@ -1,0 +1,30 @@
+{
+  "freshness_seconds": 38.60774827003479,
+  "go_no_go": "V2_LIQUIDATION_WSS_CLIENT_PAPER_SHADOW_READY",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "owner": "CLAUDE",
+  "redaction_applied": false,
+  "report_id": "liquidation_wss_daemon",
+  "sanitized_summary": {
+    "go_no_go": "V2_LIQUIDATION_WSS_CLIENT_PAPER_SHADOW_READY",
+    "pruned": {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "generated_at": "2026-06-22T00:27:51Z",
+      "generated_utc": "2026-06-22T00:27:51Z",
+      "go_no_go": "V2_LIQUIDATION_WSS_CLIENT_PAPER_SHADOW_READY",
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "schema_version": "v2_liquidation_wss_client_status_v2"
+    },
+    "redaction_applied": false,
+    "redaction_token": null,
+    "status": "READY"
+  },
+  "stale": false,
+  "status": "READY",
+  "title": "Liquidation WSS Daemon"
+}

@@ -1,0 +1,56 @@
+{
+  "hedge_action_classification": "FAIL_CLOSED_UNTIL_PAPER_HEDGE_ENGINE",
+  "invariants": {
+    "action_labels": [
+      "hold",
+      "long",
+      "short",
+      "close",
+      "hedge"
+    ],
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "hedge_action_classification": "FAIL_CLOSED_UNTIL_PAPER_HEDGE_ENGINE",
+    "imports_numpy": false,
+    "imports_torch": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "model_source_classification": "V2_NATIVE_CPU_DETERMINISTIC_INIT_NO_CHECKPOINT",
+    "places_exchange_orders": false,
+    "uses_gpu": false,
+    "writes_legacy_redis": false,
+    "writes_model_artifact_by_default": false
+  },
+  "loss_after": 2.108177554676589,
+  "loss_before": 2.352289044182715,
+  "missing_components": [
+    "ppo_clip_loss_MISSING_IN_P0_2B",
+    "value_function_head_MISSING_IN_P0_2B",
+    "gae_advantage_estimation_MISSING_IN_P0_2B",
+    "lagrangian_safety_constraint_MISSING_IN_P0_2B",
+    "checkpoint_weight_loading_DEFERRED_TO_P0_2C",
+    "cpu_training_loop_DEFERRED_TO_P0_2D",
+    "gpu_training_parity_DEFERRED_TO_P0_2E"
+  ],
+  "model_artifact_written": false,
+  "model_source_classification": "V2_NATIVE_CPU_DETERMINISTIC_INIT_NO_CHECKPOINT",
+  "policy_update_applied": true,
+  "reward_components_sum": {
+    "base_pnl_reward_bps": 122.02467511288879,
+    "constrained_safety_penalty_bps": 0.0,
+    "fee_aware_reward_bps": -41.890206996006725,
+    "hedge_reward_bps": 0.0
+  },
+  "reward_total_sum_bps": 80.13446811688208,
+  "safety_flags": [
+    "paper_only",
+    "no_torch",
+    "no_gpu",
+    "no_redis_writes",
+    "no_exchange_mutation",
+    "no_live_approval"
+  ],
+  "steps": 8,
+  "training_run_id": "v2_native_cpu_train_bf916d3aea2b96bf70495cdeaf441692"
+}

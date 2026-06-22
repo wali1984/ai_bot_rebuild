@@ -1,0 +1,150 @@
+{
+  "matrix_id": "legacy_audit_item_coverage_matrix_20260531",
+  "generated_at": "2026-05-31T05:30:00Z",
+  "source_of_truth": "V2_VS_LEGACY_AUDIT_2026-05-31.md (Section 7 Shutdown Readiness Scorecard)",
+  "items": [
+    {
+      "id": "L01_ohlcv_2000_depth",
+      "legacy_capability": "OHLCV 2000-candle depth per symbol/TF",
+      "legacy_key_pattern": "ohlcv:list:coinapi:{SYM}:{TF}",
+      "v2_status": "PARTIAL",
+      "v2_key_pattern": "v2:market:ohlcv:binance:{SYM}:{TF}",
+      "represented_in_tasks": ["claude_priority_missing_ingestor_service_20260531", "claude_priority_missing_dynamic_symbol_coverage_20260531"],
+      "evidence_pointer": "V2_VS_LEGACY_AUDIT_2026-05-31.md:108"
+    },
+    {
+      "id": "L02_realtime_price",
+      "legacy_capability": "Real-time price all 25 symbols",
+      "legacy_key_pattern": "price:{SYM}",
+      "v2_status": "PASS",
+      "v2_key_pattern": "v2:market:prices:{SYM}",
+      "represented_in_tasks": ["claude_priority_missing_v2_namespace_mapping_20260531"],
+      "evidence_pointer": "V2_VS_LEGACY_AUDIT_2026-05-31.md:107"
+    },
+    {
+      "id": "L03_funding_rate",
+      "legacy_capability": "Funding rate all 25 symbols",
+      "legacy_key_pattern": "kc:funding:{SYM}",
+      "v2_status": "PASS",
+      "v2_key_pattern": "v2:market:funding:{SYM}",
+      "represented_in_tasks": ["claude_priority_missing_v2_namespace_mapping_20260531"],
+      "evidence_pointer": "V2_VS_LEGACY_AUDIT_2026-05-31.md:110"
+    },
+    {
+      "id": "L04_open_interest",
+      "legacy_capability": "Open interest all 25 symbols",
+      "legacy_key_pattern": "kc:open_interest:{SYM}",
+      "v2_status": "PASS",
+      "v2_key_pattern": "v2:market:open_interest:{SYM}",
+      "represented_in_tasks": ["claude_priority_missing_v2_namespace_mapping_20260531"],
+      "evidence_pointer": "V2_VS_LEGACY_AUDIT_2026-05-31.md:111"
+    },
+    {
+      "id": "L05_ta_160_field_flat_hash",
+      "legacy_capability": "TA 160-field flat hash per symbol/TF",
+      "legacy_key_pattern": "ta:{SYM}:{TF}",
+      "v2_status": "BLOCKED_structural_mismatch",
+      "v2_key_pattern": "v2:technical_analysis:{SYM}:{TF} (nested JSON, 11 meta-fields)",
+      "represented_in_tasks": ["claude_priority_feature_ta_missing_fields_20260531"],
+      "evidence_pointer": "V2_VS_LEGACY_AUDIT_2026-05-31.md:121-122"
+    },
+    {
+      "id": "L06_unified_features_562_field",
+      "legacy_capability": "Unified features 562-field per symbol/TF",
+      "legacy_key_pattern": "unified_features:{SYM}:{TF}",
+      "v2_status": "BLOCKED_full_legacy_unified_feature_builder_missing",
+      "v2_key_pattern": "v2:unified_features:{SYM}:{TF} (14 fields liquidation-only)",
+      "represented_in_tasks": ["claude_priority_feature_ta_missing_fields_20260531", "claude_priority_trainer_data_feed_gaps_20260531"],
+      "evidence_pointer": "V2_VS_LEGACY_AUDIT_2026-05-31.md:130-132"
+    },
+    {
+      "id": "L07_coinank_intelligence",
+      "legacy_capability": "CoinAnk 2,400+ feature keys",
+      "legacy_key_pattern": "features:coinank:*",
+      "v2_status": "BLOCKED_stale_expiring",
+      "v2_key_pattern": "features:coinank:* (961 stale, no new writes since 2026-05-26)",
+      "represented_in_tasks": ["claude_priority_stale_ingestor_payload_20260531", "claude_priority_missing_ingestor_service_20260531"],
+      "evidence_pointer": "V2_VS_LEGACY_AUDIT_2026-05-31.md:149-152"
+    },
+    {
+      "id": "L08_microstructure_27_fields",
+      "legacy_capability": "Microstructure 27 fields",
+      "legacy_key_pattern": "microfeat:{SYM}:1m",
+      "v2_status": "MISSING_EVIDENCE",
+      "v2_key_pattern": "none",
+      "represented_in_tasks": ["claude_priority_missing_ingestor_service_20260531", "claude_priority_feature_ta_missing_fields_20260531"],
+      "evidence_pointer": "V2_VS_LEGACY_AUDIT_2026-05-31.md:113"
+    },
+    {
+      "id": "L09_toxicity_score",
+      "legacy_capability": "Toxicity score per symbol",
+      "legacy_key_pattern": "toxicity:{SYM}",
+      "v2_status": "MISSING_EVIDENCE",
+      "v2_key_pattern": "none",
+      "represented_in_tasks": ["claude_priority_feature_ta_missing_fields_20260531", "claude_priority_trainer_data_feed_gaps_20260531"],
+      "evidence_pointer": "V2_VS_LEGACY_AUDIT_2026-05-31.md:87"
+    },
+    {
+      "id": "L10_regime_detection",
+      "legacy_capability": "Regime detection per symbol",
+      "legacy_key_pattern": "regime:{SYM}",
+      "v2_status": "MISSING_EVIDENCE",
+      "v2_key_pattern": "none (regime_state_machine_hysteresis missing)",
+      "represented_in_tasks": ["claude_priority_feature_ta_missing_fields_20260531", "claude_priority_trainer_data_feed_gaps_20260531"],
+      "evidence_pointer": "V2_VS_LEGACY_AUDIT_2026-05-31.md:88,132"
+    },
+    {
+      "id": "L11_ai_predictions_ppo_masa",
+      "legacy_capability": "AI predictions (PPO+MASA) per symbol/TF",
+      "legacy_key_pattern": "prediction:{SYM}:{TF}",
+      "v2_status": "BLOCKED_native_trainer_not_implemented",
+      "v2_key_pattern": "v2:prediction:{SYM}:{TF} (gate/status JSON only, 0/6 components)",
+      "represented_in_tasks": ["claude_priority_trainer_data_feed_gaps_20260531", "claude_priority_paper_decision_lineage_missing_20260531"],
+      "evidence_pointer": "V2_VS_LEGACY_AUDIT_2026-05-31.md:140-143"
+    },
+    {
+      "id": "L12_trading_signals_stream",
+      "legacy_capability": "Live trading signals stream",
+      "legacy_key_pattern": "signals:trading:primary",
+      "v2_status": "BLOCKED_frozen_since_20260513",
+      "v2_key_pattern": "v2:signals:paper (no upstream predictions)",
+      "represented_in_tasks": ["claude_priority_paper_decision_lineage_missing_20260531", "claude_priority_trainer_data_feed_gaps_20260531"],
+      "evidence_pointer": "V2_VS_LEGACY_AUDIT_2026-05-31.md:158"
+    },
+    {
+      "id": "L13_live_trade_execution",
+      "legacy_capability": "Live trade execution (stealth stops, TP, hedging)",
+      "legacy_key_pattern": "executed_signals",
+      "v2_status": "BLOCKED_live_gate_blocked_human_only",
+      "v2_key_pattern": "v2_trade_management_paper_loop (8/18 components, 10 missing)",
+      "represented_in_tasks": ["claude_priority_paper_decision_lineage_missing_20260531"],
+      "evidence_pointer": "V2_VS_LEGACY_AUDIT_2026-05-31.md:172"
+    },
+    {
+      "id": "L14_tokenmetrics_18_endpoints",
+      "legacy_capability": "TokenMetrics 18 endpoints",
+      "legacy_key_pattern": "tm:last_run:*",
+      "v2_status": "BLOCKED_stale",
+      "v2_key_pattern": "tm:* (6 stale keys, writer not running)",
+      "represented_in_tasks": ["claude_priority_stale_ingestor_payload_20260531", "claude_priority_missing_ingestor_service_20260531"],
+      "evidence_pointer": "V2_VS_LEGACY_AUDIT_2026-05-31.md:178-180"
+    },
+    {
+      "id": "L15_orderbook_depth",
+      "legacy_capability": "Orderbook depth all 25 symbols",
+      "legacy_key_pattern": "orderbook:top:{SYM}",
+      "v2_status": "MISSING_EVIDENCE",
+      "v2_key_pattern": "none",
+      "represented_in_tasks": ["claude_priority_missing_ingestor_service_20260531"],
+      "evidence_pointer": "V2_VS_LEGACY_AUDIT_2026-05-31.md:109"
+    }
+  ],
+  "summary": {
+    "total": 15,
+    "represented": 15,
+    "pass": 3,
+    "partial": 1,
+    "blocked": 7,
+    "missing_evidence": 4
+  }
+}

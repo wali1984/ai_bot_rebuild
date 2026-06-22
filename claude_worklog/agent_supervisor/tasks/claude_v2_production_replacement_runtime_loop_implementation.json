@@ -1,0 +1,22 @@
+{
+  "agent": "claude",
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/v2_production_replacement_runtime/latest/claude_remediation/",
+    "v2/frontend/public/v2_production_replacement_runtime/latest/"
+  ],
+  "blocked_by": [],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "lane": "primary_claude_lane",
+  "next_gate": "V2_PRODUCTION_REPLACEMENT_RUNTIME_LOOP_IMPLEMENTATION_READY",
+  "next_recommended_action": "After implementation, rerun codex_production_replacement_runtime_governor.py --once.",
+  "prompt": "Implement V2 production-equivalent paper/shadow runtime loops. Work only in AI BOT REBUILD. Do not modify /home/wali/Desktop/AI BOT. Do not stop legacy. Do not write old Redis. Do not place/cancel/modify orders. Do not change leverage or margin. Do not enable live. live_gate remains blocked_human_only and live_symbols remains []. Required running loops: v2_native_ingestors_live_loop, v2_feature_pipeline_native_loop, v2_rl_core_inference_loop, v2_orchestrator_arbitration_loop, v2_trade_management_paper_loop, and a runtime guard. They must write only v2:* Redis namespace keys: v2:market:*, v2:features:*, v2:prediction:*, v2:orchestrator:*, v2:paper:*; never legacy production keys. Payloads must be fresh, V2-owned, and not mock/static/current-truth fixtures. Current blockers from Codex governor: LEGACY_STILL_OWNS_PRODUCTION_RUNTIME; LEGACY_PRODUCTION_REDIS_KEYS_STILL_ACTIVE; PAYLOADS_CONTAIN_MOCK_STATIC_OR_FIXTURE_TERMS: v2_native_ingestors_live; V2_SOURCE_STILL_SELF_DECLARES_MISSING_OR_NO_SHUTDOWN_APPROVAL",
+  "required_output_files": [
+    "claude_worklog/final_readiness/v2_production_replacement_runtime/latest/claude_remediation/PRODUCTION_REPLACEMENT_RUNTIME_LOOP_IMPLEMENTATION_REPORT.md",
+    "claude_worklog/final_readiness/v2_production_replacement_runtime/latest/claude_remediation/production_replacement_runtime_loop_status.json",
+    "v2/frontend/public/v2_production_replacement_runtime/latest/operator_dashboard_payload.json"
+  ],
+  "risk_level": "L2",
+  "status": "pending",
+  "task_id": "claude_v2_production_replacement_runtime_loop_implementation"
+}

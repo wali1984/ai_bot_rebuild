@@ -1,0 +1,30 @@
+{
+  "schema_version": "codex_review_status_v1",
+  "milestone": "v2_copied_runtime_burn_in_remediation_execution",
+  "generated_est": "2026-05-31T00:12:46-0400",
+  "go_no_go": "V2_COPIED_RUNTIME_BURN_IN_REMEDIATION_EXECUTION_CODEX_PASS",
+  "codex_passed": true,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false,
+  "writes_old_redis": false,
+  "calls_exchange_mutation": false,
+  "places_real_order": false,
+  "leverage_changed": false,
+  "margin_mode_changed": false,
+  "safe_fixes_applied": [
+    "captured 45 current rendered route screenshots",
+    "updated screenshot proof status and public mirror",
+    "refreshed stale payload evidence",
+    "registered remediation execution lane in Report Center"
+  ],
+  "residual_live_blockers_preserved": [
+    "paper_edge_not_proven",
+    "paper_pnl_negative",
+    "operator_edge_thresholds_not_set",
+    "liquidation_event_flow_not_operationally_proven"
+  ]
+}

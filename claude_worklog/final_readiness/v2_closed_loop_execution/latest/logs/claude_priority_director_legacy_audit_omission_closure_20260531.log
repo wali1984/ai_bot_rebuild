@@ -1,0 +1,1160 @@
+Gathered the evidence. The current dashboard freshness report shows 13 stale payloads, 1 static fixture (enterprise cockpit), and 1 active missing-evidence row (V2_LIVE_OBSERVER_SHADOW_TWIN). Website truth is not aligned to current runtime evidence, so the priority gate must close BLOCKED. Emitting Planner files now.
+
+BEGIN_FILE: claude_worklog/final_readiness/priority_omission_closure/latest/PRIORITY_DIRECTOR_GO_NO_GO.md
+PRIORITY_OMISSION_CLOSURE_BLOCKED
+END_FILE
+
+BEGIN_FILE: claude_worklog/final_readiness/priority_omission_closure/latest/PRIORITY_DIRECTOR_SUMMARY.md
+# Priority Director — Omission Closure Summary
+
+Generated at: 2026-05-31T00:00:00Z
+Branch: master
+Live trading status: blocked_human_only (unchanged)
+Legacy mutation: none (read-only)
+Old Redis writes: none
+
+## Gate result
+PRIORITY_OMISSION_CLOSURE_BLOCKED
+
+## Blocking conditions (all must clear for READY)
+1. WEBSITE_TRUTH_ALIGNED_TO_RUNTIME — currently FAIL. Dashboard freshness report (`claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md`) reports 13 stale payloads, 1 static fixture, 1 missing evidence row over 16 payloads checked.
+2. OMISSION_LEDGER_FULL_COVERAGE — currently FAIL. `OMISSION_BLOCKER_LEDGER.json` enumerates open omission IDs where `blocker_state != closed` and `active_task_descriptor != null`. Until every entry in that ledger lists either `closed` or a live task descriptor, this gate stays BLOCKED.
+3. LEGACY_AUDIT_ITEM_COVERAGE — currently FAIL. `LEGACY_AUDIT_ITEM_COVERAGE_MATRIX.json` requires every audit item under `claude_worklog/legacy_runtime_audit/`, `claude_worklog/legacy_readonly_audit/`, `claude_worklog/legacy_forensic_audit/`, and `claude_worklog/historical_pnl_audit/` to map to a coverage entry. Items without raw-evidence pointer remain `MISSING_EVIDENCE`.
+4. DATA_SOURCE_VALIDATION_COMPLETE — currently FAIL. `DATA_SOURCE_VALIDATION_MATRIX.json` flags any data source with `validation_status != PASS` as BLOCKED or MISSING_EVIDENCE. Stale runtime payloads listed above keep multiple sources non-PASS.
+
+## Boundary reminders applied to this turn
+- Read-only against `legacy_reference/`, `../AI BOT/`, secrets.
+- No order/cancel/leverage/margin actions; no live trader/trainer restart; no old-Redis writes.
+- Outputs are BEGIN_FILE blocks only — harness materializes the files.
+- Coverage override: any uncertain item is recorded as MISSING_EVIDENCE rather than asserted as resolved.
+END_FILE
+
+BEGIN_FILE: claude_worklog/final_readiness/priority_omission_closure/latest/OMISSION_BLOCKER_LEDGER.json
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-05-31T00:00:00Z",
+  "scope": "Active omissions that must each have a task descriptor and explicit blocker state.",
+  "gate": "PRIORITY_OMISSION_CLOSURE",
+  "gate_state": "BLOCKED",
+  "rule": "An entry counts as resolved only when blocker_state == 'closed' AND active_task_descriptor != null AND raw_evidence_pointer != null.",
+  "omissions": [
+    {
+      "omission_id": "OMI-001-LIVE_OBSERVER_SHADOW_TWIN_STALE",
+      "summary": "V2 live observer shadow twin payload missing or stale; GUI cannot display legacy read-only bridge evidence beside V2 paper truth.",
+      "source_evidence": [
+        "claude_worklog/final_readiness/operator_truth_recovery/latest/MISSING_EVIDENCE_REGISTER.md",
+        "v2/frontend/public/operator_runtime/live_observer/latest/current_runtime_truth_payload.json (stale, age=364638s)"
+      ],
+      "blocker_state": "blocked_runtime_evidence",
+      "blocker_detail": "Live observer build pipeline has not produced a fresh payload since 2026-05-12; freshness threshold for operator dashboard is <86400s.",
+      "active_task_descriptor": "claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-001_refresh_live_observer_shadow_twin.json",
+      "remediation_command": "cd v2/frontend && npm run build:live-observer",
+      "owner": "automation_liveness",
+      "live_safety": "read_only",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:21"
+    },
+    {
+      "omission_id": "OMI-002-MISSION_CONTROL_LEGACY_RUNTIME_MONITOR_STALE",
+      "summary": "Mission Control legacy runtime monitor strip is flagged stale and missing evidence in current website truth audit.",
+      "source_evidence": [
+        "claude_worklog/final_readiness/operator_truth_recovery/latest/CURRENT_WEBSITE_TRUTH_AUDIT.md:8"
+      ],
+      "blocker_state": "blocked_runtime_evidence",
+      "blocker_detail": "operator_truth_payload still references legacy bridge fields without a freshness-bound runtime source; current strip risks operator misinterpretation.",
+      "active_task_descriptor": "claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-002_realtime_legacy_monitor_refresh.json",
+      "remediation_command": "python tools/realtime_legacy_monitoring_continuity/refresh.py --read_only --update v2/frontend/public/realtime_legacy_monitoring_continuity/latest/",
+      "owner": "realtime_legacy_monitoring_continuity",
+      "live_safety": "read_only",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:16"
+    },
+    {
+      "omission_id": "OMI-003-TRAINER_PREDICTION_PREVIEW_STATIC_FIXTURE",
+      "summary": "Mission Control trainer prediction preview is sourced from a static proof fixture and marked stale/missing evidence.",
+      "source_evidence": [
+        "claude_worklog/final_readiness/operator_truth_recovery/latest/CURRENT_WEBSITE_TRUTH_AUDIT.md:9"
+      ],
+      "blocker_state": "blocked_runtime_evidence",
+      "blocker_detail": "Preview is wired to STATIC_PROOF_FIXTURE; V2 must bind to the V2_PAPER_TRAINER_WRAPPER_CURRENT runtime stream or display MISSING_EVIDENCE state.",
+      "active_task_descriptor": "claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-003_trainer_prediction_preview_runtime_bind.json",
+      "remediation_command": "python tools/realtime_legacy_monitoring_continuity/trainer_prediction_monitor.py --read_only --emit v2/frontend/public/realtime_legacy_monitoring_continuity/latest/trainer_prediction_monitor_status.json",
+      "owner": "realtime_legacy_monitoring_continuity",
+      "live_safety": "read_only",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:17"
+    },
+    {
+      "omission_id": "OMI-004-ENTERPRISE_COCKPIT_STATIC_FIXTURE",
+      "summary": "Enterprise cockpit payload is a STATIC_PROOF_FIXTURE (age=611165s); not a current runtime snapshot.",
+      "source_evidence": [
+        "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:15"
+      ],
+      "blocker_state": "blocked_runtime_evidence",
+      "blocker_detail": "Fixture must be labeled STATIC_PROOF_FIXTURE in GUI and a parallel runtime source emitted; otherwise operator cockpit reads as live truth.",
+      "active_task_descriptor": "claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-004_enterprise_cockpit_runtime_emitter.json",
+      "remediation_command": "python tools/enterprise_trading_cockpit/emit_runtime.py --read_only --emit v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json",
+      "owner": "enterprise_trading_cockpit",
+      "live_safety": "read_only",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:15"
+    },
+    {
+      "omission_id": "OMI-005-MASTER_PLANNER_STATUS_STALE",
+      "summary": "Master rebuild planner status payload is stale (age=450591s); operator dashboard cannot show current planner state.",
+      "source_evidence": [
+        "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:13"
+      ],
+      "blocker_state": "blocked_runtime_evidence",
+      "blocker_detail": "Planner heartbeat must refresh `claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json` on every turn.",
+      "active_task_descriptor": "claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-005_master_planner_heartbeat.json",
+      "remediation_command": "python tools/agent_supervisor/refresh_master_planner_status.py --read_only",
+      "owner": "agent_supervisor",
+      "live_safety": "read_only",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:13"
+    },
+    {
+      "omission_id": "OMI-006-AUTONOMOUS_GOVERNOR_SELECTION_STALE",
+      "summary": "Autonomous governor next-task selection payload is stale (age=95693s).",
+      "source_evidence": [
+        "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:14"
+      ],
+      "blocker_state": "blocked_runtime_evidence",
+      "blocker_detail": "Governor must regenerate `claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json` within 3600s window.",
+      "active_task_descriptor": "claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-006_autonomous_governor_refresh.json",
+      "remediation_command": "python tools/autonomous_governor/select_next_task.py --read_only",
+      "owner": "autonomous_governor",
+      "live_safety": "read_only",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:14"
+    },
+    {
+      "omission_id": "OMI-007-REALTIME_LEGACY_RUNTIME_SOURCES_STALE",
+      "summary": "Realtime legacy runtime sources payload is stale (age=496747s).",
+      "source_evidence": [
+        "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:16"
+      ],
+      "blocker_state": "blocked_runtime_evidence",
+      "blocker_detail": "Read-only legacy bridge must emit fresh current_runtime_sources.json.",
+      "active_task_descriptor": "claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-007_legacy_runtime_sources_refresh.json",
+      "remediation_command": "python tools/realtime_legacy_monitoring_continuity/refresh_sources.py --read_only",
+      "owner": "realtime_legacy_monitoring_continuity",
+      "live_safety": "read_only",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:16"
+    },
+    {
+      "omission_id": "OMI-008-SIGNAL_EXECUTION_MONITOR_STALE",
+      "summary": "Signal execution monitor status payload is stale (age=496747s).",
+      "source_evidence": [
+        "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:18"
+      ],
+      "blocker_state": "blocked_runtime_evidence",
+      "blocker_detail": "Signal-execution monitor must refresh status JSON before being trusted by GUI.",
+      "active_task_descriptor": "claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-008_signal_execution_monitor_refresh.json",
+      "remediation_command": "python tools/realtime_legacy_monitoring_continuity/signal_execution_monitor.py --read_only",
+      "owner": "realtime_legacy_monitoring_continuity",
+      "live_safety": "read_only",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:18"
+    },
+    {
+      "omission_id": "OMI-009-RISK_GATEWAY_OBSERVATION_STALE",
+      "summary": "Risk gateway observation status payload is stale (age=496747s).",
+      "source_evidence": [
+        "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:19"
+      ],
+      "blocker_state": "blocked_runtime_evidence",
+      "blocker_detail": "Risk-gateway observer must regenerate status JSON; otherwise GUI risk gate panel reflects stale state.",
+      "active_task_descriptor": "claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-009_risk_gateway_observer_refresh.json",
+      "remediation_command": "python tools/risk_gateway_canary_hard_gates/observe.py --read_only",
+      "owner": "risk_gateway_canary_hard_gates",
+      "live_safety": "read_only",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:19"
+    },
+    {
+      "omission_id": "OMI-010-PHASE3C_RUNTIME_MONITOR_STALE",
+      "summary": "Phase3c runtime monitor payload is stale (age=590909s).",
+      "source_evidence": [
+        "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:20"
+      ],
+      "blocker_state": "blocked_runtime_evidence",
+      "blocker_detail": "Phase3c runtime monitor verification must re-emit operator_dashboard_payload.json.",
+      "active_task_descriptor": "claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-010_phase3c_runtime_monitor_refresh.json",
+      "remediation_command": "python tools/phase3c_runtime_monitor_verification/refresh.py --read_only",
+      "owner": "phase3c_runtime_monitor_verification",
+      "live_safety": "read_only",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:20"
+    },
+    {
+      "omission_id": "OMI-011-LEGACY_TRAINER_RESTART_RUNTIME_STALE",
+      "summary": "Legacy trainer restart runtime capture payload is stale (age=377692s).",
+      "source_evidence": [
+        "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:22"
+      ],
+      "blocker_state": "blocked_runtime_evidence",
+      "blocker_detail": "Read-only capture of legacy trainer restart status must be refreshed without restarting the live trainer.",
+      "active_task_descriptor": "claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-011_legacy_trainer_restart_capture.json",
+      "remediation_command": "python tools/legacy_trainer_restart_runtime/capture.py --read_only --no_mutate",
+      "owner": "legacy_trainer_restart_runtime",
+      "live_safety": "read_only",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:22"
+    },
+    {
+      "omission_id": "OMI-012-ORCHESTRATOR_EVIDENCE_RECONCILIATION_STALE",
+      "summary": "Orchestrator evidence reconciliation payload is stale (age=443181s).",
+      "source_evidence": [
+        "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:23"
+      ],
+      "blocker_state": "blocked_runtime_evidence",
+      "blocker_detail": "Orchestrator decision-evidence reconciliation must re-emit operator_dashboard_payload.json with current snapshot.",
+      "active_task_descriptor": "claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-012_orchestrator_evidence_reconciliation_refresh.json",
+      "remediation_command": "python tools/orchestrator_decision_evidence_reconciliation/refresh.py --read_only",
+      "owner": "orchestrator_decision_evidence_reconciliation",
+      "live_safety": "read_only",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:23"
+    },
+    {
+      "omission_id": "OMI-013-READONLY_MARKET_DATA_PLANE_STALE",
+      "summary": "Read-only market exchange data-plane payload is stale (age=611105s).",
+      "source_evidence": [
+        "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:24"
+      ],
+      "blocker_state": "blocked_runtime_evidence",
+      "blocker_detail": "Read-only market data-plane emitter must refresh operator_dashboard_payload.json without placing or cancelling orders.",
+      "active_task_descriptor": "claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-013_readonly_market_data_plane_refresh.json",
+      "remediation_command": "python tools/readonly_market_exchange_data_plane/refresh.py --read_only --no_orders",
+      "owner": "readonly_market_exchange_data_plane",
+      "live_safety": "read_only",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:24"
+    },
+    {
+      "omission_id": "OMI-014-CONTINUOUS_PAPER_SHADOW_RUNTIME_STALE",
+      "summary": "Continuous paper shadow runtime payload (paper_runtime_status.json) is stale (age=623822s).",
+      "source_evidence": [
+        "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:25"
+      ],
+      "blocker_state": "blocked_runtime_evidence",
+      "blocker_detail": "Continuous paper-shadow runtime must refresh status JSON; required for paper-only canonical truth bridge to remain valid.",
+      "active_task_descriptor": "claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-014_continuous_paper_shadow_runtime_refresh.json",
+      "remediation_command": "python tools/continuous_paper_shadow_runtime/refresh.py --paper_only",
+      "owner": "continuous_paper_shadow_runtime",
+      "live_safety": "paper_only",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:25"
+    }
+  ],
+  "summary": {
+    "total_omissions": 14,
+    "closed": 0,
+    "blocked_runtime_evidence": 14,
+    "blocked_human_only": 0,
+    "missing_evidence": 0,
+    "next_action": "Operator must execute the per-omission remediation_command list; each emits a fresh runtime payload. Once every payload is <86400s old and every entry has raw_evidence_pointer to a current artifact, blocker_state transitions to 'closed'."
+  }
+}
+END_FILE
+
+BEGIN_FILE: claude_worklog/final_readiness/priority_omission_closure/latest/LEGACY_AUDIT_ITEM_COVERAGE_MATRIX.json
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-05-31T00:00:00Z",
+  "scope": "Every legacy audit item discovered under read-only legacy audit roots must appear here with a coverage_state.",
+  "coverage_states": ["COVERED", "PARTIAL", "MISSING_EVIDENCE", "UNVERIFIED"],
+  "audit_roots_scanned": [
+    "claude_worklog/legacy_runtime_audit/",
+    "claude_worklog/legacy_readonly_audit/",
+    "claude_worklog/legacy_forensic_audit/",
+    "claude_worklog/legacy_preservation/",
+    "claude_worklog/legacy_failure_cases/",
+    "claude_worklog/historical_pnl_audit/",
+    "claude_worklog/final_readiness/02_LEGACY_AUDIT_SUMMARY.md"
+  ],
+  "items": [
+    {
+      "audit_item_id": "LAUDIT-001-LEGACY_RUNTIME_AUDIT_GO_NO_GO",
+      "title": "Legacy runtime audit final GO/NO-GO",
+      "source": "claude_worklog/legacy_runtime_audit/12_LEGACY_AUDIT_GO_NO_GO.md",
+      "coverage_state": "COVERED",
+      "raw_evidence_pointer": "claude_worklog/legacy_runtime_audit/12_LEGACY_AUDIT_GO_NO_GO.md",
+      "verification_command": "sha256sum 'claude_worklog/legacy_runtime_audit/12_LEGACY_AUDIT_GO_NO_GO.md'",
+      "confidence": "high",
+      "missing_evidence": null,
+      "linked_omission_ids": []
+    },
+    {
+      "audit_item_id": "LAUDIT-002-LEGACY_AUDIT_SUMMARY",
+      "title": "Final readiness legacy audit summary index",
+      "source": "claude_worklog/final_readiness/02_LEGACY_AUDIT_SUMMARY.md",
+      "coverage_state": "PARTIAL",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/02_LEGACY_AUDIT_SUMMARY.md",
+      "verification_command": "wc -l 'claude_worklog/final_readiness/02_LEGACY_AUDIT_SUMMARY.md'",
+      "confidence": "medium",
+      "missing_evidence": "Summary currently 4 lines; needs cross-reference list per audit subdomain.",
+      "linked_omission_ids": []
+    },
+    {
+      "audit_item_id": "LAUDIT-003-LEGACY_FORENSIC_AUDIT",
+      "title": "Legacy forensic audit corpus",
+      "source": "claude_worklog/legacy_forensic_audit/",
+      "coverage_state": "UNVERIFIED",
+      "raw_evidence_pointer": "claude_worklog/legacy_forensic_audit/",
+      "verification_command": "ls 'claude_worklog/legacy_forensic_audit/'",
+      "confidence": "medium",
+      "missing_evidence": "Per-file raw-evidence index not yet generated for the forensic audit directory.",
+      "linked_omission_ids": []
+    },
+    {
+      "audit_item_id": "LAUDIT-004-LEGACY_READONLY_AUDIT",
+      "title": "Legacy read-only audit corpus",
+      "source": "claude_worklog/legacy_readonly_audit/",
+      "coverage_state": "UNVERIFIED",
+      "raw_evidence_pointer": "claude_worklog/legacy_readonly_audit/",
+      "verification_command": "ls 'claude_worklog/legacy_readonly_audit/'",
+      "confidence": "medium",
+      "missing_evidence": "Per-file raw-evidence index pending.",
+      "linked_omission_ids": []
+    },
+    {
+      "audit_item_id": "LAUDIT-005-LEGACY_PRESERVATION",
+      "title": "Legacy preservation artifacts",
+      "source": "claude_worklog/legacy_preservation/",
+      "coverage_state": "UNVERIFIED",
+      "raw_evidence_pointer": "claude_worklog/legacy_preservation/",
+      "verification_command": "ls 'claude_worklog/legacy_preservation/'",
+      "confidence": "medium",
+      "missing_evidence": "Per-file hash manifest pending.",
+      "linked_omission_ids": []
+    },
+    {
+      "audit_item_id": "LAUDIT-006-LEGACY_FAILURE_CASES",
+      "title": "Legacy failure case catalogue",
+      "source": "claude_worklog/legacy_failure_cases/",
+      "coverage_state": "UNVERIFIED",
+      "raw_evidence_pointer": "claude_worklog/legacy_failure_cases/",
+      "verification_command": "ls 'claude_worklog/legacy_failure_cases/'",
+      "confidence": "medium",
+      "missing_evidence": "Coverage mapping to V2 regression tests pending.",
+      "linked_omission_ids": []
+    },
+    {
+      "audit_item_id": "LAUDIT-007-HISTORICAL_PNL_AUDIT_DATA_SOURCES",
+      "title": "Historical PnL data source status",
+      "source": "claude_worklog/historical_pnl_audit/01_DATA_SOURCE_STATUS.md",
+      "coverage_state": "COVERED",
+      "raw_evidence_pointer": "claude_worklog/historical_pnl_audit/01_DATA_SOURCE_STATUS.md",
+      "verification_command": "sha256sum 'claude_worklog/historical_pnl_audit/01_DATA_SOURCE_STATUS.md'",
+      "confidence": "high",
+      "missing_evidence": null,
+      "linked_omission_ids": []
+    },
+    {
+      "audit_item_id": "LAUDIT-008-TRAINER_DATA_SOURCES_COMPLETE",
+      "title": "Trainer data source completeness reference",
+      "source": "legacy_reference/TRAINER_DATA_SOURCES_COMPLETE.md",
+      "coverage_state": "COVERED",
+      "raw_evidence_pointer": "legacy_reference/TRAINER_DATA_SOURCES_COMPLETE.md",
+      "verification_command": "sha256sum 'legacy_reference/TRAINER_DATA_SOURCES_COMPLETE.md'",
+      "confidence": "high",
+      "missing_evidence": null,
+      "linked_omission_ids": []
+    },
+    {
+      "audit_item_id": "LAUDIT-009-FULL_LEGACY_ROOT_FILESYSTEM_INVENTORY",
+      "title": "Full legacy root filesystem inventory",
+      "source": "claude_worklog/final_readiness/full_legacy_root_filesystem_inventory/",
+      "coverage_state": "UNVERIFIED",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/full_legacy_root_filesystem_inventory/",
+      "verification_command": "ls 'claude_worklog/final_readiness/full_legacy_root_filesystem_inventory/'",
+      "confidence": "medium",
+      "missing_evidence": "Inventory not yet collapsed into a single manifest with hashes.",
+      "linked_omission_ids": []
+    },
+    {
+      "audit_item_id": "LAUDIT-010-LEGACY_BASED_WORKER_PORTING_ENFORCEMENT",
+      "title": "Legacy-based worker porting enforcement",
+      "source": "claude_worklog/final_readiness/legacy_based_worker_porting_enforcement/",
+      "coverage_state": "UNVERIFIED",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/legacy_based_worker_porting_enforcement/",
+      "verification_command": "ls 'claude_worklog/final_readiness/legacy_based_worker_porting_enforcement/'",
+      "confidence": "medium",
+      "missing_evidence": "Per-worker mapping table needed.",
+      "linked_omission_ids": []
+    },
+    {
+      "audit_item_id": "LAUDIT-011-LEGACY_EXECUTION_CONTAINMENT",
+      "title": "Legacy execution containment evidence",
+      "source": "claude_worklog/final_readiness/legacy_execution_containment/",
+      "coverage_state": "UNVERIFIED",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/legacy_execution_containment/",
+      "verification_command": "ls 'claude_worklog/final_readiness/legacy_execution_containment/'",
+      "confidence": "medium",
+      "missing_evidence": "Containment proof requires runtime sample showing zero exchange action.",
+      "linked_omission_ids": []
+    },
+    {
+      "audit_item_id": "LAUDIT-012-LEGACY_LIVE_BRIDGE_TO_V2_DATA_PLANE",
+      "title": "Legacy live bridge to V2 data plane",
+      "source": "claude_worklog/final_readiness/legacy_live_bridge_to_v2_data_plane/",
+      "coverage_state": "PARTIAL",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/legacy_live_bridge_to_v2_data_plane/",
+      "verification_command": "ls 'claude_worklog/final_readiness/legacy_live_bridge_to_v2_data_plane/'",
+      "confidence": "medium",
+      "missing_evidence": "Live bridge evidence depends on fresh live observer shadow twin payload (OMI-001).",
+      "linked_omission_ids": ["OMI-001-LIVE_OBSERVER_SHADOW_TWIN_STALE"]
+    },
+    {
+      "audit_item_id": "LAUDIT-013-LEGACY_RL_RISK_TRAINER_TRADER_CLOSURE",
+      "title": "Legacy RL risk/trainer/trader closure",
+      "source": "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/",
+      "coverage_state": "UNVERIFIED",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/",
+      "verification_command": "ls 'claude_worklog/final_readiness/legacy_rl_risk_trainer_trader_closure/'",
+      "confidence": "medium",
+      "missing_evidence": "Closure proof not yet anchored to runtime restart capture (OMI-011).",
+      "linked_omission_ids": ["OMI-011-LEGACY_TRAINER_RESTART_RUNTIME_STALE"]
+    },
+    {
+      "audit_item_id": "LAUDIT-014-LEGACY_STARTUP_BASELINE_V2_MIGRATION",
+      "title": "Legacy startup baseline → V2 migration",
+      "source": "claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/",
+      "coverage_state": "UNVERIFIED",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/",
+      "verification_command": "ls 'claude_worklog/final_readiness/legacy_startup_baseline_v2_migration/'",
+      "confidence": "medium",
+      "missing_evidence": "Side-by-side startup manifest parity check pending.",
+      "linked_omission_ids": []
+    },
+    {
+      "audit_item_id": "LAUDIT-015-LEGACY_TRAINER_GPU_PARITY",
+      "title": "Legacy trainer GPU parity",
+      "source": "claude_worklog/final_readiness/legacy_trainer_gpu_parity/",
+      "coverage_state": "UNVERIFIED",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/legacy_trainer_gpu_parity/",
+      "verification_command": "ls 'claude_worklog/final_readiness/legacy_trainer_gpu_parity/'",
+      "confidence": "medium",
+      "missing_evidence": "Live nvidia-smi snapshot vs trainer expected device map needs evidence packet.",
+      "linked_omission_ids": []
+    },
+    {
+      "audit_item_id": "LAUDIT-016-LEGACY_TRAINER_RESTART_RUNTIME",
+      "title": "Legacy trainer restart runtime capture",
+      "source": "claude_worklog/final_readiness/legacy_trainer_restart_runtime/",
+      "coverage_state": "PARTIAL",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/legacy_trainer_restart_runtime/",
+      "verification_command": "ls 'claude_worklog/final_readiness/legacy_trainer_restart_runtime/'",
+      "confidence": "medium",
+      "missing_evidence": "Current payload stale; tracked under OMI-011.",
+      "linked_omission_ids": ["OMI-011-LEGACY_TRAINER_RESTART_RUNTIME_STALE"]
+    },
+    {
+      "audit_item_id": "LAUDIT-017-SAFE_LEGACY_TRAINER_BRIDGE",
+      "title": "Safe legacy trainer bridge",
+      "source": "claude_worklog/final_readiness/safe_legacy_trainer_bridge/",
+      "coverage_state": "UNVERIFIED",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/safe_legacy_trainer_bridge/",
+      "verification_command": "ls 'claude_worklog/final_readiness/safe_legacy_trainer_bridge/'",
+      "confidence": "medium",
+      "missing_evidence": "Bridge boundary proof and adapter subprocess log not yet attached.",
+      "linked_omission_ids": []
+    },
+    {
+      "audit_item_id": "LAUDIT-018-LEGACY_V2_REALTIME_DECISION_OBSERVATORY",
+      "title": "Legacy/V2 realtime decision observatory",
+      "source": "claude_worklog/final_readiness/legacy_v2_realtime_decision_observatory/",
+      "coverage_state": "PARTIAL",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/legacy_v2_realtime_decision_observatory/",
+      "verification_command": "ls 'claude_worklog/final_readiness/legacy_v2_realtime_decision_observatory/'",
+      "confidence": "medium",
+      "missing_evidence": "Decision evidence reconciliation payload stale (OMI-012).",
+      "linked_omission_ids": ["OMI-012-ORCHESTRATOR_EVIDENCE_RECONCILIATION_STALE"]
+    },
+    {
+      "audit_item_id": "LAUDIT-019-LEGACY_COINANK_PLAN3_BRIDGE",
+      "title": "Legacy CoinAnk Plan3 bridge",
+      "source": "claude_worklog/final_readiness/legacy_coinank_plan3_bridge/",
+      "coverage_state": "UNVERIFIED",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/legacy_coinank_plan3_bridge/",
+      "verification_command": "ls 'claude_worklog/final_readiness/legacy_coinank_plan3_bridge/'",
+      "confidence": "medium",
+      "missing_evidence": "Bridge runtime evidence packet pending; CoinAnk ODT source in /home/wali/Downloads/coinanksymbols.odt.",
+      "linked_omission_ids": []
+    },
+    {
+      "audit_item_id": "LAUDIT-020-PRODUCTION_SHUTDOWN_AUDIT_RECONCILIATION",
+      "title": "Production shutdown audit reconciliation",
+      "source": "claude_worklog/final_readiness/production_shutdown_audit_reconciliation/",
+      "coverage_state": "UNVERIFIED",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/production_shutdown_audit_reconciliation/",
+      "verification_command": "ls 'claude_worklog/final_readiness/production_shutdown_audit_reconciliation/'",
+      "confidence": "medium",
+      "missing_evidence": "Shutdown reconciliation must cite live observer evidence (OMI-001).",
+      "linked_omission_ids": ["OMI-001-LIVE_OBSERVER_SHADOW_TWIN_STALE"]
+    },
+    {
+      "audit_item_id": "LAUDIT-021-V2_LEGACY_DATA_ZERO_EXCEPTION_PARITY",
+      "title": "V2 vs legacy zero-exception data parity and full runtime startup",
+      "source": "claude_worklog/final_readiness/v2_legacy_data_zero_exception_parity_and_full_runtime_startup/",
+      "coverage_state": "UNVERIFIED",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/v2_legacy_data_zero_exception_parity_and_full_runtime_startup/",
+      "verification_command": "ls 'claude_worklog/final_readiness/v2_legacy_data_zero_exception_parity_and_full_runtime_startup/'",
+      "confidence": "medium",
+      "missing_evidence": "Parity manifest not yet anchored to live runtime samples.",
+      "linked_omission_ids": []
+    },
+    {
+      "audit_item_id": "LAUDIT-022-V2_LEGACY_LOG_INTELLIGENCE",
+      "title": "V2/legacy log intelligence",
+      "source": "claude_worklog/final_readiness/v2_legacy_log_intelligence/",
+      "coverage_state": "UNVERIFIED",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/v2_legacy_log_intelligence/",
+      "verification_command": "ls 'claude_worklog/final_readiness/v2_legacy_log_intelligence/'",
+      "confidence": "medium",
+      "missing_evidence": "Log intelligence ledger not yet finalized.",
+      "linked_omission_ids": []
+    },
+    {
+      "audit_item_id": "LAUDIT-023-V2_LEGACY_RUNTIME_FREEZE_AND_PRIMARY_PAPER_CUTOVER",
+      "title": "V2/legacy runtime freeze and primary paper cutover",
+      "source": "claude_worklog/final_readiness/v2_legacy_runtime_freeze_and_primary_paper_cutover/",
+      "coverage_state": "UNVERIFIED",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/v2_legacy_runtime_freeze_and_primary_paper_cutover/",
+      "verification_command": "ls 'claude_worklog/final_readiness/v2_legacy_runtime_freeze_and_primary_paper_cutover/'",
+      "confidence": "medium",
+      "missing_evidence": "Cutover decision must reference fresh continuous paper shadow runtime (OMI-014).",
+      "linked_omission_ids": ["OMI-014-CONTINUOUS_PAPER_SHADOW_RUNTIME_STALE"]
+    },
+    {
+      "audit_item_id": "LAUDIT-024-V2_LEGACY_STARTUP_MANIFEST_PARITY_AND_BRIDGE_EXIT",
+      "title": "V2/legacy startup manifest parity and bridge exit",
+      "source": "claude_worklog/final_readiness/v2_legacy_startup_manifest_parity_and_bridge_exit/",
+      "coverage_state": "UNVERIFIED",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/v2_legacy_startup_manifest_parity_and_bridge_exit/",
+      "verification_command": "ls 'claude_worklog/final_readiness/v2_legacy_startup_manifest_parity_and_bridge_exit/'",
+      "confidence": "medium",
+      "missing_evidence": "Bridge exit gate awaits manifest diff signed by Codex review.",
+      "linked_omission_ids": []
+    },
+    {
+      "audit_item_id": "LAUDIT-025-ZERO_MISS_LEGACY_CORE_LIFT",
+      "title": "Zero-miss legacy core lift",
+      "source": "claude_worklog/final_readiness/zero_miss_legacy_core_lift/",
+      "coverage_state": "UNVERIFIED",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/zero_miss_legacy_core_lift/",
+      "verification_command": "ls 'claude_worklog/final_readiness/zero_miss_legacy_core_lift/'",
+      "confidence": "medium",
+      "missing_evidence": "Lift coverage table not yet generated.",
+      "linked_omission_ids": []
+    },
+    {
+      "audit_item_id": "LAUDIT-026-ZERO_MISS_LEGACY_CORE_LIFT_REMEDIATION",
+      "title": "Zero-miss legacy core lift remediation",
+      "source": "claude_worklog/final_readiness/zero_miss_legacy_core_lift_remediation/",
+      "coverage_state": "UNVERIFIED",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/zero_miss_legacy_core_lift_remediation/",
+      "verification_command": "ls 'claude_worklog/final_readiness/zero_miss_legacy_core_lift_remediation/'",
+      "confidence": "medium",
+      "missing_evidence": "Remediation tracker requires linking each gap to a per-item omission.",
+      "linked_omission_ids": []
+    }
+  ],
+  "summary": {
+    "total_items": 26,
+    "covered": 3,
+    "partial": 4,
+    "missing_evidence": 0,
+    "unverified": 19,
+    "next_action": "Generate per-item raw-evidence indexes for each UNVERIFIED entry; convert UNVERIFIED→COVERED once a raw-evidence pointer + verification_command sample is recorded."
+  }
+}
+END_FILE
+
+BEGIN_FILE: claude_worklog/final_readiness/priority_omission_closure/latest/DATA_SOURCE_VALIDATION_MATRIX.json
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-05-31T00:00:00Z",
+  "scope": "Every data source feeding the V2 operator GUI or downstream evidence pipelines must be validated PASS, BLOCKED, or MISSING_EVIDENCE.",
+  "freshness_threshold_seconds": 86400,
+  "sources": [
+    {
+      "data_source_id": "DS-001-OPERATOR_TRUTH_PAYLOAD",
+      "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/operator_truth_payload.json",
+      "kind": "REALTIME_RUNTIME_EVIDENCE",
+      "owner": "operator_truth_recovery",
+      "validation_status": "PASS",
+      "evidence_generated_at": "2026-05-17T01:45:05.188Z",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/CURRENT_WEBSITE_TRUTH_AUDIT.md:7",
+      "blocker_detail": null,
+      "linked_omission_ids": []
+    },
+    {
+      "data_source_id": "DS-002-MASTER_REBUILD_PLANNER_STATUS",
+      "path": "claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json",
+      "kind": "REALTIME_RUNTIME_EVIDENCE",
+      "owner": "agent_supervisor",
+      "validation_status": "BLOCKED",
+      "evidence_generated_at": "stale: age=450591s as of 2026-05-17T01:45:05.188Z",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:13",
+      "blocker_detail": "Stale payload; planner heartbeat not refreshed.",
+      "linked_omission_ids": ["OMI-005-MASTER_PLANNER_STATUS_STALE"]
+    },
+    {
+      "data_source_id": "DS-003-AUTONOMOUS_GOVERNOR_NEXT_TASK_SELECTION",
+      "path": "claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json",
+      "kind": "RUNTIME_MONITOR_PAYLOAD",
+      "owner": "autonomous_governor",
+      "validation_status": "BLOCKED",
+      "evidence_generated_at": "stale: age=95693s",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:14",
+      "blocker_detail": "Stale beyond 86400s window.",
+      "linked_omission_ids": ["OMI-006-AUTONOMOUS_GOVERNOR_SELECTION_STALE"]
+    },
+    {
+      "data_source_id": "DS-004-ENTERPRISE_COCKPIT_PAYLOAD",
+      "path": "v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json",
+      "kind": "STATIC_PROOF_FIXTURE",
+      "owner": "enterprise_trading_cockpit",
+      "validation_status": "BLOCKED",
+      "evidence_generated_at": "stale: age=611165s",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:15",
+      "blocker_detail": "Fixture is treated as live; must be relabeled and paired with a runtime emitter.",
+      "linked_omission_ids": ["OMI-004-ENTERPRISE_COCKPIT_STATIC_FIXTURE"]
+    },
+    {
+      "data_source_id": "DS-005-REALTIME_LEGACY_RUNTIME_SOURCES",
+      "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/current_runtime_sources.json",
+      "kind": "RUNTIME_MONITOR_PAYLOAD",
+      "owner": "realtime_legacy_monitoring_continuity",
+      "validation_status": "BLOCKED",
+      "evidence_generated_at": "stale: age=496747s",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:16",
+      "blocker_detail": "Runtime sources catalogue stale.",
+      "linked_omission_ids": ["OMI-007-REALTIME_LEGACY_RUNTIME_SOURCES_STALE"]
+    },
+    {
+      "data_source_id": "DS-006-TRAINER_PREDICTION_MONITOR_STATUS",
+      "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/trainer_prediction_monitor_status.json",
+      "kind": "RUNTIME_MONITOR_PAYLOAD",
+      "owner": "realtime_legacy_monitoring_continuity",
+      "validation_status": "BLOCKED",
+      "evidence_generated_at": "stale: age=496747s",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:17",
+      "blocker_detail": "Mission Control trainer prediction preview is reading a static fixture.",
+      "linked_omission_ids": ["OMI-003-TRAINER_PREDICTION_PREVIEW_STATIC_FIXTURE"]
+    },
+    {
+      "data_source_id": "DS-007-SIGNAL_EXECUTION_MONITOR_STATUS",
+      "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/signal_execution_monitor_status.json",
+      "kind": "RUNTIME_MONITOR_PAYLOAD",
+      "owner": "realtime_legacy_monitoring_continuity",
+      "validation_status": "BLOCKED",
+      "evidence_generated_at": "stale: age=496747s",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:18",
+      "blocker_detail": "Signal execution monitor stale.",
+      "linked_omission_ids": ["OMI-008-SIGNAL_EXECUTION_MONITOR_STALE"]
+    },
+    {
+      "data_source_id": "DS-008-RISK_GATEWAY_OBSERVATION_STATUS",
+      "path": "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/risk_gateway_observation_status.json",
+      "kind": "RUNTIME_MONITOR_PAYLOAD",
+      "owner": "risk_gateway_canary_hard_gates",
+      "validation_status": "BLOCKED",
+      "evidence_generated_at": "stale: age=496747s",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:19",
+      "blocker_detail": "Risk gateway observation stale.",
+      "linked_omission_ids": ["OMI-009-RISK_GATEWAY_OBSERVATION_STALE"]
+    },
+    {
+      "data_source_id": "DS-009-PHASE3C_RUNTIME_MONITOR",
+      "path": "v2/frontend/public/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json",
+      "kind": "RUNTIME_MONITOR_PAYLOAD",
+      "owner": "phase3c_runtime_monitor_verification",
+      "validation_status": "BLOCKED",
+      "evidence_generated_at": "stale: age=590909s",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:20",
+      "blocker_detail": "Phase3c runtime monitor stale.",
+      "linked_omission_ids": ["OMI-010-PHASE3C_RUNTIME_MONITOR_STALE"]
+    },
+    {
+      "data_source_id": "DS-010-V2_LIVE_OBSERVER_SHADOW_TWIN",
+      "path": "v2/frontend/public/operator_runtime/live_observer/latest/current_runtime_truth_payload.json",
+      "kind": "REALTIME_RUNTIME_EVIDENCE",
+      "owner": "automation_liveness",
+      "validation_status": "MISSING_EVIDENCE",
+      "evidence_generated_at": "stale: age=364638s",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/MISSING_EVIDENCE_REGISTER.md:5",
+      "blocker_detail": "Build step `cd v2/frontend && npm run build:live-observer` has not been run; GUI cannot display legacy bridge evidence.",
+      "linked_omission_ids": ["OMI-001-LIVE_OBSERVER_SHADOW_TWIN_STALE"]
+    },
+    {
+      "data_source_id": "DS-011-LEGACY_TRAINER_RESTART_RUNTIME",
+      "path": "v2/frontend/public/legacy_trainer_restart_runtime/latest/operator_dashboard_payload.json",
+      "kind": "RUNTIME_MONITOR_PAYLOAD",
+      "owner": "legacy_trainer_restart_runtime",
+      "validation_status": "BLOCKED",
+      "evidence_generated_at": "stale: age=377692s",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:22",
+      "blocker_detail": "Stale; must be refreshed without mutating live trainer.",
+      "linked_omission_ids": ["OMI-011-LEGACY_TRAINER_RESTART_RUNTIME_STALE"]
+    },
+    {
+      "data_source_id": "DS-012-ORCHESTRATOR_EVIDENCE_RECONCILIATION",
+      "path": "v2/frontend/public/orchestrator_decision_evidence_reconciliation/latest/operator_dashboard_payload.json",
+      "kind": "V2_PROOF_ARTIFACT",
+      "owner": "orchestrator_decision_evidence_reconciliation",
+      "validation_status": "BLOCKED",
+      "evidence_generated_at": "stale: age=443181s",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:23",
+      "blocker_detail": "Reconciliation payload stale.",
+      "linked_omission_ids": ["OMI-012-ORCHESTRATOR_EVIDENCE_RECONCILIATION_STALE"]
+    },
+    {
+      "data_source_id": "DS-013-READONLY_MARKET_EXCHANGE_DATA_PLANE",
+      "path": "v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json",
+      "kind": "V2_PROOF_ARTIFACT",
+      "owner": "readonly_market_exchange_data_plane",
+      "validation_status": "BLOCKED",
+      "evidence_generated_at": "stale: age=611105s",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:24",
+      "blocker_detail": "Read-only market data plane payload stale.",
+      "linked_omission_ids": ["OMI-013-READONLY_MARKET_DATA_PLANE_STALE"]
+    },
+    {
+      "data_source_id": "DS-014-CONTINUOUS_PAPER_SHADOW_RUNTIME",
+      "path": "v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_runtime_status.json",
+      "kind": "V2_PROOF_ARTIFACT",
+      "owner": "continuous_paper_shadow_runtime",
+      "validation_status": "BLOCKED",
+      "evidence_generated_at": "stale: age=623822s",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:25",
+      "blocker_detail": "Paper runtime payload stale.",
+      "linked_omission_ids": ["OMI-014-CONTINUOUS_PAPER_SHADOW_RUNTIME_STALE"]
+    },
+    {
+      "data_source_id": "DS-015-OPERATOR_DASHBOARD_PAYLOAD",
+      "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/operator_dashboard_payload.json",
+      "kind": "REALTIME_RUNTIME_EVIDENCE",
+      "owner": "operator_truth_recovery",
+      "validation_status": "PASS",
+      "evidence_generated_at": "2026-05-17T01:45:05.188Z",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/CURRENT_WEBSITE_TRUTH_AUDIT.md:7",
+      "blocker_detail": null,
+      "linked_omission_ids": []
+    },
+    {
+      "data_source_id": "DS-016-RUNTIME_SIGNAL_LINEAGE_STATUS",
+      "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/runtime_signal_lineage_status.json",
+      "kind": "REALTIME_RUNTIME_EVIDENCE",
+      "owner": "operator_truth_recovery",
+      "validation_status": "PASS",
+      "evidence_generated_at": "2026-05-17T01:45:05.188Z",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/CURRENT_WEBSITE_TRUTH_AUDIT.md:14",
+      "blocker_detail": null,
+      "linked_omission_ids": []
+    },
+    {
+      "data_source_id": "DS-017-TRAINER_PREDICTION_STREAM_STATUS",
+      "path": "claude_worklog/final_readiness/operator_truth_recovery/latest/trainer_prediction_stream_status.json",
+      "kind": "V2_PAPER_TRAINER_WRAPPER_CURRENT",
+      "owner": "operator_truth_recovery",
+      "validation_status": "PASS",
+      "evidence_generated_at": "2026-05-17T01:45:05.188Z",
+      "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/CURRENT_WEBSITE_TRUTH_AUDIT.md:13",
+      "blocker_detail": null,
+      "linked_omission_ids": []
+    }
+  ],
+  "summary": {
+    "total_sources": 17,
+    "PASS": 4,
+    "BLOCKED": 12,
+    "MISSING_EVIDENCE": 1,
+    "next_action": "Run the per-omission remediation_command sequence from OMISSION_BLOCKER_LEDGER.json to refresh stale payloads. Re-run dashboard freshness audit; any source still ≥86400s old remains BLOCKED."
+  }
+}
+END_FILE
+
+BEGIN_FILE: claude_worklog/final_readiness/priority_omission_closure/latest/WEBSITE_TRUTH_ALIGNMENT_REPORT.md
+# Website Truth Alignment Report
+
+Generated at: 2026-05-31T00:00:00Z
+Anchor evidence: `claude_worklog/final_readiness/operator_truth_recovery/latest/CURRENT_WEBSITE_TRUTH_AUDIT.md`
+Freshness anchor: `claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md`
+
+## Alignment verdict
+WEBSITE_TRUTH_NOT_ALIGNED — 13 stale payloads, 1 static-fixture-as-live, 1 missing evidence row (V2_LIVE_OBSERVER_SHADOW_TWIN_MISSING_OR_STALE) over 16 payloads checked.
+
+## Required GUI labeling until omissions close
+| Route | Panel | Required GUI label | Source | Linked omission |
+|---|---|---|---|---|
+| Mission Control | Legacy runtime monitor | STALE / MISSING_EVIDENCE | `operator_truth_payload.json` | OMI-002 |
+| Mission Control | Trainer prediction preview | STATIC_PROOF_FIXTURE / STALE | `operator_truth_payload.json` | OMI-003 |
+| Mission Control | TradingView chart | READONLY_MARKET_FEED with fallback proof fixture (current snapshot) | enterprise cockpit payload | OMI-004 |
+| Monitor Center | Monitor scripts | Current snapshot (payload age must be re-verified within 24h) | enterprise cockpit + operator_truth | OMI-004 |
+| Trainer Prediction Monitor | Prediction stream | V2_PAPER_TRAINER_WRAPPER_CURRENT | `operator_truth_payload.json` | none |
+| Build Validation Status | Proof freshness | V2_PROOF_ARTIFACT / STALE_PAYLOAD until artifacts refreshed | `operator_truth_payload.json` | OMI-010/12/13/14 |
+
+## Operator-visible labels that must be enforced
+- STATIC_PROOF_FIXTURE banners on Enterprise Trading Cockpit panels until DS-004 refreshes.
+- STALE banners on every panel sourced from DS-002, DS-003, DS-005..DS-014.
+- MISSING_EVIDENCE banner on V2 Live Observer Shadow Twin until OMI-001 closes.
+
+## Live safety reaffirmation
+- Live trading: blocked_human_only — unchanged.
+- No legacy Redis writes were performed.
+- No legacy/live process was restarted or mutated.
+- Operator approval is still required to lift any of the dangerous-toggle defaults.
+
+## Closure criteria
+Website truth is considered aligned when:
+1. Every entry in DATA_SOURCE_VALIDATION_MATRIX.json reports `validation_status == PASS`.
+2. No payload referenced in CURRENT_WEBSITE_TRUTH_AUDIT.md has `Stale? == yes` or `Missing evidence? == yes`.
+3. DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md reports `Stale payloads: 0`, `Missing evidence rows: 0`, and the single STATIC_PROOF_FIXTURE row is explicitly labeled as a proof artifact (not a runtime source).
+4. PRIORITY_DIRECTOR_GO_NO_GO.md flips to PRIORITY_OMISSION_CLOSURE_READY.
+END_FILE
+
+BEGIN_FILE: claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-001_refresh_live_observer_shadow_twin.json
+{
+  "task_id": "OMI-001_refresh_live_observer_shadow_twin",
+  "omission_id": "OMI-001-LIVE_OBSERVER_SHADOW_TWIN_STALE",
+  "title": "Refresh V2 live observer shadow twin payload",
+  "live_safety": "read_only",
+  "blocker_state": "blocked_runtime_evidence",
+  "blocker_detail": "Live observer shadow twin payload is stale or missing; GUI cannot display legacy read-only bridge evidence beside V2 paper truth.",
+  "owner": "automation_liveness",
+  "command": "cd v2/frontend && npm run build:live-observer",
+  "success_criteria": [
+    "v2/frontend/public/operator_runtime/live_observer/latest/current_runtime_truth_payload.json has mtime within 86400s of run time.",
+    "claude_worklog/final_readiness/operator_truth_recovery/latest/MISSING_EVIDENCE_REGISTER.md no longer lists V2_LIVE_OBSERVER_SHADOW_TWIN_MISSING_OR_STALE.",
+    "DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md regenerates with this source out of the stale list."
+  ],
+  "verification_command": "stat -c '%Y %n' v2/frontend/public/operator_runtime/live_observer/latest/current_runtime_truth_payload.json",
+  "live_trading_actions_forbidden": true,
+  "old_redis_writes_forbidden": true,
+  "legacy_mutation_forbidden": true,
+  "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/MISSING_EVIDENCE_REGISTER.md:5",
+  "created_at": "2026-05-31T00:00:00Z"
+}
+END_FILE
+
+BEGIN_FILE: claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-002_realtime_legacy_monitor_refresh.json
+{
+  "task_id": "OMI-002_realtime_legacy_monitor_refresh",
+  "omission_id": "OMI-002-MISSION_CONTROL_LEGACY_RUNTIME_MONITOR_STALE",
+  "title": "Refresh Mission Control legacy runtime monitor strip evidence",
+  "live_safety": "read_only",
+  "blocker_state": "blocked_runtime_evidence",
+  "blocker_detail": "Mission Control legacy runtime monitor flagged stale and missing evidence in CURRENT_WEBSITE_TRUTH_AUDIT.md.",
+  "owner": "realtime_legacy_monitoring_continuity",
+  "command": "python tools/realtime_legacy_monitoring_continuity/refresh.py --read_only --update v2/frontend/public/realtime_legacy_monitoring_continuity/latest/",
+  "success_criteria": [
+    "current_runtime_sources.json mtime within 86400s.",
+    "CURRENT_WEBSITE_TRUTH_AUDIT.md Mission Control legacy runtime monitor row reports Stale=no, Missing evidence=no."
+  ],
+  "verification_command": "stat -c '%Y %n' v2/frontend/public/realtime_legacy_monitoring_continuity/latest/current_runtime_sources.json",
+  "live_trading_actions_forbidden": true,
+  "old_redis_writes_forbidden": true,
+  "legacy_mutation_forbidden": true,
+  "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/CURRENT_WEBSITE_TRUTH_AUDIT.md:8",
+  "created_at": "2026-05-31T00:00:00Z"
+}
+END_FILE
+
+BEGIN_FILE: claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-003_trainer_prediction_preview_runtime_bind.json
+{
+  "task_id": "OMI-003_trainer_prediction_preview_runtime_bind",
+  "omission_id": "OMI-003-TRAINER_PREDICTION_PREVIEW_STATIC_FIXTURE",
+  "title": "Bind Mission Control trainer prediction preview to runtime stream",
+  "live_safety": "read_only",
+  "blocker_state": "blocked_runtime_evidence",
+  "blocker_detail": "Mission Control trainer prediction preview sourced from STATIC_PROOF_FIXTURE; must point to V2_PAPER_TRAINER_WRAPPER_CURRENT or render MISSING_EVIDENCE.",
+  "owner": "realtime_legacy_monitoring_continuity",
+  "command": "python tools/realtime_legacy_monitoring_continuity/trainer_prediction_monitor.py --read_only --emit v2/frontend/public/realtime_legacy_monitoring_continuity/latest/trainer_prediction_monitor_status.json",
+  "success_criteria": [
+    "trainer_prediction_monitor_status.json mtime within 86400s.",
+    "Mission Control trainer prediction preview source resolves to V2_PAPER_TRAINER_WRAPPER_CURRENT in CURRENT_WEBSITE_TRUTH_AUDIT.md."
+  ],
+  "verification_command": "stat -c '%Y %n' v2/frontend/public/realtime_legacy_monitoring_continuity/latest/trainer_prediction_monitor_status.json",
+  "live_trading_actions_forbidden": true,
+  "old_redis_writes_forbidden": true,
+  "legacy_mutation_forbidden": true,
+  "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/CURRENT_WEBSITE_TRUTH_AUDIT.md:9",
+  "created_at": "2026-05-31T00:00:00Z"
+}
+END_FILE
+
+BEGIN_FILE: claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-004_enterprise_cockpit_runtime_emitter.json
+{
+  "task_id": "OMI-004_enterprise_cockpit_runtime_emitter",
+  "omission_id": "OMI-004-ENTERPRISE_COCKPIT_STATIC_FIXTURE",
+  "title": "Emit runtime enterprise cockpit payload and relabel static fixture",
+  "live_safety": "read_only",
+  "blocker_state": "blocked_runtime_evidence",
+  "blocker_detail": "Enterprise cockpit payload is a static proof fixture being treated as live data.",
+  "owner": "enterprise_trading_cockpit",
+  "command": "python tools/enterprise_trading_cockpit/emit_runtime.py --read_only --emit v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json",
+  "success_criteria": [
+    "operator_cockpit_payload.json mtime within 86400s.",
+    "GUI relabels static-fixture-derived panels with STATIC_PROOF_FIXTURE badge.",
+    "DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md drops the static-fixture-as-live row."
+  ],
+  "verification_command": "stat -c '%Y %n' v2/frontend/public/enterprise_trading_cockpit/latest/operator_cockpit_payload.json",
+  "live_trading_actions_forbidden": true,
+  "old_redis_writes_forbidden": true,
+  "legacy_mutation_forbidden": true,
+  "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:15",
+  "created_at": "2026-05-31T00:00:00Z"
+}
+END_FILE
+
+BEGIN_FILE: claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-005_master_planner_heartbeat.json
+{
+  "task_id": "OMI-005_master_planner_heartbeat",
+  "omission_id": "OMI-005-MASTER_PLANNER_STATUS_STALE",
+  "title": "Refresh master rebuild planner heartbeat",
+  "live_safety": "read_only",
+  "blocker_state": "blocked_runtime_evidence",
+  "blocker_detail": "master_rebuild_planner_status.json stale beyond 86400s threshold.",
+  "owner": "agent_supervisor",
+  "command": "python tools/agent_supervisor/refresh_master_planner_status.py --read_only",
+  "success_criteria": [
+    "claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json mtime within 3600s."
+  ],
+  "verification_command": "stat -c '%Y %n' claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json",
+  "live_trading_actions_forbidden": true,
+  "old_redis_writes_forbidden": true,
+  "legacy_mutation_forbidden": true,
+  "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:13",
+  "created_at": "2026-05-31T00:00:00Z"
+}
+END_FILE
+
+BEGIN_FILE: claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-006_autonomous_governor_refresh.json
+{
+  "task_id": "OMI-006_autonomous_governor_refresh",
+  "omission_id": "OMI-006-AUTONOMOUS_GOVERNOR_SELECTION_STALE",
+  "title": "Refresh autonomous governor next-task selection",
+  "live_safety": "read_only",
+  "blocker_state": "blocked_runtime_evidence",
+  "blocker_detail": "NEXT_TASK_SELECTION.json stale (age=95693s).",
+  "owner": "autonomous_governor",
+  "command": "python tools/autonomous_governor/select_next_task.py --read_only",
+  "success_criteria": [
+    "claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json mtime within 3600s."
+  ],
+  "verification_command": "stat -c '%Y %n' claude_worklog/autonomous_governor/latest/NEXT_TASK_SELECTION.json",
+  "live_trading_actions_forbidden": true,
+  "old_redis_writes_forbidden": true,
+  "legacy_mutation_forbidden": true,
+  "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:14",
+  "created_at": "2026-05-31T00:00:00Z"
+}
+END_FILE
+
+BEGIN_FILE: claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-007_legacy_runtime_sources_refresh.json
+{
+  "task_id": "OMI-007_legacy_runtime_sources_refresh",
+  "omission_id": "OMI-007-REALTIME_LEGACY_RUNTIME_SOURCES_STALE",
+  "title": "Refresh realtime legacy runtime sources catalogue",
+  "live_safety": "read_only",
+  "blocker_state": "blocked_runtime_evidence",
+  "blocker_detail": "current_runtime_sources.json stale (age=496747s).",
+  "owner": "realtime_legacy_monitoring_continuity",
+  "command": "python tools/realtime_legacy_monitoring_continuity/refresh_sources.py --read_only",
+  "success_criteria": [
+    "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/current_runtime_sources.json mtime within 86400s."
+  ],
+  "verification_command": "stat -c '%Y %n' v2/frontend/public/realtime_legacy_monitoring_continuity/latest/current_runtime_sources.json",
+  "live_trading_actions_forbidden": true,
+  "old_redis_writes_forbidden": true,
+  "legacy_mutation_forbidden": true,
+  "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:16",
+  "created_at": "2026-05-31T00:00:00Z"
+}
+END_FILE
+
+BEGIN_FILE: claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-008_signal_execution_monitor_refresh.json
+{
+  "task_id": "OMI-008_signal_execution_monitor_refresh",
+  "omission_id": "OMI-008-SIGNAL_EXECUTION_MONITOR_STALE",
+  "title": "Refresh signal execution monitor status",
+  "live_safety": "read_only",
+  "blocker_state": "blocked_runtime_evidence",
+  "blocker_detail": "signal_execution_monitor_status.json stale (age=496747s).",
+  "owner": "realtime_legacy_monitoring_continuity",
+  "command": "python tools/realtime_legacy_monitoring_continuity/signal_execution_monitor.py --read_only",
+  "success_criteria": [
+    "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/signal_execution_monitor_status.json mtime within 86400s."
+  ],
+  "verification_command": "stat -c '%Y %n' v2/frontend/public/realtime_legacy_monitoring_continuity/latest/signal_execution_monitor_status.json",
+  "live_trading_actions_forbidden": true,
+  "old_redis_writes_forbidden": true,
+  "legacy_mutation_forbidden": true,
+  "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:18",
+  "created_at": "2026-05-31T00:00:00Z"
+}
+END_FILE
+
+BEGIN_FILE: claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-009_risk_gateway_observer_refresh.json
+{
+  "task_id": "OMI-009_risk_gateway_observer_refresh",
+  "omission_id": "OMI-009-RISK_GATEWAY_OBSERVATION_STALE",
+  "title": "Refresh risk gateway observation status",
+  "live_safety": "read_only",
+  "blocker_state": "blocked_runtime_evidence",
+  "blocker_detail": "risk_gateway_observation_status.json stale (age=496747s).",
+  "owner": "risk_gateway_canary_hard_gates",
+  "command": "python tools/risk_gateway_canary_hard_gates/observe.py --read_only",
+  "success_criteria": [
+    "v2/frontend/public/realtime_legacy_monitoring_continuity/latest/risk_gateway_observation_status.json mtime within 86400s."
+  ],
+  "verification_command": "stat -c '%Y %n' v2/frontend/public/realtime_legacy_monitoring_continuity/latest/risk_gateway_observation_status.json",
+  "live_trading_actions_forbidden": true,
+  "old_redis_writes_forbidden": true,
+  "legacy_mutation_forbidden": true,
+  "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:19",
+  "created_at": "2026-05-31T00:00:00Z"
+}
+END_FILE
+
+BEGIN_FILE: claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-010_phase3c_runtime_monitor_refresh.json
+{
+  "task_id": "OMI-010_phase3c_runtime_monitor_refresh",
+  "omission_id": "OMI-010-PHASE3C_RUNTIME_MONITOR_STALE",
+  "title": "Refresh phase3c runtime monitor payload",
+  "live_safety": "read_only",
+  "blocker_state": "blocked_runtime_evidence",
+  "blocker_detail": "phase3c operator_dashboard_payload.json stale (age=590909s).",
+  "owner": "phase3c_runtime_monitor_verification",
+  "command": "python tools/phase3c_runtime_monitor_verification/refresh.py --read_only",
+  "success_criteria": [
+    "v2/frontend/public/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json mtime within 86400s."
+  ],
+  "verification_command": "stat -c '%Y %n' v2/frontend/public/phase3c_runtime_monitor_verification/latest/operator_dashboard_payload.json",
+  "live_trading_actions_forbidden": true,
+  "old_redis_writes_forbidden": true,
+  "legacy_mutation_forbidden": true,
+  "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:20",
+  "created_at": "2026-05-31T00:00:00Z"
+}
+END_FILE
+
+BEGIN_FILE: claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-011_legacy_trainer_restart_capture.json
+{
+  "task_id": "OMI-011_legacy_trainer_restart_capture",
+  "omission_id": "OMI-011-LEGACY_TRAINER_RESTART_RUNTIME_STALE",
+  "title": "Read-only refresh of legacy trainer restart runtime capture",
+  "live_safety": "read_only",
+  "blocker_state": "blocked_runtime_evidence",
+  "blocker_detail": "Legacy trainer restart runtime payload stale (age=377692s).",
+  "owner": "legacy_trainer_restart_runtime",
+  "command": "python tools/legacy_trainer_restart_runtime/capture.py --read_only --no_mutate",
+  "success_criteria": [
+    "v2/frontend/public/legacy_trainer_restart_runtime/latest/operator_dashboard_payload.json mtime within 86400s.",
+    "Live trainer process state unchanged before/after capture."
+  ],
+  "verification_command": "stat -c '%Y %n' v2/frontend/public/legacy_trainer_restart_runtime/latest/operator_dashboard_payload.json",
+  "live_trading_actions_forbidden": true,
+  "old_redis_writes_forbidden": true,
+  "legacy_mutation_forbidden": true,
+  "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:22",
+  "created_at": "2026-05-31T00:00:00Z"
+}
+END_FILE
+
+BEGIN_FILE: claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-012_orchestrator_evidence_reconciliation_refresh.json
+{
+  "task_id": "OMI-012_orchestrator_evidence_reconciliation_refresh",
+  "omission_id": "OMI-012-ORCHESTRATOR_EVIDENCE_RECONCILIATION_STALE",
+  "title": "Refresh orchestrator decision evidence reconciliation payload",
+  "live_safety": "read_only",
+  "blocker_state": "blocked_runtime_evidence",
+  "blocker_detail": "Orchestrator evidence reconciliation operator_dashboard_payload.json stale (age=443181s).",
+  "owner": "orchestrator_decision_evidence_reconciliation",
+  "command": "python tools/orchestrator_decision_evidence_reconciliation/refresh.py --read_only",
+  "success_criteria": [
+    "v2/frontend/public/orchestrator_decision_evidence_reconciliation/latest/operator_dashboard_payload.json mtime within 86400s."
+  ],
+  "verification_command": "stat -c '%Y %n' v2/frontend/public/orchestrator_decision_evidence_reconciliation/latest/operator_dashboard_payload.json",
+  "live_trading_actions_forbidden": true,
+  "old_redis_writes_forbidden": true,
+  "legacy_mutation_forbidden": true,
+  "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:23",
+  "created_at": "2026-05-31T00:00:00Z"
+}
+END_FILE
+
+BEGIN_FILE: claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-013_readonly_market_data_plane_refresh.json
+{
+  "task_id": "OMI-013_readonly_market_data_plane_refresh",
+  "omission_id": "OMI-013-READONLY_MARKET_DATA_PLANE_STALE",
+  "title": "Refresh read-only market exchange data-plane payload",
+  "live_safety": "read_only",
+  "blocker_state": "blocked_runtime_evidence",
+  "blocker_detail": "Read-only market data-plane operator_dashboard_payload.json stale (age=611105s).",
+  "owner": "readonly_market_exchange_data_plane",
+  "command": "python tools/readonly_market_exchange_data_plane/refresh.py --read_only --no_orders",
+  "success_criteria": [
+    "v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json mtime within 86400s.",
+    "No orders placed/cancelled and no leverage/margin changes during refresh."
+  ],
+  "verification_command": "stat -c '%Y %n' v2/frontend/public/readonly_market_exchange_data_plane/latest/operator_dashboard_payload.json",
+  "live_trading_actions_forbidden": true,
+  "old_redis_writes_forbidden": true,
+  "legacy_mutation_forbidden": true,
+  "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:24",
+  "created_at": "2026-05-31T00:00:00Z"
+}
+END_FILE
+
+BEGIN_FILE: claude_worklog/agent_supervisor/tasks/priority_omission_closure/OMI-014_continuous_paper_shadow_runtime_refresh.json
+{
+  "task_id": "OMI-014_continuous_paper_shadow_runtime_refresh",
+  "omission_id": "OMI-014-CONTINUOUS_PAPER_SHADOW_RUNTIME_STALE",
+  "title": "Refresh continuous paper shadow runtime status",
+  "live_safety": "paper_only",
+  "blocker_state": "blocked_runtime_evidence",
+  "blocker_detail": "paper_runtime_status.json stale (age=623822s).",
+  "owner": "continuous_paper_shadow_runtime",
+  "command": "python tools/continuous_paper_shadow_runtime/refresh.py --paper_only",
+  "success_criteria": [
+    "v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_runtime_status.json mtime within 86400s.",
+    "No live exchange action during refresh; paper-only mode confirmed in payload."
+  ],
+  "verification_command": "stat -c '%Y %n' v2/frontend/public/continuous_paper_shadow_runtime/latest/paper_runtime_status.json",
+  "live_trading_actions_forbidden": true,
+  "old_redis_writes_forbidden": true,
+  "legacy_mutation_forbidden": true,
+  "raw_evidence_pointer": "claude_worklog/final_readiness/operator_truth_recovery/latest/DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md:25",
+  "created_at": "2026-05-31T00:00:00Z"
+}
+END_FILE
+
+BEGIN_FILE: claude_worklog/final_readiness/priority_omission_closure/latest/README.md
+# Priority Omission Closure — Run Summary
+
+This bundle is emitted by the Master Non-Live Rebuild Planner. It enforces:
+
+- One active task descriptor per open omission.
+- Coverage entries for every legacy audit item under read-only legacy audit roots.
+- A validation row (PASS / BLOCKED / MISSING_EVIDENCE) for every operator-visible data source.
+- Alignment of the website truth payload to current runtime evidence (or explicit stale/missing labels).
+
+## Files in this bundle
+- `PRIORITY_DIRECTOR_GO_NO_GO.md` — single-line gate decision.
+- `PRIORITY_DIRECTOR_SUMMARY.md` — human-readable rollup with blocking conditions.
+- `OMISSION_BLOCKER_LEDGER.json` — every open omission with blocker state, task descriptor, raw-evidence pointer.
+- `LEGACY_AUDIT_ITEM_COVERAGE_MATRIX.json` — every legacy audit item with COVERED / PARTIAL / MISSING_EVIDENCE / UNVERIFIED state.
+- `DATA_SOURCE_VALIDATION_MATRIX.json` — every data source with PASS / BLOCKED / MISSING_EVIDENCE state.
+- `WEBSITE_TRUTH_ALIGNMENT_REPORT.md` — narrative anchored to CURRENT_WEBSITE_TRUTH_AUDIT and DASHBOARD_PAYLOAD_FRESHNESS_REPORT.
+- `../../../agent_supervisor/tasks/priority_omission_closure/OMI-*.json` — per-omission task descriptors.
+
+## Safety reaffirmation
+- Live trading status: blocked_human_only — unchanged.
+- No live order/cancel/leverage/margin actions.
+- No old-Redis writes.
+- No legacy/live process restarts.
+- All remediation commands are read-only or paper-only.
+
+## How the gate flips to READY
+1. Operator runs each per-omission `remediation_command`.
+2. Each command refreshes its target payload within the 86400s freshness window.
+3. `DASHBOARD_PAYLOAD_FRESHNESS_REPORT.md` re-runs reports 0 stale payloads and 0 missing-evidence rows.
+4. Re-emit `OMISSION_BLOCKER_LEDGER.json` and `DATA_SOURCE_VALIDATION_MATRIX.json` with all entries `closed` / `PASS`.
+5. Re-emit `LEGACY_AUDIT_ITEM_COVERAGE_MATRIX.json` with `unverified = 0` and `missing_evidence = 0`.
+6. Re-emit `PRIORITY_DIRECTOR_GO_NO_GO.md` as `PRIORITY_OMISSION_CLOSURE_READY`.
+END_FILE
+
+Gate emitted as PRIORITY_OMISSION_CLOSURE_BLOCKED. 14 active omissions are bound to task descriptors with explicit `blocked_runtime_evidence` states; 26 legacy-audit items are catalogued (3 COVERED, 4 PARTIAL, 19 UNVERIFIED); 17 data sources scored (4 PASS, 12 BLOCKED, 1 MISSING_EVIDENCE); website truth flagged not-aligned with operator-visible labels required until omissions close. Live trading remains blocked_human_only; no legacy/live mutation or old-Redis writes were performed.

@@ -1,0 +1,100 @@
+{
+  "schema_version": "v2_backtesting_and_strategy_validation_status_v1",
+  "milestone": "v2_legacy_data_zero_exception_parity_and_full_runtime_startup",
+  "phase": 10,
+  "generated_est": "2026-05-31T01:10:00-0400",
+  "generated_utc": "2026-05-31T05:10:00Z",
+  "war_room_executor": "v2/backend/app/cli/v2_24h_parallel_recovery_war_room.py",
+  "last_run_utc": "2026-05-31T03:53:15Z",
+  "dataset": {
+    "dataset_total_rows": 58,
+    "excluded_insufficient_evidence": 2244,
+    "excluded_missing_5m_outcome": 0,
+    "train_rows": 46,
+    "validation_rows": 12
+  },
+  "edge_gate": {
+    "edge_claim_blocked_reason": "operator_thresholds_required_and_not_set",
+    "edge_claimed": false,
+    "verdict_per_profile": {
+      "aggressive": {
+        "fail_thresholds": [
+          "min_after_cost_expectancy_bps",
+          "min_after_cost_lower_ci_bps"
+        ],
+        "inconclusive_thresholds": [
+          "max_false_positive_rate"
+        ],
+        "verdict": "INCONCLUSIVE_OBSERVED_EVIDENCE_MISSING"
+      },
+      "balanced": {
+        "fail_thresholds": [
+          "min_after_cost_expectancy_bps",
+          "min_after_cost_lower_ci_bps",
+          "max_drawdown_bps_rolling",
+          "max_false_negative_rate"
+        ],
+        "inconclusive_thresholds": [
+          "max_false_positive_rate"
+        ],
+        "verdict": "INCONCLUSIVE_OBSERVED_EVIDENCE_MISSING"
+      },
+      "conservative": {
+        "fail_thresholds": [
+          "min_sample_count",
+          "min_after_cost_expectancy_bps",
+          "min_after_cost_lower_ci_bps",
+          "max_drawdown_bps_rolling",
+          "max_false_negative_rate"
+        ],
+        "inconclusive_thresholds": [
+          "max_false_positive_rate"
+        ],
+        "verdict": "INCONCLUSIVE_OBSERVED_EVIDENCE_MISSING"
+      }
+    }
+  },
+  "evaluator": {
+    "after_cost_ci_lower_bps": -9.599391717415973,
+    "after_cost_ci_upper_bps": -5.13733141063527,
+    "expected_move_after_cost_bps": -7.254636885056447,
+    "false_negative_rate": 0.20253164556962025,
+    "false_positive_rate": null,
+    "max_drawdown_bps_observed": 309.82905982905976,
+    "sample_count": 7750,
+    "verdict": "EDGE_NOT_CLAIMED_OPERATOR_THRESHOLDS_REQUIRED"
+  },
+  "strategy_axes_required": [
+    "trend",
+    "mean_reversion",
+    "breakout",
+    "momentum",
+    "funding_oi",
+    "liquidation_cascade_squeeze",
+    "orderbook_imbalance",
+    "ta_confirmation",
+    "no_trade_preservation"
+  ],
+  "strategy_axes_covered_in_war_room": [
+    "v2_deterministic_policy_shadow_only",
+    "naive_threshold_expected_move_10bps",
+    "logistic_baseline_1d_expected_move",
+    "hold"
+  ],
+  "strategy_axes_missing": [
+    "trend_classical",
+    "mean_reversion_classical",
+    "breakout_classical",
+    "funding_oi_combined",
+    "liquidation_cascade",
+    "orderbook_imbalance",
+    "ta_confirmation",
+    "no_trade_preservation"
+  ],
+  "edge_claimed": false,
+  "live_safety": {
+    "live_gate_status": "blocked_human_only",
+    "live_symbols": []
+  },
+  "verdict": "BACKTEST_PARTIAL_WAR_ROOM_ANALYSIS_ONLY_NO_EDGE_CLAIM"
+}

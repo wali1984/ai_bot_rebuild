@@ -1,0 +1,37 @@
+{
+  "close_reason_counts": {},
+  "exchange_mutation": false,
+  "exit_selection_must_not_be_static": true,
+  "generated_est": "2026-06-15T14:53:38-04:00",
+  "max_hold_seconds": 21600,
+  "min_hold_seconds": 0,
+  "observed_exit_reason_distribution": {
+    "TIER_2_PROFIT_BANK": 1
+  },
+  "paper_only": true,
+  "schema_version": "dynamic_exit_logic_status_v1",
+  "selection_inputs": [
+    "stop_loss",
+    "take_profit",
+    "trailing_stop",
+    "max_hold_time",
+    "model_reversal",
+    "netting_state",
+    "profit_protection",
+    "drawdown",
+    "market_regime",
+    "paper_outcome_feedback"
+  ],
+  "status": "DYNAMIC_EXIT_LOGIC_READY_PAPER_ONLY",
+  "stop_loss_bps": 80.0,
+  "take_profit_bps": 120.0,
+  "tiers_enabled": [
+    "TIER_0",
+    "TIER_1",
+    "TIER_2",
+    "TIER_3",
+    "TIER_4"
+  ],
+  "trailing_stop_bps": 60.0,
+  "triggered_count": 0
+}

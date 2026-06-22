@@ -1,0 +1,250 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "active_v2_unit_count": 30,
+  "active_v2_units": [
+    "ai-bot-v2-agent-supervisor.service",
+    "ai-bot-v2-closed-loop-claude-worker@1.service",
+    "ai-bot-v2-closed-loop-claude-worker@2.service",
+    "ai-bot-v2-closed-loop-claude-worker@3.service",
+    "ai-bot-v2-closed-loop-codex-worker@1.service",
+    "ai-bot-v2-closed-loop-codex-worker@2.service",
+    "ai-bot-v2-closed-loop-codex-worker@3.service",
+    "ai-bot-v2-codex-shutdown-readiness-takeover.service",
+    "ai-bot-v2-codex-watchdog.service",
+    "ai-bot-v2-continuous-legacy-log-remediation.service",
+    "ai-bot-v2-feature-pipeline-native-loop.service",
+    "ai-bot-v2-feature-snapshot-builder.service",
+    "ai-bot-v2-legacy-log-intelligence-observer.service",
+    "ai-bot-v2-legacy-v2-production-comparator.service",
+    "ai-bot-v2-liquidation-wss-paper-shadow.service",
+    "ai-bot-v2-native-ingestors-live-loop.service",
+    "ai-bot-v2-orchestrator-arbitration-loop.service",
+    "ai-bot-v2-paper-online-runtime.service",
+    "ai-bot-v2-paper-shadow-observation.service",
+    "ai-bot-v2-parallel-scheduler.service",
+    "ai-bot-v2-parallel-spark-automation.service",
+    "ai-bot-v2-position-history-persistent-tracker.service",
+    "ai-bot-v2-production-replacement-runtime-guard.service",
+    "ai-bot-v2-public-website-backend.service",
+    "ai-bot-v2-readonly-decision-observatory.service",
+    "ai-bot-v2-rl-core-inference-loop.service",
+    "ai-bot-v2-symbol-universe-publisher.service",
+    "ai-bot-v2-trade-management-paper-loop.service",
+    "ai-bot-v2-trainer-bridge.service",
+    "ai-bot-v2-worker-porting-orchestrator.service"
+  ],
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "current_old_key_counts": {
+    "exchange:order:*": 0,
+    "live_orders:*": 0,
+    "orchestrator:*": 0
+  },
+  "findings": [
+    {
+      "exec_start": "{ path=/usr/bin/env ; argv[]=/usr/bin/env bash -lc mkdir -p claude_worklog/agent_supervisor/logs/control_plane; exec ./.venv/bin/python3 claude_worklog/tools/agent_supervisor.py --daemon --poll-second",
+      "note": "no CLI module hint in ExecStart line",
+      "old_write_evidence": [],
+      "unit": "ai-bot-v2-agent-supervisor.service"
+    },
+    {
+      "exec_start": "{ path=/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 ; argv[]=/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 /home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools/v2_closed_loop_claude_wor",
+      "note": "no CLI module hint in ExecStart line",
+      "old_write_evidence": [],
+      "unit": "ai-bot-v2-closed-loop-claude-worker@1.service"
+    },
+    {
+      "exec_start": "{ path=/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 ; argv[]=/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 /home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools/v2_closed_loop_claude_wor",
+      "note": "no CLI module hint in ExecStart line",
+      "old_write_evidence": [],
+      "unit": "ai-bot-v2-closed-loop-claude-worker@2.service"
+    },
+    {
+      "exec_start": "{ path=/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 ; argv[]=/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 /home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools/v2_closed_loop_claude_wor",
+      "note": "no CLI module hint in ExecStart line",
+      "old_write_evidence": [],
+      "unit": "ai-bot-v2-closed-loop-claude-worker@3.service"
+    },
+    {
+      "exec_start": "{ path=/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 ; argv[]=/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 /home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools/v2_closed_loop_codex_work",
+      "note": "no CLI module hint in ExecStart line",
+      "old_write_evidence": [],
+      "unit": "ai-bot-v2-closed-loop-codex-worker@1.service"
+    },
+    {
+      "exec_start": "{ path=/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 ; argv[]=/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 /home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools/v2_closed_loop_codex_work",
+      "note": "no CLI module hint in ExecStart line",
+      "old_write_evidence": [],
+      "unit": "ai-bot-v2-closed-loop-codex-worker@2.service"
+    },
+    {
+      "exec_start": "{ path=/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 ; argv[]=/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 /home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools/v2_closed_loop_codex_work",
+      "note": "no CLI module hint in ExecStart line",
+      "old_write_evidence": [],
+      "unit": "ai-bot-v2-closed-loop-codex-worker@3.service"
+    },
+    {
+      "exec_start": "{ path=/usr/bin/env ; argv[]=/usr/bin/env bash -lc mkdir -p claude_worklog/agent_supervisor/logs/control_plane; exec ./.venv/bin/python3 claude_worklog/tools/codex_legacy_shutdown_readiness_takeover.p",
+      "note": "no CLI module hint in ExecStart line",
+      "old_write_evidence": [],
+      "unit": "ai-bot-v2-codex-shutdown-readiness-takeover.service"
+    },
+    {
+      "exec_start": "{ path=/usr/bin/env ; argv[]=/usr/bin/env bash -lc mkdir -p claude_worklog/agent_supervisor/logs/control_plane; exec ./.venv/bin/python3 claude_worklog/tools/codex_non_live_watchdog.py --daemon --poll",
+      "note": "no CLI module hint in ExecStart line",
+      "old_write_evidence": [],
+      "unit": "ai-bot-v2-codex-watchdog.service"
+    },
+    {
+      "exec_start": "{ path=/usr/bin/env ; argv[]=/usr/bin/env bash -lc exec /home/wali/Desktop/AI\\ BOT\\ REBUILD/.venv/bin/python3 claude_worklog/tools/v2_continuous_legacy_log_to_rebuild_remediation.py --loop --interval-",
+      "note": "no CLI module hint in ExecStart line",
+      "old_write_evidence": [],
+      "unit": "ai-bot-v2-continuous-legacy-log-remediation.service"
+    },
+    {
+      "old_write_evidence": [],
+      "scanned_sources": [
+        "v2.backend.app.cli.v2_feature_pipeline_native_loop"
+      ],
+      "unit": "ai-bot-v2-feature-pipeline-native-loop.service"
+    },
+    {
+      "old_write_evidence": [],
+      "scanned_sources": [
+        "v2.backend.app.cli.v2_feature_snapshot_builder"
+      ],
+      "unit": "ai-bot-v2-feature-snapshot-builder.service"
+    },
+    {
+      "old_write_evidence": [],
+      "scanned_sources": [
+        "v2.backend.app.cli.v2_legacy_log_intelligence_observer"
+      ],
+      "unit": "ai-bot-v2-legacy-log-intelligence-observer.service"
+    },
+    {
+      "exec_start": "{ path=/usr/bin/env ; argv[]=/usr/bin/env bash -lc exec \"/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3\" \"/home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools/v2_legacy_v2_production_comparator",
+      "note": "no CLI module hint in ExecStart line",
+      "old_write_evidence": [],
+      "unit": "ai-bot-v2-legacy-v2-production-comparator.service"
+    },
+    {
+      "old_write_evidence": [],
+      "scanned_sources": [
+        "v2.backend.app.cli.v2_liquidation_wss_loop"
+      ],
+      "unit": "ai-bot-v2-liquidation-wss-paper-shadow.service"
+    },
+    {
+      "old_write_evidence": [],
+      "scanned_sources": [
+        "v2.backend.app.cli.v2_native_ingestors_live_loop"
+      ],
+      "unit": "ai-bot-v2-native-ingestors-live-loop.service"
+    },
+    {
+      "old_write_evidence": [],
+      "scanned_sources": [
+        "v2.backend.app.cli.v2_orchestrator_arbitration_loop"
+      ],
+      "unit": "ai-bot-v2-orchestrator-arbitration-loop.service"
+    },
+    {
+      "old_write_evidence": [],
+      "scanned_sources": [
+        "v2.backend.app.cli.paper_online_runtime"
+      ],
+      "unit": "ai-bot-v2-paper-online-runtime.service"
+    },
+    {
+      "old_write_evidence": [],
+      "scanned_sources": [
+        "v2.backend.app.cli.paper_shadow_observation"
+      ],
+      "unit": "ai-bot-v2-paper-shadow-observation.service"
+    },
+    {
+      "exec_start": "{ path=/usr/bin/env ; argv[]=/usr/bin/env bash -lc mkdir -p claude_worklog/agent_supervisor/logs/control_plane; exec ./.venv/bin/python3 claude_worklog/tools/parallel_capacity_scheduler.py --daemon --",
+      "note": "no CLI module hint in ExecStart line",
+      "old_write_evidence": [],
+      "unit": "ai-bot-v2-parallel-scheduler.service"
+    },
+    {
+      "exec_start": "{ path=/usr/bin/env ; argv[]=/usr/bin/env bash -lc exec ./.venv/bin/python3 claude_worklog/tools/v2_parallel_spark_automation_runner.py --loop --loop-interval-seconds 180 --max-cycles 0 ; ignore_error",
+      "note": "no CLI module hint in ExecStart line",
+      "old_write_evidence": [],
+      "unit": "ai-bot-v2-parallel-spark-automation.service"
+    },
+    {
+      "old_write_evidence": [],
+      "scanned_sources": [
+        "v2.backend.app.cli.v2_position_history_persistent_tracker"
+      ],
+      "unit": "ai-bot-v2-position-history-persistent-tracker.service"
+    },
+    {
+      "exec_start": "{ path=/usr/bin/env ; argv[]=/usr/bin/env bash -lc exec \"/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3\" \"/home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools/v2_production_replacement_runtime_",
+      "note": "no CLI module hint in ExecStart line",
+      "old_write_evidence": [],
+      "unit": "ai-bot-v2-production-replacement-runtime-guard.service"
+    },
+    {
+      "exec_start": "{ path=/usr/bin/env ; argv[]=/usr/bin/env bash -lc exec /home/wali/Desktop/AI\\ BOT\\ REBUILD/v2/backend/scripts/start_v2_backend_uvicorn.sh ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid",
+      "note": "no CLI module hint in ExecStart line",
+      "old_write_evidence": [],
+      "unit": "ai-bot-v2-public-website-backend.service"
+    },
+    {
+      "exec_start": "{ path=/usr/bin/env ; argv[]=/usr/bin/env bash -lc mkdir -p claude_worklog/agent_supervisor/logs/control_plane; exec ./.venv/bin/python3 claude_worklog/tools/codex_legacy_v2_realtime_decision_observat",
+      "note": "no CLI module hint in ExecStart line",
+      "old_write_evidence": [],
+      "unit": "ai-bot-v2-readonly-decision-observatory.service"
+    },
+    {
+      "old_write_evidence": [],
+      "scanned_sources": [
+        "v2.backend.app.cli.v2_rl_core_inference_loop"
+      ],
+      "unit": "ai-bot-v2-rl-core-inference-loop.service"
+    },
+    {
+      "old_write_evidence": [],
+      "scanned_sources": [
+        "v2.backend.app.cli.symbol_universe_public_payload"
+      ],
+      "unit": "ai-bot-v2-symbol-universe-publisher.service"
+    },
+    {
+      "old_write_evidence": [],
+      "scanned_sources": [
+        "v2.backend.app.cli.v2_trade_management_paper_loop"
+      ],
+      "unit": "ai-bot-v2-trade-management-paper-loop.service"
+    },
+    {
+      "old_write_evidence": [],
+      "scanned_sources": [
+        "v2.backend.app.cli.v2_trainer_bridge"
+      ],
+      "unit": "ai-bot-v2-trainer-bridge.service"
+    },
+    {
+      "exec_start": "{ path=/usr/bin/env ; argv[]=/usr/bin/env bash -lc mkdir -p claude_worklog/agent_supervisor/logs/control_plane; exec ./.venv/bin/python3 claude_worklog/tools/v2_worker_porting_orchestrator.py --daemon",
+      "note": "no CLI module hint in ExecStart line",
+      "old_write_evidence": [],
+      "unit": "ai-bot-v2-worker-porting-orchestrator.service"
+    }
+  ],
+  "go_no_go": "V2_OLD_REDIS_WRITE_OBSERVER_READY",
+  "live_symbols": [],
+  "no_redis_delete_attempted": true,
+  "no_redis_trim_attempted": true,
+  "old_namespace_prefixes_scanned_count": 51,
+  "proven_old_writers": [],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "ts_est": "20260526T005752EST",
+  "ts_iso_est": "2026-05-26T01:03:26-0400",
+  "writes_exchange_orders": false
+}

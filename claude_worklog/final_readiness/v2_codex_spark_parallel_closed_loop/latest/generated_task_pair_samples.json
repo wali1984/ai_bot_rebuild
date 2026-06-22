@@ -1,0 +1,28 @@
+{
+  "pairs": [
+    {
+      "codex_review": "codex_review_closed_loop_runtime_stability_task_001",
+      "codex_review_status": "failed",
+      "implementation": "closed_loop_runtime_stability_task_001",
+      "implementation_status": "completed",
+      "lane_group": "runtime-claude",
+      "status": "DUPLICATE_SUPPRESSED_EXISTING_TASK_REFERENCED"
+    },
+    {
+      "codex_review": "codex_review_closed_loop_model_policy_readiness_task_002",
+      "codex_review_status": "failed",
+      "implementation": "closed_loop_model_policy_readiness_task_002",
+      "implementation_status": "completed",
+      "lane_group": "model-claude",
+      "status": "DUPLICATE_SUPPRESSED_EXISTING_TASK_REFERENCED"
+    },
+    {
+      "codex_review": "codex_review_closed_loop_paper_edge_task_003",
+      "codex_review_status": "failed",
+      "implementation": "closed_loop_paper_edge_task_003",
+      "implementation_status": "completed",
+      "lane_group": "proof-claude",
+      "status": "DUPLICATE_SUPPRESSED_EXISTING_TASK_REFERENCED"
+    }
+  ]
+}

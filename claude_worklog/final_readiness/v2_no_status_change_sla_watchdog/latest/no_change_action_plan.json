@@ -1,0 +1,60 @@
+{
+  "do_not_fake_technical_work": false,
+  "event_watchers": [
+    "full_observation_builder.event_dependent",
+    "paper_edge_not_proven"
+  ],
+  "external_source_reconciliation": {
+    "alias_mappings_checked": true,
+    "generated_utc": "2026-05-25T19:15:42Z",
+    "go_no_go": "V2_EXTERNAL_SOURCE_WAIT_CREDENTIAL_RECONCILIATION_READY",
+    "providers_with_key_present_client_missing": [
+      "tokenmetrics"
+    ],
+    "raw_key_values_exposed": false,
+    "raw_values_read": false,
+    "seeded_or_referenced_count": 1
+  },
+  "external_source_state": [
+    {
+      "blocker_id": "full_observation_builder.external_sources",
+      "classification": "SOURCE_MISSING_KEY_OPERATOR_REQUIRED",
+      "implementation_task_seed_status": "NOT_SEEDED_OPERATOR_OR_SOURCE_BLOCKED",
+      "missing_env_var_names": [
+        "CRYPTOQUANT_API_KEY",
+        "GLASSNODE_API_KEY",
+        "SANTIMENT_API_KEY",
+        "TM_API_KEY",
+        "TOKENMETRICS_API_KEY"
+      ]
+    }
+  ],
+  "next_automatic_action": "Spark remediation task seeded or referenced",
+  "next_operator_action": "none unless remediation classifies operator-required",
+  "operator_decisions_needed": [
+    "full_observation_builder.operator_decision_families",
+    "checkpoint_promotion",
+    "legacy_shutdown.legacy_runtime_owner",
+    "legacy_shutdown.legacy_redis_keys_active",
+    "risk_caps_canary_hard_gates_unset",
+    "capital_recovery_gate_unset"
+  ],
+  "remediation": {
+    "blocked_automatable_seed_items": [],
+    "blocked_seed_count": 0,
+    "duplicate_suppressed_count": 1,
+    "duplicate_suppressed_existing_tasks": [
+      {
+        "implementation_task_id": "no_manual_v2_no_status_change_sla_watchdog_v2_no_status_change_sla_watchdog_replay_miner_stale_20260526205008_implementation",
+        "implementation_task_status": "completed",
+        "source_key": "v2_no_status_change_sla_watchdog_replay_miner_stale",
+        "status": "DUPLICATE_SUPPRESSED_EXISTING_TASK_REFERENCED"
+      }
+    ],
+    "generated_pair_count": 0,
+    "generated_pairs": [],
+    "reason": "SEEDED_IF_NOT_DUPLICATE_FOR_REPLAY_MINER_STALE",
+    "remediation_seeded": false
+  },
+  "root_cause": "REPLAY_MINER_STALE"
+}

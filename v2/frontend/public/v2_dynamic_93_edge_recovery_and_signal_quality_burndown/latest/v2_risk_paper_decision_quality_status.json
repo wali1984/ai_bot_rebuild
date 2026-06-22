@@ -1,0 +1,1319 @@
+{
+  "allowed_losers": [
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "PRE_TRADE_GATE_BLOCKED"
+      ],
+      "confidence_calibrated": 0.6459308282515331,
+      "expected_move_after_cost_bps": -71.39105987548828,
+      "label": "false_positive",
+      "realized_after_cost_bps": -195.3830455259015,
+      "symbol": "AEROUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6676404045095327,
+      "expected_move_after_cost_bps": -122.04119110107422,
+      "label": "false_positive",
+      "realized_after_cost_bps": -188.20351588911382,
+      "symbol": "ASTERUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6459308282515331,
+      "expected_move_after_cost_bps": -132.0,
+      "label": "false_positive",
+      "realized_after_cost_bps": -171.81069042316173,
+      "symbol": "CRVUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.643653355918265,
+      "expected_move_after_cost_bps": 95.3762435913086,
+      "label": "false_positive",
+      "realized_after_cost_bps": -158.05196907031043,
+      "symbol": "INJUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6453987349010497,
+      "expected_move_after_cost_bps": -131.99848175048828,
+      "label": "false_positive",
+      "realized_after_cost_bps": -154.0426862723575,
+      "symbol": "ENAUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6459074928308393,
+      "expected_move_after_cost_bps": -132.0,
+      "label": "false_positive",
+      "realized_after_cost_bps": -142.26266121421827,
+      "symbol": "ENAUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6459308282515331,
+      "expected_move_after_cost_bps": -132.0,
+      "label": "false_positive",
+      "realized_after_cost_bps": -132.29219261337016,
+      "symbol": "XPLUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6315388576741006,
+      "expected_move_after_cost_bps": 47.92449951171875,
+      "label": "false_positive",
+      "realized_after_cost_bps": -129.564424890005,
+      "symbol": "IPUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6459139166311485,
+      "expected_move_after_cost_bps": -131.99817657470703,
+      "label": "false_positive",
+      "realized_after_cost_bps": -127.202911336569,
+      "symbol": "ENAUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.5828621175544257,
+      "expected_move_after_cost_bps": -97.32604217529297,
+      "label": "false_positive",
+      "realized_after_cost_bps": -125.9951520493613,
+      "symbol": "CRVUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6459308282515331,
+      "expected_move_after_cost_bps": -132.0,
+      "label": "false_positive",
+      "realized_after_cost_bps": -114.5268817204298,
+      "symbol": "PUMPUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6412794649463973,
+      "expected_move_after_cost_bps": -64.93337631225586,
+      "label": "false_positive",
+      "realized_after_cost_bps": -107.6711409395967,
+      "symbol": "CRVUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.5705427341449156,
+      "expected_move_after_cost_bps": -52.91706085205078,
+      "label": "false_positive",
+      "realized_after_cost_bps": -101.80626545754372,
+      "symbol": "CHZUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6459308282515331,
+      "expected_move_after_cost_bps": -109.58543395996094,
+      "label": "false_positive",
+      "realized_after_cost_bps": -98.41115977908993,
+      "symbol": "XPLUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6459308282515331,
+      "expected_move_after_cost_bps": -131.27498626708984,
+      "label": "false_positive",
+      "realized_after_cost_bps": -97.38619556285866,
+      "symbol": "XPLUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.5688902579775341,
+      "expected_move_after_cost_bps": -30.6475830078125,
+      "label": "false_positive",
+      "realized_after_cost_bps": -96.14993652078013,
+      "symbol": "HYPEUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6517397916171552,
+      "expected_move_after_cost_bps": -131.9856948852539,
+      "label": "false_positive",
+      "realized_after_cost_bps": -96.05852417302806,
+      "symbol": "FILUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6259160097934235,
+      "expected_move_after_cost_bps": -132.0,
+      "label": "false_positive",
+      "realized_after_cost_bps": -95.97276894041474,
+      "symbol": "DASHUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6597807448217018,
+      "expected_move_after_cost_bps": -131.9991683959961,
+      "label": "false_positive",
+      "realized_after_cost_bps": -95.49557522124012,
+      "symbol": "DOTUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6597807448217018,
+      "expected_move_after_cost_bps": -132.0,
+      "label": "false_positive",
+      "realized_after_cost_bps": -90.73732921991927,
+      "symbol": "NEARUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.5772482808636639,
+      "expected_move_after_cost_bps": -90.97101593017578,
+      "label": "false_positive",
+      "realized_after_cost_bps": -90.37768316480366,
+      "symbol": "MEGAUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6457959412693355,
+      "expected_move_after_cost_bps": 80.6052017211914,
+      "label": "false_positive",
+      "realized_after_cost_bps": -90.22929671244286,
+      "symbol": "ICPUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6459308282515331,
+      "expected_move_after_cost_bps": -132.0,
+      "label": "false_positive",
+      "realized_after_cost_bps": -89.25806451612894,
+      "symbol": "WLDUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6459308282515331,
+      "expected_move_after_cost_bps": -132.0,
+      "label": "false_positive",
+      "realized_after_cost_bps": -88.35593220339028,
+      "symbol": "VIRTUALUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6457209775880023,
+      "expected_move_after_cost_bps": 107.85907745361328,
+      "label": "false_positive",
+      "realized_after_cost_bps": -83.30939993062712,
+      "symbol": "ENAUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6459308282515331,
+      "expected_move_after_cost_bps": -132.0,
+      "label": "false_positive",
+      "realized_after_cost_bps": -83.30259428820496,
+      "symbol": "ENAUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "PRE_TRADE_GATE_BLOCKED"
+      ],
+      "confidence_calibrated": 0.5808309660594059,
+      "expected_move_after_cost_bps": -5.422996520996094,
+      "label": "false_positive",
+      "realized_after_cost_bps": -81.83629560336806,
+      "symbol": "IPUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6454513341638219,
+      "expected_move_after_cost_bps": -131.93519592285156,
+      "label": "false_positive",
+      "realized_after_cost_bps": -81.75238273219965,
+      "symbol": "INJUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6458843222413295,
+      "expected_move_after_cost_bps": -132.0,
+      "label": "false_positive",
+      "realized_after_cost_bps": -79.27615965479936,
+      "symbol": "ENAUSDT"
+    },
+    {
+      "block_reasons": [
+        "MISSING_CRITICAL_FEATURE_FAMILY"
+      ],
+      "confidence_calibrated": 0.6194382793524703,
+      "expected_move_after_cost_bps": -131.9950408935547,
+      "label": "false_positive",
+      "realized_after_cost_bps": -79.07124495042179,
+      "symbol": "XLMUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6438708033778029,
+      "expected_move_after_cost_bps": -82.94364929199219,
+      "label": "false_positive",
+      "realized_after_cost_bps": -78.75472928897548,
+      "symbol": "PUMPUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6459308282515331,
+      "expected_move_after_cost_bps": -132.0,
+      "label": "false_positive",
+      "realized_after_cost_bps": -78.00957085520183,
+      "symbol": "ENAUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.5812207016082082,
+      "expected_move_after_cost_bps": -93.31360626220703,
+      "label": "false_positive",
+      "realized_after_cost_bps": -77.39999999999935,
+      "symbol": "IPUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.641737380319459,
+      "expected_move_after_cost_bps": -121.56642150878906,
+      "label": "false_positive",
+      "realized_after_cost_bps": -77.1402805611212,
+      "symbol": "DOTUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6459308282515331,
+      "expected_move_after_cost_bps": -132.0,
+      "label": "false_positive",
+      "realized_after_cost_bps": -76.47590998338525,
+      "symbol": "WLDUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6337325363321565,
+      "expected_move_after_cost_bps": -125.83526611328125,
+      "label": "false_positive",
+      "realized_after_cost_bps": -73.45744877238411,
+      "symbol": "INJUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6140465120807985,
+      "expected_move_after_cost_bps": -131.9499282836914,
+      "label": "false_positive",
+      "realized_after_cost_bps": -71.6444554947785,
+      "symbol": "FETUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6259160097934235,
+      "expected_move_after_cost_bps": -132.0,
+      "label": "false_positive",
+      "realized_after_cost_bps": -70.878193909695,
+      "symbol": "XLMUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "PRE_TRADE_GATE_BLOCKED"
+      ],
+      "confidence_calibrated": 0.6597807448217018,
+      "expected_move_after_cost_bps": 7.293634414672852,
+      "label": "false_positive",
+      "realized_after_cost_bps": -70.6864666258421,
+      "symbol": "TAOUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6459308282515331,
+      "expected_move_after_cost_bps": -131.97393798828125,
+      "label": "false_positive",
+      "realized_after_cost_bps": -70.34905328359187,
+      "symbol": "PENDLEUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6459168301241219,
+      "expected_move_after_cost_bps": -131.9999542236328,
+      "label": "false_positive",
+      "realized_after_cost_bps": -69.88409318279204,
+      "symbol": "JTOUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6459308282515331,
+      "expected_move_after_cost_bps": -132.0,
+      "label": "false_positive",
+      "realized_after_cost_bps": -69.88239292997834,
+      "symbol": "VIRTUALUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6257112602713781,
+      "expected_move_after_cost_bps": -84.73883819580078,
+      "label": "false_positive",
+      "realized_after_cost_bps": -69.73867975995671,
+      "symbol": "ETCUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6459308282515331,
+      "expected_move_after_cost_bps": 107.690185546875,
+      "label": "false_positive",
+      "realized_after_cost_bps": -68.89451022604868,
+      "symbol": "AAVEUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.5921319451786664,
+      "expected_move_after_cost_bps": -40.94724655151367,
+      "label": "false_positive",
+      "realized_after_cost_bps": -68.80643348785041,
+      "symbol": "JTOUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6121584240408119,
+      "expected_move_after_cost_bps": -125.09542846679688,
+      "label": "false_positive",
+      "realized_after_cost_bps": -68.7732558139535,
+      "symbol": "MEGAUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6459308282515331,
+      "expected_move_after_cost_bps": 56.01134490966797,
+      "label": "false_positive",
+      "realized_after_cost_bps": -68.37658921525579,
+      "symbol": "CRVUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6317946395833894,
+      "expected_move_after_cost_bps": -83.05358123779297,
+      "label": "false_positive",
+      "realized_after_cost_bps": -68.32075471698187,
+      "symbol": "PENDLEUSDT"
+    },
+    {
+      "block_reasons": [],
+      "confidence_calibrated": 0.6258649254797131,
+      "expected_move_after_cost_bps": -131.9805679321289,
+      "label": "false_positive",
+      "realized_after_cost_bps": -67.33182503770772,
+      "symbol": "FETUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "PRE_TRADE_GATE_BLOCKED"
+      ],
+      "confidence_calibrated": 0.6459308282515331,
+      "expected_move_after_cost_bps": 80.24505615234375,
+      "label": "false_positive",
+      "realized_after_cost_bps": -66.40594059405915,
+      "symbol": "JTOUSDT"
+    }
+  ],
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "calls_exchange_mutation": false,
+  "calls_test_order_endpoint": false,
+  "churn_block_count": 0,
+  "concentration": {
+    "bundle_count_total": 89329,
+    "top5_symbol_bundle_share": 0.122021,
+    "top_symbol_bundle_count": 2219,
+    "top_symbol_bundle_share": 0.024841
+  },
+  "current_risk_decision_count": 1,
+  "current_risk_payload_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/paper_online/latest/current_risk_decisions.json",
+  "execution_live_symbols": [],
+  "execution_mutation_enabled": false,
+  "fee_block_count": 56253,
+  "generated_at": "2026-06-21T19:36:10-04:00",
+  "generated_est": "2026-06-21T19:36:10-04:00",
+  "generated_utc": "2026-06-21T23:36:10Z",
+  "leverage_changed": false,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "margin_mode_changed": false,
+  "missed_winners": [
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6459178119990645,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 181.3830455259015,
+      "symbol": "AEROUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6312246773530434,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 181.3830455259015,
+      "symbol": "AEROUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.593356906771574,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 181.3830455259015,
+      "symbol": "AEROUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.645856534890431,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 55.50000000000042,
+      "symbol": "VIRTUALUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6459058334064839,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 55.50000000000042,
+      "symbol": "VIRTUALUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6458762257769181,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 55.50000000000042,
+      "symbol": "VIRTUALUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6458924415090886,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 55.50000000000042,
+      "symbol": "VIRTUALUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6458661339682512,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 43.78326734377596,
+      "symbol": "TAOUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6459262544814626,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 43.78326734377596,
+      "symbol": "TAOUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6459250431803336,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 43.78326734377596,
+      "symbol": "TAOUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6444379980602385,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 43.78326734377596,
+      "symbol": "TAOUSDT"
+    },
+    {
+      "block_reasons": [
+        "BLOCKED_BY_FEE_RATIO ratio=0.7717 > max_ratio=0.5000",
+        "FEE_GATE_BLOCKED",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6457843428105474,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 39.511627906976216,
+      "symbol": "TRUMPUSDT"
+    },
+    {
+      "block_reasons": [
+        "BLOCKED_BY_FEE_RATIO ratio=0.7717 > max_ratio=0.5000",
+        "FEE_GATE_BLOCKED",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6457908328346526,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 39.511627906976216,
+      "symbol": "TRUMPUSDT"
+    },
+    {
+      "block_reasons": [
+        "BLOCKED_BY_FEE_RATIO ratio=0.7717 > max_ratio=0.5000",
+        "FEE_GATE_BLOCKED",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "confidence_below_threshold",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.4999612214727694,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 39.511627906976216,
+      "symbol": "TRUMPUSDT"
+    },
+    {
+      "block_reasons": [
+        "BLOCKED_BY_FEE_RATIO ratio=0.8218 > max_ratio=0.5000",
+        "FEE_GATE_BLOCKED",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6259095390158833,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 31.67403314917142,
+      "symbol": "DASHUSDT"
+    },
+    {
+      "block_reasons": [
+        "BLOCKED_BY_FEE_RATIO ratio=0.8218 > max_ratio=0.5000",
+        "FEE_GATE_BLOCKED",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.625910425795684,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 31.67403314917142,
+      "symbol": "DASHUSDT"
+    },
+    {
+      "block_reasons": [
+        "BLOCKED_BY_FEE_RATIO ratio=0.8218 > max_ratio=0.5000",
+        "FEE_GATE_BLOCKED",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6258815150436025,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 31.67403314917142,
+      "symbol": "DASHUSDT"
+    },
+    {
+      "block_reasons": [
+        "BLOCKED_BY_FEE_RATIO ratio=0.8218 > max_ratio=0.5000",
+        "FEE_GATE_BLOCKED",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6258952212101766,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 31.67403314917142,
+      "symbol": "DASHUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6251869109434541,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 26.913346645114046,
+      "symbol": "XMRUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "confidence_below_threshold",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.4999936922007323,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 26.913346645114046,
+      "symbol": "XMRUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6232565294511253,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 26.913346645114046,
+      "symbol": "XMRUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6240376552678892,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 26.913346645114046,
+      "symbol": "XMRUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6253315284748573,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 26.913346645114046,
+      "symbol": "XMRUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.625843276237869,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 24.869987336428682,
+      "symbol": "ZECUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6258800677704968,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 24.869987336428682,
+      "symbol": "ZECUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.625906686507465,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 24.869987336428682,
+      "symbol": "ZECUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6259013233685851,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 24.869987336428682,
+      "symbol": "ZECUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6258722849860593,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 24.869987336428682,
+      "symbol": "ZECUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "confidence_below_threshold",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.5289745894586466,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 23.99173553719011,
+      "symbol": "DOTUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6459308282515331,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 20.325581395347925,
+      "symbol": "SUNUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6458701310060446,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 20.325581395347925,
+      "symbol": "SUNUSDT"
+    },
+    {
+      "block_reasons": [
+        "BLOCKED_BY_FEE_RATIO ratio=1.4347 > max_ratio=0.5000",
+        "FEE_GATE_BLOCKED",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6459308282515331,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 20.09595154606367,
+      "symbol": "AVAXUSDT"
+    },
+    {
+      "block_reasons": [
+        "BLOCKED_BY_FEE_RATIO ratio=1.4347 > max_ratio=0.5000",
+        "FEE_GATE_BLOCKED",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6447330200918525,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 20.09595154606367,
+      "symbol": "AVAXUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6457679695431218,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 19.541764246682828,
+      "symbol": "APTUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.5715745229768275,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 19.541764246682828,
+      "symbol": "APTUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6255815104347017,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 18.690106790247377,
+      "symbol": "BCHUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6257743026703179,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 18.690106790247377,
+      "symbol": "BCHUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6233309719219103,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 17.529343226835802,
+      "symbol": "TRXUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6522937021571916,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 17.529343226835802,
+      "symbol": "TRXUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6507838111071743,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 17.529343226835802,
+      "symbol": "TRXUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6333909935993611,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 17.529343226835802,
+      "symbol": "TRXUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.652742964110599,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 17.529343226835802,
+      "symbol": "TRXUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6509419959672083,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 16.3754090696603,
+      "symbol": "NEARUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "expected_move_after_cost_below_threshold",
+        "expected_move_after_cost_direction_mismatch"
+      ],
+      "confidence_calibrated": 0.6390371172086854,
+      "expected_move_after_cost_bps": 2.263019561767578,
+      "label": "false_block",
+      "realized_after_cost_bps": 16.009015777611673,
+      "symbol": "XLMUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "PRE_TRADE_GATE_BLOCKED",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.5872161742920007,
+      "expected_move_after_cost_bps": -3.273763656616211,
+      "label": "false_block",
+      "realized_after_cost_bps": 15.068095838586963,
+      "symbol": "IPUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6426263851462792,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 14.102982554868557,
+      "symbol": "SUIUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6259160097934235,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 12.560637977731709,
+      "symbol": "BCHUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6259160097934235,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 12.560637977731709,
+      "symbol": "BCHUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6458224618898905,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 11.57010213556099,
+      "symbol": "CRVUSDT"
+    },
+    {
+      "block_reasons": [
+        "FEE_GATE_BLOCKED",
+        "MISSING_EXPECTED_MOVE_AFTER_COST_BPS",
+        "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION",
+        "PRE_TRADE_GATE_BLOCKED",
+        "action_not_directional",
+        "expected_move_after_cost_below_threshold"
+      ],
+      "confidence_calibrated": 0.6458767569461362,
+      "expected_move_after_cost_bps": 0.0,
+      "label": "false_block",
+      "realized_after_cost_bps": 11.57010213556099,
+      "symbol": "CRVUSDT"
+    }
+  ],
+  "no_trade_correct_count": 185,
+  "outcome_sample_count": 965,
+  "paper_shadow_only": true,
+  "paper_worker_denials_breakdown": {
+    "deny_default": 1
+  },
+  "paper_worker_payload_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_paper_execution_worker/latest/v2_paper_execution_worker_status.json",
+  "places_exchange_orders": false,
+  "places_real_order": false,
+  "quality_overlay_applies_to_canary": false,
+  "quality_overlay_applies_to_live": false,
+  "raw_credential_value_exposed": false,
+  "risk_block_category_counts": {
+    "fee": 56253,
+    "other": 188125,
+    "risk": 52179,
+    "slippage": 101,
+    "spread": 101
+  },
+  "risk_block_reason_counts": {
+    "BLOCKED_BY_FEE_RATIO ratio=0.5267 > max_ratio=0.5000": 7,
+    "BLOCKED_BY_FEE_RATIO ratio=0.5718 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=0.6281 > max_ratio=0.5000": 8,
+    "BLOCKED_BY_FEE_RATIO ratio=0.6313 > max_ratio=0.5000": 10,
+    "BLOCKED_BY_FEE_RATIO ratio=0.6385 > max_ratio=0.5000": 16,
+    "BLOCKED_BY_FEE_RATIO ratio=0.6517 > max_ratio=0.5000": 7,
+    "BLOCKED_BY_FEE_RATIO ratio=0.6530 > max_ratio=0.5000": 8,
+    "BLOCKED_BY_FEE_RATIO ratio=0.6586 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=0.6683 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=0.6808 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=0.6879 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=0.7004 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=0.7226 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=0.7234 > max_ratio=0.5000": 7,
+    "BLOCKED_BY_FEE_RATIO ratio=0.7256 > max_ratio=0.5000": 7,
+    "BLOCKED_BY_FEE_RATIO ratio=0.7306 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=0.7310 > max_ratio=0.5000": 8,
+    "BLOCKED_BY_FEE_RATIO ratio=0.7313 > max_ratio=0.5000": 7,
+    "BLOCKED_BY_FEE_RATIO ratio=0.7456 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=0.7510 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=0.7852 > max_ratio=0.5000": 10,
+    "BLOCKED_BY_FEE_RATIO ratio=0.8163 > max_ratio=0.5000": 7,
+    "BLOCKED_BY_FEE_RATIO ratio=0.8197 > max_ratio=0.5000": 12,
+    "BLOCKED_BY_FEE_RATIO ratio=0.8316 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=0.8405 > max_ratio=0.5000": 7,
+    "BLOCKED_BY_FEE_RATIO ratio=0.8700 > max_ratio=0.5000": 7,
+    "BLOCKED_BY_FEE_RATIO ratio=0.9320 > max_ratio=0.5000": 7,
+    "BLOCKED_BY_FEE_RATIO ratio=0.9381 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=0.9976 > max_ratio=0.5000": 10,
+    "BLOCKED_BY_FEE_RATIO ratio=1.1060 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=1.1787 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=1.2260 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=1.2323 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=1.2988 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=1.3413 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=1.4082 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=1.4127 > max_ratio=0.5000": 10,
+    "BLOCKED_BY_FEE_RATIO ratio=1.4909 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=1.5297 > max_ratio=0.5000": 12,
+    "BLOCKED_BY_FEE_RATIO ratio=1.5577 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=1.8031 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=1.8798 > max_ratio=0.5000": 11,
+    "BLOCKED_BY_FEE_RATIO ratio=1.9301 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=1.9926 > max_ratio=0.5000": 11,
+    "BLOCKED_BY_FEE_RATIO ratio=2.0680 > max_ratio=0.5000": 7,
+    "BLOCKED_BY_FEE_RATIO ratio=2.1136 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=2.2689 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=2.3197 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=2.6816 > max_ratio=0.5000": 8,
+    "BLOCKED_BY_FEE_RATIO ratio=2.7048 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=3.0564 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=3.8438 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=3.9708 > max_ratio=0.5000": 10,
+    "BLOCKED_BY_FEE_RATIO ratio=4.5066 > max_ratio=0.5000": 7,
+    "BLOCKED_BY_FEE_RATIO ratio=4.8390 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=5.0670 > max_ratio=0.5000": 6,
+    "BLOCKED_BY_FEE_RATIO ratio=7.0646 > max_ratio=0.5000": 6,
+    "CANDLE_COMPLETION_UNKNOWN": 69,
+    "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 103,
+    "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED": 255,
+    "FEE_GATE_BLOCKED": 52179,
+    "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 69,
+    "MISSING_CRITICAL_FEATURE_FAMILY": 3218,
+    "MISSING_ENTRY_FEATURE_AVAILABLE_AT": 255,
+    "MISSING_ENTRY_FEATURE_CUTOFF": 255,
+    "MISSING_ENTRY_FEATURE_GENERATED_AT": 255,
+    "MISSING_EXPECTED_MOVE_AFTER_COST_BPS": 47232,
+    "MISSING_OBSERVED_OR_MODELED_SLIPPAGE_AT_DECISION_TIME": 101,
+    "MISSING_OBSERVED_SPREAD_AT_DECISION_TIME": 101,
+    "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 43761,
+    "PRE_TRADE_GATE_BLOCKED": 52179,
+    "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 455,
+    "action_not_directional": 41990,
+    "candle_closed_confirmed_missing": 69,
+    "confidence_below_threshold": 3661,
+    "data_coverage_below_threshold": 902,
+    "expected_move_after_cost_below_threshold": 43753,
+    "expected_move_after_cost_direction_mismatch": 1771,
+    "feature_timestamp_after_decision_cutoff": 26,
+    "source_available_after_decision_cutoff": 26
+  },
+  "safe_paper_only_guards": {
+    "applies_to_live_or_canary": false,
+    "block_or_downrank_negative_expectancy_symbols": true,
+    "diversify_paper_candidate_selection": true,
+    "execution_live_symbols": [],
+    "live_symbols": [],
+    "max_symbol_selection_share": 0.15,
+    "max_top5_selection_share": 0.5,
+    "negative_expectancy_symbol_blocklist": [],
+    "preserve_live_gate": "blocked_human_only"
+  },
+  "schema_version": "v2_risk_paper_decision_quality_status_v1",
+  "slippage_block_count": 101,
+  "spread_block_count": 101,
+  "stale_feature_block_count": 0,
+  "timezone": "America/New_York",
+  "trade_all_discovered_symbols": false,
+  "writes_exchange_orders": false,
+  "writes_legacy_redis": false,
+  "writes_old_redis": false
+}

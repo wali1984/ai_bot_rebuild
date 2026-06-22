@@ -1,0 +1,16 @@
+I've reached the same write-permission gate that blocked the previous worker. Here's the situation:
+
+**All r18 fail-blocker work is already in place in the V2 tree** (no new source edits needed):
+
+- `v2/backend/app/services/rl_core/liquidation_observation_aggregator.py:67-104` — public `read_v2_liquidation_per_symbol_from(redis_client, symbol)` present (reuses caller's Redis client, no double-connect).
+- `v2/backend/app/services/rl_core/full_observation_builder.py` — chain is end-to-end threaded:
+  - `_project_liquidations(v2_features, symbol, v2_liquidation_per_symbol)` @ 988-1006
+  - `_build_unified_features_slice(... liquidation_per_symbol ...)` @ 1421-1459
+  - `build_full_observation_for_symbol(... liquidation_per_symbol ...)` @ 2169-2206
+  - `build_full_observation_status` reads via `read_v2_liquidation_per_symbol_from(r, sym)` @ 2360-2393
+- `v2/backend/tests/integration/cli/test_v2_liquidation_observation_aggregator.py` — covers `test_read_v2_liquidation_per_symbol_from_reuses_existing_client`, `test_builder_uses_aggregator_and_lifts_liquidations_per_symbol`, and `test_per_symbol_v2_liquidation_snapshot_fills_four_gap_fields`.
+- `claude_worklog/final_readiness/v2_autonomous_mission_backlog/per_task/observation_gap_feature_source_burndown/IMPLEMENTATION_REPORT.md` — present (1571 bytes).
+
+**Blocked step:** the only remaining action is to mark `closed_loop_remediation_codex_review_autoseed_observation_gap_feature_source_burndown_r18.json` from `status: running` to `status: completed` (mirroring how r17 was closed), adding a `remediation_verification` block pointing at the file/line evidence above. Safety invariants preserved: `live_gate=blocked_human_only`, `live_symbols=[]`, no legacy edits, no exchange mutation.
+
+Both my Write and Edit attempts on that JSON were denied. Please approve the write so I can close the loop, or tell me to take a different path (e.g., leave it `running` and instead queue the r19 paired autoseed+codex review).

@@ -1,0 +1,98 @@
+from __future__ import annotations
+
+import math
+
+import pytest
+
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.confidence import (
+    calibrate_confidence,
+    softmax,
+)
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.model import V2HybridPolicyModel
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import FeatureTensorRecord
+
+
+def test_expected_move_does_not_force_short_without_policy_agreement() -> None:
+    probs, selected = V2HybridPolicyModel._expected_move_aligned_policy(
+        (0.55, 0.30, 0.15, 0.0, 0.0, 0.0, 0.0),
+        -60.0,
+    )
+
+    assert selected == 0
+    assert probs[0] > probs[2]
+
+
+def test_expected_move_selects_short_when_policy_head_agrees() -> None:
+    probs, selected = V2HybridPolicyModel._expected_move_aligned_policy(
+        (0.20, 0.10, 0.70, 0.0, 0.0, 0.0, 0.0),
+        -60.0,
+    )
+
+    assert selected == 2
+    assert probs[2] > probs[0]
+
+
+def test_conflicting_long_policy_and_negative_expected_move_selects_hold() -> None:
+    probs, selected = V2HybridPolicyModel._expected_move_aligned_policy(
+        (0.10, 0.80, 0.10, 0.0, 0.0, 0.0, 0.0),
+        -60.0,
+    )
+
+    assert selected == 0
+    assert probs[0] > probs[2]
+
+
+def test_softmax_and_calibration_neutralize_non_finite_values() -> None:
+    probs = softmax((math.nan, math.inf, -math.inf))
+    calibration = calibrate_confidence(
+        raw_probability=math.nan,
+        data_coverage_percent=math.inf,
+        missing_feature_count=0,
+        stale_feature_count=0,
+        temperature=math.nan,
+    )
+
+    assert len(probs) == 3
+    assert all(math.isfinite(value) for value in probs)
+    assert math.isclose(sum(probs), 1.0)
+    assert calibration["confidence_raw"] == 0.0
+    assert 0.0 <= calibration["confidence_calibrated"] <= 1.0
+
+
+def test_torch_forward_sanitizes_non_finite_head_outputs_to_neutral_prediction() -> None:
+    tensor = FeatureTensorRecord(
+        tensor_id="tensor_non_finite",
+        symbol="BTCUSDT",
+        timeframe="1m",
+        feature_snapshot_id="feature_non_finite",
+        values=(math.nan,),
+        missing_mask=(0,),
+        stale_mask=(0,),
+        source_availability=(1,),
+        feature_names=("ret_pct",),
+        source_labels=("unit",),
+        missing_feature_names=(),
+        stale_feature_names=(),
+        data_coverage_percent=100.0,
+        source_availability_vector=(1,),
+    )
+    model = V2HybridPolicyModel(input_dim=len(tensor.model_vector))
+    if not model.torch_available:
+        pytest.skip("torch unavailable")
+
+    torch = model.torch
+    assert torch is not None and model.net is not None
+    with torch.no_grad():
+        for parameter in model.net.parameters():
+            parameter.fill_(float("nan"))
+
+    result = model.forward(tensor)
+
+    assert result.selected_action == "hold"
+    assert all(math.isfinite(value) for value in result.action_logits)
+    assert all(math.isfinite(value) for value in result.action_probabilities)
+    assert math.isfinite(result.expected_move_bps)
+    assert result.expected_move_bps == 0.0
+    assert math.isfinite(result.confidence_calibrated)
+    assert math.isfinite(result.policy_value)
+    assert math.isfinite(result.masa_signal)

@@ -1,0 +1,9 @@
+{
+  "alive": true,
+  "file_lock_group": "v2_native_baseline_after_cost_calibration",
+  "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/codex_review_autoseed_baseline_after_cost_calibration_r15_codex.log",
+  "pid": 1916632,
+  "task_id": "codex_review_autoseed_baseline_after_cost_calibration_r15",
+  "task_type": "CODEX_REVIEW",
+  "updated_at": "2026-05-24T23:47:15Z"
+}

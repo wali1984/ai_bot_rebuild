@@ -1,0 +1,117 @@
+{
+  "all_timeframe_refresh": {
+    "old_redis_write_attempts": 0,
+    "paths_written_count": 70,
+    "ran": true,
+    "redis_connected": true,
+    "status": "V2_ALL_SYMBOL_ALL_TIMEFRAME_FEATURE_TRAINER_SIGNAL_GPU_PARITY_BLOCKED"
+  },
+  "blockers": [],
+  "checkpoint": {
+    "best_checkpoint": null,
+    "checkpoint_count": 10,
+    "checkpoint_dir": ".local_models/v2_native_rl_masa_ppo",
+    "checkpoint_dir_size_bytes": 51124769,
+    "checkpoint_rollover_limit_bytes": 322122547200,
+    "checkpoint_rollover_limit_gb": 300,
+    "checkpoint_rollover_status": "BELOW_LIMIT_NO_ACTION",
+    "checkpoint_total_size_gb": 0.047614,
+    "deleted_checkpoints": [],
+    "generated_est": "2026-06-21T20:21:45-04:00",
+    "latest_checkpoint": "v2_hybrid_ckpt_6d9f8817bed9ead40229baf7.json",
+    "latest_checkpoint_id": "v2_hybrid_ckpt_6d9f8817bed9ead40229baf7",
+    "never_delete_latest_checkpoint": true,
+    "never_delete_pinned_high_performing_checkpoint": true,
+    "oldest_checkpoint": "v2_hybrid_ckpt_8614a725d910bda7139a3c2f.json",
+    "pinned_checkpoints": [
+      "v2_hybrid_ckpt_6d9f8817bed9ead40229baf7.json",
+      "v2_hybrid_ckpt_6d9f8817bed9ead40229baf7.weights.npz"
+    ],
+    "rollover_action_taken": "NONE",
+    "rollover_limit_gb": 300,
+    "schema_version": "native_cuda_trainer_checkpoint_retention_manifest_v1",
+    "total_size_gb": 0.047614
+  },
+  "gate": "V2_PERSISTENT_CUDA_TRAINER_RESOURCE_UTILIZATION_AND_PAPER_DRAWDOWN_GUARD_READY",
+  "generated_est": "2026-06-21T20:21:47-04:00",
+  "generated_utc": "2026-06-22T00:21:47Z",
+  "live": {
+    "live_gate": "enabled_operator_approved",
+    "live_order_submit_blocker": "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER",
+    "trader_state": "LIVE_ARMED_BALANCE_HOLD"
+  },
+  "paper_drawdown": {
+    "current_pnl": 2467.48517191,
+    "delta": 2437.06674464,
+    "guard_reason": "DRAWDOWN_GUARD_NOT_BREACHED",
+    "guard_status": "TRIAL_ACTIVE",
+    "normal_native_pnl": 0.0,
+    "previous_pnl": 30.41842727,
+    "trial_overlay_pnl": 0.0
+  },
+  "portfolio": {
+    "accepted_fill_total": 4481,
+    "equity": 12467.48517191,
+    "open_positions_count": 89,
+    "pnl": 2467.48517191
+  },
+  "resource": {
+    "amp_enabled": false,
+    "batch_size": 2048,
+    "bottleneck_reason": "MODEL_TOO_SMALL_TO_SATURATE_GPU",
+    "cpu_utilization_percent": 20.82,
+    "dataloader_workers": 0,
+    "generated_est": "2026-06-21T20:21:45-04:00",
+    "gpu_name": "NVIDIA GeForce RTX 5080",
+    "gpu_utilization_percent": 1.0,
+    "persistent_cycles_total": 5497,
+    "pinned_memory": false,
+    "predictions_per_second": 0.0,
+    "prefetch_factor": null,
+    "ram_total_gb": 123.379,
+    "ram_used_gb": 43.235,
+    "resource_target_logic": {
+      "action": "KEEP_CURRENT_SAFE_CUDA_SETTINGS",
+      "cpu_ram_available": true,
+      "dataloader_workers_after": 0,
+      "dataloader_workers_before": 0,
+      "target_batch_size_after": 2048,
+      "target_batch_size_before": 2048,
+      "throughput_improved": null,
+      "vram_under_25_percent": true
+    },
+    "samples_per_second": null,
+    "schema_version": "native_cuda_trainer_resource_utilization_status_v1",
+    "target_batch_size": 2048,
+    "training_blocker_reason": null,
+    "training_steps_per_minute": null,
+    "vram_total_mb": 16303.0,
+    "vram_used_mb": 912.0
+  },
+  "safety": {
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "live_threshold_changed": false,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_order": false,
+    "redis_trim": false,
+    "test_order": false,
+    "trainer_bridge_unmasked": false
+  },
+  "schema_version": "v2_persistent_cuda_trainer_resource_utilization_and_paper_drawdown_guard_operator_dashboard_v1",
+  "trainer": {
+    "blocked_prediction_rows": 430,
+    "pid": 2463,
+    "prediction_grid_expected_rows": 430,
+    "prediction_grid_rows": 430,
+    "resource_bottleneck_reason": "MODEL_TOO_SMALL_TO_SATURATE_GPU",
+    "service_active": true,
+    "trainer_all_runtime_symbols_enabled": true,
+    "trainer_btc_eth_sol_only_scope": false,
+    "training_steps_last_hour": 6,
+    "training_steps_total": 445654,
+    "training_symbols_count": 86,
+    "uptime_seconds": 3715.817
+  }
+}

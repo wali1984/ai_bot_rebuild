@@ -1,0 +1,153 @@
+{
+  "bundles_total": 113917,
+  "generated_at": "2026-06-21T23:34:59Z",
+  "label_counts": {
+    "correct_no_trade": 203,
+    "correct_trade": 359,
+    "false_block": 114,
+    "false_positive": 572,
+    "insufficient_evidence": 112669
+  },
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "metric_summary": {
+    "after_cost_ci_lower_bps": -8.458940335446197,
+    "after_cost_ci_upper_bps": -0.7559392787988563,
+    "after_cost_pnl_delta": -4.879330541891545,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "average_latency_to_signal_seconds": null,
+    "downside_pre_cascade_precision": 3.850300323425227e-05,
+    "downside_pre_cascade_recall": 1.0,
+    "expected_move_after_cost_bps": -4.879330541891545,
+    "false_block_count": 114,
+    "false_negative_rate": 0.0,
+    "false_positive_rate": 0.6143931256713212,
+    "fee_drag_bps": 5.0,
+    "gate_block_reason_distribution": {
+      "CANDLE_COMPLETION_UNKNOWN": 91,
+      "DIRECTIONAL_COLLAPSE_PUBLISHER_PAPER_ACTIONABILITY_BLOCKED": 183,
+      "ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED": 159,
+      "FEATURE_FRESHNESS_MISSING_OR_EXPIRED": 1,
+      "FEE_GATE_BLOCKED": 53059,
+      "LATENCY_OR_PAYLOAD_AGE_MISSING": 1,
+      "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR": 91,
+      "MISSING_CRITICAL_FEATURE_FAMILY": 1,
+      "MISSING_ENTRY_FEATURE_AVAILABLE_AT": 159,
+      "MISSING_ENTRY_FEATURE_CUTOFF": 159,
+      "MISSING_ENTRY_FEATURE_GENERATED_AT": 159,
+      "MISSING_OBSERVED_OR_MODELED_SLIPPAGE_AT_DECISION_TIME": 108,
+      "MISSING_OBSERVED_SPREAD_AT_DECISION_TIME": 108,
+      "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION": 51880,
+      "PRE_TRADE_GATE_BLOCKED": 53059,
+      "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED": 13,
+      "action_not_directional": 49922,
+      "candle_closed_confirmed_missing": 91,
+      "candle_open_or_close_time_missing": 1,
+      "confidence_below_threshold": 4396,
+      "data_coverage_below_threshold": 1148,
+      "expected_move_after_cost_below_threshold": 51879,
+      "expected_move_after_cost_direction_mismatch": 1958,
+      "feature_timestamp_after_decision_cutoff": 40,
+      "source_available_after_decision_cutoff": 40,
+      "source_event_time_missing": 1
+    },
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "max_drawdown_bps_observed": 1802.816901408451,
+    "minimum_sample_satisfied": false,
+    "no_trade_correct_count": 203,
+    "sample_count": 113917,
+    "slippage_estimate_bps": 2.0,
+    "threshold_evidence": [
+      {
+        "evidence_state": "OPERATOR_DECISION_REQUIRED",
+        "observed_value": 113917,
+        "passed": false,
+        "threshold_name": "min_sample_count",
+        "threshold_value": "OPERATOR_DECISION_REQUIRED"
+      },
+      {
+        "evidence_state": "OPERATOR_DECISION_REQUIRED",
+        "observed_value": -4.879330541891545,
+        "passed": false,
+        "threshold_name": "min_after_cost_expectancy_bps",
+        "threshold_value": "OPERATOR_DECISION_REQUIRED"
+      },
+      {
+        "evidence_state": "OPERATOR_DECISION_REQUIRED",
+        "observed_value": -8.458940335446197,
+        "passed": false,
+        "threshold_name": "min_after_cost_lower_ci_bps",
+        "threshold_value": "OPERATOR_DECISION_REQUIRED"
+      },
+      {
+        "evidence_state": "OPERATOR_DECISION_REQUIRED",
+        "observed_value": 1802.816901408451,
+        "passed": false,
+        "threshold_name": "max_drawdown_bps_rolling",
+        "threshold_value": "OPERATOR_DECISION_REQUIRED"
+      },
+      {
+        "evidence_state": "OPERATOR_DECISION_REQUIRED",
+        "observed_value": 1.0,
+        "passed": false,
+        "threshold_name": "min_downside_pre_cascade_recall",
+        "threshold_value": "OPERATOR_DECISION_REQUIRED"
+      },
+      {
+        "evidence_state": "OPERATOR_DECISION_REQUIRED",
+        "observed_value": 0.6143931256713212,
+        "passed": false,
+        "threshold_name": "max_false_positive_rate",
+        "threshold_value": "OPERATOR_DECISION_REQUIRED"
+      },
+      {
+        "evidence_state": "OPERATOR_DECISION_REQUIRED",
+        "observed_value": 0.0,
+        "passed": false,
+        "threshold_name": "max_false_negative_rate",
+        "threshold_value": "OPERATOR_DECISION_REQUIRED"
+      }
+    ],
+    "thresholds_satisfied": {
+      "max_drawdown_bps_rolling": "OPERATOR_DECISION_REQUIRED",
+      "max_false_negative_rate": "OPERATOR_DECISION_REQUIRED",
+      "max_false_positive_rate": "OPERATOR_DECISION_REQUIRED",
+      "min_after_cost_expectancy_bps": "OPERATOR_DECISION_REQUIRED",
+      "min_after_cost_lower_ci_bps": "OPERATOR_DECISION_REQUIRED",
+      "min_downside_pre_cascade_recall": "OPERATOR_DECISION_REQUIRED",
+      "min_sample_count": "OPERATOR_DECISION_REQUIRED",
+      "min_v2_vs_legacy_action_match_rate": "INFORMATIONAL_ONLY"
+    },
+    "thresholds_used": {
+      "max_drawdown_bps_rolling": "OPERATOR_DECISION_REQUIRED",
+      "max_false_negative_rate": "OPERATOR_DECISION_REQUIRED",
+      "max_false_positive_rate": "OPERATOR_DECISION_REQUIRED",
+      "min_after_cost_expectancy_bps": "OPERATOR_DECISION_REQUIRED",
+      "min_after_cost_lower_ci_bps": "OPERATOR_DECISION_REQUIRED",
+      "min_downside_pre_cascade_recall": "OPERATOR_DECISION_REQUIRED",
+      "min_sample_count": "OPERATOR_DECISION_REQUIRED",
+      "min_v2_vs_legacy_action_match_rate": "OPERATOR_DECISION_REQUIRED_INFORMATIONAL_ONLY",
+      "no_live_approval_implied": true,
+      "preliminary_only_for_analysis": true
+    },
+    "v2_hold_due_checkpoint_count": 0,
+    "v2_hold_due_strict_gate_count": 55497,
+    "v2_vs_legacy_action_match_rate": null,
+    "verdict": "EDGE_NOT_CLAIMED_OPERATOR_THRESHOLDS_REQUIRED",
+    "verdict_reason": "one or more required thresholds are still OPERATOR_DECISION_REQUIRED; no edge claim is permitted until the operator sets concrete numerics"
+  },
+  "primary_outcome_window_id": "5m",
+  "schema_version": "v2_post_hoc_replay_outcome_miner_edge_metrics_summary_v1",
+  "verdict": "EDGE_NOT_CLAIMED_OPERATOR_THRESHOLDS_REQUIRED",
+  "verdict_reason": "one or more required thresholds are still OPERATOR_DECISION_REQUIRED; no edge claim is permitted until the operator sets concrete numerics",
+  "windows_filled": {
+    "15m": 1163,
+    "1h": 1090,
+    "1m": 660,
+    "5m": 1248
+  }
+}

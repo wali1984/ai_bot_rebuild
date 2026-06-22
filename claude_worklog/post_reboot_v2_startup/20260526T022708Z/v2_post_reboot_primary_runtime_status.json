@@ -1,0 +1,109 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "LIVE_SYMBOLS": [],
+  "blockers": [],
+  "exchange_order_keys_present": 0,
+  "gnome_terminal_v2_window_count": 22,
+  "go_no_go": "V2_POST_REBOOT_PRIMARY_RUNTIME_READY",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "paper_only": true,
+  "public_payload_freshness": {
+    "features": {
+      "age_seconds": null,
+      "path": null
+    },
+    "orchestrator": {
+      "age_seconds": 3,
+      "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/paper_shadow_observation/latest/paper_shadow_observation_status.json"
+    },
+    "paper": {
+      "age_seconds": 609732,
+      "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_shadow_observation_outcome_metrics_timer/latest/operator_dashboard_payload.json"
+    },
+    "predictions": {
+      "age_seconds": 177812,
+      "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_native_trainer_prediction_publisher/latest/publisher_status.json"
+    },
+    "replay": {
+      "age_seconds": 30,
+      "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_post_hoc_replay_outcome_miner/latest/operator_dashboard_payload.json"
+    },
+    "report_center": {
+      "age_seconds": 34,
+      "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_report_center/latest/safe_summaries/v2_legacy_runtime_freeze_and_primary_paper_cutover.json"
+    },
+    "risk": {
+      "age_seconds": 866233,
+      "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/risk_gateway_canary_hard_gates/latest/operator_dashboard_payload.json"
+    },
+    "spark_worker_pool": {
+      "age_seconds": 91976,
+      "path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_closed_loop_persistent_worker_pool/latest/operator_dashboard_payload.json"
+    }
+  },
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "redis": {
+    "dbsize": 8800,
+    "reachable": true,
+    "sample_v2_features": [
+      "v2:features:latest:SOLUSDT:5m",
+      "v2:features:latest:BANKUSDT:1m",
+      "v2:features:latest:FARTCOINUSDT:1m"
+    ],
+    "sample_v2_market": [
+      "v2:market:ohlcv:binance:1000FLOKIUSDT:15m",
+      "v2:market:ohlcv:binance:PENGUUSDT:15m",
+      "v2:market:ohlcv:binance:AVNTUSDT:5m"
+    ],
+    "sample_v2_predictions": [
+      "v2:prediction:1000BONKUSDT:1m",
+      "v2:prediction:1000PEPEUSDT:5m",
+      "v2:prediction:DOGEUSDT:1m"
+    ],
+    "v2_features_latest_keys": 33,
+    "v2_liquidation_keys": 0,
+    "v2_market_ohlcv_keys": 37,
+    "v2_orchestrator_keys": 0,
+    "v2_paper_intent_keys": 2,
+    "v2_paper_ledger_keys": 1,
+    "v2_paper_shadow_keys": 2,
+    "v2_position_history_keys": 4,
+    "v2_prediction_keys": 47,
+    "v2_replay_keys": 0,
+    "v2_risk_keys": 1,
+    "v2_technical_analysis_keys": 25
+  },
+  "systemd": {
+    "active_ai_bot_v2_services": [
+      "ai-bot-v2-agent-supervisor.service",
+      "ai-bot-v2-closed-loop-claude-worker@1.service",
+      "ai-bot-v2-closed-loop-claude-worker@2.service",
+      "ai-bot-v2-closed-loop-claude-worker@3.service",
+      "ai-bot-v2-closed-loop-codex-worker@1.service",
+      "ai-bot-v2-closed-loop-codex-worker@2.service",
+      "ai-bot-v2-closed-loop-codex-worker@3.service",
+      "ai-bot-v2-codex-shutdown-readiness-takeover.service",
+      "ai-bot-v2-codex-watchdog.service",
+      "ai-bot-v2-continuous-legacy-log-remediation.service",
+      "ai-bot-v2-feature-snapshot-builder.service",
+      "ai-bot-v2-legacy-log-intelligence-observer.service",
+      "ai-bot-v2-liquidation-wss-paper-shadow.service",
+      "ai-bot-v2-paper-online-runtime.service",
+      "ai-bot-v2-paper-shadow-observation.service",
+      "ai-bot-v2-parallel-scheduler.service",
+      "ai-bot-v2-position-history-persistent-tracker.service",
+      "ai-bot-v2-public-website-backend.service",
+      "ai-bot-v2-readonly-decision-observatory.service",
+      "ai-bot-v2-symbol-universe-publisher.service",
+      "ai-bot-v2-trade-management-paper-loop.service",
+      "ai-bot-v2-trainer-bridge.service",
+      "ai-bot-v2-worker-porting-orchestrator.service"
+    ],
+    "active_count": 23
+  },
+  "ts_iso": "2026-05-26T02:48:48Z",
+  "ts_utc": "20260526T022708Z",
+  "writes_exchange_orders": false
+}

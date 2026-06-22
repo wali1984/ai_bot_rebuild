@@ -1,8 +1,5 @@
-import { useState } from 'react';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { FreshnessBadge } from '../../components/data/FreshnessBadge';
-import { SourceBadge } from '../../components/data/SourceBadge';
-import { LoadingSkeleton } from '../../components/ui/LoadingSkeleton';
 import meta from './meta';
 import rbac from './rbac';
 import route from './route';
@@ -11,124 +8,182 @@ export { default as meta } from './meta';
 export { default as rbac } from './rbac';
 export { default as route } from './route';
 
-// ─── Types ─────────────────────────────────────────────────────────────────
+// ─── Types (matched to actual /api/v2/orchestrator/status response) ─────────
+
+interface OrchestratorHeartbeat {
+  worker_id?: string;
+  started_at?: string;
+  finished_at?: string;
+  predictions_seen?: number;
+  proposals_arbitrated?: number;
+  classification?: string;
+  live_gate?: string;
+  approves_live?: boolean;
+  cannot_bypass_risk_gateway?: boolean;
+}
+
+interface Proposal {
+  proposal_id?: string;
+  symbol?: string;
+  side?: string;
+  confidence_calibrated?: number;
+  expected_move_after_cost_bps?: number;
+  freshness_seconds?: number;
+  model_version?: string;
+  source?: string;
+  generated_utc?: string;
+}
+
+interface BucketWinner {
+  symbol?: string;
+  side?: string;
+  winner_proposal_id?: string;
+  winner_confidence_calibrated?: number;
+  winner_expected_move_after_cost_bps?: number;
+  winner_freshness_seconds?: number;
+  winner_model_version?: string;
+  considered_proposal_ids?: string[];
+  score?: number;
+}
+
+interface OrchestratorDecision {
+  schema_version?: string;
+  generated_utc?: string;
+  considered_count?: number;
+  bucket_winners?: BucketWinner[];
+  deconflict_reason?: string;
+  deconflict_selected_side?: string;
+  deconflict_selected_signal_id?: string;
+  held_by_paper_fill_gate?: boolean;
+  held_by_paper_fill_gate_count?: number;
+  skipped_malformed_prediction_count?: number;
+  stale_proposal_ids?: string[];
+}
 
 interface OrchestratorStatus {
-  heartbeat: {
-    status: string | null;
-    classification: string | null;
-    live_gate: string | null;
-    predictions_seen: number | null;
-    decisions_emitted: number | null;
-    deconflict_reason: string | null;
-    timestamp: string | null;
-    age_seconds: number | null;
-  } | null;
-  last_proposals: Array<{
-    symbol?: string;
-    timeframe?: string;
-    action?: string;
-    confidence?: number;
-    risk_state?: string;
-    orchestrator_state?: string;
-    [key: string]: unknown;
-  }>;
-  last_decisions: Array<{
-    symbol?: string;
-    timeframe?: string;
-    action?: string;
-    decision?: string;
-    reason?: string;
-    [key: string]: unknown;
-  }>;
-  live_gate: string | null;
-  classification: string | null;
-  deconflict_reason: string | null;
-  generated_at: string | null;
+  heartbeat?: OrchestratorHeartbeat;
+  last_proposals?: Proposal[];
+  last_decisions?: OrchestratorDecision[];
 }
 
-interface RiskStatus {
-  active_profile: {
-    profile_id?: string;
-    max_leverage?: number;
-    min_confidence_calibrated?: number;
-    max_notional_per_trade?: number;
-    max_spread_bps?: number;
-    max_slippage_bps?: number;
-    min_expected_move_after_cost_bps?: number;
-    max_daily_loss?: number;
-    kill_switch?: boolean;
-    [key: string]: unknown;
-  } | null;
-  heartbeat: {
-    status?: string;
-    decisions_processed?: number;
-    denials?: number;
-    age_seconds?: number | null;
-    [key: string]: unknown;
-  } | null;
-  latest_gateway_result: {
-    decision?: string;
-    symbol?: string;
-    timeframe?: string;
-    reason_code?: string;
-    [key: string]: unknown;
-  } | null;
-  recent_decisions: Array<{
-    symbol?: string;
-    timeframe?: string;
-    decision?: string;
-    reason_code?: string;
-    confidence?: number;
-    action?: string;
-    [key: string]: unknown;
-  }>;
-  denials_breakdown: Record<string, number>;
-  generated_at: string | null;
-}
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-// ─── Helpers ──────────────────────────────────────────────────────────────
-
-function statusColor(s: string | null | undefined): string {
-  if (!s) return 'var(--text-muted)';
-  const l = s.toLowerCase();
-  if (l.includes('ok') || l.includes('active') || l.includes('allow') || l.includes('open') || l.includes('pass')) return '#26c281';
-  if (l.includes('block') || l.includes('denied') || l.includes('error') || l.includes('fail')) return '#ef5350';
-  if (l.includes('warn') || l.includes('human_only') || l.includes('pending')) return '#f59e0b';
-  return 'var(--text-secondary)';
-}
-
-function actionColor(a: string | null | undefined): string {
-  if (!a) return 'var(--text-muted)';
-  const l = (a ?? '').toLowerCase();
-  if (l.includes('long') || l.includes('buy') || l.includes('allow')) return '#26c281';
-  if (l.includes('short') || l.includes('sell') || l.includes('deny')) return '#ef5350';
-  if (l.includes('hold')) return '#f59e0b';
+function sideColor(s: string | null | undefined): string {
+  const l = (s ?? '').toLowerCase();
+  if (l === 'long' || l === 'buy') return '#26c281';
+  if (l === 'short' || l === 'sell') return '#ef5350';
   return 'var(--text-muted)';
 }
 
-function fmtAge(s: number | null | undefined): string {
-  if (s == null) return '—';
-  if (s < 60) return `${s}s`;
-  if (s < 3600) return `${Math.round(s / 60)}m`;
-  return `${(s / 3600).toFixed(1)}h`;
+function confColor(c: number | null | undefined): string {
+  if (c == null) return 'var(--text-muted)';
+  if (c >= 0.7) return '#26c281';
+  if (c >= 0.66) return '#f59e0b';
+  return '#ef5350';
 }
 
-// ─── Status badge ─────────────────────────────────────────────────────────
+function fmtPct(n: number | null | undefined): string {
+  if (n == null) return '—';
+  return (Math.abs(n) <= 1 ? n * 100 : n).toFixed(1) + '%';
+}
 
-function StatusBadge({ value, label }: { value: string | null | undefined; label?: string }): JSX.Element {
-  const color = statusColor(value);
-  if (!value) return <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>—</span>;
+function fmtBps(n: number | null | undefined): string {
+  if (n == null) return '—';
+  return (n >= 0 ? '+' : '') + n.toFixed(0) + ' bps';
+}
+
+function fmtAge(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  const sec = (Date.now() - d.getTime()) / 1000;
+  if (sec < 60) return `${Math.round(sec)}s ago`;
+  if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
+  return `${(sec / 3600).toFixed(1)}h ago`;
+}
+
+function Chip({ label, tone }: { label: string; tone: 'ok' | 'warn' | 'block' | 'neutral' }): JSX.Element {
+  const map = {
+    ok: { bg: 'rgba(38,194,129,0.12)', color: '#26c281', border: 'rgba(38,194,129,0.3)' },
+    warn: { bg: 'rgba(245,158,11,0.12)', color: '#f59e0b', border: 'rgba(245,158,11,0.3)' },
+    block: { bg: 'rgba(239,83,80,0.12)', color: '#ef5350', border: 'rgba(239,83,80,0.3)' },
+    neutral: { bg: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)', border: 'rgba(255,255,255,0.1)' },
+  }[tone];
   return (
-    <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700, color, background: `${color}12`, border: `1px solid ${color}30`, fontFamily: 'var(--font-mono)', display: 'inline-block' }}>
-      {label ?? value.replace(/_/g, ' ')}
+    <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700, color: map.color, background: map.bg, border: `1px solid ${map.border}`, fontFamily: 'var(--font-mono)', display: 'inline-block' }}>
+      {label.replace(/_/g, ' ')}
     </span>
   );
 }
 
-// ─── Orchestrator panel ───────────────────────────────────────────────────
+function KV({ label, value, valueColor }: { label: string; value: React.ReactNode; valueColor?: string }): JSX.Element {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <span style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
+      <span style={{ fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-mono)', color: valueColor ?? 'var(--text-primary)' }}>{value}</span>
+    </div>
+  );
+}
 
-function OrchestratorPanel(): JSX.Element {
+function SectionHead({ title }: { title: string }): JSX.Element {
+  return (
+    <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>{title}</div>
+  );
+}
+
+function Card({ children, accent }: { children: React.ReactNode; accent?: string }): JSX.Element {
+  return (
+    <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: '12px 14px', border: `1px solid ${accent ?? 'rgba(255,255,255,0.06)'}`, marginBottom: 14 }}>
+      {children}
+    </div>
+  );
+}
+
+// ─── Proposals feed ───────────────────────────────────────────────────────────
+
+function ProposalsFeed({ proposals }: { proposals: Proposal[] }): JSX.Element {
+  if (!proposals.length) {
+    return <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 0' }}>No proposals in current window.</div>;
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 280, overflowY: 'auto' }}>
+      {proposals.slice(0, 15).map((p, i) => (
+        <div key={p.proposal_id ?? i} style={{ display: 'grid', gridTemplateColumns: '90px 48px 56px 72px 80px 1fr', gap: 6, alignItems: 'center', padding: '6px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(255,255,255,0.04)', fontSize: 11, fontFamily: 'var(--font-mono)' }}>
+          <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{p.symbol ?? '—'}</span>
+          <span style={{ fontWeight: 700, color: sideColor(p.side) }}>{(p.side ?? '—').toUpperCase()}</span>
+          <span style={{ color: confColor(p.confidence_calibrated) }}>{fmtPct(p.confidence_calibrated)}</span>
+          <span style={{ color: (p.expected_move_after_cost_bps ?? 0) < 0 ? '#ef5350' : '#26c281' }}>{fmtBps(p.expected_move_after_cost_bps)}</span>
+          <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>{p.freshness_seconds != null ? p.freshness_seconds.toFixed(0) + 's fresh' : '—'}</span>
+          <span style={{ color: 'var(--text-muted)', fontSize: 9, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(p.model_version ?? '').slice(0, 28)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Bucket winners table ─────────────────────────────────────────────────────
+
+function BucketWinnersTable({ winners }: { winners: BucketWinner[] }): JSX.Element {
+  if (!winners.length) return <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No bucket winners.</div>;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 260, overflowY: 'auto' }}>
+      {winners.map((w, i) => (
+        <div key={w.winner_proposal_id ?? i} style={{ display: 'grid', gridTemplateColumns: '90px 52px 60px 80px 56px 1fr', gap: 6, alignItems: 'center', padding: '6px 10px', background: 'rgba(38,194,129,0.04)', borderRadius: 6, border: '1px solid rgba(38,194,129,0.1)', fontSize: 11, fontFamily: 'var(--font-mono)' }}>
+          <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{w.symbol ?? '—'}</span>
+          <span style={{ fontWeight: 700, color: sideColor(w.side) }}>{(w.side ?? '—').toUpperCase()}</span>
+          <span style={{ color: confColor(w.winner_confidence_calibrated) }}>{fmtPct(w.winner_confidence_calibrated)}</span>
+          <span style={{ color: (w.winner_expected_move_after_cost_bps ?? 0) < 0 ? '#ef5350' : '#26c281' }}>{fmtBps(w.winner_expected_move_after_cost_bps)}</span>
+          <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>Score: {w.score?.toFixed(3) ?? '—'}</span>
+          <span style={{ color: 'var(--text-muted)', fontSize: 9 }}>{(w.considered_proposal_ids ?? []).length} considered</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Main page ─────────────────────────────────────────────────────────────────
+
+export default function OrchestratorAdminPage(): JSX.Element {
   const { envelope, loading, refetch } = useRealtimeResource<OrchestratorStatus>({
     url: '/api/v2/orchestrator/status',
     source: '/api/v2/orchestrator/status',
@@ -139,315 +194,176 @@ function OrchestratorPanel(): JSX.Element {
 
   const d = envelope.data;
   const hb = d?.heartbeat;
-  const isOk = (hb?.status ?? '').toLowerCase().includes('ok') || (hb?.classification ?? '').toLowerCase().includes('ok');
+  const proposals = d?.last_proposals ?? [];
+  const decisions = d?.last_decisions ?? [];
+  const latestDecision = decisions[0];
+  const bucketWinners = latestDecision?.bucket_winners ?? [];
+
+  const classOk = (hb?.classification ?? '').toLowerCase().includes('ok');
 
   return (
-    <div style={{ flex: 1, minWidth: 320, background: 'var(--bg-panel)', border: `1px solid ${isOk ? 'rgba(38,194,129,0.2)' : 'var(--border)'}`, borderRadius: 12, overflow: 'hidden' }}>
-      {/* Panel header */}
-      <div style={{ padding: '14px 18px', background: isOk ? 'rgba(38,194,129,0.06)' : 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span style={{ fontSize: 18 }}>🎯</span>
-        <div style={{ flex: 1 }}>
-          <h2 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>Orchestrator</h2>
-          <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>Proposes only · Risk gateway validates</p>
-        </div>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <FreshnessBadge status={envelope.freshness_status} lagMs={envelope.lag_ms} />
-          <button onClick={refetch} style={{ padding: '3px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontSize: 10, cursor: 'pointer' }}>↺</button>
-        </div>
-      </div>
-
-      <div style={{ padding: '14px 18px' }}>
-        {loading && !d && <LoadingSkeleton rows={4} />}
-
-        {/* Heartbeat */}
-        {hb && (
-          <div style={{ marginBottom: 16, padding: '12px 14px', background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Heartbeat</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
-              {[
-                { label: 'Status', value: <StatusBadge value={hb.status} /> },
-                { label: 'Classification', value: <StatusBadge value={hb.classification} /> },
-                { label: 'Live Gate', value: <StatusBadge value={hb.live_gate} /> },
-                { label: 'Predictions Seen', value: <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>{hb.predictions_seen?.toLocaleString() ?? '—'}</span> },
-                { label: 'Decisions Emitted', value: <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)' }}>{hb.decisions_emitted?.toLocaleString() ?? '—'}</span> },
-                { label: 'Age', value: <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: (hb.age_seconds ?? 0) < 60 ? '#26c281' : '#f59e0b' }}>{fmtAge(hb.age_seconds)}</span> },
-              ].map(item => (
-                <div key={item.label}>
-                  <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>{item.label}</div>
-                  {item.value}
-                </div>
-              ))}
-            </div>
-            {hb.deconflict_reason && (
-              <div style={{ marginTop: 10, padding: '6px 10px', background: 'rgba(245,158,11,0.08)', borderRadius: 6, border: '1px solid rgba(245,158,11,0.2)' }}>
-                <span style={{ fontSize: 9, color: '#f59e0b', textTransform: 'uppercase', marginRight: 6 }}>Deconflict Reason</span>
-                <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{hb.deconflict_reason}</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Recent proposals */}
-        {(d?.last_proposals?.length ?? 0) > 0 && (
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Recent Proposals</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 200, overflowY: 'auto' }}>
-              {d!.last_proposals.slice(0, 10).map((p, i) => (
-                <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(255,255,255,0.05)', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--text-primary)', minWidth: 70 }}>{p.symbol}</span>
-                  <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', padding: '1px 5px', background: 'rgba(255,255,255,0.04)', borderRadius: 3 }}>{p.timeframe}</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: actionColor(p.action), fontFamily: 'var(--font-mono)' }}>{(p.action ?? '—').replace(/_/g, ' ').toUpperCase()}</span>
-                  {p.confidence != null && <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{(p.confidence * 100).toFixed(1)}%</span>}
-                  {p.risk_state && <StatusBadge value={p.risk_state} />}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Recent decisions */}
-        {(d?.last_decisions?.length ?? 0) > 0 && (
-          <div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Recent Decisions</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 200, overflowY: 'auto' }}>
-              {d!.last_decisions.slice(0, 10).map((dec, i) => (
-                <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 6, border: '1px solid rgba(255,255,255,0.05)', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--text-primary)', minWidth: 70 }}>{dec.symbol ?? '?'}</span>
-                  <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', padding: '1px 5px', background: 'rgba(255,255,255,0.04)', borderRadius: 3 }}>{dec.timeframe}</span>
-                  <StatusBadge value={dec.decision} />
-                  {dec.reason && <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{String(dec.reason).slice(0, 40)}</span>}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {!d && !loading && (
-          <div style={{ padding: '20px', textAlign: 'center' }}>
-            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>No orchestrator data. Check Redis v2:orchestrator:* keys.</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Risk panel ────────────────────────────────────────────────────────────
-
-function RiskPanel(): JSX.Element {
-  const { envelope, loading, refetch } = useRealtimeResource<RiskStatus>({
-    url: '/api/v2/risk/status',
-    source: '/api/v2/risk/status',
-    pollIntervalMs: 5_000,
-    staleThresholdMs: 15_000,
-    mode: 'read_only',
-  });
-
-  const d = envelope.data;
-  const profile = d?.active_profile;
-  const hb = d?.heartbeat;
-  const latest = d?.latest_gateway_result;
-
-  return (
-    <div style={{ flex: 1, minWidth: 320, background: 'var(--bg-panel)', border: '1px solid rgba(239,83,80,0.15)', borderRadius: 12, overflow: 'hidden' }}>
-      {/* Panel header */}
-      <div style={{ padding: '14px 18px', background: 'rgba(239,83,80,0.04)', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span style={{ fontSize: 18 }}>🛡</span>
-        <div style={{ flex: 1 }}>
-          <h2 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>Risk Gateway</h2>
-          <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>Validates and blocks/allows · LIVE TRADING BLOCKED</p>
-        </div>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <FreshnessBadge status={envelope.freshness_status} lagMs={envelope.lag_ms} />
-          <button onClick={refetch} style={{ padding: '3px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontSize: 10, cursor: 'pointer' }}>↺</button>
-        </div>
-      </div>
-
-      <div style={{ padding: '14px 18px' }}>
-        {loading && !d && <LoadingSkeleton rows={4} />}
-
-        {/* Kill switch + live gate banner */}
-        <div style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 8, background: 'rgba(239,83,80,0.06)', border: '1px solid rgba(239,83,80,0.2)', display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 16 }}>🔒</span>
-            <div>
-              <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Live Trading</div>
-              <div style={{ fontSize: 13, fontWeight: 800, color: '#ef5350', fontFamily: 'var(--font-mono)' }}>BLOCKED</div>
-            </div>
-          </div>
-          {profile?.kill_switch !== undefined && (
-            <div>
-              <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Kill Switch</div>
-              <div style={{ fontSize: 13, fontWeight: 800, color: profile.kill_switch ? '#ef5350' : '#26c281', fontFamily: 'var(--font-mono)' }}>{profile.kill_switch ? 'ACTIVE' : 'OFF'}</div>
-            </div>
-          )}
-        </div>
-
-        {/* Active profile */}
-        {profile && (
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Active Risk Profile</div>
-              <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700, background: 'rgba(99,102,241,0.12)', color: '#6366f1', border: '1px solid rgba(99,102,241,0.3)', fontFamily: 'var(--font-mono)' }}>{profile.profile_id ?? '—'}</span>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8 }}>
-              {[
-                { label: 'Max Leverage', value: profile.max_leverage != null ? `${profile.max_leverage}×` : '—', color: (profile.max_leverage ?? 0) > 5 ? '#ef5350' : '#26c281' },
-                { label: 'Min Confidence', value: profile.min_confidence_calibrated != null ? `${(profile.min_confidence_calibrated * 100).toFixed(0)}%` : '—', color: 'var(--text-secondary)' },
-                { label: 'Max Notional', value: profile.max_notional_per_trade != null ? `$${profile.max_notional_per_trade.toFixed(2)}` : '—', color: 'var(--text-secondary)' },
-                { label: 'Max Spread', value: profile.max_spread_bps != null ? `${profile.max_spread_bps}bps` : '—', color: 'var(--text-secondary)' },
-                { label: 'Min Move', value: profile.min_expected_move_after_cost_bps != null ? `${profile.min_expected_move_after_cost_bps}bps` : '—', color: 'var(--text-secondary)' },
-                { label: 'Max Daily Loss', value: profile.max_daily_loss != null ? `$${profile.max_daily_loss.toFixed(2)}` : '—', color: '#ef5350' },
-              ].map(row => (
-                <div key={row.label} style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 6 }}>
-                  <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>{row.label}</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: row.color }}>{row.value}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Heartbeat */}
-        {hb && (
-          <div style={{ marginBottom: 16, padding: '10px 14px', background: 'rgba(0,0,0,0.2)', borderRadius: 8, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', width: '100%', marginBottom: 4 }}>Gateway Heartbeat</div>
-            {[
-              { label: 'Status', value: <StatusBadge value={String(hb.status ?? '—')} /> },
-              { label: 'Decisions', value: <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>{hb.decisions_processed ?? '—'}</span> },
-              { label: 'Denials', value: <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 700, color: '#ef5350' }}>{hb.denials ?? '—'}</span> },
-              { label: 'Age', value: <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: (hb.age_seconds ?? 0) < 60 ? '#26c281' : '#f59e0b' }}>{fmtAge(hb.age_seconds as number | null)}</span> },
-            ].map(item => (
-              <div key={item.label}>
-                <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 3 }}>{item.label}</div>
-                {item.value}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Latest gateway result */}
-        {latest && (
-          <div style={{ marginBottom: 16, padding: '10px 14px', background: `${actionColor(latest.decision)}08`, borderRadius: 8, border: `1px solid ${actionColor(latest.decision)}20` }}>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Latest Gateway Decision</div>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-              {latest.symbol && <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 12 }}>{latest.symbol}</span>}
-              {latest.timeframe && <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>{latest.timeframe}</span>}
-              <StatusBadge value={latest.decision} />
-              {latest.reason_code && <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{latest.reason_code}</span>}
-            </div>
-          </div>
-        )}
-
-        {/* Recent decisions */}
-        {(d?.recent_decisions?.length ?? 0) > 0 && (
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Recent Gateway Decisions</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, maxHeight: 200, overflowY: 'auto' }}>
-              {d!.recent_decisions.slice(0, 10).map((dec, i) => (
-                <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '5px 8px', background: 'rgba(255,255,255,0.02)', borderRadius: 5, flexWrap: 'wrap' }}>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 700, minWidth: 70 }}>{dec.symbol ?? '?'}</span>
-                  <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', padding: '1px 4px', background: 'rgba(255,255,255,0.04)', borderRadius: 3 }}>{dec.timeframe}</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: actionColor(dec.action), fontFamily: 'var(--font-mono)' }}>{(dec.action ?? '').replace(/_/g, ' ').toUpperCase()}</span>
-                  <StatusBadge value={dec.decision} />
-                  {dec.reason_code && <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{dec.reason_code}</span>}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Denials breakdown */}
-        {d?.denials_breakdown && Object.keys(d.denials_breakdown).length > 0 && (
-          <div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Denial Reasons</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {Object.entries(d.denials_breakdown).sort((a, b) => b[1] - a[1]).map(([reason, count]) => (
-                <div key={reason} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ flex: 1, height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${Math.min(100, (count / Math.max(...Object.values(d.denials_breakdown))) * 100)}%`, background: '#ef5350', borderRadius: 3 }} />
-                  </div>
-                  <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', minWidth: 180 }}>{reason.replace(/_/g, ' ')}</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-mono)', color: '#ef5350', minWidth: 24, textAlign: 'right' }}>{count}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {!d && !loading && (
-          <div style={{ padding: '20px', textAlign: 'center' }}>
-            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>No risk gateway data. Check Redis v2:risk:* keys.</p>
-          </div>
-        )}
-
-        <SourceBadge sourceType={envelope.source_type} source={envelope.source} endpoint={envelope.endpoint} />
-      </div>
-    </div>
-  );
-}
-
-// ─── Main page ────────────────────────────────────────────────────────────
-
-export default function OrchestratorAdminPage(): JSX.Element {
-  const [showArch, setShowArch] = useState(false);
-
-  return (
-    <div data-testid="page-orchestrator-admin" data-page-id={meta.id} data-page-path={route.path} data-page-min-role={rbac.minRole}
-      style={{ background: 'var(--bg-base)', minHeight: '100vh' }}>
-
+    <div
+      data-testid="page-orchestrator-admin"
+      data-page-id={meta.id}
+      data-page-path={route.path}
+      data-page-min-role={rbac.minRole}
+      style={{ background: 'var(--bg-base)', minHeight: '100vh' }}
+    >
       {/* Header */}
       <div style={{ padding: '16px 20px 12px', background: 'var(--bg-panel)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-              <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Orchestrator + Risk Gateway</h1>
-              <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700, background: 'rgba(239,83,80,0.1)', color: '#ef5350', border: '1px solid rgba(239,83,80,0.3)', fontFamily: 'var(--font-mono)' }}>READ-ONLY</span>
+              <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Orchestrator</h1>
+              <Chip label="LIVE PLATFORM" tone="ok" />
+              {hb && <Chip label={classOk ? 'LIVE' : 'DEGRADED'} tone={classOk ? 'ok' : 'warn'} />}
             </div>
             <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>
-              Orchestrator proposes → Risk gateway validates and blocks/allows → Execution engine acts (paper only) · Auto-refreshes every 5s
+              Proposes → Risk Gateway validates → Paper engine acts · Auto-refresh 5s · LIVE GATE: {hb?.live_gate ?? '—'}
             </p>
           </div>
-          <button onClick={() => setShowArch(!showArch)} style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 11, cursor: 'pointer' }}>
-            {showArch ? 'Hide' : 'Show'} Pipeline Architecture
-          </button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <FreshnessBadge status={envelope.freshness_status} lagMs={envelope.lag_ms} />
+            <button onClick={refetch} style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 11, cursor: 'pointer' }}>↺ Refresh</button>
+          </div>
         </div>
 
-        {/* Architecture flow */}
-        {showArch && (
-          <div style={{ marginTop: 14, padding: '12px 16px', background: 'rgba(0,0,0,0.2)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.06)', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ color: '#6366f1' }}>Trainer</span>
-              <span>→</span>
-              <span style={{ color: '#6366f1' }}>v2:prediction:*</span>
-              <span>→</span>
-              <span style={{ color: '#f59e0b' }}>Orchestrator</span>
-              <span>(proposes)</span>
-              <span>→</span>
-              <span style={{ color: '#ef5350' }}>Risk Gateway</span>
-              <span>(blocks/allows)</span>
-              <span>→</span>
-              <span style={{ color: '#3b82f6' }}>Paper Engine</span>
-              <span>→</span>
-              <span style={{ color: '#26c281' }}>v2:signals:paper:*</span>
+        {/* Pipeline flow */}
+        <div style={{ marginTop: 12, padding: '8px 12px', background: 'rgba(0,0,0,0.2)', borderRadius: 6, fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ color: '#6366f1' }}>Trainer</span><span>→</span>
+          <span style={{ color: '#6366f1' }}>v2:prediction:*</span><span>→</span>
+          <span style={{ color: '#f59e0b', fontWeight: 700 }}>Orchestrator (proposes)</span><span>→</span>
+          <span style={{ color: '#ef5350' }}>Risk Gateway (blocks/allows)</span><span>→</span>
+          <span style={{ color: '#3b82f6' }}>Execution Engine</span><span>→</span>
+          <span style={{ color: '#26c281' }}>v2:signals:runtime:*</span>
+          <span style={{ marginLeft: 'auto', color: 'rgba(239,83,80,0.8)', fontWeight: 700 }}>OPERATOR GATED</span>
+        </div>
+      </div>
+
+      <div style={{ padding: '16px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }}>
+        {/* Left column: Heartbeat + latest decision */}
+        <div>
+          {/* Heartbeat */}
+          <SectionHead title="Orchestrator Heartbeat" />
+          <Card accent={classOk ? 'rgba(38,194,129,0.2)' : undefined}>
+            {loading && !d ? (
+              <div style={{ height: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12 }}>Loading…</div>
+            ) : hb ? (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 12 }}>
+                  <KV label="Classification" value={<Chip label={hb.classification?.replace('V2_ORCHESTRATOR_', '').replace('_OK', '') ?? '—'} tone={classOk ? 'ok' : 'warn'} />} />
+                  <KV label="Live Gate" value={hb.live_gate ?? '—'} valueColor={hb.live_gate?.includes('blocked') ? '#ef5350' : '#26c281'} />
+                  <KV label="Approves Live" value={hb.approves_live ? 'YES' : 'NO'} valueColor={hb.approves_live ? '#ef5350' : '#26c281'} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 12 }}>
+                  <KV label="Predictions Seen" value={(hb.predictions_seen ?? 0).toLocaleString()} />
+                  <KV label="Proposals Arbitrated" value={(hb.proposals_arbitrated ?? 0).toLocaleString()} />
+                  <KV label="Cannot Bypass Risk GW" value={hb.cannot_bypass_risk_gateway ? 'YES (correct)' : 'NO'} valueColor={hb.cannot_bypass_risk_gateway ? '#26c281' : '#f59e0b'} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <KV label="Worker" value={(hb.worker_id ?? '—').replace('v2_orchestrator_', '')} />
+                  <KV label="Last Run" value={fmtAge(hb.finished_at)} valueColor="var(--text-muted)" />
+                </div>
+              </>
+            ) : (
+              <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No heartbeat data. Check Redis v2:orchestrator:* keys.</div>
+            )}
+          </Card>
+
+          {/* Latest decision */}
+          {latestDecision && (
+            <>
+              <SectionHead title="Latest Arbitration Decision" />
+              <Card>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 12 }}>
+                  <KV label="Considered" value={(latestDecision.considered_count ?? 0).toLocaleString()} />
+                  <KV label="Winners" value={(latestDecision.bucket_winners?.length ?? 0).toLocaleString()} />
+                  <KV label="Stale Rejected" value={(latestDecision.stale_proposal_ids?.length ?? 0).toLocaleString()} valueColor={latestDecision.stale_proposal_ids?.length ? '#f59e0b' : undefined} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 12 }}>
+                  <KV label="Execution Fill Gate Hold" value={latestDecision.held_by_paper_fill_gate ? `YES (${latestDecision.held_by_paper_fill_gate_count ?? 0})` : 'NO'} valueColor={latestDecision.held_by_paper_fill_gate ? '#f59e0b' : undefined} />
+                  <KV label="Malformed Skipped" value={(latestDecision.skipped_malformed_prediction_count ?? 0).toLocaleString()} valueColor={latestDecision.skipped_malformed_prediction_count ? '#f59e0b' : undefined} />
+                  <KV label="Age" value={fmtAge(latestDecision.generated_utc)} valueColor="var(--text-muted)" />
+                </div>
+                {latestDecision.deconflict_reason && (
+                  <div style={{ marginTop: 8, padding: '6px 10px', background: 'rgba(245,158,11,0.08)', borderRadius: 6, border: '1px solid rgba(245,158,11,0.2)', fontSize: 11, fontFamily: 'var(--font-mono)', color: '#f59e0b' }}>
+                    Deconflict: {latestDecision.deconflict_reason} → {latestDecision.deconflict_selected_side ?? '—'}
+                  </div>
+                )}
+              </Card>
+            </>
+          )}
+
+          {/* Bucket winners */}
+          {bucketWinners.length > 0 && (
+            <>
+              <SectionHead title={`Bucket Winners — ${bucketWinners.length} selected`} />
+              <Card accent="rgba(38,194,129,0.15)">
+                <div style={{ fontSize: 9, display: 'grid', gridTemplateColumns: '90px 52px 60px 80px 56px 1fr', gap: 6, padding: '0 10px 6px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)' }}>
+                  <span>Symbol</span><span>Side</span><span>Conf</span><span>Exp Move</span><span>Score</span><span>Considered</span>
+                </div>
+                <BucketWinnersTable winners={bucketWinners} />
+              </Card>
+            </>
+          )}
+        </div>
+
+        {/* Right column: Proposals feed */}
+        <div>
+          <SectionHead title={`Live Proposals — ${proposals.length} in window`} />
+          <Card>
+            <div style={{ fontSize: 9, display: 'grid', gridTemplateColumns: '90px 48px 56px 72px 80px 1fr', gap: 6, padding: '0 10px 8px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: 'var(--font-mono)', borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: 8 }}>
+              <span>Symbol</span><span>Side</span><span>Conf</span><span>Exp Move</span><span>Freshness</span><span>Model</span>
             </div>
-            <div style={{ marginTop: 8, color: 'rgba(255,255,255,0.3)' }}>
-              LIVE TRADING BLOCKED at all layers · Orchestrator cannot override Risk Gateway
-            </div>
+            <ProposalsFeed proposals={proposals} />
+            {proposals.length > 15 && (
+              <div style={{ marginTop: 8, fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                Showing 15 of {proposals.length} proposals
+              </div>
+            )}
+          </Card>
+
+          {/* Stats */}
+          {proposals.length > 0 && (
+            <>
+              <SectionHead title="Proposal Statistics" />
+              <Card>
+                {(() => {
+                  const confs = proposals.map(p => p.confidence_calibrated).filter((c): c is number => c != null);
+                  const moves = proposals.map(p => p.expected_move_after_cost_bps).filter((m): m is number => m != null);
+                  const shorts = proposals.filter(p => (p.side ?? '').toLowerCase() === 'short').length;
+                  const longs = proposals.filter(p => (p.side ?? '').toLowerCase() === 'long').length;
+                  const avgConf = confs.length ? confs.reduce((a, b) => a + b, 0) / confs.length : null;
+                  const avgMove = moves.length ? moves.reduce((a, b) => a + b, 0) / moves.length : null;
+                  const minConf = confs.length ? Math.min(...confs) : null;
+                  const maxConf = confs.length ? Math.max(...confs) : null;
+                  const symbols = new Set(proposals.map(p => p.symbol).filter(Boolean)).size;
+                  return (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                      <KV label="Total Proposals" value={proposals.length} />
+                      <KV label="Unique Symbols" value={symbols} />
+                      <KV label="SHORT / LONG" value={`${shorts} / ${longs}`} />
+                      <KV label="Avg Confidence" value={fmtPct(avgConf)} valueColor={confColor(avgConf)} />
+                      <KV label="Conf Range" value={minConf != null ? `${fmtPct(minConf)} – ${fmtPct(maxConf)}` : '—'} />
+                      <KV label="Avg Exp Move" value={fmtBps(avgMove)} valueColor={(avgMove ?? 0) < 0 ? '#ef5350' : '#26c281'} />
+                    </div>
+                  );
+                })()}
+              </Card>
+            </>
+          )}
+
+          {/* Source */}
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', padding: '6px 0' }}>
+            Source: {envelope.source ?? '/api/v2/orchestrator/status'} · {envelope.source_type ?? 'redis_live'} · Poll: 5s
           </div>
-        )}
+        </div>
       </div>
 
-      {/* Two-column layout */}
-      <div style={{ padding: 16, display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-        <OrchestratorPanel />
-        <RiskPanel />
-      </div>
-
-      {/* Safety banner */}
-      <div style={{ margin: '0 16px 16px', padding: '10px 16px', background: 'rgba(239,83,80,0.05)', border: '1px solid rgba(239,83,80,0.15)', borderRadius: 8 }}>
+      {/* Safety footer */}
+      <div style={{ margin: '0 20px 20px', padding: '10px 16px', background: 'rgba(239,83,80,0.05)', border: '1px solid rgba(239,83,80,0.15)', borderRadius: 8 }}>
         <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-          SAFETY: This page is read-only. Orchestrator proposes only. Risk gateway is the sole allow/deny authority. LIVE TRADING BLOCKED. No exchange orders are placed from V2. V2_MODE=paper.
+          SAFETY: Orchestrator proposes only. Risk Gateway is the sole allow/deny authority. Orchestrator cannot override Risk Gateway.
         </p>
       </div>
     </div>

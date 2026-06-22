@@ -1,0 +1,20 @@
+{
+  "freshness_seconds": 2588024.880464554,
+  "go_no_go": "V2_EXECUTIVE_RECOVERY_AND_PRODUCTION_READINESS_COMMAND_CENTER_READY",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "owner": "OPERATOR",
+  "redaction_applied": false,
+  "report_id": "capital_recovery_gate",
+  "sanitized_summary": {
+    "char_count": 68,
+    "go_no_go": "V2_EXECUTIVE_RECOVERY_AND_PRODUCTION_READINESS_COMMAND_CENTER_READY",
+    "redaction_applied": false,
+    "redaction_token": null,
+    "sections": {},
+    "status": "READY"
+  },
+  "stale": true,
+  "status": "READY",
+  "title": "Capital Recovery Gate Model"
+}

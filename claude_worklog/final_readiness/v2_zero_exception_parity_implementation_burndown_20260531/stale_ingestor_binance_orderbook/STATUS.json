@@ -1,0 +1,25 @@
+{
+  "schema_version": "zero_exception_task_status_v1",
+  "task_slug": "stale_ingestor_binance_orderbook",
+  "milestone": "v2_zero_exception_parity_implementation_burndown",
+  "status": "DONE_VERIFIED",
+  "generated_est": "2026-06-01T17:50:28-0400",
+  "generated_utc": "2026-06-01T21:50:28Z",
+  "claim": "Stale-ingestor resolved: order-book snapshot key `v2:market:orderbook:BTCUSDT` is fresh and refreshed every 60s by the live native ingestor loop.",
+  "raw_evidence": "`v2:market:orderbook:BTCUSDT` TTL=516s (<600 \u21d2 written within last cycle); ingestor loop --interval-seconds 60.",
+  "verification_command": "redis-cli ttl v2:market:orderbook:BTCUSDT",
+  "confidence": "HIGH",
+  "missing_evidence": "None for the freshness claim.",
+  "files_modified": [
+    "v2/backend/app/cli/v2_native_ingestors_live_loop.py",
+    "v2/backend/app/cli/v2_feature_pipeline_native_loop.py"
+  ],
+  "live_safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "writes_legacy_redis": false,
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false
+  }
+}

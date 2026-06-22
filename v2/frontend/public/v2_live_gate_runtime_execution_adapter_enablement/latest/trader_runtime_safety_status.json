@@ -1,0 +1,32 @@
+{
+  "accepted_symbols_exact": true,
+  "execution_live_symbols": [
+    "BNBUSDT",
+    "BTCUSDT",
+    "ETHUSDT",
+    "PAXGUSDT",
+    "XAUTUSDT",
+    "ZECUSDT"
+  ],
+  "generated_est": "2026-06-05T16:55:14-04:00",
+  "kill_switch_active": false,
+  "kill_switch_enabled": true,
+  "leverage_changed": false,
+  "live_gate": "enabled_operator_approved",
+  "live_order_transport_bound": false,
+  "live_symbols": [
+    "BNBUSDT",
+    "BTCUSDT",
+    "ETHUSDT",
+    "PAXGUSDT",
+    "XAUTUSDT",
+    "ZECUSDT"
+  ],
+  "margin_mode_changed": false,
+  "no_old_redis_write": true,
+  "places_real_order": false,
+  "schema_version": "trader_runtime_safety_status_v1",
+  "service_id": "v2_live_gate_runtime_execution_adapter_enablement",
+  "trader_execution_enabled": true,
+  "writes_exchange_orders": false
+}

@@ -1,0 +1,338 @@
+{
+  "allowed_key_family_count": 16,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "bridge_count": 26,
+  "bridges": [
+    {
+      "bridge_id": "v2_prediction_native",
+      "description": "V2-native trainer prediction for the symbol on the 1m timeframe.",
+      "freshness_window_seconds": 120,
+      "is_v2_native": true,
+      "key_template": "v2:prediction:{symbol}:1m",
+      "placeholder_state_when_absent": "V2_NATIVE_NOT_READY",
+      "source_type": "V2_NATIVE_PUBLIC_PAYLOAD",
+      "used_by_pages": [
+        "ai-brain"
+      ]
+    },
+    {
+      "bridge_id": "v2_paper_positions",
+      "description": "Current V2 paper positions (paper/shadow only).",
+      "freshness_window_seconds": 120,
+      "is_v2_native": true,
+      "key_template": "v2:paper:positions",
+      "placeholder_state_when_absent": "MISSING_PAYLOAD",
+      "source_type": "V2_NATIVE_PUBLIC_PAYLOAD",
+      "used_by_pages": [
+        "trader",
+        "paper-trading"
+      ]
+    },
+    {
+      "bridge_id": "v2_paper_intents",
+      "description": "V2 paper trade intents.",
+      "freshness_window_seconds": 120,
+      "is_v2_native": true,
+      "key_template": "v2:paper:intents",
+      "placeholder_state_when_absent": "MISSING_PAYLOAD",
+      "source_type": "V2_NATIVE_PUBLIC_PAYLOAD",
+      "used_by_pages": [
+        "trader",
+        "paper-trading"
+      ]
+    },
+    {
+      "bridge_id": "v2_paper_intents_held",
+      "description": "V2 paper intents held by the paper fill gate.",
+      "freshness_window_seconds": 120,
+      "is_v2_native": true,
+      "key_template": "v2:paper:intents_held_by_paper_fill_gate",
+      "placeholder_state_when_absent": "MISSING_PAYLOAD",
+      "source_type": "V2_NATIVE_PUBLIC_PAYLOAD",
+      "used_by_pages": [
+        "trader",
+        "paper-trading"
+      ]
+    },
+    {
+      "bridge_id": "v2_paper_ledger",
+      "description": "V2 paper ledger.",
+      "freshness_window_seconds": 300,
+      "is_v2_native": true,
+      "key_template": "v2:paper:ledger",
+      "placeholder_state_when_absent": "MISSING_PAYLOAD",
+      "source_type": "V2_NATIVE_PUBLIC_PAYLOAD",
+      "used_by_pages": [
+        "trader",
+        "paper-trading",
+        "history"
+      ]
+    },
+    {
+      "bridge_id": "v2_risk_decisions",
+      "description": "V2 risk gateway decisions.",
+      "freshness_window_seconds": 120,
+      "is_v2_native": true,
+      "key_template": "v2:risk:decisions",
+      "placeholder_state_when_absent": "MISSING_PAYLOAD",
+      "source_type": "V2_NATIVE_PUBLIC_PAYLOAD",
+      "used_by_pages": [
+        "trader",
+        "risk-control"
+      ]
+    },
+    {
+      "bridge_id": "v2_orchestrator_decisions",
+      "description": "V2 orchestrator decisions.",
+      "freshness_window_seconds": 120,
+      "is_v2_native": true,
+      "key_template": "v2:orchestrator:decisions",
+      "placeholder_state_when_absent": "MISSING_PAYLOAD",
+      "source_type": "V2_NATIVE_PUBLIC_PAYLOAD",
+      "used_by_pages": [
+        "trader"
+      ]
+    },
+    {
+      "bridge_id": "v2_market_prices",
+      "description": "V2 market prices for the symbol (BTC/ETH/SOL today).",
+      "freshness_window_seconds": 60,
+      "is_v2_native": true,
+      "key_template": "v2:market:prices:{symbol}",
+      "placeholder_state_when_absent": "MISSING_PAYLOAD",
+      "source_type": "V2_NATIVE_PUBLIC_PAYLOAD",
+      "used_by_pages": [
+        "markets"
+      ]
+    },
+    {
+      "bridge_id": "v2_market_funding",
+      "description": "V2 funding rate for the symbol.",
+      "freshness_window_seconds": 300,
+      "is_v2_native": true,
+      "key_template": "v2:market:funding:{symbol}",
+      "placeholder_state_when_absent": "MISSING_PAYLOAD",
+      "source_type": "V2_NATIVE_PUBLIC_PAYLOAD",
+      "used_by_pages": [
+        "markets"
+      ]
+    },
+    {
+      "bridge_id": "v2_market_open_interest",
+      "description": "V2 open interest for the symbol.",
+      "freshness_window_seconds": 300,
+      "is_v2_native": true,
+      "key_template": "v2:market:open_interest:{symbol}",
+      "placeholder_state_when_absent": "MISSING_PAYLOAD",
+      "source_type": "V2_NATIVE_PUBLIC_PAYLOAD",
+      "used_by_pages": [
+        "markets"
+      ]
+    },
+    {
+      "bridge_id": "v2_market_liquidations_heartbeat",
+      "description": "V2 liquidation WSS daemon heartbeat.",
+      "freshness_window_seconds": 300,
+      "is_v2_native": true,
+      "key_template": "v2:market:liquidations:heartbeat",
+      "placeholder_state_when_absent": "MISSING_PAYLOAD",
+      "source_type": "V2_NATIVE_PUBLIC_PAYLOAD",
+      "used_by_pages": [
+        "markets"
+      ]
+    },
+    {
+      "bridge_id": "v2_dashboards_binance_top10",
+      "description": "V2 top-10 dashboards namespace.",
+      "freshness_window_seconds": 300,
+      "is_v2_native": true,
+      "key_template": "v2:dashboards:binance_top10:*",
+      "placeholder_state_when_absent": "MISSING_PAYLOAD",
+      "source_type": "V2_NATIVE_PUBLIC_PAYLOAD",
+      "used_by_pages": [
+        "markets",
+        "public-landing"
+      ]
+    },
+    {
+      "bridge_id": "v2_altdata_namespace",
+      "description": "Alt-data candidate publisher / symbol score namespace (paper/shadow only).",
+      "freshness_window_seconds": 600,
+      "is_v2_native": true,
+      "key_template": "v2:altdata:*",
+      "placeholder_state_when_absent": "KEY_PRESENT_NO_CLIENT_YET",
+      "source_type": "V2_NATIVE_PUBLIC_PAYLOAD",
+      "used_by_pages": [
+        "markets",
+        "public-landing"
+      ]
+    },
+    {
+      "bridge_id": "legacy_prediction_multi",
+      "description": "Legacy multi-timeframe prediction. Bridge-only \u2014 exposed because V2-native prediction is not yet ready.",
+      "freshness_window_seconds": 300,
+      "is_v2_native": false,
+      "key_template": "prediction:{symbol}:multi",
+      "placeholder_state_when_absent": "LEGACY_BRIDGE_SOURCE",
+      "source_type": "V2_BRIDGE_FROM_LEGACY_REDIS",
+      "used_by_pages": [
+        "ai-brain"
+      ]
+    },
+    {
+      "bridge_id": "legacy_prediction_5m",
+      "description": "Legacy 5m prediction. Bridge-only.",
+      "freshness_window_seconds": 300,
+      "is_v2_native": false,
+      "key_template": "prediction:{symbol}:5m",
+      "placeholder_state_when_absent": "LEGACY_BRIDGE_SOURCE",
+      "source_type": "V2_BRIDGE_FROM_LEGACY_REDIS",
+      "used_by_pages": [
+        "ai-brain"
+      ]
+    },
+    {
+      "bridge_id": "legacy_prediction_1m",
+      "description": "Legacy 1m prediction. Bridge-only.",
+      "freshness_window_seconds": 120,
+      "is_v2_native": false,
+      "key_template": "prediction:{symbol}:1m",
+      "placeholder_state_when_absent": "LEGACY_BRIDGE_SOURCE",
+      "source_type": "V2_BRIDGE_FROM_LEGACY_REDIS",
+      "used_by_pages": [
+        "ai-brain"
+      ]
+    },
+    {
+      "bridge_id": "legacy_signals_trading_primary",
+      "description": "Legacy primary trading signal stream. Reference only \u2014 never used to drive V2 trading or live action.",
+      "freshness_window_seconds": 600,
+      "is_v2_native": false,
+      "key_template": "signals:trading:primary",
+      "placeholder_state_when_absent": "LEGACY_BRIDGE_SOURCE",
+      "source_type": "LEGACY_REFERENCE_ONLY",
+      "used_by_pages": [
+        "history"
+      ]
+    },
+    {
+      "bridge_id": "legacy_ta",
+      "description": "Legacy technical-analysis indicator hash for 5m.",
+      "freshness_window_seconds": 600,
+      "is_v2_native": false,
+      "key_template": "ta:{symbol}:5m",
+      "placeholder_state_when_absent": "LEGACY_BRIDGE_SOURCE",
+      "source_type": "V2_BRIDGE_FROM_LEGACY_REDIS",
+      "used_by_pages": [
+        "ai-brain",
+        "markets"
+      ]
+    },
+    {
+      "bridge_id": "legacy_unified_features",
+      "description": "Legacy 562-field unified-feature hash on the 5m timeframe.",
+      "freshness_window_seconds": 600,
+      "is_v2_native": false,
+      "key_template": "unified_features:{symbol}:5m",
+      "placeholder_state_when_absent": "LEGACY_BRIDGE_SOURCE",
+      "source_type": "V2_BRIDGE_FROM_LEGACY_REDIS",
+      "used_by_pages": [
+        "ai-brain"
+      ]
+    },
+    {
+      "bridge_id": "legacy_orderbook_bids",
+      "description": "Legacy orderbook bids snapshot.",
+      "freshness_window_seconds": 15,
+      "is_v2_native": false,
+      "key_template": "orderbook:bids:{symbol}",
+      "placeholder_state_when_absent": "LEGACY_BRIDGE_SOURCE",
+      "source_type": "V2_BRIDGE_FROM_LEGACY_REDIS",
+      "used_by_pages": [
+        "markets"
+      ]
+    },
+    {
+      "bridge_id": "legacy_orderbook_asks",
+      "description": "Legacy orderbook asks snapshot.",
+      "freshness_window_seconds": 15,
+      "is_v2_native": false,
+      "key_template": "orderbook:asks:{symbol}",
+      "placeholder_state_when_absent": "LEGACY_BRIDGE_SOURCE",
+      "source_type": "V2_BRIDGE_FROM_LEGACY_REDIS",
+      "used_by_pages": [
+        "markets"
+      ]
+    },
+    {
+      "bridge_id": "legacy_liquidations_events",
+      "description": "Legacy liquidations event stream \u2014 bridge-only.",
+      "freshness_window_seconds": 600,
+      "is_v2_native": false,
+      "key_template": "liquidations:events",
+      "placeholder_state_when_absent": "KEY_PRESENT_NO_CLIENT_YET",
+      "source_type": "V2_BRIDGE_FROM_LEGACY_REDIS",
+      "used_by_pages": [
+        "markets"
+      ]
+    },
+    {
+      "bridge_id": "legacy_liq_levels",
+      "description": "Legacy liquidation levels.",
+      "freshness_window_seconds": 600,
+      "is_v2_native": false,
+      "key_template": "liq_levels:{symbol}",
+      "placeholder_state_when_absent": "LEGACY_BRIDGE_SOURCE",
+      "source_type": "V2_BRIDGE_FROM_LEGACY_REDIS",
+      "used_by_pages": [
+        "markets"
+      ]
+    },
+    {
+      "bridge_id": "legacy_coinank_features",
+      "description": "Legacy CoinAnk per-symbol feature hash at 1h.",
+      "freshness_window_seconds": 600,
+      "is_v2_native": false,
+      "key_template": "features:coinank:{symbol}:1h",
+      "placeholder_state_when_absent": "LEGACY_BRIDGE_SOURCE",
+      "source_type": "V2_BRIDGE_FROM_LEGACY_REDIS",
+      "used_by_pages": [
+        "markets",
+        "ai-brain"
+      ]
+    },
+    {
+      "bridge_id": "legacy_coinank_global",
+      "description": "Legacy CoinAnk global aggregates.",
+      "freshness_window_seconds": 600,
+      "is_v2_native": false,
+      "key_template": "features:global_coinank:*",
+      "placeholder_state_when_absent": "LEGACY_BRIDGE_SOURCE",
+      "source_type": "V2_BRIDGE_FROM_LEGACY_REDIS",
+      "used_by_pages": [
+        "markets"
+      ]
+    },
+    {
+      "bridge_id": "legacy_heartbeats",
+      "description": "Legacy ingestor heartbeats. Reference only.",
+      "freshness_window_seconds": 300,
+      "is_v2_native": false,
+      "key_template": "heartbeat:*",
+      "placeholder_state_when_absent": "LEGACY_BRIDGE_SOURCE",
+      "source_type": "V2_BRIDGE_FROM_LEGACY_REDIS",
+      "used_by_pages": [
+        "public-status"
+      ]
+    }
+  ],
+  "forbidden_key_hint_count": 2,
+  "frontend_must_not_read_redis_directly": true,
+  "generated_at": "2026-05-23T04:12:21Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "schema_version": "v2_website_rebuild_phase_1_redis_bridge_contracts_v1"
+}

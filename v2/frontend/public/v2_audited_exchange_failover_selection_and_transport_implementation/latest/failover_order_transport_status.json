@@ -1,0 +1,40 @@
+{
+  "blockers": [
+    "FAILOVER_SIGNED_READ_ONLY_PROBE_NOT_PASSED",
+    "FAILOVER_ORDER_TRANSPORT_NOT_ENABLED",
+    "FAILOVER_OPERATOR_ACCEPTANCE_REQUIRED"
+  ],
+  "generated_est": "2026-06-21T20:28:07-04:00",
+  "lineage_required_fields": [
+    "prediction_id",
+    "risk_decision_id",
+    "orchestrator_decision_id",
+    "signal_id",
+    "failover_exchange_audit_id",
+    "failover_symbols_audit_id",
+    "failover_final_approval_audit_id"
+  ],
+  "order_submission_allowed": false,
+  "order_transport_enabled": false,
+  "order_transport_existing": false,
+  "order_transport_needed": true,
+  "places_real_order": false,
+  "raw_credentials_exposed": false,
+  "required_guards": [
+    "accepted failover exchange only",
+    "accepted failover symbols only",
+    "accepted risk profile only",
+    "prediction_id required",
+    "risk_decision_id required",
+    "orchestrator_decision_id required",
+    "signal_id required",
+    "failover audit IDs required",
+    "no leverage or margin mutation",
+    "no transfer or withdrawal endpoints"
+  ],
+  "schema_version": "failover_order_transport_status_v1",
+  "selected_exchange": "KuCoin",
+  "service_id": "v2_audited_exchange_failover_selection_and_transport_implementation",
+  "status": "FAILOVER_ORDER_TRANSPORT_DISABLED_PENDING_AUDIT_AND_PROBE",
+  "writes_exchange_orders": false
+}

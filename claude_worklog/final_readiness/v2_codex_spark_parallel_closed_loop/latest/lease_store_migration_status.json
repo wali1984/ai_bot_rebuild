@@ -1,0 +1,14 @@
+{
+  "status": "done",
+  "migration_steps": [
+    "bootstrap_wal_schema",
+    "create_indexes",
+    "enforce_active_lease_and_file_lock_indexes",
+    "write_store_status_checks"
+  ],
+  "active_indexes": [
+    "uq_tasks_lease_active",
+    "uq_file_lock_lease_active"
+  ],
+  "generated_utc": "2026-05-24T00:00:00Z"
+}

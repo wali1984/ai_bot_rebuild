@@ -1,0 +1,93 @@
+{
+  "schema_version": "v2_adaptive_capital_productivity_status_v1",
+  "goal_id": "V2_ADAPTIVE_CAPITAL_PRODUCTIVITY_COMPOUNDING_AND_1000X_FEASIBILITY",
+  "generated_utc": "2026-06-20T18:00:27Z",
+  "status": "PASSED",
+  "correlation_blocker_reasons": [],
+  "open_position_count": 2,
+  "open_symbol_count": 2,
+  "gross_open_notional_usd": 996.48215747,
+  "effective_portfolio_leverage": 0.08463429,
+  "total_exposure_pct_of_equity": 0.08463429,
+  "max_total_portfolio_exposure_pct": 0.6,
+  "max_single_symbol_exposure_pct": 0.08,
+  "max_observed_symbol_exposure_pct": 0.04338185,
+  "portfolio_concentration_limits_enforced": true,
+  "concentration_limit_breaches": [],
+  "correlation_matrix_ready": true,
+  "correlation_input_coverage": 1.0,
+  "correlation_input_count": 2,
+  "correlation_input_missing_symbols": [],
+  "correlation_input_missing_count": 0,
+  "correlation_input_missing_reasons": {},
+  "correlation_input_missing_sample": [],
+  "correlation_source_by_symbol": {
+    "HUSDT": "position_or_feature_payload",
+    "MEGAUSDT": "position_or_feature_payload"
+  },
+  "correlation_source_counts": {
+    "position_or_feature_payload": 2
+  },
+  "correlation_input_status_counts": {
+    "MISSING": 0,
+    "READY": 2
+  },
+  "derived_correlation_symbol_count": 0,
+  "derived_correlation_symbols": [],
+  "correlation_return_timeframe": "1m",
+  "min_correlation_return_points": 30,
+  "max_correlation_candle_age_seconds": 21600,
+  "correlation_pair_counts_by_symbol": {},
+  "correlation_candle_diagnostics_by_symbol": {
+    "HUSDT": {
+      "source": "v2:market:ohlcv_closed:binance:HUSDT:1m",
+      "raw_candle_count": 633,
+      "accepted_candle_count": 633,
+      "return_count": 632,
+      "first_close_time": "2026-06-12T20:49:59.999000Z",
+      "last_close_time": "2026-06-15T17:43:59.999000Z",
+      "last_candle_age_seconds": 432987.001,
+      "reject_counts": {}
+    },
+    "MEGAUSDT": {
+      "source": "v2:market:ohlcv:binance:MEGAUSDT:1m",
+      "raw_candle_count": 100,
+      "accepted_candle_count": 100,
+      "return_count": 99,
+      "first_close_time": "2026-06-20T16:19:59.999000Z",
+      "last_close_time": "2026-06-20T17:58:59.999000Z",
+      "last_candle_age_seconds": 87.001,
+      "reject_counts": {}
+    }
+  },
+  "max_correlation_exposure_pct": 0.18,
+  "max_observed_correlation_exposure_pct": 0.07510469,
+  "correlation_budget_breach_count": 0,
+  "correlation_budget_breach_sample": [],
+  "correlation_budget_breaches": [],
+  "correlation_budget_reduction_required": false,
+  "correlation_budget_reduction_plan_count": 0,
+  "correlation_budget_reduction_plan_sample": [],
+  "correlation_budget_reduction_plan": [],
+  "breached_correlation_open_notional_usd": 0,
+  "symbol_exposure_usd": {
+    "HUSDT": 485.70524094,
+    "MEGAUSDT": 510.77691654
+  },
+  "symbol_margin_exposure_usd": {
+    "HUSDT": 267.92429607,
+    "MEGAUSDT": 510.77691653
+  },
+  "side_exposure_usd": {
+    "long": 485.70524094,
+    "short": 510.77691654
+  },
+  "regime_exposure_usd": {
+    "MODEL_DISAGREEMENT,RANGE": 510.77691654,
+    "TREND": 485.70524094
+  },
+  "strategy_exposure_usd": {
+    "mean_reversion_mode": 510.77691654,
+    "trend_mode": 485.70524094
+  }
+}

@@ -1,0 +1,122 @@
+{
+  "schema_version": "v2_post_copied_runtime_paper_edge_status_v1",
+  "phase": 5,
+  "generated_est": "2026-05-26T17:02:47-0400",
+  "generated_utc": "2026-05-26T21:02:47Z",
+
+  "source_artifact": "claude_worklog/final_readiness/v2_24h_parallel_recovery_war_room/latest/war_room_status.json",
+  "source_artifact_was_recomputed_in_this_turn": false,
+  "recomputation_note": "This turn snapshots the existing 24h war-room edge artifact rather than re-running the war-room CLI; recomputation requires a separate scheduled trigger of the v2_24h_parallel_recovery_war_room.py executor",
+
+  "dataset_summary": {
+    "dataset_total_rows": 76,
+    "train_rows": 60,
+    "validation_rows": 16,
+    "excluded_insufficient_evidence": 2991,
+    "excluded_missing_5m_outcome": 0,
+    "interpretation": "16 validation rows is well below the min_sample_count threshold for any reliable edge claim"
+  },
+
+  "baselines_evaluated": [
+    "hold",
+    "v2_deterministic_policy_shadow_only",
+    "naive_threshold_expected_move_10bps",
+    "logistic_baseline_1d_expected_move"
+  ],
+
+  "edge_gate_summary": {
+    "edge_claimed": false,
+    "edge_claim_blocked_reason": "operator_thresholds_required_and_not_set",
+    "verdict_per_profile": {
+      "aggressive": {
+        "verdict": "INCONCLUSIVE_OBSERVED_EVIDENCE_MISSING",
+        "fail_thresholds": [
+          "min_after_cost_expectancy_bps",
+          "min_after_cost_lower_ci_bps"
+        ],
+        "inconclusive_thresholds": ["max_false_positive_rate"]
+      },
+      "balanced": {
+        "verdict": "INCONCLUSIVE_OBSERVED_EVIDENCE_MISSING",
+        "fail_thresholds": [
+          "min_sample_count",
+          "min_after_cost_expectancy_bps",
+          "min_after_cost_lower_ci_bps",
+          "max_drawdown_bps_rolling",
+          "max_false_negative_rate"
+        ],
+        "inconclusive_thresholds": ["max_false_positive_rate"]
+      },
+      "conservative": {
+        "verdict": "INCONCLUSIVE_OBSERVED_EVIDENCE_MISSING",
+        "fail_thresholds": [
+          "min_sample_count",
+          "min_after_cost_expectancy_bps",
+          "min_after_cost_lower_ci_bps",
+          "max_drawdown_bps_rolling",
+          "max_false_negative_rate"
+        ],
+        "inconclusive_thresholds": ["max_false_positive_rate"]
+      }
+    }
+  },
+
+  "after_cost_expectancy_bps": null,
+  "ci_lower_after_cost_bps": null,
+  "false_positive_rate": null,
+  "false_negative_rate": null,
+  "downside_recall": null,
+  "drawdown_bps_rolling": null,
+  "fee_slippage_drag_bps": null,
+  "metric_null_reason": "The 24h war-room reports per-profile verdicts; raw scalars are not surfaced in the top-level status payload — they live in lane6 attribution payloads. INCONCLUSIVE verdict across all 3 profiles means any scalar reported would not constitute evidence of edge.",
+
+  "by_symbol_paper_pnl": {
+    "available": false,
+    "reason": "16 validation rows is below per-symbol attribution threshold"
+  },
+
+  "by_symbol_no_trade_correctness": {
+    "available": false,
+    "reason": "same as above"
+  },
+
+  "trainer_vs_strategy_comparison": {
+    "trainer_baseline_name": "v2_deterministic_policy_shadow_only",
+    "strategy_baselines": [
+      "naive_threshold_expected_move_10bps",
+      "logistic_baseline_1d_expected_move"
+    ],
+    "hold_baseline_present": true,
+    "winner": "INCONCLUSIVE_VIA_SHARED_VERDICT",
+    "note": "All baselines + trainer fall under the same INCONCLUSIVE verdict; no baseline currently has provable edge over hold"
+  },
+
+  "live_recommendation": "BLOCK_LIVE_PAPER_EDGE_NOT_PROVEN",
+  "canary_recommendation": "BLOCK_LIVE_PAPER_EDGE_NOT_PROVEN",
+  "recommendation_reasons": [
+    "edge_claimed=false on all 3 profiles (aggressive/balanced/conservative)",
+    "validation set size (16 rows) below min_sample_count threshold",
+    "after_cost_expectancy and lower_ci thresholds failed on all profiles",
+    "false_negative_rate threshold failed on balanced + conservative profiles",
+    "operator-set thresholds for edge claim still not applied"
+  ],
+
+  "what_would_unblock_paper_edge_claim": [
+    "Allow burn-in to accumulate >300 validation rows (paper/shadow only; no live)",
+    "Operator sets edge thresholds explicitly (currently 'operator_thresholds_required_and_not_set')",
+    "Re-run 24h war-room executor to refresh metrics after copied-runtime coverage expansion (27 symbols vs prior 3)",
+    "Add per-symbol PnL attribution lane once validation set crosses min_sample_count"
+  ],
+
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "places_real_order": false,
+    "writes_exchange_orders": false,
+    "writes_old_redis": false,
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false
+  }
+}

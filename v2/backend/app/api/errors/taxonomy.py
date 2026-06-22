@@ -1,4 +1,4 @@
-"""Closed error taxonomy for AI BOT V2 API.
+"""Closed error taxonomy for NERVYX ONE API.
 
 Per `claude_worklog/v2_scaffold_planning/04_API_ROUTE_SCAFFOLD_PLAN.md` §4 and
 `claude_worklog/v2_architecture_remediation/12B_API_LINEAGE_ENFORCEMENT_CLOSURE.md`.

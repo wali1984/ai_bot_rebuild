@@ -10,7 +10,7 @@ struct WatchDashboardView: View {
                 HStack {
                     Image(systemName: "cpu.fill")
                         .foregroundStyle(.blue)
-                    Text("AI BOT V2")
+                    Text("NERVYX ONE")
                         .font(.headline)
                         .minimumScaleFactor(0.8)
                 }
@@ -28,7 +28,7 @@ struct WatchDashboardView: View {
                 // Blocked badge
                 HStack {
                     Image(systemName: "lock.fill").foregroundStyle(.red).font(.caption)
-                    Text("PAPER MODE").font(.caption2.weight(.bold)).foregroundStyle(.red)
+                    Text("LIVE").font(.caption2.weight(.bold)).foregroundStyle(.green)
                 }
             }
             .padding(.horizontal, 4)
@@ -77,7 +77,7 @@ struct WatchDashboardView: View {
 
     private func loopRow(_ d: WatchDashboardData) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("Paper Loop")
+            Text("Runtime Loop")
                 .font(.caption2).foregroundStyle(.secondary)
             HStack(spacing: 8) {
                 Label("\(d.intentsAccepted)", systemImage: "checkmark.circle.fill")

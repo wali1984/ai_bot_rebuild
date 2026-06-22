@@ -1,0 +1,10 @@
+{
+  "aggregate_dim_count": 0,
+  "buildable_missing_exact_source": [],
+  "buildable_missing_field_metadata": [],
+  "category": "V2_BUILDABLE_NOW",
+  "field_groups": [],
+  "field_metadata_by_group": {},
+  "generated_utc": "2026-05-23T02:22:09Z",
+  "schema_version": "v2_full_observation_v2_buildable_now_fields_v1"
+}

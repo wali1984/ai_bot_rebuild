@@ -1,0 +1,12 @@
+[Unit]
+Description=AI BOT V2 continuous legacy-log remediation timer (5-minute cadence)
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Persistent=true
+Unit=ai-bot-v2-continuous-legacy-log-remediation.service
+
+[Install]
+WantedBy=timers.target

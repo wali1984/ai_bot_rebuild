@@ -1,0 +1,11 @@
+{
+  "accepted_allocation_count": 0,
+  "allocator": "V2_ADAPTIVE_AI_CAPITAL_ALLOCATOR",
+  "allocator_decision_counts": {},
+  "blocked_allocation_count": 0,
+  "fixed_runtime_notional_removed": true,
+  "generated_utc": "2026-06-15T19:42:24Z",
+  "paper_candidates_with_allocation": 0,
+  "paper_only": true,
+  "sample_allocations": []
+}

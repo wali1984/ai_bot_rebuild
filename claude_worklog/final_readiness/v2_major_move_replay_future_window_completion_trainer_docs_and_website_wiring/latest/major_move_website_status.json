@@ -1,0 +1,21 @@
+{
+  "generated_est": "2026-06-15T21:44:08-04:00",
+  "payload_ready": true,
+  "route_count_checked": 9,
+  "routes_wired": [
+    "/dashboard",
+    "/model-state",
+    "/ai-predictions",
+    "/signals",
+    "/trade/paper",
+    "/portfolio",
+    "/backtests",
+    "/system/trainer",
+    "/system/readiness"
+  ],
+  "semantic_scan_passed": true,
+  "shows_guaranteed_10k": false,
+  "shows_guaranteed_profit": false,
+  "stale_panel_count": 0,
+  "status": "READY"
+}

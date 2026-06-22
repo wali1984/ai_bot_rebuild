@@ -1,0 +1,691 @@
+{
+  "after_cost_ci_lower_bps": -15.222695156211167,
+  "after_cost_expectancy_bps": -7.039571167326742,
+  "allowed_recommendations": [
+    "BLOCK_LIVE_PAPER_EDGE_NOT_PROVEN",
+    "BLOCK_LIVE_MODEL_SIGNAL_QUALITY_NOT_READY",
+    "BLOCK_LIVE_RISK_CAPS_OPERATOR_REQUIRED",
+    "CANARY_OPERATOR_DECISION_REQUIRED"
+  ],
+  "approves_canary": false,
+  "approves_live": false,
+  "by_action_edge": [
+    {
+      "after_cost_ci_lower_bps": -20.780441883967,
+      "after_cost_expectancy_bps": -15.901523939085203,
+      "sample_count": 17,
+      "selected_action": "close_short"
+    },
+    {
+      "after_cost_ci_lower_bps": -14.93724597122692,
+      "after_cost_expectancy_bps": -5.813445178899167,
+      "sample_count": 176,
+      "selected_action": "hedge_reserved_fail_closed"
+    },
+    {
+      "after_cost_ci_lower_bps": -43.72264961404925,
+      "after_cost_expectancy_bps": -23.32581537816656,
+      "sample_count": 4,
+      "selected_action": "short"
+    }
+  ],
+  "by_confidence_bucket_edge": [
+    {
+      "after_cost_ci_lower_bps": -17.838207810121737,
+      "after_cost_expectancy_bps": -4.666901445746971,
+      "confidence_bucket": "0.4-0.5",
+      "sample_count": 77
+    },
+    {
+      "after_cost_ci_lower_bps": -19.039558718665237,
+      "after_cost_expectancy_bps": -8.56203423867376,
+      "confidence_bucket": "0.5-0.6",
+      "sample_count": 120
+    }
+  ],
+  "by_symbol_edge": [
+    {
+      "after_cost_ci_lower_bps": -16.151961801951973,
+      "after_cost_expectancy_bps": -16.151961801951973,
+      "sample_count": 2,
+      "symbol": "1000BONKUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -27.923566878980242,
+      "after_cost_expectancy_bps": -27.923566878980242,
+      "sample_count": 2,
+      "symbol": "1000FLOKIUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -19.383293620162917,
+      "after_cost_expectancy_bps": -19.383293620162917,
+      "sample_count": 1,
+      "symbol": "1000PEPEUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -18.037432078888166,
+      "after_cost_expectancy_bps": -18.037432078888166,
+      "sample_count": 2,
+      "symbol": "1000SHIBUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -25.29787234042591,
+      "after_cost_expectancy_bps": -25.29787234042591,
+      "sample_count": 2,
+      "symbol": "1INCHUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -16.18351694324378,
+      "after_cost_expectancy_bps": -16.18351694324378,
+      "sample_count": 2,
+      "symbol": "AAVEUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -1.2125134843578351,
+      "after_cost_expectancy_bps": -1.2125134843578351,
+      "sample_count": 2,
+      "symbol": "ADAUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -12.0,
+      "after_cost_expectancy_bps": -12.0,
+      "sample_count": 2,
+      "symbol": "ALGOUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": 6.034265103696292,
+      "after_cost_expectancy_bps": 6.034265103696292,
+      "sample_count": 2,
+      "symbol": "ALICEUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -15.93494228751414,
+      "after_cost_expectancy_bps": -15.93494228751414,
+      "sample_count": 2,
+      "symbol": "APTUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -33.875000000000625,
+      "after_cost_expectancy_bps": -12.0,
+      "sample_count": 2,
+      "symbol": "ARBUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -16.22475707646764,
+      "after_cost_expectancy_bps": -16.22475707646764,
+      "sample_count": 2,
+      "symbol": "ARUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -15.017956843218485,
+      "after_cost_expectancy_bps": -15.017956843218485,
+      "sample_count": 2,
+      "symbol": "ASTERUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -21.85464400098438,
+      "after_cost_expectancy_bps": -21.85464400098438,
+      "sample_count": 2,
+      "symbol": "AUCTIONUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -12.0,
+      "after_cost_expectancy_bps": -12.0,
+      "sample_count": 2,
+      "symbol": "AVAXUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -12.0,
+      "after_cost_expectancy_bps": -12.0,
+      "sample_count": 2,
+      "symbol": "AVNTUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -18.391818472355126,
+      "after_cost_expectancy_bps": -18.391818472355126,
+      "sample_count": 2,
+      "symbol": "BANKUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -17.793742757820915,
+      "after_cost_expectancy_bps": -17.793742757820915,
+      "sample_count": 2,
+      "symbol": "BARDUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -25.74848362312879,
+      "after_cost_expectancy_bps": -25.74848362312879,
+      "sample_count": 2,
+      "symbol": "BCHUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -14.970787258624586,
+      "after_cost_expectancy_bps": -14.970787258624586,
+      "sample_count": 2,
+      "symbol": "BNBUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -12.440489824685507,
+      "after_cost_expectancy_bps": -12.440489824685507,
+      "sample_count": 2,
+      "symbol": "BTCUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -3.5682967959534917,
+      "after_cost_expectancy_bps": -3.5682967959534917,
+      "sample_count": 2,
+      "symbol": "CELRUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -82.7836764174788,
+      "after_cost_expectancy_bps": -12.0,
+      "sample_count": 2,
+      "symbol": "CHZUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -32.03065917220014,
+      "after_cost_expectancy_bps": -12.0,
+      "sample_count": 2,
+      "symbol": "CRVUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -17.688282138794975,
+      "after_cost_expectancy_bps": -17.688282138794975,
+      "sample_count": 2,
+      "symbol": "DASHUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -6.371904547500184,
+      "after_cost_expectancy_bps": -6.371904547500184,
+      "sample_count": 2,
+      "symbol": "DOGEUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -2.5123339658433412,
+      "after_cost_expectancy_bps": -2.5123339658433412,
+      "sample_count": 2,
+      "symbol": "DOTUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -3.804118430489014,
+      "after_cost_expectancy_bps": -3.804118430489014,
+      "sample_count": 2,
+      "symbol": "ENAUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": 9.266154097823783,
+      "after_cost_expectancy_bps": 9.266154097823783,
+      "sample_count": 2,
+      "symbol": "EPICUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -18.633798526573674,
+      "after_cost_expectancy_bps": -12.0,
+      "sample_count": 2,
+      "symbol": "ETHUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -19.686395080706305,
+      "after_cost_expectancy_bps": -19.686395080706305,
+      "sample_count": 1,
+      "symbol": "FARTCOINUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -43.474820143885175,
+      "after_cost_expectancy_bps": -43.474820143885175,
+      "sample_count": 1,
+      "symbol": "FETUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -23.248593925759288,
+      "after_cost_expectancy_bps": -23.248593925759288,
+      "sample_count": 2,
+      "symbol": "FILUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -8.320824135393183,
+      "after_cost_expectancy_bps": -8.320824135393183,
+      "sample_count": 1,
+      "symbol": "GALAUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -8.462264150943131,
+      "after_cost_expectancy_bps": -8.462264150943131,
+      "sample_count": 2,
+      "symbol": "HBARUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": 43.91798695247002,
+      "after_cost_expectancy_bps": 43.91798695247002,
+      "sample_count": 2,
+      "symbol": "HIGHUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": 14.19336993420228,
+      "after_cost_expectancy_bps": 14.19336993420228,
+      "sample_count": 2,
+      "symbol": "HOMEUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -70.50746268656542,
+      "after_cost_expectancy_bps": -12.000000000000002,
+      "sample_count": 2,
+      "symbol": "HOTUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": 19.393554566255464,
+      "after_cost_expectancy_bps": 19.393554566255464,
+      "sample_count": 2,
+      "symbol": "HUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -3.715240997722077,
+      "after_cost_expectancy_bps": -3.715240997722077,
+      "sample_count": 2,
+      "symbol": "HYPEUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -26.48225923244027,
+      "after_cost_expectancy_bps": -26.48225923244027,
+      "sample_count": 2,
+      "symbol": "ICPUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": 15.41729117163166,
+      "after_cost_expectancy_bps": 15.41729117163166,
+      "sample_count": 2,
+      "symbol": "INJUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -188.12524461839564,
+      "after_cost_expectancy_bps": -188.12524461839564,
+      "sample_count": 2,
+      "symbol": "INUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -40.80940715335835,
+      "after_cost_expectancy_bps": -12.0,
+      "sample_count": 2,
+      "symbol": "IRYSUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -15.903200624512392,
+      "after_cost_expectancy_bps": -15.903200624512392,
+      "sample_count": 2,
+      "symbol": "JSTUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -62.35596457718378,
+      "after_cost_expectancy_bps": -62.35596457718378,
+      "sample_count": 2,
+      "symbol": "JTOUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": 387.7729484268572,
+      "after_cost_expectancy_bps": 387.7729484268572,
+      "sample_count": 2,
+      "symbol": "LABUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -26.336917562722434,
+      "after_cost_expectancy_bps": -26.336917562722434,
+      "sample_count": 2,
+      "symbol": "LDOUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -19.48129675810502,
+      "after_cost_expectancy_bps": -19.48129675810502,
+      "sample_count": 2,
+      "symbol": "LINKUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": 6.348623853210498,
+      "after_cost_expectancy_bps": 6.348623853210498,
+      "sample_count": 2,
+      "symbol": "LITUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -18.513243595310712,
+      "after_cost_expectancy_bps": -18.513243595310712,
+      "sample_count": 2,
+      "symbol": "LTCUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -119.69718086791347,
+      "after_cost_expectancy_bps": -119.69718086791347,
+      "sample_count": 2,
+      "symbol": "MEMEUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -32.34039020340448,
+      "after_cost_expectancy_bps": -12.0,
+      "sample_count": 2,
+      "symbol": "MINAUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": 34.29629629629762,
+      "after_cost_expectancy_bps": 34.29629629629762,
+      "sample_count": 2,
+      "symbol": "MONUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": 25.341299477221014,
+      "after_cost_expectancy_bps": 25.341299477221014,
+      "sample_count": 2,
+      "symbol": "MOVRUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": 15.777777777776919,
+      "after_cost_expectancy_bps": 15.777777777776919,
+      "sample_count": 2,
+      "symbol": "MYXUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -37.89555459646,
+      "after_cost_expectancy_bps": -37.89555459646,
+      "sample_count": 2,
+      "symbol": "NEARUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -28.72240802675587,
+      "after_cost_expectancy_bps": -28.72240802675587,
+      "sample_count": 2,
+      "symbol": "NEOUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": 8.882276168101473,
+      "after_cost_expectancy_bps": 8.882276168101473,
+      "sample_count": 2,
+      "symbol": "NIGHTUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -4.092778070637257,
+      "after_cost_expectancy_bps": -4.092778070637257,
+      "sample_count": 2,
+      "symbol": "ONDOUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": 261.2793522267205,
+      "after_cost_expectancy_bps": 261.2793522267205,
+      "sample_count": 2,
+      "symbol": "OPNUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": 5.346053772767192,
+      "after_cost_expectancy_bps": 5.346053772767192,
+      "sample_count": 2,
+      "symbol": "OPUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -10.25447905151134,
+      "after_cost_expectancy_bps": -10.25447905151134,
+      "sample_count": 2,
+      "symbol": "PAXGUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -18.87337711929222,
+      "after_cost_expectancy_bps": -18.87337711929222,
+      "sample_count": 2,
+      "symbol": "PENDLEUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -7.634458672876119,
+      "after_cost_expectancy_bps": -7.634458672876119,
+      "sample_count": 2,
+      "symbol": "PENGUUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -46.14634146341324,
+      "after_cost_expectancy_bps": -12.0,
+      "sample_count": 2,
+      "symbol": "PEOPLEUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -31.89389920424437,
+      "after_cost_expectancy_bps": -31.89389920424437,
+      "sample_count": 2,
+      "symbol": "PIPPINUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -19.78642936596225,
+      "after_cost_expectancy_bps": -19.78642936596225,
+      "sample_count": 2,
+      "symbol": "POLUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": 145.18157181571928,
+      "after_cost_expectancy_bps": 145.18157181571928,
+      "sample_count": 2,
+      "symbol": "PORTALUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -0.22143698468758188,
+      "after_cost_expectancy_bps": -0.22143698468758188,
+      "sample_count": 2,
+      "symbol": "PUMPUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": 8.491803278689112,
+      "after_cost_expectancy_bps": 8.491803278689112,
+      "sample_count": 2,
+      "symbol": "RAVEUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -27.503875968991686,
+      "after_cost_expectancy_bps": -27.503875968991686,
+      "sample_count": 2,
+      "symbol": "RENDERUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -2.5159332321701573,
+      "after_cost_expectancy_bps": -2.5159332321701573,
+      "sample_count": 2,
+      "symbol": "RIVERUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": 32.58977407847927,
+      "after_cost_expectancy_bps": 32.58977407847927,
+      "sample_count": 2,
+      "symbol": "SAHARAUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -4.338632445891904,
+      "after_cost_expectancy_bps": -4.338632445891904,
+      "sample_count": 2,
+      "symbol": "SEIUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -52.18290148261069,
+      "after_cost_expectancy_bps": -52.18290148261069,
+      "sample_count": 2,
+      "symbol": "SIRENUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -10.303838977780163,
+      "after_cost_expectancy_bps": -10.303838977780163,
+      "sample_count": 2,
+      "symbol": "SKYAIUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -59.88579689194097,
+      "after_cost_expectancy_bps": -59.88579689194097,
+      "sample_count": 2,
+      "symbol": "SLXUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -14.902336380788018,
+      "after_cost_expectancy_bps": -14.902336380788018,
+      "sample_count": 2,
+      "symbol": "SOLUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -47.47671840354771,
+      "after_cost_expectancy_bps": -47.47671840354771,
+      "sample_count": 2,
+      "symbol": "SSVUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -83.02619008400526,
+      "after_cost_expectancy_bps": -12.0,
+      "sample_count": 2,
+      "symbol": "STOUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -10.721554589619164,
+      "after_cost_expectancy_bps": -10.721554589619164,
+      "sample_count": 2,
+      "symbol": "SUIUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -17.06015967614899,
+      "after_cost_expectancy_bps": -17.06015967614899,
+      "sample_count": 2,
+      "symbol": "SUNUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -7.169082125604397,
+      "after_cost_expectancy_bps": -7.169082125604397,
+      "sample_count": 2,
+      "symbol": "SUSHIUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -1.7330595482546745,
+      "after_cost_expectancy_bps": -1.7330595482546745,
+      "sample_count": 2,
+      "symbol": "TAOUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": 3.7526254375724886,
+      "after_cost_expectancy_bps": 3.7526254375724886,
+      "sample_count": 2,
+      "symbol": "TONUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -17.464480874316337,
+      "after_cost_expectancy_bps": -17.464480874316337,
+      "sample_count": 2,
+      "symbol": "TRUMPUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -12.603682463025052,
+      "after_cost_expectancy_bps": -12.603682463025052,
+      "sample_count": 2,
+      "symbol": "TRXUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -12.0,
+      "after_cost_expectancy_bps": -12.0,
+      "sample_count": 2,
+      "symbol": "UNIUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -7.410036719706747,
+      "after_cost_expectancy_bps": -7.410036719706747,
+      "sample_count": 2,
+      "symbol": "VIRTUALUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": 4.227180527382611,
+      "after_cost_expectancy_bps": 4.227180527382611,
+      "sample_count": 2,
+      "symbol": "VVVUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -12.0,
+      "after_cost_expectancy_bps": -12.0,
+      "sample_count": 1,
+      "symbol": "WIFUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -55.2900432900427,
+      "after_cost_expectancy_bps": -55.2900432900427,
+      "sample_count": 2,
+      "symbol": "WLDUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -25.056960992329635,
+      "after_cost_expectancy_bps": -25.056960992329635,
+      "sample_count": 2,
+      "symbol": "WLFIUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -12.673921052393482,
+      "after_cost_expectancy_bps": -12.673921052393482,
+      "sample_count": 2,
+      "symbol": "XAUTUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -21.480965510568296,
+      "after_cost_expectancy_bps": -12.0,
+      "sample_count": 2,
+      "symbol": "XLMUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -16.114774784659495,
+      "after_cost_expectancy_bps": -16.114774784659495,
+      "sample_count": 2,
+      "symbol": "XMRUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -45.40757238307291,
+      "after_cost_expectancy_bps": -45.40757238307291,
+      "sample_count": 2,
+      "symbol": "XPLUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -13.69981302056755,
+      "after_cost_expectancy_bps": -13.69981302056755,
+      "sample_count": 2,
+      "symbol": "XRPUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -50.850931082658185,
+      "after_cost_expectancy_bps": -50.850931082658185,
+      "sample_count": 2,
+      "symbol": "ZECUSDT"
+    },
+    {
+      "after_cost_ci_lower_bps": -40.28354251370065,
+      "after_cost_expectancy_bps": -40.28354251370065,
+      "sample_count": 2,
+      "symbol": "ZROUSDT"
+    }
+  ],
+  "confidence_calibration": {
+    "calibration_error": 0.28662702985079147,
+    "high_confidence_loser_count": 0,
+    "status": "CONFIDENCE_CALIBRATION_READY"
+  },
+  "correct_no_trade_count": 154,
+  "correct_trade_count": 0,
+  "drawdown": {
+    "max_drawdown_bps": 182.3050777629012,
+    "observations": 197
+  },
+  "edge_proven": false,
+  "execution_live_symbols": [],
+  "false_negative_count": 43,
+  "false_negative_rate": 0.2182741116751269,
+  "false_positive_count": 0,
+  "false_positive_rate": null,
+  "generated_est": "2026-06-04T17:25:23-04:00",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "outcome_sample_count": 197,
+  "pending_primary_outcome_count": 5,
+  "primary_recommendation": "BLOCK_LIVE_PAPER_EDGE_NOT_PROVEN",
+  "recommendations": [
+    "BLOCK_LIVE_PAPER_EDGE_NOT_PROVEN",
+    "BLOCK_LIVE_MODEL_SIGNAL_QUALITY_NOT_READY",
+    "BLOCK_LIVE_RISK_CAPS_OPERATOR_REQUIRED"
+  ],
+  "schema_version": "v2_native_cuda_trainer_edge_calibration_outcome_burn_in_v1_edge_recompute_after_burn_in",
+  "status": "EDGE_RECOMPUTE_AFTER_BURN_IN_READY",
+  "trainer_vs_strategy_comparison": {
+    "comparison_status": "DIAGNOSTIC_ONLY_NO_LIVE_AUTHORITY",
+    "cuda_trainer_completed_outcomes": 197,
+    "cuda_trainer_false_positive_count": 0,
+    "no_trade_strategy_misses_profitable_blocks": 43,
+    "no_trade_strategy_would_avoid_false_positives": 0
+  }
+}

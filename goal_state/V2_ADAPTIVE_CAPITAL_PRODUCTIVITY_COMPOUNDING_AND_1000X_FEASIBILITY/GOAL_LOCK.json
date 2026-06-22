@@ -1,0 +1,138 @@
+{
+  "goal_id": "V2_ADAPTIVE_CAPITAL_PRODUCTIVITY_COMPOUNDING_AND_1000X_FEASIBILITY",
+  "current_state": "NO_GO_CAPITAL_PRODUCTIVITY_PHASE_BOOTSTRAPPED_P0_FROZEN_ALLOCATOR_COUNTERFACTUAL_SIGNAL_SOURCE_COVERAGE_MARKET_DEPTH_CONSTRAINT_VERSIONED_ACCOUNTING_CORRELATION_BUDGET_PRE_SUBMIT_PARITY_AND_A_GRADE_DIAGNOSTICS_PATCHED",
+  "overall_status": "NO_GO",
+  "updated_utc": "2026-06-20T01:49:26Z",
+  "p0_baseline": {
+    "frozen": true,
+    "policy_version": "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1",
+    "validator_generated_utc": "2026-06-19T20:28:45Z",
+    "validator_overall_status": "PASSED",
+    "validator_remaining_blockers": [],
+    "ready_for_live": false,
+    "live_gate": "blocked_human_only",
+    "capital_phase_touched_exit_policy_file": false,
+    "freeze_scope": "P0 validator report, policy version, live-gate state, and current source hashes after capital-accounting telemetry patch"
+  },
+  "latest_outputs": {
+    "capital_productivity_runtime_status": "goal_state/V2_ADAPTIVE_CAPITAL_PRODUCTIVITY_COMPOUNDING_AND_1000X_FEASIBILITY/capital_productivity_runtime_status.json",
+    "margin_notional_leverage_accounting_status": "goal_state/V2_ADAPTIVE_CAPITAL_PRODUCTIVITY_COMPOUNDING_AND_1000X_FEASIBILITY/margin_notional_leverage_accounting_status.json",
+    "counterfactual_capital_sweep_status": "goal_state/V2_ADAPTIVE_CAPITAL_PRODUCTIVITY_COMPOUNDING_AND_1000X_FEASIBILITY/counterfactual_capital_sweep_status.json",
+    "adaptive_capital_policy_status": "goal_state/V2_ADAPTIVE_CAPITAL_PRODUCTIVITY_COMPOUNDING_AND_1000X_FEASIBILITY/adaptive_capital_policy_status.json",
+    "portfolio_correlation_budget_status": "goal_state/V2_ADAPTIVE_CAPITAL_PRODUCTIVITY_COMPOUNDING_AND_1000X_FEASIBILITY/portfolio_correlation_budget_status.json",
+    "compounding_equity_status": "goal_state/V2_ADAPTIVE_CAPITAL_PRODUCTIVITY_COMPOUNDING_AND_1000X_FEASIBILITY/compounding_equity_status.json",
+    "rare_event_capital_stress_status": "goal_state/V2_ADAPTIVE_CAPITAL_PRODUCTIVITY_COMPOUNDING_AND_1000X_FEASIBILITY/rare_event_capital_stress_status.json",
+    "one_thousand_x_feasibility_status": "goal_state/V2_ADAPTIVE_CAPITAL_PRODUCTIVITY_COMPOUNDING_AND_1000X_FEASIBILITY/one_thousand_x_feasibility_status.json",
+    "paper_live_pre_submit_parity_status": "goal_state/V2_ADAPTIVE_CAPITAL_PRODUCTIVITY_COMPOUNDING_AND_1000X_FEASIBILITY/paper_live_pre_submit_parity_status.json",
+    "operator_dashboard_payload": "goal_state/V2_ADAPTIVE_CAPITAL_PRODUCTIVITY_COMPOUNDING_AND_1000X_FEASIBILITY/operator_dashboard_payload.json",
+    "go_no_go": "goal_state/V2_ADAPTIVE_CAPITAL_PRODUCTIVITY_COMPOUNDING_AND_1000X_FEASIBILITY/GO_NO_GO.md"
+  },
+  "latest_runtime_summary": {
+    "paper_equity_usd": 11135.96485835,
+    "available_margin_usd": 10242.0558347,
+    "allocated_margin_usd": 893.90902365,
+    "gross_open_notional_usd": 893.90902365,
+    "effective_portfolio_leverage": 0.08027226,
+    "capital_utilization_pct": 0.08027226,
+    "a_grade_opportunity_count": 0,
+    "idle_capital_no_edge_usd": 10242.0558347,
+    "opportunity_source": "v2:signals:paper+v2:paper:intents",
+    "paper_signal_row_count": 755,
+    "paper_intent_row_count": 270,
+    "post_allocator_closed_outcome_count": 2,
+    "minimum_required_closed_outcomes": 300,
+    "long_closed_outcome_count": 1,
+    "short_closed_outcome_count": 1,
+    "symbol_count": 2,
+    "capital_policy_version": "ADAPTIVE_CAPITAL_ALLOCATOR_V1",
+    "runtime_row_count": 390,
+    "new_trade_row_count": 2,
+    "historical_or_unversioned_runtime_row_count": 388,
+    "mandatory_field_coverage": 1.0,
+    "rows_with_all_mandatory_fields": 2,
+    "return_on_deployed_margin": -0.00165097,
+    "portfolio_correlation_status": "NO_GO_CORRELATION_INPUTS_MISSING",
+    "open_position_count": 11,
+    "open_symbol_count": 11,
+    "portfolio_concentration_limits_enforced": true,
+    "correlation_input_coverage": 0.0,
+    "max_observed_symbol_exposure_pct": 0.04199586,
+    "counterfactual_status": "NO_GO_COUNTERFACTUAL_REPLAY_NOT_COMPLETE",
+    "counterfactual_source_row_count": 1407,
+    "counterfactual_ledger_runtime_row_count": 382,
+    "counterfactual_paper_signal_row_count": 755,
+    "counterfactual_paper_intent_row_count": 270,
+    "counterfactual_skipped_not_a_grade_count": 1407,
+    "counterfactual_skipped_no_feasible_configuration_count": 0,
+    "counterfactual_market_depth_axis": "required_actual_depth_usd_or_orderbook_levels",
+    "counterfactual_skipped_not_a_grade_reason_counts": {
+      "ALLOCATOR_BLOCK_LOW_CONFIDENCE": 8,
+      "ALLOCATOR_BLOCK_NO_EDGE": 229,
+      "ALLOCATOR_BLOCK_SPREAD_SLIPPAGE": 5,
+      "LOW_CONFIDENCE": 1024,
+      "MISSING_AFTER_COST_EDGE": 391,
+      "MISSING_CONFIDENCE": 390,
+      "NON_POSITIVE_AFTER_COST_EDGE": 956
+    },
+    "counterfactual_event_time_valid_candidate_count": 0,
+    "counterfactual_best_configuration_count": 0,
+    "rare_event_status": "NO_GO_RARE_EVENT_CAPITAL_STRESS_NOT_RUN",
+    "one_thousand_x_status": "UNSUPPORTED_CURRENT_EVIDENCE",
+    "paper_live_pre_submit_parity_status": "NO_GO_PRE_SUBMIT_PARITY_NO_SIZED_INTENTS",
+    "versioned_adaptive_intent_count": 0,
+    "sized_pre_submit_candidate_count": 0,
+    "pre_submit_candidate_field_coverage": 0.0
+  },
+  "remaining_blockers": [
+    "counterfactual_capital_sweep_status",
+    "adaptive_capital_policy_status",
+    "portfolio_correlation_budget_status",
+    "compounding_equity_status",
+    "rare_event_capital_stress_status",
+    "one_thousand_x_feasibility_status",
+    "paper_live_pre_submit_parity_status"
+  ],
+  "operator_safety": {
+    "paper_only": true,
+    "places_real_order": false,
+    "test_orders": false,
+    "leverage_mutation": false,
+    "margin_mode_mutation": false,
+    "withdrawals": false,
+    "transfers": false,
+    "old_redis_writes": false,
+    "legacy_restart": false,
+    "trainer_bridge_unmasked": false,
+    "live_gate": "blocked_human_only"
+  },
+  "tests": [
+    {
+      "command": ".venv/bin/python -m py_compile <changed source files>",
+      "result": "passed"
+    },
+    {
+      "command": "PYTHONPATH=. .venv/bin/python -m pytest v2/backend/tests/unit/services/adaptive_capital_allocator/test_allocator.py v2/backend/tests/unit/services/adaptive_capital_allocator/test_counterfactual.py v2/backend/tests/unit/cli/test_v2_adaptive_capital_productivity_status.py -q",
+      "result": "33 passed"
+    },
+    {
+      "command": "PYTHONPATH=. .venv/bin/python -m pytest v2/backend/tests/unit/services/paper_trade_management -q",
+      "result": "271 passed"
+    },
+    {
+      "command": "PYTHONPATH=. .venv/bin/python -m pytest v2/backend/tests/integration/cli/test_v2_trade_management_paper_strategy_router.py -q",
+      "result": "26 passed"
+    },
+    {
+      "command": "jq empty goal_state/V2_ADAPTIVE_CAPITAL_PRODUCTIVITY_COMPOUNDING_AND_1000X_FEASIBILITY/*.json v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest/*.json",
+      "result": "passed"
+    },
+    {
+      "command": "safety scan for order/leverage/margin/withdrawal/transfer mutations",
+      "result": "passed"
+    },
+    {
+      "command": "Redis write scan on adaptive capital status and allocator modules",
+      "result": "passed"
+    }
+  ]
+}

@@ -1,0 +1,146 @@
+{
+  "already_complete_path_rows": 25,
+  "closed_trade_rows_seen": 931,
+  "dry_run": false,
+  "examples": [
+    {
+      "candle_count": 1,
+      "candle_timeframe": "15m",
+      "exit_time": "2026-06-18T13:47:07Z",
+      "side": "short",
+      "source_keys": [
+        "v2:market:ohlcv:binance:LABUSDT:15m"
+      ],
+      "symbol": "LABUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "candle_count": 1,
+      "candle_timeframe": "15m",
+      "exit_time": "2026-06-18T13:47:07Z",
+      "side": "short",
+      "source_keys": [
+        "v2:market:ohlcv:binance:MEGAUSDT:15m"
+      ],
+      "symbol": "MEGAUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "candle_count": 1,
+      "candle_timeframe": "15m",
+      "exit_time": "2026-06-18T13:47:07Z",
+      "side": "short",
+      "source_keys": [
+        "v2:market:ohlcv:binance:BEATUSDT:15m"
+      ],
+      "symbol": "BEATUSDT",
+      "timeframe": "15m"
+    },
+    {
+      "candle_count": 1,
+      "candle_timeframe": "15m",
+      "exit_time": "2026-06-18T13:51:20Z",
+      "side": "short",
+      "source_keys": [
+        "v2:market:ohlcv:binance:DOTUSDT:15m"
+      ],
+      "symbol": "DOTUSDT",
+      "timeframe": "4h"
+    },
+    {
+      "candle_count": 1,
+      "candle_timeframe": "15m",
+      "exit_time": "2026-06-18T13:51:20Z",
+      "side": "short",
+      "source_keys": [
+        "v2:market:ohlcv:binance:FETUSDT:15m"
+      ],
+      "symbol": "FETUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "candle_count": 1,
+      "candle_timeframe": "15m",
+      "exit_time": "2026-06-18T13:51:20Z",
+      "side": "short",
+      "source_keys": [
+        "v2:market:ohlcv:binance:ICPUSDT:15m"
+      ],
+      "symbol": "ICPUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "candle_count": 1,
+      "candle_timeframe": "15m",
+      "exit_time": "2026-06-18T13:54:41Z",
+      "side": "short",
+      "source_keys": [
+        "v2:market:ohlcv:binance:AVAXUSDT:15m"
+      ],
+      "symbol": "AVAXUSDT",
+      "timeframe": "5m"
+    },
+    {
+      "candle_count": 1,
+      "candle_timeframe": "15m",
+      "exit_time": "2026-06-18T13:55:38Z",
+      "side": "short",
+      "source_keys": [
+        "v2:market:ohlcv:binance:ADAUSDT:15m"
+      ],
+      "symbol": "ADAUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "candle_count": 1,
+      "candle_timeframe": "15m",
+      "exit_time": "2026-06-18T13:55:38Z",
+      "side": "short",
+      "source_keys": [
+        "v2:market:ohlcv:binance:DASHUSDT:15m"
+      ],
+      "symbol": "DASHUSDT",
+      "timeframe": "1m"
+    },
+    {
+      "candle_count": 1,
+      "candle_timeframe": "15m",
+      "exit_time": "2026-06-18T14:17:59Z",
+      "side": "short",
+      "source_keys": [
+        "v2:market:ohlcv:binance:INJUSDT:15m"
+      ],
+      "symbol": "INJUSDT",
+      "timeframe": "1h"
+    }
+  ],
+  "generated_at": "2026-06-19T08:46:34Z",
+  "keys_written": [
+    "v2:paper:closed_trades",
+    "v2:paper:outcome_labels",
+    "v2:paper:ledger"
+  ],
+  "ledger_rows_updated": {
+    "closed_trades": 412,
+    "closes": 412,
+    "outcome_labels": 412
+  },
+  "live_gate": "blocked_human_only",
+  "not_coverable_path_rows": 494,
+  "outcome_label_rows_seen": 931,
+  "outcome_label_rows_updated": 412,
+  "path_policy": {
+    "does_not_create_training_decision_features": true,
+    "leaves_uncovered_rows_dirty": true,
+    "requires_candle_close_time_lte_exit_time": true,
+    "requires_candle_open_time_gte_entry_time": true,
+    "uses_entry_exit_boundary_prices": true,
+    "uses_only_final_candles": true
+  },
+  "places_real_order": false,
+  "post_backfill_path_complete_count": 437,
+  "repaired_path_rows": 412,
+  "schema_version": "v2_paper_closed_trade_path_telemetry_backfill_v1",
+  "writes_exchange_orders": false,
+  "writes_redis": true
+}

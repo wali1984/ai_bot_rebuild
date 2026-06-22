@@ -1,0 +1,105 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "did_not_adopt_any_symbol_universe_candidate": true,
+  "did_not_call_exchange_mutation": true,
+  "did_not_change_leverage_or_margin_mode": true,
+  "did_not_claim_policy_architecture_parity": true,
+  "did_not_create_paper_only_shutdown_acceptance_file": true,
+  "did_not_deserialize_legacy_checkpoint": true,
+  "did_not_modify_legacy_tree": true,
+  "did_not_mutate_live_symbols_paper_symbols_or_training_symbols": true,
+  "did_not_stop_codex_governors": true,
+  "did_not_stop_continuous_remediation": true,
+  "did_not_stop_legacy_runtime": true,
+  "did_not_stop_replay_miner": true,
+  "did_not_stop_report_center": true,
+  "did_not_stop_v2_runtime": true,
+  "did_not_weaken_paper_fill_gate": true,
+  "did_not_write_old_redis_keys": true,
+  "does_not_replace_migration_work": true,
+  "enterprise_terminal_layout": {
+    "bottom_dock_tabs": [
+      {
+        "id": "binance_orderbook",
+        "label_classification": "PLACEHOLDER_NOT_READY"
+      },
+      {
+        "id": "kucoin_orderbook",
+        "label_classification": "OPERATOR_DECISION_REQUIRED"
+      },
+      {
+        "id": "coinapi_top_of_book",
+        "label_classification": "OPERATOR_DECISION_REQUIRED"
+      },
+      {
+        "id": "liquidation_tape",
+        "label_classification": "V2_NATIVE"
+      },
+      {
+        "id": "coinank_funding_oi_ls_liq",
+        "label_classification": "V2_BRIDGE_FROM_LEGACY_REDIS"
+      },
+      {
+        "id": "ta_matrix",
+        "label_classification": "V2_NATIVE"
+      },
+      {
+        "id": "toxicity_regime_unified_features",
+        "label_classification": "V2_NATIVE"
+      },
+      {
+        "id": "audit_lineage_ledger",
+        "label_classification": "V2_NATIVE"
+      },
+      {
+        "id": "system_health",
+        "label_classification": "V2_NATIVE"
+      }
+    ],
+    "signals_risk_orchestrator_panel": {
+      "data_source": [
+        "v2:prediction:{symbol}:{timeframe}",
+        "v2:risk:decisions",
+        "v2:orchestrator:decisions",
+        "v2:paper:intents"
+      ],
+      "labels": "BRIDGE or NATIVE per prediction trainer_source"
+    },
+    "symbol_watchlist": {
+      "data_source": "v2:market:prices:{symbol} for active; PLACEHOLDER_NOT_READY for KNOWN_UNIVERSE non-active",
+      "no_adopt_button": true
+    },
+    "top_status_rail": [
+      "live_gate_blocked_human_only_chip",
+      "v2_native_lane_count_chip",
+      "bridge_lane_count_chip",
+      "missing_symbols_chip",
+      "trainer_bridge_exit_state_chip",
+      "report_center_freshness_chip"
+    ],
+    "tradingview_workspace": {
+      "data_source": "v2:market:ohlcv:binance:{symbol}:{timeframe} when available; PLACEHOLDER_NOT_READY otherwise",
+      "no_order_buttons": true
+    }
+  },
+  "generated_utc": "2026-05-23T21:09:18Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "phase_1_tasks": [
+    "website_enterprise_terminal_layout_phase_1",
+    "website_enterprise_bottom_dock_bridge_vs_native_labels"
+  ],
+  "principles": [
+    "use_current_redis_evidence_where_native_missing",
+    "label_every_bridge_as_V2_BRIDGE_FROM_LEGACY_REDIS",
+    "label_V2_NATIVE_only_when_truly_native",
+    "label_PLACEHOLDER_NOT_READY_where_missing",
+    "keep_report_center_visible",
+    "no_trading_controls",
+    "no_live_or_canary_or_shutdown_or_adopt_buttons"
+  ],
+  "schema_version": "v2_native_runtime_bridge_exit_and_dynamic_symbol_migration_v1_v2_enterprise_website_parallel_lane_plan"
+}

@@ -1,0 +1,73 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "checkpoint_compatibility_claimed": false,
+  "cycle_design": {
+    "every_15_minutes": "Lane B V2-vs-legacy gap matrix refresh + classification",
+    "every_30_minutes": "Lane C/D/E refresh (full obs, alt-data status only, Binance dashboards if stale)",
+    "every_5_minutes": "Lane A runtime health probe (governor, soak, services, namespaces, freshness)",
+    "every_60_minutes": "Lane G narrow-fix evaluation + Codex review queue update"
+  },
+  "daemon_files": {
+    "script": "claude_worklog/tools/v2_8h_war_room_daemon.py",
+    "service_unit": "claude_worklog/systemd/user/ai-bot-v2-8h-war-room.service",
+    "start_script": "claude_worklog/tools/start_v2_8h_war_room.sh",
+    "status_script": "claude_worklog/tools/status_v2_8h_war_room.sh",
+    "stop_script": "claude_worklog/tools/stop_v2_8h_war_room.sh",
+    "timer_unit": "claude_worklog/systemd/user/ai-bot-v2-8h-war-room.timer"
+  },
+  "fix_policy": {
+    "no_action_required_with_evidence_supported": true,
+    "no_broad_audit_creation": true,
+    "no_checkpoint_compatibility_claim": true,
+    "no_duplicate_checkpoint_task": true,
+    "no_policy_architecture_port_started": true
+  },
+  "generated_utc": "2026-05-18T06:10:05Z",
+  "go_no_go": "V2_8H_WAR_ROOM_AUTOMATION_DAEMON_READY",
+  "heartbeat": {
+    "redis_key": "v2:war_room:heartbeat",
+    "ttl_ceiling_seconds": 600,
+    "ttl_seconds_observed_after_install": 525
+  },
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "modifies_outside_repo_root": false,
+  "no_legacy_filesystem_modified": true,
+  "no_pickle_loaded": true,
+  "no_torch_imported": true,
+  "paper_only_shutdown_acceptance_created": false,
+  "policy_architecture_parity_claimed": false,
+  "provider_policy": {
+    "budget_and_cooldown_respected": true,
+    "lunarcrush_oneshot_triggered_by_daemon": false,
+    "nansen_oneshot_triggered_by_daemon": false,
+    "reason": "403_forbidden_seen_previously_or_no_key_present;_no_repeat_call_under_403"
+  },
+  "safe_redis_write_boundary": {
+    "allowed_keys": [
+      "v2:war_room:heartbeat"
+    ],
+    "never_writes_legacy_redis": true,
+    "refuses_all_other_v2_namespaces_to_prevent_cycle_bug_leak": true
+  },
+  "schema_version": "v2_8h_war_room_automation_daemon_status_v1",
+  "systemd_state": {
+    "cycle_seconds_default": 300,
+    "deadline_hours_default": 8.0,
+    "mode": "oneshot_service_fired_by_timer_every_5_minutes",
+    "persistent_true_so_missed_ticks_replay": true,
+    "timer_active": "active",
+    "timer_enabled": "enabled",
+    "unit_files_symlinked_to_user_dir": true
+  },
+  "tests": {
+    "failed": 0,
+    "passed": 9,
+    "test_file": "v2/backend/tests/integration/cli/test_v2_8h_war_room_daemon.py"
+  },
+  "writes_exchange_orders": false,
+  "writes_legacy_redis": false
+}

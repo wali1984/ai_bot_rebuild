@@ -1,0 +1,76 @@
+{
+  "agent": "claude",
+  "completion_evidence": {
+    "artifact_dir": "claude_worklog/final_readiness/v2_zero_exception_parity_implementation_burndown_20260531/rl_orchestrator_worker_running_partial",
+    "claim": "V2 orchestrator arbitration worker is active and produces V2 proposals/decisions without old signal namespaces.",
+    "completed_by": "codex_takeover",
+    "completed_est": "2026-06-03T22:44:59-04:00",
+    "completed_utc": "2026-06-04T02:44:59Z",
+    "confidence": "MEDIUM_HIGH",
+    "live_safety": {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "exchange_action_taken": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "places_real_order": false,
+      "trader_execution_enabled": false,
+      "writes_exchange_orders": false,
+      "writes_legacy_redis": false
+    },
+    "missing_evidence": "Full legacy WMA/drift stream breadth is not written to old namespaces; V2 arbitration path is live non-mutating.",
+    "raw_evidence": "One-shot returned V2_ORCHESTRATOR_PRODUCTION_OK, proposals_arbitrated=2, v2_orchestrator_keys_written_count=3.",
+    "verification_command": "python -m v2.backend.app.cli.v2_orchestrator_arbitration_loop --once"
+  },
+  "created_at": "2026-05-31T00:00:00Z",
+  "current_active": false,
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": null,
+  "duplicate_suppression_key": null,
+  "expected_output_paths": [
+    "claude_worklog/final_readiness/v2_zero_exception_parity_implementation_burndown_20260531/rl_orchestrator_worker_running_partial/IMPLEMENTATION_REPORT.md",
+    "claude_worklog/final_readiness/v2_zero_exception_parity_implementation_burndown_20260531/rl_orchestrator_worker_running_partial/GO_NO_GO.md",
+    "claude_worklog/final_readiness/v2_zero_exception_parity_implementation_burndown_20260531/rl_orchestrator_worker_running_partial/STATUS.json"
+  ],
+  "fail_blockers": [],
+  "file_lock_group": "v2_zero_exception_parity_rl_orchestrator_worker_running_partial",
+  "max_stall_relaunches": 1,
+  "mission_category": "ZERO_EXCEPTION_PARITY",
+  "next_action": "Implement and emit evidence artifacts in scope.",
+  "owner": "CLAUDE",
+  "paired_task_id": "codex_review_v2_zero_exception_parity_rl_orchestrator_worker_running_partial_20260531",
+  "predecessor_task_ids": null,
+  "priority": 9000,
+  "prompt": "Implement V2_RUNNING_PARTIAL: rl/orchestrator_worker.py as part of V2_ZERO_EXCEPTION_PARITY_IMPLEMENTATION_BURNDOWN_READY. Do not run live, canary, or shutdown operations. Keep V2 scoped writes only and preserve no legacy Redis key writes. Emit concrete evidence artifacts at expected output paths.",
+  "risk_level": "L1",
+  "safe_envelope": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "scope_paths": [
+    "v2/legacy_owned_runtime/rl/orchestrator_worker.py",
+    "v2/backend/app/composition/orchestrator_decision/",
+    "v2/frontend/public/v2_legacy_data_zero_exception_parity_and_full_runtime_startup/latest/legacy_to_v2_zero_exception_data_matrix.json"
+  ],
+  "source_matrix_row": "v2_zero_exception_parity_rl_orchestrator_worker_running_partial",
+  "stall_count": 0,
+  "stall_threshold_seconds": 600,
+  "status": "done",
+  "task_id": "claude_v2_zero_exception_parity_rl_orchestrator_worker_running_partial_20260531",
+  "task_type": "CLAUDE_IMPLEMENTATION",
+  "updated_at": "2026-06-04T02:44:59Z"
+}

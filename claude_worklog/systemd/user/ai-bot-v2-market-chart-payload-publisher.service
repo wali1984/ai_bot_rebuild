@@ -1,0 +1,17 @@
+[Unit]
+Description=AI BOT V2 market chart payload publisher (CoinAPI WSDS read-only, no exchange calls)
+After=ai-bot-v2-coinapi-wsds-loop.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+Environment="LIVE_GATE=blocked_human_only"
+ExecStart=/usr/bin/env bash -lc 'exec /home/wali/Desktop/AI\ BOT\ REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_market_chart_payload_publisher --symbols auto --timeframe 1m --require-wsds --loop --interval-seconds 2 --samples 1 --max-points 240'
+Restart=always
+RestartSec=5
+StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_market_chart_payload_publisher.log
+StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_market_chart_payload_publisher.err
+
+[Install]
+WantedBy=default.target

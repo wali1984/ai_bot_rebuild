@@ -1,0 +1,52 @@
+{
+  "freshness_seconds": 2585180.2061321735,
+  "go_no_go": "V2_FULL_OBSERVATION_REMAINING_DIM_EXECUTION_QUEUE_REMEDIATED_READY",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "owner": "CLAUDE",
+  "redaction_applied": false,
+  "report_id": "remaining_dim_execution_queue",
+  "sanitized_summary": {
+    "go_no_go": "V2_FULL_OBSERVATION_REMAINING_DIM_EXECUTION_QUEUE_REMEDIATED_READY",
+    "pruned": {
+      "aggregate_category_counts": {},
+      "aggregate_total_check": "PASS",
+      "aggregate_total_observed": 5733,
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "checkpoint_compatibility_claimed": false,
+      "field_spec_hold_count": 0,
+      "generated_utc": "2026-05-23T02:22:09Z",
+      "generic_source_hint_hits": 0,
+      "go_no_go": "V2_FULL_OBSERVATION_REMAINING_DIM_EXECUTION_QUEUE_REMEDIATED_READY",
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "per_symbol": [
+        {
+          "symbol": "BTCUSDT",
+          "zero_filled_field_count": 0
+        },
+        {
+          "symbol": "ETHUSDT",
+          "zero_filled_field_count": 0
+        },
+        {
+          "symbol": "SOLUSDT",
+          "zero_filled_field_count": 0
+        }
+      ],
+      "policy_architecture_parity_claimed": false,
+      "schema_version": "v2_full_observation_remaining_dim_execution_queue_v2",
+      "strict_source_contract_pass": true,
+      "zero_filled_field_count": 0
+    },
+    "redaction_applied": false,
+    "redaction_token": null,
+    "status": "READY"
+  },
+  "stale": true,
+  "status": "READY",
+  "title": "Remaining-Dim Execution Queue"
+}

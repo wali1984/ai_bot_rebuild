@@ -1,0 +1,150 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "blocked_reason": "v2:prediction:* comes from v2_trainer_bridge today; native publisher is a separate operator-gated lane.",
+  "bridge_vs_v2_native_label_honest": true,
+  "broad_audit": false,
+  "codex_review_command": "codex exec review --uncommitted \"Review only v2/backend/app/services/native_runtime_migration/first_batch_executor.py::task_h_trainer_prediction_publisher_contract. Fail on old Redis writes, exchange mutation, truthy approval tokens, raw secrets, fake edge claims, or any V2_NATIVE label on bridge data.\"",
+  "codex_review_required": true,
+  "contract_required_fields": [
+    "symbol",
+    "timeframe",
+    "feature_snapshot_id",
+    "trainer_source",
+    "expected_move_after_cost_bps",
+    "confidence_calibrated",
+    "feature_freshness_state"
+  ],
+  "contract_validation_samples": {
+    "publishable_bridge_sample": {
+      "confidence_calibrated": 0.68,
+      "expected_move_after_cost_bps": 12.5,
+      "feature_freshness_state": "FRESH",
+      "feature_snapshot_id": "BTCUSDT:1m:contract_sample",
+      "is_publishable": true,
+      "missing_fields": [],
+      "stale_fields": [],
+      "symbol": "BTCUSDT",
+      "timeframe": "1m",
+      "trainer_source": "V2_BRIDGE_FROM_LEGACY_TRAINER"
+    },
+    "rejected_missing_field_sample": {
+      "confidence_calibrated": null,
+      "expected_move_after_cost_bps": null,
+      "feature_freshness_state": "FRESH",
+      "feature_snapshot_id": "ETHUSDT:1m:contract_sample",
+      "is_publishable": false,
+      "missing_fields": [
+        "expected_move_after_cost_bps",
+        "confidence_calibrated"
+      ],
+      "stale_fields": [],
+      "symbol": "ETHUSDT",
+      "timeframe": "1m",
+      "trainer_source": "V2_BRIDGE_FROM_LEGACY_TRAINER"
+    }
+  },
+  "did_not_adopt_any_symbol_universe_candidate": true,
+  "did_not_call_exchange_mutation": true,
+  "did_not_change_leverage_or_margin_mode": true,
+  "did_not_claim_full_migration": true,
+  "did_not_claim_trainer_native_readiness": true,
+  "did_not_create_paper_only_shutdown_acceptance_file": true,
+  "did_not_deserialize_legacy_checkpoint": true,
+  "did_not_expose_raw_api_keys": true,
+  "did_not_install_systemd_units_or_scheduler_daemons": true,
+  "did_not_modify_legacy_tree": true,
+  "did_not_mutate_live_symbols_paper_symbols_or_training_symbols": true,
+  "did_not_start_live_network_feed": true,
+  "did_not_stop_codex_governors": true,
+  "did_not_stop_legacy_runtime": true,
+  "did_not_stop_replay_miner": true,
+  "did_not_stop_report_center": true,
+  "did_not_stop_v2_runtime": true,
+  "did_not_weaken_paper_fill_gate": true,
+  "did_not_write_old_redis_keys": true,
+  "does_not_fake_data": true,
+  "envelope_summary": {
+    "freshness_state_counts": {
+      "BRIDGE_ONLY": 3
+    },
+    "gap_or_bridge": 3,
+    "publishable": 0,
+    "source_label_counts": {
+      "V2_BRIDGE_FROM_LEGACY_REDIS": 3
+    },
+    "total": 3
+  },
+  "exchange_mutation": false,
+  "file_lock_group": "v2_trainer_bridge_publisher",
+  "forbidden_actions": [
+    "no_trainer_native_readiness_claim_before_implementation_and_codex_pass",
+    "no_checkpoint_deserialization_in_control_plane",
+    "no_v2_native_label_for_bridge_prediction",
+    "no_old_redis_writes"
+  ],
+  "generated_utc": "2026-05-23T22:17:11Z",
+  "go_no_go_marker": "V2_TRAINER_BRIDGE_EXIT_NATIVE_PREDICTION_PUBLISHER_CONTRACT_SCAFFOLDED",
+  "implementation_artifact": "v2/backend/app/services/native_runtime_migration/first_batch_executor.py::task_h_trainer_prediction_publisher_contract",
+  "implementation_notes": "Trainer prediction publisher contract requires feature_snapshot_id, trainer_source, expected_move_after_cost_bps, confidence_calibrated, feature_freshness_state, and missing/stale flags. Contract validator rejects rows that omit required fields or carry stale features.",
+  "implementation_status": "CONTRACT_DEFINED_NATIVE_PUBLISHER_NOT_IMPLEMENTED",
+  "live_gate": "blocked_human_only",
+  "live_or_shutdown_approval": false,
+  "live_symbols": [],
+  "missing_source_policy": "Emit explicit MISSING_SOURCE, NO_CLIENT_PRESENT, BRIDGE_ONLY, or OPERATOR_DECISION_REQUIRED envelopes instead of fabricating V2-native payloads.",
+  "old_redis_write": false,
+  "per_symbol_envelopes": [
+    {
+      "freshness_state": "BRIDGE_ONLY",
+      "gap_reason": "v2:prediction:* comes from v2_trainer_bridge today; native publisher is a separate operator-gated lane.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {
+        "predictions_currently_served_via_bridge_only": true
+      },
+      "source_label": "V2_BRIDGE_FROM_LEGACY_REDIS",
+      "symbol": "BTCUSDT"
+    },
+    {
+      "freshness_state": "BRIDGE_ONLY",
+      "gap_reason": "v2:prediction:* comes from v2_trainer_bridge today; native publisher is a separate operator-gated lane.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {
+        "predictions_currently_served_via_bridge_only": true
+      },
+      "source_label": "V2_BRIDGE_FROM_LEGACY_REDIS",
+      "symbol": "ETHUSDT"
+    },
+    {
+      "freshness_state": "BRIDGE_ONLY",
+      "gap_reason": "v2:prediction:* comes from v2_trainer_bridge today; native publisher is a separate operator-gated lane.",
+      "generated_utc": "2026-05-23T22:17:11Z",
+      "heartbeat_seconds_since_last_write": null,
+      "payload": {
+        "predictions_currently_served_via_bridge_only": true
+      },
+      "source_label": "V2_BRIDGE_FROM_LEGACY_REDIS",
+      "symbol": "SOLUSDT"
+    }
+  ],
+  "public_payload": "v2/frontend/public/v2_startup_parity_first_batch_execution/latest/v2_trainer_bridge_exit_native_prediction_publisher_contract.json",
+  "queued_not_running": true,
+  "schema_version": "v2_startup_parity_first_batch_execution_v1_task_status",
+  "scope": "v2/backend/app/services/native_runtime_migration/first_batch_executor.py::task_h_trainer_prediction_publisher_contract",
+  "status": "CONTRACT_DEFINED_NATIVE_PUBLISHER_NOT_IMPLEMENTED",
+  "target_redis_key_patterns": [
+    "v2:prediction:{symbol}:{timeframe}",
+    "v2:trainer:heartbeat"
+  ],
+  "target_v2_keys": [
+    "v2:prediction:{symbol}:{timeframe}",
+    "v2:trainer:heartbeat"
+  ],
+  "task_id": "v2_trainer_bridge_exit_native_prediction_publisher_contract",
+  "tests_required": true,
+  "trainer_native_claim": false,
+  "trainer_native_readiness_claimed": false
+}

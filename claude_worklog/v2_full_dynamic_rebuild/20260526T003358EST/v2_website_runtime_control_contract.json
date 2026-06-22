@@ -1,0 +1,91 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "controls": {
+    "disabled_until_approval": [
+      "enable_live",
+      "enable_canary",
+      "place_order",
+      "leverage_change",
+      "margin_change",
+      "redis_trim",
+      "legacy_shutdown",
+      "checkpoint_load"
+    ],
+    "log_viewer": [
+      "view_service_logs"
+    ],
+    "pipeline_controls": [
+      "refresh_pipeline",
+      "run_backtest",
+      "run_paper_edge_evaluation",
+      "update_training_symbol_set",
+      "update_paper_symbol_set"
+    ],
+    "read_only_probes": [
+      "approve_read_only_probe"
+    ],
+    "risk_controls": [
+      "configure_pending_risk_thresholds"
+    ],
+    "service_lifecycle": [
+      "start",
+      "stop",
+      "restart"
+    ],
+    "symbol_controls": [
+      "pick",
+      "ban",
+      "watch",
+      "lock"
+    ]
+  },
+  "credentials_values_exposed": false,
+  "every_control_logs": [
+    "EST timestamp",
+    "operator",
+    "action",
+    "allowed_or_blocked",
+    "reason",
+    "output_payload"
+  ],
+  "go_no_go": "V2_WEBSITE_RUNTIME_CONTROL_CONTRACT_READY",
+  "live_symbols": [],
+  "page_count": 19,
+  "pages": [
+    "Executive Status",
+    "Runtime Services",
+    "Ingestors",
+    "Dynamic Symbol Universe",
+    "Market Data",
+    "Feature Pipeline",
+    "Technical Analysis",
+    "Alt Data",
+    "Trainer / Model",
+    "Strategy Backtests",
+    "Risk Gateway",
+    "Orchestrator",
+    "Paper Trading",
+    "Replay / Edge Proof",
+    "Live Readiness",
+    "Exchange Connectivity",
+    "Automation / Spark / Claude / Codex",
+    "Logs / Errors",
+    "Settings / Operator Decisions"
+  ],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "source_labels_required_on_every_page": [
+    "V2_NATIVE",
+    "COPIED_LEGACY_IN_V2",
+    "V2_BRIDGE_FROM_LEGACY_REDIS",
+    "PLACEHOLDER",
+    "OPERATOR_REQUIRED"
+  ],
+  "ts_est": "20260526T003358EST",
+  "ts_iso_est": "2026-05-26T00:49:15-0400",
+  "website_backend_active": true,
+  "website_backend_unit": "ai-bot-v2-public-website-backend.service",
+  "writes_exchange_orders": false
+}

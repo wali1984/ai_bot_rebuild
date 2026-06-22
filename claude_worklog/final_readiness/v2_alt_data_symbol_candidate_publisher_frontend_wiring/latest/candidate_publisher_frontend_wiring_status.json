@@ -1,0 +1,92 @@
+{
+  "schema_version": "v2_alt_data_symbol_candidate_publisher_frontend_wiring_status_v1",
+  "go_no_go": "V2_ALT_DATA_SYMBOL_CANDIDATE_PUBLISHER_FRONTEND_WIRING_READY",
+  "generated_utc": "2026-05-21T21:45:00Z",
+  "packet_name": "v2_alt_data_symbol_candidate_publisher_frontend_wiring",
+  "purpose": "Remediates Codex blocker FRONTEND_CANDIDATE_PUBLISHER_AUTO_ADOPTION_MESSAGE_NOT_WIRED from the V2_ALT_DATA_SYMBOL_UNIVERSE_CANDIDATE_PUBLISHER_READY packet by wiring the frontend to consume the candidate-publisher payload and render explicit candidate-only/not-adopted operator labels.",
+  "frontend_files_modified": [
+    "v2/frontend/src/data/realtimeUserWebsitePayloads.ts",
+    "v2/frontend/src/components/realtimeWebsite/index.tsx",
+    "v2/frontend/src/pages/market/index.tsx"
+  ],
+  "frontend_files_unchanged_by_this_packet": [
+    "v2/backend/app/services/alternative_data/symbol_candidate_publisher.py",
+    "v2/backend/app/cli/v2_alt_data_symbol_candidate_publisher.py"
+  ],
+  "new_payload_path_public": "/v2_alt_data_symbol_candidate_publisher/latest/operator_dashboard_payload.json",
+  "frontend_hook_exported": "useAltDataCandidatePublisher",
+  "frontend_panel_exported": "CandidatePublisherPanel",
+  "frontend_panel_data_testids": [
+    "alt-data-candidate-publisher-section",
+    "alt-data-candidate-publisher-panel",
+    "candidate-publisher-adoption-labels",
+    "candidate-publisher-table"
+  ],
+  "required_adoption_labels_rendered_verbatim": [
+    "Candidate only — not adopted",
+    "Does not change training_symbols",
+    "Does not change paper_symbols",
+    "Does not change live_symbols",
+    "Cannot override strict paper-fill gate",
+    "Live trading remains blocked"
+  ],
+  "panel_action_capable_jsx_present": false,
+  "panel_button_jsx_present": false,
+  "panel_form_jsx_present": false,
+  "panel_event_handlers_present": false,
+  "panel_network_calls_present": false,
+  "panel_renders_raw_credential_value": false,
+  "panel_renders_missing_provider_data_honestly": true,
+  "tests": {
+    "v2/backend/tests/integration/cli/test_v2_alt_data_symbol_candidate_publisher_frontend_wiring.py": {
+      "tests_total": 11,
+      "tests_passed": 11,
+      "tests_failed": 0
+    },
+    "v2/backend/tests/integration/cli/test_v2_alt_data_symbol_candidate_publisher.py": {
+      "tests_total": 18,
+      "tests_passed": 18,
+      "tests_failed": 0,
+      "note": "no regression from prior packet"
+    }
+  },
+  "frontend_typecheck": "PASS",
+  "frontend_build": "PASS",
+  "validation_sweep_status": "PASS",
+  "validation_sweep_files_scanned": 22,
+  "validation_sweep_secret_hits": 0,
+  "validation_sweep_approval_true_hits": 0,
+  "validation_sweep_legacy_redis_hits": 0,
+  "validation_sweep_exchange_mutation_hits": 0,
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false,
+  "candidate_only_not_adopted": true,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "live_symbols_expanded": false,
+  "paper_symbols_expanded": false,
+  "training_symbols_expanded": false,
+  "may_not_override_strict_paper_fill_gate": true,
+  "may_not_authorize_live_or_canary": true,
+  "may_not_place_orders": true,
+  "raw_credential_in_payload": "NEVER",
+  "writes_exchange_orders": false,
+  "writes_legacy_redis": false,
+  "writes_old_redis": false,
+  "leverage_changed": false,
+  "margin_mode_changed": false,
+  "policy_architecture_parity_claimed": false,
+  "checkpoint_compatibility_claimed": false,
+  "places_real_order": false,
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "provider_network_calls_attempted": false,
+  "did_not_modify_legacy_bot": true,
+  "did_not_stop_legacy": true,
+  "did_not_stop_v2_runtime": true,
+  "did_not_change_leverage_or_margin": true,
+  "did_not_create_approval_marker": true,
+  "did_not_modify_backend_publisher_scope": true
+}

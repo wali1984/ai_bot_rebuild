@@ -1,16 +1,26 @@
 {
-  "task_id": "005_fix_risk_gateway_architecture",
   "agent": "claude",
-  "risk_level": "L1",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "claude_worklog/v2_architecture_remediation/"
   ],
+  "completed_at": "2026-06-15T19:54:42Z",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_recommended_action": "Review risk gateway remediation and map to architecture file updates.",
+  "normalized_from_artifact": true,
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not modify /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. Produce architecture remediation for blocker: Risk Gateway policy schema, evaluation order, precedence, duplicate guard, and test vectors. Output exactly one BEGIN_FILE block for claude_worklog/v2_architecture_remediation/05_RISK_GATEWAY_REMEDIATION.md with enforceable policy contracts.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/v2_architecture_remediation/05_RISK_GATEWAY_REMEDIATION.md"
   ],
-  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not modify /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. Produce architecture remediation for blocker: Risk Gateway policy schema, evaluation order, precedence, duplicate guard, and test vectors. Output exactly one BEGIN_FILE block for claude_worklog/v2_architecture_remediation/05_RISK_GATEWAY_REMEDIATION.md with enforceable policy contracts.",
-  "next_recommended_action": "Review risk gateway remediation and map to architecture file updates.",
-  "normalized_from_artifact": true
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-06-15T19:54:42Z",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/005_fix_risk_gateway_architecture.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "005_fix_risk_gateway_architecture",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

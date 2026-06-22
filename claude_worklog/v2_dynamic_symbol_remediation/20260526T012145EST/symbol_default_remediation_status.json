@@ -1,0 +1,103 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "baseline_25_symbols": [
+    "1000BONKUSDT",
+    "1000FLOKIUSDT",
+    "1000PEPEUSDT",
+    "1000SHIBUSDT",
+    "ALICEUSDT",
+    "ASTERUSDT",
+    "AUCTIONUSDT",
+    "AVNTUSDT",
+    "BANKUSDT",
+    "BARDUSDT",
+    "BTCUSDT",
+    "DOGEUSDT",
+    "ETHUSDT",
+    "FARTCOINUSDT",
+    "HIGHUSDT",
+    "LINKUSDT",
+    "LTCUSDT",
+    "PENGUUSDT",
+    "PIPPINUSDT",
+    "RAVEUSDT",
+    "RIVERUSDT",
+    "SOLUSDT",
+    "UNIUSDT",
+    "WIFUSDT",
+    "XRPUSDT"
+  ],
+  "central_resolver_module": "v2.backend.app.services.v2_symbol_runtime_universe",
+  "credentials_values_exposed": false,
+  "current_default_resolution": {
+    "count": 27,
+    "is_smoke_test_3": false,
+    "profile": "dynamic_or_baseline",
+    "source_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/symbol_universe/latest/symbol_universe_status.json",
+    "symbols_head": [
+      "1000BONKUSDT",
+      "1000FLOKIUSDT",
+      "1000PEPEUSDT",
+      "1000SHIBUSDT",
+      "ALICEUSDT",
+      "ASTERUSDT",
+      "AUCTIONUSDT",
+      "AVNTUSDT"
+    ],
+    "symbols_tail": [
+      "UNIUSDT",
+      "WIFUSDT",
+      "XRPUSDT",
+      "COINANK_ONLY_USDT",
+      "KUCOIN_ONLY_USDT"
+    ]
+  },
+  "fully_remediated_count": 4,
+  "go_no_go": "SYMBOL_DEFAULT_REMEDIATION_READY",
+  "live_symbols": [],
+  "patched_cli_count": 4,
+  "patched_clis": [
+    {
+      "cli": "v2_binance_public_metadata_ingestor.py",
+      "is_remediated": true,
+      "remaining_default_drift_lines": [],
+      "resolver_marker_present": true,
+      "smoke_test_opt_in_flag": "--smoke-test"
+    },
+    {
+      "cli": "v2_liquidation_observation_aggregator_status.py",
+      "is_remediated": true,
+      "remaining_default_drift_lines": [],
+      "resolver_marker_present": true,
+      "smoke_test_opt_in_flag": "--smoke-test"
+    },
+    {
+      "cli": "v2_coinank_and_liquidation_bridge.py",
+      "is_remediated": true,
+      "remaining_default_drift_lines": [],
+      "resolver_marker_present": true,
+      "smoke_test_opt_in_flag": "--smoke-test"
+    },
+    {
+      "cli": "v2_feature_pipeline_and_ta_worker.py",
+      "is_remediated": true,
+      "remaining_default_drift_lines": [],
+      "resolver_marker_present": true,
+      "smoke_test_opt_in_flag": "--smoke-test"
+    }
+  ],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "smoke_test_env_var": "V2_SYMBOL_PROFILE=smoke_test",
+  "smoke_test_symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT"
+  ],
+  "ts_est": "20260526T012145EST",
+  "ts_human_est": "2026-05-26 01:33:19 EDT",
+  "ts_iso_est": "2026-05-26T01:33:19-0400",
+  "writes_exchange_orders": false
+}

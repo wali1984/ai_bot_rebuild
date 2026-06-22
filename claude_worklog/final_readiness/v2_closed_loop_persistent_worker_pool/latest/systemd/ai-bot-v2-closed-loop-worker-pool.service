@@ -1,0 +1,22 @@
+[Unit]
+Description=AI BOT V2 Closed-Loop Worker Pool Maintainer (oneshot)
+Documentation=file:%h/Desktop/AI%%20BOT%%20REBUILD/claude_worklog/final_readiness/v2_closed_loop_persistent_worker_pool/latest/GO_NO_GO.md
+ConditionPathExists=%h/Desktop/AI BOT REBUILD/claude_worklog/tools/v2_closed_loop_worker_pool.py
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Desktop/AI BOT REBUILD
+Environment=PYTHONUNBUFFERED=1
+Environment="PYTHONPATH=%h/Desktop/AI BOT REBUILD:%h/Desktop/AI BOT REBUILD/claude_worklog/tools"
+Environment=V2_LIVE=blocked
+ExecStart="%h/Desktop/AI BOT REBUILD/.venv/bin/python3" "%h/Desktop/AI BOT REBUILD/claude_worklog/tools/v2_closed_loop_worker_pool.py" run-once --spawn --target-claude 3 --target-codex 3
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=false
+
+[Install]
+WantedBy=default.target

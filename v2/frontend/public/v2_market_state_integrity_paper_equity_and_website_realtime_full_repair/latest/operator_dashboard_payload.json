@@ -1,0 +1,44 @@
+{
+  "accepted_training_rows": 0,
+  "blockers": [],
+  "generated_est": "2026-06-08T23:21:51-04:00",
+  "generated_utc": "2026-06-09T03:21:51Z",
+  "go_no_go": "V2_MARKET_STATE_INTEGRITY_PAPER_EQUITY_AND_WEBSITE_REALTIME_FULL_REPAIR_READY",
+  "live_order_submit_allowed": false,
+  "live_order_submit_blocker": "BINANCE_SIGNED_READ_RESTRICTED_LOCATION_451",
+  "market_states_scored": 732,
+  "paper_accepted_fills": 0,
+  "paper_current_session_equity": 10000.0,
+  "paper_current_session_pnl": 0.0,
+  "paper_held_rows": 122,
+  "paper_minus_49_classification": "STALE_OR_LIFETIME_PAPER_ONLINE_PNL_NOT_CURRENT_SESSION",
+  "paper_recovery_gate": "V2_CURRENT_PAPER_FILL_GATE_ACCEPTANCE_RECOVERY_READY",
+  "rejected_training_rows": 732,
+  "safety": {
+    "legacy_restart": false,
+    "leverage_margin_mutation": false,
+    "old_fills_fabricated": false,
+    "old_redis_write": false,
+    "raw_credentials": false,
+    "real_orders": false,
+    "redis_trim": false,
+    "test_order": false,
+    "vpn_proxy_evasion": false
+  },
+  "schema_version": "operator_dashboard_payload_v1",
+  "service_id": "v2_market_state_integrity_paper_equity_and_website_realtime_full_repair",
+  "valid_for_live_count": 0,
+  "valid_for_paper_count": 0,
+  "validation": {
+    "py_compile": {
+      "cmd": "python3 -m py_compile v2/backend/app/services/operator_truth/realtime_runtime_truth.py v2/backend/app/services/market_state_integrity/contracts.py v2/backend/app/services/market_state_integrity/scoring.py v2/backend/app/services/market_state_integrity/validators.py v2/backend/app/services/market_state_integrity/publisher.py v2/backend/app/services/replay_debugger/debugger.py v2/backend/app/cli/v2_realtime_runtime_truth_publisher.py v2/backend/app/cli/v2_state_replay_debugger.py v2/backend/app/cli/v2_market_state_integrity_paper_equity_and_website_realtime_full_repair.py",
+      "duration_seconds": 0.031,
+      "returncode": 0,
+      "stderr_tail": "",
+      "stdout_tail": ""
+    }
+  },
+  "website_local_ok": 9,
+  "website_production_checked": 7,
+  "website_production_ok": 7
+}

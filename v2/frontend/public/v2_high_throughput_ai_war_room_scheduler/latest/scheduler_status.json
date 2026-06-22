@@ -1,0 +1,115 @@
+{
+  "active_lanes_after": 3,
+  "active_lanes_before": 0,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "codex_fast_mode_enabled": false,
+  "daemon_installed": false,
+  "dispatches": [
+    {
+      "activated_by": "V2_HIGH_THROUGHPUT_AI_WAR_ROOM_SCHEDULER",
+      "activated_utc": "2026-05-23T20:31:25Z",
+      "automatable": true,
+      "codex_fast_mode_enabled": false,
+      "dispatch_id": "v2_high_throughput_dispatch_1_paper_fill_gate_record_block_reason",
+      "file_locks": [
+        "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+        "v2/backend/app/cli/v2_orchestrator_arbitration_loop.py",
+        "claude_worklog/final_readiness/v2_high_throughput_ai_war_room_scheduler/dispatch/paper_fill_gate_record_block_reason/**"
+      ],
+      "gpu_allowed": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "owner": "claude",
+      "resource_class": "low_cpu_no_gpu",
+      "reviewer": "codex",
+      "scope_prompt": "Work only on paper_fill_gate_record_block_reason. Do not enable live/canary/shutdown, do not write old Redis, do not call exchange mutation, do not run GPU jobs.",
+      "status": "active",
+      "task_id": "paper_fill_gate_record_block_reason",
+      "title": "Record paper_fill_gate block reason on every paper_fill_allowed=False decision"
+    },
+    {
+      "activated_by": "V2_HIGH_THROUGHPUT_AI_WAR_ROOM_SCHEDULER",
+      "activated_utc": "2026-05-23T20:31:25Z",
+      "automatable": true,
+      "codex_fast_mode_enabled": false,
+      "dispatch_id": "v2_high_throughput_dispatch_2_observation_gap_inventory_for_false_negatives",
+      "file_locks": [
+        "v2/backend/app/services/war_room/parallel_recovery_24h.py:false_negative_observation_gap_inventory",
+        "claude_worklog/final_readiness/v2_high_throughput_ai_war_room_scheduler/dispatch/observation_gap_inventory_for_false_negatives/**"
+      ],
+      "gpu_allowed": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "owner": "claude",
+      "resource_class": "low_cpu_no_gpu",
+      "reviewer": "codex",
+      "scope_prompt": "Work only on observation_gap_inventory_for_false_negatives. Do not enable live/canary/shutdown, do not write old Redis, do not call exchange mutation, do not run GPU jobs.",
+      "status": "active",
+      "task_id": "observation_gap_inventory_for_false_negatives",
+      "title": "Inventory all observation gaps for false-negative bundles and emit per-cause backfill tasks"
+    },
+    {
+      "activated_by": "V2_HIGH_THROUGHPUT_AI_WAR_ROOM_SCHEDULER",
+      "activated_utc": "2026-05-23T20:31:25Z",
+      "automatable": true,
+      "codex_fast_mode_enabled": false,
+      "dispatch_id": "v2_high_throughput_dispatch_3_altdata_snapshot_attached_to_replay_bundle",
+      "file_locks": [
+        "v2/backend/app/services/edge_proof/replay_miner.py:altdata_snapshot_attachment",
+        "claude_worklog/final_readiness/v2_high_throughput_ai_war_room_scheduler/dispatch/altdata_snapshot_attached_to_replay_bundle/**"
+      ],
+      "gpu_allowed": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "owner": "claude",
+      "resource_class": "low_cpu_no_gpu",
+      "reviewer": "codex",
+      "scope_prompt": "Work only on altdata_snapshot_attached_to_replay_bundle. Do not enable live/canary/shutdown, do not write old Redis, do not call exchange mutation, do not run GPU jobs.",
+      "status": "active",
+      "task_id": "altdata_snapshot_attached_to_replay_bundle",
+      "title": "Attach v2 altdata symbol-score snapshot to every replay bundle when present"
+    }
+  ],
+  "exchange_mutation": false,
+  "file_locks_unique": true,
+  "generated_utc": "2026-05-23T20:31:25Z",
+  "go_no_go": "V2_HIGH_THROUGHPUT_AI_WAR_ROOM_SCHEDULER_READY",
+  "gpu_training_dispatched": false,
+  "heavy_jobs_launched": false,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "minimum_required_active_lanes_when_work_exists": 3,
+  "mode": "one_shot_control_plane_dispatch",
+  "old_redis_writes": false,
+  "paths_written": [
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_24h_parallel_recovery_war_room/latest/lane6/war_room_utilization_status.json",
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_24h_parallel_recovery_war_room/latest/lane6/war_room_task_dispatch_status.json",
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_24h_parallel_recovery_war_room/latest/active_automatable_lanes.json",
+    "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_24h_parallel_recovery_war_room/latest/war_room_status.json",
+    "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_24h_parallel_recovery_war_room/latest/war_room_status.json",
+    "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/v2_24h_parallel_recovery_war_room/latest/operator_dashboard_payload.json"
+  ],
+  "plan_gate_checks": {
+    "cli_remediation_codex": {
+      "expected": "V2_AI_THROUGHPUT_ACCELERATION_CLI_COMMAND_REMEDIATION_CODEX_PASS",
+      "observed": "V2_AI_THROUGHPUT_ACCELERATION_CLI_COMMAND_REMEDIATION_CODEX_PASS",
+      "passed": true,
+      "path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_ai_throughput_acceleration_cli_command_remediation/latest/codex_review/CODEX_GO_NO_GO.md"
+    },
+    "throughput_plan_codex": {
+      "expected": "V2_AI_THROUGHPUT_ACCELERATION_PLAN_CODEX_PASS",
+      "observed": "V2_AI_THROUGHPUT_ACCELERATION_PLAN_CODEX_PASS",
+      "passed": true,
+      "path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_ai_throughput_acceleration/latest/codex_review/CODEX_GO_NO_GO.md"
+    }
+  },
+  "safety_inputs_ok": true,
+  "scheduler_can_select_live_canary_shutdown": false,
+  "scheduler_name": "V2_HIGH_THROUGHPUT_AI_WAR_ROOM_SCHEDULER",
+  "schema_version": "v2_high_throughput_ai_war_room_scheduler_status_v1",
+  "systemd_timer_installed": false,
+  "war_room_problem_targeted": "WAR_ROOM_ACTIVE_LANES_BELOW_MINIMUM"
+}

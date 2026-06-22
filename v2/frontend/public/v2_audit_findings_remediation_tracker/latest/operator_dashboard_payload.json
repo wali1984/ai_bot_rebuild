@@ -1,0 +1,112 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "checkpoint_compatibility_claimed": false,
+  "do_nots_from_operator": [
+    "Do not 'fix everything' before canary.",
+    "Do not shut down legacy.",
+    "Do not pretend V2 is migrated.",
+    "Do not create more dashboard-only packets.",
+    "Do not add more alternative data.",
+    "Do not restart broad auditing.",
+    "Do not let Claude/Codex chase package installs before the dependency matrix (AUD-014)."
+  ],
+  "dry_run": true,
+  "findings_done": 3,
+  "findings_open": 18,
+  "findings_total": 21,
+  "generated_utc": "2026-05-20T17:04:35Z",
+  "go_no_go": "V2_AUDIT_FINDINGS_REMEDIATION_TRACKER_READY",
+  "lanes": [
+    {
+      "finding_ids": [
+        "AUD-001",
+        "AUD-007"
+      ],
+      "lane": 1,
+      "name": "native ingestors missing",
+      "next_concrete_task": "V2_NATIVE_INGESTOR_BINANCE_USDM_OHLCV_READY (one ingestor per packet; resist suite-style mega-packets)"
+    },
+    {
+      "finding_ids": [
+        "AUD-002",
+        "AUD-004",
+        "AUD-020"
+      ],
+      "lane": 2,
+      "name": "trainer / checkpoint missing",
+      "next_concrete_task": "V2_RL_TRAINER_PORT_PHASE_1_READY"
+    },
+    {
+      "finding_ids": [
+        "AUD-003",
+        "AUD-005",
+        "AUD-006"
+      ],
+      "lane": 3,
+      "name": "trader / stops / TP / hedge missing",
+      "next_concrete_task": "V2_LIVE_CANARY_FIRST_REAL_ORDER_READY (operator + Codex final approval required; out of scope for tracker)"
+    },
+    {
+      "finding_ids": [
+        "AUD-014",
+        "AUD-015",
+        "AUD-016",
+        "AUD-017",
+        "AUD-018",
+        "AUD-019"
+      ],
+      "lane": 4,
+      "name": "dependency parity",
+      "next_concrete_task": "V2_DEPENDENCY_MATRIX_AND_FREEZE_READY (publish the matrix first; do NOT install packages ad-hoc)"
+    },
+    {
+      "finding_ids": [
+        "AUD-011"
+      ],
+      "lane": 5,
+      "name": "Telegram alerts",
+      "next_concrete_task": "V2_TELEGRAM_ALERTS_NATIVE_READY"
+    },
+    {
+      "finding_ids": [
+        "AUD-010"
+      ],
+      "lane": 6,
+      "name": "watchdog / restart policy",
+      "next_concrete_task": "V2_CONTROL_PLANE_WATCHDOG_AUTORESTART_READY (convert hand-rolled monitor into systemd Restart=on-failure for all V2 units)"
+    },
+    {
+      "finding_ids": [
+        "AUD-021"
+      ],
+      "lane": 7,
+      "name": "config parity",
+      "next_concrete_task": "V2_RUNTIME_CONFIG_PARITY_PHASE_1_READY (port one config section per packet)"
+    },
+    {
+      "finding_ids": [
+        "AUD-012"
+      ],
+      "lane": 8,
+      "name": "DB decision",
+      "next_concrete_task": "V2_PERSISTENCE_DB_DECISION_READY (SQLite vs Postgres choice + constraints document BEFORE migrations)"
+    }
+  ],
+  "lanes_count": 8,
+  "leverage_changed": false,
+  "live_enabled": false,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "margin_mode_changed": false,
+  "policy_architecture_parity_claimed": false,
+  "raw_credential_in_payload": "NEVER",
+  "real_order_attempted": false,
+  "schema_version": "v2_audit_findings_remediation_tracker_dashboard_v1",
+  "tracker_source_json": "claude_worklog/trackers/V2_AUDIT_FINDINGS_REMEDIATION_TRACKER.json",
+  "tracker_source_md": "claude_worklog/trackers/V2_AUDIT_FINDINGS_REMEDIATION_TRACKER.md",
+  "writes_exchange_orders": false,
+  "writes_legacy_redis": false
+}

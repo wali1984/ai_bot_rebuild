@@ -1,0 +1,9 @@
+{
+  "alive": true,
+  "file_lock_group": "claude_priority_missing_v2_namespace_mapping_20260531",
+  "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/closed_loop_takeover_claude_priority_missing_v2_namespace_mapping_20260531_codex.log",
+  "pid": 1429229,
+  "task_id": "closed_loop_takeover_claude_priority_missing_v2_namespace_mapping_20260531",
+  "task_type": "CODEX_TAKEOVER",
+  "updated_at": "2026-05-31T06:00:52Z"
+}

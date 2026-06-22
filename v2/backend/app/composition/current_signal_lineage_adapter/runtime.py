@@ -11,9 +11,16 @@ REQUIRED_LINEAGE_IDS = (
     "prediction_id",
     "feature_snapshot_id",
     "signal_id",
+    "orchestrator_decision_id",
     "risk_decision_id",
     "execution_intent_id",
 )
+
+# paper_ledger_entry_id is required for a FULL chain but is deferred to BLOCKER-1
+# (wiring anti_market_maker_detector / enrich_prediction into paper_online_runtime).
+# It is tracked separately so the adapter can report chain completeness without
+# blocking the current classification on a known-deferred gap.
+FULL_CHAIN_LINEAGE_IDS = REQUIRED_LINEAGE_IDS + ("paper_ledger_entry_id",)
 
 
 class CurrentSignalLineageAdapterRuntime:
@@ -50,11 +57,16 @@ def build_current_signal_lineage_adapter_runtime(
         signal = _as_mapping(lineage.get("signal"), "paper_runtime_payload.current_signal_lineage.signal")
         execution_intent = _as_mapping(lineage.get("execution_intent"), "paper_runtime_payload.current_signal_lineage.execution_intent")
 
+        orch_decision = _as_mapping(paper.get("orchestrator_decision"), "paper_runtime_payload.orchestrator_decision")
         ids = {
             "prediction_id": _first(lineage_ids, trainer_prediction, "prediction_id"),
             "feature_snapshot_id": _first(lineage_ids, trainer_prediction, "feature_snapshot_id"),
             "signal_id": _first(lineage_ids, signal, "signal_id"),
             "risk_decision_id": _first(lineage_ids, risk_decision, "risk_decision_id"),
+            "orchestrator_decision_id": (
+                _first(lineage_ids, orch_decision, "orchestrator_decision_id")
+                or _first(lineage_ids, risk_decision, "orchestrator_decision_id")
+            ),
             "execution_intent_id": _first(lineage_ids, execution_intent, "execution_intent_id"),
         }
         missing_ids = [field for field in REQUIRED_LINEAGE_IDS if not ids.get(field)]

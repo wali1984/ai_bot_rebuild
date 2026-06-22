@@ -1,0 +1,62 @@
+{
+  "schema_version": "v2_hourly_monitor_v1",
+  "generated_at": "2026-06-21T23:02:25Z",
+  "window_start_est": "2020-01-01T00:00:00+00:00",
+  "window_end_est": "2026-06-21T23:02:22+00:00",
+  "event_count_in_window": 95728,
+  "live_gate": "blocked_human_only",
+  "live_mutation_count_must_be_zero": 0,
+  "mutates_exchange": false,
+  "total_predictions_in_window": 95728,
+  "filled_count": 2279,
+  "closed_count": 7,
+  "stale_prediction_rows": 2270,
+  "missing_critical_feature_rows": 0,
+  "prediction_accuracy_by_direction": {
+    "long": {
+      "total": 0,
+      "correct": 0,
+      "accuracy": null
+    },
+    "short": {
+      "total": 0,
+      "correct": 0,
+      "accuracy": null
+    }
+  },
+  "prediction_accuracy_by_symbol_tf": {
+    "BTCUSDT:unknown": {
+      "total": 7,
+      "correct": 1,
+      "accuracy": 0.1429
+    }
+  },
+  "accepted_count": 2279,
+  "blocked_count": 93376,
+  "top_block_reasons": [
+    {
+      "reason": "deny_canary_profile_tightening",
+      "count": 63097
+    },
+    {
+      "reason": "deny_low_confidence",
+      "count": 19101
+    },
+    {
+      "reason": "deny_stale_market_feed",
+      "count": 8025
+    },
+    {
+      "reason": "deny_orchestrator_held",
+      "count": 2489
+    },
+    {
+      "reason": "deny_expected_move_model_review",
+      "count": 659
+    },
+    {
+      "reason": "deny_paper_outcome_model_missing",
+      "count": 5
+    }
+  ]
+}

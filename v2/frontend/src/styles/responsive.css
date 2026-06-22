@@ -1,0 +1,214 @@
+/* Responsive breakpoints and mobile layout rules */
+
+/* Breakpoints:
+   xs:  < 480px  (iPhone SE, small phones)
+   sm:  480px    (phones)
+   md:  768px    (tablets)
+   lg:  1024px   (laptop/small desktop)
+   xl:  1280px   (desktop)
+   2xl: 1440px   (wide desktop)
+*/
+
+/* Mobile-first base */
+.hide-mobile   { display: none !important; }
+.hide-tablet   { display: none !important; }
+.show-mobile   { display: block !important; }
+
+@media (min-width: 768px) {
+  .hide-mobile  { display: revert !important; }
+  .show-mobile  { display: none !important; }
+  .hide-tablet  { display: none !important; }
+  .show-tablet  { display: block !important; }
+}
+
+@media (min-width: 1024px) {
+  .hide-tablet  { display: revert !important; }
+  .show-tablet  { display: none !important; }
+  .hide-desktop { display: none !important; }
+  .show-desktop { display: block !important; }
+}
+
+/* Mobile data card layout — replaces horizontal tables */
+.mobile-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mobile-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+}
+
+.mobile-card-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 13px;
+}
+
+.mobile-card-label {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* Responsive table: on mobile, show mobile-card-list; on desktop, show table */
+.responsive-table {
+  display: none;
+}
+.responsive-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (min-width: 768px) {
+  .responsive-table {
+    display: table;
+  }
+  .responsive-cards {
+    display: none;
+  }
+}
+
+/* Prevent horizontal overflow everywhere */
+* {
+  min-width: 0;
+}
+
+/* Scrollable table wrapper */
+.table-scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+
+/* Responsive grid: 1 col mobile, 2 cols tablet, 3+ cols desktop */
+.grid-auto {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 640px) {
+  .grid-auto {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .grid-auto {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1440px) {
+  .grid-auto {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* KPI grid */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+@media (min-width: 768px) {
+  .kpi-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1280px) {
+  .kpi-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+/* Trade terminal responsive panels */
+.terminal-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto;
+  gap: 8px;
+  height: 100%;
+}
+
+@media (min-width: 1024px) {
+  .terminal-layout {
+    grid-template-columns: 1fr 280px;
+    grid-template-rows: 1fr 320px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .terminal-layout {
+    grid-template-columns: 1fr 320px 240px;
+  }
+}
+
+/* Panel truncation */
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Mobile touch targets */
+@media (max-width: 767px) {
+  button, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  input, select, textarea {
+    font-size: 16px; /* prevents iOS zoom */
+  }
+}
+
+/* Admin/runtime evidence payloads can contain long IDs and timestamps. Keep them
+   inside their panel instead of widening the mobile document. */
+.chip,
+.status-pill,
+.mode-badge,
+.v,
+.v.warn {
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+}
+
+.mkt {
+  max-width: 100%;
+  table-layout: fixed;
+}
+
+.mkt th,
+.mkt td {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+}
+
+@media (max-width: 680px) {
+  .admin-shell__main {
+    overflow-x: clip;
+  }
+
+  .admin-shell .mkt {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}

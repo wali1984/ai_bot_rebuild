@@ -1,0 +1,93 @@
+{
+  "schema_version": "ingestor_runtime_freshness_status_v1",
+  "generated_est": "2026-06-09T21:01:26-04:00",
+  "v2_ingestors_status": {
+    "generated_utc": "2026-06-10T01:00:32Z",
+    "classification": "INGESTORS_OK",
+    "active_count": 19,
+    "total_count": 21,
+    "legacy_ingest_runtime_mode": "DIRECT_LEGACY_OWNED_INGESTOR_PATHS_ONLY_NO_V2_BRIDGE_WRAPPERS",
+    "writes_legacy_redis": false
+  },
+  "fresh_key_counts": {
+    "v2_features_latest": "660/660",
+    "technical_analysis": "610/610",
+    "ohlcv": "1222/1222",
+    "binance_kline_wss_ohlcv_sources": "610/610",
+    "coinapi_wsds": "121/121",
+    "coinapi_wsds_microfeatures": "360/360",
+    "coinapi_rest": "202/202",
+    "kucoin_market": "582/582",
+    "kucoin_features": "117/117",
+    "liquidation_levels": "661/661",
+    "liquidation_market": "184/184",
+    "prices": "122/122",
+    "aicoin_altdata": "123/123",
+    "public_intel_altdata": "124/124",
+    "whale_wall_altdata": "123/123"
+  },
+  "coinank": {
+    "classification": "DIRECT_COINANK_RUNTIME_OK",
+    "generated_utc": "2026-06-10T00:57:42Z",
+    "manual_refresh_freshness_seconds": 4.891304016113281,
+    "current_endpoint_success_count": 298,
+    "current_endpoint_error_count": 0,
+    "recent_sample_size": 300,
+    "recent_empty_count": 2,
+    "direct_key_counts": {
+      "latest_coinank": 1044,
+      "features_coinank": 2192,
+      "features_global_coinank": 30
+    },
+    "ingestor_bridge_active": false
+  },
+  "binance_kline_wss": {
+    "classification": "V2_BINANCE_KLINE_WSS_CONNECTED",
+    "last_event_utc": "2026-06-10T00:58:37Z",
+    "stream_connected_count": 186,
+    "symbols_count": 122,
+    "messages_received": 6444693,
+    "parse_errors": 0,
+    "writes_old_redis": false,
+    "writes_exchange_orders": false
+  },
+  "coinapi_wsds": {
+    "classification": "V2_COINAPI_WSDS_CONNECTED",
+    "last_message_utc": "2026-06-10T00:58:22Z",
+    "subscribed_symbols_count": 122,
+    "messages_received": 21655000,
+    "parse_errors": 0,
+    "redis_write_failures": 0,
+    "writes_legacy_redis": false
+  },
+  "kucoin_public_rest": {
+    "classification": "NATIVE_V2_PUBLIC_REST_OK",
+    "rows_count": 132,
+    "row_success_count": 127,
+    "ticker_rows": 127,
+    "funding_rows": 125,
+    "orderbook_rows": 127,
+    "writes_legacy_redis": false
+  },
+  "liquidations": {
+    "wss_go_no_go": "V2_LIQUIDATION_WSS_CLIENT_PAPER_SHADOW_READY",
+    "last_frame_utc": "2026-06-10T00:58:37Z",
+    "current_session_events_received": 77,
+    "current_session_events_written": 57,
+    "parse_errors": 0,
+    "redis_write_failures": 0,
+    "writes_legacy_redis": false
+  },
+  "runtime_truth_after_refresh": {
+    "generated_est": "2026-06-09T21:01:26-04:00",
+    "payload_age_seconds": 0,
+    "training_rows": 655,
+    "trainer_status": "V2_NATIVE_RL_MASA_PPO_CUDA_TRAINER_PAPER_SHADOW",
+    "cuda_trainer_status": "V2_NATIVE_RL_MASA_PPO_CUDA_TRAINER_PAPER_SHADOW",
+    "coinank_status": "DIRECT_COINANK_GLOBAL_AGGREGATE_OK",
+    "live_gate": "enabled_operator_approved",
+    "trader_state": "LIVE_ARMED_BALANCE_HOLD",
+    "live_order_submit_allowed": false,
+    "live_order_submit_blocker": "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER"
+  }
+}

@@ -1,0 +1,18 @@
+[Unit]
+Description=AI BOT V2 legacy log intelligence observer (read-only)
+After=ai-bot-v2-production-equivalence-comparator.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment=PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD
+Environment=LIVE_GATE=blocked_human_only
+ExecStart=/usr/bin/env bash -lc 'exec /home/wali/Desktop/AI\\ BOT\\ REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_legacy_log_intelligence_observer --loop --interval-seconds 60'
+StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_legacy_log_intelligence_observer.log
+StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_legacy_log_intelligence_observer.err
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

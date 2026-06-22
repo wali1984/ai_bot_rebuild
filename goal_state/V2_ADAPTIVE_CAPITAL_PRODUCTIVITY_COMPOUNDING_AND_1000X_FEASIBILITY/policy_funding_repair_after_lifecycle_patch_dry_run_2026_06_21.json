@@ -1,0 +1,58 @@
+{
+  "accepted_rows_seen": 4454,
+  "closed_trade_repair": {
+    "accepted_fill_indexed_lineage_count": 5030,
+    "examples": [
+      {
+        "close_id": "paper_close_paper_pos_AEROUSDT_3_1292021",
+        "funding_pnl_source": null,
+        "funding_pnl_usd": null,
+        "missing_reasons": [
+          "MISSING_FUNDING_RATE_OR_BPS"
+        ],
+        "outcome_label_id": "paper_outcome_paper_close_paper_pos_AEROUSDT_3_1292021",
+        "policy_activated_at": "2026-06-20T07:05:29Z",
+        "side": "long",
+        "status": "unrepairable",
+        "symbol": "AEROUSDT",
+        "timeframe": "1h"
+      }
+    ],
+    "missing_reason_counts": {
+      "ACCEPTED_FILL_AFTER_CLOSE": 72,
+      "MISSING_FUNDING_RATE_OR_BPS": 1
+    },
+    "policy_rows_seen": 179,
+    "rows_seen": 1621,
+    "status_counts": {
+      "already_accounted": 178,
+      "not_policy_scope": 1442,
+      "unrepairable": 1
+    }
+  },
+  "closed_trade_rows_seen": 1621,
+  "dry_run": true,
+  "generated_at": "2026-06-21T17:34:40Z",
+  "keys_written": [],
+  "ledger_rows_updated": {
+    "closed_trades": 0,
+    "closes": 0,
+    "outcome_labels": 0
+  },
+  "live_gate": "blocked_human_only",
+  "outcome_label_rows_seen": 1621,
+  "outcome_label_rows_updated": 0,
+  "places_real_order": false,
+  "repair_policy": {
+    "derives_policy_activated_at_from_exit_time_minus_hold_time_when_entry_time_missing": true,
+    "does_not_fabricate_missing_funding_rates": true,
+    "no_live_or_exchange_mutation": true,
+    "requires_funding_rate_or_bps_evidence_before_persisting_funding_pnl": true,
+    "requires_paper_only_accepted_fill_match_for_unversioned_p0_rows": true,
+    "scope": "V2 paper ledger closed trades and outcome labels only",
+    "uses_earliest_safe_accepted_fill_time_for_policy_activated_at": true
+  },
+  "schema_version": "v2_paper_policy_activation_funding_repair_v1",
+  "writes_exchange_orders": false,
+  "writes_redis": false
+}

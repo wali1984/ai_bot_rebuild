@@ -1,0 +1,17 @@
+{
+  "aggregate_dim_count": 915,
+  "category": "NOT_REQUIRED_FOR_CURRENT_V2_MODEL_PATH",
+  "field_groups": [
+    {
+      "dim_count": 912,
+      "name": "portfolio_state"
+    },
+    {
+      "dim_count": 3,
+      "name": "technical_analysis.macd_signal_strength"
+    }
+  ],
+  "generated_utc": "2026-05-23T02:22:09Z",
+  "note": "Mathematically-degenerate slots (e.g. macd_signal_strength when macd==0). Not a missing source.",
+  "schema_version": "v2_full_observation_not_required_v1"
+}

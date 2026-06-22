@@ -1,0 +1,10 @@
+{
+  "alive": true,
+  "cmd": [
+    "/home/wali/.local/bin/claude",
+    "..."
+  ],
+  "pid": 422138,
+  "task_id": "claude_autoseed_cuda_live_gate_single_pass_trader_runtime_not_started_r1",
+  "updated_at": "2026-06-05T04:51:51Z"
+}

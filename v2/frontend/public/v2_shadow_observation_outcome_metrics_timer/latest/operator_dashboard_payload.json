@@ -1,0 +1,72 @@
+{
+  "affects_pnl_ledger": false,
+  "allowed_redis_writes": [
+    "v2:paper:shadow_outcome:{symbol}",
+    "v2:paper:shadow_outcome:heartbeat"
+  ],
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_real": false,
+  "approves_redis_trim": false,
+  "checkpoint_compatibility_claimed": false,
+  "continuous_remediation_governor_enrollment": false,
+  "counted_as_accepted_position": false,
+  "counted_as_fill": false,
+  "enrollment_blocked_until_codex_review_of_this_timer": true,
+  "generated_utc": "2026-05-19T01:26:35Z",
+  "go_no_go": "V2_SHADOW_OBSERVATION_OUTCOME_METRICS_TIMER_READY",
+  "heartbeat": {
+    "label_counts": {
+      "HELD_OUTCOME_ONLY": 1,
+      "SHADOW_OUTCOME_ONLY": 2
+    },
+    "missing_flags_by_symbol_keys": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT"
+    ],
+    "outcome_count": 3,
+    "redis_key": "v2:paper:shadow_outcome:heartbeat",
+    "ttl_ceiling_seconds": 600,
+    "ttl_seconds_observed_after_install": 543
+  },
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "modifies_outside_repo_root": false,
+  "no_legacy_filesystem_modified": true,
+  "no_legacy_redis_read": true,
+  "no_pickle_loaded": true,
+  "no_synthetic_price": true,
+  "no_torch_imported": true,
+  "opens_paper_fill_gate": false,
+  "paper_fill_gate_loosened": false,
+  "per_symbol_redis_ttl_seconds": {
+    "BTCUSDT": 543,
+    "ETHUSDT": 543,
+    "SOLUSDT": 543
+  },
+  "policy_architecture_parity_claimed": false,
+  "public_payload_age_seconds": 57,
+  "schema_version": "v2_shadow_observation_outcome_metrics_timer_status_v1",
+  "systemd_state": {
+    "mode": "oneshot_service_fired_by_timer",
+    "persistent_true_so_missed_ticks_replay": true,
+    "service_type": "oneshot",
+    "timer_active": "active",
+    "timer_enabled": "enabled",
+    "timer_on_boot_sec_seconds": 30,
+    "timer_unit_active_sec_seconds": 60,
+    "unit_files_symlinked_to_user_dir": true
+  },
+  "unit_files": {
+    "service": "claude_worklog/systemd/user/ai-bot-v2-shadow-outcome-metrics.service",
+    "symlink_service": "~/.config/systemd/user/ai-bot-v2-shadow-outcome-metrics.service",
+    "symlink_timer": "~/.config/systemd/user/ai-bot-v2-shadow-outcome-metrics.timer",
+    "symlink_wants_target": "~/.config/systemd/user/timers.target.wants/ai-bot-v2-shadow-outcome-metrics.timer",
+    "timer": "claude_worklog/systemd/user/ai-bot-v2-shadow-outcome-metrics.timer"
+  },
+  "worklog_status_age_seconds": 57,
+  "writes_exchange_orders": false,
+  "writes_legacy_redis": false
+}

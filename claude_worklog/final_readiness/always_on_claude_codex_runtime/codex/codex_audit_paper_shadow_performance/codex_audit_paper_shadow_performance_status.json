@@ -1,0 +1,15 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "generated_at": "2026-05-15T20:52:44Z",
+  "go_no_go": "codex_audit_paper_shadow_performance_READY",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "paper_edge_status": "EDGE_PENDING_MODEL_REVIEW_REQUIRED",
+  "shadow_completed_observations": 354,
+  "shadow_false_block_count": 126,
+  "shutdown_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",
+  "violations": []
+}

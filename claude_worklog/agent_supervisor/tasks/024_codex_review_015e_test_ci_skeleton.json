@@ -1,17 +1,26 @@
 {
-  "task_id": "024_codex_review_015e_test_ci_skeleton",
   "agent": "codex",
-  "risk_level": "L1",
-  "status": "pending",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "claude_worklog/v2_scaffold_reviews/"
   ],
+  "completed_at": "2026-05-02T04:08:03.787261+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_recommended_action": "Controller will advance only on PASS.",
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Review completed 015E test/CI skeleton only. Inputs: v2/ops/ci, v2/.github/workflows, v2/Makefile, claude_worklog/v2_build/B_TEST_CI_VALIDATION.md. Verify local-only CI, no live/legacy/Redis/exchange/deploy side effects, no secrets, and 015F remains blocked. Output exactly two BEGIN_FILE blocks. GO/NO-GO exactly: 015E_CODEX_REVIEW_PASS or 015E_CODEX_REVIEW_FAIL.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/v2_scaffold_reviews/024_CODEX_REVIEW_015E.md",
     "claude_worklog/v2_scaffold_reviews/024_CODEX_GO_NO_GO_015E.md"
   ],
-  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Review completed 015E test/CI skeleton only. Inputs: v2/ops/ci, v2/.github/workflows, v2/Makefile, claude_worklog/v2_build/B_TEST_CI_VALIDATION.md. Verify local-only CI, no live/legacy/Redis/exchange/deploy side effects, no secrets, and 015F remains blocked. Output exactly two BEGIN_FILE blocks. GO/NO-GO exactly: 015E_CODEX_REVIEW_PASS or 015E_CODEX_REVIEW_FAIL.",
-  "next_recommended_action": "Controller will advance only on PASS."
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-05-02T04:08:03.787261+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/024_codex_review_015e_test_ci_skeleton.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "024_codex_review_015e_test_ci_skeleton",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

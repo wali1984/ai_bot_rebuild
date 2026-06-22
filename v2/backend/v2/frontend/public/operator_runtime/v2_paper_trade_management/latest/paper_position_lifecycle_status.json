@@ -1,0 +1,8 @@
+{
+  "blocked_entry_count": 0,
+  "closed_positions_count": 1,
+  "new_close_event_count": 0,
+  "open_positions_count": 0,
+  "outcome_label_count": 1,
+  "state_machine": "NEW_SIGNAL->ENTRY_CHECK->OPEN_POSITION->HOLD->REDUCE->CLOSE->CLOSED->OUTCOME_LABEL_WRITTEN"
+}

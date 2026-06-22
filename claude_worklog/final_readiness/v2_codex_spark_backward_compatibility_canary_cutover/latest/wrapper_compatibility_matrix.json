@@ -1,0 +1,104 @@
+{
+  "approves_live": false,
+  "generated_at": "2026-05-25T02:38:36.173725Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "overall": "READY",
+  "schema_version": "1",
+  "wrappers": [
+    {
+      "argparse_error": null,
+      "exists": true,
+      "go_no_go": "READY",
+      "import_ok": true,
+      "legacy_args_accepted": true,
+      "live_gate_safe": true,
+      "service_args_note": "run-once --spawn --target-claude 3 --target-codex 3",
+      "spark_module": "v2.backend.app.closed_loop.cli.worker_pool",
+      "symbols_ok": {
+        "main": true,
+        "run_once": true
+      },
+      "wrapper": "claude_worklog/tools/v2_closed_loop_worker_pool.py"
+    },
+    {
+      "argparse_error": null,
+      "exists": true,
+      "go_no_go": "READY",
+      "import_ok": true,
+      "legacy_args_accepted": true,
+      "live_gate_safe": true,
+      "service_args_note": "--worker-id claude-1 --help",
+      "spark_module": "v2.backend.app.closed_loop.workers.claude_worker",
+      "symbols_ok": {
+        "_safe_to_claim": true,
+        "execute_task": true,
+        "main": true,
+        "run_worker": true
+      },
+      "wrapper": "claude_worklog/tools/v2_closed_loop_claude_worker.py"
+    },
+    {
+      "argparse_error": null,
+      "exists": true,
+      "go_no_go": "READY",
+      "import_ok": true,
+      "legacy_args_accepted": true,
+      "live_gate_safe": true,
+      "service_args_note": "--worker-id codex-1 --help",
+      "spark_module": "v2.backend.app.closed_loop.workers.codex_worker",
+      "symbols_ok": {
+        "main": true,
+        "run_review_task": true,
+        "run_worker": true
+      },
+      "wrapper": "claude_worklog/tools/v2_closed_loop_codex_worker.py"
+    },
+    {
+      "argparse_error": null,
+      "exists": true,
+      "go_no_go": "READY",
+      "import_ok": true,
+      "legacy_args_accepted": true,
+      "live_gate_safe": true,
+      "service_args_note": "--wait-seconds 5 --json --help",
+      "spark_module": "v2.backend.app.closed_loop.services.autoseed",
+      "symbols_ok": {
+        "main": true,
+        "run_once": true
+      },
+      "wrapper": "claude_worklog/tools/v2_autonomous_mission_backlog_autoseed.py"
+    },
+    {
+      "argparse_error": null,
+      "exists": true,
+      "go_no_go": "READY",
+      "import_ok": true,
+      "legacy_args_accepted": true,
+      "live_gate_safe": true,
+      "service_args_note": "--json --help",
+      "spark_module": "v2.backend.app.closed_loop.services.burndown",
+      "symbols_ok": {
+        "main": true,
+        "run_once": true
+      },
+      "wrapper": "claude_worklog/tools/v2_autonomous_mission_execution_burndown.py"
+    },
+    {
+      "argparse_error": null,
+      "exists": true,
+      "go_no_go": "READY",
+      "import_ok": true,
+      "legacy_args_accepted": true,
+      "live_gate_safe": true,
+      "service_args_note": "--help",
+      "spark_module": "v2.backend.app.closed_loop.services.fail_mapper",
+      "symbols_ok": {
+        "build_codex_fail_to_remediation_map": true,
+        "classify_fail": true,
+        "classify_from_output": true
+      },
+      "wrapper": "claude_worklog/tools/v2_burndown_fail_to_remediation_mapper.py"
+    }
+  ]
+}

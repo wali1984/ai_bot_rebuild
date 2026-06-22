@@ -1,0 +1,320 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "go_no_go": "V2_INGESTOR_RUNTIME_STATUS_READY",
+  "items": [
+    {
+      "all_keys_present_by_name": true,
+      "endpoint_type": "rest+ws public",
+      "env_names": [
+        "BINANCE_API_KEY",
+        "BINANCE_API_SECRET"
+      ],
+      "key_present_by_name": {
+        "BINANCE_API_KEY": true,
+        "BINANCE_API_SECRET": true
+      },
+      "provider": "binance_public_market",
+      "public_payload_age_seconds": null,
+      "public_payload_newest": null,
+      "public_payload_target": "v2/frontend/public/paper_online",
+      "rate_limit_state": "unknown_until_active",
+      "raw_value_exposed": false,
+      "raw_value_read": false,
+      "redis_key_count_now": 37,
+      "redis_target_keys": "v2:market:ohlcv:*",
+      "status": "RUNNING_VIA_PAPER_ONLINE_RUNTIME",
+      "symbols_covered": [
+        "1000BONKUSDT",
+        "1000FLOKIUSDT",
+        "1000PEPEUSDT",
+        "1000SHIBUSDT",
+        "ALICEUSDT",
+        "ASTERUSDT",
+        "AUCTIONUSDT",
+        "AVNTUSDT",
+        "BANKUSDT",
+        "BARDUSDT",
+        "BTCUSDT",
+        "DOGEUSDT",
+        "ETHUSDT",
+        "FARTCOINUSDT",
+        "HIGHUSDT",
+        "LINKUSDT",
+        "LTCUSDT",
+        "PENGUUSDT",
+        "PIPPINUSDT",
+        "RAVEUSDT",
+        "RIVERUSDT",
+        "SOLUSDT",
+        "UNIUSDT",
+        "WIFUSDT",
+        "XRPUSDT"
+      ]
+    },
+    {
+      "all_keys_present_by_name": true,
+      "endpoint_type": "rest public",
+      "env_names": [
+        "BINANCE_API_KEY",
+        "BINANCE_API_SECRET"
+      ],
+      "key_present_by_name": {
+        "BINANCE_API_KEY": true,
+        "BINANCE_API_SECRET": true
+      },
+      "provider": "binance_futures_metadata",
+      "public_payload_age_seconds": null,
+      "public_payload_newest": null,
+      "public_payload_target": "v2/frontend/public/v2_binance_public_metadata",
+      "rate_limit_state": "unknown_until_active",
+      "raw_value_exposed": false,
+      "raw_value_read": false,
+      "redis_key_count_now": 0,
+      "redis_target_keys": "v2:market:mark_price:*",
+      "status": "V2_IMPLEMENTED_NOT_RUNNING (operator start)",
+      "symbols_covered": null
+    },
+    {
+      "all_keys_present_by_name": true,
+      "endpoint_type": "ws public",
+      "env_names": [
+        "BINANCE_API_KEY",
+        "BINANCE_API_SECRET"
+      ],
+      "key_present_by_name": {
+        "BINANCE_API_KEY": true,
+        "BINANCE_API_SECRET": true
+      },
+      "provider": "binance_liquidation_stream",
+      "public_payload_age_seconds": null,
+      "public_payload_newest": null,
+      "public_payload_target": null,
+      "rate_limit_state": "unknown_until_active",
+      "raw_value_exposed": false,
+      "raw_value_read": false,
+      "redis_key_count_now": 0,
+      "redis_target_keys": "v2:liquidation:*",
+      "status": "RUNNING_NATIVE",
+      "symbols_covered": null
+    },
+    {
+      "all_keys_present_by_name": true,
+      "endpoint_type": "rest",
+      "env_names": [
+        "COINANK_API_KEY"
+      ],
+      "key_present_by_name": {
+        "COINANK_API_KEY": true
+      },
+      "provider": "coinank",
+      "public_payload_age_seconds": null,
+      "public_payload_newest": null,
+      "public_payload_target": null,
+      "rate_limit_state": "unknown_until_active",
+      "raw_value_exposed": false,
+      "raw_value_read": false,
+      "redis_key_count_now": 0,
+      "redis_target_keys": "v2:market:coinank:*",
+      "status": "IMPLEMENTED_NOT_RUNNING",
+      "symbols_covered": null
+    },
+    {
+      "all_keys_present_by_name": false,
+      "endpoint_type": "rest+ws",
+      "env_names": [
+        "KUCOIN_API_KEY",
+        "KUCOIN_API_SECRET"
+      ],
+      "key_present_by_name": {
+        "KUCOIN_API_KEY": false,
+        "KUCOIN_API_SECRET": false
+      },
+      "provider": "kucoin",
+      "public_payload_age_seconds": null,
+      "public_payload_newest": null,
+      "public_payload_target": null,
+      "rate_limit_state": "unknown_until_active",
+      "raw_value_exposed": false,
+      "raw_value_read": false,
+      "redis_key_count_now": 0,
+      "redis_target_keys": "v2:market:kucoin:*",
+      "status": "EXTERNAL_SOURCE_REQUIRED (creds absent)",
+      "symbols_covered": null
+    },
+    {
+      "all_keys_present_by_name": true,
+      "endpoint_type": "rest",
+      "env_names": [
+        "COINAPI_API_KEY"
+      ],
+      "key_present_by_name": {
+        "COINAPI_API_KEY": true
+      },
+      "provider": "coinapi_rest",
+      "public_payload_age_seconds": null,
+      "public_payload_newest": null,
+      "public_payload_target": null,
+      "rate_limit_state": "unknown_until_active",
+      "raw_value_exposed": false,
+      "raw_value_read": false,
+      "redis_key_count_now": 0,
+      "redis_target_keys": "v2:alt_data:coinapi:*",
+      "status": "NOT_REQUIRED_FOR_CURRENT_PAPER_RUNTIME",
+      "symbols_covered": null
+    },
+    {
+      "all_keys_present_by_name": true,
+      "endpoint_type": "ws",
+      "env_names": [
+        "COINAPI_API_KEY"
+      ],
+      "key_present_by_name": {
+        "COINAPI_API_KEY": true
+      },
+      "provider": "coinapi_wsds",
+      "public_payload_age_seconds": null,
+      "public_payload_newest": null,
+      "public_payload_target": null,
+      "rate_limit_state": "unknown_until_active",
+      "raw_value_exposed": false,
+      "raw_value_read": false,
+      "redis_key_count_now": 0,
+      "redis_target_keys": "v2:market:microstructure:*",
+      "status": "NOT_REQUIRED_FOR_CURRENT_PAPER_RUNTIME",
+      "symbols_covered": null
+    },
+    {
+      "all_keys_present_by_name": false,
+      "endpoint_type": "rest",
+      "env_names": [
+        "NANSEN_API_KEY"
+      ],
+      "key_present_by_name": {
+        "NANSEN_API_KEY": false
+      },
+      "provider": "nansen",
+      "public_payload_age_seconds": null,
+      "public_payload_newest": null,
+      "public_payload_target": null,
+      "rate_limit_state": "unknown_until_active",
+      "raw_value_exposed": false,
+      "raw_value_read": false,
+      "redis_key_count_now": 0,
+      "redis_target_keys": "v2:alt_data:nansen:*",
+      "status": "EXTERNAL_SOURCE_REQUIRED (creds absent)",
+      "symbols_covered": null
+    },
+    {
+      "all_keys_present_by_name": false,
+      "endpoint_type": "rest",
+      "env_names": [
+        "LUNARCRUSH_API_KEY"
+      ],
+      "key_present_by_name": {
+        "LUNARCRUSH_API_KEY": false
+      },
+      "provider": "lunarcrush",
+      "public_payload_age_seconds": null,
+      "public_payload_newest": null,
+      "public_payload_target": null,
+      "rate_limit_state": "unknown_until_active",
+      "raw_value_exposed": false,
+      "raw_value_read": false,
+      "redis_key_count_now": 0,
+      "redis_target_keys": "v2:alt_data:lunarcrush:*",
+      "status": "EXTERNAL_SOURCE_REQUIRED (creds absent)",
+      "symbols_covered": null
+    },
+    {
+      "all_keys_present_by_name": true,
+      "endpoint_type": "rest",
+      "env_names": [
+        "ARKHAM_API_KEY"
+      ],
+      "key_present_by_name": {
+        "ARKHAM_API_KEY": true
+      },
+      "provider": "arkham",
+      "public_payload_age_seconds": 3801,
+      "public_payload_newest": "v2/frontend/public/v2_arkham_presence_only/latest/operator_dashboard_payload.json",
+      "public_payload_target": "v2/frontend/public/v2_arkham_presence_only",
+      "rate_limit_state": "unknown_until_active",
+      "raw_value_exposed": false,
+      "raw_value_read": false,
+      "redis_key_count_now": 0,
+      "redis_target_keys": "v2:alt_data:arkham:*",
+      "status": "PRESENCE_ONLY_PUBLISHED (future-placeholder for full client adapter)",
+      "symbols_covered": null
+    },
+    {
+      "all_keys_present_by_name": false,
+      "endpoint_type": "rest",
+      "env_names": [
+        "ALPHAVANTAGE_API_KEY"
+      ],
+      "key_present_by_name": {
+        "ALPHAVANTAGE_API_KEY": false
+      },
+      "provider": "alphavantage",
+      "public_payload_age_seconds": null,
+      "public_payload_newest": null,
+      "public_payload_target": null,
+      "rate_limit_state": "unknown_until_active",
+      "raw_value_exposed": false,
+      "raw_value_read": false,
+      "redis_key_count_now": 0,
+      "redis_target_keys": "v2:alt_data:alphavantage:*",
+      "status": "EXTERNAL_SOURCE_REQUIRED (creds absent)",
+      "symbols_covered": null
+    },
+    {
+      "all_keys_present_by_name": true,
+      "endpoint_type": "rest+ws (multi-exchange)",
+      "env_names": [],
+      "key_present_by_name": {},
+      "provider": "ccxt",
+      "public_payload_age_seconds": null,
+      "public_payload_newest": null,
+      "public_payload_target": null,
+      "rate_limit_state": "unknown_until_active",
+      "raw_value_exposed": false,
+      "raw_value_read": false,
+      "redis_key_count_now": 0,
+      "redis_target_keys": "v2:alt_data:ccxt:*",
+      "status": "OPERATOR_REQUIRED",
+      "symbols_covered": null
+    },
+    {
+      "all_keys_present_by_name": true,
+      "endpoint_type": "rest",
+      "env_names": [
+        "TOKENMETRICS_API_KEY"
+      ],
+      "key_present_by_name": {
+        "TOKENMETRICS_API_KEY": true
+      },
+      "provider": "tokenmetrics",
+      "public_payload_age_seconds": null,
+      "public_payload_newest": null,
+      "public_payload_target": null,
+      "rate_limit_state": "unknown_until_active",
+      "raw_value_exposed": false,
+      "raw_value_read": false,
+      "redis_key_count_now": 0,
+      "redis_target_keys": "v2:alt_data:tokenmetrics:*",
+      "status": "DEFERRED_UNLESS_RE_ENABLED",
+      "symbols_covered": null
+    }
+  ],
+  "live_symbols": [],
+  "no_paid_feed_activation": true,
+  "no_raw_secrets_in_logs": true,
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "ts_est": "20260526T003358EST",
+  "ts_iso_est": "2026-05-26T00:49:13-0400",
+  "writes_exchange_orders": false
+}

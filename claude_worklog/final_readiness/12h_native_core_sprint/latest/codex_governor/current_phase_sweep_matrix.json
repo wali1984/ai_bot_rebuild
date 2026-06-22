@@ -1,0 +1,241 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "can_shutdown_legacy_for_v2_paper_only": false,
+  "current_blockers": [
+    "CHECKPOINT_WEIGHT_BLOB_OPERATOR_REQUIRED_NOT_ACCEPTED_FOR_PAPER_ONLY_SHUTDOWN",
+    "LIVE_KUCOIN_MISSING_IN_V2",
+    "COINAPI_AND_COINANK_SECRET_OR_OPERATOR_DECISIONS_NOT_ACCEPTED",
+    "READONLY_BRIDGED_INGESTORS_NOT_ACCEPTED_FOR_SHUTDOWN",
+    "ADAPTIVE_HEDGE_FAIL_CLOSED_LIMITATION_NOT_ACCEPTED_FOR_PAPER_ONLY_SHUTDOWN",
+    "FULL_LEGACY_ORCHESTRATOR_WORKER_LOGIC_NOT_PORTED_OR_ACCEPTED",
+    "LIVE_REDIS_PROPOSAL_BUS_NOT_PORTED_OR_ACCEPTED",
+    "PAPER_EDGE_CURRENT_SAMPLE_NEGATIVE_AND_NOT_OPERATOR_ACCEPTED_AS_NO_TRADE_ONLY"
+  ],
+  "final_go_no_go": "TWELVE_HOUR_NATIVE_CORE_MIGRATION_CODEX_FAIL_CORE_INCOMPLETE",
+  "frontend_truth": {
+    "codex_action": "UPDATED_OPERATOR_DASHBOARD_AND_PAGES_OVERLAY_TO_CURRENT_SWEEP_CORE_INCOMPLETE_NO_GO",
+    "must_show_live_blocked": true,
+    "must_show_no_go": true,
+    "previous_operator_dashboard_state": "STALE_P0_2F_BLOCKER_BEFORE_REMEDIATION"
+  },
+  "generated_utc": "2026-05-16T22:17:20Z",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "phase_matrix": [
+    {
+      "codex_go_no_go": "V2_NATIVE_FEATURE_PIPELINE_P0_CODEX_PASS",
+      "codex_status": "PASS_PARTIALLY_MIGRATED_FEATURE_COMPUTE",
+      "evidence_paths": [
+        "claude_worklog/final_readiness/v2_native_feature_pipeline_p0/latest/codex_review/CODEX_REVIEW.md",
+        "v2/frontend/public/operator_runtime/v2_feature_pipeline_native/latest/v2_feature_pipeline_native_status.json"
+      ],
+      "name": "Native feature pipeline",
+      "notes": [
+        "Native feature computation exists and is not bridge-only; classification remains partial, not full unified_feature_builder parity."
+      ],
+      "phase_id": "P0.1",
+      "shutdown_ready": true
+    },
+    {
+      "codex_go_no_go": "V2_NATIVE_FEATURE_PIPELINE_P0_1_TRAINER_CONSUMABLE_SNAPSHOT_CODEX_PASS",
+      "codex_status": "PASS_TRAINER_CONSUMABLE_SNAPSHOT",
+      "evidence_paths": [
+        "v2/runtime/v2_feature_pipeline_native/latest/latest_feature_snapshot.json",
+        "v2/frontend/public/operator_runtime/v2_feature_pipeline_native/latest/latest_feature_snapshot.json"
+      ],
+      "name": "Trainer-consumable feature snapshot",
+      "notes": [
+        "latest_feature_snapshot.json exists and is trainer-consumable."
+      ],
+      "phase_id": "P0.1-snapshot",
+      "shutdown_ready": true
+    },
+    {
+      "codex_go_no_go": "V2_NATIVE_RL_MASA_PPO_P0_2A_CODEX_PASS",
+      "codex_status": "PASS_PARTIALLY_MIGRATED_ENV_OBS_REWARD",
+      "evidence_paths": [
+        "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2a/latest/codex_review/CODEX_REVIEW.md"
+      ],
+      "name": "Env/observation/reward",
+      "notes": [
+        "Paper-only env/obs/reward passed; not full trainer migration."
+      ],
+      "phase_id": "P0.2A",
+      "shutdown_ready": true
+    },
+    {
+      "codex_go_no_go": "V2_NATIVE_RL_MASA_PPO_P0_2B_CODEX_PASS",
+      "codex_status": "PASS_SCOPE_LIMITED_POLICY_FORWARD",
+      "evidence_paths": [
+        "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2b/latest/codex_review/CODEX_REVIEW.md"
+      ],
+      "name": "CPU policy forward",
+      "notes": [
+        "CPU policy forward exists; not full MASA/PPO parity by itself."
+      ],
+      "phase_id": "P0.2B",
+      "shutdown_ready": true
+    },
+    {
+      "codex_go_no_go": "V2_NATIVE_RL_MASA_PPO_P0_2C_CODEX_PASS_SCOPE_LIMITED",
+      "codex_status": "PASS_METADATA_ONLY_OPERATOR_WEIGHT_BLOCKER",
+      "evidence_paths": [
+        "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2c/latest/checkpoint_inventory.json",
+        "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2c/latest/checkpoint_loading_status.json"
+      ],
+      "name": "Checkpoint metadata/loading",
+      "notes": [
+        "Checkpoint metadata is honest, but checkpoint weights remain operator-required and not explicitly accepted for paper-only shutdown."
+      ],
+      "phase_id": "P0.2C",
+      "shutdown_blockers": [
+        "CHECKPOINT_WEIGHT_BLOB_OPERATOR_REQUIRED_NOT_ACCEPTED_FOR_PAPER_ONLY_SHUTDOWN"
+      ],
+      "shutdown_ready": false
+    },
+    {
+      "codex_go_no_go": "V2_NATIVE_RL_MASA_PPO_P0_2D_CODEX_PASS_SCOPE_LIMITED",
+      "codex_status": "PASS_TINY_CPU_UPDATE",
+      "evidence_paths": [
+        "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2d/latest/training_loop_status.json"
+      ],
+      "name": "Tiny CPU update",
+      "notes": [
+        "Tiny CPU update ran and loss decreased."
+      ],
+      "phase_id": "P0.2D",
+      "shutdown_ready": true
+    },
+    {
+      "codex_go_no_go": "V2_NATIVE_RL_MASA_PPO_P0_2E_CODEX_PASS_SCOPE_LIMITED",
+      "codex_status": "PASS_TINY_GPU_STEP",
+      "evidence_paths": [
+        "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2e/latest/gpu_training_status.json"
+      ],
+      "name": "GPU step",
+      "notes": [
+        "Tiny GPU step ran; no full GPU parity claim."
+      ],
+      "phase_id": "P0.2E",
+      "shutdown_ready": true
+    },
+    {
+      "codex_go_no_go": "V2_NATIVE_RL_MASA_PPO_P0_2F_REMEDIATION_CODEX_PASS",
+      "codex_status": "PASS_STRICT_GATE_REMEDIATED",
+      "evidence_paths": [
+        "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2f/latest/codex_review/CODEX_REVIEW.md",
+        "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2f/latest/V2_NATIVE_RL_MASA_PPO_P0_2F_REPORT.md",
+        "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2f/latest/STALE_PROSE_CLEANUP_REPORT.md"
+      ],
+      "name": "Trainer output strict paper fill gate",
+      "notes": [
+        "Current after-cost edge is -68.46487977617207 and is blocked with ['NEGATIVE_EXPECTED_MOVE_AFTER_COST_BLOCK']",
+        "Stale prose cleanup is present and the report now matches the strict gate behavior."
+      ],
+      "phase_id": "P0.2F",
+      "shutdown_ready": true
+    },
+    {
+      "codex_go_no_go": "V2_NATIVE_RL_MASA_PPO_P0_2G_CODEX_PASS",
+      "codex_status": "PASS_PAPER_ONLY_ALGO_COMPLETION",
+      "evidence_paths": [
+        "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2g/latest/codex_review/CODEX_REVIEW.md",
+        "claude_worklog/final_readiness/v2_native_rl_masa_ppo_p0_2g/latest/trainer_algo_completion_status.json"
+      ],
+      "name": "PPO/GAE/AdamW trainer algorithm completion",
+      "notes": [
+        "PPO=PPO_CLIP_LOSS_READY_PAPER_ONLY, GAE=GAE_ADVANTAGE_ESTIMATION_READY_PAPER_ONLY, AdamW=ADAMW_OPTIMIZER_STATE_READY_PAPER_ONLY",
+        "Checkpoint remains CHECKPOINT_WEIGHT_BLOB_OPERATOR_REQUIRED; hedge remains HEDGE_FAIL_CLOSED_PAPER_HEDGE_ENGINE_PENDING_CODEX_PASS."
+      ],
+      "phase_id": "P0.2G",
+      "shutdown_ready": true
+    },
+    {
+      "codex_go_no_go": "V2_ORCHESTRATOR_ARBITRATION_P0_3_CODEX_PASS_SCOPE_LIMITED",
+      "codex_status": "PASS_SCOPE_LIMITED_PAPER_ARBITRATION",
+      "evidence_paths": [
+        "v2/backend/app/services/orchestrator_arbitration/service.py",
+        "v2/frontend/public/operator_runtime/v2_orchestrator_arbitration/latest/v2_orchestrator_arbitration_status.json"
+      ],
+      "name": "Orchestrator arbitration",
+      "notes": [
+        "Real paper arbitration exists, but full legacy orchestrator worker logic and live Redis proposal bus remain unported and not explicitly accepted for shutdown."
+      ],
+      "phase_id": "P0.3",
+      "shutdown_blockers": [
+        "FULL_LEGACY_ORCHESTRATOR_WORKER_LOGIC_NOT_PORTED_OR_ACCEPTED",
+        "LIVE_REDIS_PROPOSAL_BUS_NOT_PORTED_OR_ACCEPTED"
+      ],
+      "shutdown_ready": false
+    },
+    {
+      "codex_go_no_go": "V2_TRADE_MANAGEMENT_PAPER_P0_4_CODEX_PASS_SCOPE_LIMITED",
+      "codex_status": "PASS_SCOPE_LIMITED_PAPER_ENGINE",
+      "evidence_paths": [
+        "v2/backend/app/services/trade_management_paper/service.py",
+        "v2/frontend/public/operator_runtime/v2_trade_management_paper/latest/v2_trade_management_paper_status.json"
+      ],
+      "name": "Trade management paper engine",
+      "notes": [
+        "Paper stop/TP/churn/fee gates exist; adaptive hedge/DCA remains fail-closed and not explicitly accepted as a shutdown limitation."
+      ],
+      "phase_id": "P0.4",
+      "shutdown_blockers": [
+        "ADAPTIVE_HEDGE_FAIL_CLOSED_LIMITATION_NOT_ACCEPTED_FOR_PAPER_ONLY_SHUTDOWN"
+      ],
+      "shutdown_ready": false
+    },
+    {
+      "codex_go_no_go": "V2_NATIVE_INGESTORS_P0_5_CODEX_PASS_CLASSIFICATION_ONLY",
+      "codex_status": "PASS_CLASSIFICATION_ONLY_INGESTORS_BLOCK_SHUTDOWN",
+      "evidence_paths": [
+        "v2/backend/app/services/native_ingestors/registry.py",
+        "v2/frontend/public/operator_runtime/v2_native_ingestors/latest/v2_native_ingestors_status.json"
+      ],
+      "name": "Native ingestors",
+      "notes": [
+        "Ingestor classifications: {'READONLY_BRIDGED': 3, 'BLOCKED_BY_SECRET_OR_API': 3, 'OPERATOR_DECISION_REQUIRED': 2, 'MISSING_IN_V2': 1, 'NATIVE_V2': 3}",
+        "Bridge/secret/missing ingestor limitations are classified honestly but are not explicitly accepted for paper-only shutdown."
+      ],
+      "phase_id": "P0.5",
+      "shutdown_blockers": [
+        "LIVE_KUCOIN_MISSING_IN_V2",
+        "COINAPI_AND_COINANK_SECRET_OR_OPERATOR_DECISIONS_NOT_ACCEPTED",
+        "READONLY_BRIDGED_INGESTORS_NOT_ACCEPTED_FOR_SHUTDOWN"
+      ],
+      "shutdown_ready": false
+    },
+    {
+      "codex_go_no_go": "V2_OWNED_NON_LIVE_STARTUP_CODEX_PASS",
+      "codex_status": "PASS_PAPER_ONLY_STARTUP_WITH_UPSTREAM_LIMITATIONS",
+      "evidence_paths": [
+        "v2/backend/app/cli/v2_owned_non_live_startup.py",
+        "v2/frontend/public/operator_runtime/v2_owned_non_live_startup/latest/v2_owned_non_live_startup_status.json"
+      ],
+      "name": "V2-owned non-live startup",
+      "notes": [
+        "Startup validates paper-only chain, but upstream limitations remain unaccepted for legacy shutdown."
+      ],
+      "phase_id": "P9",
+      "shutdown_blockers": [
+        "UPSTREAM_CHECKPOINT_INGESTOR_HEDGE_ORCHESTRATOR_LIMITATIONS_NOT_ACCEPTED"
+      ],
+      "shutdown_ready": false
+    }
+  ],
+  "schema_version": "codex_12h_native_core_current_phase_sweep_v2",
+  "shutdown_recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",
+  "validation": {
+    "approval_token_scan": "PASS_NO_ACTIVE_TOKEN_FOUND",
+    "exchange_mutation_scan_active_phase_sources": "PASS_NO_MATCHES",
+    "high_confidence_secret_scan_12h_outputs": "PASS_NO_MATCHES",
+    "old_redis_write_scan_active_phase_sources": "PASS_NO_MATCHES",
+    "p0_2g_focused_pytest": "PASS: 19 passed",
+    "p9_non_live_startup_dry_run_require_paper_only": "PASS",
+    "py_compile_active_phase_sources": "PASS",
+    "targeted_pytest": "PASS: 146 passed across P0.1/P0.1 snapshot/P0.2A-G/P0.3/P0.4/P0.5/P9"
+  }
+}

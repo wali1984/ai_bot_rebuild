@@ -1,0 +1,267 @@
+{
+  "schema_version": "legacy_redis_to_v2_namespace_adapter_matrix_v1",
+  "milestone": "v2_legacy_data_zero_exception_parity_and_full_runtime_startup",
+  "phase": 3,
+  "generated_est": "2026-05-31T01:10:00-0400",
+  "generated_utc": "2026-05-31T05:10:00Z",
+  "mappings": [
+    {
+      "legacy_pattern": "price:*",
+      "v2_target": "v2:market:prices:{symbol}",
+      "implementation_status": "WIRED_PARTIAL"
+    },
+    {
+      "legacy_pattern": "ohlcv:list:*",
+      "v2_target": "v2:market:ohlcv:{provider}:{symbol}:{tf}",
+      "implementation_status": "MISSING"
+    },
+    {
+      "legacy_pattern": "normalized:ohlcv:*",
+      "v2_target": "v2:market:ohlcv:normalized:{symbol}:{tf}",
+      "implementation_status": "MISSING"
+    },
+    {
+      "legacy_pattern": "orderbook:*",
+      "v2_target": "v2:market:orderbook:{symbol}",
+      "implementation_status": "MISSING"
+    },
+    {
+      "legacy_pattern": "ta:*",
+      "v2_target": "v2:technical_analysis:{symbol}:{tf}",
+      "implementation_status": "MISSING"
+    },
+    {
+      "legacy_pattern": "latest:ta:*",
+      "v2_target": "v2:technical_analysis:{symbol}:{tf}",
+      "implementation_status": "MISSING"
+    },
+    {
+      "legacy_pattern": "unified_features:*",
+      "v2_target": "v2:unified_features:{symbol}:{tf}",
+      "implementation_status": "WIRED_STUB"
+    },
+    {
+      "legacy_pattern": "features:fast_lane",
+      "v2_target": "v2:features:fast_lane",
+      "implementation_status": "MISSING"
+    },
+    {
+      "legacy_pattern": "features:slow_lane",
+      "v2_target": "v2:features:slow_lane",
+      "implementation_status": "MISSING"
+    },
+    {
+      "legacy_pattern": "features:resampler",
+      "v2_target": "v2:features:resampler",
+      "implementation_status": "MISSING"
+    },
+    {
+      "legacy_pattern": "coinank:*",
+      "v2_target": "v2:market:coinank:*",
+      "implementation_status": "MISSING_NO_KEYS"
+    },
+    {
+      "legacy_pattern": "latest:coinank:*",
+      "v2_target": "v2:market:coinank:latest:*",
+      "implementation_status": "MISSING_NO_KEYS"
+    },
+    {
+      "legacy_pattern": "features:coinank:*",
+      "v2_target": "v2:features:coinank:*",
+      "implementation_status": "MISSING_NO_KEYS"
+    },
+    {
+      "legacy_pattern": "kc:*",
+      "v2_target": "v2:market:kucoin:*",
+      "implementation_status": "MISSING_NO_KEYS"
+    },
+    {
+      "legacy_pattern": "coinapi:v1:*",
+      "v2_target": "v2:market:coinapi:v1:*",
+      "implementation_status": "MISSING"
+    },
+    {
+      "legacy_pattern": "microfeat:*",
+      "v2_target": "v2:market:microstructure:{symbol}:{tf}",
+      "implementation_status": "MISSING"
+    },
+    {
+      "legacy_pattern": "msnap:*",
+      "v2_target": "v2:market:microstructure_snapshot:*",
+      "implementation_status": "MISSING"
+    },
+    {
+      "legacy_pattern": "binance:force",
+      "v2_target": "v2:liquidations:events",
+      "implementation_status": "REROUTED_TO_STREAM"
+    },
+    {
+      "legacy_pattern": "(liquidation events stream)",
+      "v2_target": "v2:liquidations:events",
+      "implementation_status": "WIRED"
+    },
+    {
+      "legacy_pattern": "liq_levels:*",
+      "v2_target": "v2:market:liquidation_levels:{symbol}",
+      "implementation_status": "NOT_USED_BY_DESIGN"
+    },
+    {
+      "legacy_pattern": "(liquidation fields)",
+      "v2_target": "v2:unified_features:{symbol}:{tf}",
+      "implementation_status": "WIRED"
+    },
+    {
+      "legacy_pattern": "prediction:*",
+      "v2_target": "v2:prediction:{symbol}:{tf}",
+      "implementation_status": "MISSING"
+    },
+    {
+      "legacy_pattern": "trainer:intent:*",
+      "v2_target": "v2:trainer:intent:{symbol}",
+      "implementation_status": "MISSING"
+    },
+    {
+      "legacy_pattern": "trainer:brain",
+      "v2_target": "v2:trainer:brain",
+      "implementation_status": "MISSING"
+    },
+    {
+      "legacy_pattern": "heartbeat:trainer",
+      "v2_target": "v2:trainer:heartbeat",
+      "implementation_status": "WIRED"
+    },
+    {
+      "legacy_pattern": "signals:trading:*",
+      "v2_target": "v2:orchestrator:signals:*",
+      "implementation_status": "MISSING"
+    },
+    {
+      "legacy_pattern": "wma:*",
+      "v2_target": "v2:orchestrator:wma:*",
+      "implementation_status": "MISSING"
+    },
+    {
+      "legacy_pattern": "positions:*",
+      "v2_target": "v2:paper:positions:* / v2:position_history:*",
+      "implementation_status": "WIRED_PAPER_ONLY"
+    },
+    {
+      "legacy_pattern": "pnl:*",
+      "v2_target": "v2:paper:pnl:* / v2:portfolio:pnl:*",
+      "implementation_status": "WIRED_PARTIAL"
+    },
+    {
+      "legacy_pattern": "portfolio:*",
+      "v2_target": "v2:portfolio:*",
+      "implementation_status": "MISSING"
+    },
+    {
+      "legacy_pattern": "heartbeat:*",
+      "v2_target": "v2:health:heartbeat:*",
+      "implementation_status": "PARTIAL"
+    },
+    {
+      "legacy_pattern": "health:*",
+      "v2_target": "v2:health:*",
+      "implementation_status": "MISSING"
+    },
+    {
+      "legacy_pattern": "tm:*",
+      "v2_target": "v2:altdata:tokenmetrics:*",
+      "implementation_status": "MISSING"
+    },
+    {
+      "legacy_pattern": "regime:*",
+      "v2_target": "v2:market:regime:*",
+      "implementation_status": "MISSING"
+    },
+    {
+      "legacy_pattern": "volatility:*",
+      "v2_target": "v2:market:volatility:*",
+      "implementation_status": "MISSING"
+    }
+  ],
+  "rules": [
+    "no_old_redis_writes_from_active_v2",
+    "adapters_used_before_copied_script_starts",
+    "old_redis_remains_preserved_static_reference_only"
+  ],
+  "old_namespaces_still_in_redis_counts": {
+    "orchestrator:*": 0,
+    "live_orders:*": 0,
+    "exchange:order:*": 0,
+    "ohlcv:list:*": 25,
+    "latest:binance:*": 89,
+    "latest:coinank:*": 972,
+    "latest:coinank_endpoint:*": 0,
+    "latest:ta:*": 0,
+    "latest:coinapi:*": 0,
+    "ta:*": 0,
+    "unified_features:*": 0,
+    "prediction:*": 1,
+    "signals:*": 7,
+    "wma:*": 4,
+    "features:coinank:*": 961,
+    "features:coinank_endpoint:*": 0,
+    "features:kucoin:*": 0,
+    "features:global_coinank:*": 18,
+    "cursor:coinank:*": 2101,
+    "coinank:*": 13,
+    "raw:coinank:*": 17,
+    "microfeat:*": 0,
+    "msnap:coinapi_wsds:*": 0,
+    "normalized:ohlcv:*": 0,
+    "kc:*": 150,
+    "tm:*": 7,
+    "tokenmetrics:*": 0,
+    "regime:*": 175,
+    "regime_analysis:*": 0,
+    "volatility:*": 11,
+    "trainer:intent:*": 0,
+    "rl:*": 3,
+    "price:*": 31,
+    "orderbook:*": 67,
+    "instant:*": 5,
+    "heartbeat:*": 28,
+    "health:events_XLEN": 0,
+    "pnl:decomp_XLEN": 0,
+    "binance:force_XLEN": 0,
+    "executed_signals_XLEN": 1552
+  },
+  "v2_namespaces_current_counts": {
+    "v2:market:prices:*": 27,
+    "v2:market:funding:*": 25,
+    "v2:market:open_interest:*": 25,
+    "v2:market:liquidations:*": 1,
+    "v2:market:liquidations:latest:*": 0,
+    "v2:market:liquidations:aggregate:*": 0,
+    "v2:market:liquidation_levels:*": 0,
+    "v2:market:ohlcv:*": 37,
+    "v2:market:orderbook:*": 12,
+    "v2:market:coinank:*": 0,
+    "v2:market:kucoin:*": 0,
+    "v2:market:coinapi:*": 0,
+    "v2:market:microstructure:*": 0,
+    "v2:features:*": 64,
+    "v2:unified_features:*": 170,
+    "v2:technical_analysis:*": 25,
+    "v2:altdata:*": 1,
+    "v2:altdata:lunarcrush:*": 0,
+    "v2:altdata:nansen:*": 0,
+    "v2:altdata:arkham:*": 0,
+    "v2:altdata:tokenmetrics:*": 0,
+    "v2:prediction:*": 52,
+    "v2:trainer:*": 4,
+    "v2:orchestrator:*": 3,
+    "v2:risk:*": 1,
+    "v2:paper:*": 89,
+    "v2:position_history:*": 0,
+    "v2:portfolio:*": 0,
+    "v2:health:*": 0,
+    "v2:liquidations:events_XLEN": 0
+  },
+  "live_safety": {
+    "live_gate_status": "blocked_human_only",
+    "live_symbols": []
+  }
+}

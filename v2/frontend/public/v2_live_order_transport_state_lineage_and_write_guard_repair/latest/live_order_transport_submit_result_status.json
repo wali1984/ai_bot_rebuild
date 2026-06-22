@@ -1,0 +1,10 @@
+{
+  "blockers": [
+    "ORDER_QUANTITY_ROUNDS_TO_ZERO",
+    "RISK_MAX_NOTIONAL_BELOW_EXCHANGE_MIN_NOTIONAL"
+  ],
+  "generated_est": "2026-06-07T19:32:09-04:00",
+  "order_submitted": false,
+  "schema_version": "live_order_transport_submit_result_status_v1",
+  "status": "LIVE_ORDER_TRANSPORT_SUBMIT_SKIPPED_PRECHECK_BLOCKERS"
+}

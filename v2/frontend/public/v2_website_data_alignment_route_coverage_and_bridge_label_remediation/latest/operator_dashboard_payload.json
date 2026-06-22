@@ -1,0 +1,44 @@
+{
+  "controls_present": false,
+  "fake_readiness": false,
+  "generated_utc": "2026-05-23T23:09:38Z",
+  "go_no_go": "V2_WEBSITE_DATA_ALIGNMENT_ROUTE_COVERAGE_AND_BRIDGE_LABEL_REMEDIATION_READY",
+  "safety_scoreboard": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "did_not_call_exchange_mutation": true,
+    "did_not_enable_any_control": true,
+    "did_not_expose_raw_api_keys": true,
+    "did_not_modify_legacy_tree": true,
+    "did_not_mutate_cloudflare_configuration": true,
+    "did_not_render_live_or_order_or_shutdown_or_adopt_button": true,
+    "did_not_start_or_stop_frontend_build": true,
+    "did_not_stop_codex_governors": true,
+    "did_not_stop_legacy_runtime": true,
+    "did_not_stop_replay_miner": true,
+    "did_not_stop_report_center": true,
+    "did_not_stop_v2_runtime": true,
+    "did_not_write_old_redis_keys": true,
+    "frontend_does_not_read_redis_directly": true,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "no_fake_readiness": true,
+    "no_v2_native_label_for_bridge_data": true
+  },
+  "schema_version": "v2_website_data_alignment_route_coverage_and_bridge_label_remediation_v1_operator_dashboard_payload",
+  "summary": {
+    "documented_page_count": 44,
+    "label_counts": {
+      "PLACEHOLDER_NOT_READY": 2,
+      "V2_BRIDGE_FROM_LEGACY_REDIS": 4,
+      "V2_NATIVE_PUBLIC_PAYLOAD": 38
+    },
+    "lane_id": "v2_website_data_alignment_and_control_plane",
+    "redis_bridge_rows": 6,
+    "registered_route_count": 44,
+    "registry_already_inserted": true,
+    "unknown_route_count": 0
+  }
+}

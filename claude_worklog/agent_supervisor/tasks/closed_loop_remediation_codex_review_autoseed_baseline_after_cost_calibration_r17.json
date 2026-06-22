@@ -1,0 +1,30 @@
+{
+  "codex_pair_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r17",
+  "completed_at": "2026-05-25T00:21:26Z",
+  "created_at": "2026-05-25T00:16:35Z",
+  "fail_blockers": [
+    "1. Threading the calibration fitter + FN-separation threshold tuner into `train_logistic_model()`."
+  ],
+  "file_lock_group": "v2_native_baseline_after_cost_calibration",
+  "lease_id": "b3eb1457b2a3417c9f583d051e92d98d",
+  "next_action": "Remediate the safe V2-side fail blockers listed in fail_blockers. Do not touch legacy. Do not call exchange mutation. Keep live_gate=blocked_human_only and live_symbols=[].",
+  "owner": "CLAUDE",
+  "pid_or_job_id": 1572990,
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "started_at": "2026-05-25T00:16:41Z",
+  "status": "completed",
+  "task_id": "closed_loop_remediation_codex_review_autoseed_baseline_after_cost_calibration_r17",
+  "task_type": "REMEDIATION",
+  "updated_at": "2026-05-25T00:21:26Z",
+  "worker_id": "claude-2"
+}
