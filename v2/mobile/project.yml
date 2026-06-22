@@ -35,7 +35,9 @@ targets:
       - path: Sources/AIBotV2
         excludes:
           - "Info.plist"   # referenced via INFOPLIST_FILE, not a regular source
-    dependencies: []
+    dependencies:
+      - sdk: WatchConnectivity.framework
+        embed: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.wali1984.aibot-v2
