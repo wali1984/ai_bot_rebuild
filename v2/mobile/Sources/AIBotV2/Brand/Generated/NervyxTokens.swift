@@ -43,7 +43,7 @@ public enum NervyxGeneratedTokens {
     public static let sense = "#22D3C5"
     public static let core = "#7C5CFF"
     public static let shift = "#4B7BFF"
-    public static let guard = "#5CF2B3"
+    public static let `guard` = "#5CF2B3"
     public static let replay = "#B794F4"
     public static let execute = "#54B7FF"
     public static let observe = "#A5B4FC"

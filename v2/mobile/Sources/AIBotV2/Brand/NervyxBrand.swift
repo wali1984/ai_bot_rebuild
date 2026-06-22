@@ -14,7 +14,7 @@ public enum NervyxModule: String, CaseIterable, Identifiable {
     case sense
     case core
     case shift
-    case guard
+    case `guard`
     case replay
     case execute
     case observe
@@ -26,7 +26,7 @@ public enum NervyxModule: String, CaseIterable, Identifiable {
         case .sense: return "NERVYX SENSE"
         case .core: return "NERVYX CORE"
         case .shift: return "NERVYX SHIFT"
-        case .guard: return "NERVYX GUARD"
+        case .`guard`: return "NERVYX GUARD"
         case .replay: return "NERVYX REPLAY"
         case .execute: return "NERVYX EXECUTE"
         case .observe: return "NERVYX OBSERVE"
@@ -38,7 +38,7 @@ public enum NervyxModule: String, CaseIterable, Identifiable {
         case .sense: return "Data ingestion and market-state trust"
         case .core: return "PPO + MASA inference"
         case .shift: return "Regime and strategy routing"
-        case .guard: return "Risk, trust, and execution gates"
+        case .`guard`: return "Risk, trust, and execution gates"
         case .replay: return "Decision evidence and reconstruction"
         case .execute: return "Execution lifecycle"
         case .observe: return "Monitoring, soak, and operational proof"
