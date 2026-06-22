@@ -19,6 +19,7 @@ public final class DashboardViewModel {
 
     public func load(token: String?, baseURL: String) async {
         connect(token: token, baseURL: baseURL)
+        await loadFallback(token: token, baseURL: baseURL)
     }
 
     public func connect(token: String?, baseURL: String) {
@@ -27,8 +28,8 @@ public final class DashboardViewModel {
         dashboardStreamLabel = "Connecting"
         healthStreamLabel = "Connecting"
 
-        guard let dashboardURL = resourceWebSocketURL(baseURL: baseURL, path: APIEndpoints.mobileDashboard),
-              let healthURL = resourceWebSocketURL(baseURL: baseURL, path: APIEndpoints.mobileHealth) else {
+        guard let dashboardURL = APIEndpoints.wsResourceURL(baseURL: baseURL, path: APIEndpoints.mobileDashboard, intervalMs: streamIntervalMs),
+              let healthURL = APIEndpoints.wsResourceURL(baseURL: baseURL, path: APIEndpoints.mobileHealth, intervalMs: streamIntervalMs) else {
             isLoading = false
             error = "Invalid WebSocket resource URL"
             dashboardStreamLabel = "Offline"
@@ -63,9 +64,34 @@ public final class DashboardViewModel {
         "Dashboard \(dashboardStreamLabel) · Health \(healthStreamLabel)"
     }
 
+    private func loadFallback(token: String?, baseURL: String) async {
+        do {
+            async let dashboardFallback: MobileDashboard = APIClient.shared.get(
+                path: APIEndpoints.mobileDashboard,
+                token: token,
+                baseURL: baseURL
+            )
+            async let healthFallback: MobileHealth = APIClient.shared.get(
+                path: APIEndpoints.mobileHealth,
+                token: token,
+                baseURL: baseURL
+            )
+            let (d, h) = try await (dashboardFallback, healthFallback)
+            dashboard = d
+            health = h
+            isLoading = false
+            error = nil
+        } catch {
+            if dashboard == nil && health == nil {
+                self.error = error.localizedDescription
+                isLoading = false
+            }
+        }
+    }
+
     private func applyDashboardMessage(_ message: String) {
         do {
-            dashboard = try decodeResourceMessage(MobileDashboard.self, from: message)
+            dashboard = try decodeMobileResourceMessage(MobileDashboard.self, from: message)
             dashboardStreamLabel = "Live"
             lastStreamMessageAt = Date()
             isLoading = false
@@ -79,7 +105,7 @@ public final class DashboardViewModel {
 
     private func applyHealthMessage(_ message: String) {
         do {
-            health = try decodeResourceMessage(MobileHealth.self, from: message)
+            health = try decodeMobileResourceMessage(MobileHealth.self, from: message)
             healthStreamLabel = "Live"
             lastStreamMessageAt = Date()
             isLoading = false
@@ -91,33 +117,4 @@ public final class DashboardViewModel {
         }
     }
 
-    private func resourceWebSocketURL(baseURL: String, path: String) -> String? {
-        var baseWS = baseURL
-            .replacingOccurrences(of: "http://", with: "ws://")
-            .replacingOccurrences(of: "https://", with: "wss://")
-        if baseWS.hasSuffix("/") {
-            baseWS.removeLast()
-        }
-        var components = URLComponents(string: baseWS + APIEndpoints.wsResource)
-        components?.queryItems = [
-            URLQueryItem(name: "path", value: path),
-            URLQueryItem(name: "interval_ms", value: String(streamIntervalMs)),
-        ]
-        return components?.string
-    }
-
-    private func decodeResourceMessage<T: Decodable>(_ type: T.Type, from message: String) throws -> T {
-        let data = Data(message.utf8)
-        let decoder = JSONDecoder()
-        if let envelope = try? decoder.decode(ResourceEnvelope<T>.self, from: data),
-           let payload = envelope.data {
-            return payload
-        }
-        return try decoder.decode(T.self, from: data)
-    }
-}
-
-private struct ResourceEnvelope<T: Decodable>: Decodable {
-    let data: T?
-    let stale: Bool?
 }

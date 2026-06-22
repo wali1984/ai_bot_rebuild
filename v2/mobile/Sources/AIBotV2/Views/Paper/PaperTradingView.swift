@@ -13,7 +13,7 @@ struct PaperTradingView: View {
                     if vm.isLoading && vm.summary == nil {
                         VStack(spacing: 12) {
                             ProgressView().tint(NerVyx.primary)
-                            Text("Loading paper runtime…").font(.system(size: 14)).foregroundStyle(NerVyx.textMuted)
+                            Text("Connecting execution runtime…").font(.system(size: 14)).foregroundStyle(NerVyx.textMuted)
                         }
                     } else if let err = vm.error, vm.summary == nil {
                         VStack(spacing: 12) {
@@ -49,11 +49,11 @@ struct PaperTradingView: View {
                 // Mode banner
                 HStack(spacing: 8) {
                     LivePulse(color: NerVyx.paper)
-                    Text("Paper mode · \(s.mode) · \(s.live_gate)")
+                    Text("Execution runtime · \(nervyxPublicRuntimeText(s.live_gate))")
                         .font(.system(size: 12, design: .monospaced))
                         .foregroundStyle(NerVyx.textMuted)
                     Spacer()
-                    NerVyxBadge(text: s.places_real_order ? "LIVE" : "PAPER", color: s.places_real_order ? NerVyx.sell : NerVyx.paper, small: true)
+                    NerVyxBadge(text: s.places_real_order ? "LIVE" : "GATED", color: s.places_real_order ? NerVyx.sell : NerVyx.signal, small: true)
                 }
                 .padding(.horizontal, 4)
 

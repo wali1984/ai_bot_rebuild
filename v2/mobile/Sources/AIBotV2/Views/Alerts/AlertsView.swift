@@ -13,7 +13,7 @@ struct AlertsView: View {
                     if vm.isLoading && vm.alerts.isEmpty {
                         VStack(spacing: 12) {
                             ProgressView().tint(NerVyx.primary)
-                            Text("Loading alerts…").font(.system(size: 14)).foregroundStyle(NerVyx.textMuted)
+                            Text("Connecting alerts stream…").font(.system(size: 14)).foregroundStyle(NerVyx.textMuted)
                         }
                     } else if let err = vm.error, vm.alerts.isEmpty {
                         VStack(spacing: 12) {
@@ -54,7 +54,7 @@ struct AlertsView: View {
                         Text("No alerts")
                             .font(.system(size: 15, weight: .medium))
                             .foregroundStyle(NerVyx.textSecondary)
-                        Text("System alerts will appear here when triggered.")
+                        Text("System alerts appear here when triggered.")
                             .font(.system(size: 13))
                             .foregroundStyle(NerVyx.textMuted)
                             .multilineTextAlignment(.center)

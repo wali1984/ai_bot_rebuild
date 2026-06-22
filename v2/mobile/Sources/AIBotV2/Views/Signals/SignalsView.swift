@@ -52,7 +52,7 @@ struct SignalsView: View {
         if vm.isLoading && vm.signals.isEmpty {
             VStack(spacing: 16) {
                 ProgressView().tint(NerVyx.primary)
-                Text("Loading signals…")
+                Text("Connecting signal stream…")
                     .font(.system(size: 14))
                     .foregroundStyle(NerVyx.textMuted)
             }
@@ -74,7 +74,7 @@ struct SignalsView: View {
                 Image(systemName: "antenna.radiowaves.left.and.right.slash")
                     .font(.system(size: 36))
                     .foregroundStyle(NerVyx.textMuted)
-                Text(vm.actionableOnly ? "No actionable signals right now" : "No signals available")
+                Text(vm.actionableOnly ? "No actionable signals right now" : "No signals in the current stream")
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(NerVyx.textSecondary)
                 Text("The trainer is running in INFERENCE_ONLY mode.\nSignals publish continuously as data is processed.")
@@ -238,8 +238,8 @@ struct SignalDetailView: View {
                         if let coverage = signal.data_coverage {
                             DataRow(
                                 label: "Data Coverage",
-                                value: String(format: "%.1f%%", coverage * 100),
-                                valueColor: coverage > 0.8 ? NerVyx.validation : NerVyx.warning
+                                value: String(format: "%.1f%%", coverage),
+                                valueColor: coverage > 80 ? NerVyx.validation : NerVyx.warning
                             )
                         }
                         if let move = signal.expected_move_bps {

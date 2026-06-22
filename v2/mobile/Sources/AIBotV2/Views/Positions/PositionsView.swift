@@ -13,7 +13,7 @@ struct PositionsView: View {
                     if vm.isLoading && vm.positions.isEmpty {
                         VStack(spacing: 12) {
                             ProgressView().tint(NerVyx.primary)
-                            Text("Loading positions…").font(.system(size: 14)).foregroundStyle(NerVyx.textMuted)
+                            Text("Connecting positions stream…").font(.system(size: 14)).foregroundStyle(NerVyx.textMuted)
                         }
                     } else if let err = vm.error, vm.positions.isEmpty {
                         VStack(spacing: 12) {
@@ -60,7 +60,7 @@ struct PositionsView: View {
                         Text("No open positions")
                             .font(.system(size: 15, weight: .medium))
                             .foregroundStyle(NerVyx.textSecondary)
-                        Text("Paper positions open automatically\nwhen signals are accepted by the risk gateway.")
+                        Text("Runtime positions open automatically\nwhen signals are accepted by the risk gateway.")
                             .font(.system(size: 13))
                             .foregroundStyle(NerVyx.textMuted)
                             .multilineTextAlignment(.center)
@@ -134,7 +134,7 @@ struct PositionsView: View {
                         .foregroundStyle(NerVyx.pnlColor(s.unrealized_pnl_usd))
                 }
                 Spacer()
-                NerVyxBadge(text: "PAPER", color: NerVyx.paper)
+                    NerVyxBadge(text: "LIVE", color: NerVyx.signal)
             }
         }
         .nerVyxElevatedCard(accent: NerVyx.pnlColor(s.total_pnl_usd))

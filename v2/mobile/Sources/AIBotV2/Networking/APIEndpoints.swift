@@ -56,4 +56,29 @@ public enum APIEndpoints {
     public static func wsMarketDataURL(baseWS: String, symbol: String, timeframe: String) -> URL? {
         URL(string: "\(baseWS)\(wsMarketData)?symbol=\(symbol)&timeframe=\(timeframe)")
     }
+
+    public static func wsResourceURL(
+        baseURL: String,
+        path: String,
+        queryItems: [URLQueryItem] = [],
+        intervalMs: Int = 1_000
+    ) -> String? {
+        var baseWS = baseURL
+            .replacingOccurrences(of: "http://", with: "ws://")
+            .replacingOccurrences(of: "https://", with: "wss://")
+        if baseWS.hasSuffix("/") {
+            baseWS.removeLast()
+        }
+
+        var target = URLComponents()
+        target.path = path
+        target.queryItems = queryItems.isEmpty ? nil : queryItems
+
+        var components = URLComponents(string: baseWS + wsResource)
+        components?.queryItems = [
+            URLQueryItem(name: "path", value: target.string ?? path),
+            URLQueryItem(name: "interval_ms", value: String(intervalMs)),
+        ]
+        return components?.string
+    }
 }

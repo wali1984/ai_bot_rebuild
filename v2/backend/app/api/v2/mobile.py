@@ -130,7 +130,7 @@ def _gpu_status_from_redis(r: Any) -> dict[str, Any]:
     }
 
 
-def _signal_matrix_from_redis(r: Any, limit: int = 50) -> list[dict[str, Any]]:
+def _signal_matrix_from_redis(r: Any, limit: int = 150) -> list[dict[str, Any]]:
     """Scan v2:signals:latest:* (per-symbol keys) and return sorted list."""
     rows: list[dict[str, Any]] = []
     try:
@@ -195,7 +195,7 @@ def _live_gate_status() -> dict[str, Any]:
         "live_trading_enabled": False,
         "places_real_order": False,
         "gate": "blocked_human_only",
-        "label": "LIVE TRADING BLOCKED",
+        "label": "OPERATOR GATED",
     }
 
 
@@ -359,12 +359,12 @@ async def get_mobile_positions(
 
 @router.get("/signals")
 async def get_mobile_signals(
-    limit: int = 50,
+    limit: int = 150,
     actionable_only: bool = False,
     actor: UserRecord | None = Depends(optional_auth),
 ) -> dict[str, Any]:
-    """Compact signals feed from v2:signals:latest:* per-symbol keys. Max 100."""
-    limit = min(max(1, limit), 100)
+    """Compact signals feed from v2:signals:latest:* per-symbol keys. Max 200."""
+    limit = min(max(1, limit), 200)
     try:
         r = get_redis()
     except Exception:

@@ -13,7 +13,7 @@ struct RiskControlView: View {
                     if vm.isLoading && vm.riskStatus == nil {
                         VStack(spacing: 12) {
                             ProgressView().tint(NerVyx.primary)
-                            Text("Loading risk gateway…").font(.system(size: 14)).foregroundStyle(NerVyx.textMuted)
+                            Text("Connecting risk gateway stream…").font(.system(size: 14)).foregroundStyle(NerVyx.textMuted)
                         }
                     } else if let err = vm.error, vm.riskStatus == nil {
                         VStack(spacing: 12) {
@@ -69,17 +69,17 @@ struct RiskControlView: View {
                     .foregroundStyle(NerVyx.sell)
             }
             VStack(alignment: .leading, spacing: 5) {
-                Text(gate.label)
+                Text(gate.publicLabel)
                     .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(NerVyx.sell)
                 DataRow(
                     label: "Gate state",
-                    value: gate.gate.uppercased(),
+                    value: gate.publicGate,
                     valueColor: NerVyx.sell
                 )
                 DataRow(
-                    label: "Places real order",
-                    value: gate.places_real_order ? "YES ⚠" : "NO",
+                    label: "Exchange route",
+                    value: gate.exchangeRouteLabel,
                     valueColor: gate.places_real_order ? NerVyx.warning : NerVyx.validation
                 )
             }

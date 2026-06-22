@@ -72,7 +72,7 @@ struct LoginView: View {
                 }
                 .padding(.top, 2)
             }
-            NerVyxBadge(text: "LIVE TRADING BLOCKED", color: NerVyx.sell)
+            NerVyxBadge(text: NervyxBrand.liveBlockedLabel.uppercased(), color: NerVyx.sell)
         }
     }
 

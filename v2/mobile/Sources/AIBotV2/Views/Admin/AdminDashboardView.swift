@@ -14,7 +14,7 @@ struct AdminDashboardView: View {
                     if vm.isLoading && vm.summary == nil {
                         VStack(spacing: 12) {
                             ProgressView().tint(NerVyx.primary)
-                            Text("Loading admin…").font(.system(size: 14)).foregroundStyle(NerVyx.textMuted)
+                            Text("Connecting ops stream…").font(.system(size: 14)).foregroundStyle(NerVyx.textMuted)
                         }
                     } else if let err = vm.error {
                         if err.contains("admin") {
@@ -105,10 +105,10 @@ struct AdminDashboardView: View {
                 .font(.system(size: 22))
                 .foregroundStyle(NerVyx.sell)
             VStack(alignment: .leading, spacing: 4) {
-                Text(gate.label)
+                Text(gate.publicLabel)
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(NerVyx.sell)
-                Text("Places real order: \(gate.places_real_order ? "YES" : "NO")")
+                Text("Exchange route: \(gate.exchangeRouteLabel)")
                     .font(.system(size: 12))
                     .foregroundStyle(NerVyx.textMuted)
             }
@@ -239,7 +239,7 @@ struct AdminDashboardView: View {
             if s.mobile_live_trading_blocked {
                 HStack(spacing: 4) {
                     Image(systemName: "lock.fill").font(.system(size: 10)).foregroundStyle(NerVyx.sell)
-                    Text("Mobile live trading: BLOCKED")
+                    Text("Mobile exchange execution: OPERATOR GATED")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(NerVyx.sell)
                 }

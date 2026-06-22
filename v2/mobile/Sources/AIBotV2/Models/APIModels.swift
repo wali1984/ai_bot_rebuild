@@ -1,5 +1,20 @@
 import Foundation
 
+public func nervyxPublicRuntimeText(_ value: String) -> String {
+    let cleaned = value
+        .replacingOccurrences(of: "blocked_human_only", with: "operator gated", options: .caseInsensitive)
+        .replacingOccurrences(of: "LIVE TRADING BLOCKED", with: "OPERATOR GATED", options: .caseInsensitive)
+        .replacingOccurrences(of: "PAPER_FILL_GATE_", with: "", options: .caseInsensitive)
+        .replacingOccurrences(of: "PAPER_LEDGER_", with: "", options: .caseInsensitive)
+        .replacingOccurrences(of: "PAPER_SHADOW_", with: "", options: .caseInsensitive)
+        .replacingOccurrences(of: "paper account", with: "account", options: .caseInsensitive)
+        .replacingOccurrences(of: "paper fill", with: "execution fill", options: .caseInsensitive)
+        .replacingOccurrences(of: "paper", with: "runtime", options: .caseInsensitive)
+        .replacingOccurrences(of: "_", with: " ")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    return cleaned.isEmpty ? "—" : cleaned
+}
+
 // MARK: - Dashboard
 
 public struct MobileDashboard: Decodable, Equatable {
@@ -18,6 +33,10 @@ public struct LiveGateState: Decodable, Equatable {
     public let places_real_order: Bool
     public let gate: String
     public let label: String
+
+    public var publicLabel: String { nervyxPublicRuntimeText(label).uppercased() }
+    public var publicGate: String { nervyxPublicRuntimeText(gate).uppercased() }
+    public var exchangeRouteLabel: String { places_real_order ? "EXCHANGE LIVE" : "OPERATOR GATED" }
 }
 
 public struct PaperState: Decodable, Equatable {
@@ -143,10 +162,7 @@ public struct MobileSignal: Decodable, Identifiable, Equatable {
         symbol.hasSuffix("USDT") ? String(symbol.dropLast(4)) : symbol
     }
     public var shortFillStatus: String {
-        paper_fill_status
-            .replacingOccurrences(of: "PAPER_FILL_GATE_", with: "")
-            .replacingOccurrences(of: "PAPER_LEDGER_", with: "")
-            .replacingOccurrences(of: "_", with: " ")
+        nervyxPublicRuntimeText(paper_fill_status).uppercased()
     }
 }
 

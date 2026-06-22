@@ -50,7 +50,7 @@ struct DashboardView: View {
                 .font(.system(size: 12, design: .monospaced))
                 .foregroundStyle(NerVyx.textMuted)
             Spacer()
-            NerVyxBadge(text: "PAPER ONLY", color: NerVyx.paper, small: true)
+            NerVyxBadge(text: NervyxBrand.liveBlockedLabel.uppercased(), color: NerVyx.signal, small: true)
         }
         .padding(.horizontal, 4)
         .padding(.top, 4)
@@ -122,15 +122,15 @@ struct DashboardView: View {
                 .font(.system(size: 18))
                 .foregroundStyle(NerVyx.sell)
             VStack(alignment: .leading, spacing: 2) {
-                Text(gate.label)
+                Text(gate.publicLabel)
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(NerVyx.sell)
-                Text("Real orders: \(gate.places_real_order ? "YES" : "NO")")
+                Text("Exchange route: \(gate.exchangeRouteLabel)")
                     .font(.system(size: 11))
                     .foregroundStyle(NerVyx.textMuted)
             }
             Spacer()
-            Text(gate.gate.uppercased())
+            Text(gate.publicGate)
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(NerVyx.sell)
                 .padding(.horizontal, 8)
@@ -173,7 +173,7 @@ struct DashboardView: View {
 
     private func pnlSection(_ paper: PaperState) -> some View {
         VStack(spacing: 0) {
-            SectionHeader(title: "PnL Summary", accent: NerVyx.buy, trailing: "PAPER")
+            SectionHeader(title: "PnL Summary", accent: NerVyx.buy, trailing: "LIVE")
                 .padding(.bottom, 12)
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {

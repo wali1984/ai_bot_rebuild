@@ -1,16 +1,67 @@
 import Foundation
 import Observation
 
+@MainActor
 @Observable
 public final class PaperViewModel {
 
     public private(set) var summary: MobilePaperSummary?
     public private(set) var isLoading = false
     public private(set) var error: String?
+    public private(set) var streamLabel = "Connecting"
 
-    private var refreshTask: Task<Void, Never>?
+    private let stream = WebSocketClient()
+    private var fallbackTask: Task<Void, Never>?
+    private let streamIntervalMs = 1_500
 
     public func load(token: String?, baseURL: String) async {
+        connect(token: token, baseURL: baseURL)
+        await loadFallback(token: token, baseURL: baseURL)
+    }
+
+    public func startAutoRefresh(token: String?, baseURL: String) {
+        stopAutoRefresh()
+        connect(token: token, baseURL: baseURL)
+        fallbackTask = Task {
+            await loadFallback(token: token, baseURL: baseURL)
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(30))
+                if !streamIsConnected {
+                    connect(token: token, baseURL: baseURL)
+                    await loadFallback(token: token, baseURL: baseURL)
+                }
+            }
+        }
+    }
+
+    public func stopAutoRefresh() {
+        fallbackTask?.cancel()
+        fallbackTask = nil
+        stream.disconnect()
+        streamLabel = "Disconnected"
+    }
+
+    private var streamIsConnected: Bool {
+        if case .connected = stream.state { return true }
+        return false
+    }
+
+    private func connect(token: String?, baseURL: String) {
+        guard let url = APIEndpoints.wsResourceURL(
+            baseURL: baseURL,
+            path: APIEndpoints.mobilePaperSummary,
+            intervalMs: streamIntervalMs
+        ) else {
+            streamLabel = "Offline"
+            return
+        }
+        streamLabel = "Connecting"
+        stream.connect(urlString: url, token: token) { [weak self] message in
+            self?.applyStream(message)
+        }
+    }
+
+    private func loadFallback(token: String?, baseURL: String) async {
         isLoading = true
         error = nil
         do {
@@ -25,18 +76,16 @@ public final class PaperViewModel {
         isLoading = false
     }
 
-    public func startAutoRefresh(token: String?, baseURL: String) {
-        stopAutoRefresh()
-        refreshTask = Task {
-            while !Task.isCancelled {
-                await load(token: token, baseURL: baseURL)
-                try? await Task.sleep(for: .seconds(12))
-            }
+    private func applyStream(_ message: String) {
+        do {
+            summary = try decodeMobileResourceMessage(MobilePaperSummary.self, from: message)
+            streamLabel = "Live"
+            isLoading = false
+            error = nil
+        } catch {
+            streamLabel = "Invalid"
+            self.error = error.localizedDescription
+            isLoading = false
         }
-    }
-
-    public func stopAutoRefresh() {
-        refreshTask?.cancel()
-        refreshTask = nil
     }
 }

@@ -38,7 +38,7 @@ struct MonitorView: View {
     private var loadingView: some View {
         VStack(spacing: 12) {
             ProgressView().tint(NerVyx.primary)
-            Text("Loading monitor…").font(.system(size: 14)).foregroundStyle(NerVyx.textMuted)
+            Text("Connecting monitor stream…").font(.system(size: 14)).foregroundStyle(NerVyx.textMuted)
         }
     }
 
@@ -100,13 +100,13 @@ struct MonitorView: View {
                             .font(.system(size: 11))
                             .foregroundStyle(NerVyx.textMuted)
                     }
-                    NerVyxBadge(text: h.live_gate.uppercased(), color: NerVyx.sell, small: true)
+                    NerVyxBadge(text: nervyxPublicRuntimeText(h.live_gate).uppercased(), color: NerVyx.sell, small: true)
                 }
             }
             Spacer()
             NerVyxBadge(
-                text: h.places_real_order ? "LIVE" : "PAPER",
-                color: h.places_real_order ? NerVyx.sell : NerVyx.paper
+                text: h.places_real_order ? "LIVE" : "GATED",
+                color: h.places_real_order ? NerVyx.sell : NerVyx.signal
             )
         }
         .padding(14)
