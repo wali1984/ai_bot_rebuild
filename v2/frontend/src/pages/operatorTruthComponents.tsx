@@ -144,19 +144,19 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
           label="Legacy orchestrator"
           value={runtime.orchestrator_status}
           detail={`observed rows ${runtime.orchestrator_processes.length}; trader ${runtime.trader_status}`}
-          source="READONLY_PROCESS_LIST"
+          source="RUNTIME_PROCESS_LIST"
         />
         <TruthStateCard
           label="Market ingest"
           value={runtime.market_ingestor_status ?? 'MISSING_EVIDENCE'}
-          detail={`observed rows ${runtime.market_ingestor_processes?.length ?? 0}; read-only process observation`}
-          source="READONLY_PROCESS_LIST"
+          detail={`observed rows ${runtime.market_ingestor_processes?.length ?? 0}; runtime process observation`}
+          source="RUNTIME_PROCESS_LIST"
         />
         <TruthStateCard
           label="Feature pipeline"
           value={runtime.feature_pipeline_status ?? 'MISSING_EVIDENCE'}
           detail={`observed rows ${runtime.feature_pipeline_processes?.length ?? 0}; no service mutation`}
-          source="READONLY_PROCESS_LIST"
+          source="RUNTIME_PROCESS_LIST"
         />
         <TruthStateCard
           label="Signal lineage"
@@ -168,7 +168,7 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
           label="Legacy observer twin"
           value={nestedText(liveObserver, ['legacy_shadow_twin', 'risk_decision', 'risk_result'], liveObserverStatus || 'MISSING_EVIDENCE')}
           detail={`source ${nestedText(liveObserver, ['legacy_shadow_twin', 'legacy_source', 'stream'], 'missing')}; paper ${nestedText(liveObserver, ['legacy_shadow_twin', 'paper_ledger_entry', 'paper_result'], 'missing')}`}
-          source="LEGACY_READONLY_BRIDGE / V2_SHADOW_TWIN"
+          source="LEGACY_RUNTIME_BRIDGE / V2_SHADOW_TWIN"
         />
         <TruthStateCard
           label="Payload freshness"
@@ -190,7 +190,7 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
         />
       </div>
       <div className="truth-classification-rail" aria-label="Data truth classification legend">
-        {['REALTIME_RUNTIME_EVIDENCE', 'READONLY_MARKET_FEED', 'READONLY_ACCOUNT_FEED', 'RUNTIME_MONITOR_PAYLOAD', 'V2_PROOF_ARTIFACT', 'ARCHIVE_ONLY_FIXTURE', 'STALE_PAYLOAD', 'MISSING_EVIDENCE'].map((label) => (
+        {['REALTIME_RUNTIME_EVIDENCE', 'LIVE_MARKET_FEED', 'ACCOUNT_FEED', 'RUNTIME_MONITOR_PAYLOAD', 'V2_PROOF_ARTIFACT', 'ARCHIVE_ONLY_FIXTURE', 'STALE_PAYLOAD', 'MISSING_EVIDENCE'].map((label) => (
           <span key={label} className={`truth-source-chip truth-source-chip--${truthTone(label)}`}>{label}</span>
         ))}
       </div>
@@ -209,12 +209,12 @@ export function RuntimeTruthMatrix({ payload }: { payload: OperatorTruthPayload 
     ['Autonomous governor', payload.supervisor_status.autonomous_governor_active ? 'ACTIVE' : 'NOT_OBSERVED', 'process list + status payload'],
     ['Market ingestors', payload.runtime_monitor_status.market_ingestor_status ?? 'MISSING_EVIDENCE', `${payload.runtime_monitor_status.market_ingestor_processes?.length ?? 0} process rows`],
     ['Feature pipeline', payload.runtime_monitor_status.feature_pipeline_status ?? 'MISSING_EVIDENCE', `${payload.runtime_monitor_status.feature_pipeline_processes?.length ?? 0} process rows`],
-    ['Trainer process', payload.runtime_monitor_status.trainer_status, 'read-only process scan / V2 paper wrapper'],
+    ['Trainer process', payload.runtime_monitor_status.trainer_status, 'runtime process scan / V2 execution wrapper'],
     ['Trainer prediction stream', payload.trainer_monitor_status.status, 'trainer monitor payload'],
     ['Signal explainability', payload.signal_lineage_status.status, 'signal lineage payload'],
-    ['V2 paper online', paperOnline?.status ?? 'MISSING_EVIDENCE', paperOnline?.path ?? 'operator_runtime/paper_online/latest'],
+    ['V2 execution runtime', paperOnline?.status ?? 'MISSING_EVIDENCE', paperOnline?.path ?? 'operator_runtime/execution/latest'],
     ['Legacy observer twin', payload.runtime_monitor_status.live_observer_runtime_status?.status ?? nestedText(payload.live_observer_shadow_twin, ['status'], 'MISSING_EVIDENCE'), 'operator_runtime/live_observer/latest'],
-    ['Redis memory pressure', redis?.status ?? 'MISSING_EVIDENCE', redis?.path ?? 'Redis read-only state / payload audit'],
+    ['Redis memory pressure', redis?.status ?? 'MISSING_EVIDENCE', redis?.path ?? 'Redis runtime state / payload audit'],
     ['Static fixture count', String(payload.dashboard_freshness_status.static_fixture_count), 'public payload audit'],
     ['Stale payload count', String(payload.dashboard_freshness_status.stale_payload_count), 'public payload audit'],
     ['Live gate', payload.live_gate_status, 'safety policy'],
@@ -298,16 +298,16 @@ export function PaperOnlineRuntimeStatusPanel({ payload }: { payload: PaperOnlin
   const latestPaperEvent = payload?.last_paper_event as Record<string, unknown> | undefined;
   return (
     <Panel
-      id="v2-paper-online-runtime"
-      title="V2 Paper Online Runtime"
+      id="v2-execution-runtime"
+      title="V2 Execution Runtime"
       right={<span className={payload ? 'chip solid-ok' : 'chip solid-warn'}>{payload ? 'REALTIME_RUNTIME_EVIDENCE' : 'MISSING_EVIDENCE'}</span>}
     >
       <div className="cockpit-analytics-grid">
         <Metric label="Runtime state" value={state} />
         <Metric label="Loop available" value={String(payload?.continuous_loop_available ?? false)} />
         <Metric label="Last tick" value={payload?.paper_loop?.last_tick_at ?? 'MISSING_EVIDENCE'} />
-        <Metric label="Paper events" value={payload?.paper_loop?.paper_event_count ?? 'MISSING_EVIDENCE'} />
-        <Metric label="Paper action" value={payload?.last_paper_event?.paper_action ?? 'MISSING_EVIDENCE'} />
+        <Metric label="Execution events" value={payload?.paper_loop?.paper_event_count ?? 'MISSING_EVIDENCE'} />
+        <Metric label="Execution action" value={payload?.last_paper_event?.paper_action ?? 'MISSING_EVIDENCE'} />
         <Metric label="Risk result" value={payload?.last_paper_event?.risk_gateway_result ?? 'MISSING_EVIDENCE'} />
         <Metric label="Observed price" value={market?.price ?? 'MISSING_EVIDENCE'} />
         <Metric label="Market source" value={market?.source_type ?? 'MISSING_EVIDENCE'} />
@@ -324,12 +324,12 @@ export function PaperOnlineRuntimeStatusPanel({ payload }: { payload: PaperOnlin
         <div><span>signal_id</span><strong>{valueText(lineageIds?.signal_id ?? signal?.signal_id ?? 'MISSING_EVIDENCE')}</strong></div>
         <div><span>risk_decision_id</span><strong>{valueText(lineageIds?.risk_decision_id ?? riskDecision?.risk_decision_id ?? 'MISSING_EVIDENCE')}</strong></div>
         <div><span>execution_intent_id</span><strong>{valueText(lineageIds?.execution_intent_id ?? executionIntent?.execution_intent_id ?? 'MISSING_EVIDENCE')}</strong></div>
-        <div><span>paper ledger event</span><strong>{valueText(latestPaperEvent?.paper_ledger_entry_id ?? latestPaperEvent?.paper_event_id ?? 'MISSING_EVIDENCE')}</strong></div>
+        <div><span>execution ledger event</span><strong>{valueText(latestPaperEvent?.paper_ledger_entry_id ?? latestPaperEvent?.paper_event_id ?? 'MISSING_EVIDENCE')}</strong></div>
       </div>
       <p className="cockpit-evidence-note">
         {payload
-          ? 'Continuous V2 paper runtime is online and fail-closed. It writes local V2 runtime payloads only; every paper event remains non-live and exchange orders stay blocked.'
-          : 'Evidence missing — cannot explain without guessing. Start the non-live paper runtime with npm run build:paper-online or npm run run:paper-online.'}
+          ? 'Continuous V2 execution runtime is online and operator-gated. It writes local V2 runtime payloads only; exchange orders stay gated.'
+          : 'Evidence missing - cannot explain without guessing. Start the operator-gated execution runtime service.'}
       </p>
       {payload?.blockers?.length ? (
         <div className="missing-evidence-board">
@@ -419,7 +419,7 @@ function RuntimeProcessGroup({ label, status, rows, note }: { label: string; sta
       </div>
       <p>{note}</p>
       <details className="truth-details">
-        <summary>{rows.length} read-only observed process row{rows.length === 1 ? '' : 's'}</summary>
+        <summary>{rows.length} runtime observed process row{rows.length === 1 ? '' : 's'}</summary>
         <div className="truth-raw-list">
           {rows.length ? rows.map((line) => (
             <code key={`${label}-${line}`}>{line}</code>
@@ -450,7 +450,7 @@ export function ActualRuntimeNowPanel({ payload }: { payload: OperatorTruthPaylo
       label: 'Feature pipeline',
       status: runtime.feature_pipeline_status ?? 'MISSING_EVIDENCE',
       rows: runtime.feature_pipeline_processes ?? [],
-      note: 'Feature pipeline process evidence is read-only observation; feature freshness still requires payload evidence.',
+      note: 'Feature pipeline process evidence is runtime observation; feature freshness still requires payload evidence.',
     },
     {
       label: 'Orchestrator',
@@ -472,7 +472,7 @@ export function ActualRuntimeNowPanel({ payload }: { payload: OperatorTruthPaylo
         ? 'Trainer runtime evidence is missing. Fixture predictions are separated from current trainer state.'
         : payload.trainer_monitor_status.status === 'V2_PAPER_TRAINER_WRAPPER_CURRENT'
         ? 'Current V2 runtime trainer wrapper evidence is present; legacy trainer process parity is still a separate readiness blocker.'
-          : 'Trainer process evidence is present in the read-only process snapshot.',
+          : 'Trainer process evidence is present in the runtime process snapshot.',
     },
   ];
   return (
@@ -601,7 +601,7 @@ export function TrainerPredictionTruthPanel({ payload }: { payload: OperatorTrut
             <div><span>parity</span><strong>{nestedText(restartRuntime, ['parity', 'status'])}</strong></div>
           </div>
           <p className="cockpit-evidence-gap">
-            Legacy restart evidence is shown separately from V2 paper wrapper evidence. Full parity is not claimed unless the parity status explicitly says so.
+            Legacy restart evidence is shown separately from V2 runtime wrapper evidence. Full parity is not claimed unless the parity status explicitly says so.
           </p>
         </>
       ) : null}
@@ -653,7 +653,7 @@ export function SignalLineageTruthPanel({ payload }: { payload: OperatorTruthPay
 export function WhatIsWorkingPanel({ payload }: { payload: OperatorTruthPayload }): JSX.Element {
   const rows = [
     ['control-plane truth bridge', controlPlaneValue(payload)],
-    ['read-only market feed', payload.proof_artifact_statuses.find((row) => row.label.includes('readonly market'))?.status ?? 'MISSING_EVIDENCE'],
+    ['live market feed', payload.proof_artifact_statuses.find((row) => row.label.includes('readonly market'))?.status ?? 'MISSING_EVIDENCE'],
     ['trainer predictions', payload.trainer_monitor_status.status],
     ['signal lineage', payload.signal_lineage_status.status],
     ['risk gateway', payload.source_files.some((path) => path.includes('risk_gateway')) ? 'V2_PROOF_ARTIFACT' : 'MISSING_EVIDENCE'],

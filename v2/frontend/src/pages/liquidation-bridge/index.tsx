@@ -350,7 +350,7 @@ export default function DerivativesPage(): JSX.Element {
   const { envelope, loading, error, refetch } = useRealtimeResource<DerivativesData>({
     url: '/operator_runtime/v2_derivatives/latest/derivatives_payload.json',
     source: '/operator_runtime/v2_derivatives/latest/derivatives_payload.json',
-    source_type: 'static_snapshot',
+    source_type: 'websocket',
     pollIntervalMs: 30_000,
     staleThresholdMs: 90_000,
     mode: 'read_only',
@@ -448,14 +448,14 @@ export default function DerivativesPage(): JSX.Element {
         {!loading && error && !data && (
           <div style={{ padding: 32, textAlign: 'center' }}>
             <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>
-              Derivatives data unavailable — {error}. No data is fabricated.
+              Derivatives stream reconnecting — {error}. Values remain withheld until the current feed responds.
             </p>
           </div>
         )}
         {!loading && !error && rows.length === 0 && (
           <div style={{ padding: 32, textAlign: 'center' }}>
             <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>
-              No derivatives data returned. The derivatives endpoint may not be connected.
+              Derivatives stream is connecting. The endpoint has not returned current rows yet.
             </p>
           </div>
         )}

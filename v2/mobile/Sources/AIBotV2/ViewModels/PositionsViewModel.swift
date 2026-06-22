@@ -73,6 +73,7 @@ public final class PositionsViewModel {
                 token: token,
                 baseURL: baseURL
             )
+            WatchSyncCenter.shared.updatePositions(response)
         } catch {
             self.error = error.localizedDescription
         }
@@ -83,6 +84,7 @@ public final class PositionsViewModel {
         do {
             response = try decodeMobileResourceMessage(MobilePositionsResponse.self, from: message)
             streamLabel = "Live"
+            WatchSyncCenter.shared.updatePositions(response)
             isLoading = false
             error = nil
         } catch {

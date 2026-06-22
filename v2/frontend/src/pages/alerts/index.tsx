@@ -105,22 +105,22 @@ export default function AlertsPage(): JSX.Element {
       data-page-id={meta.id}
       data-page-path={route.path}
       data-page-min-role={rbac.minRole}
-      style={{ background: 'var(--bg-base)', paddingBottom: 64 }}
+      style={{ background: 'var(--bg-base)', paddingBottom: 64, maxWidth: '100%', overflowX: 'hidden' }}
     >
       {/* Header */}
       <div style={{ padding: '20px 24px 16px', background: 'var(--bg-panel)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-          <div>
+          <div style={{ minWidth: 0 }}>
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>Alerts</h1>
             <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
               Price · Funding · OI · Liquidation · Signal · Risk · Notification delivery: {deliveryStatus.replaceAll('_', ' ')}
             </p>
           </div>
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', minWidth: 0 }}>
             <span style={{ padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600, background: createEnabled ? 'var(--buy-bg)' : 'var(--bg-elevated)', color: createEnabled ? 'var(--buy)' : 'var(--text-muted)', border: `1px solid ${createEnabled ? 'var(--buy-border)' : 'var(--border)'}` }}>
               {createEnabled ? 'Alerts available' : 'Alert actions unavailable'}
             </span>
-            <span style={{ padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600, background: 'var(--buy-bg)', color: 'var(--buy)', border: '1px solid var(--buy-border)' }}>Live platform</span>
+            <span style={{ padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600, background: 'var(--buy-bg)', color: 'var(--buy)', border: '1px solid var(--buy-border)' }}>Realtime stream</span>
           </div>
         </div>
       </div>
@@ -135,20 +135,20 @@ export default function AlertsPage(): JSX.Element {
             { label: 'Create Enabled', value: createEnabled ? 'Yes' : 'No', color: createEnabled ? 'var(--buy)' : 'var(--sell)' },
             { label: 'Delivery', value: deliveryStatus.replaceAll('_', ' ') },
           ].map((item) => (
-            <div key={item.label} style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
+            <div key={item.label} style={{ minWidth: 0, background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
               <span style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{item.label}</span>
-              <span style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-mono)', color: item.color ?? 'var(--text-primary)' }}>{item.value}</span>
+              <span style={{ display: 'block', minWidth: 0, fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-mono)', color: item.color ?? 'var(--text-primary)', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{item.value}</span>
             </div>
           ))}
         </div>
       </div>
 
-      <div style={{ padding: '0 24px', display: 'grid', gridTemplateColumns: 'minmax(280px, 380px) 1fr', gap: 24, alignItems: 'start' }}>
+      <div style={{ padding: '0 24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 24, alignItems: 'start', maxWidth: '100%', boxSizing: 'border-box' }}>
         {/* Create alert form */}
-        <div>
+        <div style={{ minWidth: 0 }}>
           <h2 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Create Alert</h2>
           {!createEnabled ? (
-            <div style={{ padding: '20px', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', textAlign: 'center' }}>
+            <div style={{ minWidth: 0, padding: '20px', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', textAlign: 'center' }}>
               <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>
                 Alert creation unavailable. The alert API is not connected or requires a scoped trader account.
               </p>
@@ -195,12 +195,12 @@ export default function AlertsPage(): JSX.Element {
         </div>
 
         {/* Saved alerts */}
-        <div>
+        <div style={{ minWidth: 0 }}>
           <h2 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
             Saved Alerts ({savedAlerts.length})
           </h2>
           {savedAlerts.length === 0 ? (
-            <div style={{ padding: '28px', textAlign: 'center', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+            <div style={{ minWidth: 0, padding: '28px', textAlign: 'center', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
               <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>
                 No alerts saved yet. {createEnabled ? 'Use the form to create one.' : 'Alert creation unavailable.'}
               </p>

@@ -171,8 +171,8 @@ function statusText(value: string | null | undefined, fallback = 'loading'): str
     .replaceAll('LIVE BLOCKED', 'archived packet blocked')
     .replaceAll('live_symbols=[]', 'no live symbols')
     .replaceAll('execution_live_symbols=[]', 'no execution symbols')
-    .replaceAll('MISSING_EVIDENCE', 'Data source unavailable')
-    .replaceAll('MISSING_SOURCE', 'Data source unavailable');
+    .replaceAll('MISSING_EVIDENCE', 'Connecting stream')
+    .replaceAll('MISSING_SOURCE', 'Connecting stream');
   if (text === 'CURRENT') return 'Current';
   if (/^[A-Z0-9_:-]+$/.test(text) || text.includes('_')) {
     return text.replace(/[_-]+/g, ' ').toLowerCase().replace(/^./u, (char) => char.toUpperCase());
@@ -195,7 +195,7 @@ function marketChartPath(symbol: string, timeframe: string): string {
 
 function money(value: unknown): string {
   const n = finite(value);
-  if (n === null) return 'Data unavailable';
+  if (n === null) return 'Connecting stream';
   if (Math.abs(n) >= 1000) return `$${n.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
   if (Math.abs(n) >= 1) return `$${n.toLocaleString('en-US', { maximumFractionDigits: 4 })}`;
   return `$${n.toLocaleString('en-US', { maximumFractionDigits: 8 })}`;
@@ -203,7 +203,7 @@ function money(value: unknown): string {
 
 function compactNumber(value: unknown): string {
   const n = finite(value);
-  if (n === null) return 'Data unavailable';
+  if (n === null) return 'Connecting stream';
   return n.toLocaleString('en-US', { maximumFractionDigits: 6 });
 }
 
@@ -370,19 +370,19 @@ export function V2ProfessionalMarketChart({
   const candleSourceType = typedCandlesEnvelope?.source_type ?? chartPayload?.source_type ?? 'unavailable';
   const chartStatusLabel = chartCurrent
     ? (useTypedCandles ? 'Current candle source' : 'Fallback chart data current')
-    : 'Chart data unavailable';
+    : 'Chart stream connecting';
   const chartSourceLabel = candleSourceType === 'static_payload'
     ? 'Fallback candle data'
     : candleSourceType === 'api' || candleSourceType === 'repository'
       ? 'Current candle source'
-      : 'Data source unavailable';
-  const selectedSignalLabel = statusText(chartPayload?.signal?.selected_action, 'Data source unavailable');
+      : 'Connecting stream';
+  const selectedSignalLabel = statusText(chartPayload?.signal?.selected_action, 'Connecting stream');
   const emptyReason = chartError
-    ? 'Chart data could not be loaded from the current market source.'
+      ? 'Chart stream is connecting to the current market source.'
     : typedCandlesError
-      ? 'Candle source could not be loaded.'
+      ? 'Candle source is connecting.'
     : !chartCurrent
-      ? typedCandlesEnvelope?.warnings?.[0] ? 'Current candle source is unavailable.' : chartPayload?.blocker ? statusText(chartPayload.blocker, 'Chart data is unavailable') : `${resolvedSymbol} ${resolvedTimeframe} chart data is unavailable`
+      ? typedCandlesEnvelope?.warnings?.[0] ? 'Current candle source is connecting.' : chartPayload?.blocker ? statusText(chartPayload.blocker, 'Chart stream connecting') : `${resolvedSymbol} ${resolvedTimeframe} chart stream connecting`
       : candles.length === 0
         ? 'Chart data is current but contains no valid positive candles'
         : null;
@@ -530,14 +530,14 @@ export function V2ProfessionalMarketChart({
     ['Market source', chartSourceLabel],
     ['Manifest status', manifestError ? 'Manifest unavailable' : evidenceText(manifest?.status, 'Manifest pending')],
     ['Chart fallback status', chartError ? 'Fallback chart unavailable' : evidenceText(chartPayload?.status, 'Fallback chart pending')],
-    ['Typed candle source', evidenceText(typedCandlesEnvelope?.source_type, 'Candle source unavailable')],
-    ['Typed candle endpoint', typedCandlesEnvelope?.endpoint ? 'Typed market candle API' : 'Candle API unavailable'],
+    ['Typed candle source', evidenceText(typedCandlesEnvelope?.source_type, 'Candle source connecting')],
+    ['Typed candle endpoint', typedCandlesEnvelope?.endpoint ? 'Typed market candle API' : 'Candle API connecting'],
     ['Typed candle warnings', typedCandlesEnvelope?.warnings?.length ? `${typedCandlesEnvelope.warnings.length.toLocaleString('en-US')} warnings` : 'No active warnings'],
     ['Source freshness', fmtAge(effectiveAge)],
     ['Observed candles', candles.length.toLocaleString('en-US')],
     ['Overlay coverage', `SMA20 ${sma20.length.toLocaleString('en-US')} · EMA20 ${ema20.length.toLocaleString('en-US')} · EMA50 ${ema50.length.toLocaleString('en-US')} · target ${targetLine.length.toLocaleString('en-US')}`],
-    ['Indicator evidence', chartPayload?.ta ? 'Indicator metadata available' : 'Indicator metadata unavailable'],
-    ['Signal evidence', chartPayload?.signal ? 'Signal metadata available' : 'Signal metadata unavailable'],
+    ['Indicator evidence', chartPayload?.ta ? 'Indicator metadata available' : 'Indicator metadata pending'],
+    ['Signal evidence', chartPayload?.signal ? 'Signal metadata available' : 'Signal metadata pending'],
     ['Trading posture', 'Live market chart'],
   ] as const;
 
@@ -594,7 +594,7 @@ export function V2ProfessionalMarketChart({
           />
           {emptyReason ? (
             <div className="v2-professional-market-chart__empty" role="status">
-              Chart data unavailable: {emptyReason}
+              Chart stream connecting: {emptyReason}
             </div>
           ) : null}
         </div>

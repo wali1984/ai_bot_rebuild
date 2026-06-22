@@ -346,7 +346,7 @@ export function RuntimeAlphaDynamicReadinessPanel({ compact = false }: { compact
   return (
     <section className="cockpit-panel panel bracketed" data-testid="runtime-alpha-dynamic-readiness-panel">
       <div className="panel-head">
-        <h2 className="panel-title">{compact ? 'Local Trainer Proof' : 'NERVYX CORE: Local Trainer And Paper Lifecycle'}</h2>
+        <h2 className="panel-title">{compact ? 'Local Trainer Proof' : 'NERVYX CORE: Local Trainer And Execution Lifecycle'}</h2>
         <div className="panel-actions">
           <span className={`chip solid-${gateTone(dashboard?.gate ?? dashboard?.status)}`}>{readable(dashboard?.status ?? dashboard?.gate)}</span>
           <span className={`chip solid-${ageClass(dashboardAge, 300)}`}>{fmtAge(dashboardAge)}</span>
@@ -459,7 +459,7 @@ export function RuntimeAlphaDynamicReadinessPanel({ compact = false }: { compact
                 </small>
               </div>
               <div className={`source-health-grid__${gateTone(soak?.paper_pnl_reconciliation_status)}`}>
-                <span>Paper outcomes and feedback</span>
+                <span>Execution outcomes and feedback</span>
                 <strong>
                   closed {count(soak?.closed_positions_count)} · labels {count(soak?.outcome_label_count)} · feedback {count(soak?.trainer_feedback_row_count)}
                 </strong>

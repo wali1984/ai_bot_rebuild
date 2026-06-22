@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
-import { getV2MarketCandles, getV2MarketDepth, getV2MarketDerivatives, getV2MarketIndicators, getV2MarketTrades, safeV2MarketSymbol } from '../api/v2Market';
-import { getV2Signals } from '../api/v2Signals';
+import { useMemo } from 'react';
+import { safeV2MarketSymbol } from '../api/v2Market';
 import { unavailableV2Response } from '../api/v2Shared';
 import { useMarketDataStream } from './useMarketDataStream';
+import { useRealtimeResource } from './useRealtimeResource';
 import { useTraderContext } from './useTraderContext';
 import type {
   ApiV2Envelope,
@@ -14,6 +14,7 @@ import type {
   RecentTradesData,
   SignalData,
 } from '../types/apiV2';
+import type { ValidatedDataEnvelope } from '../types/dataContract';
 import { useSymbolData } from './useSymbolData';
 
 export interface MarketDetailState {
@@ -175,10 +176,45 @@ function currentReadOnlyEnvelope<T>(
   expectedSymbol?: string | null,
   expectedTimeframe?: string | null,
 ): ApiV2Envelope<T> | null {
-  if (!envelope || envelope.stale !== false || (envelope.source_type !== 'api' && envelope.source_type !== 'repository')) return null;
+  if (
+    !envelope
+    || envelope.stale !== false
+    || !(
+      envelope.source_type === 'websocket'
+      || envelope.source_type === 'api'
+      || envelope.source_type === 'repository'
+      || envelope.source_type === 'redis_live'
+    )
+  ) return null;
   if (expectedSymbol && envelopeSymbol(envelope) !== expectedSymbol.toUpperCase()) return null;
   if (expectedTimeframe && envelopeTimeframe(envelope) !== expectedTimeframe) return null;
   return envelope;
+}
+
+function resourceEnvelopeToApi<T>(
+  envelope: ValidatedDataEnvelope<T>,
+  endpoint: string,
+): ApiV2Envelope<T> | null {
+  if (envelope.data === null || envelope.data === undefined) return null;
+  const receivedAt = envelope.received_at ?? Date.now();
+  const timestamp = envelope.timestamp ?? receivedAt;
+  return {
+    data: envelope.data,
+    source: envelope.source,
+    source_type: envelope.source_type as ApiV2Envelope<T>['source_type'],
+    endpoint: envelope.endpoint ?? endpoint,
+    timestamp: typeof timestamp === 'number' ? new Date(timestamp).toISOString() : null,
+    received_at: typeof receivedAt === 'number' ? new Date(receivedAt).toISOString() : new Date().toISOString(),
+    lag_ms: envelope.lag_ms,
+    stale: envelope.freshness_status === 'stale' || envelope.freshness_status === 'offline' || envelope.data_quality_status === 'invalid',
+    missing_fields: envelope.missing_fields,
+    warnings: envelope.warnings,
+    symbol: envelope.symbol ?? null,
+    exchange: envelope.exchange ?? null,
+    mode: envelope.mode as ApiV2Envelope<T>['mode'],
+    trader_context: (envelope as unknown as { trader_context?: ApiV2Envelope<T>['trader_context'] }).trader_context ?? null,
+    account_scope: (envelope as unknown as { account_scope?: ApiV2Envelope<T>['account_scope'] }).account_scope ?? null,
+  };
 }
 
 export function useMarketDetail(symbol: string): MarketDetailState {
@@ -188,61 +224,99 @@ export function useMarketDetail(symbol: string): MarketDetailState {
   const { detail: ticker, loading: tickerLoading } = useSymbolData(querySymbol);
   const traderContext = useTraderContext();
   const marketStream = useMarketDataStream(querySymbol);
-  const [candles, setCandles] = useState<ApiV2Envelope<MarketCandlesData>>(() => safeSymbol ? initialCandles(safeSymbol) : unavailableV2Response('/api/v2/market/{symbol}/candles', ['symbol', 'candles'], 'Enter a valid market symbol.'));
-  const [indicators, setIndicators] = useState<ApiV2Envelope<MarketIndicatorsData>>(() => safeSymbol ? initialIndicators(safeSymbol) : unavailableV2Response('/api/v2/market/{symbol}/indicators', ['symbol', 'ema20', 'ema50', 'bb_upper', 'bb_lower', 'ai_target'], 'Enter a valid market symbol.'));
-  const [depth, setDepth] = useState<ApiV2Envelope<MarketDepthData>>(() => safeSymbol ? initialDepth(safeSymbol) : unavailableV2Response('/api/v2/market/{symbol}/depth', ['symbol', 'bids', 'asks', 'spread'], 'Enter a valid market symbol.'));
-  const [trades, setTrades] = useState<ApiV2Envelope<RecentTradesData>>(() => safeSymbol ? initialTrades(safeSymbol) : unavailableV2Response('/api/v2/market/{symbol}/trades', ['symbol', 'trades', 'trade_stream'], 'Enter a valid market symbol.'));
-  const [derivatives, setDerivatives] = useState<ApiV2Envelope<MarketDerivativesData>>(() => safeSymbol ? initialDerivatives(safeSymbol) : unavailableV2Response('/api/v2/market/{symbol}/derivatives', ['symbol', 'funding_rate', 'open_interest', 'liquidations_1h', 'long_short_ratio', 'basis'], 'Enter a valid market symbol.'));
-  const [signals, setSignals] = useState<ApiV2Envelope<SignalData>>(() => initialSignals());
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!safeSymbol) {
-      setCandles(unavailableV2Response('/api/v2/market/{symbol}/candles', ['symbol', 'candles'], 'Enter a valid market symbol.'));
-      setIndicators(unavailableV2Response('/api/v2/market/{symbol}/indicators', ['symbol', 'ema20', 'ema50', 'bb_upper', 'bb_lower', 'ai_target'], 'Enter a valid market symbol.'));
-      setDepth(unavailableV2Response('/api/v2/market/{symbol}/depth', ['symbol', 'bids', 'asks', 'spread'], 'Enter a valid market symbol.'));
-      setTrades(unavailableV2Response('/api/v2/market/{symbol}/trades', ['symbol', 'trades', 'trade_stream'], 'Enter a valid market symbol.'));
-      setDerivatives(unavailableV2Response('/api/v2/market/{symbol}/derivatives', ['symbol', 'funding_rate', 'open_interest', 'liquidations_1h', 'long_short_ratio', 'basis'], 'Enter a valid market symbol.'));
-      setSignals(unavailableV2Response('/api/v2/signals?symbol={symbol}', ['symbol', 'active_signal'], 'Enter a valid market symbol.', { mode: 'paper' }));
-      setLoading(false);
-      return undefined;
-    }
-    const requestSymbol = safeSymbol;
-    let active = true;
-    setLoading(true);
-
-    async function load(): Promise<void> {
-      const [nextCandles, nextIndicators, nextDepth, nextTrades, nextDerivatives, nextSignals] = await Promise.all([
-        getV2MarketCandles(requestSymbol),
-        getV2MarketIndicators(requestSymbol),
-        getV2MarketDepth(requestSymbol),
-        getV2MarketTrades(requestSymbol),
-        getV2MarketDerivatives(requestSymbol),
-        getV2Signals(requestSymbol),
-      ]);
-      if (!active) return;
-      setCandles(nextCandles);
-      setIndicators(nextIndicators);
-      setDepth(nextDepth);
-      setTrades(nextTrades);
-      setDerivatives(nextDerivatives);
-      setSignals(signalForTraderAndSymbol(
-        nextSignals,
-        requestSymbol,
-        traderContext.traderId,
-        traderContext.paperAccountId,
-        Boolean(traderContext.user),
-      ));
-      setLoading(false);
-    }
-
-    void load();
-    const interval = window.setInterval(load, 4_000);
-    return () => {
-      active = false;
-      window.clearInterval(interval);
-    };
-  }, [safeSymbol, traderContext.paperAccountId, traderContext.traderId, traderContext.user]);
+  const candlesPath = safeSymbol ? `/api/v2/market/${safeSymbol}/candles?timeframe=1m` : '/api/v2/market/{symbol}/candles?timeframe=1m';
+  const indicatorsPath = safeSymbol ? `/api/v2/market/${safeSymbol}/indicators?timeframe=1m` : '/api/v2/market/{symbol}/indicators?timeframe=1m';
+  const depthPath = safeSymbol ? `/api/v2/market/${safeSymbol}/depth` : '/api/v2/market/{symbol}/depth';
+  const tradesPath = safeSymbol ? `/api/v2/market/${safeSymbol}/trades` : '/api/v2/market/{symbol}/trades';
+  const derivativesPath = safeSymbol ? `/api/v2/market/${safeSymbol}/derivatives` : '/api/v2/market/{symbol}/derivatives';
+  const signalsPath = safeSymbol ? `/api/v2/signals?symbol=${encodeURIComponent(safeSymbol)}` : '/api/v2/signals?symbol={symbol}';
+  const resourcesEnabled = Boolean(safeSymbol);
+  const candlesResource = useRealtimeResource<MarketCandlesData>({
+    url: candlesPath,
+    source: candlesPath,
+    source_type: 'websocket',
+    pollIntervalMs: 4_000,
+    staleThresholdMs: 16_000,
+    enabled: resourcesEnabled,
+    mode: 'read_only',
+  });
+  const indicatorsResource = useRealtimeResource<MarketIndicatorsData>({
+    url: indicatorsPath,
+    source: indicatorsPath,
+    source_type: 'websocket',
+    pollIntervalMs: 4_000,
+    staleThresholdMs: 30_000,
+    enabled: resourcesEnabled,
+    mode: 'read_only',
+  });
+  const depthResource = useRealtimeResource<MarketDepthData>({
+    url: depthPath,
+    source: depthPath,
+    source_type: 'websocket',
+    pollIntervalMs: 3_000,
+    staleThresholdMs: 12_000,
+    enabled: resourcesEnabled,
+    mode: 'read_only',
+  });
+  const tradesResource = useRealtimeResource<RecentTradesData>({
+    url: tradesPath,
+    source: tradesPath,
+    source_type: 'websocket',
+    pollIntervalMs: 3_000,
+    staleThresholdMs: 12_000,
+    enabled: resourcesEnabled,
+    mode: 'read_only',
+  });
+  const derivativesResource = useRealtimeResource<MarketDerivativesData>({
+    url: derivativesPath,
+    source: derivativesPath,
+    source_type: 'websocket',
+    pollIntervalMs: 8_000,
+    staleThresholdMs: 30_000,
+    enabled: resourcesEnabled,
+    mode: 'read_only',
+  });
+  const signalsResource = useRealtimeResource<SignalData>({
+    url: signalsPath,
+    source: signalsPath,
+    source_type: 'websocket',
+    pollIntervalMs: 8_000,
+    staleThresholdMs: 24_000,
+    enabled: resourcesEnabled,
+    mode: 'paper',
+  });
+  const candles = useMemo<ApiV2Envelope<MarketCandlesData>>(
+    () => (safeSymbol ? resourceEnvelopeToApi(candlesResource.envelope, candlesPath) ?? initialCandles(safeSymbol) : unavailableV2Response<MarketCandlesData>('/api/v2/market/{symbol}/candles', ['symbol', 'candles'], 'Enter a valid market symbol.')),
+    [candlesPath, candlesResource.envelope, safeSymbol],
+  );
+  const indicators = useMemo<ApiV2Envelope<MarketIndicatorsData>>(
+    () => (safeSymbol ? resourceEnvelopeToApi(indicatorsResource.envelope, indicatorsPath) ?? initialIndicators(safeSymbol) : unavailableV2Response<MarketIndicatorsData>('/api/v2/market/{symbol}/indicators', ['symbol', 'ema20', 'ema50', 'bb_upper', 'bb_lower', 'ai_target'], 'Enter a valid market symbol.')),
+    [indicatorsPath, indicatorsResource.envelope, safeSymbol],
+  );
+  const depth = useMemo<ApiV2Envelope<MarketDepthData>>(
+    () => (safeSymbol ? resourceEnvelopeToApi(depthResource.envelope, depthPath) ?? initialDepth(safeSymbol) : unavailableV2Response<MarketDepthData>('/api/v2/market/{symbol}/depth', ['symbol', 'bids', 'asks', 'spread'], 'Enter a valid market symbol.')),
+    [depthPath, depthResource.envelope, safeSymbol],
+  );
+  const trades = useMemo<ApiV2Envelope<RecentTradesData>>(
+    () => (safeSymbol ? resourceEnvelopeToApi(tradesResource.envelope, tradesPath) ?? initialTrades(safeSymbol) : unavailableV2Response<RecentTradesData>('/api/v2/market/{symbol}/trades', ['symbol', 'trades', 'trade_stream'], 'Enter a valid market symbol.')),
+    [safeSymbol, tradesPath, tradesResource.envelope],
+  );
+  const derivatives = useMemo<ApiV2Envelope<MarketDerivativesData>>(
+    () => (safeSymbol ? resourceEnvelopeToApi(derivativesResource.envelope, derivativesPath) ?? initialDerivatives(safeSymbol) : unavailableV2Response<MarketDerivativesData>('/api/v2/market/{symbol}/derivatives', ['symbol', 'funding_rate', 'open_interest', 'liquidations_1h', 'long_short_ratio', 'basis'], 'Enter a valid market symbol.')),
+    [derivativesPath, derivativesResource.envelope, safeSymbol],
+  );
+  const signals = useMemo<ApiV2Envelope<SignalData>>(() => {
+    const envelope = safeSymbol
+      ? resourceEnvelopeToApi(signalsResource.envelope, signalsPath) ?? initialSignals()
+      : unavailableV2Response<SignalData>('/api/v2/signals?symbol={symbol}', ['symbol', 'active_signal'], 'Enter a valid market symbol.', { mode: 'paper' });
+    return signalForTraderAndSymbol(
+      envelope,
+      safeSymbol ?? querySymbol,
+      traderContext.traderId,
+      traderContext.paperAccountId,
+      Boolean(traderContext.user),
+    );
+  }, [querySymbol, safeSymbol, signalsPath, signalsResource.envelope, traderContext.paperAccountId, traderContext.traderId, traderContext.user]);
 
   const realtimeTicker = currentReadOnlyEnvelope(marketStream.ticker, querySymbol);
   const realtimeCandles = currentReadOnlyEnvelope(marketStream.candles, querySymbol, '1m');
@@ -258,7 +332,15 @@ export function useMarketDetail(symbol: string): MarketDetailState {
     trades: realtimeTrades ?? trades,
     derivatives,
     signals,
-    loading: loading || tickerLoading,
+    loading: Boolean(safeSymbol) && (
+      tickerLoading
+      || candlesResource.loading
+      || indicatorsResource.loading
+      || depthResource.loading
+      || tradesResource.loading
+      || derivativesResource.loading
+      || signalsResource.loading
+    ),
   };
 }
 

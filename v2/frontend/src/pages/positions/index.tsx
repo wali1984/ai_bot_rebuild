@@ -17,7 +17,7 @@ export { default as route } from './route';
 
 const SOURCE_URL_LABELS: Record<string, string> = {
   '/api/v2/portfolio': 'Trader account source',
-  'unavailable': 'Data source unavailable',
+  'unavailable': 'Connecting stream',
 };
 
 export function sourceText(input: string): string {
@@ -31,6 +31,19 @@ function KV({ label, value, color }: { label: string; value: string; color?: str
       <span style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-mono)', color: color ?? 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
     </div>
   );
+}
+
+function capitalStatusText(status: string | null | undefined): string {
+  const token = status?.trim();
+  if (!token) return '—';
+  const upper = token.toUpperCase();
+  if (upper.includes('INSUFFICIENT_CAPITAL_PRODUCTIVITY_EVIDENCE')) return 'Needs productivity evidence';
+  if (upper === 'PASSED' || upper === 'READY') return 'Ready';
+  if (upper.includes('NO_GO')) return 'Needs review';
+  return token
+    .toLowerCase()
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 export default function PortfolioPage(): JSX.Element {
@@ -77,12 +90,12 @@ export default function PortfolioPage(): JSX.Element {
           { label: '1D PnL', value: formatAdaptiveMoney(oneDay?.realized_pnl_usd), color: (oneDay?.realized_pnl_usd ?? 0) >= 0 ? 'var(--buy)' : 'var(--sell)' },
           { label: '1W PnL', value: formatAdaptiveMoney(sevenDay?.realized_pnl_usd), color: (sevenDay?.realized_pnl_usd ?? 0) >= 0 ? 'var(--buy)' : 'var(--sell)' },
           { label: '30D PnL', value: formatAdaptiveMoney(thirtyDay?.realized_pnl_usd), color: (thirtyDay?.realized_pnl_usd ?? 0) >= 0 ? 'var(--buy)' : 'var(--sell)' },
-          { label: 'Capital Productivity', value: capitalStatus?.status ?? '—', color: adaptiveStatusColor(capitalStatus?.status) },
+          { label: 'Capital Productivity', value: capitalStatusText(capitalStatus?.status), color: adaptiveStatusColor(capitalStatus?.status) },
           { label: 'Open Positions', value: String(openPositions.length) },
         ].map((item) => (
           <div key={item.label} style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '14px 16px' }}>
             <span style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{item.label}</span>
-            <span style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)', color: item.color }}>{item.value}</span>
+            <span style={{ display: 'block', fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)', color: item.color, overflowWrap: 'anywhere', lineHeight: 1.15 }}>{item.value}</span>
           </div>
         ))}
       </div>

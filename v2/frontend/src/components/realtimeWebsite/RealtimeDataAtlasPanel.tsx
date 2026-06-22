@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DatabaseZap } from 'lucide-react';
 import { PAYLOAD_PATHS } from '../../data/realtimeUserWebsitePayloads';
 import { ageClass, fmtAge } from '../../hooks/usePayloadFile';
+import { useRealtimeResource } from '../../hooks/useRealtimeResource';
+import type { ValidatedDataEnvelope } from '../../types/dataContract';
 
 type AtlasMode = 'public' | 'system';
 
@@ -19,6 +21,8 @@ interface SurfaceStatus extends SurfaceSpec {
   detail: string;
   error: string | null;
 }
+
+type SurfaceStatusMap = Partial<Record<keyof typeof PAYLOAD_PATHS, SurfaceStatus>>;
 
 const PUBLIC_SURFACE_KEYS = new Set<keyof typeof PAYLOAD_PATHS>([
   'frontend_truth',
@@ -46,11 +50,11 @@ const PUBLIC_SURFACE_LABELS: Partial<Record<keyof typeof PAYLOAD_PATHS, { label:
 
 const SURFACE_SPECS: SurfaceSpec[] = (Object.keys(PAYLOAD_PATHS) as Array<keyof typeof PAYLOAD_PATHS>).map((key) => ({
   key,
-  label: key
+  label: publicSafeText(key
     .replace(/^war_room_/u, 'ops room ')
     .replace(/^alt_data_/u, 'alt data ')
     .replace(/_/g, ' ')
-    .replace(/\b\w/g, (letter) => letter.toUpperCase()),
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())),
   group: groupForKey(String(key)),
 }));
 
@@ -111,6 +115,9 @@ function asCount(value: unknown): number | null {
 
 function publicSafeText(value: string): string {
   return value
+    .replace(/\/operator_runtime\/[^\s)]+/gi, 'runtime data feed')
+    .replace(/\/v2_[^\s)]+/gi, 'runtime data feed')
+    .replace(/operator[_\s-]*runtime/gi, 'runtime')
     .replace(/cuda/gi, 'AI')
     .replace(/persistent trainer/gi, 'signal model')
     .replace(/native trainer/gi, 'signal model')
@@ -122,11 +129,12 @@ function publicSafeText(value: string): string {
     .replace(/blocked human only/gi, 'operator-gated guard')
     .replace(/\blive gate\b/gi, 'live trading guard')
     .replace(/\bworker health\b/gi, 'service health')
-    .replace(/\bsource pending\b/gi, 'data source unavailable')
+    .replace(/\bsource pending\b/gi, 'data source connecting')
     .replace(/\bjson\b/gi, 'data')
     .replace(/operator[_\s-]*dashboard/gi, 'dashboard')
     .replace(/\boperator\b/gi, 'approval')
-    .replace(/\bpayloads?\b/gi, 'feeds');
+    .replace(/\bpayloads?\b/gi, 'feeds')
+    .replace(/\bpaper\b/gi, 'runtime');
 }
 
 function payloadState(payload: Record<string, unknown>): string {
@@ -162,76 +170,132 @@ function payloadDetail(payload: Record<string, unknown>): string {
   return parts.length ? parts.join(' / ') : 'summary fields pending';
 }
 
-async function fetchSurface(spec: SurfaceSpec): Promise<SurfaceStatus> {
-  const path = PAYLOAD_PATHS[spec.key];
-  try {
-    const url = new URL(path, window.location.origin);
-    url.searchParams.set('_atlas', String(Date.now()));
-    const response = await fetch(url.toString(), { cache: 'no-store', headers: { Accept: 'application/json' } });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const payload = await response.json() as Record<string, unknown>;
-    return {
-      ...spec,
-      path,
-      available: true,
-      ageSeconds: payloadAgeSeconds(payload),
-      state: payloadState(payload),
-      detail: payloadDetail(payload),
-      error: null,
-    };
-  } catch (error) {
-    return {
-      ...spec,
-      path,
-      available: false,
-      ageSeconds: null,
-      state: 'source unavailable',
-      detail: 'data source could not be read',
-      error: error instanceof Error ? error.message : String(error),
-    };
-  }
-}
-
-function useRealtimeDataAtlas(mode: AtlasMode): SurfaceStatus[] {
-  const specs = useMemo(
-    () => mode === 'public' ? SURFACE_SPECS.filter((spec) => PUBLIC_SURFACE_KEYS.has(spec.key)).map(publicSurfaceSpec) : SURFACE_SPECS,
-    [mode],
-  );
-  const [rows, setRows] = useState<SurfaceStatus[]>(() => specs.map((spec) => ({
+function initialSurfaceStatus(spec: SurfaceSpec): SurfaceStatus {
+  return {
     ...spec,
     path: PAYLOAD_PATHS[spec.key],
     available: false,
     ageSeconds: null,
-    state: 'loading',
-    detail: 'checking data source',
+    state: 'stream connecting',
+    detail: 'opening realtime resource stream',
     error: null,
-  })));
+  };
+}
+
+function makeStatusMap(rows: SurfaceStatus[]): SurfaceStatusMap {
+  const map: SurfaceStatusMap = {};
+  rows.forEach((row) => {
+    map[row.key] = row;
+  });
+  return map;
+}
+
+function payloadRecord(value: unknown): Record<string, unknown> | null {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>;
+  if (Array.isArray(value)) return { rows: value.length };
+  return null;
+}
+
+function envelopeAgeSeconds(envelope: ValidatedDataEnvelope<Record<string, unknown>>): number | null {
+  const payload = payloadRecord(envelope.data);
+  const payloadAge = payload ? payloadAgeSeconds(payload) : null;
+  if (payloadAge !== null) return payloadAge;
+  return envelope.received_at ? Math.max(0, Math.round((Date.now() - envelope.received_at) / 1000)) : null;
+}
+
+function statusFromResource(
+  spec: SurfaceSpec,
+  envelope: ValidatedDataEnvelope<Record<string, unknown>>,
+  loading: boolean,
+  error: string | null,
+): SurfaceStatus {
+  const payload = payloadRecord(envelope.data);
+  const qualityUsable = envelope.data_quality_status === 'valid' || envelope.data_quality_status === 'partial';
+  const available = Boolean(payload) && qualityUsable;
+  const resourceError = error ?? envelope.errors[0] ?? envelope.warnings[0] ?? null;
+  return {
+    ...spec,
+    path: PAYLOAD_PATHS[spec.key],
+    available,
+    ageSeconds: available ? envelopeAgeSeconds(envelope) : null,
+    state: available && payload ? payloadState(payload) : loading ? 'stream connecting' : 'source connecting',
+    detail: available && payload ? payloadDetail(payload) : publicSafeText(resourceError ?? 'opening realtime resource stream'),
+    error: resourceError ? publicSafeText(resourceError) : null,
+  };
+}
+
+function SurfaceStatusCard({ row, mode }: { row: SurfaceStatus; mode: AtlasMode }): JSX.Element {
+  const tone = row.available ? ageClass(row.ageSeconds, 300) : 'block';
+  return (
+    <div className={tone === 'ok' ? 'source-health-grid__ok' : 'source-health-grid__warn'}>
+      <span>{row.group}</span>
+      <strong>{row.label}</strong>
+      <small>{row.state}</small>
+      <small>{row.available ? `${fmtAge(row.ageSeconds)} / ${row.detail}` : row.error ?? row.detail}</small>
+      {mode === 'system' ? <small><code>{row.path}</code></small> : null}
+    </div>
+  );
+}
+
+function RealtimeAtlasFeedCard({
+  spec,
+  mode,
+  onStatus,
+}: {
+  spec: SurfaceSpec;
+  mode: AtlasMode;
+  onStatus: (status: SurfaceStatus) => void;
+}): JSX.Element {
+  const path = PAYLOAD_PATHS[spec.key];
+  const { envelope, loading, error } = useRealtimeResource<Record<string, unknown>>({
+    url: path,
+    source: path,
+    source_type: 'websocket',
+    pollIntervalMs: mode === 'public' ? 5_000 : 10_000,
+    staleThresholdMs: mode === 'public' ? 20_000 : 30_000,
+    initialFetch: true,
+    httpFallback: true,
+    mode: 'read_only',
+  });
+  const status = useMemo(
+    () => statusFromResource(spec, envelope, loading, error),
+    [envelope, error, loading, spec],
+  );
 
   useEffect(() => {
-    let active = true;
-    const load = (): void => {
-      void Promise.all(specs.map(fetchSurface)).then((nextRows) => {
-        if (active) setRows(nextRows);
-      });
-    };
-    load();
-    const timer = window.setInterval(load, 30_000);
-    return () => {
-      active = false;
-      window.clearInterval(timer);
-    };
-  }, [specs]);
+    onStatus(status);
+  }, [onStatus, status]);
 
-  return rows;
+  return <SurfaceStatusCard row={status} mode={mode} />;
 }
 
 export function RealtimeDataAtlasPanel({ mode = 'public' }: { mode?: AtlasMode }): JSX.Element {
-  const rows = useRealtimeDataAtlas(mode);
+  const specs = useMemo(
+    () => mode === 'public' ? SURFACE_SPECS.filter((spec) => PUBLIC_SURFACE_KEYS.has(spec.key)).map(publicSurfaceSpec) : SURFACE_SPECS,
+    [mode],
+  );
+  const initialRows = useMemo(() => specs.map(initialSurfaceStatus), [specs]);
+  const [rowsByKey, setRowsByKey] = useState<SurfaceStatusMap>(() => makeStatusMap(initialRows));
+
+  useEffect(() => {
+    setRowsByKey((prev) => makeStatusMap(specs.map((spec) => prev[spec.key] ?? initialSurfaceStatus(spec))));
+  }, [specs]);
+
+  const handleStatus = useCallback((status: SurfaceStatus) => {
+    setRowsByKey((prev) => {
+      if (prev[status.key] === status) return prev;
+      return { ...prev, [status.key]: status };
+    });
+  }, []);
+
+  const rows = useMemo(
+    () => specs.map((spec) => rowsByKey[spec.key] ?? initialSurfaceStatus(spec)),
+    [rowsByKey, specs],
+  );
   const available = rows.filter((row) => row.available).length;
   const current = rows.filter((row) => row.available && ageClass(row.ageSeconds, 300) === 'ok').length;
   const stale = rows.filter((row) => row.available && ageClass(row.ageSeconds, 300) !== 'ok').length;
   const missing = rows.length - available;
-  const visibleRows = mode === 'public' ? rows.slice(0, 10) : rows;
 
   return (
     <section className={`realtime-data-atlas ${mode === 'public' ? 'status-card' : 'cockpit-panel panel bracketed'}`} data-testid={`realtime-data-atlas-${mode}`}>
@@ -239,8 +303,8 @@ export function RealtimeDataAtlasPanel({ mode = 'public' }: { mode?: AtlasMode }
         <span>{mode === 'public' ? 'Realtime data health' : 'Full realtime data atlas'}</span>
         <h2>{available}/{rows.length} data feeds available</h2>
         <p>
-          {current} current, {stale} stale or age-unknown, {missing} unavailable.
-          {mode === 'public' ? ' Public view summarizes safe market, signal, and paper-mode data sources.' : ' System view lists every known frontend runtime data feed.'}
+          {current} current, {stale} stale or age-unknown, {missing} connecting.
+          {mode === 'public' ? ' Public view summarizes safe market, signal, and execution runtime data sources.' : ' System view lists every known frontend runtime data feed.'}
         </p>
       </div>
 
@@ -252,18 +316,9 @@ export function RealtimeDataAtlasPanel({ mode = 'public' }: { mode?: AtlasMode }
 
       <div className="trainer-prediction-scroll-window trainer-prediction-scroll-window--compact" role="region" aria-label="Scrollable realtime data atlas" style={{ marginTop: '1rem' }}>
         <div className="source-health-grid">
-          {visibleRows.map((row) => {
-            const tone = row.available ? ageClass(row.ageSeconds, 300) : 'block';
-            return (
-              <div key={row.key} className={tone === 'ok' ? 'source-health-grid__ok' : 'source-health-grid__warn'}>
-                <span>{row.group}</span>
-                <strong>{row.label}</strong>
-                <small>{row.state}</small>
-                <small>{row.available ? `${fmtAge(row.ageSeconds)} / ${row.detail}` : row.error ?? row.detail}</small>
-                {mode === 'system' ? <small><code>{row.path}</code></small> : null}
-              </div>
-            );
-          })}
+          {specs.map((spec) => (
+            <RealtimeAtlasFeedCard key={spec.key} spec={spec} mode={mode} onStatus={handleStatus} />
+          ))}
         </div>
       </div>
     </section>

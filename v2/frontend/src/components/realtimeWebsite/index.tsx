@@ -167,8 +167,8 @@ export function PayloadMissingCard({
       <span className="br-bl" aria-hidden="true" />
       <span className="br-br" aria-hidden="true" />
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 6 }}>
-        <BlockerChip text="Data source unavailable" tone="warn" />
-        {loading ? <BlockerChip text="loading" tone="info" /> : null}
+        <BlockerChip text="Connecting stream" tone="warn" />
+        {loading ? <BlockerChip text="connecting" tone="info" /> : null}
       </div>
       <p style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--fg-3)', margin: 0 }} title={path}>
         Data feed: {sourcePathLabel(path)}
@@ -219,8 +219,8 @@ export function SafetyInvariantStrip({
           </span>
         </div>
         <div className="cell">
-          <span className="k">Public controls</span>
-          <span className="v ok">read only</span>
+          <span className="k">Public surface</span>
+          <span className="v ok">live telemetry</span>
         </div>
         <div className="cell">
           <span className="k">Checkpoint compatibility</span>
@@ -307,7 +307,7 @@ export function Top10Table({
           {windowActual ? (
             <span className={windowMismatch ? 'chip solid-warn' : 'chip'}>actual: {windowActual}</span>
           ) : null}
-          <BlockerChip text={runtimeStatusLabel(sourceStatus ?? 'Data source unavailable')} tone={isOk ? 'ok' : 'warn'} />
+          <BlockerChip text={runtimeStatusLabel(sourceStatus ?? 'Connecting stream')} tone={isOk ? 'ok' : 'warn'} />
         </div>
       </div>
       {rows && rows.length > 0 ? (
@@ -328,10 +328,10 @@ export function Top10Table({
                 <tr key={`${r.rank}-${r.symbol}`}>
                   <td className="num">{r.rank}</td>
                   <td>{r.symbol}</td>
-                  <td className="num">{r.quote_volume ?? 'Data source unavailable'}</td>
-                  <td className="num">{r.trade_count ?? 'Data source unavailable'}</td>
-                  <td className="num">{r.price_change_percent ?? 'Data source unavailable'}</td>
-                  <td className="num">{r.last_price ?? 'Data source unavailable'}</td>
+                  <td className="num">{r.quote_volume ?? 'Connecting stream'}</td>
+                  <td className="num">{r.trade_count ?? 'Connecting stream'}</td>
+                  <td className="num">{r.price_change_percent ?? 'Connecting stream'}</td>
+                  <td className="num">{r.last_price ?? 'Connecting stream'}</td>
                 </tr>
               ))}
             </tbody>
@@ -339,7 +339,7 @@ export function Top10Table({
         </div>
       ) : (
         <p style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--fg-4)' }}>
-          rank_count: 0. Source: {runtimeStatusLabel(sourceStatus ?? 'Data source unavailable')}. No synthetic rows.
+          rank_count: 0. Source: {runtimeStatusLabel(sourceStatus ?? 'Connecting stream')}. No synthetic rows.
         </p>
       )}
     </div>
@@ -597,9 +597,9 @@ export function CandidatePublisherPanel({
   const ADOPTION_LABELS: { text: string; tone: 'info' | 'ok' | 'warn' }[] = [
     { text: 'Candidate only — not adopted', tone: 'info' },
     { text: 'Does not change training_symbols', tone: 'info' },
-    { text: 'Does not change paper_symbols', tone: 'info' },
+    { text: 'Does not change execution universe', tone: 'info' },
     { text: 'Does not change live_symbols', tone: 'info' },
-    { text: 'Cannot override strict paper-fill gate', tone: 'info' },
+    { text: 'Cannot override strict execution-fill gate', tone: 'info' },
     { text: 'Live trading remains blocked', tone: 'warn' },
   ];
 
@@ -653,7 +653,7 @@ export function CandidatePublisherPanel({
             tone={candidateOnlyNotAdopted ? 'ok' : 'bad'}
           />
           <MetricCard label="Live universe changed" value={booleanStatus(liveSymbolsExpanded, 'changed', 'unchanged')} tone={liveSymbolsExpanded ? 'bad' : 'ok'} />
-          <MetricCard label="Paper universe changed" value={booleanStatus(paperSymbolsExpanded, 'changed', 'unchanged')} tone={paperSymbolsExpanded ? 'bad' : 'ok'} />
+          <MetricCard label="Execution universe changed" value={booleanStatus(paperSymbolsExpanded, 'changed', 'unchanged')} tone={paperSymbolsExpanded ? 'bad' : 'ok'} />
           <MetricCard label="Training universe changed" value={booleanStatus(trainingSymbolsExpanded, 'changed', 'unchanged')} tone={trainingSymbolsExpanded ? 'bad' : 'ok'} />
           <MetricCard label="Credentials in payload" value={rawCredentialInPayload === 'NEVER' ? 'none detected' : runtimeStatusLabel(rawCredentialInPayload)} tone={rawCredentialInPayload === 'NEVER' ? 'ok' : 'bad'} />
           <MetricCard
@@ -662,12 +662,12 @@ export function CandidatePublisherPanel({
             tone={dashboard?.writes_exchange_orders ? 'bad' : 'ok'}
           />
           <MetricCard
-            label="Paper-fill gate protected"
+            label="Execution-fill gate protected"
             value={booleanStatus(dashboard?.may_not_override_strict_paper_fill_gate ?? true, 'protected', 'not protected')}
             tone={dashboard?.may_not_override_strict_paper_fill_gate === false ? 'bad' : 'ok'}
           />
           <MetricCard label="Watchlist threshold" value={String(dashboard?.watchlist_threshold ?? '—')} />
-          <MetricCard label="Paper threshold" value={String(dashboard?.paper_threshold ?? '—')} />
+          <MetricCard label="Execution threshold" value={String(dashboard?.paper_threshold ?? '—')} />
           <MetricCard label="Training threshold" value={String(dashboard?.training_threshold ?? '—')} />
         </div>
       </section>
@@ -782,10 +782,10 @@ export function CandidatePublisherPanel({
 
       <p style={{ marginTop: 12, fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--fg-3)' }}>
         Source: <code>{dashboard?.publisher_payload_path ?? 'public/v2_alt_data_symbol_candidate_publisher/latest/operator_dashboard_payload.json'}</code>.
-        Adoption into <code>paper_symbols</code> / <code>training_symbols</code> requires the existing
+        Adoption into <code>execution_symbols</code> / <code>training_symbols</code> requires the existing
         Symbol Universe governance gate; this publisher emits proposals only.
         Allowed inputs: <code>{(dashboard?.allowed_inputs ?? []).join(', ') || 'n/a'}</code>.
-        Forbidden inputs: <code>{(dashboard?.forbidden_input_namespaces ?? ['v2:paper:*', 'v2:risk:*']).join(', ')}</code>.
+        Forbidden inputs: <code>{(dashboard?.forbidden_input_namespaces ?? ['v2:execution:*', 'v2:risk:*']).join(', ')}</code>.
         Allowed writes: <code>{(dashboard?.allowed_writes ?? []).join(', ') || 'n/a'}</code>.
       </p>
     </div>

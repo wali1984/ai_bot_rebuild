@@ -512,7 +512,7 @@ function tfLabel(row: PredictionRow | undefined, accuracy: SignalPredictionAccur
   if (!row) {
     return (
       <span className="realtime-tf-cell__empty">
-        <strong>Data source unavailable</strong>
+        <strong>Connecting stream</strong>
         <small style={{ color: accuracyOutcomeColor(accuracy) }}>{accuracyOutcomeLine(accuracy)}</small>
       </span>
     );
@@ -524,13 +524,13 @@ function tfLabel(row: PredictionRow | undefined, accuracy: SignalPredictionAccur
   const blocker = row.missing_stale_reason ?? row.implementation_task ?? row.status;
   return (
     <span className={`realtime-tf-cell realtime-tf-cell--${statusTone(row.status)}`}>
-      <strong>{isCurrent ? compactAction(row.selected_action) : present(row.status, 'Timeframe prediction source unavailable')}</strong>
+      <strong>{isCurrent ? compactAction(row.selected_action) : present(row.status, 'Timeframe prediction source connecting')}</strong>
       {isCurrent ? (
         <small>
           {distance} · {expectedMove} · {confidence}
         </small>
       ) : (
-        <small>{compact(blocker, 'Data source unavailable', 48)}</small>
+        <small>{compact(blocker, 'Connecting stream', 48)}</small>
       )}
       <small style={{ color: accuracyOutcomeColor(accuracy) }}>{accuracyOutcomeLine(accuracy)}</small>
     </span>
@@ -812,7 +812,7 @@ export function RealtimeSignalVisibilityPanel({
         <p className="cockpit-evidence-gap">
           {showDiagnostics
             ? `missing signal source (${error})`
-            : 'Signal feed is unavailable after checking the current signal contracts. Trader-facing evidence remains withheld until the source responds.'}
+            : 'Signal feed is reconnecting after checking the current signal contracts. Trader-facing evidence remains withheld until the source responds.'}
         </p>
       </Panel>
     );
@@ -1120,7 +1120,7 @@ export function RealtimeSignalVisibilityPanel({
       </Panel>
 
       {showDiagnostics ? (
-      <Panel id={`realtime-lineage-${safeId}`} title="Risk / Orchestrator / Paper Lineage">
+      <Panel id={`realtime-lineage-${safeId}`} title="Risk / Orchestrator / Execution Lineage">
         {lineageRows.length > 0 ? (
           <>
             <p className="cockpit-evidence-note" style={{ marginTop: 0 }}>
@@ -1193,15 +1193,15 @@ export function RealtimeSignalVisibilityPanel({
       <Panel id={`realtime-deployment-${safeId}`} title="Deployment Truth" right={chip(data?.website_deployment_truth?.status ?? 'unpublished')}>
         <div className="cockpit-analytics-grid">
           <Metric label="Production" value={data?.website_deployment_truth?.production_base_url ?? 'missing endpoint'} />
-          <Metric label="Local bundle" value={compact(data?.website_deployment_truth?.local_dev_server_bundle_hash, 'Data source unavailable', 20)} />
-          <Metric label="Public source hash" value={compact(data?.website_deployment_truth?.public_payload_hash, 'Data source unavailable', 20)} />
+          <Metric label="Local bundle" value={compact(data?.website_deployment_truth?.local_dev_server_bundle_hash, 'Connecting stream', 20)} />
+          <Metric label="Public source hash" value={compact(data?.website_deployment_truth?.public_payload_hash, 'Connecting stream', 20)} />
           <Metric label="Claim scope" value={data?.website_deployment_truth?.claim_scope ?? 'local-only until production route updated'} />
         </div>
         <div className="realtime-deploy-grid">
           {deploymentRows.map((row) => (
             <div key={row.route} className="cockpit-evidence-gap">
               <strong>{row.route}</strong>
-              <p>{row.error ? `Deployment stale or unverified: ${row.error}` : `HTTP ${row.http_status ?? 'pending'} / ${compact(row.content_hash, 'Data source unavailable', 18)}`}</p>
+              <p>{row.error ? `Deployment stale or unverified: ${row.error}` : `HTTP ${row.http_status ?? 'pending'} / ${compact(row.content_hash, 'Connecting stream', 18)}`}</p>
             </div>
           ))}
         </div>

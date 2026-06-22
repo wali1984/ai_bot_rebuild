@@ -219,7 +219,7 @@ export default function OrchestratorAdminPage(): JSX.Element {
               {hb && <Chip label={classOk ? 'LIVE' : 'DEGRADED'} tone={classOk ? 'ok' : 'warn'} />}
             </div>
             <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>
-              Proposes → Risk Gateway validates → Paper engine acts · Auto-refresh 5s · LIVE GATE: {hb?.live_gate ?? '—'}
+              Proposes → Risk Gateway validates → Execution engine acts · Auto-refresh 5s · LIVE GATE: {hb?.live_gate ?? '—'}
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

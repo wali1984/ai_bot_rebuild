@@ -196,10 +196,32 @@ function statusTone(s: string): { bg: string; color: string; label: string } {
 }
 
 function publicDashboardText(value: string | null | undefined): string {
-  return (value ?? '—')
+  const raw = (value ?? '—').trim();
+  const upper = raw.toUpperCase();
+  if (!raw || raw === '—') return '—';
+  if (upper.includes('INSUFFICIENT_CAPITAL_PRODUCTIVITY_EVIDENCE')) return 'Needs productivity evidence';
+  if (upper.includes('DYNAMIC_A_GRADE') && upper.includes('DEPLOYMENT_VALIDATED')) return 'A-grade runtime validated';
+  if (upper.includes('NO_DIRECTIONAL_ACTION_EVIDENCE')) return 'Needs directional evidence';
+  if (upper.includes('NO_EVALUATED_OUTCOMES') || upper.includes('MISSING_EVALUATED_OUTCOMES')) return 'Needs evaluated outcomes';
+  if (upper === 'NO_GO' || upper.startsWith('NO_GO_')) return 'Needs review';
+  const cleaned = raw
     .replace(/paper/gi, 'runtime')
-    .replace(/no data/gi, 'Awaiting feed')
-    .replace(/blocked[_\s-]*human[_\s-]*only/gi, 'operator gated');
+    .replace(/no data/gi, 'Connecting stream')
+    .replace(/blocked[_\s-]*human[_\s-]*only/gi, 'operator gated')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (/^[A-Z0-9]{1,4}$/.test(cleaned)) return cleaned;
+  if (raw.includes('_')) {
+    return cleaned
+      .toLowerCase()
+      .replace(/\b[a-z0-9]/g, (char) => char.toUpperCase())
+      .replace(/\bApi\b/g, 'API')
+      .replace(/\bAi\b/g, 'AI')
+      .replace(/\bPnl\b/g, 'PnL')
+      .replace(/\bUsd\b/g, 'USD');
+  }
+  return cleaned;
 }
 
 // ─── WebSocket resource hook ─────────────────────────────────────────────────
@@ -290,7 +312,7 @@ function KPITile({ label, value, sub, valueColor, to }: {
       {sub && <span className="nervyx-dashboard-kpi__sub">{sub}</span>}
     </div>
   );
-  return to ? <Link to={to} style={{ textDecoration: 'none' }}>{inner}</Link> : inner;
+  return to ? <Link to={to} style={{ display: 'block', minWidth: 0, textDecoration: 'none' }}>{inner}</Link> : inner;
 }
 
 function ConfBar({ pct, color = 'var(--accent,#3b82f6)' }: { pct: number; color?: string }): JSX.Element {
@@ -398,7 +420,7 @@ function ActiveSignalPanel({ signal }: { signal: ActiveSignal | null }): JSX.Ele
       <Panel style={{ padding: 16, minHeight: 180 }}>
         <PanelHead title="Active Signal" to="/signals" />
         <div style={{ padding: '16px 0 0', fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-          Awaiting signal from Redis…
+          Connecting signal stream…
         </div>
       </Panel>
     );
@@ -443,7 +465,7 @@ function ActiveSignalPanel({ signal }: { signal: ActiveSignal | null }): JSX.Ele
           ].map(([k, v]) => (
             <div key={k} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 3 }}>
               <span style={{ color: 'var(--text-muted)' }}>{k}</span>
-              <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{v}</span>
+              <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{publicDashboardText(String(v))}</span>
             </div>
           ))}
         </div>
@@ -476,7 +498,7 @@ function OrchestratorPanel({ proposals, heartbeat }: {
       />
       <div style={{ padding: '10px 16px 14px' }}>
         {proposals.length === 0 ? (
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 0' }}>Awaiting proposals…</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 0' }}>No current proposals</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {proposals.slice(0, 6).map((p, i) => {
@@ -595,25 +617,25 @@ function PaperFillsPanel({ fills, summary }: { fills: PaperFill[]; summary: Pape
         </div>
       )}
       {/* Table */}
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, fontFamily: 'var(--font-mono)' }}>
+      <div style={{ overflowX: 'hidden', maxWidth: '100%' }}>
+        <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: 11, fontFamily: 'var(--font-mono)' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)' }}>
               {['Time', 'Symbol', 'Side', 'Price', 'Notional', 'Conf', 'Regime'].map(h => (
-                <th key={h} style={{ padding: '6px 16px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>{h}</th>
+                <th key={h} style={{ padding: '6px 6px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {fills.slice(0, 20).map((f, i) => (
               <tr key={f.execution_id ?? i} style={{ borderBottom: '1px solid var(--border)', opacity: 0.9 }}>
-                <td style={{ padding: '5px 16px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fTime(f.filled_at)}</td>
-                <td style={{ padding: '5px 16px', fontWeight: 700, color: 'var(--text-primary)' }}>{f.symbol}</td>
-                <td style={{ padding: '5px 16px', fontWeight: 700, color: sideColor(f.side) }}>{f.side}</td>
-                <td style={{ padding: '5px 16px', color: 'var(--text-primary)' }}>{f.fill_price != null ? f.fill_price.toLocaleString('en-US', { maximumFractionDigits: 6 }) : '—'}</td>
-                <td style={{ padding: '5px 16px', color: 'var(--text-secondary)' }}>{f$(f.notional_usd)}</td>
-                <td style={{ padding: '5px 16px', color: f.confidence != null && f.confidence >= 0.66 ? 'var(--buy,#10b981)' : '#f59e0b' }}>{fPct(f.confidence)}</td>
-                <td style={{ padding: '5px 16px', color: 'var(--text-muted)', fontSize: 10 }}>{f.market_regime ?? '—'}</td>
+                <td style={{ padding: '5px 6px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{fTime(f.filled_at)}</td>
+                <td style={{ padding: '5px 6px', fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.symbol}</td>
+                <td style={{ padding: '5px 6px', fontWeight: 700, color: sideColor(f.side), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.side}</td>
+                <td style={{ padding: '5px 6px', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.fill_price != null ? f.fill_price.toLocaleString('en-US', { maximumFractionDigits: 6 }) : '—'}</td>
+                <td style={{ padding: '5px 6px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f$(f.notional_usd)}</td>
+                <td style={{ padding: '5px 6px', color: f.confidence != null && f.confidence >= 0.66 ? 'var(--buy,#10b981)' : '#f59e0b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fPct(f.confidence)}</td>
+                <td style={{ padding: '5px 6px', color: 'var(--text-muted)', fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.market_regime ?? '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -781,13 +803,13 @@ function CapitalProductivityPanel({ capital }: { capital: CapitalProductivityRun
     <Panel>
       <PanelHead
         title="Capital Productivity"
-        badge={capital?.status ?? 'Awaiting feed'}
+        badge={capital?.status ?? 'CONNECTING'}
         badgeTone={capital?.status === 'PASSED' ? 'ok' : 'block'}
       />
       <div style={{ padding: '10px 16px 14px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginBottom: 10 }}>
           {[
-            ['Class', capital?.capital_utilization_classification ?? '—', adaptiveStatusColor(capital?.status)],
+            ['Class', publicDashboardText(capital?.capital_utilization_classification), adaptiveStatusColor(capital?.status)],
             ['Allocated', formatAdaptiveMoney(capital?.allocated_margin_usd), 'var(--text-primary)'],
             ['Open Notional', formatAdaptiveMoney(capital?.gross_open_notional_usd), 'var(--text-primary)'],
             ['Utilization', formatAdaptivePercent(capital?.capital_utilization_pct), 'var(--text-primary)'],
@@ -798,7 +820,7 @@ function CapitalProductivityPanel({ capital }: { capital: CapitalProductivityRun
           ].map(([label, value, color]) => (
             <div key={label} style={{ minWidth: 0 }}>
               <span style={{ display: 'block', fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{label}</span>
-              <span style={{ display: 'block', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-mono)', color, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
+              <span style={{ display: 'block', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-mono)', color, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{value}</span>
             </div>
           ))}
         </div>
@@ -819,7 +841,7 @@ function AccuracySummaryPanel({ accuracy }: { accuracy: SignalPredictionAccuracy
       <PanelHead
         title="Signal Accuracy"
         to="/signals"
-        badge={accuracy?.status ?? 'Awaiting feed'}
+        badge={accuracy?.status ?? 'CONNECTING'}
         badgeTone={accuracy?.status === 'READY' ? 'ok' : 'warn'}
       />
       <div style={{ padding: '10px 16px 14px', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
@@ -1013,7 +1035,7 @@ export default function DashboardPage(): JSX.Element {
         <KPITile label="Total Fills" value={paperActivity.loading && fillCount == null ? '…' : fillCount == null ? '—' : String(fillCount)} sub="Streamed execution fills" to="/executions" />
         <KPITile label="Avg Confidence" value={fPct(avgConf)} sub="Across all fills" />
         <KPITile label="Signals Seen" value={signalsSeen != null ? String(signalsSeen) : '—'} sub="By orchestrator" />
-        <KPITile label="Capital Status" value={capitalStatus?.status ?? '—'} sub={capitalStatus?.capital_utilization_classification ?? 'Adaptive sizing'} valueColor={adaptiveStatusColor(capitalStatus?.status)} />
+        <KPITile label="Capital Status" value={publicDashboardText(capitalStatus?.status)} sub={publicDashboardText(capitalStatus?.capital_utilization_classification ?? 'Adaptive sizing')} valueColor={adaptiveStatusColor(capitalStatus?.status)} />
         <KPITile label="1D PnL" value={formatAdaptiveMoney(oneDayPnl?.realized_pnl_usd)} sub={`${oneDayPnl?.closed_trade_count ?? 0} closes`} valueColor={pnlColor(oneDayPnl?.realized_pnl_usd)} to="/portfolio" />
         <KPITile label="1W PnL" value={formatAdaptiveMoney(sevenDayPnl?.realized_pnl_usd)} sub={`${sevenDayPnl?.closed_trade_count ?? 0} closes`} valueColor={pnlColor(sevenDayPnl?.realized_pnl_usd)} to="/portfolio" />
         <KPITile label="30D PnL" value={formatAdaptiveMoney(thirtyDayPnl?.realized_pnl_usd)} sub={`${thirtyDayPnl?.closed_trade_count ?? 0} closes`} valueColor={pnlColor(thirtyDayPnl?.realized_pnl_usd)} to="/portfolio" />

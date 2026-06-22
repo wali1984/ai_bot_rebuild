@@ -209,10 +209,41 @@ function countText(value: number | null | undefined): string {
 }
 
 function publicTelemetryText(value: string | null | undefined): string {
-  return (value ?? '—')
-    .replace(/paper/gi, 'RUNTIME')
-    .replace(/no[_\s-]*data/gi, 'Awaiting feed')
-    .replace(/blocked[_\s-]*human[_\s-]*only/gi, 'operator_gated');
+  const raw = (value ?? '—').trim();
+  const upper = raw.toUpperCase();
+  if (!raw || raw === '—') return '—';
+  if (upper.includes('INSUFFICIENT_CAPITAL_PRODUCTIVITY_EVIDENCE')) return 'Needs productivity evidence';
+  if (upper.includes('DYNAMIC_A_GRADE') && upper.includes('DEPLOYMENT_VALIDATED')) return 'A-grade runtime validated';
+  if (upper.includes('NO_DIRECTIONAL_ACTION_EVIDENCE')) return 'Needs directional evidence';
+  if (upper.includes('NO_EVALUATED_OUTCOMES') || upper.includes('MISSING_EVALUATED_OUTCOMES')) return 'Needs evaluated outcomes';
+  if (upper === 'NO_GO' || upper.startsWith('NO_GO_')) return 'Needs review';
+  const cleaned = raw
+    .replace(/\bpaper\s*only\.?\s*/gi, '')
+    .replace(/\blive orders? and exchange mutation remain disabled\.?/gi, 'operator-gated execution controls')
+    .replace(/\blive orders? remain disabled\.?/gi, 'operator-gated execution controls')
+    .replace(/\bexchange mutation\b/gi, 'execution control')
+    .replace(/\bpaper[_\s-]*signal\b/gi, 'runtime signal')
+    .replace(/\bpaper\b/gi, 'runtime')
+    .replace(/no[_\s-]*data/gi, 'CONNECTING')
+    .replace(/blocked[_\s-]*human[_\s-]*only/gi, 'operator gated')
+    .replace(/\bno[_\s-]*directional[_\s-]*action[_\s-]*evidence\b/gi, 'Needs directional evidence')
+    .replace(/\bno[_\s-]*evaluated[_\s-]*outcomes\b/gi, 'Needs evaluated outcomes')
+    .replace(/\bmissing[_\s-]*evaluated[_\s-]*outcomes\b/gi, 'Needs evaluated outcomes')
+    .replace(/\bevaluated\b/gi, 'Evaluated')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (/^[A-Z0-9]{1,4}$/.test(cleaned)) return cleaned;
+  if (raw.includes('_')) {
+    return cleaned
+      .toLowerCase()
+      .replace(/\b[a-z0-9]/g, (char) => char.toUpperCase())
+      .replace(/\bApi\b/g, 'API')
+      .replace(/\bAi\b/g, 'AI')
+      .replace(/\bPnl\b/g, 'PnL')
+      .replace(/\bUsd\b/g, 'USD');
+  }
+  return cleaned;
 }
 
 function compactReasons(value: Record<string, number> | null | undefined): string {
@@ -247,11 +278,245 @@ function HeaderMetric({ label, value, color }: { label: string; value: string; c
         color: color ?? 'var(--text-primary)',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
+        whiteSpace: 'normal',
+        overflowWrap: 'anywhere',
+        wordBreak: 'break-word',
       }}>
         {publicTelemetryText(value)}
       </span>
     </div>
+  );
+}
+
+function accuracyPercent(value: number | null | undefined): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  const pct = Math.abs(value) <= 1 ? value * 100 : value;
+  return Math.max(0, Math.min(100, pct));
+}
+
+function accuracyVisualColor(value: number | null | undefined, status?: string): string {
+  const normalizedStatus = String(status ?? '').toUpperCase();
+  if (normalizedStatus.includes('MISSING') || normalizedStatus.includes('NO_GO')) return 'var(--sell,#ef4444)';
+  const pct = accuracyPercent(value);
+  if (pct == null) return 'var(--text-muted)';
+  if (pct >= 55) return 'var(--buy,#10b981)';
+  if (pct >= 45) return '#f59e0b';
+  return 'var(--sell,#ef4444)';
+}
+
+function accuracyTrack(value: number | null | undefined, status?: string): JSX.Element {
+  const pct = accuracyPercent(value);
+  const width = pct == null ? 0 : pct;
+  const color = accuracyVisualColor(value, status);
+  return (
+    <div style={{
+      height: 5,
+      width: '100%',
+      overflow: 'hidden',
+      borderRadius: 999,
+      background: 'color-mix(in oklch, var(--bg-base,#020617) 82%, var(--border,#1f2937) 18%)',
+    }}>
+      <div style={{
+        width: `${width}%`,
+        height: '100%',
+        borderRadius: 999,
+        background: color,
+        transition: 'width 180ms ease',
+      }} />
+    </div>
+  );
+}
+
+function TelemetrySection({ title, meta, children }: { title: string; meta?: string; children: JSX.Element }): JSX.Element {
+  return (
+    <div style={{ padding: '0 0 12px' }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 10,
+        marginBottom: 8,
+      }}>
+        <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0, fontWeight: 800 }}>
+          {title}
+        </span>
+        {meta && (
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+            {meta}
+          </span>
+        )}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function TimeframeAccuracyCards({ rows, compact }: {
+  rows: SignalPredictionTimeframeSummary[];
+  compact: boolean;
+}): JSX.Element {
+  return (
+    <TelemetrySection title="Timeframe Accuracy" meta={`${countText(rows.length)} timeframes`}>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: compact ? 'repeat(auto-fit, minmax(118px, 1fr))' : 'repeat(auto-fit, minmax(150px, 1fr))',
+        gap: compact ? 8 : 10,
+      }}>
+        {rows.map((row) => (
+          <div key={row.timeframe} style={{
+            minWidth: 0,
+            padding: compact ? 10 : 12,
+            borderRadius: 8,
+            border: '1px solid var(--border,#1f2937)',
+            background: 'linear-gradient(180deg, color-mix(in oklch, var(--bg-elevated,#0f172a) 92%, transparent), var(--bg-panel,#111827))',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+              <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', fontSize: compact ? 13 : 15 }}>{row.timeframe}</strong>
+              <span style={{ color: accuracyVisualColor(row.accuracy, row.status), fontFamily: 'var(--font-mono)', fontSize: compact ? 12 : 14, fontWeight: 800 }}>
+                {formatAdaptivePercent(row.accuracy)}
+              </span>
+            </div>
+            <div style={{ marginTop: 8 }}>{accuracyTrack(row.accuracy, row.status)}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, marginTop: 10 }}>
+              <HeaderMetric label="Cells" value={`${countText(row.evaluated_symbol_timeframe_cell_count)}/${countText(row.symbol_timeframe_cell_count)}`} />
+              <HeaderMetric label="Evaluated" value={countText(row.evaluated_count)} />
+              <HeaderMetric label="Signals" value={countText(row.signal_count)} />
+              <HeaderMetric label="PnL" value={formatAdaptiveMoney(row.realized_pnl_usd)} color={pnlColor(row.realized_pnl_usd)} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </TelemetrySection>
+  );
+}
+
+function SymbolAccuracyCards({ rows, compact, maxHeight }: {
+  rows: SignalPredictionSymbolSummary[];
+  compact: boolean;
+  maxHeight: number;
+}): JSX.Element {
+  return (
+    <TelemetrySection title="Symbol Accuracy" meta={`${countText(rows.length)} symbols`}>
+      <div style={{
+        maxHeight,
+        overflow: 'auto',
+        display: 'grid',
+        gridTemplateColumns: compact ? 'repeat(auto-fit, minmax(142px, 1fr))' : 'repeat(auto-fit, minmax(190px, 1fr))',
+        gap: compact ? 8 : 10,
+        paddingRight: 2,
+      }}>
+        {rows.map((row) => (
+          <div key={row.symbol} style={{
+            minWidth: 0,
+            padding: compact ? 9 : 11,
+            borderRadius: 8,
+            border: '1px solid var(--border,#1f2937)',
+            background: 'var(--bg-elevated,#0f172a)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+              <strong title={row.symbol} style={{ minWidth: 0, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', fontSize: compact ? 12 : 13, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {row.symbol}
+              </strong>
+              <span style={{ flex: '0 0 auto', color: accuracyVisualColor(row.accuracy, row.status), fontFamily: 'var(--font-mono)', fontSize: compact ? 11 : 12, fontWeight: 800 }}>
+                {formatAdaptivePercent(row.accuracy)}
+              </span>
+            </div>
+            <div style={{ marginTop: 7 }}>{accuracyTrack(row.accuracy, row.status)}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6, marginTop: 9 }}>
+              <HeaderMetric label="Eval" value={countText(row.evaluated_count)} />
+              <HeaderMetric label="Cells" value={`${countText(row.evaluated_symbol_timeframe_cell_count)}/${countText(row.symbol_timeframe_cell_count)}`} />
+              <HeaderMetric label="PnL" value={formatAdaptiveMoney(row.realized_pnl_usd)} color={pnlColor(row.realized_pnl_usd)} />
+            </div>
+            <div style={{ marginTop: 7, color: 'var(--text-muted)', fontSize: 10, overflowWrap: 'anywhere' }}>
+              {publicTelemetryText(row.status)}
+            </div>
+          </div>
+        ))}
+      </div>
+    </TelemetrySection>
+  );
+}
+
+function heatBackground(value: number | null | undefined, status?: string): string {
+  const color = accuracyVisualColor(value, status);
+  const pct = accuracyPercent(value);
+  const mix = pct == null ? 10 : Math.max(14, Math.min(46, pct * 0.55));
+  return `color-mix(in oklch, ${color} ${mix}%, var(--bg-elevated,#0f172a))`;
+}
+
+function AccuracyHeatmap({ rows, compact, maxHeight }: {
+  rows: SignalPredictionAccuracyCell[];
+  compact: boolean;
+  maxHeight: number;
+}): JSX.Element {
+  const timeframes = [
+    ...TIMEFRAME_ORDER.filter((timeframe) => rows.some((row) => row.timeframe === timeframe)),
+    ...Array.from(new Set(rows.map((row) => row.timeframe).filter(Boolean))).filter((timeframe) => !TIMEFRAME_ORDER.includes(timeframe)),
+  ];
+  const symbols = Array.from(new Set(rows.map((row) => row.symbol).filter(Boolean)));
+  const byKey = new Map(rows.map((row) => [`${row.symbol}:${row.timeframe}`, row]));
+  const gridTemplateColumns = compact
+    ? `minmax(58px, 1.2fr) repeat(${timeframes.length}, minmax(38px, 1fr))`
+    : `minmax(92px, 1.15fr) repeat(${timeframes.length}, minmax(62px, 1fr))`;
+
+  return (
+    <TelemetrySection title="Symbol / Timeframe Heatmap" meta={`${countText(rows.length)} cells`}>
+      <div style={{
+        maxHeight,
+        overflow: 'auto',
+        maxWidth: '100%',
+        border: '1px solid var(--border,#1f2937)',
+        borderRadius: 8,
+        background: 'var(--bg-base,#020617)',
+      }}>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns,
+          gap: 1,
+          minWidth: timeframes.length > 7 ? (compact ? 360 : 560) : '100%',
+          fontSize: compact ? 10 : 11,
+        }}>
+          <span style={{ position: 'sticky', top: 0, zIndex: 1, padding: compact ? '7px 6px' : '8px 9px', color: 'var(--text-muted)', background: 'var(--bg-base,#020617)', textTransform: 'uppercase', fontWeight: 800 }}>
+            Symbol
+          </span>
+          {timeframes.map((timeframe) => (
+            <span key={timeframe} style={{ position: 'sticky', top: 0, zIndex: 1, padding: compact ? '7px 4px' : '8px 7px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--bg-base,#020617)', fontFamily: 'var(--font-mono)', fontWeight: 800 }}>
+              {timeframe}
+            </span>
+          ))}
+          {symbols.map((symbol) => (
+            <div key={symbol} style={{ display: 'contents' }}>
+              <strong title={symbol} style={{ minWidth: 0, padding: compact ? '7px 6px' : '8px 9px', color: 'var(--text-primary)', background: 'var(--bg-elevated,#0f172a)', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {symbol}
+              </strong>
+              {timeframes.map((timeframe) => {
+                const row = byKey.get(`${symbol}:${timeframe}`);
+                return (
+                  <span
+                    key={`${symbol}-${timeframe}`}
+                    title={row ? `${symbol} ${timeframe} · ${formatAdaptivePercent(row.accuracy)} · ${countText(row.evaluated_count)} evaluated · ${formatAdaptiveMoney(row.realized_pnl_usd)} · ${publicTelemetryText(row.status)}` : `${symbol} ${timeframe} · connecting`}
+                    style={{
+                      minWidth: 0,
+                      padding: compact ? '7px 3px' : '8px 6px',
+                      textAlign: 'center',
+                      color: row ? 'var(--text-primary)' : 'var(--text-muted)',
+                      background: row ? heatBackground(row.accuracy, row.status) : 'var(--bg-elevated,#0f172a)',
+                      fontFamily: 'var(--font-mono)',
+                      fontWeight: 800,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {row ? formatAdaptivePercent(row.accuracy) : '—'}
+                  </span>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    </TelemetrySection>
   );
 }
 
@@ -300,7 +565,6 @@ export function AdaptiveCapitalTelemetryPanel({
   const positiveEdgeDiagnostics = capital?.positive_edge_non_a_grade_diagnostics;
   const matrixHeight = maxMatrixHeight ?? (compact ? 180 : 280);
   const symbolHeight = compact ? 160 : 220;
-
   return (
     <section
       data-testid="adaptive-capital-telemetry-panel"
@@ -334,7 +598,7 @@ export function AdaptiveCapitalTelemetryPanel({
               color: adaptiveStatusColor(capital?.status ?? view.overallStatus),
               border: '1px solid var(--border,#1f2937)',
             }}>
-              {publicTelemetryText(capital?.status ?? view.overallStatus ?? (payload ? 'Awaiting feed' : 'CONNECTING'))}
+              {publicTelemetryText(capital?.status ?? view.overallStatus ?? (payload ? 'CONNECTING' : 'CONNECTING'))}
             </span>
           </div>
           <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--text-muted)' }}>
@@ -433,7 +697,7 @@ export function AdaptiveCapitalTelemetryPanel({
             Evidence To GO
           </span>
           <span style={{ fontSize: 10, color: adaptiveStatusColor(readiness?.status ?? readiness?.overall_status), fontFamily: 'var(--font-mono)' }}>
-            {publicTelemetryText(readiness?.status ?? readiness?.overall_status ?? (payload ? 'Awaiting feed' : 'CONNECTING'))}
+            {publicTelemetryText(readiness?.status ?? readiness?.overall_status ?? (payload ? 'CONNECTING' : 'CONNECTING'))}
           </span>
         </div>
         <div style={{
@@ -553,7 +817,7 @@ export function AdaptiveCapitalTelemetryPanel({
             Prediction Readiness Probe
           </span>
           <span style={{ fontSize: 10, color: adaptiveStatusColor(predictionProbe?.status), fontFamily: 'var(--font-mono)' }}>
-            {predictionProbe ? (predictionProbe.probe_participates_in_counterfactual_pass_gate ? 'GATING' : 'NON-GATING') : (payload ? 'Awaiting feed' : 'CONNECTING')}
+            {predictionProbe ? (predictionProbe.probe_participates_in_counterfactual_pass_gate ? 'GATING' : 'NON-GATING') : 'CONNECTING'}
           </span>
         </div>
         <div style={{
@@ -609,7 +873,7 @@ export function AdaptiveCapitalTelemetryPanel({
         }}>
           <HeaderMetric
             label="Selection Gate"
-            value={selectionAttribution?.status ?? (payload ? 'Awaiting feed' : 'CONNECTING')}
+            value={selectionAttribution?.status ?? 'CONNECTING'}
             color={adaptiveStatusColor(selectionAttribution?.status)}
           />
           <HeaderMetric
@@ -665,90 +929,19 @@ export function AdaptiveCapitalTelemetryPanel({
 
       {view.timeframeRows.length > 0 && (
         <div style={{ padding: compact ? '0 12px 12px' : '0 16px 16px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '70px repeat(4, minmax(70px, 1fr))', gap: 1, fontSize: 11, overflowX: 'auto' }}>
-            {['TF', 'Accuracy', 'Evaluated', 'Cells', 'PnL'].map((label) => (
-              <span key={label} style={{ padding: '6px 7px', color: 'var(--text-muted)', background: 'var(--bg-base,#020617)', textTransform: 'uppercase', fontSize: 9, letterSpacing: '0.06em' }}>
-                {label}
-              </span>
-            ))}
-            {view.timeframeRows.map((row) => (
-              <div key={row.timeframe} style={{ display: 'contents' }}>
-                <strong style={{ padding: '6px 7px', color: 'var(--text-primary)', background: 'var(--bg-elevated,#0f172a)', fontFamily: 'var(--font-mono)' }}>{row.timeframe}</strong>
-                <span style={{ padding: '6px 7px', color: adaptiveStatusColor(row.status), background: 'var(--bg-elevated,#0f172a)', fontFamily: 'var(--font-mono)' }}>{formatAdaptivePercent(row.accuracy)}</span>
-                <span style={{ padding: '6px 7px', color: 'var(--text-primary)', background: 'var(--bg-elevated,#0f172a)', fontFamily: 'var(--font-mono)' }}>{countText(row.evaluated_count)}</span>
-                <span style={{ padding: '6px 7px', color: 'var(--text-primary)', background: 'var(--bg-elevated,#0f172a)', fontFamily: 'var(--font-mono)' }}>{countText(row.evaluated_symbol_timeframe_cell_count)}/{countText(row.symbol_timeframe_cell_count)}</span>
-                <span style={{ padding: '6px 7px', color: pnlColor(row.realized_pnl_usd), background: 'var(--bg-elevated,#0f172a)', fontFamily: 'var(--font-mono)' }}>{formatAdaptiveMoney(row.realized_pnl_usd)}</span>
-              </div>
-            ))}
-          </div>
+          <TimeframeAccuracyCards rows={view.timeframeRows} compact={compact} />
         </div>
       )}
 
       {showMatrix && view.symbolRows.length > 0 && (
         <div style={{ padding: compact ? '0 12px 12px' : '0 16px 16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginBottom: 6 }}>
-            <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              Symbol Accuracy
-            </span>
-            <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-              {countText(view.symbolRows.length)} symbols
-            </span>
-          </div>
-          <div style={{ maxHeight: symbolHeight, overflow: 'auto', border: '1px solid var(--border,#1f2937)', borderRadius: 6 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '120px repeat(7, minmax(72px, 1fr))', gap: 1, minWidth: 760, fontSize: 11 }}>
-              {['Symbol', 'Accuracy', 'Eval', 'Cells', 'Signals', 'Pred', 'PnL', 'Status'].map((label) => (
-                <span key={label} style={{ position: 'sticky', top: 0, zIndex: 1, padding: '6px 7px', color: 'var(--text-muted)', background: 'var(--bg-base,#020617)', textTransform: 'uppercase', fontSize: 9, letterSpacing: '0.06em' }}>
-                  {label}
-                </span>
-              ))}
-              {view.symbolRows.map((row) => (
-                <div key={row.symbol} style={{ display: 'contents' }}>
-                  <strong style={{ padding: '5px 7px', color: 'var(--text-primary)', background: 'var(--bg-elevated,#0f172a)', fontFamily: 'var(--font-mono)' }}>{row.symbol}</strong>
-                  <span style={{ padding: '5px 7px', color: adaptiveStatusColor(row.status), background: 'var(--bg-elevated,#0f172a)', fontFamily: 'var(--font-mono)' }}>{formatAdaptivePercent(row.accuracy)}</span>
-                  <span style={{ padding: '5px 7px', color: 'var(--text-primary)', background: 'var(--bg-elevated,#0f172a)', fontFamily: 'var(--font-mono)' }}>{countText(row.evaluated_count)}</span>
-                  <span style={{ padding: '5px 7px', color: 'var(--text-primary)', background: 'var(--bg-elevated,#0f172a)', fontFamily: 'var(--font-mono)' }}>{countText(row.evaluated_symbol_timeframe_cell_count)}/{countText(row.symbol_timeframe_cell_count)}</span>
-                  <span style={{ padding: '5px 7px', color: 'var(--text-primary)', background: 'var(--bg-elevated,#0f172a)', fontFamily: 'var(--font-mono)' }}>{countText(row.signal_count)}</span>
-                  <span style={{ padding: '5px 7px', color: 'var(--text-primary)', background: 'var(--bg-elevated,#0f172a)', fontFamily: 'var(--font-mono)' }}>{countText(row.prediction_count)}</span>
-                  <span style={{ padding: '5px 7px', color: pnlColor(row.realized_pnl_usd), background: 'var(--bg-elevated,#0f172a)', fontFamily: 'var(--font-mono)' }}>{formatAdaptiveMoney(row.realized_pnl_usd)}</span>
-                  <span title={publicTelemetryText(row.status)} style={{ padding: '5px 7px', color: 'var(--text-muted)', background: 'var(--bg-elevated,#0f172a)', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{publicTelemetryText(row.status)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          <SymbolAccuracyCards rows={view.symbolRows} compact={compact} maxHeight={symbolHeight} />
         </div>
       )}
 
       {showMatrix && view.matrixRows.length > 0 && (
         <div style={{ padding: compact ? '0 12px 12px' : '0 16px 16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginBottom: 6 }}>
-            <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              All Symbol/TF Accuracy
-            </span>
-            <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-              {countText(view.matrixRows.length)} cells
-            </span>
-          </div>
-          <div style={{ maxHeight: matrixHeight, overflow: 'auto', border: '1px solid var(--border,#1f2937)', borderRadius: 6 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '110px 60px repeat(6, minmax(72px, 1fr))', gap: 1, minWidth: 790, fontSize: 11 }}>
-              {['Symbol', 'TF', 'Accuracy', 'Eval', 'Signals', 'Pred', 'PnL', 'Status'].map((label) => (
-                <span key={label} style={{ position: 'sticky', top: 0, zIndex: 1, padding: '6px 7px', color: 'var(--text-muted)', background: 'var(--bg-base,#020617)', textTransform: 'uppercase', fontSize: 9, letterSpacing: '0.06em' }}>
-                  {label}
-                </span>
-              ))}
-              {view.matrixRows.map((row) => (
-                <div key={`${row.symbol}-${row.timeframe}`} style={{ display: 'contents' }}>
-                  <strong style={{ padding: '5px 7px', color: 'var(--text-primary)', background: 'var(--bg-elevated,#0f172a)', fontFamily: 'var(--font-mono)' }}>{row.symbol}</strong>
-                  <span style={{ padding: '5px 7px', color: 'var(--text-primary)', background: 'var(--bg-elevated,#0f172a)', fontFamily: 'var(--font-mono)' }}>{row.timeframe}</span>
-                  <span style={{ padding: '5px 7px', color: adaptiveStatusColor(row.status), background: 'var(--bg-elevated,#0f172a)', fontFamily: 'var(--font-mono)' }}>{formatAdaptivePercent(row.accuracy)}</span>
-                  <span style={{ padding: '5px 7px', color: 'var(--text-primary)', background: 'var(--bg-elevated,#0f172a)', fontFamily: 'var(--font-mono)' }}>{countText(row.evaluated_count)}</span>
-                  <span style={{ padding: '5px 7px', color: 'var(--text-primary)', background: 'var(--bg-elevated,#0f172a)', fontFamily: 'var(--font-mono)' }}>{countText(row.signal_count)}</span>
-                  <span style={{ padding: '5px 7px', color: 'var(--text-primary)', background: 'var(--bg-elevated,#0f172a)', fontFamily: 'var(--font-mono)' }}>{countText(row.prediction_count)}</span>
-                  <span style={{ padding: '5px 7px', color: pnlColor(row.realized_pnl_usd), background: 'var(--bg-elevated,#0f172a)', fontFamily: 'var(--font-mono)' }}>{formatAdaptiveMoney(row.realized_pnl_usd)}</span>
-                  <span title={publicTelemetryText(row.status)} style={{ padding: '5px 7px', color: 'var(--text-muted)', background: 'var(--bg-elevated,#0f172a)', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{publicTelemetryText(row.status)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          <AccuracyHeatmap rows={view.matrixRows} compact={compact} maxHeight={matrixHeight} />
         </div>
       )}
     </section>

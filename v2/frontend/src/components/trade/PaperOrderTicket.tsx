@@ -71,7 +71,7 @@ export function PaperOrderTicket({ state }: { state: TradeTerminalState }): JSX.
     : paperPolicy?.fill_policy === 'no_automatic_fill'
       ? 'Staged only; no automatic fills'
       : 'Execution policy pending';
-  const paperGuardLabel = liveExchangeRouteDisabled ? 'Execution route guarded' : 'Policy check unavailable';
+  const paperGuardLabel = liveExchangeRouteDisabled ? 'Execution route guarded' : 'Policy check connecting';
   const invalidReason = useMemo(() => {
     if (!previewSupportedOrderType) return 'TP/SL preview is not connected yet.';
     if (!quantity || !Number.isFinite(numericQuantity) || numericQuantity <= 0) return 'Enter a quantity greater than zero.';
@@ -79,9 +79,9 @@ export function PaperOrderTicket({ state }: { state: TradeTerminalState }): JSX.
     if (previewLoading) return 'Checking order preview.';
     if (preview?.data?.allowed && !previewScopeMatches) return 'Order preview belongs to a different trader account.';
     if (preview?.data?.allowed && !localPaperStagingAllowed) return 'Order staging is disabled until a verified execution policy is available.';
-    if (preview?.data?.allowed && !liveExchangeRouteDisabled) return 'Order staging is disabled because exchange-route safety evidence is unavailable.';
+    if (preview?.data?.allowed && !liveExchangeRouteDisabled) return 'Order staging is disabled because exchange-route safety evidence is still connecting.';
     if (preview?.data?.allowed) return 'Order can be staged.';
-    return preview?.data?.friendly_reason ?? (preview?.source_type === 'unavailable' ? 'Order preview unavailable.' : missingEndpointCopy(TRADE_ENDPOINTS.orderPreview));
+    return preview?.data?.friendly_reason ? tradeCopy(preview.data.friendly_reason) : (preview?.source_type === 'unavailable' ? 'Order preview connecting.' : missingEndpointCopy(TRADE_ENDPOINTS.orderPreview));
   }, [liveExchangeRouteDisabled, localPaperStagingAllowed, numericQuantity, preview?.data?.allowed, preview?.data?.friendly_reason, preview?.source_type, previewLoading, previewScopeMatches, previewSupportedOrderType, price, quantity, requiresPrice]);
 
   useEffect(() => {
@@ -221,7 +221,7 @@ export function PaperOrderTicket({ state }: { state: TradeTerminalState }): JSX.
             <Lock size={15} aria-hidden="true" />
             {submitting ? 'Staging Order' : `Place ${side}`}
           </button>
-          <p className="trade-ticket__reason" role="status">{submitResult?.data?.friendly_reason ?? invalidReason}</p>
+          <p className="trade-ticket__reason" role="status">{tradeCopy(submitResult?.data?.friendly_reason ?? invalidReason)}</p>
           {!canSubmit && numericQuantity > 0 ? (
             <MissingDataState
               title="Order not ready"

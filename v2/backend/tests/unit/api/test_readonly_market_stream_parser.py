@@ -22,6 +22,10 @@ def _apply(state: dict, stream: str, data: dict) -> None:
         ("/api/v2/market/overview?limit=30", "/api/v2/market/overview?limit=30"),
         ("%2Fapi%2Fv2%2Fpredictions%2Fmatrix%3Fsymbol%3DBTCUSDT", "/api/v2/predictions/matrix?symbol=BTCUSDT"),
         ("/api/v1/risk/live-readiness", "/api/v1/risk/live-readiness"),
+        ("/api/v1/_meta/agent-health", "/api/v1/_meta/agent-health"),
+        ("/api/v1/_meta/build-status?limit=10", "/api/v1/_meta/build-status?limit=10"),
+        ("/api/v1/_meta/queue-status", "/api/v1/_meta/queue-status"),
+        ("/api/v1/_meta/audit-chain?limit=50", "/api/v1/_meta/audit-chain?limit=50"),
         (
             "/operator_runtime/paper_online/latest/paper_runtime_status.json",
             "/operator_runtime/paper_online/latest/paper_runtime_status.json",
@@ -29,6 +33,18 @@ def _apply(state: dict, stream: str, data: dict) -> None:
         (
             "/v2_8h_war_room/latest/operator_dashboard_payload.json?_rt=123",
             "/v2_8h_war_room/latest/operator_dashboard_payload.json?_rt=123",
+        ),
+        (
+            "/enterprise_trading_cockpit/latest/operator_cockpit_payload.json",
+            "/enterprise_trading_cockpit/latest/operator_cockpit_payload.json",
+        ),
+        (
+            "/operator_truth/latest/operator_truth_payload.json",
+            "/operator_truth/latest/operator_truth_payload.json",
+        ),
+        (
+            "/tonight_live_like_paper_shadow/latest/operator_dashboard_payload.json",
+            "/tonight_live_like_paper_shadow/latest/operator_dashboard_payload.json",
         ),
     ],
 )
@@ -54,6 +70,8 @@ def test_readonly_resource_websocket_target_allows_same_origin_get_paths(raw: st
         "/api/v2/position/cancel",
         "/api/v2/state/mutate",
         "/operator_runtime/paper_online/latest/not_json.txt",
+        "/operator_truth/latest/not_json.txt",
+        "/enterprise_trading_cockpit/latest/not_json.txt",
         "/assets/app.js",
         "/favicon.ico",
     ],
@@ -96,6 +114,82 @@ def test_readonly_resource_websocket_preserves_contract_payload_envelope() -> No
     assert payload["source_type"] == "api"
     assert payload["transport"] == "websocket"
     assert payload["resource_path"] == "/api/v2/market/overview"
+
+
+@pytest.mark.asyncio
+async def test_market_brain_redis_helpers_support_async_bytes_and_key_collections() -> None:
+    class _Redis:
+        async def get(self, key: str) -> bytes | None:
+            if key == "v2:market_brain:overview":
+                return b'{"classifications_computed": 2, "places_real_order": false}'
+            return None
+
+        async def keys(self, pattern: str) -> tuple[bytes, str]:
+            assert pattern == "v2:market_brain:state:*"
+            return (b"v2:market_brain:state:BTCUSDT:1m", "v2:market_brain:state:ETHUSDT:5m")
+
+    assert await market_contracts._redis_get_json_object(_Redis(), "v2:market_brain:overview") == {
+        "classifications_computed": 2,
+        "places_real_order": False,
+    }
+    assert await market_contracts._redis_get_json_object(_Redis(), "v2:market_brain:missing") is None
+    assert await market_contracts._redis_keys(_Redis(), "v2:market_brain:state:*") == [
+        "v2:market_brain:state:BTCUSDT:1m",
+        "v2:market_brain:state:ETHUSDT:5m",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_market_brain_overview_returns_connecting_envelope_when_redis_empty() -> None:
+    payload = await market_contracts.get_market_brain_overview(actor={"role": "viewer"}, r=None)
+
+    assert payload["data"]["classifications_computed"] == 0
+    assert payload["data"]["note"] == "Market brain stream connecting"
+    assert payload["data"]["places_real_order"] is False
+    assert payload["missing_fields"] == []
+
+
+def test_binance_public_json_uses_short_ttl_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = 0
+
+    class _Response:
+        def __enter__(self) -> "_Response":
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b'[{"symbol":"BTCUSDT","lastPrice":"100.0"}]'
+
+    def fake_urlopen(_request: object, timeout: float) -> _Response:
+        nonlocal calls
+        assert timeout == market_contracts.BINANCE_HTTP_TIMEOUT_SECONDS
+        calls += 1
+        return _Response()
+
+    monkeypatch.setattr(market_contracts, "BINANCE_PUBLIC_CACHE_TTL_SECONDS", 30.0)
+    monkeypatch.setattr(market_contracts.urllib.request, "urlopen", fake_urlopen)
+    with market_contracts.BINANCE_PUBLIC_JSON_CACHE_LOCK:
+        market_contracts.BINANCE_PUBLIC_JSON_CACHE.clear()
+
+    first, first_source, first_warning = market_contracts._binance_public_json(
+        "/fapi/v1/ticker/24hr",
+        {"symbol": "BTCUSDT"},
+    )
+    second, second_source, second_warning = market_contracts._binance_public_json(
+        "/fapi/v1/ticker/24hr",
+        {"symbol": "BTCUSDT"},
+    )
+
+    assert calls == 1
+    assert first == second == [{"symbol": "BTCUSDT", "lastPrice": "100.0"}]
+    assert first_source == second_source
+    assert first_warning is None
+    assert second_warning is None
+
+    with market_contracts.BINANCE_PUBLIC_JSON_CACHE_LOCK:
+        market_contracts.BINANCE_PUBLIC_JSON_CACHE.clear()
 
 
 @pytest.mark.asyncio
@@ -374,6 +468,142 @@ class _FakeRedis:
     def get(self, key: str) -> str | None:
         value = self.values.get(key)
         return json.dumps(value) if value is not None else None
+
+
+@pytest.mark.asyncio
+async def test_filtered_signals_matrix_reads_exact_keys_without_scan(monkeypatch: pytest.MonkeyPatch) -> None:
+    values = {
+        "v2:signals:paper:BTCUSDT:1m": {
+            "action": "LONG",
+            "confidence": 0.84,
+            "generated_utc": "2026-06-22T01:00:00Z",
+            "expected_move_after_cost_bps": 12.5,
+        }
+    }
+    monkeypatch.setattr(market_contracts, "get_redis", lambda: _FakeRedis(values))
+    monkeypatch.setattr(market_contracts, "SIGNALS_MATRIX_CACHE_TTL_SECONDS", 0.0)
+
+    def fail_scan(_prefix: str, _match: str) -> list[str]:
+        raise AssertionError("filtered matrix requests should not scan Redis")
+
+    monkeypatch.setattr(market_contracts, "_scan_redis_prefix", fail_scan)
+    with market_contracts.SIGNALS_MATRIX_CACHE_LOCK:
+        market_contracts.SIGNALS_MATRIX_CACHE.clear()
+
+    payload = await market_contracts.get_signals_matrix(
+        symbols="BTCUSDT,ETHUSDT",
+        timeframes="1m,5m",
+        actor=None,
+    )
+
+    assert payload["source"] == "Redis signal publisher (matrix direct lookup/cache)"
+    assert payload["data"]["count"] == 1
+    assert payload["data"]["rows"][0]["symbol"] == "BTCUSDT"
+    assert payload["data"]["rows"][0]["timeframe"] == "1m"
+    assert "BTCUSDT:5m" in payload["data"]["missing"]
+    assert "ETHUSDT:1m" in payload["data"]["missing"]
+
+
+@pytest.mark.asyncio
+async def test_filtered_predictions_matrix_reads_exact_keys_without_scan(monkeypatch: pytest.MonkeyPatch) -> None:
+    values = {
+        "v2:prediction:BTCUSDT:1m": {
+            "action_labels": ["hold", "long", "short"],
+            "action_probabilities": [0.1, 0.82, 0.08],
+            "confidence_calibrated": 0.82,
+            "data_coverage_percent": 96.0,
+            "generated_utc": "2026-06-22T01:00:00Z",
+            "checkpoint_id": "ckpt-live-read",
+        }
+    }
+    monkeypatch.setattr(market_contracts, "get_redis", lambda: _FakeRedis(values))
+    monkeypatch.setattr(market_contracts, "PREDICTIONS_MATRIX_CACHE_TTL_SECONDS", 0.0)
+
+    def fail_scan(_prefix: str, _match: str) -> list[str]:
+        raise AssertionError("filtered prediction matrix requests should not scan Redis")
+
+    monkeypatch.setattr(market_contracts, "_scan_redis_prefix", fail_scan)
+    with market_contracts.PREDICTIONS_MATRIX_CACHE_LOCK:
+        market_contracts.PREDICTIONS_MATRIX_CACHE.clear()
+
+    payload = await market_contracts.get_predictions_matrix(
+        symbols="BTCUSDT,ETHUSDT",
+        timeframes="1m,5m",
+        actor=None,
+    )
+
+    assert payload["source"] == "Redis trainer prediction publisher (matrix direct lookup/cache)"
+    assert payload["data"]["count"] == 1
+    assert payload["data"]["rows"][0]["symbol"] == "BTCUSDT"
+    assert payload["data"]["rows"][0]["timeframe"] == "1m"
+    assert payload["data"]["rows"][0]["top_action"] == "long"
+    assert "BTCUSDT:5m" in payload["data"]["missing"]
+    assert "ETHUSDT:1m" in payload["data"]["missing"]
+
+
+@pytest.mark.asyncio
+async def test_signals_matrix_uses_runtime_prediction_fallback_when_redis_empty(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    public_root = tmp_path / "public"
+    runtime_dir = public_root / "operator_runtime" / "v2_signals" / "latest"
+    runtime_dir.mkdir(parents=True)
+    (runtime_dir / "all_symbol_all_timeframe_cuda_prediction_status.json").write_text(
+        json.dumps(
+            {
+                "generated_est": "2026-06-22T01:00:00Z",
+                "prediction_rows": [
+                    {
+                        "symbol": "BTCUSDT",
+                        "timeframe": "1m",
+                        "selected_action": "long",
+                        "confidence_calibrated": 0.72,
+                        "data_coverage_percent": 91.0,
+                        "market_state_integrity_score": 98.0,
+                        "available_at": "2026-06-22T00:59:30Z",
+                        "prediction_id": "pred-btc",
+                        "price_target": 65000,
+                        "price_target_after_cost": 64950,
+                        "expected_move_after_cost_bps": 18.0,
+                        "paper_fill_allowed": False,
+                        "paper_fill_gate_status": "PAPER_SHADOW_GATE_BLOCKED",
+                        "live_gate": "blocked_human_only",
+                    },
+                    {
+                        "symbol": "ETHUSDT",
+                        "timeframe": "5m",
+                        "selected_action": "hold",
+                        "confidence_calibrated": 0.61,
+                        "available_at": "2026-06-22T00:58:30Z",
+                        "prediction_id": "pred-eth",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(market_contracts, "_public_root", lambda: public_root)
+    monkeypatch.setattr(market_contracts, "get_redis", lambda: _FakeRedis({}))
+    monkeypatch.setattr(market_contracts, "SIGNALS_MATRIX_CACHE_TTL_SECONDS", 0.0)
+    with market_contracts.SIGNALS_MATRIX_CACHE_LOCK:
+        market_contracts.SIGNALS_MATRIX_CACHE.clear()
+
+    payload = await market_contracts.get_signals_matrix(
+        symbols="BTCUSDT,ETHUSDT",
+        timeframes="1m,5m",
+        actor=None,
+    )
+
+    assert payload["source"] == "Runtime prediction signal matrix fallback"
+    assert payload["source_type"] == "static_payload"
+    assert payload["timestamp"] == "2026-06-22T01:00:00Z"
+    assert payload["data"]["count"] == 2
+    btc = next(row for row in payload["data"]["rows"] if row["symbol"] == "BTCUSDT")
+    assert btc["confidence"] == pytest.approx(0.72)
+    assert btc["price_target_after_cost"] == pytest.approx(64950)
+    assert btc["paper_fill_status"] == "gated"
+    assert "ETHUSDT:1m" in payload["data"]["missing"]
 
 
 def test_paper_live_market_price_reads_direct_binance_funding_mark() -> None:

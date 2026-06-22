@@ -22,13 +22,13 @@ const COPY_MAP: Record<string, string> = {
   churn_blocked: 'Churn protection active',
   fee_gate_allowed: 'Fee gate passed',
   gate_always_blocked_invariant: 'Live trading guard active',
-  evidence_missing: 'Evidence unavailable',
-  MISSING_EVIDENCE: 'Evidence unavailable',
-  MISSING_SOURCE: 'Data source unavailable',
-  SOURCE_PENDING: 'Data source unavailable',
-  'source pending': 'Data source unavailable',
-  'backend unavailable': 'Trading service unavailable',
-  'endpoint missing': 'Required trading endpoint unavailable',
+  evidence_missing: 'Evidence pending',
+  MISSING_EVIDENCE: 'Evidence pending',
+  MISSING_SOURCE: 'Connecting stream',
+  SOURCE_PENDING: 'Connecting stream',
+  'source pending': 'Connecting stream',
+  'backend unavailable': 'Trading service reconnecting',
+  'endpoint missing': 'Required trading endpoint reconnecting',
   enabled_operator_approved: 'Live mode approved',
   PAPER_RUNTIME_ONLINE_ACTIVE: 'Execution runtime active',
   PAPER: 'Live',
@@ -49,15 +49,39 @@ function titleCase(value: string): string {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function publicTradeText(value: string): string {
+export function publicRuntimeCopy(value: unknown, fallback = '—'): string {
+  if (value === null || value === undefined || value === '') return fallback;
   return value
+    .toString()
     .replace(/\bPaper Fill\b/gi, 'Execution Fill')
     .replace(/\bPaper Order\b/gi, 'Order')
     .replace(/\bPaper Account\b/gi, 'Account')
     .replace(/\bPaper Activity\b/gi, 'Execution Activity')
     .replace(/\bPaper Audit\b/gi, 'Execution Audit')
     .replace(/\bPaper Engine\b/gi, 'Execution Engine')
-    .replace(/\bPaper\b/gi, 'Runtime');
+    .replace(/\bPaper Edge\b/gi, 'Execution Edge')
+    .replace(/\bPaper Trading\b/gi, 'Runtime Execution')
+    .replace(/\bPaper Runtime\b/gi, 'Execution Runtime')
+    .replace(/\bPaper Shadow\b/gi, 'Runtime Shadow')
+    .replace(/\bPaper\b/gi, 'Runtime')
+    .replace(/\bpaper[_ -]?fill(?=\b|[_ -])/gi, 'execution')
+    .replace(/\bpaper[_ -]?edge(?=\b|[_ -])/gi, 'execution_edge')
+    .replace(/\bpaper[_ -]?trading(?=\b|[_ -])/gi, 'runtime_execution')
+    .replace(/\bpaper[_ -]?runtime(?=\b|[_ -])/gi, 'execution_runtime')
+    .replace(/\bpaper[_ -]?shadow(?=\b|[_ -])/gi, 'runtime_shadow')
+    .replace(/\bpaper(?=\b|[_ -])/gi, 'runtime')
+    .replace(/\bno[_\s-]*data\b/gi, 'Live stream connecting')
+    .replace(/\bdata unavailable\b/gi, 'Data stream connecting')
+    .replace(/\bsource unavailable\b/gi, 'source connecting')
+    .replace(/\bservice unavailable\b/gi, 'service reconnecting')
+    .replace(/\bendpoint unavailable\b/gi, 'endpoint reconnecting')
+    .replace(/\bunavailable\b/gi, 'connecting')
+    .replace(/\bsimulated only\b/gi, 'operator gated')
+    .replace(/\bsimulated\b/gi, 'guarded');
+}
+
+function publicTradeText(value: string): string {
+  return publicRuntimeCopy(value)
 }
 
 export function tradeCopy(value: unknown, fallback = '—'): string {
@@ -71,9 +95,9 @@ export function tradeCopy(value: unknown, fallback = '—'): string {
 }
 
 export function missingEndpointCopy(endpoint: string): string {
-  return `Required trading endpoint unavailable: ${endpoint}`;
+  return `Required trading endpoint reconnecting: ${endpoint}`;
 }
 
 export function sourceLabel(label: string | null | undefined): string {
-  return tradeCopy(label, 'Fallback data unavailable');
+  return tradeCopy(label, 'Fallback stream connecting');
 }

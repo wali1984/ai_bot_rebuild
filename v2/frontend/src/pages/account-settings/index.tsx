@@ -373,7 +373,7 @@ export default function AccountSettingsPage(): JSX.Element {
   const hasTraderApproval = user?.role === 'trader' || localTraderPreview;
   const canLinkExchange = Boolean(hasAccountScope && hasTraderApproval);
   const exchangeLinkUnavailableCopy = !hasAccountScope
-    ? 'Exchange linking requires an assigned trader profile and paper workspace.'
+    ? 'Exchange linking requires an assigned trader profile and execution workspace.'
     : !hasTraderApproval
       ? 'Trader approval is required before linking an exchange account.'
       : 'No exchange accounts linked yet. Click "+ Link account" to connect Binance, KuCoin, or Bybit.';

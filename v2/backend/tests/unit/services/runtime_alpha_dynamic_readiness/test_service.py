@@ -283,6 +283,11 @@ def test_build_payloads_blocks_when_1h_elapsed_missing(tmp_path: Path) -> None:
     market = payloads["all_timeframe_market_brain_status.json"]
     assert market["market_row_count"] == 2
     assert market["markets"][0]["symbol"] == "BTCUSDT"
+    report = payloads["V2_RUNTIME_ALPHA_REMEDIATED_ADAPTIVE_1H_PAPER_SOAK_DYNAMIC_STRATEGY_LEVERAGE_MARGIN_REPORT.md"]
+    assert "Operator-Gated Dynamic Strategy" in report
+    assert "Operator-gated validation mode: `true`" in report
+    assert "Paper only" not in report
+    assert "Paper Soak" not in report
 
 
 def test_build_payloads_blocks_partial_dynamic_symbol_timeframe_grid(tmp_path: Path) -> None:

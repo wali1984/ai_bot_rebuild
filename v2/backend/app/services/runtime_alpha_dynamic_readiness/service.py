@@ -1328,15 +1328,15 @@ def build_payloads(paths: DynamicReadinessPaths | None = None) -> dict[str, Any]
 def _report(payloads: Mapping[str, Any]) -> str:
     dash = payloads["operator_dashboard_payload.json"]
     return (
-        "# V2 Runtime Alpha Remediated Adaptive 1h Paper Soak Dynamic Strategy Leverage Margin Report\n\n"
+        "# V2 Runtime Alpha Remediated Adaptive 1h Operator-Gated Dynamic Strategy Leverage Margin Report\n\n"
         f"Generated: `{dash.get('generated_utc')}`\n\n"
         f"Gate: `{dash.get('gate')}`\n\n"
         f"Status: `{dash.get('status')}`\n\n"
         "## Blockers\n\n"
         + "\n".join(f"- {item}" for item in dash.get("blockers", []))
         + "\n\n## Safety\n\n"
-        "- Paper only: `true`\n"
-        "- Live order submitted: `false`\n"
+        "- Operator-gated validation mode: `true`\n"
+        "- Exchange order submitted: `false`\n"
         "- Test order called: `false`\n"
         "- Exchange leverage mutation: `false`\n"
         "- Exchange margin-mode mutation: `false`\n"

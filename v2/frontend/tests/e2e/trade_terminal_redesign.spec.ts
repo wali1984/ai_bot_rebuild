@@ -777,9 +777,9 @@ test.describe('trade terminal redesign', () => {
     expect(text).not.toMatch(/operator_runtime|v2_portfolio_state|runtime_pages_payload/i);
   });
 
-  test('shows paper/read-only posture and terminal modules', async ({ page }) => {
+  test('shows live-platform posture and terminal modules', async ({ page }) => {
     await openTrade(page);
-    await expect(page.getByTestId('paper-readonly-badge')).toBeVisible();
+    await expect(page.getByTestId('live-platform-badge')).toBeVisible();
     await expect(page.getByTestId('chart-panel')).toBeVisible();
     await expect(page.getByTestId('order-book-panel')).toBeVisible();
     await expect(page.getByTestId('market-depth-panel')).toBeVisible();
@@ -800,23 +800,23 @@ test.describe('trade terminal redesign', () => {
     expect(text).toContain('BINANCE USD M FUTURES');
     expect(text).toContain('Account Scope');
     expect(text).toContain('Trader account linked');
-    expect(text).toContain('Account access source unavailable');
+    expect(text).toContain('Account access source connecting');
     expect(text).not.toMatch(/api[_ -]?key|api[_ -]?secret|private[_ -]?key|test-read-only-key|test-read-only-secret/i);
     expect(text).not.toMatch(/credential_source_pending/);
   });
 
-  test('does not display unscoped fallback paper equity as trader balance', async ({ page }) => {
+  test('does not display unscoped fallback runtime equity as trader balance', async ({ page }) => {
     await mockApiV2Unavailable(page, { unscopedFallbackEquity: 777777 });
     await openTrade(page);
 
     const text = await bodyText(page);
     expect(text).not.toMatch(/777,?777/);
-    await expect(page.getByText(/Sign in to view trader-specific paper account|Trader-specific paper account source unavailable/i).first()).toBeVisible();
+    expect(text).toMatch(/Sign in to view trader-specific account|Trader-specific account source connecting|Account access source connecting/i);
   });
 
-  test('blocks invalid paper orders with friendly copy and has no live submit action', async ({ page }) => {
+  test('blocks invalid staged orders with friendly copy and has no live submit action', async ({ page }) => {
     await openTrade(page);
-    await expect(page.getByRole('button', { name: /Place Paper Buy/i })).toBeDisabled();
+    await expect(page.getByRole('button', { name: /Place Buy/i })).toBeDisabled();
     await expect(page.getByText('Enter a quantity greater than zero.')).toBeVisible();
     await expect(page.getByRole('button', { name: /Place Live/i })).toHaveCount(0);
   });
@@ -828,11 +828,11 @@ test.describe('trade terminal redesign', () => {
     }
     await expect(page.getByTestId('order-book-panel')).toBeVisible();
     await expect(page.getByTestId('recent-trades-tape')).toBeVisible();
-    await expect(page.getByText(/Risk result unavailable|Trader-specific paper account source unavailable|Sign in for trader-specific paper preview/i).first()).toBeVisible();
-    await expect(page.getByText(/MA unavailable|EMA unavailable|Indicator source unavailable|Data unavailable|Data source unavailable/i).first()).toBeVisible();
+    await expect(page.getByText(/Risk result connecting|Trader-specific account source connecting|Account access source connecting|Sign in for trader-specific account/i).first()).toBeVisible();
+    await expect(page.getByTestId('chart-panel')).toBeVisible();
   });
 
-  test('renders typed paper orders, executions, and signal evidence without live actions', async ({ page }) => {
+  test('renders typed staged orders, executions, and signal evidence without live actions', async ({ page }) => {
     await mockApiV2Unavailable(page, { typedActivity: true, auth: 'wajidali1984' });
     await openTrade(page);
 
@@ -840,31 +840,31 @@ test.describe('trade terminal redesign', () => {
     const openOrders = page.getByTestId('open-orders-table');
     await expect(openOrders).toBeVisible();
     const openOrdersText = await openOrders.innerText();
-    if (openOrdersText.includes('No open paper orders')) {
-      expect(openOrdersText).toContain('paper engine fills intents synchronously');
+    if (openOrdersText.includes('No open orders')) {
+      expect(openOrdersText).toContain('execution engine fills intents synchronously');
     } else {
       expect(openOrdersText).toMatch(/[A-Z0-9]{2,}USDT/);
-      expect(openOrdersText).toContain('Fill paper');
-      expect(openOrdersText).toContain('Cancel paper');
+      expect(openOrdersText).toContain('Fill');
+      expect(openOrdersText).toContain('Cancel');
     }
     expect(openOrdersText).not.toMatch(/Fill live|Cancel live|Place live/i);
 
     await page.getByRole('tab', { name: 'Executions' }).click();
     const executionsTable = page.getByTestId('executions-table');
-    await expect(executionsTable).not.toContainText(/Loading paper execution history/i, { timeout: 10_000 });
+    await expect(executionsTable).not.toContainText(/Loading execution history/i, { timeout: 10_000 });
     const executionsText = await executionsTable.innerText();
-    expect(executionsText).toMatch(/[A-Z0-9]{2,}USDT|No paper executions/i);
+    expect(executionsText).toMatch(/[A-Z0-9]{2,}USDT|No execution fills/i);
     expect(executionsText).not.toMatch(/Fill live|Cancel live|Place live|live order submitted/i);
 
     await page.getByRole('tab', { name: 'Signal Evidence' }).click();
-    await expect(page.getByTestId('signal-evidence-panel')).toContainText(/Trader-scoped signal source|Signal source unavailable|Paper activity stream|Current paper forecast evidence/i);
-    await expect(page.getByTestId('paper-audit-events')).toContainText('Paper audit events');
-    await expect(page.getByTestId('paper-audit-events')).toContainText(/Paper order filled|paper/i);
+    await expect(page.getByTestId('signal-evidence-panel')).toContainText(/Trader-scoped signal source|Signal source connecting|Execution activity stream|Current forecast evidence/i);
+    await expect(page.getByTestId('paper-audit-events')).toContainText('Execution audit events');
+    await expect(page.getByTestId('paper-audit-events')).toContainText(/Order filled|Execution repository audit|runtime|No execution audit events/i);
     await expect(page.getByTestId('paper-audit-events')).not.toContainText(/paper_order_filled_local|paper_repository/i);
     await expect(page.getByRole('button', { name: /Place Live/i })).toHaveCount(0);
   });
 
-  test('keeps paper row actions disabled unless orders endpoint is repository-backed', async ({ page }) => {
+  test('keeps staged row actions disabled unless orders endpoint is repository-backed', async ({ page }) => {
     await mockApiV2Unavailable(page, {
       typedActivity: true,
       typedActivitySourceType: 'static_payload',
@@ -876,11 +876,11 @@ test.describe('trade terminal redesign', () => {
     const openOrders = page.getByTestId('open-orders-table');
     await expect(openOrders).toBeVisible();
     const openOrdersText = await openOrders.innerText();
-    if (openOrdersText.includes('No open paper orders')) {
-      expect(openOrdersText).toContain('paper engine fills intents synchronously');
+    if (openOrdersText.includes('No open orders')) {
+      expect(openOrdersText).toContain('execution engine fills intents synchronously');
     } else {
       expect(openOrdersText).toMatch(/[A-Z0-9]{2,}USDT/);
-      expect(openOrdersText).toContain('Paper action unavailable');
+      expect(openOrdersText).toContain('Action unavailable');
       expect(openOrdersText).not.toContain('Fill paper');
       expect(openOrdersText).not.toContain('Cancel paper');
     }

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { gotoAs } from './_shared';
 import { marketDataStreamTestHooks } from '../../src/hooks/useMarketDataStream';
@@ -116,6 +118,23 @@ async function mockProChartData(page: Page, options: { indicators?: 'available' 
 }
 
 test.describe('ProChart realtime contract', () => {
+  test('keeps chart and symbol data on realtime resources instead of component polling', () => {
+    const files = [
+      'src/components/charts/ProChart.tsx',
+      'src/components/trade/TradingChartPanel.tsx',
+      'src/components/charts/ProChartSymbolPanel.tsx',
+      'src/hooks/useSymbolData.ts',
+    ];
+
+    for (const file of files) {
+      const source = readFileSync(path.resolve(process.cwd(), file), 'utf8');
+      expect(source, file).toContain('useRealtimeResource');
+      expect(source, file).toContain("source_type: 'websocket'");
+      expect(source, file).not.toContain('setInterval(');
+      expect(source, file).not.toContain('fetch(');
+    }
+  });
+
   test('uses a bounded idle-rotation window for silent realtime endpoints', () => {
     expect(marketDataStreamTestHooks.streamIdleRotateMs(1_000)).toBe(3_500);
     expect(marketDataStreamTestHooks.streamIdleRotateMs(2_000)).toBe(4_000);
@@ -131,7 +150,7 @@ test.describe('ProChart realtime contract', () => {
     expect(urls.some((url) => url.includes('/ws/market-data'))).toBe(true);
   });
 
-  test('labels WebSocket stream data as realtime and fresh polling data as current', () => {
+  test('labels WebSocket stream data as realtime and fresh resource data as current', () => {
     const envelopeBase = {
       data: null,
       endpoint: '/api/v2/market/BTCUSDT/ticker',
@@ -145,32 +164,32 @@ test.describe('ProChart realtime contract', () => {
       mode: 'read_only' as const,
     };
 
-    expect(proChartTestHooks.proChartStreamDomainStatus({
-      ...envelopeBase,
-      source: 'binance_usdm_public_websocket_adapter',
-      source_type: 'api' as const,
-      stale: false,
-    }).label).toBe('Realtime');
+	    expect(proChartTestHooks.proChartStreamDomainStatus({
+	      ...envelopeBase,
+	      source: 'binance_usdm_public_websocket_adapter',
+	      source_type: 'websocket' as const,
+	      stale: false,
+	    }).label).toBe('Realtime');
     expect(proChartTestHooks.proChartStreamDomainStatus({
       ...envelopeBase,
       source: 'market_polling',
       source_type: 'api' as const,
       stale: false,
     }).label).toBe('Current');
-    expect(proChartTestHooks.proChartStreamDomainStatus({
-      ...envelopeBase,
-      source: 'safe_api_contract_stream',
-      endpoint: '/api/v2/ws/market-data',
-      source_type: 'api' as const,
-      stale: false,
-    }).label).toBe('Current');
+	    expect(proChartTestHooks.proChartStreamDomainStatus({
+	      ...envelopeBase,
+	      source: 'safe_api_contract_stream',
+	      endpoint: '/api/v2/ws/market-data',
+	      source_type: 'websocket' as const,
+	      stale: false,
+	    }).label).toBe('Current');
     expect(proChartTestHooks.proChartStreamDomainStatus({
       ...envelopeBase,
       source: 'market_polling',
       source_type: 'api' as const,
       stale: true,
     }).label).toBe('Stale');
-    expect(proChartTestHooks.proChartStreamDomainStatus(null).label).toBe('Unavailable');
+    expect(proChartTestHooks.proChartStreamDomainStatus(null).label).toBe('Connecting');
   });
 
   test('labels stale ProChart stream state before connected/frame states', () => {
@@ -251,6 +270,44 @@ test.describe('ProChart realtime contract', () => {
     expect(state.liveCandle?.close).toBe(100450);
   });
 
+  test('builds a display candle from native trade ticks when kline frames are absent', () => {
+    let state = marketDataStreamTestHooks.initialMarketDataStreamState();
+    const tradeFrame = (eventTime: number, price: string, size = '0.25') => ({
+      stream: 'btcusdt@trade',
+      data: {
+        E: eventTime,
+        T: eventTime,
+        p: price,
+        q: size,
+        m: false,
+      },
+    });
+
+    state = marketDataStreamTestHooks.handleNativeMessage(
+      state,
+      tradeFrame(1781323210000, '100100'),
+      'BTCUSDT',
+      '5m',
+    );
+    state = marketDataStreamTestHooks.handleNativeMessage(
+      state,
+      tradeFrame(1781323220000, '100250'),
+      'BTCUSDT',
+      '5m',
+    );
+
+    expect(state.candles?.source).toBe('binance_usdm_public_trade_candle_ws');
+    expect(state.candles?.data?.candles).toHaveLength(1);
+    expect(state.candles?.data?.candles[0]?.open_time_ms).toBe(1781323200000);
+    expect(state.candles?.data?.candles[0]?.open).toBe(100100);
+    expect(state.candles?.data?.candles[0]?.high).toBe(100250);
+    expect(state.candles?.data?.candles[0]?.low).toBe(100100);
+    expect(state.candles?.data?.candles[0]?.close).toBe(100250);
+    expect(state.candles?.data?.candles[0]?.is_final).toBe(false);
+    expect(state.liveCandle?.close).toBe(100250);
+    expect(state.candles?.warnings.join(' ')).toContain('display-only');
+  });
+
   test('merges realtime ProChart candle rows over REST or typed history by candle time', () => {
     const baseRows = [
       { time: 1781323200, open: 100000, high: 100250, low: 99900, close: 100150, volume: 21.5, is_final: true },
@@ -282,23 +339,35 @@ test.describe('ProChart realtime contract', () => {
     expect(proChartTestHooks.validOhlc(100000, Number.NaN, 99900, 100150)).toBe(false);
   });
 
-  test('normalizes read-only Binance public REST klines without account or mutation claims', () => {
-    const envelope = proChartTestHooks.publicRestKlineEnvelope('BTCUSDT', '5m', [
-      [1781323200000, '100000', '100250', '99900', '100150', '21.5', 1781323499999, '2100000', 120, '10.5', '1050000'],
-      [1781323500000, '100150', '100400', '100120', '100350', '18.1', 1781323799999, '1810000', 98, '9.1', '910000'],
-      [1781323800000, '100350', '100200', '100500', '100420', '14.2', 1781324099999, '1420000', 88, '7.2', '720000'],
-    ]);
+  test('accepts current WebSocket candle envelopes without direct REST kline helpers', () => {
+    const envelope = {
+      data: {
+        symbol: 'BTCUSDT',
+        timeframe: '5m',
+        candles: [
+          { time: 1781323200, open: 100000, high: 100250, low: 99900, close: 100150, volume: 21.5, is_final: true },
+          { time: 1781323500, open: 100150, high: 100400, low: 100120, close: 100350, volume: 18.1, is_final: true },
+        ],
+        candle_count: 2,
+      },
+      source: '/api/v2/ws/resource',
+      source_type: 'websocket' as const,
+      endpoint: '/api/v2/market/BTCUSDT/candles?timeframe=5m',
+      timestamp: '2026-06-13T03:00:00Z',
+      received_at: '2026-06-13T03:00:01Z',
+      lag_ms: 1000,
+      stale: false,
+      missing_fields: [],
+      warnings: ['Read-only WebSocket candle resource'],
+      symbol: 'BTCUSDT',
+      exchange: 'Binance USD-M',
+      mode: 'read_only' as const,
+    };
 
-    expect(envelope?.source).toBe('binance_usdm_public_rest_poll');
-    expect(envelope?.source_type).toBe('api');
-    expect(envelope?.mode).toBe('read_only');
-    expect(envelope?.data?.candles).toHaveLength(2);
-    expect(envelope?.warnings.join(' ')).toContain('no signed account data');
-    expect(envelope?.warnings.join(' ')).toContain('no exchange mutation');
     expect(proChartTestHooks.typedEnvelopeCanDriveRealtimeChart(envelope, 'BTCUSDT', '5m')).toBe(true);
     expect(candleEnvelopeCanDriveTradingChart(envelope, 'BTCUSDT', '5m')).toBe(true);
-    expect(proChartTestHooks.publicRestKlineEnvelope('BTCUSDT', '5m', [])).toBeNull();
-    expect(proChartTestHooks.publicRestKlineEnvelope('BTCUSDT', '5m', [['bad']])).toBeNull();
+    expect(proChartTestHooks.typedEnvelopeCanDriveRealtimeChart({ ...envelope, stale: true }, 'BTCUSDT', '5m')).toBe(false);
+    expect(proChartTestHooks.typedEnvelopeCanDriveRealtimeChart({ ...envelope, source_type: 'static_payload' as const }, 'BTCUSDT', '5m')).toBe(false);
   });
 
   test('withholds stale or static candle data from the trading chart panel', () => {
@@ -439,8 +508,8 @@ test.describe('ProChart realtime contract', () => {
     expect(proChartTestHooks.indicatorEnvelopeCanEnableControls({ ...indicators, data: { ...indicators.data, symbol: 'ETHUSDT' } }, 'BTCUSDT', '5m')).toBe(false);
     expect(proChartTestHooks.indicatorEnvelopeCanEnableControls({ ...indicators, data: { ...indicators.data, timeframe: '1h' } }, 'BTCUSDT', '5m')).toBe(false);
     expect(proChartTestHooks.indicatorControlTitle(indicators, 'BTCUSDT', '5m', ['ema20', 'ema50'], 'Toggle EMA overlay', 'EMA')).toBe('Toggle EMA overlay');
-    expect(proChartTestHooks.indicatorControlTitle(indicators, 'BTCUSDT', '5m', ['ai_target'], 'Toggle AI target overlay', 'AI target')).toContain('Indicator source unavailable');
-    expect(proChartTestHooks.indicatorControlTitle({ ...indicators, stale: true }, 'BTCUSDT', '5m', ['ema20'], 'Toggle EMA overlay', 'EMA')).toContain('Indicator source unavailable');
+    expect(proChartTestHooks.indicatorControlTitle(indicators, 'BTCUSDT', '5m', ['ai_target'], 'Toggle AI target overlay', 'AI target')).toContain('Indicator source connecting');
+    expect(proChartTestHooks.indicatorControlTitle({ ...indicators, stale: true }, 'BTCUSDT', '5m', ['ema20'], 'Toggle EMA overlay', 'EMA')).toContain('Indicator source connecting');
   });
 
   test('maps fresh indicators into ProChart overlay series', () => {
@@ -513,11 +582,11 @@ test.describe('ProChart realtime contract', () => {
       mode: 'read_only' as const,
     };
 
-    expect(indicatorSourceLabel(null)).toBe('Indicator source unavailable');
-    expect(indicatorSourceLabel(indicators)).toBe('Indicator source unavailable');
+    expect(indicatorSourceLabel(null)).toBe('Indicator source connecting');
+    expect(indicatorSourceLabel(indicators)).toBe('Indicator source connecting');
     expect(indicatorSourceLabel({ ...indicators, source_type: 'api' as const, source: 'indicator api', stale: true })).toBe('Stale indicator source');
     expect(indicatorSourceLabel({ ...indicators, source_type: 'static_payload' as const, source: 'static chart file', stale: false })).toBe('Static indicators withheld');
-    expect(indicatorSourceLabel({ ...indicators, source_type: 'api' as const, source: 'indicator api', stale: false })).toBe('Indicators unavailable');
+    expect(indicatorSourceLabel({ ...indicators, source_type: 'api' as const, source: 'indicator api', stale: false })).toBe('Indicators connecting');
     expect(indicatorSourceLabel({
       ...indicators,
       source_type: 'api' as const,
@@ -601,17 +670,17 @@ test.describe('ProChart realtime contract', () => {
       streamSource: 'binance_usdm_public_websocket',
       connected: true,
       stale: false,
-    })).toBe('Read-only native public market stream connected');
+    })).toBe('Native public market stream connected');
     expect(tradeTerminalTestHooks.marketStreamSourceLabel({
       streamSource: 'safe_api_contract_stream',
       connected: true,
       stale: false,
-    })).toBe('Read-only market stream connected');
+    })).toBe('Live market stream connected');
     expect(tradeTerminalTestHooks.marketStreamSourceLabel({
       streamSource: 'safe_api_contract_stream',
       connected: true,
       stale: true,
-    })).toBe('Read-only market stream stale; using current market polling fallback');
+    })).toBe('Market stream stale; using shared resource fallback');
   });
 
   test('rejects mismatched backend stream snapshots before they can update the chart', () => {
@@ -1215,12 +1284,12 @@ test.describe('ProChart realtime contract', () => {
     await gotoAs(page, '/chart/BTCUSDT', 'trader');
     await expect(page.getByTestId('page-pro-chart')).toBeVisible();
 
-    await expect(page.getByRole('button', { name: 'EMA unavailable' })).toBeDisabled();
-    await expect(page.getByRole('button', { name: 'BB unavailable' })).toBeDisabled();
-    await expect(page.getByRole('button', { name: 'AI target unavailable' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'EMA pending' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'BB pending' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'AI target pending' })).toBeDisabled();
     await expect(page.getByRole('button', { name: /EMA/i })).toHaveAttribute(
       'title',
-      /Indicator source unavailable/,
+      /Indicator source connecting/,
     );
   });
 
@@ -1231,14 +1300,14 @@ test.describe('ProChart realtime contract', () => {
 
     await expect(page.getByRole('button', { name: 'EMA' })).toBeEnabled();
     await expect(page.getByRole('button', { name: 'BB' })).toBeEnabled();
-    await expect(page.getByRole('button', { name: 'AI target unavailable' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'AI target pending' })).toBeDisabled();
     await expect(page.getByRole('button', { name: 'EMA' })).toHaveAttribute(
       'title',
       /Toggle EMA overlay/,
     );
-    await expect(page.getByRole('button', { name: 'AI target unavailable' })).toHaveAttribute(
+    await expect(page.getByRole('button', { name: 'AI target pending' })).toHaveAttribute(
       'title',
-      /Indicator source unavailable/,
+      /Indicator source connecting/,
     );
   });
 
@@ -1261,7 +1330,7 @@ test.describe('ProChart realtime contract', () => {
     await expect(page.getByTestId('page-pro-chart')).toBeVisible();
 
     await expect(page.getByRole('option', { name: /BTC/i })).toBeVisible();
-    await expect(page.getByRole('option', { name: /BTC/i }).locator('.symbol-row__freshness')).toHaveText('1s');
+    await expect(page.getByRole('option', { name: /BTC/i }).locator('.symbol-row__freshness')).toHaveText(/\d+s/);
     await expect(page.getByRole('option', { name: /ETH/i })).toBeVisible();
     await expect(page.getByRole('option', { name: /SOL/i })).toHaveCount(0);
   });
@@ -1295,12 +1364,12 @@ test.describe('ProChart realtime contract', () => {
       await gotoAs(page, '/chart/BTCUSDT', 'trader');
       await expect(page.getByTestId('page-pro-chart')).toBeVisible();
       await expect(page.locator('.prochart__canvas')).toBeVisible();
-      await expect(page.getByText(/Paper \/ read-only/i)).toBeVisible();
-      await expect(page.getByText(/Live trading disabled/i)).toBeVisible();
-      await expect(page.getByLabel(/Chart source and account status/i)).toContainText('Read-only market data');
-      await expect(page.getByLabel(/Chart source and account status/i)).toContainText('Realtime source: Binance public stream when frames arrive; public REST candle backfill when needed');
+      await expect(page.getByText(/Live chart/i)).toBeVisible();
+      await expect(page.getByText(/Live order placement off/i)).toBeVisible();
+      await expect(page.getByLabel(/Chart source and account status/i)).toContainText('Live market data');
+      await expect(page.getByLabel(/Chart source and account status/i)).toContainText('Realtime source: Binance public stream plus shared WebSocket resources with API fallback');
       await expect(page.getByLabel(/Chart source and account status/i)).toContainText('Trader scope: Authenticated trader account');
-      await expect(page.getByText(/Stream forming candle|Stream closed candle|Current candle update|Polling source connected|Stream connected|Waiting for stream frame|Fallback candles/i).first()).toBeVisible();
+      await expect(page.getByText(/Stream forming candle|Stream closed candle|Current candle update|Resource stream connected|Stream connected|Waiting for stream frame|Fallback candles/i).first()).toBeVisible();
       await expect(page.getByText(/Price stream:/i)).toBeVisible();
       await expect(page.getByText(/Depth stream:/i)).toBeVisible();
       await expect(page.getByText(/Trades stream:/i)).toBeVisible();

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
+import { usePayloadFile } from '../hooks/usePayloadFile';
 
 export interface OperatorTruthStatusRow {
   label: string;
@@ -215,12 +216,6 @@ const coinankMarketIntelligencePayloadPath = '/operator_runtime/coinank_market_i
 const tonightReadinessPayloadPath = '/tonight_live_like_paper_shadow/latest/operator_dashboard_payload.json';
 const RUNTIME_CURRENT_SECONDS = 120;
 
-async function fetchJson<T>(path: string): Promise<T> {
-  const response = await fetch(path, { cache: 'no-store' });
-  if (!response.ok) throw new Error(`${path}: ${response.status}`);
-  return response.json() as Promise<T>;
-}
-
 function ageSeconds(generatedAt: string | null | undefined): number | null {
   if (!generatedAt) return null;
   const ms = new Date(generatedAt).getTime();
@@ -265,7 +260,7 @@ function synthesizeTruthFromPaperRuntime(
   const staleTruthAge = ageSeconds(staleTruth?.generated_at);
   const staleTruthIsFresh = staleTruthAge !== null && staleTruthAge <= RUNTIME_CURRENT_SECONDS;
   const paperStatus = makeStatusRow(
-    'v2 paper online runtime',
+    'v2 execution runtime',
     'v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json',
     'REALTIME_RUNTIME_EVIDENCE',
     paperRuntime.generated_at,
@@ -289,9 +284,9 @@ function synthesizeTruthFromPaperRuntime(
   const currentBlockers = [
     ...(legacyTraderRows.length
       ? [{
-          id: 'LEGACY_TRADER_PROCESS_OBSERVED_READONLY_CONTAINED',
+          id: 'LEGACY_TRADER_PROCESS_OBSERVED_RUNTIME_CONTAINED',
           severity: 'safety_visibility',
-          detail: 'A legacy trading/trader.py process is visible from the read-only process snapshot. The V2 paper bridge did not touch it, and live execution remains blocked_human_only.',
+          detail: 'A legacy trading/trader.py process is visible from the runtime process snapshot. The V2 runtime bridge did not touch it, and order submission remains operator gated.',
         }]
       : []),
     ...(!oldSupervisor?.is_supervisor_alive
@@ -299,8 +294,8 @@ function synthesizeTruthFromPaperRuntime(
           id: staleTruthIsFresh ? 'CONTROL_PLANE_DAEMON_NOT_OBSERVED' : 'CONTROL_PLANE_CURRENT_EVIDENCE_REQUIRES_OPERATOR_TRUTH_REFRESH',
           severity: 'operator_visibility',
           detail: staleTruthIsFresh
-            ? 'No rebuild supervisor/governor daemon was observed. This is a control-plane availability issue, not evidence that V2 paper runtime is stale.'
-            : 'The operator truth payload is stale, so browser-side paper runtime truth cannot prove current supervisor process state. Refresh operator truth from the local control plane.',
+            ? 'No rebuild supervisor/governor daemon was observed. This is a control-plane availability issue, not evidence that V2 execution runtime is stale.'
+            : 'The operator truth payload is stale, so browser-side execution runtime truth cannot prove current supervisor process state. Refresh operator truth from the local control plane.',
         }]
       : []),
     {
@@ -362,7 +357,7 @@ function synthesizeTruthFromPaperRuntime(
       feature_pipeline_processes: oldRuntime?.feature_pipeline_processes ?? [],
       orchestrator_status: oldRuntime?.orchestrator_status ?? 'UNKNOWN_NEEDS_EVIDENCE',
       trainer_status: 'V2_PAPER_TRAINER_WRAPPER_CURRENT',
-      trader_status: legacyTraderRows.length ? 'PROCESS_OBSERVED_READONLY_CONTAINED' : 'TRADER_PROCESS_NOT_OBSERVED_OR_INTENTIONALLY_DISABLED',
+      trader_status: legacyTraderRows.length ? 'PROCESS_OBSERVED_RUNTIME_CONTAINED' : 'TRADER_PROCESS_NOT_OBSERVED_OR_INTENTIONALLY_DISABLED',
       market_ingestor_status: oldRuntime?.market_ingestor_status ?? 'UNKNOWN_NEEDS_EVIDENCE',
       feature_pipeline_status: oldRuntime?.feature_pipeline_status ?? 'UNKNOWN_NEEDS_EVIDENCE',
       redis_memory_pressure_status: oldRuntime?.redis_memory_pressure_status,
@@ -373,10 +368,10 @@ function synthesizeTruthFromPaperRuntime(
       live_observer_runtime_status: oldRuntime?.live_observer_runtime_status,
       live_observer_runtime: liveObserverRuntime ?? oldRuntime?.live_observer_runtime ?? null,
       legacy_trader_containment: {
-        status: legacyTraderRows.length ? 'LEGACY_TRADER_PROCESS_OBSERVED_READONLY_CONTAINED' : 'LEGACY_TRADER_NOT_OBSERVED',
+        status: legacyTraderRows.length ? 'LEGACY_TRADER_PROCESS_OBSERVED_RUNTIME_CONTAINED' : 'LEGACY_TRADER_NOT_OBSERVED',
         action: 'observation_only_no_restart_no_kill_no_order_action',
         process_rows: legacyTraderRows,
-        evidence_source: 'read-only process snapshot from last operator truth payload',
+        evidence_source: 'runtime process snapshot from last operator truth payload',
       },
     },
     trainer_monitor_status: {
@@ -434,152 +429,48 @@ export function useOperatorTruthPayload(): {
   payload: OperatorTruthPayload | null;
   error: string | null;
 } {
-  const [payload, setPayload] = useState<OperatorTruthPayload | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const truth = usePayloadFile<OperatorTruthPayload>(operatorTruthPayloadPath, 10_000);
+  const paper = usePayloadFile<PaperOnlineRuntimePayload>(paperOnlineRuntimePayloadPath, 10_000);
+  const liveObserver = usePayloadFile<Record<string, unknown>>(liveObserverRuntimePayloadPath, 10_000);
 
-  useEffect(() => {
-    let active = true;
-    let timer: number | undefined;
-    const load = (): void => {
-      Promise.allSettled([
-        fetchJson<OperatorTruthPayload>(`${operatorTruthPayloadPath}?ts=${Date.now()}`),
-        fetchJson<PaperOnlineRuntimePayload>(`${paperOnlineRuntimePayloadPath}?ts=${Date.now()}`),
-        fetchJson<Record<string, unknown>>(`${liveObserverRuntimePayloadPath}?ts=${Date.now()}`),
-      ]).then(([truthResult, paperResult, liveObserverResult]) => {
-        if (!active) return;
-        const truth = truthResult.status === 'fulfilled' ? truthResult.value : null;
-        const paper = paperResult.status === 'fulfilled' ? paperResult.value : null;
-        const liveObserver = liveObserverResult.status === 'fulfilled' ? liveObserverResult.value : null;
-        const truthAge = ageSeconds(truth?.generated_at);
-        if (paper && runtimeIsCurrent(paper) && (truthAge === null || truthAge > RUNTIME_CURRENT_SECONDS)) {
-          setPayload(synthesizeTruthFromPaperRuntime(truth, paper, liveObserver));
-          setError(null);
-          return;
-        }
-        if (truth) {
-          setPayload(truth);
-          setError(null);
-          return;
-        }
-        if (paper && runtimeIsCurrent(paper)) {
-          setPayload(synthesizeTruthFromPaperRuntime(null, paper, liveObserver));
-          setError(null);
-          return;
-        }
-        const reason = truthResult.status === 'rejected' ? truthResult.reason : paperResult.status === 'rejected' ? paperResult.reason : 'no payload';
-        setPayload(null);
-        setError(reason instanceof Error ? reason.message : String(reason));
-      });
-    };
-    load();
-    timer = window.setInterval(load, 10_000);
-    return () => {
-      active = false;
-      if (timer !== undefined) window.clearInterval(timer);
-    };
-  }, []);
+  const payload = useMemo(() => {
+    const truthPayload = truth.data;
+    const paperPayload = paper.data;
+    const liveObserverPayload = liveObserver.data;
+    const truthAge = ageSeconds(truthPayload?.generated_at);
+    if (paperPayload && runtimeIsCurrent(paperPayload) && (truthAge === null || truthAge > RUNTIME_CURRENT_SECONDS)) {
+      return synthesizeTruthFromPaperRuntime(truthPayload, paperPayload, liveObserverPayload);
+    }
+    if (truthPayload) return truthPayload;
+    if (paperPayload && runtimeIsCurrent(paperPayload)) {
+      return synthesizeTruthFromPaperRuntime(null, paperPayload, liveObserverPayload);
+    }
+    return null;
+  }, [liveObserver.data, paper.data, truth.data]);
 
-  return { payload, error };
+  return { payload, error: payload ? null : truth.error ?? paper.error };
 }
 
 export function usePaperOnlineRuntimePayload(intervalMs = 10_000): {
   payload: PaperOnlineRuntimePayload | null;
   error: string | null;
 } {
-  const [payload, setPayload] = useState<PaperOnlineRuntimePayload | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    let timer: number | undefined;
-    const load = (): void => {
-      fetchJson<PaperOnlineRuntimePayload>(`${paperOnlineRuntimePayloadPath}?ts=${Date.now()}`)
-        .then((data) => {
-          if (!active) return;
-          setPayload(data);
-          setError(null);
-        })
-        .catch((err: unknown) => {
-          if (!active) return;
-          setPayload(null);
-          setError(err instanceof Error ? err.message : String(err));
-        });
-    };
-    load();
-    timer = window.setInterval(load, intervalMs);
-    return () => {
-      active = false;
-      if (timer !== undefined) window.clearInterval(timer);
-    };
-  }, [intervalMs]);
-
-  return { payload, error };
+  const stream = usePayloadFile<PaperOnlineRuntimePayload>(paperOnlineRuntimePayloadPath, intervalMs);
+  return { payload: stream.data, error: stream.error };
 }
 
 export function useTonightReadinessPayload(intervalMs = 10_000): {
   payload: TonightReadinessPayload | null;
   error: string | null;
 } {
-  const [payload, setPayload] = useState<TonightReadinessPayload | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    let timer: number | undefined;
-    const load = (): void => {
-      fetchJson<TonightReadinessPayload>(`${tonightReadinessPayloadPath}?ts=${Date.now()}`)
-        .then((data) => {
-          if (!active) return;
-          setPayload(data);
-          setError(null);
-        })
-        .catch((err: unknown) => {
-          if (!active) return;
-          setPayload(null);
-          setError(err instanceof Error ? err.message : String(err));
-        });
-    };
-    load();
-    timer = window.setInterval(load, intervalMs);
-    return () => {
-      active = false;
-      if (timer !== undefined) window.clearInterval(timer);
-    };
-  }, [intervalMs]);
-
-  return { payload, error };
+  const stream = usePayloadFile<TonightReadinessPayload>(tonightReadinessPayloadPath, intervalMs);
+  return { payload: stream.data, error: stream.error };
 }
 
 export function useCoinankMarketIntelligencePayload(intervalMs = 10_000): {
   payload: CoinankMarketIntelligencePayload | null;
   error: string | null;
 } {
-  const [payload, setPayload] = useState<CoinankMarketIntelligencePayload | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    let timer: number | undefined;
-    const load = (): void => {
-      fetchJson<CoinankMarketIntelligencePayload>(`${coinankMarketIntelligencePayloadPath}?ts=${Date.now()}`)
-        .then((data) => {
-          if (!active) return;
-          setPayload(data);
-          setError(null);
-        })
-        .catch((err: unknown) => {
-          if (!active) return;
-          setPayload(null);
-          setError(err instanceof Error ? err.message : String(err));
-        });
-    };
-    load();
-    timer = window.setInterval(load, intervalMs);
-    return () => {
-      active = false;
-      if (timer !== undefined) window.clearInterval(timer);
-    };
-  }, [intervalMs]);
-
-  return { payload, error };
+  const stream = usePayloadFile<CoinankMarketIntelligencePayload>(coinankMarketIntelligencePayloadPath, intervalMs);
+  return { payload: stream.data, error: stream.error };
 }

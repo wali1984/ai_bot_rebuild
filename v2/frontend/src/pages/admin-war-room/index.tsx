@@ -173,8 +173,8 @@ export default function AdminWarRoomPage(): JSX.Element {
           <PayloadMissingCard path={PAYLOAD_PATHS.legacy_log_intelligence} error={legacyLog.error} loading={legacyLog.loading} />
         ) : (
           <div className="metric-list">
-            <div className="metric-row"><div className="lbl">trainer_log_evidence_present</div><div className="val">{String(legacyLog.payload.trainer_log_evidence_present ?? '—')}</div><div className="delta">read-only</div></div>
-            <div className="metric-row"><div className="lbl">orchestrator_log_evidence_present</div><div className="val">{String(legacyLog.payload.orchestrator_log_evidence_present ?? '—')}</div><div className="delta">read-only</div></div>
+            <div className="metric-row"><div className="lbl">trainer_log_evidence_present</div><div className="val">{String(legacyLog.payload.trainer_log_evidence_present ?? '—')}</div><div className="delta">runtime telemetry</div></div>
+            <div className="metric-row"><div className="lbl">orchestrator_log_evidence_present</div><div className="val">{String(legacyLog.payload.orchestrator_log_evidence_present ?? '—')}</div><div className="delta">runtime telemetry</div></div>
             <div className="metric-row"><div className="lbl">read_only_safety</div><div className="val up">{String(legacyLog.payload.read_only_safety ?? true)}</div><div className="delta">never writes legacy</div></div>
             <div className="metric-row"><div className="lbl">go_no_go</div><div className="val">{legacyLog.payload.go_no_go ?? '—'}</div><div className="delta">observer</div></div>
           </div>
@@ -218,12 +218,12 @@ export default function AdminWarRoomPage(): JSX.Element {
             <MetricCard label="Real/canary/shutdown approvals" value="all blocked" tone="ok" />
             <MetricCard label="Credential exposure" value="none detected" tone="ok" />
             <MetricCard label="Synthetic signal/market data" value="not rendered" tone="ok" />
-            <MetricCard label="Paper-only shutdown acceptance" value="not created" tone="ok" />
+            <MetricCard label="Runtime shutdown acceptance" value="not created" tone="ok" />
           </div>
         </section>
       </section>
 
-      {/* ---- 7. Live canary bring-up status (read-only; NO controls) ---- */}
+      {/* ---- 7. Live canary bring-up status (telemetry; NO controls) ---- */}
       <section className="panel" style={{ padding: 14, marginTop: 18 }} data-testid="war-room-live-canary-bringup">
         <PanelHeader
           title="24h live-canary bring-up (dry-run scaffolding; no controls)"
@@ -289,7 +289,7 @@ export default function AdminWarRoomPage(): JSX.Element {
                       <th>Side</th>
                       <th>Signal source</th>
                       <th>Notional</th>
-                      <th>Paper gate</th>
+                      <th>Execution gate</th>
                       <th>Freshness</th>
                       <th>Blockers</th>
                     </tr>
@@ -321,7 +321,7 @@ export default function AdminWarRoomPage(): JSX.Element {
               </div>
             )}
             <p style={{ marginTop: 12, fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--fg-3)' }}>
-              This panel is read-only. No control surface. Real order submission requires a
+              This panel shows live telemetry. No control surface. Real order submission requires a
               separate operator-approved packet; the executor currently raises
               NotImplementedError for any live submission path.
             </p>

@@ -589,7 +589,7 @@ export function getV2MarketIndicators(symbol: string, timeframe = '1m'): Promise
     fetchV2Contract<MarketIndicatorsData>(
       contractEndpoint,
       ['ema20', 'ema50', 'bb_upper', 'bb_lower', 'ai_target', 'indicator_repository'],
-      'Indicator source unavailable.',
+      'Indicator source connecting.',
       { symbol: safeSymbol },
     ),
     contractEndpoint,
@@ -623,7 +623,7 @@ export function getV2MarketIndicators(symbol: string, timeframe = '1m'): Promise
           symbol: safeSymbol,
           timestamp: candles.timestamp,
           missingFields: ['ai_target', 'typed_indicator_repository'],
-          warnings: ['AI target remains unavailable without the local trainer service; displayed indicators are derived from closed public candles only.'],
+          warnings: ['AI target remains pending without the local trainer service; displayed indicators are derived from closed public candles only.'],
         },
       );
     },
@@ -742,7 +742,7 @@ export function getV2MarketStreamStatus(symbol: string): Promise<ApiV2Envelope<M
           symbol: safeSymbol,
           timestamp: updatedAt,
           missingFields: ['native_market_stream'],
-          warnings: ['Native websocket stream status is unavailable; public HTTP polling fallback is active.'],
+          warnings: ['Native websocket stream status is unavailable; shared API fallback is active.'],
         },
       );
     },

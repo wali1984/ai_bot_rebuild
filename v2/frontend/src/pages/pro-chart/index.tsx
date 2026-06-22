@@ -97,9 +97,9 @@ export default function ProChartPage(): JSX.Element {
         <span className="pro-chart-status-strip__item pro-chart-status-strip__item--safe">
           Live market data
         </span>
-        <span className="pro-chart-status-strip__item">
-          Realtime source: Binance public stream when frames arrive; public REST candle backfill when needed
-        </span>
+	        <span className="pro-chart-status-strip__item">
+	          Realtime source: Binance public stream plus shared WebSocket resources with API fallback
+	        </span>
         <span className="pro-chart-status-strip__item">
           Trader scope: {traderContext.accountScopeLabel}
         </span>

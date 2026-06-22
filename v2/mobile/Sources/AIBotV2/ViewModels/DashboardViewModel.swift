@@ -15,6 +15,7 @@ public final class DashboardViewModel {
 
     private let dashboardSocket = WebSocketClient()
     private let healthSocket = WebSocketClient()
+    private var fallbackTask: Task<Void, Never>?
     private let streamIntervalMs = 1_000
 
     public func load(token: String?, baseURL: String) async {
@@ -46,10 +47,23 @@ public final class DashboardViewModel {
     }
 
     public func startAutoRefresh(token: String?, baseURL: String) {
+        stopAutoRefresh()
         connect(token: token, baseURL: baseURL)
+        fallbackTask = Task {
+            await loadFallback(token: token, baseURL: baseURL)
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(30))
+                if !dashboardStreamIsConnected || !healthStreamIsConnected {
+                    connect(token: token, baseURL: baseURL)
+                    await loadFallback(token: token, baseURL: baseURL)
+                }
+            }
+        }
     }
 
     public func stopAutoRefresh() {
+        fallbackTask?.cancel()
+        fallbackTask = nil
         stopStreams()
     }
 
@@ -62,6 +76,16 @@ public final class DashboardViewModel {
 
     public var streamSummary: String {
         "Dashboard \(dashboardStreamLabel) · Health \(healthStreamLabel)"
+    }
+
+    private var dashboardStreamIsConnected: Bool {
+        if case .connected = dashboardSocket.state { return true }
+        return false
+    }
+
+    private var healthStreamIsConnected: Bool {
+        if case .connected = healthSocket.state { return true }
+        return false
     }
 
     private func loadFallback(token: String?, baseURL: String) async {
@@ -79,6 +103,7 @@ public final class DashboardViewModel {
             let (d, h) = try await (dashboardFallback, healthFallback)
             dashboard = d
             health = h
+            WatchSyncCenter.shared.updateDashboard(dashboard, health: health)
             isLoading = false
             error = nil
         } catch {
@@ -94,6 +119,7 @@ public final class DashboardViewModel {
             dashboard = try decodeMobileResourceMessage(MobileDashboard.self, from: message)
             dashboardStreamLabel = "Live"
             lastStreamMessageAt = Date()
+            WatchSyncCenter.shared.updateDashboard(dashboard, health: health)
             isLoading = false
             error = nil
         } catch {
@@ -108,6 +134,7 @@ public final class DashboardViewModel {
             health = try decodeMobileResourceMessage(MobileHealth.self, from: message)
             healthStreamLabel = "Live"
             lastStreamMessageAt = Date()
+            WatchSyncCenter.shared.updateDashboard(dashboard, health: health)
             isLoading = false
             error = nil
         } catch {

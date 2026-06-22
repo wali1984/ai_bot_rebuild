@@ -144,7 +144,7 @@ export function ProfitTargetMonitorPanel({ compact = false }: { compact?: boolea
   return (
     <section className="cockpit-panel panel bracketed" data-testid="profit-target-monitor-panel">
       <div className="panel-head">
-        <h2 className="panel-title">{compact ? 'Paper Performance Objective' : '10K Monthly Net-Profit Objective'}</h2>
+        <h2 className="panel-title">{compact ? 'Execution Performance Objective' : '10K Monthly Net-Profit Objective'}</h2>
         <div className="panel-actions">
           <span className={`chip solid-${tone(data?.goal_status)}`}>{readable(data?.goal_status)}</span>
           <span className={`chip solid-${ageClass(ageSeconds, 120)}`}>{fmtAge(ageSeconds)}</span>

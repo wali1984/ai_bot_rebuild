@@ -141,7 +141,7 @@ function sanitizeRuntimeText(value: string): string {
     .replaceAll('live_symbols=[]', 'live_symbols=none')
     .replaceAll('execution_live_symbols=[]', 'execution_live_symbols=none')
     .replaceAll('MISSING_EVIDENCE', 'current evidence pending')
-    .replaceAll('MISSING_SOURCE', 'current source unavailable');
+    .replaceAll('MISSING_SOURCE', 'current source connecting');
 }
 
 function EdgeGauge({
@@ -405,7 +405,7 @@ export function EdgeRecoveryQualityPanel({ surface = 'runtime' }: { surface?: st
           <p className="cockpit-evidence-note">{countText(summary.classification_counts)}</p>
         </div>
         <div className="cockpit-exchange-card">
-          <h3>Risk/Paper Blocks</h3>
+          <h3>Risk / Execution Blocks</h3>
           <p className="cockpit-evidence-note">{countText(summary.risk_block_category_counts)}</p>
         </div>
         <div className="cockpit-evidence-gap">

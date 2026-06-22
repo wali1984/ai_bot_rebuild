@@ -50,7 +50,7 @@ function resolveGateLabel(p: LiveGateRuntimePayload | null | undefined): string 
   if (p.live_order_submit_allowed === false || p.live_blocked === true) {
     return p.live_blocker ?? 'BLOCKED';
   }
-  return p.live_gate ?? 'read-only';
+  return p.live_gate ?? 'operator gated';
 }
 
 interface TrainingMetrics {
@@ -730,7 +730,7 @@ export default function AiBrainPage(): JSX.Element {
         </div>
       </header>
 
-      {error ? <p className="cockpit-evidence-gap" role="alert">Trainer source unavailable: {error}</p> : null}
+      {error ? <p className="cockpit-evidence-gap" role="alert">Trainer source reconnecting: {error}</p> : null}
 
       <ProfitTargetMonitorPanel />
       <MajorMoveReplayStatusPanel />
@@ -752,7 +752,7 @@ export default function AiBrainPage(): JSX.Element {
           <Metric label="Timeframes covered" value={runtimeAlphaSoak?.forward_paper_timeframe_count ?? 'current runtime pending'} />
           <Metric label="Executable candidates" value={runtimeAlphaSoak?.forward_paper_accepted_candidate_rows ?? 0} />
           <Metric label="Trainer-ready feedback" value={runtimeAlphaSoak?.trainer_feedback_row_count ?? 0} detail={`${runtimeAlphaSoak?.trainer_feedback_quarantined_row_count ?? 0} quarantined`} />
-          <Metric label="Account equity" value={numberMetric(runtimeAlphaSoak?.paper_equity, 2)} detail={runtimeLabel(runtimeAlphaSoak?.paper_equity_source ?? 'Data source unavailable')} />
+          <Metric label="Account equity" value={numberMetric(runtimeAlphaSoak?.paper_equity, 2)} detail={runtimeLabel(runtimeAlphaSoak?.paper_equity_source ?? 'Connecting stream')} />
         </div>
         <p className="cockpit-evidence-note" style={{ marginTop: '0.75rem' }}>
           {runtimeAlphaSoak?.root_cause ?? 'Current no-trade root cause pending from runtime-alpha soak monitor.'}
@@ -912,10 +912,10 @@ export default function AiBrainPage(): JSX.Element {
           <Metric label="False negatives" value={falseNegativeAttribution?.false_negative_count ?? 0} />
           <Metric label="Lineage complete" value={String(falseNegativeAttribution?.lineage_complete ?? false)} />
           <Metric label="Root causes" value={cudaCountMapText(falseNegativeAttribution?.root_cause_counts)} />
-          <Metric label="Simulations" value={actionabilitySimulation?.simulations?.length ?? 0} />
-          <Metric label="Recommended sim" value={actionabilitySimulation?.recommended_simulation_id ?? '—'} />
-          <Metric label="Sim recovered" value={recommendedSimulation?.recovered_false_negatives ?? 0} />
-          <Metric label="Sim FP estimate" value={recommendedSimulation?.introduced_false_positives_estimate ?? 0} />
+          <Metric label="Scenario runs" value={actionabilitySimulation?.simulations?.length ?? 0} />
+          <Metric label="Recommended scenario" value={actionabilitySimulation?.recommended_simulation_id ?? '—'} />
+          <Metric label="Scenario recovered" value={recommendedSimulation?.recovered_false_negatives ?? 0} />
+          <Metric label="Scenario FP estimate" value={recommendedSimulation?.introduced_false_positives_estimate ?? 0} />
           <Metric label="Overlay candidates" value={actionabilityOverlay?.overlay_candidate_count ?? 0} />
           <Metric label="Overlay recovered" value={actionabilityEdge?.simulated_overlay?.recovered_false_negatives ?? 0} />
           <Metric label="Candidate expectancy" value={cudaBpsText(actionabilityEdge?.simulated_overlay?.candidate_after_cost_expectancy_bps)} />

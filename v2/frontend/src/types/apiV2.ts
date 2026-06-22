@@ -1,4 +1,4 @@
-export type ApiV2SourceType = 'api' | 'repository' | 'redis_live' | 'static_payload' | 'unavailable';
+export type ApiV2SourceType = 'websocket' | 'api' | 'repository' | 'redis_live' | 'static_payload' | 'unavailable';
 export type ApiV2Mode = 'paper' | 'read_only' | 'live_blocked' | 'paper_preview_unverified';
 
 export interface TraderContext {
@@ -106,6 +106,15 @@ export interface MarketIndicatorsData {
   ai_target: MarketIndicatorPoint[];
   indicator_count: number;
   controls_enabled: boolean;
+  indicator_snapshot?: {
+    close?: number | null;
+    rsi_14?: number | null;
+    macd?: number | null;
+    macd_signal?: number | null;
+    macd_hist?: number | null;
+    atr_14?: number | null;
+    bb_width_pct?: number | null;
+  };
 }
 
 export interface MarketDepthData {

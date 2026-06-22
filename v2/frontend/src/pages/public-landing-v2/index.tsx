@@ -6,6 +6,7 @@
 
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { RealtimeDataAtlasPanel } from '../../components/realtimeWebsite/RealtimeDataAtlasPanel';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import meta from './meta';
 
@@ -505,6 +506,13 @@ export default function PublicLandingPage(): JSX.Element {
               <div><LoadingSkeleton /></div>
             </div>
           )}
+        </div>
+      </section>
+
+      {/* ── REALTIME DATA HEALTH ──────────────────────────────────────────── */}
+      <section style={{ padding: '48px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={S.wrap}>
+          <RealtimeDataAtlasPanel mode="public" />
         </div>
       </section>
 

@@ -4,6 +4,7 @@ import route from './route';
 import { useState } from 'react';
 import { Panel } from '../cockpitComponents';
 import { usePayloadFile, fmtAge, ageClass } from '../../hooks/usePayloadFile';
+import { publicRuntimeCopy } from '../../lib/tradeCopy';
 
 const INGESTORS_STATUS_PATH =
   '/operator_runtime/v2_ingestors_status/latest/v2_ingestors_status.json';
@@ -141,7 +142,7 @@ export default function IngestorsPage(): JSX.Element {
           <div className="metric">
             <span className="metric-label">Ingestor health</span>
             <span className={`metric-value ${runtimeTruth?.ingestor_status === 'INGESTORS_OK' ? 'metric--ok' : 'metric--warn'}`}>
-              {runtimeTruth?.ingestor_status ?? '—'}
+                  {publicRuntimeCopy(runtimeTruth?.ingestor_status)}
             </span>
           </div>
           <div className="metric">
@@ -169,7 +170,7 @@ export default function IngestorsPage(): JSX.Element {
           <div className="metric">
             <span className="metric-label">Native classification</span>
             <span className={`metric-value ${(nativeLive?.classification ?? '').includes('OK') || (nativeLive?.classification ?? '').includes('READY') ? 'metric--ok' : 'metric--warn'}`}>
-              {nativeLive?.classification ?? '—'} ({fmtAge(nativeLiveAge)})
+              {publicRuntimeCopy(nativeLive?.classification)} ({fmtAge(nativeLiveAge)})
             </span>
           </div>
           <div className="metric">
@@ -191,7 +192,7 @@ export default function IngestorsPage(): JSX.Element {
               <div className="metric">
                 <span className="metric-label">Classification</span>
                 <span className={`metric-value ${data.classification === 'INGESTORS_OK' ? 'metric--ok' : 'metric--warn'}`}>
-                  {data.classification}
+                  {publicRuntimeCopy(data.classification)}
                 </span>
               </div>
               <div className="metric">
@@ -206,7 +207,7 @@ export default function IngestorsPage(): JSX.Element {
               </div>
               <div className="metric">
                 <span className="metric-label">Live gate</span>
-                <span className="metric-value metric--block">{data.live_gate}</span>
+                <span className="metric-value metric--block">{publicRuntimeCopy(data.live_gate)}</span>
               </div>
               <div className="metric">
                 <span className="metric-label">Dynamic symbols</span>
@@ -247,9 +248,9 @@ export default function IngestorsPage(): JSX.Element {
                 <tbody>
                   {data.ingestors.map((ing) => (
                     <tr key={ing.name} className={ing.active ? '' : 'row--warn'}>
-                      <td><strong>{ing.name}</strong></td>
-                      <td><code className="monospace small">{ing.service}</code></td>
-                      <td>{statusBadge(ing.active, ing.status)}</td>
+                      <td><strong>{publicRuntimeCopy(ing.name)}</strong></td>
+                      <td><code className="monospace small">{publicRuntimeCopy(ing.service)}</code></td>
+                      <td>{statusBadge(ing.active, publicRuntimeCopy(ing.status))}</td>
                       <td className={ing.heartbeat_ttl_seconds > 0 ? 'metric--ok' : 'metric--block'}>
                         {ing.heartbeat_ttl_seconds}
                       </td>

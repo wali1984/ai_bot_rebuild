@@ -154,15 +154,15 @@ export interface PredictionSignalExplanationsPayload {
 }
 
 export function formatExplainerPercent(value: number | null | undefined): string {
-  return typeof value === 'number' && Number.isFinite(value) ? `${(value * 100).toFixed(1)}%` : 'Data source unavailable';
+  return typeof value === 'number' && Number.isFinite(value) ? `${(value * 100).toFixed(1)}%` : 'Connecting stream';
 }
 
 export function formatExplainerBps(value: number | null | undefined): string {
-  return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(2)} bps` : 'Data source unavailable';
+  return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(2)} bps` : 'Connecting stream';
 }
 
 export function formatExplainerPrice(value: number | null | undefined): string {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return 'Data source unavailable';
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 'Connecting stream';
   if (Math.abs(value) >= 100) return `$${value.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
   return `$${value.toPrecision(6)}`;
 }

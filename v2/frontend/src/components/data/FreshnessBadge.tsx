@@ -13,7 +13,7 @@ const LABEL: Record<FreshnessStatus, string> = {
   delayed: 'Delayed',
   stale: 'Stale',
   offline: 'Offline',
-  unavailable: 'Awaiting feed',
+  unavailable: 'Stream initializing',
 };
 
 export function FreshnessBadge({ status, lagMs, showLag = true, compact = false }: Props) {

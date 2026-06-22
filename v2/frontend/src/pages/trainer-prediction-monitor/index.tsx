@@ -241,7 +241,7 @@ export default function AIPredictionsPage(): JSX.Element {
   const { envelope, loading, error, refetch } = useRealtimeResource<AIPredictionsData>({
     url: '/api/v2/ai/predictions',
     source: '/api/v2/ai/predictions',
-    source_type: 'api',
+    source_type: 'websocket',
     pollIntervalMs: 30_000,
     staleThresholdMs: 120_000,
     mode: 'read_only',
@@ -296,7 +296,7 @@ export default function AIPredictionsPage(): JSX.Element {
         <KPICard label="Emitted" value={loading ? '…' : String(data?.total_emitted ?? '—')} color="var(--buy)" sub="Signals emitted" />
         <KPICard label="Blocked" value={loading ? '…' : String(data?.total_blocked ?? '—')} color="var(--sell)" sub="Signals blocked by risk" />
         <KPICard label="Calibration" value={loading ? '…' : fmtConf(data?.calibration_score ?? null)} sub="Confidence calibration" />
-        <KPICard label="Realized Win Rate" value={loading ? '…' : fmtPct(data?.win_rate_realized ?? null)} sub="Paper back-measured" />
+        <KPICard label="Realized Win Rate" value={loading ? '…' : fmtPct(data?.win_rate_realized ?? null)} sub="Runtime measured" />
       </div>
 
       <div style={{ padding: '0 24px 16px' }}>

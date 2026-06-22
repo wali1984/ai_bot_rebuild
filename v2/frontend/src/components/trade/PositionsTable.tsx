@@ -157,9 +157,9 @@ export function PositionsTable({ state }: { state: TradeTerminalState }): JSX.El
       </div>
       {legacyRows.map((position, index) => (
         <div className="trade-table__row" role="row" key={`${position.symbol ?? 'position'}-${index}`}>
-          <span data-label="Symbol">{position.symbol ?? 'Data unavailable'}</span>
+          <span data-label="Symbol">{position.symbol ?? 'Connecting stream'}</span>
           <span data-label="Side">{tradeCopy(position.side)}</span>
-          <span data-label="Size">{formatMoney(position.quantity, 'Data unavailable').replace('$', '')}</span>
+          <span data-label="Size">{formatMoney(position.quantity, 'Connecting stream').replace('$', '')}</span>
           <span data-label="Entry">{formatPrice(position.entry_price)}</span>
           <span data-label="Mark">{formatPrice(position.current_price, 'Unavailable')}</span>
           <span data-label="PnL" className={signedClass(position.unrealized_pnl)}>{formatMoney(position.unrealized_pnl, 'Unavailable')}</span>

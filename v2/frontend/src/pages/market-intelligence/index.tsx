@@ -205,21 +205,25 @@ export default function ResearchPage(): JSX.Element {
   const [watchlist] = useState<Set<string>>(new Set(DEFAULT_WATCHLIST));
   const adaptiveCapital = useAdaptiveCapitalDashboard(30_000);
 
-  const { envelope, loading, refetch } = useRealtimeResource<OverviewData>({
+  const { envelope, loading } = useRealtimeResource<OverviewData>({
     url: '/api/v2/market/overview',
     source: '/api/v2/market/overview',
-    source_type: 'api',
+    source_type: 'websocket',
     pollIntervalMs: 30_000,
     staleThresholdMs: 90_000,
+    initialFetch: true,
+    httpFallback: true,
     mode: 'read_only',
   });
 
   const { envelope: signalsEnv } = useRealtimeResource<{ active_signal: Record<string, unknown> | null }>({
     url: '/api/v2/signals?symbol=BTCUSDT',
     source: '/api/v2/signals',
-    source_type: 'api',
+    source_type: 'websocket',
     pollIntervalMs: 30_000,
     staleThresholdMs: 60_000,
+    initialFetch: true,
+    httpFallback: true,
     mode: 'read_only',
   });
 
@@ -292,18 +296,12 @@ export default function ResearchPage(): JSX.Element {
           <div>
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>Research</h1>
             <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
-              Live Binance USD-M screener · {tickers.length} pairs · {envelope.source_type === 'api' ? 'Real-time' : 'Cached'} market data
+              Live Binance USD-M screener · {tickers.length} pairs · WebSocket market data
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <FreshnessBadge status={envelope.freshness_status} lagMs={envelope.lag_ms} />
             <SourceBadge sourceType={envelope.source_type} source={envelope.source} endpoint={envelope.endpoint} />
-            <button
-              onClick={refetch}
-              style={{ padding: '5px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 12, cursor: 'pointer' }}
-            >
-              Refresh
-            </button>
           </div>
         </div>
 
@@ -341,7 +339,7 @@ export default function ResearchPage(): JSX.Element {
         <div style={{ marginBottom: 20 }}>
           <AdaptiveCapitalTelemetryPanel
             payload={adaptiveCapital.data}
-            title="Research Signal Accuracy + Capital Productivity"
+            title="Signal Accuracy + Capital Productivity"
             compact
             showMatrix
             maxMatrixHeight={220}
@@ -436,14 +434,11 @@ export default function ResearchPage(): JSX.Element {
         {!loading && tickers.length === 0 && (
           <div style={{ padding: 40, textAlign: 'center', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 12 }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>📡</div>
-            <h3 style={{ margin: '0 0 8px', fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Market Data Not Loaded</h3>
+            <h3 style={{ margin: '0 0 8px', fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Market Stream Connecting</h3>
             <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--text-muted)', maxWidth: 400, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.6 }}>
-              The market overview is fetched from the Binance USD-M Futures API.
-              Data may not be available if the backend cannot reach the exchange.
+              The live market overview stream is connecting to the USD-M futures feed.
+              API fallback activates automatically if the stream is unavailable.
             </p>
-            <button onClick={refetch} style={{ padding: '8px 20px', borderRadius: 8, border: '1px solid var(--accent)', background: 'rgba(59,130,246,0.1)', color: 'var(--accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-              Retry
-            </button>
           </div>
         )}
 
@@ -460,8 +455,8 @@ export default function ResearchPage(): JSX.Element {
       {/* Footer */}
       <div style={{ padding: '12px 24px', borderTop: '1px solid var(--border)' }}>
         <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>
-          Market data: Binance USD-M Futures public API · {envelope.source ?? '/api/v2/market/overview'} · Live market platform.
-          Refreshes every 30s · {tickers.length} active pairs.
+          Market data: Binance USD-M Futures WebSocket stream with API fallback · {envelope.source ?? '/api/v2/market/overview'} · Live market platform.
+          {tickers.length} active pairs.
         </p>
       </div>
     </div>

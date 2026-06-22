@@ -157,7 +157,7 @@ export function ProTable<T>({
                   fontSize: '13px',
                 }}
               >
-                {empty ?? 'Awaiting feed.'}
+                {empty ?? 'Connecting stream.'}
               </td>
             </tr>
           ) : (

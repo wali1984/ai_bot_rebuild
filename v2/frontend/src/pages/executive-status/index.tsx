@@ -2,7 +2,8 @@ import meta from './meta';
 import rbac from './rbac';
 import route from './route';
 import { DesignPageShell } from '../designShell';
-import { fetchJson, usePollingQuery } from '../../hooks/usePollingQuery';
+import { usePayloadFile } from '../../hooks/usePayloadFile';
+import { publicRuntimeCopy } from '../../lib/tradeCopy';
 
 const EXEC_PAYLOAD_PATH = '/v2_report_center/latest/executive_status_payload.json';
 const LIVE_GATE_RUNTIME_PATH = '/operator_runtime/v2_live_gate_runtime/latest/live_gate_runtime_state.json';
@@ -110,9 +111,9 @@ function BigStateBannerInline({ exec }: { exec: ExecutiveSummary | undefined }):
             className={`report-metric-card report-metric-card--${tone}`}
             data-testid={`exec-state-${e.key}`}
           >
-            <span>{e.key.replace(/_/g, ' ')}</span>
+            <span>{publicRuntimeCopy(e.key.replace(/_/g, ' '))}</span>
             <strong>{e.value}</strong>
-            <small>{e.plain_english}</small>
+            <small>{publicRuntimeCopy(e.plain_english)}</small>
           </div>
         );
       })}
@@ -128,12 +129,12 @@ function PlainEnglishTruthPanel({ exec }: { exec: ExecutiveSummary | undefined }
           <p className="eyebrow">Plain-English Truth</p>
           <h2>Where we actually are right now</h2>
         </div>
-        <span className="chip">read-only</span>
+        <span className="chip">live telemetry</span>
       </div>
-      <p>{exec?.plain_english_truth ?? 'No truth statement in payload.'}</p>
+      <p>{publicRuntimeCopy(exec?.plain_english_truth, 'No truth statement in payload.')}</p>
       {exec?.headline ? (
         <pre className="report-fact-grid" aria-label="Executive headline">
-          <code>{exec.headline}</code>
+          <code>{publicRuntimeCopy(exec.headline)}</code>
         </pre>
       ) : null}
     </section>
@@ -163,12 +164,12 @@ function TopBlockersPanel({ exec }: { exec: ExecutiveSummary | undefined }): JSX
               key={b.key}
               data-testid={`exec-blocker-${b.key}`}
             >
-              <strong>{b.key.replace(/_/g, ' ')}</strong>
-              <p>{b.plain_english}</p>
+              <strong>{publicRuntimeCopy(b.key.replace(/_/g, ' '))}</strong>
+              <p>{publicRuntimeCopy(b.plain_english)}</p>
               {b.evidence ? (
                 <small>
                   {Object.entries(b.evidence)
-                    .map(([k, v]) => `${k}=${String(v)}`)
+                    .map(([k, v]) => `${publicRuntimeCopy(k)}=${publicRuntimeCopy(String(v))}`)
                     .join(' · ')}
                 </small>
               ) : null}
@@ -202,12 +203,12 @@ function CurrentProgressPanel({ exec }: { exec: ExecutiveSummary | undefined }):
               key={name}
               data-testid={`exec-progress-${name}`}
             >
-              <strong>{name.replace(/_/g, ' ')}</strong>
-              <p>{body?.plain_english ?? ''}</p>
+              <strong>{publicRuntimeCopy(name.replace(/_/g, ' '))}</strong>
+              <p>{publicRuntimeCopy(body?.plain_english ?? '')}</p>
               <small>
                 {Object.entries(body ?? {})
                   .filter(([k]) => k !== 'plain_english')
-                  .map(([k, v]) => `${k}=${typeof v === 'object' ? JSON.stringify(v) : String(v)}`)
+                  .map(([k, v]) => `${publicRuntimeCopy(k)}=${publicRuntimeCopy(typeof v === 'object' ? JSON.stringify(v) : String(v))}`)
                   .join(' · ')}
               </small>
             </article>
@@ -243,8 +244,8 @@ function NextActionsPanel({ exec }: { exec: ExecutiveSummary | undefined }): JSX
               key={a.key}
               data-testid={`exec-next-action-${a.key}`}
             >
-              <strong>{a.key.replace(/_/g, ' ')}</strong>
-              <p>{a.plain_english}</p>
+              <strong>{publicRuntimeCopy(a.key.replace(/_/g, ' '))}</strong>
+              <p>{publicRuntimeCopy(a.plain_english)}</p>
               <div className="report-chip-row">
                 <span
                   className={
@@ -255,7 +256,7 @@ function NextActionsPanel({ exec }: { exec: ExecutiveSummary | undefined }): JSX
                 </span>
                 {(a.blocks ?? []).map((b) => (
                   <span className="chip" key={`${a.key}-${b}`}>
-                    blocks {b.replace(/_/g, ' ')}
+                    blocks {publicRuntimeCopy(b.replace(/_/g, ' '))}
                   </span>
                 ))}
               </div>
@@ -288,8 +289,8 @@ function MarkerGlossaryPanel({ exec }: { exec: ExecutiveSummary | undefined }): 
           </div>
           {glossary.map(([marker, english]) => (
             <div className="report-lane-row" role="row" key={marker}>
-              <code>{marker}</code>
-              <span>{english}</span>
+              <code>{publicRuntimeCopy(marker)}</code>
+              <span>{publicRuntimeCopy(english)}</span>
             </div>
           ))}
         </div>
@@ -308,12 +309,12 @@ function SafetyInvariantsPanel({ exec, liveGateRuntime }: { exec: ExecutiveSumma
         {items.length === 0 ? (
           <strong>Safety invariants payload missing — defaults apply.</strong>
         ) : (
-          items.map((line) => <strong key={line}>{line}</strong>)
+          items.map((line) => <strong key={line}>{publicRuntimeCopy(line)}</strong>)
         )}
       </div>
       <div className="report-safety-banner__facts">
-        <code>live_gate={liveGate}</code>
-        <code>execution_symbols={listText(liveSymbols)}</code>
+        <code>live_gate={publicRuntimeCopy(liveGate)}</code>
+        <code>execution_symbols={publicRuntimeCopy(listText(liveSymbols))}</code>
         <code>approves_live=false</code>
         <code>approves_canary=false</code>
         <code>approves_legacy_shutdown=false</code>
@@ -324,16 +325,8 @@ function SafetyInvariantsPanel({ exec, liveGateRuntime }: { exec: ExecutiveSumma
 }
 
 export default function ExecutiveStatusPage(): JSX.Element {
-  const payloadQ = usePollingQuery<ExecutiveStatusPayload>(
-    EXEC_PAYLOAD_PATH,
-    (signal) => fetchJson(EXEC_PAYLOAD_PATH, signal),
-    { refetchIntervalMs: 15_000 },
-  );
-  const liveGateQ = usePollingQuery<LiveGateRuntimePayload>(
-    LIVE_GATE_RUNTIME_PATH,
-    (signal) => fetchJson(LIVE_GATE_RUNTIME_PATH, signal),
-    { refetchIntervalMs: 8_000 },
-  );
+  const payloadQ = usePayloadFile<ExecutiveStatusPayload>(EXEC_PAYLOAD_PATH, 15_000);
+  const liveGateQ = usePayloadFile<LiveGateRuntimePayload>(LIVE_GATE_RUNTIME_PATH, 8_000);
 
   const exec = payloadQ.data?.executive_summary;
   const failed = payloadQ.error;
@@ -353,7 +346,7 @@ export default function ExecutiveStatusPage(): JSX.Element {
         <section
           className="report-error-banner"
           role="alert"
-          aria-label="Executive payload stale or Data source unavailable"
+          aria-label="Executive payload stale or connecting"
         >
           <strong>EXECUTIVE_STATUS_PAYLOAD_STALE_OR_UNAVAILABLE</strong>
           <span>
@@ -375,10 +368,10 @@ export default function ExecutiveStatusPage(): JSX.Element {
           </p>
         </div>
         <div className="report-refresh-strip" aria-label="Realtime refresh status">
-          <span className={payloadQ.isFetching ? 'report-pulse report-pulse--active' : 'report-pulse'} />
+          <span className={payloadQ.loading ? 'report-pulse report-pulse--active' : 'report-pulse'} />
           <div>
-            <strong>{payloadQ.isFetching ? 'Refreshing executive payload' : 'Live polling active'}</strong>
-            <small>15s poll · cache bypass enabled</small>
+            <strong>{payloadQ.loading ? 'Streaming executive payload' : 'Live resource stream active'}</strong>
+            <small>WebSocket resource stream · API fallback enabled</small>
           </div>
           <code>payload age {formatFreshness(payloadAge(payloadQ.data?.generated_at))}</code>
         </div>

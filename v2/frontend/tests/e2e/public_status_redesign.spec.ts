@@ -1,139 +1,85 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { expect, test } from '@playwright/test';
 import { gotoAs } from './_shared';
 import { mockAuth } from './helpers/auth';
 import { STATUS_PAGE_FORBIDDEN_TERMS } from './helpers/forbiddenStrings';
 
 const STATUS_RESPONSE = {
-  platform_status: 'available',
-  api_status: 'available',
-  data_status: 'degraded',
-  paper_mode: true,
-  live_trading_enabled: false,
-  incidents: [],
-  updated_at: '2026-06-13T00:00:00Z',
-  source: 'test-status-contract',
-  endpoint: '/api/v2/status',
+  live_gate_status: 'enabled_operator_approved',
+  runtime_state: 'CURRENT',
+  public_route_failed_count: 0,
+  supervisor_health: 'CURRENT',
+};
+
+const MARKET_RESPONSE = {
+  data: {
+    count: 628,
+    symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'],
+  },
+  source: 'mocked market overview',
+  source_type: 'api',
+  endpoint: '/api/v2/market/overview',
+  timestamp: '2026-06-13T00:00:00Z',
+  received_at: '2026-06-13T00:00:01Z',
+  lag_ms: 1000,
   stale: false,
-  warnings: ['Some market data sources are fallback snapshots.'],
-  market_stream: {
-    symbol: 'BTCUSDT',
-    status: 'stale',
-    source: 'Read-only public market stream',
-    last_frame_at: '2026-06-13T00:00:00Z',
-    lag_ms: 4500,
-    stale: true,
-  },
-  market_stream_alert: {
-    status: 'active',
-    severity: 'warning',
-    summary: 'Market stream freshness is degraded or unavailable.',
-    action: 'Fallback market data remains labeled until stream freshness recovers.',
-    stale_for_ms: 4500,
-  },
-  market_stream_alert_history: {
-    symbol: 'BTCUSDT',
-    event_count: 2,
-    active_count: 1,
-    latest: {
-      recorded_at: '2026-06-13T00:00:00Z',
-      severity: 'warning',
-      summary: 'Market stream freshness is degraded or unavailable.',
-      action: 'Fallback market data remains labeled until stream freshness recovers.',
-    },
-    production_alerting_integrated: false,
-    public_market_data_only: true,
-  },
-  market_stream_alert_notifier: {
-    provider: 'webhook',
-    configured: true,
-    enabled: false,
-    delivery_supported: false,
-    delivered: false,
-    last_delivery_at: null,
-    last_status_code: null,
-    last_error: 'Webhook disabled.',
-    production_alerting_integrated: false,
-    public_market_data_only: true,
-  },
-  derivatives_data: {
-    status: 'pending',
-    source: 'Derivatives source evidence pending',
-    funding: 'verified',
-    open_interest: 'verified',
-    liquidations: 'pending',
-    long_short: 'pending',
-    basis: 'pending',
-    exchange_comparison: 'pending',
-    stale: true,
-    missing_count: 4,
-  },
+  missing_fields: [],
+  warnings: [],
+  mode: 'read_only',
 };
 
 test.beforeEach(async ({ page }) => {
   await mockAuth(page, 'public');
-  await page.route('**/api/v2/status', async (route) => {
+  await page.route('**/api/v2/public/status', async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(STATUS_RESPONSE) });
   });
-  await page.route('**/operator_runtime/**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        status: 'PRESENT_CURRENT',
-        generated_at: '2026-06-13T00:00:00Z',
-        symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'],
-        live_gate: 'paper_mode',
-      }),
-    });
-  });
-  await page.route('**/v2_top10_dashboards/**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        status: 'PRESENT_CURRENT',
-        generated_at: '2026-06-13T00:00:00Z',
-        rows: [{ symbol: 'BTCUSDT' }, { symbol: 'ETHUSDT' }],
-      }),
-    });
+  await page.route('**/api/v2/market/overview', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(MARKET_RESPONSE) });
   });
 });
 
 test.describe('Public status redesign', () => {
+  test('uses resource WebSocket streams instead of interval polling', () => {
+    const source = readFileSync(path.resolve(process.cwd(), 'src/pages/public-status/index.tsx'), 'utf8');
+
+    expect(source).toContain("useRealtimeResource<PublicStatusData>");
+    expect(source).toContain("url: '/api/v2/public/status'");
+    expect(source).toContain("url: '/api/v2/market/overview'");
+    expect(source).not.toContain('setInterval(');
+    expect(source).not.toContain("fetch('/api/v2/public/status')");
+    expect(source).not.toContain("fetch('/api/v2/market/overview')");
+  });
+
   test('renders a public-safe status page without authentication', async ({ page }) => {
     await gotoAs(page, '/status');
 
     await expect(page.getByTestId('page-public-status')).toBeVisible();
-    await expect(page.locator('body')).toContainText(/Platform availability/i);
-    await expect(page.locator('body')).toContainText(/API availability/i);
-    await expect(page.locator('body')).toContainText(/Market stream/i);
-    await expect(page.locator('body')).toContainText(/Derivatives data/i);
-    await expect(page.locator('body')).toContainText(/Stream alert/i);
-    await expect(page.locator('body')).toContainText(/Alert history/i);
-    await expect(page.locator('body')).toContainText(/Alert delivery/i);
-    await expect(page.getByTestId('realtime-data-atlas-public')).toBeVisible();
-    await expect(page.locator('body')).toContainText(/Realtime data health/i);
-    await expect(page.locator('body')).toContainText(/data feeds available/i);
+    await expect(page.locator('body')).toContainText(/NERVYX ONE Status/i);
+    await expect(page.locator('body')).toContainText(/Platform/i);
+    await expect(page.locator('body')).toContainText(/Market Data/i);
+    await expect(page.locator('body')).toContainText(/Signal Feed/i);
+    await expect(page.locator('body')).toContainText(/Order Routing/i);
+    await expect(page.locator('body')).toContainText(/628 symbols in universe/i);
+    await expect(page.locator('body')).toContainText(/Status updates from live resource streams/i);
   });
 
-  test('shows paper/read-only posture and live trading disabled state', async ({ page }) => {
+  test('shows guarded public posture without paper or disabled-live wording', async ({ page }) => {
     await gotoAs(page, '/status');
 
-    await expect(page.locator('body')).toContainText(/Paper mode active|Paper \/ read-only mode|read-only/i);
-    await expect(page.locator('body')).toContainText(/Live trading disabled/i);
+    const body = page.locator('body');
+    await expect(body).toContainText(/Risk-gated/i);
+    await expect(body).toContainText(/Guarded/i);
+    await expect(body).not.toContainText(/paper only|paper mode|read-only|read only|live trading disabled|simulated/i);
   });
 
-  test('shows freshness, incidents, and last updated context', async ({ page }) => {
+  test('shows freshness, maintenance, and capability context', async ({ page }) => {
     await gotoAs(page, '/status');
 
-    await expect(page.locator('body')).toContainText(/Market data freshness|Data freshness/i);
-    await expect(page.locator('body')).toContainText(/Market stream freshness is degraded|Fallback market data remains labeled/i);
-    await expect(page.locator('body')).toContainText(/Production alerting pending/i);
-    await expect(page.locator('body')).toContainText(/Outbound alert delivery is configured but disabled/i);
-    await expect(page.locator('body')).toContainText(/Signal data freshness|Signal/i);
-    await expect(page.locator('body')).toContainText(/Derivatives source evidence pending|Derivatives data/i);
-    await expect(page.locator('body')).toContainText(/Incidents|Maintenance/i);
-    await expect(page.locator('body')).toContainText(/Last updated|Updated/i);
+    await expect(page.locator('body')).toContainText(/Data Freshness/i);
+    await expect(page.locator('body')).toContainText(/Status and market feeds update through resource WebSockets/i);
+    await expect(page.locator('body')).toContainText(/Scheduled Maintenance/i);
+    await expect(page.locator('body')).toContainText(/Platform Capabilities/i);
   });
 
   test('does not expose forbidden internal status terms', async ({ page }) => {

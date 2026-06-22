@@ -371,7 +371,7 @@ export default function MarketsPage(): JSX.Element {
           }}
         >
           <span style={{ fontSize: 12, color: 'var(--warn, #f59e0b)' }}>
-            Price data unavailable — symbol list shown. Market data requires live exchange connection.
+            Price stream connecting — symbol list remains visible while exchange data reconnects.
           </span>
         </div>
       )}
@@ -380,7 +380,7 @@ export default function MarketsPage(): JSX.Element {
       <div style={{ overflowX: 'auto' }}>
         {loading && !data && (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-            Loading market data…
+            Connecting market stream…
           </div>
         )}
         {!loading && error && !data && (
@@ -411,7 +411,7 @@ export default function MarketsPage(): JSX.Element {
               ? 'No watchlist symbols'
               : tab === 'gainers'
               ? 'No gaining symbols right now'
-              : 'No market data available'}
+              : 'Market stream connecting'}
           </div>
         )}
         {filteredTickers.length > 0 && (

@@ -15,13 +15,13 @@ interface Props {
 
 const ROUTE_PROFILES: Record<string, { source: string; status: string; next: string; data: string[] }> = {
   symbols: {
-    source: 'READONLY_MARKET_FEED / symbol universe registry',
+    source: 'LIVE_MARKET_FEED / symbol universe registry',
     status: 'needs current symbol universe payload',
     next: 'Wire V2 symbol universe payload with exchange/source freshness and selection status.',
     data: ['symbol', 'exchange', 'status', 'market feed freshness', 'enabled for execution/shadow'],
   },
   'market-intelligence': {
-    source: 'LIVE_COINANK_READONLY / V2 market-intelligence bridge',
+    source: 'LIVE_COINANK_MARKET_INTELLIGENCE / V2 market-intelligence bridge',
     status: 'CoinAnk-style intelligence; no mock market data as current truth',
     next: 'Keep funding, OI, long/short, liquidation, and radar panels backed by current CoinAnk bridge evidence.',
     data: ['symbol', 'price', 'funding', 'open interest', 'long/short', 'liquidations', 'radar rank', 'freshness'],

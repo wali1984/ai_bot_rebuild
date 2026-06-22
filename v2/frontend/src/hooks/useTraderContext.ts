@@ -7,7 +7,7 @@ const LOCAL_TRADER_PREVIEW_ID = 'trader-wajidali1984';
 const LOCAL_PAPER_PREVIEW_ID = 'paper-wajidali1984';
 
 function prettyExchange(account: ExchangeAccount | null): string {
-  if (!account) return 'Exchange account unavailable';
+  if (!account) return 'Exchange account connecting';
   const exchangeKey = account.exchange?.toLowerCase();
   const exchange = exchangeKey === 'binance'
     ? 'Binance'
@@ -26,16 +26,16 @@ function prettyExchange(account: ExchangeAccount | null): string {
 function prettyCredentialStatus(account: ExchangeAccount | null, signedIn: boolean): string {
   if (!signedIn) return 'Sign in for trader-specific account';
   const status = account?.credential_status;
-  if (!account) return 'Exchange account unavailable';
+  if (!account) return 'Exchange account connecting';
   if (status?.status === 'credential_binding_blocked') return 'Account link pending';
   if (status?.configured && status.read_only_required) return 'Account access configured';
   if (status?.configured) return 'Account access configured';
   if (status?.status === 'credential_binding_required' || account.status === 'credential_binding_required') {
     return 'Account link setup required';
   }
-  if (status?.status === 'credential_reference_missing') return 'Account access source unavailable';
+  if (status?.status === 'credential_reference_missing') return 'Account access source connecting';
   if (status?.status === 'credential_source_pending' || account.status === 'credential_source_pending') {
-    return 'Account access source unavailable';
+    return 'Account access source connecting';
   }
   return 'Account access pending';
 }
@@ -92,7 +92,7 @@ export function useTraderContext() {
         ? 'Account scope incomplete'
       : accountBindingVerified
         ? 'Trading workspace connected'
-        : 'Exchange account unavailable';
+        : 'Exchange account connecting';
     const credentialStatus = prettyCredentialStatus(primaryExchangeAccount, Boolean(user));
     const credentialStatusDetail = primaryExchangeAccount?.credential_status
       ? 'Account access checked; no private values are exposed'

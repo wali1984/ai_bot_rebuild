@@ -522,24 +522,34 @@
   }
 
   .topbar-shell {
+    grid-template-areas:
+      "brand actions"
+      "nav nav";
     grid-template-columns: minmax(178px, 1fr) max-content;
+    grid-template-rows: auto auto;
     align-items: center;
-    gap: 8px 10px;
-    overflow: visible;
+    gap: 10px;
+    overflow: hidden;
     padding: 8px 12px;
   }
 
   .nervyx-brand-lockup {
+    grid-area: brand;
     max-width: 100%;
   }
 
   .topbar-primary-nav {
+    grid-area: nav;
     grid-column: 1 / -1;
     width: 100%;
     margin: 0 -2px;
+    flex-wrap: wrap;
+    overflow-x: hidden;
+    padding-top: 4px;
   }
 
   .topbar-actions {
+    grid-area: actions;
     margin-left: auto;
   }
 

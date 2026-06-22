@@ -23,9 +23,9 @@ const RUN_TYPE_LABELS: Record<PipelineRunType, string> = {
 
 const RUN_TYPE_DESCRIPTIONS: Record<PipelineRunType, string> = {
   trainer_cycle: 'Refreshes native CUDA PPO/MASA learning and prediction rows from current clean V2 feature snapshots. It publishes model output only; it cannot place exchange orders.',
-  replay: 'Reconstructs historical decision states so trainer, risk, orchestrator, and paper behavior can be debugged against the data available at the decision time.',
+  replay: 'Reconstructs historical decision states so trainer, risk, orchestrator, and runtime behavior can be debugged against the data available at the decision time.',
   backtest: 'Measures strategy quality on historical/replay rows: expectancy, false positives, false negatives, drawdown, and after-cost behavior before trusting a change.',
-  full_pipeline: 'Runs the safe V2 paper/training data path together: data freshness, features, predictions, risk, orchestrator, paper ledger, portfolio equity, and website payloads.',
+  full_pipeline: 'Runs the safe V2 execution/training data path together: data freshness, features, predictions, risk, orchestrator, execution ledger, portfolio equity, and website payloads.',
 };
 const LIVE_GATE_RUNTIME_PATH = '/operator_runtime/v2_live_gate_runtime/latest/live_gate_runtime_state.json';
 
@@ -101,7 +101,7 @@ export function PipelineControlPanel({ surface }: { surface: string }): JSX.Elem
       title="Trainer / Replay / Backtest Control"
       right={<span className={`chip solid-${ageClass(ageSeconds, 60)}`}>{fmtAge(ageSeconds)}</span>}
     >
-      {error ? <p className="cockpit-evidence-gap">Pipeline source unavailable: {error}</p> : null}
+      {error ? <p className="cockpit-evidence-gap">Pipeline source reconnecting: {error}</p> : null}
       <div className="cockpit-analytics-grid">
         <Metric label="Symbols" value={data?.symbols.length ?? 0} detail={`${data?.timeframes.join(', ') ?? 'no timeframes'}`} />
         <Metric label="Trainer compatible" value={formatPipelinePercent(data?.compatibility.trainer_compatible_percent)} detail={`${data?.compatibility.trainer_compatible_count ?? 0} rows`} />

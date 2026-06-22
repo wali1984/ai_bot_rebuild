@@ -113,7 +113,7 @@ export function TradeIntelligenceBar({ state }: { state: TradeTerminalState }): 
   const risk = riskEnv.data;
 
   const sig = state.signal;
-  const hasSignal = sig.direction !== 'Signal unavailable';
+  const hasSignal = sig.direction !== 'Signal connecting';
   const sigSide = hasSignal ? String(sig.direction).toUpperCase() : '—';
   const sigConf = sig.confidence !== null ? formatPercent(sig.confidence) : '—';
   const sigDetail = hasSignal ? `${state.symbol} · Floor ${formatPercent(state.signal.confidence)}` : 'No active signal';

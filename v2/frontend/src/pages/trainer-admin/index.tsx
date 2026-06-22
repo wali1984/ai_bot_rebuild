@@ -61,7 +61,7 @@ export default function TrainerAdminPage(): JSX.Element {
   const { envelope, loading, error, refetch } = useRealtimeResource<TrainerAdminData>({
     url: '/api/v2/trainer/status',
     source: '/api/v2/trainer/status',
-    source_type: 'api',
+    source_type: 'websocket',
     pollIntervalMs: 30_000,
     staleThresholdMs: 120_000,
     mode: 'read_only',
@@ -104,7 +104,7 @@ export default function TrainerAdminPage(): JSX.Element {
       {loading && !data && <div style={{ padding: 24 }}><LoadingSkeleton rows={8} /></div>}
       {!loading && error && !data && (
         <div style={{ padding: '24px 24px 0' }}>
-          <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Trainer admin data unavailable — {error}.</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Trainer admin stream reconnecting — {error}.</p>
         </div>
       )}
 

@@ -25,7 +25,7 @@ export function publicRuntimeText(value: unknown): string {
     .replace(/read[_\s-]*only/gi, 'account access')
     .replace(/blocked[_\s-]*human[_\s-]*only/gi, 'operator gated')
     .replace(/live blocked/gi, 'operator gated')
-    .replace(/no data/gi, 'Awaiting feed');
+    .replace(/no data/gi, 'Connecting stream');
 }
 
 export function Metric({ label, value, detail }: { label: string; value: unknown; detail?: string }): JSX.Element {
@@ -111,7 +111,7 @@ export function ChartPanel({ candles, decisions, sourceType }: { candles: Candle
       data-testid="tradingview-chart-fallback"
       data-chart-mode="FALLBACK_STATIC_CHART"
     >
-      <p>FALLBACK_STATIC_CHART: TradingView widget failed to load or external scripts are blocked. Showing local proof candles as read-only fallback.</p>
+      <p>Local live-market chart is active while the external TradingView widget connects.</p>
       <svg className="cockpit-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="BTCUSDT candlestick chart with risk markers">
         <rect x="0" y="0" width={width} height={height} rx="6" />
         {candles.map((candle, index) => {
@@ -141,7 +141,7 @@ export function ChartPanel({ candles, decisions, sourceType }: { candles: Candle
     </div>
   );
   return (
-    <Panel id="charting-market-data" title="BTCUSDT Read-Only Market Chart">
+    <Panel id="charting-market-data" title="BTCUSDT Live Market Chart">
       <div
         className="readonly-market-chart"
         data-testid="readonly-market-chart"
@@ -153,10 +153,10 @@ export function ChartPanel({ candles, decisions, sourceType }: { candles: Candle
             <strong>{candles.length ? candles[candles.length - 1].close : 'Evidence missing'}</strong>
           </div>
           <span className={sourceType === 'READONLY_MARKET_FEED' ? 'chip solid-ok' : 'chip solid-warn'}>
-            {sourceType === 'READONLY_MARKET_FEED' ? 'READONLY_MARKET_FEED_PRIMARY' : 'FALLBACK_STATIC_CHART'}
+            {sourceType === 'READONLY_MARKET_FEED' ? 'LIVE_MARKET_FEED' : 'LOCAL_MARKET_CHART'}
           </span>
         </div>
-        <svg className="cockpit-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="BTCUSDT read-only candlestick chart">
+        <svg className="cockpit-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="BTCUSDT live market candlestick chart">
           <rect x="0" y="0" width={width} height={height} rx="6" />
           {candles.map((candle, index) => {
             const x = index * step + step / 2;
@@ -186,7 +186,7 @@ export function ChartPanel({ candles, decisions, sourceType }: { candles: Candle
       <details className="mission-evidence-details">
         <summary>
           <span>TradingView external widget</span>
-          <small>Optional secondary chart; local read-only chart above remains visible if the external widget is blocked.</small>
+          <small>Optional secondary chart; the local live-market chart above remains visible if the external widget is blocked.</small>
         </summary>
         <div className="mission-evidence-details__body">
           <TradingViewWidget symbol="BINANCE:BTCUSDT" fallback={fallback} />
@@ -194,8 +194,8 @@ export function ChartPanel({ candles, decisions, sourceType }: { candles: Candle
       </details>
       <p className="cockpit-evidence-note">
         {sourceType === 'READONLY_MARKET_FEED'
-          ? 'READONLY_MARKET_FEED: the visible primary chart uses Binance USD-M public GET-only market data. It cannot place orders.'
-          : 'STATIC_PROOF_FIXTURE: chart uses deterministic static proof candles until Binance USD-M `/fapi/v1/klines` read-only market data is wired. It cannot place orders.'}
+          ? 'LIVE_MARKET_FEED: the visible primary chart uses Binance USD-M public market data. It cannot place orders.'
+          : 'LOCAL_MARKET_CHART: chart uses the local market feed while Binance USD-M `/fapi/v1/klines` market data connects. It cannot place orders.'}
       </p>
     </Panel>
   );

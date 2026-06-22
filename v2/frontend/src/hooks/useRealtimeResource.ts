@@ -13,6 +13,7 @@ export interface RealtimeResourceOptions<T> {
   initialFetch?: boolean;
   httpFallback?: boolean;
   mode?: ValidatedDataEnvelope<T>['mode'];
+  unwrapEnvelopeData?: boolean | 'contract';
 }
 
 export interface RealtimeResourceResult<T> {
@@ -23,6 +24,26 @@ export interface RealtimeResourceResult<T> {
 }
 
 const realtimeResourceCache = new Map<string, ValidatedDataEnvelope<unknown>>();
+const READONLY_STATIC_JSON_PREFIXES = [
+  '/operator_runtime/',
+  '/operator_truth/',
+  '/operator_gui_real_data_and_explainability/',
+  '/v2_',
+  '/tonight_live_like_paper_shadow/',
+  '/enterprise_trading_cockpit/',
+  '/external_manual_position_quarantine/',
+  '/readonly_market_exchange_data_plane/',
+  '/system_atlas_runtime_coverage/',
+  '/system_atlas_gap_remediation/',
+  '/phase3c_runtime_monitor_verification/',
+  '/redis_memory_pressure_remediation/',
+  '/redis_memory_human_approval/',
+  '/redis_export_capacity_remediation/',
+  '/redis_liquidations_full_export/',
+  '/historical_30d_replay_and_paper_proof/',
+  '/redis_safe_trim_packet/',
+  '/autonomous_governor/',
+] as const;
 
 function cacheKey(url: string, mode: ValidatedDataEnvelope<unknown>['mode']): string {
   return `${mode}:${url}`;
@@ -38,21 +59,25 @@ function cachedEnvelope<T>(
 function shouldCacheEnvelope<T>(envelope: ValidatedDataEnvelope<T>): boolean {
   return envelope.data !== null
     && envelope.data !== undefined
+    && envelope.source_type !== 'unavailable'
+    && envelope.source_type !== 'static_payload'
+    && envelope.source_type !== 'static_snapshot'
+    && envelope.freshness_status !== 'stale'
+    && envelope.freshness_status !== 'offline'
+    && envelope.freshness_status !== 'unavailable'
     && envelope.data_quality_status !== 'missing'
     && envelope.data_quality_status !== 'invalid';
 }
 
 function fetchTimeoutMs(pollIntervalMs: number): number {
-  return Math.min(2_500, Math.max(900, Math.floor(pollIntervalMs * 0.4)));
+  return Math.min(4_500, Math.max(3_000, Math.floor(pollIntervalMs * 0.8)));
 }
 
 function websocketResourceUrls(url: string, intervalMs: number): string[] {
   if (typeof window === 'undefined') return [];
   const path = url.split('?')[0] ?? url;
   const isApiResource = path.startsWith('/api/v2/') || path.startsWith('/api/v1/');
-  const isStaticJsonResource = path.endsWith('.json') && (
-    path.startsWith('/operator_runtime/') || path.startsWith('/v2_')
-  );
+  const isStaticJsonResource = path.endsWith('.json') && READONLY_STATIC_JSON_PREFIXES.some((prefix) => path.startsWith(prefix));
   if (!isApiResource && !isStaticJsonResource) return [];
   const origin = window.location.origin;
   const protocol = origin.startsWith('https:') ? 'wss:' : 'ws:';
@@ -78,6 +103,24 @@ function computeQuality(data: unknown, missing: string[]): DataQualityStatus {
   return 'valid';
 }
 
+function hasContractEnvelopeMetadata(raw: Record<string, unknown>): boolean {
+  return typeof raw.source_type === 'string'
+    || typeof raw.source === 'string'
+    || typeof raw.endpoint === 'string'
+    || typeof raw.mode === 'string'
+    || Array.isArray(raw.missing_fields)
+    || Array.isArray(raw.warnings)
+    || raw.transport === 'websocket'
+    || typeof raw.resource_path === 'string';
+}
+
+function shouldUnwrapEnvelopeData(raw: Record<string, unknown>, policy: boolean | 'contract'): boolean {
+  if (!('data' in raw) || raw.data === undefined) return false;
+  if (policy === true) return true;
+  if (policy === false) return false;
+  return hasContractEnvelopeMetadata(raw);
+}
+
 export function useRealtimeResource<T>(
   opts: RealtimeResourceOptions<T>,
 ): RealtimeResourceResult<T> {
@@ -92,6 +135,7 @@ export function useRealtimeResource<T>(
     initialFetch = true,
     httpFallback = true,
     mode = 'read_only',
+    unwrapEnvelopeData = true,
   } = opts;
 
   const [envelope, setEnvelope] = useState<ValidatedDataEnvelope<T>>(
@@ -102,13 +146,13 @@ export function useRealtimeResource<T>(
   const abortRef = useRef<AbortController | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
 
-  const applyRawEnvelope = useCallback((raw: Record<string, unknown>, receivedAt: number, lagMs: number) => {
-    const innerData = ('data' in raw && raw.data !== undefined) ? raw.data as T : raw as unknown as T;
+  const applyRawEnvelope = useCallback((raw: Record<string, unknown>, receivedAt: number, lagMs: number, deliveredSourceType?: SourceType) => {
+    const innerData = shouldUnwrapEnvelopeData(raw, unwrapEnvelopeData) ? raw.data as T : raw as unknown as T;
     const data: T = transform ? transform(innerData) : innerData;
     const backendMissing = Array.isArray(raw.missing_fields) ? raw.missing_fields as string[] : [];
     const backendWarnings = Array.isArray(raw.warnings) ? raw.warnings as string[] : [];
     const backendErrors = Array.isArray(raw.errors) ? raw.errors.map(String) : [];
-    const backendSourceType = (typeof raw.source_type === 'string' ? raw.source_type : source_type) as typeof source_type;
+    const backendSourceType = deliveredSourceType ?? (typeof raw.source_type === 'string' ? raw.source_type : source_type) as typeof source_type;
     const backendSource = typeof raw.source === 'string' ? raw.source : source;
     const backendMode = (typeof raw.mode === 'string' ? raw.mode : mode) as typeof mode;
     const backendLagMs = typeof raw.lag_ms === 'number' ? raw.lag_ms : lagMs;
@@ -120,6 +164,10 @@ export function useRealtimeResource<T>(
       source: backendSource,
       source_type: backendSourceType,
       endpoint: typeof raw.endpoint === 'string' ? raw.endpoint : url,
+      symbol: typeof raw.symbol === 'string' ? raw.symbol : undefined,
+      exchange: typeof raw.exchange === 'string' ? raw.exchange : undefined,
+      trader_context: raw.trader_context,
+      account_scope: raw.account_scope,
       timestamp: receivedAt,
       received_at: receivedAt,
       lag_ms: backendLagMs,
@@ -131,11 +179,29 @@ export function useRealtimeResource<T>(
       mode: backendMode,
     };
     setError(backendErrors[0] ?? null);
-    if (shouldCacheEnvelope(nextEnvelope)) {
-      realtimeResourceCache.set(cacheKey(url, backendMode), nextEnvelope);
-    }
-    setEnvelope(nextEnvelope);
-  }, [mode, source, source_type, staleThresholdMs, transform, url]);
+    setEnvelope(prev => {
+      const nextUsable = shouldCacheEnvelope(nextEnvelope);
+      if (!nextUsable && shouldCacheEnvelope(prev)) {
+        return {
+          ...prev,
+          received_at: receivedAt,
+          lag_ms: backendLagMs,
+          warnings: [
+            ...new Set([
+              ...prev.warnings,
+              ...backendWarnings,
+              'Latest resource frame was stale or incomplete; preserving last current payload',
+            ]),
+          ],
+          errors: backendErrors,
+        };
+      }
+      if (nextUsable) {
+        realtimeResourceCache.set(cacheKey(url, backendMode), nextEnvelope);
+      }
+      return nextEnvelope;
+    });
+  }, [mode, source, source_type, staleThresholdMs, transform, unwrapEnvelopeData, url]);
 
   const fetchData = useCallback(async () => {
     if (!enabled) return;
@@ -244,7 +310,7 @@ export function useRealtimeResource<T>(
         if (cancelled) return;
         try {
           const raw = JSON.parse(event.data) as Record<string, unknown>;
-          applyRawEnvelope(raw, Date.now(), 0);
+          applyRawEnvelope(raw, Date.now(), 0, 'websocket');
           setLoading(false);
         } catch (err) {
           setError((err as Error).message);

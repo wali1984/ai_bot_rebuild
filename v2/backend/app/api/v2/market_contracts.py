@@ -9,6 +9,7 @@ live gates, or write execution state. Missing data returns a structured
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import os
 import subprocess
@@ -64,6 +65,15 @@ BINANCE_NATIVE_STREAM_ENABLED = os.environ.get("ALPHAFORGE_BINANCE_NATIVE_STREAM
 MARKET_STREAM_TELEMETRY: dict[str, dict[str, Any]] = {}
 MARKET_STREAM_TELEMETRY_LOCK = threading.Lock()
 READONLY_RESOURCE_HTTP_TIMEOUT_SECONDS = float(os.environ.get("ALPHAFORGE_READONLY_RESOURCE_HTTP_TIMEOUT_SECONDS", "1.5"))
+BINANCE_PUBLIC_CACHE_TTL_SECONDS = float(os.environ.get("ALPHAFORGE_BINANCE_PUBLIC_CACHE_TTL_SECONDS", "5"))
+BINANCE_PUBLIC_JSON_CACHE_LOCK = threading.Lock()
+BINANCE_PUBLIC_JSON_CACHE: dict[str, tuple[float, Any, str]] = {}
+SIGNALS_MATRIX_CACHE_TTL_SECONDS = float(os.environ.get("ALPHAFORGE_SIGNALS_MATRIX_CACHE_TTL_SECONDS", "2"))
+SIGNALS_MATRIX_CACHE_LOCK = threading.Lock()
+SIGNALS_MATRIX_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+PREDICTIONS_MATRIX_CACHE_TTL_SECONDS = float(os.environ.get("ALPHAFORGE_PREDICTIONS_MATRIX_CACHE_TTL_SECONDS", "2"))
+PREDICTIONS_MATRIX_CACHE_LOCK = threading.Lock()
+PREDICTIONS_MATRIX_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 PAPER_ACTIVITY_CACHE_LOCK = threading.Lock()
 PAPER_ACTIVITY_LAST_NON_EMPTY_POSITIONS: dict[str, Any] = {
     "positions": [],
@@ -79,7 +89,21 @@ READONLY_RESOURCE_WS_DENY_PREFIXES = (
 )
 READONLY_RESOURCE_WS_STATIC_PREFIXES = (
     "/operator_runtime/",
+    "/operator_truth/",
     "/v2_",
+    "/tonight_live_like_paper_shadow/",
+    "/enterprise_trading_cockpit/",
+    "/external_manual_position_quarantine/",
+    "/readonly_market_exchange_data_plane/",
+    "/system_atlas_runtime_coverage/",
+    "/system_atlas_gap_remediation/",
+    "/phase3c_runtime_monitor_verification/",
+    "/redis_memory_pressure_remediation/",
+    "/redis_memory_human_approval/",
+    "/redis_export_capacity_remediation/",
+    "/redis_liquidations_full_export/",
+    "/redis_safe_trim_packet/",
+    "/autonomous_governor/",
 )
 READONLY_RESOURCE_WS_DENY_PARTS = (
     "/fill",
@@ -178,6 +202,52 @@ def _read_v2_redis_json(key: str) -> dict[str, Any] | None:
     except (TypeError, ValueError):
         return None
     return payload if isinstance(payload, dict) else None
+
+
+async def _maybe_await(value: Any) -> Any:
+    if inspect.isawaitable(value):
+        return await value
+    return value
+
+
+def _json_object_from_redis_raw(raw: Any) -> dict[str, Any] | None:
+    if raw is None:
+        return None
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8", errors="replace")
+    try:
+        payload = json.loads(str(raw))
+    except (TypeError, ValueError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+async def _redis_get_json_object(client: Any, key: str) -> dict[str, Any] | None:
+    if client is None:
+        return None
+    try:
+        raw = await _maybe_await(client.get(key))
+    except Exception:
+        return None
+    return _json_object_from_redis_raw(raw)
+
+
+async def _redis_keys(client: Any, pattern: str) -> list[str]:
+    if client is None:
+        return []
+    try:
+        keys = await _maybe_await(client.keys(pattern))
+    except Exception:
+        return []
+    if not isinstance(keys, (list, tuple, set)):
+        return []
+    normalized: list[str] = []
+    for key in keys:
+        if isinstance(key, bytes):
+            normalized.append(key.decode("utf-8", errors="replace"))
+        else:
+            normalized.append(str(key))
+    return normalized
 
 
 def _safe_readonly_resource_target(value: str | None) -> str | None:
@@ -380,6 +450,30 @@ async def _readonly_resource_direct_payload(
         return True, await get_orchestrator_status()
     if path == "/api/v2/risk/status":
         return True, await get_risk_status()
+    if path.startswith("/api/v2/mobile/"):
+        from app.api.v2 import mobile as mobile_api  # noqa: PLC0415
+
+        if path == "/api/v2/mobile/dashboard":
+            return True, await mobile_api.get_mobile_dashboard(actor=None)
+        if path == "/api/v2/mobile/positions":
+            return True, await mobile_api.get_mobile_positions(actor=None)
+        if path == "/api/v2/mobile/signals":
+            return True, await mobile_api.get_mobile_signals(
+                limit=int(_first_query_value(query, "limit", "50") or "50"),
+                actionable_only=(_first_query_value(query, "actionable_only") or "").lower() == "true",
+                actor=None,
+            )
+        if path == "/api/v2/mobile/alerts":
+            return True, await mobile_api.get_mobile_alerts(
+                limit=int(_first_query_value(query, "limit", "30") or "30"),
+                actor=None,
+            )
+        if path == "/api/v2/mobile/health":
+            return True, await mobile_api.get_mobile_health(actor=None)
+        if path == "/api/v2/mobile/risk-status":
+            return True, await mobile_api.get_mobile_risk_status(actor=None)
+        if path == "/api/v2/mobile/paper-summary":
+            return True, await mobile_api.get_mobile_paper_summary(actor=None)
 
     explain_symbol = _first_query_value(query, "symbol")
     explain_timeframe = _first_query_value(query, "timeframe", "1h")
@@ -759,6 +853,13 @@ def _market_stream_alert(telemetry: dict[str, Any]) -> dict[str, Any]:
 def _binance_public_json(path: str, params: dict[str, Any]) -> tuple[Any | None, str, str | None]:
     query = urllib.parse.urlencode({key: value for key, value in params.items() if value is not None})
     url = f"{BINANCE_FAPI_BASE}{path}" + (f"?{query}" if query else "")
+    cache_key = f"{path}?{query}"
+    now = time.monotonic()
+    if BINANCE_PUBLIC_CACHE_TTL_SECONDS > 0:
+        with BINANCE_PUBLIC_JSON_CACHE_LOCK:
+            cached = BINANCE_PUBLIC_JSON_CACHE.get(cache_key)
+            if cached is not None and now - cached[0] <= BINANCE_PUBLIC_CACHE_TTL_SECONDS:
+                return cached[1], cached[2], None
     request = urllib.request.Request(
         url,
         headers={"User-Agent": "alphaforge-v2-public-market-readonly/1.0"},
@@ -766,7 +867,11 @@ def _binance_public_json(path: str, params: dict[str, Any]) -> tuple[Any | None,
     )
     try:
         with urllib.request.urlopen(request, timeout=BINANCE_HTTP_TIMEOUT_SECONDS) as response:
-            return json.load(response), url, None
+            payload = json.load(response)
+        if BINANCE_PUBLIC_CACHE_TTL_SECONDS > 0:
+            with BINANCE_PUBLIC_JSON_CACHE_LOCK:
+                BINANCE_PUBLIC_JSON_CACHE[cache_key] = (time.monotonic(), payload, url)
+        return payload, url, None
     except Exception as exc:
         return None, url, f"Binance public market source unavailable: {type(exc).__name__}"
 
@@ -4525,7 +4630,7 @@ def _scan_redis_prefix(prefix: str, match: str) -> list[str]:
         keys: list[str] = []
         cursor = 0
         while True:
-            cursor, batch = client.scan(cursor=cursor, match=match, count=200)
+            cursor, batch = client.scan(cursor=cursor, match=match, count=1000)
             keys.extend(batch)
             if cursor == 0:
                 break
@@ -4658,6 +4763,86 @@ def _compact_prediction_row(symbol: str, timeframe: str, payload: dict[str, Any]
     }
 
 
+def _prediction_action(payload: dict[str, Any]) -> str | None:
+    for key in ("selected_action", "action", "top_action"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip().lower()
+    probabilities = payload.get("action_probabilities")
+    if isinstance(probabilities, dict) and probabilities:
+        best = max(
+            ((str(action), _float(probability)) for action, probability in probabilities.items()),
+            key=lambda item: item[1] if item[1] is not None else -1.0,
+        )
+        return best[0].strip().lower() if best[0].strip() else None
+    return None
+
+
+def _signal_matrix_prediction_runtime_rows(
+    sym_filter: set[str] | None,
+    tf_filter: set[str] | None,
+) -> tuple[list[dict[str, Any]], list[str], str | None]:
+    payload, _source = _read_json("operator_runtime/v2_signals/latest/all_symbol_all_timeframe_cuda_prediction_status.json")
+    raw_rows = payload.get("prediction_rows") if isinstance(payload, dict) else None
+    if not isinstance(raw_rows, list):
+        return [], [], None
+    rows: list[dict[str, Any]] = []
+    for raw in raw_rows:
+        if not isinstance(raw, dict):
+            continue
+        symbol = str(raw.get("symbol") or "").strip().upper()
+        timeframe = str(raw.get("timeframe") or "").strip()
+        if not symbol or not timeframe:
+            continue
+        if sym_filter and symbol not in sym_filter:
+            continue
+        if tf_filter and timeframe not in tf_filter:
+            continue
+        action = _prediction_action(raw)
+        generated_at = (
+            raw.get("available_at")
+            or raw.get("decision_time")
+            or raw.get("generated_utc")
+            or raw.get("generated_est")
+        )
+        generated_at = generated_at if isinstance(generated_at, str) else None
+        lag = _lag_ms(generated_at)
+        paper_allowed = raw.get("paper_fill_allowed")
+        paper_status = raw.get("paper_fill_gate_status") or raw.get("status")
+        rows.append({
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "action": action,
+            "side": action.title() if action else None,
+            "confidence": _float(raw.get("confidence_calibrated") or raw.get("confidence_raw")),
+            "live_gate": raw.get("live_gate") if isinstance(raw.get("live_gate"), str) else None,
+            "actionable": bool(paper_allowed) if isinstance(paper_allowed, bool) else False,
+            "risk_state": paper_status if isinstance(paper_status, str) else None,
+            "orchestrator_state": "routed" if raw.get("routes_to_orchestrator") is True else raw.get("status"),
+            "paper_fill_status": "ready" if paper_allowed is True else "gated",
+            "paper_fill_gate_status": paper_status if isinstance(paper_status, str) else None,
+            "data_coverage_percent": _float(raw.get("data_coverage_percent") or raw.get("data_coverage_pct")),
+            "market_state_integrity_score": _float(raw.get("market_state_integrity_score")),
+            "generated_at": generated_at,
+            "age_seconds": round(lag / 1000) if lag is not None else None,
+            "signal_id": raw.get("signal_id") if isinstance(raw.get("signal_id"), str) else None,
+            "prediction_id": raw.get("prediction_id") if isinstance(raw.get("prediction_id"), str) else None,
+            "price_target": _float(raw.get("price_target")),
+            "price_target_after_cost": _float(raw.get("price_target_after_cost")),
+            "expected_move_bps": _float(raw.get("expected_move_after_cost_bps") or raw.get("expected_move_bps")),
+        })
+    if not rows:
+        return [], [], _timestamp_from_payload(payload)
+    present = {(row["symbol"], row["timeframe"]) for row in rows}
+    missing: list[str] = []
+    if sym_filter and tf_filter:
+        for symbol in sorted(sym_filter):
+            for timeframe in ["1m", "5m", "15m", "1h", "4h"]:
+                if timeframe in tf_filter and (symbol, timeframe) not in present:
+                    missing.append(f"{symbol}:{timeframe}")
+    return rows, missing, _timestamp_from_payload(payload)
+
+
 @router.get("/signals/matrix")
 async def get_signals_matrix(
     symbols: str | None = Query(default=None, description="Comma-separated symbol filter (default: all)"),
@@ -4674,12 +4859,56 @@ async def get_signals_matrix(
     if symbols:
         sym_filter = {s.strip().upper() for s in symbols.split(",") if s.strip()} or None
 
-    keys = _scan_redis_prefix("v2:signals:paper:", "v2:signals:paper:*")
-    client = get_redis()
-    rows: list[dict[str, Any]] = []
-    missing_symbols: list[str] = []
+    cache_key = json.dumps(
+        {
+            "symbols": sorted(sym_filter) if sym_filter else None,
+            "timeframes": sorted(tf_filter) if tf_filter else None,
+        },
+        sort_keys=True,
+    )
+    cache_hit = False
+    matrix_source = "Redis signal publisher (matrix direct lookup/cache)" if sym_filter and tf_filter else "Redis signal publisher (matrix scan/cache)"
+    matrix_source_type: SourceType = "repository"
+    matrix_timestamp: str | None = _utc_now()
+    if SIGNALS_MATRIX_CACHE_TTL_SECONDS > 0:
+        with SIGNALS_MATRIX_CACHE_LOCK:
+            cached = SIGNALS_MATRIX_CACHE.get(cache_key)
+            if cached is not None and time.monotonic() - cached[0] <= SIGNALS_MATRIX_CACHE_TTL_SECONDS:
+                cached_entry = cached[1]
+                cached_data = cached_entry.get("data") if isinstance(cached_entry.get("data"), dict) else cached_entry
+                rows = list(cached_data.get("rows", []))
+                missing_symbols = list(cached_data.get("missing", []))
+                cached_source = cached_entry.get("source")
+                cached_source_type = cached_entry.get("source_type")
+                cached_timestamp = cached_entry.get("timestamp")
+                if isinstance(cached_source, str):
+                    matrix_source = cached_source
+                if cached_source_type in {"api", "repository", "redis_live", "static_payload", "unavailable"}:
+                    matrix_source_type = cached_source_type
+                if isinstance(cached_timestamp, str):
+                    matrix_timestamp = cached_timestamp
+                cache_hit = True
+            else:
+                rows = []
+                missing_symbols = []
+    else:
+        rows = []
+        missing_symbols = []
 
-    for key in sorted(keys):
+    if not cache_hit and sym_filter and tf_filter:
+        keys = [
+            f"v2:signals:paper:{sym}:{tf}"
+            for sym in sorted(sym_filter)
+            for tf in ["1m", "5m", "15m", "1h", "4h"]
+            if tf in tf_filter
+        ]
+    elif not cache_hit:
+        keys = _scan_redis_prefix("v2:signals:paper:", "v2:signals:paper:*")
+    else:
+        keys = []
+    client = get_redis()
+
+    for key in keys:
         parts = key.split(":")
         if len(parts) != 5:
             continue
@@ -4705,25 +4934,51 @@ async def get_signals_matrix(
         except Exception:
             continue
 
+    if not cache_hit and not rows:
+        fallback_rows, fallback_missing, fallback_timestamp = _signal_matrix_prediction_runtime_rows(sym_filter, tf_filter)
+        if fallback_rows:
+            rows = fallback_rows
+            missing_symbols = fallback_missing
+            matrix_source = "Runtime prediction signal matrix fallback"
+            matrix_source_type = "static_payload"
+            matrix_timestamp = fallback_timestamp
+
     all_syms = sorted({r["symbol"] for r in rows})
     all_tfs = [tf for tf in ["1m", "5m", "15m", "1h", "4h"] if any(r["timeframe"] == tf for r in rows)]
+    data = {
+        "rows": rows,
+        "count": len(rows),
+        "symbols": all_syms,
+        "symbol_count": len(all_syms),
+        "timeframes": all_tfs,
+        "missing": missing_symbols,
+    }
+    if not cache_hit and SIGNALS_MATRIX_CACHE_TTL_SECONDS > 0:
+        with SIGNALS_MATRIX_CACHE_LOCK:
+            SIGNALS_MATRIX_CACHE[cache_key] = (
+                time.monotonic(),
+                {
+                    "data": data,
+                    "source": matrix_source,
+                    "source_type": matrix_source_type,
+                    "timestamp": matrix_timestamp,
+                },
+            )
     return _base_response(
         endpoint=endpoint,
-        data={
-            "rows": rows,
-            "count": len(rows),
-            "symbols": all_syms,
-            "symbol_count": len(all_syms),
-            "timeframes": all_tfs,
-            "missing": missing_symbols,
-        },
-        source="Redis paper signal publisher (matrix scan)",
-        source_type="repository",
-        timestamp=_utc_now(),
+        data=data,
+        source=matrix_source,
+        source_type=matrix_source_type,
+        timestamp=matrix_timestamp,
         missing_fields=missing_symbols[:10],
         warnings=[
             "Matrix scan may have up to 2s lag vs individual signal queries",
-            "Live trading remains disabled",
+            "Served from short-lived matrix cache"
+            if cache_hit
+            else "Matrix refreshed from runtime prediction fallback"
+            if matrix_source_type == "static_payload"
+            else "Matrix refreshed from Redis",
+            "Exchange execution remains operator-gated",
         ],
         mode="paper",
         trader_context=_trader_context(actor),
@@ -4746,9 +5001,54 @@ async def get_predictions_matrix(
     if symbols:
         sym_filter = {s.strip().upper() for s in symbols.split(",") if s.strip()} or None
 
-    keys = _scan_redis_prefix("v2:prediction:", "v2:prediction:*")
-    client = get_redis()
+    cache_key = json.dumps(
+        {
+            "symbols": sorted(sym_filter) if sym_filter else None,
+            "timeframes": sorted(tf_filter) if tf_filter else None,
+        },
+        sort_keys=True,
+    )
+    cache_hit = False
+    matrix_source = (
+        "Redis trainer prediction publisher (matrix direct lookup/cache)"
+        if sym_filter and tf_filter
+        else "Redis trainer prediction publisher (matrix scan/cache)"
+    )
+    matrix_source_type: SourceType = "repository"
+    matrix_timestamp: str | None = _utc_now()
     rows: list[dict[str, Any]] = []
+    missing_symbols: list[str] = []
+    if PREDICTIONS_MATRIX_CACHE_TTL_SECONDS > 0:
+        with PREDICTIONS_MATRIX_CACHE_LOCK:
+            cached = PREDICTIONS_MATRIX_CACHE.get(cache_key)
+            if cached is not None and time.monotonic() - cached[0] <= PREDICTIONS_MATRIX_CACHE_TTL_SECONDS:
+                cached_entry = cached[1]
+                cached_data = cached_entry.get("data") if isinstance(cached_entry.get("data"), dict) else cached_entry
+                rows = list(cached_data.get("rows", []))
+                missing_symbols = list(cached_data.get("missing", []))
+                cached_source = cached_entry.get("source")
+                cached_source_type = cached_entry.get("source_type")
+                cached_timestamp = cached_entry.get("timestamp")
+                if isinstance(cached_source, str):
+                    matrix_source = cached_source
+                if cached_source_type in {"api", "repository", "redis_live", "static_payload", "unavailable"}:
+                    matrix_source_type = cached_source_type
+                if isinstance(cached_timestamp, str):
+                    matrix_timestamp = cached_timestamp
+                cache_hit = True
+
+    if not cache_hit and sym_filter and tf_filter:
+        keys = [
+            f"v2:prediction:{sym}:{tf}"
+            for sym in sorted(sym_filter)
+            for tf in ["1m", "5m", "15m", "1h", "4h"]
+            if tf in tf_filter
+        ]
+    elif not cache_hit:
+        keys = _scan_redis_prefix("v2:prediction:", "v2:prediction:*")
+    else:
+        keys = []
+    client = get_redis()
 
     for key in sorted(keys):
         parts = key.split(":")
@@ -4765,6 +5065,8 @@ async def get_predictions_matrix(
         try:
             raw = client.get(key) if client else None
             if raw is None:
+                if sym_filter and tf_filter:
+                    missing_symbols.append(f"{sym}:{tf}")
                 continue
             if isinstance(raw, bytes):
                 raw = raw.decode("utf-8", errors="replace")
@@ -4777,22 +5079,36 @@ async def get_predictions_matrix(
 
     all_syms = sorted({r["symbol"] for r in rows})
     all_tfs = [tf for tf in ["1m", "5m", "15m", "1h", "4h"] if any(r["timeframe"] == tf for r in rows)]
+    data = {
+        "rows": rows,
+        "count": len(rows),
+        "symbols": all_syms,
+        "symbol_count": len(all_syms),
+        "timeframes": all_tfs,
+        "missing": missing_symbols,
+    }
+    if not cache_hit and PREDICTIONS_MATRIX_CACHE_TTL_SECONDS > 0:
+        with PREDICTIONS_MATRIX_CACHE_LOCK:
+            PREDICTIONS_MATRIX_CACHE[cache_key] = (
+                time.monotonic(),
+                {
+                    "data": data,
+                    "source": matrix_source,
+                    "source_type": matrix_source_type,
+                    "timestamp": matrix_timestamp,
+                },
+            )
     return _base_response(
         endpoint=endpoint,
-        data={
-            "rows": rows,
-            "count": len(rows),
-            "symbols": all_syms,
-            "symbol_count": len(all_syms),
-            "timeframes": all_tfs,
-        },
-        source="Redis trainer prediction publisher (matrix scan)",
-        source_type="repository",
-        timestamp=_utc_now(),
-        missing_fields=[],
+        data=data,
+        source=matrix_source,
+        source_type=matrix_source_type,
+        timestamp=matrix_timestamp,
+        missing_fields=missing_symbols[:10],
         warnings=[
             "Prediction matrix from trainer Redis stream",
-            "Live trading remains disabled",
+            "Served from short-lived matrix cache" if cache_hit else "Prediction matrix refreshed from Redis",
+            "Exchange execution remains operator-gated",
         ],
         mode="paper",
         trader_context=_trader_context(actor),
@@ -5137,6 +5453,7 @@ async def get_liquidation_levels_heatmap(
         "Exchange execution remains operator-gated",
     ]
 
+    filtered_keys: list[tuple[str, str, str]] = []
     for key in sorted(keys):
         parts = key.split(":")
         if len(parts) != 5:
@@ -5148,8 +5465,19 @@ async def get_liquidation_levels_heatmap(
             continue
         if tf not in _LIQ_HEATMAP_ALLOWED_TFS:
             continue
+        filtered_keys.append((key, sym, tf))
+
+    raw_values: list[Any]
+    if client and filtered_keys:
         try:
-            raw = client.get(key) if client else None
+            raw_values = list(client.mget([key for key, _, _ in filtered_keys]))
+        except Exception:
+            raw_values = [None] * len(filtered_keys)
+    else:
+        raw_values = []
+
+    for (key, sym, tf), raw in zip(filtered_keys, raw_values):
+        try:
             p = _parse_liq_level_payload(raw)
             if p is None:
                 missing.append(f"{sym}:{tf}")
@@ -5971,30 +6299,41 @@ async def fill_paper_order(
 
 # ─── Market State Brain endpoints ─────────────────────────────────────────────
 
+def _market_brain_response(
+    *,
+    endpoint: str,
+    data: dict[str, Any],
+    warnings: list[str] | None = None,
+) -> dict[str, Any]:
+    return _base_response(
+        endpoint=endpoint,
+        data=data,
+        source=endpoint,
+        source_type="api",
+        timestamp=_timestamp_from_payload(data) or _utc_now(),
+        missing_fields=[],
+        warnings=warnings or [],
+        mode="read_only",
+    )
+
+
 @router.get("/market-brain/overview")
 async def get_market_brain_overview(
     actor: UserRecord = Depends(require_auth),
     r: Any = Depends(get_redis),
 ) -> Any:
     """Aggregated market state brain overview across all active symbols/TFs."""
-    from app.domain.contracts import make_envelope
-    raw = r.get("v2:market_brain:overview") if r else None
-    if not raw:
+    data = await _redis_get_json_object(r, "v2:market_brain:overview")
+    if data is None:
         data: dict[str, Any] = {
             "state_distribution": {},
             "classifications_computed": 0,
-            "note": "Market brain worker not running — start v2_market_state_brain_worker.py",
+            "note": "Market brain stream connecting",
             "places_real_order": False,
         }
-    else:
-        data = json.loads(raw)
-    return make_envelope(
-        data=data,
+    return _market_brain_response(
         endpoint="/api/v2/market-brain/overview",
-        source="/api/v2/market-brain/overview",
-        source_type="api",
-        missing_fields=[],
-        warnings=[],
+        data=data,
     )
 
 
@@ -6004,23 +6343,14 @@ async def get_market_brain_all_states(
     r: Any = Depends(get_redis),
 ) -> Any:
     """All cached market brain state classifications from Redis."""
-    from app.domain.contracts import make_envelope
     states: list[dict[str, Any]] = []
-    if r:
-        for key in sorted(r.keys("v2:market_brain:state:*") or []):
-            raw = r.get(key)
-            if raw:
-                try:
-                    states.append(json.loads(raw))
-                except Exception:
-                    pass
-    return make_envelope(
-        data={"states": states, "count": len(states), "places_real_order": False},
+    for key in sorted(await _redis_keys(r, "v2:market_brain:state:*")):
+        payload = await _redis_get_json_object(r, key)
+        if payload is not None:
+            states.append(payload)
+    return _market_brain_response(
         endpoint="/api/v2/market-brain/state",
-        source="/api/v2/market-brain/state",
-        source_type="api",
-        missing_fields=[],
-        warnings=[],
+        data={"states": states, "count": len(states), "places_real_order": False},
     )
 
 
@@ -6029,32 +6359,41 @@ async def get_entry_gate_status(
     actor: UserRecord = Depends(require_auth),
 ) -> Any:
     """Current P0 entry gate config — symbol exclusions, TF filter, mode blocks."""
-    from app.domain.contracts import make_envelope
-    from app.services.paper_trade_management.entry_gate import (
-        PaperEntryGateConfig,
-        _SOAK_ZERO_EDGE_SYMBOLS,
-        _NOISY_TIMEFRAMES,
-        _BLOCKED_ENTRY_MODES,
-    )
-    cfg = PaperEntryGateConfig()
-    data: dict[str, Any] = {
-        "symbol_exclusion_list": sorted(cfg.symbol_exclusion_list),
-        "allowed_entry_timeframes": sorted(cfg.allowed_entry_timeframes),
-        "blocked_strategy_modes": sorted(cfg.blocked_strategy_modes),
-        "noisy_timeframes_require_override": sorted(_NOISY_TIMEFRAMES),
-        "min_confidence_calibrated": cfg.min_confidence_calibrated,
-        "require_positive_expected_move": cfg.require_positive_expected_move,
-        "major_move_override_enabled": cfg.major_move_override_enabled,
-        "evidence_source": "soak_test_2026-06-16_340_closed_trades",
-        "places_real_order": False,
-    }
-    return make_envelope(
-        data=data,
+    warnings: list[str] = []
+    try:
+        from app.services.paper_trade_management.entry_gate import (
+            PaperEntryGateConfig,
+            _NOISY_TIMEFRAMES,
+        )
+        cfg = PaperEntryGateConfig()
+        data: dict[str, Any] = {
+            "symbol_exclusion_list": sorted(cfg.symbol_exclusion_list),
+            "allowed_entry_timeframes": sorted(cfg.allowed_entry_timeframes),
+            "blocked_strategy_modes": sorted(cfg.blocked_strategy_modes),
+            "noisy_timeframes_require_override": sorted(_NOISY_TIMEFRAMES),
+            "min_confidence_calibrated": cfg.min_confidence_calibrated,
+            "require_positive_expected_move": cfg.require_positive_expected_move,
+            "major_move_override_enabled": cfg.major_move_override_enabled,
+            "evidence_source": "runtime_entry_gate_config",
+            "places_real_order": False,
+        }
+    except Exception as exc:
+        warnings.append(f"Entry gate config source connecting: {type(exc).__name__}")
+        data = {
+            "symbol_exclusion_list": [],
+            "allowed_entry_timeframes": [],
+            "blocked_strategy_modes": [],
+            "noisy_timeframes_require_override": [],
+            "min_confidence_calibrated": None,
+            "require_positive_expected_move": True,
+            "major_move_override_enabled": False,
+            "evidence_source": "entry_gate_config_connecting",
+            "places_real_order": False,
+        }
+    return _market_brain_response(
         endpoint="/api/v2/market-brain/entry-gate-status",
-        source="/api/v2/market-brain/entry-gate-status",
-        source_type="api",
-        missing_fields=[],
-        warnings=[],
+        data=data,
+        warnings=warnings,
     )
 
 
@@ -6064,16 +6403,11 @@ async def get_hedge_lock_status(
     r: Any = Depends(get_redis),
 ) -> Any:
     """All active paper-only hedge lock pairs."""
-    from app.domain.contracts import make_envelope
     pairs: list[dict[str, Any]] = []
-    if r:
-        for key in sorted(r.keys("v2:paper:hedge_locks:*") or []):
-            raw = r.get(key)
-            if raw:
-                try:
-                    pairs.append(json.loads(raw))
-                except Exception:
-                    pass
+    for key in sorted(await _redis_keys(r, "v2:paper:hedge_locks:*")):
+        payload = await _redis_get_json_object(r, key)
+        if payload is not None:
+            pairs.append(payload)
     data: dict[str, Any] = {
         "active_hedge_locks": pairs,
         "count": len(pairs),
@@ -6081,13 +6415,9 @@ async def get_hedge_lock_status(
         "note": "HedgeLock requires explicit operator approval (CLAUDE.md dangerous setting).",
         "places_real_order": False,
     }
-    return make_envelope(
-        data=data,
+    return _market_brain_response(
         endpoint="/api/v2/market-brain/hedge-lock-status",
-        source="/api/v2/market-brain/hedge-lock-status",
-        source_type="api",
-        missing_fields=[],
-        warnings=[],
+        data=data,
     )
 
 

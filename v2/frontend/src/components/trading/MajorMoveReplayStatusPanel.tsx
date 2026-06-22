@@ -112,7 +112,7 @@ export function MajorMoveReplayStatusPanel({ compact = false }: { compact?: bool
         <Metric label="Website wiring" value={readable(data?.website_status)} />
         <Metric label="Checkpoint loadable" value={readable(data?.durable_checkpoint_loadable)} />
         <Metric label="Full CUDA grid" value={readable(data?.paper_runtime_grid_aligned)} />
-        <Metric label="Paper entry allowed" value={readable(replay?.paper_entry_allowed)} />
+        <Metric label="Runtime entry allowed" value={readable(replay?.paper_entry_allowed)} />
         <Metric label="BTC replay PnL" value={bps(expectedPnl.BTCUSDT)} />
         <Metric label="ETH replay PnL" value={bps(expectedPnl.ETHUSDT)} />
         <Metric label="SOL replay PnL" value={bps(expectedPnl.SOLUSDT)} />

@@ -47,7 +47,7 @@ export function LiquidationHeatmap({
           border: '1px solid var(--border)',
         }}
       >
-        Awaiting liquidation stream
+        Liquidation stream connecting
       </div>
     );
   }

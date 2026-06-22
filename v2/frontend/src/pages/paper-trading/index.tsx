@@ -872,7 +872,7 @@ export default function PaperTradingPage(): JSX.Element {
             {paperActivity.connected ? 'WebSocket live' : paperActivity.source === 'http_fallback' ? 'HTTP fallback' : 'Connecting…'}
           </span>
           {(loading || paperActivity.loading) && (
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Loading…</span>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Connecting…</span>
           )}
         </div>
       </div>

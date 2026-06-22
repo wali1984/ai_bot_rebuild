@@ -63,6 +63,7 @@ export function usePayloadFile<T>(
   const { envelope, loading, error } = useRealtimeResource<T>({
     url: path,
     source: path,
+    source_type: 'websocket',
     pollIntervalMs: intervalMs,
     staleThresholdMs: Math.max(intervalMs * 3, 30_000),
     enabled,

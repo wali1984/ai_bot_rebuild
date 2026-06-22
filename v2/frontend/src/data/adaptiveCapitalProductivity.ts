@@ -422,13 +422,25 @@ export interface AdaptiveCapitalDashboardPayload {
   dashboard_web_status?: AdaptiveCapitalDashboardWebStatus;
 }
 
+export function shouldEnableAdaptiveCapitalFallback(
+  dashboardData: AdaptiveCapitalDashboardPayload | null | undefined,
+  dashboardLoading: boolean,
+  dashboardError: string | null | undefined,
+): boolean {
+  return !dashboardData && !dashboardLoading && Boolean(dashboardError);
+}
+
 export function useAdaptiveCapitalDashboard(pollMs = 2_000) {
   const streamMs = Math.min(pollMs, 2_000);
   const dashboard = usePayloadFile<AdaptiveCapitalDashboardPayload>(
     ADAPTIVE_CAPITAL_DASHBOARD_STREAM_PATH,
     streamMs,
   );
-  const fallbackEnabled = !dashboard.data;
+  const fallbackEnabled = shouldEnableAdaptiveCapitalFallback(
+    dashboard.data,
+    dashboard.loading,
+    dashboard.error,
+  );
   const capital = usePayloadFile<CapitalProductivityRuntimeStatus>(
     `${ADAPTIVE_CAPITAL_BASE_PATH}/capital_productivity_runtime_status.json`,
     Math.max(pollMs, 10_000),

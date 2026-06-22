@@ -47,20 +47,21 @@ export function TradeTerminal(): JSX.Element {
     state.account.totalPnl != null ? 10_000 + state.account.totalPnl : null
   );
 
-  const signalDirection = state.signal.direction !== 'Signal unavailable'
+  const hasLiveSignal = state.signal.direction !== 'Signal connecting';
+  const signalDirection = hasLiveSignal
     ? String(state.signal.direction).toUpperCase()
     : '—';
-  const signalColor = state.signal.direction !== 'Signal unavailable'
+  const signalColor = hasLiveSignal
     ? signalDirection.includes('SHORT') ? 'var(--sell)' : 'var(--buy)'
     : undefined;
 
   const riskRaw = state.signal.paperFillAllowed
     ? 'Execution Fill Open'
-    : String(state.signal.riskDecision).replace(/_/g, ' ');
+    : tradeCopy(state.signal.riskDecision);
   const riskLabel = riskRaw;
   const riskColor = riskLabel.toLowerCase().includes('allow') || riskLabel === 'Execution Fill Open'
     ? 'var(--buy)'
-    : riskLabel !== 'Risk result unavailable' ? 'var(--sell)' : undefined;
+    : riskLabel !== 'Risk result connecting' ? 'var(--sell)' : undefined;
 
   const dataLoading = state.paper.loading && !paper;
   const pollPulse = state.paper.connected || state.paper.source === 'http_fallback';

@@ -1,10 +1,19 @@
 import { expect, test } from '@playwright/test';
 import { adaptiveCapitalTelemetryTestHooks } from '../../src/components/trading/AdaptiveCapitalTelemetryPanel';
-import type { AdaptiveCapitalDashboardPayload } from '../../src/data/adaptiveCapitalProductivity';
+import {
+  shouldEnableAdaptiveCapitalFallback,
+  type AdaptiveCapitalDashboardPayload,
+} from '../../src/data/adaptiveCapitalProductivity';
 import { gotoAs } from './_shared';
 import { mockAuth, type TestAuthRole } from './helpers/auth';
 
 test.describe('adaptive capital telemetry panel view model', () => {
+  test('keeps static side payload fallback disabled while the live dashboard stream is loading or connected', () => {
+    expect(shouldEnableAdaptiveCapitalFallback(null, true, null)).toBe(false);
+    expect(shouldEnableAdaptiveCapitalFallback({ generated_utc: '2026-06-22T05:30:52Z' }, false, null)).toBe(false);
+    expect(shouldEnableAdaptiveCapitalFallback(null, false, 'resource_websocket_error')).toBe(true);
+  });
+
   test('resolves rolling PnL and preserves all symbol/timeframe accuracy cells', () => {
     const payload: AdaptiveCapitalDashboardPayload = {
       generated_utc: '2026-06-20T04:35:56Z',

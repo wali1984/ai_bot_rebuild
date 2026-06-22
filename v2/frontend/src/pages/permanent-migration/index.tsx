@@ -4,6 +4,7 @@ import rbac from './rbac';
 import route from './route';
 import { useFrontendTruthPayload } from '../../data/runtimePayloads';
 import { SimpleCard, StatusBadge } from '../../components/status-simple/StatusBadge';
+import { publicRuntimeCopy } from '../../lib/tradeCopy';
 
 const EVIDENCE_MISSING = 'Evidence missing. The page will not invent values.';
 
@@ -20,7 +21,7 @@ export default function PermanentMigrationPage(): ReactElement {
     >
       <header style={{ marginBottom: 12 }}>
         <h1 style={{ margin: 0 }}>{meta.title}</h1>
-        <p style={{ margin: '4px 0 0 0', opacity: 0.8 }}>{meta.description}</p>
+        <p style={{ margin: '4px 0 0 0', opacity: 0.8 }}>{publicRuntimeCopy(meta.description)}</p>
       </header>
 
       {loading && !payload && <p>Loading frontend truth payload...</p>}
@@ -42,14 +43,14 @@ export default function PermanentMigrationPage(): ReactElement {
             }}
           >
             <p style={{ margin: 0, fontSize: '1.1rem' }}>
-              <strong>{payload.plain_english_summary}</strong>
+              <strong>{publicRuntimeCopy(payload.plain_english_summary)}</strong>
             </p>
             <p style={{ margin: '4px 0 0 0' }}>
-              <em>Today's goal:</em> {payload.current_goal}
+              <em>Today's goal:</em> {publicRuntimeCopy(payload.current_goal)}
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
               <StatusBadge color="red" label={`Live: ${payload.live_gate}`} />
-              <StatusBadge color="yellow" label={`Edge: ${payload.paper_edge_status}`} />
+              <StatusBadge color="yellow" label={`Edge: ${publicRuntimeCopy(payload.paper_edge_status)}`} />
               <StatusBadge color="yellow" label={`Trainer: ${payload.trainer_parity_status}`} />
               <StatusBadge color="yellow" label={`Decision quality: ${payload.decision_quality_status}`} />
               <StatusBadge color="yellow" label={`Shutdown: ${payload.shutdown_recommendation}`} />
@@ -79,7 +80,7 @@ export default function PermanentMigrationPage(): ReactElement {
             ) : (
               <ul>
                 {payload.blockers_simple.map((b) => (
-                  <li key={b}>{b}</li>
+                  <li key={b}>{publicRuntimeCopy(b)}</li>
                 ))}
               </ul>
             )}
@@ -90,13 +91,13 @@ export default function PermanentMigrationPage(): ReactElement {
             {payload.page_cards.map((card) => (
               <SimpleCard
                 key={card.id}
-                title={card.title}
+                title={publicRuntimeCopy(card.title)}
                 color={card.color}
-                summary={card.summary}
-                whyItMatters={card.why_it_matters}
-                whatNeedsToHappenNext={card.what_needs_to_happen_next}
-                evidencePaths={card.evidence_paths}
-                sourceStatus={card.source_status}
+                summary={publicRuntimeCopy(card.summary)}
+                whyItMatters={publicRuntimeCopy(card.why_it_matters)}
+                whatNeedsToHappenNext={publicRuntimeCopy(card.what_needs_to_happen_next)}
+                evidencePaths={card.evidence_paths.map((item) => publicRuntimeCopy(item))}
+                sourceStatus={publicRuntimeCopy(card.source_status)}
               />
             ))}
           </section>
@@ -113,12 +114,12 @@ export default function PermanentMigrationPage(): ReactElement {
               <h2 style={{ marginBottom: 4 }}>Stale or missing evidence</h2>
               {payload.stale_payloads.length > 0 && (
                 <p>
-                  <strong>Stale:</strong> {payload.stale_payloads.join(', ')}
+                  <strong>Stale:</strong> {payload.stale_payloads.map((item) => publicRuntimeCopy(item)).join(', ')}
                 </p>
               )}
               {payload.missing_payloads.length > 0 && (
                 <p>
-                  <strong>Missing:</strong> {payload.missing_payloads.join(', ')}
+                  <strong>Missing:</strong> {payload.missing_payloads.map((item) => publicRuntimeCopy(item)).join(', ')}
                 </p>
               )}
             </section>

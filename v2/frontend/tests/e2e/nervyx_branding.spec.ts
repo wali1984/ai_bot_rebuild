@@ -34,7 +34,8 @@ test('public landing and manifest expose NERVYX ONE identity on port 5173', asyn
 test('public and trader chrome expose NERVYX module mapping and Polar Signal theme', async ({ page }) => {
   await page.goto('/markets');
 
-  await expect(page.locator('[data-testid="topbar"]')).toContainText('NERVYX ONE');
+  await expect(page.getByAltText('NERVYX ONE').first()).toBeVisible();
+  await expect(page.locator('[data-testid="topbar"]')).toContainText(/Adaptive Market Intelligence/i);
   await expect(page.locator('[data-nervyx-module="sense"]').first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Polar' })).toBeVisible();
 

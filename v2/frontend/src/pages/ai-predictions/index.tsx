@@ -373,7 +373,7 @@ function PredExpandedRow({ row }: { row: PredRow }): JSX.Element {
                   ? Object.entries(probs)
                       .sort((a, b) => b[1] - a[1])
                       .map(([action, prob]) => <ProbBar key={action} label={action} prob={prob} maxProb={maxProb} />)
-                  : <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>No probability data available</p>
+                  : <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>Probability stream connecting</p>
                 }
               </div>
               <div>
@@ -502,16 +502,16 @@ export default function AIPredictionsPage(): JSX.Element {
   const url = `/api/v2/predictions/matrix?symbols=${symbolsParam}&timeframes=${tfsParam}`;
 
   const { envelope, loading, refetch } = useRealtimeResource<PredMatrixData>({
-    url, source: '/api/v2/predictions/matrix', pollIntervalMs: 10_000, staleThresholdMs: 20_000, mode: 'read_only',
+    url, source: '/api/v2/predictions/matrix', source_type: 'websocket', pollIntervalMs: 10_000, staleThresholdMs: 20_000, mode: 'read_only',
   });
   const { envelope: allEnv } = useRealtimeResource<PredMatrixData>({
-    url: '/api/v2/predictions/matrix', source: '/api/v2/predictions/matrix', pollIntervalMs: 60_000, mode: 'read_only',
+    url: '/api/v2/predictions/matrix', source: '/api/v2/predictions/matrix', source_type: 'websocket', pollIntervalMs: 60_000, mode: 'read_only',
   });
 
-  // Fetch liquidation heatmap once to derive top-liquidity symbol defaults (BTC/ETH/SOL + top 2)
+  // Keep top-liquidity defaults attached to the shared liquidation resource stream.
   const { envelope: liqHeatmapEnv } = useRealtimeResource<{ pinned_defaults?: string[] }>({
     url: '/api/v2/liquidation/levels-heatmap', source: '/api/v2/liquidation/levels-heatmap',
-    pollIntervalMs: 10_000, staleThresholdMs: 30_000, mode: 'read_only', initialFetch: true,
+    source_type: 'websocket', pollIntervalMs: 10_000, staleThresholdMs: 30_000, mode: 'read_only', initialFetch: true,
   });
   useEffect(() => {
     const pinned = liqHeatmapEnv.data?.pinned_defaults;
@@ -674,7 +674,7 @@ export default function AIPredictionsPage(): JSX.Element {
         {!loading && sorted.length === 0 && (
           <div style={{ padding: 40, textAlign: 'center', background: 'var(--bg-panel)', borderRadius: 12, border: '1px solid var(--border)' }}>
             <div style={{ fontSize: 32, marginBottom: 10 }}>🧠</div>
-            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>Awaiting live prediction stream. Existing panels stay mounted while WebSocket and HTTP fallback connect.</p>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>Prediction stream connecting. Existing panels stay mounted while WebSocket and HTTP fallback connect.</p>
           </div>
         )}
         {sorted.length > 0 && (

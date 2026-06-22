@@ -1,5 +1,4 @@
-import { useCallback } from 'react';
-import { fetchJson, usePollingQuery, type PollingQueryResult } from './usePollingQuery';
+import { useRealtimeQuery, type RealtimeQueryResult } from './useRealtimeQuery';
 
 export interface RunSummary {
   task_id: string;
@@ -28,13 +27,8 @@ export interface BuildStatusEnvelope {
 
 export const BUILD_STATUS_URL = '/api/v1/_meta/build-status';
 
-export function useBuildStatus(limit: number = 25): PollingQueryResult<BuildStatusEnvelope> {
-  const fetcher = useCallback(
-    (signal: AbortSignal) =>
-      fetchJson<BuildStatusEnvelope>(`${BUILD_STATUS_URL}?limit=${limit}`, signal),
-    [limit],
-  );
-  return usePollingQuery<BuildStatusEnvelope>(`build-status:${limit}`, fetcher, {
+export function useBuildStatus(limit: number = 25): RealtimeQueryResult<BuildStatusEnvelope> {
+  return useRealtimeQuery<BuildStatusEnvelope>(`${BUILD_STATUS_URL}?limit=${limit}`, {
     refetchIntervalMs: 30_000,
   });
 }

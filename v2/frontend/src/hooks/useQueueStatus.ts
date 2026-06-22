@@ -1,5 +1,4 @@
-import { useCallback } from 'react';
-import { fetchJson, usePollingQuery, type PollingQueryResult } from './usePollingQuery';
+import { useRealtimeQuery, type RealtimeQueryResult } from './useRealtimeQuery';
 
 export interface QueueCounts {
   pending: number;
@@ -55,12 +54,8 @@ export interface QueueStatusEnvelope {
 
 export const QUEUE_STATUS_URL = '/api/v1/_meta/queue-status';
 
-export function useQueueStatus(): PollingQueryResult<QueueStatusEnvelope> {
-  const fetcher = useCallback(
-    (signal: AbortSignal) => fetchJson<QueueStatusEnvelope>(QUEUE_STATUS_URL, signal),
-    [],
-  );
-  return usePollingQuery<QueueStatusEnvelope>('queue-status', fetcher, {
+export function useQueueStatus(): RealtimeQueryResult<QueueStatusEnvelope> {
+  return useRealtimeQuery<QueueStatusEnvelope>(QUEUE_STATUS_URL, {
     refetchIntervalMs: 10_000,
   });
 }

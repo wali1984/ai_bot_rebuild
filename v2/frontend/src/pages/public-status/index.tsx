@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import meta from './meta';
 
 interface PublicStatusData {
@@ -9,17 +9,8 @@ interface PublicStatusData {
 }
 
 interface MarketHealth {
-  source_type?: string;
-  stale?: boolean;
-  data?: { count?: number; symbols?: string[] };
-}
-
-function safeGateLabel(raw: string | undefined): { label: string; ok: boolean } {
-  if (!raw || raw === 'MISSING_EVIDENCE') return { label: 'Checking…', ok: false };
-  if (raw.toLowerCase().includes('block') || raw.toLowerCase().includes('disabled')) {
-    return { label: 'Disabled', ok: true };
-  }
-  return { label: raw.replaceAll('_', ' '), ok: false };
+  count?: number;
+  symbols?: string[];
 }
 
 function Chip({ label, tone }: { label: string; tone: 'ok' | 'warn' | 'block' | 'neutral' }): JSX.Element {
@@ -73,40 +64,33 @@ function StatusRow({ label, value, tone, detail }: { label: string; value: strin
 }
 
 export default function PublicStatusPage(): JSX.Element {
-  const [statusData, setStatusData] = useState<PublicStatusData | null>(null);
-  const [marketHealth, setMarketHealth] = useState<MarketHealth | null>(null);
-  const [loading, setLoading] = useState(true);
+  const statusResource = useRealtimeResource<PublicStatusData>({
+    url: '/api/v2/public/status',
+    source: '/api/v2/public/status',
+    source_type: 'websocket',
+    pollIntervalMs: 10_000,
+    staleThresholdMs: 30_000,
+    mode: 'read_only',
+  });
+  const marketResource = useRealtimeResource<MarketHealth>({
+    url: '/api/v2/market/overview',
+    source: '/api/v2/market/overview',
+    source_type: 'websocket',
+    pollIntervalMs: 10_000,
+    staleThresholdMs: 30_000,
+    mode: 'read_only',
+  });
 
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const [sRes, mRes] = await Promise.allSettled([
-          fetch('/api/v2/public/status'),
-          fetch('/api/v2/market/overview'),
-        ]);
-        if (cancelled) return;
-        if (sRes.status === 'fulfilled' && sRes.value.ok) {
-          const j = await sRes.value.json() as PublicStatusData;
-          setStatusData(j);
-        }
-        if (mRes.status === 'fulfilled' && mRes.value.ok) {
-          const j = await mRes.value.json() as MarketHealth;
-          setMarketHealth(j);
-        }
-      } catch { /* silent */ } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    void load();
-    const id = window.setInterval(load, 30_000);
-    return () => { cancelled = true; window.clearInterval(id); };
-  }, []);
-
-  const gateInfo = safeGateLabel(statusData?.live_gate_status);
-  const marketFresh = marketHealth?.source_type === 'api' && !marketHealth?.stale;
-  const symbolCount = marketHealth?.data?.count ?? marketHealth?.data?.symbols?.length ?? null;
-  const apiUp = marketHealth?.source_type && marketHealth.source_type !== 'unavailable';
+  const statusData = statusResource.envelope.data;
+  const marketHealth = marketResource.envelope.data;
+  const loading = (statusResource.loading && !statusData) || (marketResource.loading && !marketHealth);
+  const statusConnected = Boolean(statusData) && statusResource.envelope.data_quality_status !== 'invalid';
+  const marketFresh = Boolean(marketHealth)
+    && marketResource.envelope.freshness_status !== 'stale'
+    && marketResource.envelope.freshness_status !== 'offline'
+    && marketResource.envelope.data_quality_status !== 'invalid';
+  const symbolCount = marketHealth?.count ?? marketHealth?.symbols?.length ?? null;
+  const apiUp = statusConnected || marketFresh;
 
   return (
     <main
@@ -137,7 +121,7 @@ export default function PublicStatusPage(): JSX.Element {
           NERVYX ONE Status
         </h1>
         <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>
-          Public-facing platform health summary. No internal diagnostics, logs, or stack traces are shown here.
+          Public-facing platform health summary. No internal diagnostics, logs, or error details are shown here.
         </p>
       </div>
 
@@ -207,19 +191,19 @@ export default function PublicStatusPage(): JSX.Element {
             label="Execution Mode"
             value="Risk-gated"
             tone="warn"
-            detail="Operator-governed execution paths"
+            detail="Live-gate controlled execution paths"
           />
           <StatusRow
-            label="Live Trading"
-            value="Disabled"
-            tone="block"
-            detail="Requires separate live-gate approval"
+            label="Order Routing"
+            value="Guarded"
+            tone="warn"
+            detail="Live-gate controls are enforced before any routed action"
           />
           <StatusRow
             label="Data Freshness"
             value={marketFresh ? 'Monitored' : 'Degraded'}
             tone={marketFresh ? 'ok' : 'warn'}
-            detail="Source, received_at, and lag tracked per envelope"
+            detail="Status and market feeds update through resource WebSockets"
           />
         </div>
 
@@ -263,7 +247,7 @@ export default function PublicStatusPage(): JSX.Element {
               { label: 'Portfolio', status: 'Available (auth required)', ok: true },
               { label: 'Alerts', status: 'Available (auth required)', ok: true },
               { label: 'Backtests', status: 'Coming soon', ok: false },
-              { label: 'Live trading', status: 'Disabled', ok: false },
+              { label: 'Order routing', status: 'Guarded', ok: true },
             ].map((item) => (
               <div
                 key={item.label}
@@ -296,7 +280,7 @@ export default function PublicStatusPage(): JSX.Element {
 
         {/* Footer note */}
         <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
-          Status is refreshed every 30 seconds. No internal IDs, logs, or diagnostics are exposed on this public page.
+          Status updates from live resource streams. No internal IDs, logs, or diagnostics are exposed on this public page.
           For platform sign-in, visit <a href="/login" style={{ color: 'var(--accent)' }}>/login</a>.
         </p>
       </div>

@@ -255,6 +255,7 @@ export function TopBar({ surface, showSymbolSearch = true }: TopBarProps): JSX.E
       </Link>
 
       <nav
+        data-testid="topbar-primary-nav"
         className="topbar-primary-nav"
         aria-label={surface === 'app' ? 'Trader navigation' : 'Public navigation'}
       >

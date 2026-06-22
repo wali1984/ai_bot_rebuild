@@ -202,7 +202,7 @@ export function EmptyStateWithMissingData({
 }): JSX.Element {
   return (
     <section className="empty-state-missing panel" data-testid="missing-data-state">
-      <StatusPill tone="warn">Data source unavailable</StatusPill>
+      <StatusPill tone="warn">Connecting stream</StatusPill>
       <h2>{title}</h2>
       <p>{detail}</p>
       <span className="empty-state-missing__source">{userFacingSource(source)}</span>

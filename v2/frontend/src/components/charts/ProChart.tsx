@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   createChart,
   CandlestickSeries,
@@ -10,9 +10,10 @@ import {
   type ISeriesApi,
   type UTCTimestamp,
 } from 'lightweight-charts';
-import { getV2MarketCandles, getV2MarketDerivatives, getV2MarketIndicators } from '../../api/v2Market';
 import { useMarketDataStream } from '../../hooks/useMarketDataStream';
+import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import type { ApiV2Envelope, MarketCandlesData, MarketDerivativesData, MarketIndicatorsData } from '../../types/apiV2';
+import type { ValidatedDataEnvelope } from '../../types/dataContract';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -78,8 +79,6 @@ interface ChartPayload {
 
 type IndicatorField = keyof Pick<MarketIndicatorsData, 'ema20' | 'ema50' | 'bb_upper' | 'bb_lower' | 'bb_middle' | 'ai_target'>;
 
-const BINANCE_USDM_KLINES_URL = 'https://fapi.binance.com/fapi/v1/klines';
-
 function sortedUniqueByTime<T extends { time?: number }>(rows: T[]): T[] {
   const byTime = new Map<number, T>();
   for (const row of rows) {
@@ -142,6 +141,13 @@ function typedEnvelopeMatchesChart(
   );
 }
 
+function currentMarketSourceType(sourceType: ApiV2Envelope<unknown>['source_type'] | undefined): boolean {
+  return sourceType === 'websocket'
+    || sourceType === 'api'
+    || sourceType === 'repository'
+    || sourceType === 'redis_live';
+}
+
 function typedEnvelopeCanDriveRealtimeChart(
   envelope: ApiV2Envelope<MarketCandlesData> | null | undefined,
   symbol: string,
@@ -150,8 +156,32 @@ function typedEnvelopeCanDriveRealtimeChart(
   if (!typedEnvelopeMatchesChart(envelope, symbol, timeframe)) return false;
   return (
     envelope?.stale === false
-    && (envelope.source_type === 'api' || envelope.source_type === 'repository')
+    && currentMarketSourceType(envelope.source_type)
   );
+}
+
+function resourceEnvelopeToApi<T>(
+  envelope: ValidatedDataEnvelope<T>,
+  endpoint: string,
+): ApiV2Envelope<T> | null {
+  if (envelope.data === null || envelope.data === undefined) return null;
+  const receivedAt = envelope.received_at ?? Date.now();
+  const timestamp = envelope.timestamp ?? receivedAt;
+  return {
+    data: envelope.data,
+    source: envelope.source,
+    source_type: envelope.source_type as ApiV2Envelope<T>['source_type'],
+    endpoint: envelope.endpoint ?? endpoint,
+    timestamp: typeof timestamp === 'number' ? new Date(timestamp).toISOString() : null,
+    received_at: typeof receivedAt === 'number' ? new Date(receivedAt).toISOString() : new Date().toISOString(),
+    lag_ms: envelope.lag_ms,
+    stale: envelope.freshness_status === 'stale' || envelope.freshness_status === 'offline' || envelope.data_quality_status === 'invalid',
+    missing_fields: envelope.missing_fields,
+    warnings: envelope.warnings,
+    symbol: envelope.symbol,
+    exchange: envelope.exchange,
+    mode: envelope.mode as ApiV2Envelope<T>['mode'],
+  };
 }
 
 function utcTimestamp(value: unknown): UTCTimestamp | null {
@@ -201,7 +231,7 @@ function derivativeEnvelopeCanDriveOverlay(
   return Boolean(
     overlayFromDerivatives(envelope)
     && envelope?.stale === false
-    && (envelope.source_type === 'api' || envelope.source_type === 'repository')
+    && currentMarketSourceType(envelope.source_type)
   );
 }
 
@@ -226,7 +256,7 @@ function indicatorEnvelopeCanEnableControls(
 ): boolean {
   const data = envelope?.data;
   if (!data || envelope?.stale !== false) return false;
-  if (envelope.source_type !== 'api' && envelope.source_type !== 'repository') return false;
+  if (!currentMarketSourceType(envelope.source_type)) return false;
   if (data.symbol.toUpperCase() !== symbol.toUpperCase() || data.timeframe !== timeframe) return false;
   return data.controls_enabled === true && data.indicator_count > 0;
 }
@@ -253,16 +283,16 @@ function indicatorControlTitle(
   if (indicatorSeriesAvailable(envelope, symbol, timeframe, fields)) return availableTitle;
   const scope = `${symbol.toUpperCase()} ${timeframe}`;
   if (indicatorEnvelopeCanEnableControls(envelope, symbol, timeframe)) {
-    return `Indicator source unavailable for ${scope}; ${unavailableLabel} series are missing from the current typed indicator source. Static chart-file indicators are withheld.`;
+    return `Indicator source connecting for ${scope}; ${unavailableLabel} series are pending from the current typed indicator source. Static chart-file indicators are withheld.`;
   }
-  if (!envelope) return `Indicator source unavailable for ${scope}; ${unavailableLabel} requires current typed indicator evidence. Static chart-file indicators are withheld.`;
+  if (!envelope) return `Indicator source connecting for ${scope}; ${unavailableLabel} requires current typed indicator evidence. Static chart-file indicators are withheld.`;
   if (envelope.source_type === 'static_payload') {
-    return `Indicator source unavailable for ${scope}; static chart-file source is withheld until current typed indicator evidence exists.`;
+    return `Indicator source connecting for ${scope}; static chart-file source is withheld until current typed indicator evidence exists.`;
   }
   if (envelope.stale) {
-    return `Indicator source unavailable for ${scope}; ${unavailableLabel} source is stale and current typed indicator evidence is required.`;
+    return `Indicator source connecting for ${scope}; ${unavailableLabel} source is stale and current typed indicator evidence is required.`;
   }
-  return `Indicator source unavailable for ${scope}; ${envelope.warnings?.[0] ?? `${unavailableLabel} source unavailable`}. Static chart-file indicators are withheld.`;
+  return `Indicator source connecting for ${scope}; ${envelope.warnings?.[0] ?? `${unavailableLabel} source connecting`}. Static chart-file indicators are withheld.`;
 }
 
 function indicatorEvidenceSummary(
@@ -281,10 +311,10 @@ function indicatorEvidenceSummary(
   if (indicatorEnvelopeCanEnableControls(envelope, symbol, timeframe)) {
     return 'Current typed indicator source is connected, but no overlay series are available for the selected controls. Static chart-file overlays are withheld.';
   }
-  if (!envelope) return 'Indicator source unavailable. Static chart-file overlays are withheld.';
+  if (!envelope) return 'Indicator source connecting. Static chart-file overlays are withheld.';
   if (envelope.source_type === 'static_payload') return 'Static chart-file indicators are withheld until current typed indicator evidence exists.';
   if (envelope.stale) return 'Indicator source is stale. Static chart-file overlays are withheld.';
-  return `${envelope.warnings?.[0] ?? 'Indicator source unavailable'}. Static chart-file overlays are withheld.`;
+  return `${envelope.warnings?.[0] ?? 'Indicator source connecting'}. Static chart-file overlays are withheld.`;
 }
 
 function chartLineFromIndicatorSeries(rows: ChartLine[] | undefined): ChartLine[] {
@@ -323,8 +353,8 @@ function latestLineValue(rows: ChartLine[] | undefined): number | null {
 }
 
 export function proChartStreamDomainStatus(envelope: ApiV2Envelope<unknown> | null): { label: string; title: string } {
-  if (!envelope) return { label: 'Unavailable', title: 'Realtime source is not connected for this data domain.' };
-  const current = envelope.stale === false && (envelope.source_type === 'api' || envelope.source_type === 'repository');
+  if (!envelope) return { label: 'Connecting', title: 'Realtime source is connecting for this data domain.' };
+  const current = envelope.stale === false && currentMarketSourceType(envelope.source_type);
   if (current) {
     const source = String(envelope.source ?? '').toLowerCase();
     const endpoint = String(envelope.endpoint ?? '').toLowerCase();
@@ -339,8 +369,8 @@ export function proChartStreamDomainStatus(envelope: ApiV2Envelope<unknown> | nu
     };
   }
   return {
-    label: envelope.stale ? 'Stale' : 'Unavailable',
-    title: `${envelope.stale ? 'Stale market data' : 'Market chart source unavailable'} · ${envelope.warnings?.[0] ?? 'Current chart source unavailable'}`,
+    label: envelope.stale ? 'Stale' : 'Connecting',
+    title: `${envelope.stale ? 'Stale market data' : 'Market chart source connecting'} · ${envelope.warnings?.[0] ?? 'Current chart source connecting'}`,
   };
 }
 
@@ -380,71 +410,8 @@ function proChartLiveCandleLabel({
     if (!candleIsStreamBacked) return 'Current candle update';
     return liveCandle.is_final === false ? 'Stream forming candle' : 'Stream closed candle';
   }
-  if (hasStreamFrame) return streamSource === 'safe_api_contract_stream' ? 'Polling source connected' : 'Stream connected';
+  if (hasStreamFrame) return streamSource === 'safe_api_contract_stream' ? 'Resource stream connected' : 'Stream connected';
   return connected ? 'Waiting for stream frame' : 'Stream reconnecting';
-}
-
-function publicRestKlineEnvelope(
-  symbol: string,
-  timeframe: string,
-  rows: unknown,
-): ApiV2Envelope<MarketCandlesData> | null {
-  if (!Array.isArray(rows)) return null;
-  const now = Date.now();
-  const candles = rows
-    .map((row): MarketCandlesData['candles'][number] | null => {
-      if (!Array.isArray(row)) return null;
-      const openTime = numericValue(row[0]);
-      const open = numericValue(row[1]);
-      const high = numericValue(row[2]);
-      const low = numericValue(row[3]);
-      const close = numericValue(row[4]);
-      const volume = numericValue(row[5]);
-      const closeTime = numericValue(row[6]);
-      if (openTime == null || open == null || high == null || low == null || close == null || !validOhlc(open, high, low, close)) {
-        return null;
-      }
-      return {
-        time: Math.floor(openTime / 1000),
-        open_time_ms: openTime,
-        close_time_ms: closeTime ?? undefined,
-        open,
-        high,
-        low,
-        close,
-        volume: volume ?? undefined,
-        quote_volume: numericValue(row[7]),
-        trade_count: numericValue(row[8]),
-        taker_buy_base_volume: numericValue(row[9]),
-        taker_buy_quote_volume: numericValue(row[10]),
-        is_final: closeTime == null ? undefined : closeTime <= now,
-        source: 'binance_usdm_public_rest_poll',
-      };
-    })
-    .filter((row): row is MarketCandlesData['candles'][number] => row !== null);
-  if (!candles.length) return null;
-  const latest = candles.at(-1);
-  const latestEventTime = latest?.close_time_ms ?? latest?.open_time_ms ?? now;
-  return {
-    data: {
-      symbol,
-      timeframe,
-      candles,
-      candle_count: candles.length,
-    },
-    source: 'binance_usdm_public_rest_poll',
-    source_type: 'api',
-    endpoint: `${BINANCE_USDM_KLINES_URL}?symbol=${symbol}&interval=${timeframe}&limit=240`,
-    timestamp: new Date(latestEventTime).toISOString(),
-    received_at: new Date(now).toISOString(),
-    lag_ms: Math.max(0, now - latestEventTime),
-    stale: false,
-    missing_fields: [],
-    warnings: ['Binance USD-M public REST poll. Latest candle can be forming and display-only.'],
-    symbol,
-    exchange: 'Binance USD-M',
-    mode: 'read_only',
-  };
 }
 
 function mergeRealtimeCandleRows(
@@ -515,98 +482,63 @@ export function ProChart({ symbol, timeframe, exchange: _exchange = 'Binance', h
   const [showEMA, setShowEMA] = useState(false);
   const [showAI,  setShowAI]  = useState(false);
 
-  const [candleEnvelope, setCandleEnvelope] = useState<ApiV2Envelope<MarketCandlesData> | null>(null);
-  const [publicRestEnvelope, setPublicRestEnvelope] = useState<ApiV2Envelope<MarketCandlesData> | null>(null);
-  const [indicatorEnvelope, setIndicatorEnvelope] = useState<ApiV2Envelope<MarketIndicatorsData> | null>(null);
-
-  // Derivatives overlay data from read-only sources (polled at 30s)
-  const [overlay, setOverlay] = useState<CoinAnkOverlay | null>(null);
-  const fetchOverlay = useCallback(async () => {
-    try {
-      const derivatives = await getV2MarketDerivatives(symbol);
-      if (derivativeEnvelopeCanDriveOverlay(derivatives)) {
-        setOverlay(overlayFromDerivatives(derivatives));
-        return;
-      }
-      setOverlay(null);
-    } catch {
-      setOverlay(null);
-    }
-  }, [symbol]);
-
-  useEffect(() => {
-    void fetchOverlay();
-    const id = window.setInterval(() => void fetchOverlay(), 30_000);
-    return () => window.clearInterval(id);
-  }, [fetchOverlay]);
-
-  useEffect(() => {
-    let active = true;
-    setCandleEnvelope(null);
-    setPublicRestEnvelope(null);
-    setIndicatorEnvelope(null);
-
-    async function loadTypedChartContracts(): Promise<void> {
-      const [nextCandles, nextIndicators] = await Promise.all([
-        getV2MarketCandles(symbol, timeframe),
-        getV2MarketIndicators(symbol, timeframe),
-      ]);
-      if (!active) return;
-      setCandleEnvelope(nextCandles);
-      setIndicatorEnvelope(nextIndicators);
-    }
-
-    void loadTypedChartContracts();
-    const id = window.setInterval(loadTypedChartContracts, 3_000);
-    return () => {
-      active = false;
-      window.clearInterval(id);
-    };
-  }, [symbol, timeframe]);
-
-  useEffect(() => {
-    let active = true;
-    setPublicRestEnvelope(null);
-
-    async function loadPublicRestCandles(): Promise<void> {
-      try {
-        const params = new URLSearchParams({ symbol: symbol.toUpperCase(), interval: timeframe, limit: '240' });
-        const response = await fetch(`${BINANCE_USDM_KLINES_URL}?${params.toString()}`);
-        if (!response.ok) throw new Error(`Binance public kline request failed: ${response.status}`);
-        const rows = await response.json();
-        if (!active) return;
-        setPublicRestEnvelope(publicRestKlineEnvelope(symbol.toUpperCase(), timeframe, rows));
-      } catch {
-        if (active) setPublicRestEnvelope(null);
-      }
-    }
-
-    void loadPublicRestCandles();
-    const id = window.setInterval(loadPublicRestCandles, 5_000);
-    return () => {
-      active = false;
-      window.clearInterval(id);
-    };
-  }, [symbol, timeframe]);
+  const candleUrl = `/api/v2/market/${symbol}/candles?timeframe=${encodeURIComponent(timeframe)}`;
+  const indicatorUrl = `/api/v2/market/${symbol}/indicators?timeframe=${encodeURIComponent(timeframe)}`;
+  const derivativeUrl = `/api/v2/market/${symbol}/derivatives?timeframe=${encodeURIComponent(timeframe)}`;
+  const candleResource = useRealtimeResource<MarketCandlesData>({
+    url: candleUrl,
+    source: candleUrl,
+    source_type: 'websocket',
+    pollIntervalMs: 3_000,
+    staleThresholdMs: 15_000,
+    mode: 'read_only',
+  });
+  const indicatorResource = useRealtimeResource<MarketIndicatorsData>({
+    url: indicatorUrl,
+    source: indicatorUrl,
+    source_type: 'websocket',
+    pollIntervalMs: 3_000,
+    staleThresholdMs: 30_000,
+    mode: 'read_only',
+  });
+  const derivativeResource = useRealtimeResource<MarketDerivativesData>({
+    url: derivativeUrl,
+    source: derivativeUrl,
+    source_type: 'websocket',
+    pollIntervalMs: 30_000,
+    staleThresholdMs: 90_000,
+    mode: 'read_only',
+  });
+  const candleEnvelope = useMemo(
+    () => resourceEnvelopeToApi(candleResource.envelope, candleUrl),
+    [candleResource.envelope, candleUrl],
+  );
+  const indicatorEnvelope = useMemo(
+    () => resourceEnvelopeToApi(indicatorResource.envelope, indicatorUrl),
+    [indicatorResource.envelope, indicatorUrl],
+  );
+  const derivativeEnvelope = useMemo(
+    () => resourceEnvelopeToApi(derivativeResource.envelope, derivativeUrl),
+    [derivativeResource.envelope, derivativeUrl],
+  );
+  const overlay = useMemo(
+    () => derivativeEnvelopeCanDriveOverlay(derivativeEnvelope) ? overlayFromDerivatives(derivativeEnvelope) : null,
+    [derivativeEnvelope],
+  );
 
   const activeChartPayload = useMemo<ChartPayload | null>(() => {
     const typedEnvelopeRealtime = typedEnvelopeCanDriveRealtimeChart(candleEnvelope, symbol, timeframe);
     const typedRows = typedEnvelopeRealtime ? candleEnvelope?.data?.candles ?? [] : [];
-    const publicRestRows = typedEnvelopeCanDriveRealtimeChart(publicRestEnvelope, symbol, timeframe)
-      ? publicRestEnvelope?.data?.candles ?? []
-      : [];
     const streamRows = marketStream.candles && typedEnvelopeCanDriveRealtimeChart(marketStream.candles, symbol, timeframe)
       ? marketStream.candles.data?.candles ?? []
       : [];
     const baseRows = typedRows.length >= 20
       ? typedRows
-      : publicRestRows.length >= 20
-        ? publicRestRows
+      : streamRows.length >= 20
+        ? streamRows
         : typedRows.length > 0
           ? typedRows
-          : publicRestRows.length > 0
-            ? publicRestRows
-            : streamRows;
+          : streamRows;
     const chartRows = mergeRealtimeCandleRows(baseRows, streamRows);
     const liveCandle = marketStream.liveCandle;
     const typedCandles = chartRows
@@ -666,11 +598,10 @@ export function ProChart({ symbol, timeframe, exchange: _exchange = 'Binance', h
     }
 
     return null;
-  }, [marketStream.candles, marketStream.liveCandle, symbol, timeframe, candleEnvelope, publicRestEnvelope, indicatorEnvelope]);
+  }, [marketStream.candles, marketStream.liveCandle, symbol, timeframe, candleEnvelope, indicatorEnvelope]);
 
   const typedEnvelopeUsable = typedEnvelopeMatchesChart(candleEnvelope, symbol, timeframe);
   const typedEnvelopeRealtime = typedEnvelopeCanDriveRealtimeChart(candleEnvelope, symbol, timeframe);
-  const publicRestRealtime = typedEnvelopeCanDriveRealtimeChart(publicRestEnvelope, symbol, timeframe);
   const streamCandlesRealtime = typedEnvelopeCanDriveRealtimeChart(marketStream.candles, symbol, timeframe);
   const hasStreamFrame = Boolean(
     marketStream.receivedAt
@@ -686,23 +617,19 @@ export function ProChart({ symbol, timeframe, exchange: _exchange = 'Binance', h
     ? 'Native public stream + candle source'
     : typedEnvelopeRealtime
     ? 'Current candle source'
-    : publicRestRealtime
-      ? 'Current Binance public candles'
     : typedEnvelopeUsable && (candleEnvelope?.source_type === 'static_payload' || candleEnvelope?.stale)
       ? 'Fallback/stale candles withheld'
     : activeChartPayload
-        ? hasStreamFrame
-          ? marketStream.streamSource === 'safe_api_contract_stream'
-            ? 'Current polling chart data'
-            : 'Live stream chart data'
+	      ? hasStreamFrame
+	        ? marketStream.streamSource === 'safe_api_contract_stream'
+	          ? 'Current resource stream data'
+	          : 'Live stream chart data'
           : 'Current chart data'
-        : 'Candle source unavailable';
+        : 'Candle source connecting';
   const indicatorSummary = indicatorEvidenceSummary(indicatorEnvelope, symbol, timeframe);
   const chartSourceTitle = typedEnvelopeRealtime && candleEnvelope
     ? `Current candle data is available. ${indicatorSummary}${marketStream.liveCandle?.is_final === false ? ' Forming stream candle is display-only, not final evidence.' : ''}`
-    : publicRestRealtime && publicRestEnvelope
-      ? 'Current public market candles are available.'
-      : typedEnvelopeUsable && candleEnvelope
+    : typedEnvelopeUsable && candleEnvelope
         ? `Candle data is stale or fallback-only and is withheld from the primary chart until a current market data source is available.${marketStream.liveCandle?.is_final === false ? ' Forming stream candle is display-only, not final evidence.' : ''}`
     : candleEnvelope && !typedEnvelopeUsable
       ? 'Candle source symbol/timeframe did not match the active chart and was ignored.'
@@ -947,15 +874,15 @@ export function ProChart({ symbol, timeframe, exchange: _exchange = 'Binance', h
 
   // Stats bar formatters
   const stats = overlay?.stats;
-  const fmtOI = (v: number | null) => v != null ? `$${(v / 1e6).toFixed(2)}M` : 'Data unavailable';
-  const fmtLS = (v: number | null) => v != null ? v.toFixed(2) : 'Data unavailable';
-  const fmtFR = (v: number | null) => v != null ? `${(v * 100).toFixed(4)}%` : 'Data unavailable';
+  const fmtOI = (v: number | null) => v != null ? `$${(v / 1e6).toFixed(2)}M` : 'Connecting stream';
+  const fmtLS = (v: number | null) => v != null ? v.toFixed(2) : 'Connecting stream';
+  const fmtFR = (v: number | null) => v != null ? `${(v * 100).toFixed(4)}%` : 'Connecting stream';
   const streamDomainChips = [
     ['Price stream', proChartStreamDomainStatus(marketStream.ticker)],
     ['Depth stream', proChartStreamDomainStatus(marketStream.depth)],
     ['Trades stream', proChartStreamDomainStatus(marketStream.trades)],
   ] as const;
-  const candleSource = String(marketStream.candles?.source ?? publicRestEnvelope?.source ?? '').toLowerCase();
+  const candleSource = String(marketStream.candles?.source ?? candleEnvelope?.source ?? '').toLowerCase();
   const candleIsStreamBacked = !marketStream.stale
     && marketStream.streamSource !== 'unavailable'
     && (candleSource.includes('websocket') || candleSource.includes('stream') || hasStreamFrame);
@@ -989,7 +916,7 @@ export function ProChart({ symbol, timeframe, exchange: _exchange = 'Binance', h
           title={emaControlTitle}
           onClick={() => setShowEMA(v => !v)}
         >
-          {emaControlAvailable ? 'EMA' : 'EMA unavailable'}
+          {emaControlAvailable ? 'EMA' : 'EMA pending'}
         </button>
         <button
           className={`prochart__toggle ${showBB  ? 'active' : ''}`}
@@ -997,7 +924,7 @@ export function ProChart({ symbol, timeframe, exchange: _exchange = 'Binance', h
           title={bbControlTitle}
           onClick={() => setShowBB(v  => !v)}
         >
-          {bbControlAvailable ? 'BB' : 'BB unavailable'}
+          {bbControlAvailable ? 'BB' : 'BB pending'}
         </button>
         <button
           className={`prochart__toggle ${showAI  ? 'active' : ''}`}
@@ -1005,24 +932,24 @@ export function ProChart({ symbol, timeframe, exchange: _exchange = 'Binance', h
           title={aiTargetControlTitle}
           onClick={() => setShowAI(v  => !v)}
         >
-          {aiTargetControlAvailable ? 'AI Target' : 'AI target unavailable'}
+          {aiTargetControlAvailable ? 'AI Target' : 'AI target pending'}
         </button>
         <span className="prochart__divider" />
         <button
           className={`prochart__toggle ${showOI  ? 'active' : ''}`}
           disabled={!oiControlAvailable}
-          title={oiControlAvailable ? 'Toggle open-interest overlay' : 'Open-interest overlay source unavailable'}
+          title={oiControlAvailable ? 'Toggle open-interest overlay' : 'Open-interest overlay source connecting'}
           onClick={() => setShowOI(v  => !v)}
         >
-          {oiControlAvailable ? 'OI' : 'OI unavailable'}
+          {oiControlAvailable ? 'OI' : 'OI pending'}
         </button>
         <button
           className={`prochart__toggle ${showLS  ? 'active' : ''}`}
           disabled={!lsControlAvailable}
-          title={lsControlAvailable ? 'Toggle long/short overlay' : 'Long/short overlay source unavailable'}
+          title={lsControlAvailable ? 'Toggle long/short overlay' : 'Long/short overlay source connecting'}
           onClick={() => setShowLS(v  => !v)}
         >
-          {lsControlAvailable ? 'L/S' : 'L/S unavailable'}
+          {lsControlAvailable ? 'L/S' : 'L/S pending'}
         </button>
         <div className="prochart__source" title={chartSourceTitle}>{chartSourceLabel}</div>
         <div className="prochart__source" title="Unfinished stream candles are display-only and are not final model evidence.">{liveCandleLabel}</div>
@@ -1042,7 +969,7 @@ export function ProChart({ symbol, timeframe, exchange: _exchange = 'Binance', h
       <div ref={containerRef} className="prochart__canvas" style={{ height }} />
       {!activeChartPayload ? (
         <div className="chart-empty-state" role="status">
-          Current candle data unavailable. Static or stale chart snapshots are withheld from the primary chart until a current market data source is available.
+          Current candle data is connecting. Static or stale chart snapshots are withheld from the primary chart until a current market data source is available.
         </div>
       ) : null}
 
@@ -1087,7 +1014,6 @@ export const proChartTestHooks = {
   overlayFromDerivatives,
   proChartStreamDomainStatus,
   proChartLiveCandleLabel,
-  publicRestKlineEnvelope,
   realtimeChartPayload,
   typedEnvelopeCanDriveRealtimeChart,
   typedEnvelopeMatchesChart,

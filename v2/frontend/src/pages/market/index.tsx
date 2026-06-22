@@ -9,7 +9,7 @@
  * component mounts. If auth state resolves to no-user mid-session, an inline
  * overlay prompts sign-in without a full-page redirect.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   CandlestickSeries,
@@ -23,6 +23,18 @@ import {
   type UTCTimestamp,
 } from 'lightweight-charts';
 import { Activity, AlertTriangle, ChevronRight, Sparkles, TrendingDown, TrendingUp, ShieldCheck } from 'lucide-react';
+import { safeV2MarketSymbol } from '../../api/v2Market';
+import { useMarketDataStream } from '../../hooks/useMarketDataStream';
+import { useRealtimeResource } from '../../hooks/useRealtimeResource';
+import type {
+  ApiV2Envelope,
+  MarketCandlesData,
+  MarketDepthData,
+  MarketDerivativesData,
+  MarketIndicatorsData,
+  MarketTickerData,
+  RecentTradesData,
+} from '../../types/apiV2';
 import './marketDetail.css';
 
 // ---------------------------------------------------------------------------
@@ -34,6 +46,8 @@ interface TickerData {
   last_price: number | null;
   mark_price: number | null;
   index_price: number | null;
+  change_1h?: number | null;
+  change_4h?: number | null;
   change_24h: number | null;
   high_24h: number | null;
   low_24h: number | null;
@@ -42,10 +56,15 @@ interface TickerData {
   funding_rate: number | null;
   next_funding: string | null;
   open_interest: number | null;
+  bid?: number | null;
+  ask?: number | null;
+  spread_bps?: number | null;
 }
 
 interface CandleRow {
   time: number;
+  open_time_ms?: number;
+  close_time_ms?: number;
   open: number;
   high: number;
   low: number;
@@ -60,6 +79,95 @@ interface SignalData {
   target_1?: number | null;
   stop?: number | null;
   risk_reward?: number | null;
+}
+
+function envelopeMatchesSymbol<T extends { symbol?: string | null }>(
+  envelope: ApiV2Envelope<T> | null | undefined,
+  expectedSymbol: string,
+): envelope is ApiV2Envelope<T> {
+  if (!envelope || envelope.stale !== false) return false;
+  const dataSymbol = envelope.data?.symbol;
+  const envelopeSymbol = envelope.symbol;
+  const symbolValue = dataSymbol ?? envelopeSymbol;
+  return (
+    typeof symbolValue === 'string'
+    && symbolValue.toUpperCase() === expectedSymbol.toUpperCase()
+  );
+}
+
+function streamTickerForSymbol(
+  envelope: ApiV2Envelope<MarketTickerData> | null | undefined,
+  expectedSymbol: string,
+): TickerData | null {
+  if (!envelopeMatchesSymbol(envelope, expectedSymbol)) return null;
+  return envelope.data;
+}
+
+function streamCandlesForSymbol(
+  envelope: ApiV2Envelope<MarketCandlesData> | null | undefined,
+  expectedSymbol: string,
+  expectedTimeframe: string,
+): CandleRow[] {
+  if (!envelopeMatchesSymbol(envelope, expectedSymbol)) return [];
+  if (envelope?.data?.timeframe !== expectedTimeframe) return [];
+  return (envelope.data.candles ?? [])
+    .map((row): CandleRow | null => {
+      const time = finite(row.open_time_ms) ?? finite(row.time);
+      const open = finite(row.open);
+      const high = finite(row.high);
+      const low = finite(row.low);
+      const close = finite(row.close);
+      if (time === null || open === null || high === null || low === null || close === null) return null;
+      return {
+        time,
+        open,
+        high,
+        low,
+        close,
+        volume: finite(row.volume) ?? undefined,
+      };
+    })
+    .filter((row): row is CandleRow => row !== null);
+}
+
+function tickerForSymbol(data: MarketTickerData | null | undefined, expectedSymbol: string): TickerData | null {
+  if (!data?.symbol || data.symbol.toUpperCase() !== expectedSymbol.toUpperCase()) return null;
+  return data;
+}
+
+function resourceForSymbol<T extends { symbol?: string | null }>(
+  data: T | null | undefined,
+  expectedSymbol: string,
+): T | null {
+  if (!data?.symbol || data.symbol.toUpperCase() !== expectedSymbol.toUpperCase()) return null;
+  return data;
+}
+
+function candleRowsForSymbol(
+  data: MarketCandlesData | null | undefined,
+  expectedSymbol: string,
+  expectedTimeframe: string,
+): CandleRow[] {
+  if (!data?.symbol || data.symbol.toUpperCase() !== expectedSymbol.toUpperCase()) return [];
+  if (data.timeframe !== expectedTimeframe) return [];
+  return (data.candles ?? [])
+    .map((row): CandleRow | null => {
+      const time = finite(row.open_time_ms) ?? finite(row.time);
+      const open = finite(row.open);
+      const high = finite(row.high);
+      const low = finite(row.low);
+      const close = finite(row.close);
+      if (time === null || open === null || high === null || low === null || close === null) return null;
+      return {
+        time,
+        open,
+        high,
+        low,
+        close,
+        volume: finite(row.volume) ?? undefined,
+      };
+    })
+    .filter((row): row is CandleRow => row !== null);
 }
 
 interface CurrentUser {
@@ -94,6 +202,11 @@ function fmtPct(v: unknown): string {
   if (n === null) return '—';
   const pct = Math.abs(n) <= 1 ? n * 100 : n;
   return `${pct >= 0 ? '+' : ''}${pct.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}%`;
+}
+
+function fmtBps(v: unknown): string {
+  const n = finite(v);
+  return n === null ? '—' : `${n.toLocaleString('en-US', { maximumFractionDigits: 2 })} bps`;
 }
 
 function fmtCompact(v: unknown): string {
@@ -142,6 +255,28 @@ function changeClass(v: number | null): string {
   return v > 0 ? 'mdc-pos' : v < 0 ? 'mdc-neg' : '';
 }
 
+function mergeTicker(base: TickerData | null, patch: TickerData): TickerData {
+  return {
+    symbol: patch.symbol ?? base?.symbol ?? 'BTCUSDT',
+    last_price: patch.last_price ?? base?.last_price ?? null,
+    mark_price: patch.mark_price ?? base?.mark_price ?? null,
+    index_price: patch.index_price ?? base?.index_price ?? null,
+    change_1h: patch.change_1h ?? base?.change_1h ?? null,
+    change_4h: patch.change_4h ?? base?.change_4h ?? null,
+    change_24h: patch.change_24h ?? base?.change_24h ?? null,
+    high_24h: patch.high_24h ?? base?.high_24h ?? null,
+    low_24h: patch.low_24h ?? base?.low_24h ?? null,
+    volume_24h: patch.volume_24h ?? base?.volume_24h ?? null,
+    turnover_24h: patch.turnover_24h ?? base?.turnover_24h ?? null,
+    funding_rate: patch.funding_rate ?? base?.funding_rate ?? null,
+    next_funding: patch.next_funding ?? base?.next_funding ?? null,
+    open_interest: patch.open_interest ?? base?.open_interest ?? null,
+    bid: patch.bid ?? base?.bid ?? null,
+    ask: patch.ask ?? base?.ask ?? null,
+    spread_bps: patch.spread_bps ?? base?.spread_bps ?? null,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Chart data normalisation
 // ---------------------------------------------------------------------------
@@ -188,6 +323,30 @@ function normalizeVolume(rows: CandleRow[]): HistogramData<UTCTimestamp>[] {
     })
     .filter((r): r is HistogramData<UTCTimestamp> => r !== null)
     .sort((a, b) => Number(a.time) - Number(b.time));
+}
+
+function candleRowIdentity(row: CandleRow): number | null {
+  const value = finite(row.open_time_ms) ?? finite(row.time);
+  if (value === null) return null;
+  return value > 1_000_000_000_000 ? value : value * 1000;
+}
+
+function mergeCandleRows(current: CandleRow[], incoming: CandleRow[], limit = 240): CandleRow[] {
+  const byTime = new Map<number, CandleRow>();
+  for (const row of current) {
+    const identity = candleRowIdentity(row);
+    if (identity === null) continue;
+    byTime.set(identity, row);
+  }
+  for (const row of incoming) {
+    const identity = candleRowIdentity(row);
+    if (identity === null) continue;
+    byTime.set(identity, row);
+  }
+  return [...byTime.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([, row]) => row)
+    .slice(-limit);
 }
 
 // ---------------------------------------------------------------------------
@@ -322,13 +481,13 @@ function CandlestickChart({ candles, loading, error }: CandlestickChartProps): J
       {loading && !candles.length && (
         <div className="mdc-chart-overlay">
           <span className="mdc-spinner" />
-          <span>Loading chart data…</span>
+          <span>Connecting chart stream</span>
         </div>
       )}
       {!loading && error && !candles.length && (
-        <div className="mdc-chart-overlay mdc-chart-overlay--error">
-          <AlertTriangle size={24} />
-          <span>Market data unavailable — retrying…</span>
+        <div className="mdc-chart-overlay mdc-chart-overlay--sync">
+          <span className="mdc-spinner" />
+          <span>Candle stream syncing</span>
         </div>
       )}
     </div>
@@ -364,7 +523,7 @@ function SignalPanel({ signal, loading }: { signal: SignalData | null; loading: 
     return (
       <div className="mdc-signal-panel mdc-signal-panel--empty">
         <Sparkles size={16} />
-        <span>AI signal data unavailable for this symbol</span>
+        <span>AI signal stream connecting for this symbol</span>
       </div>
     );
   }
@@ -414,110 +573,134 @@ function AuthOverlay({ symbol, onSignIn }: { symbol: string; onSignIn: () => voi
 export default function MarketPage(): JSX.Element {
   const params = useParams();
   const navigate = useNavigate();
-  const symbol = (params.symbol ?? 'BTCUSDT').toUpperCase().trim();
+  const requestedSymbol = (params.symbol ?? 'BTCUSDT').toUpperCase().trim();
+  const safeSymbol = safeV2MarketSymbol(requestedSymbol);
+  const symbol = safeSymbol ?? 'Invalid market symbol';
+  const querySymbol = safeSymbol ?? '';
 
   const { user, loading: authLoading } = useCurrentUser();
 
-  const [ticker, setTicker] = useState<TickerData | null>(null);
-  const [tickerError, setTickerError] = useState<string | null>(null);
-  const [tickerLoading, setTickerLoading] = useState(true);
-
-  const [candles, setCandles] = useState<CandleRow[]>([]);
-  const [candleError, setCandleError] = useState<string | null>(null);
-  const [candleLoading, setCandleLoading] = useState(true);
-
   const [timeframe, setTimeframe] = useState<Timeframe>('1h');
 
-  const [signal, setSignal] = useState<SignalData | null>(null);
-  const [signalLoading, setSignalLoading] = useState(true);
+  const marketStream = useMarketDataStream(querySymbol, 2_000, timeframe);
+  const tickerResource = useRealtimeResource<MarketTickerData>({
+    url: safeSymbol ? `/api/v2/market/${safeSymbol}` : '/api/v2/market/{symbol}',
+    source: safeSymbol ? `/api/v2/market/${safeSymbol}` : '/api/v2/market/{symbol}',
+    source_type: 'websocket',
+    pollIntervalMs: 3_000,
+    staleThresholdMs: 12_000,
+    mode: 'read_only',
+    enabled: Boolean(safeSymbol),
+  });
+  const candleResource = useRealtimeResource<MarketCandlesData>({
+    url: safeSymbol ? `/api/v2/market/${safeSymbol}/candles?timeframe=${timeframe}&limit=200` : '/api/v2/market/{symbol}/candles',
+    source: safeSymbol ? `/api/v2/market/${safeSymbol}/candles` : '/api/v2/market/{symbol}/candles',
+    source_type: 'websocket',
+    pollIntervalMs: 3_000,
+    staleThresholdMs: 12_000,
+    mode: 'read_only',
+    enabled: Boolean(safeSymbol),
+  });
+  const depthResource = useRealtimeResource<MarketDepthData>({
+    url: safeSymbol ? `/api/v2/market/${safeSymbol}/depth` : '/api/v2/market/{symbol}/depth',
+    source: safeSymbol ? `/api/v2/market/${safeSymbol}/depth` : '/api/v2/market/{symbol}/depth',
+    source_type: 'websocket',
+    pollIntervalMs: 3_000,
+    staleThresholdMs: 12_000,
+    mode: 'read_only',
+    enabled: Boolean(safeSymbol),
+  });
+  const tradesResource = useRealtimeResource<RecentTradesData>({
+    url: safeSymbol ? `/api/v2/market/${safeSymbol}/trades` : '/api/v2/market/{symbol}/trades',
+    source: safeSymbol ? `/api/v2/market/${safeSymbol}/trades` : '/api/v2/market/{symbol}/trades',
+    source_type: 'websocket',
+    pollIntervalMs: 3_000,
+    staleThresholdMs: 12_000,
+    mode: 'read_only',
+    enabled: Boolean(safeSymbol),
+  });
+  const derivativesResource = useRealtimeResource<MarketDerivativesData>({
+    url: safeSymbol ? `/api/v2/market/${safeSymbol}/derivatives?timeframe=${timeframe}` : '/api/v2/market/{symbol}/derivatives',
+    source: safeSymbol ? `/api/v2/market/${safeSymbol}/derivatives` : '/api/v2/market/{symbol}/derivatives',
+    source_type: 'websocket',
+    pollIntervalMs: 8_000,
+    staleThresholdMs: 30_000,
+    mode: 'read_only',
+    enabled: Boolean(safeSymbol),
+  });
+  const indicatorsResource = useRealtimeResource<MarketIndicatorsData>({
+    url: safeSymbol ? `/api/v2/market/${safeSymbol}/indicators?timeframe=${timeframe}` : '/api/v2/market/{symbol}/indicators',
+    source: safeSymbol ? `/api/v2/market/${safeSymbol}/indicators` : '/api/v2/market/{symbol}/indicators',
+    source_type: 'websocket',
+    pollIntervalMs: 4_000,
+    staleThresholdMs: 30_000,
+    mode: 'read_only',
+    enabled: Boolean(safeSymbol),
+  });
+  const signalResource = useRealtimeResource<{ active_signal?: unknown }>({
+    url: safeSymbol ? `/api/v2/signals?symbol=${safeSymbol}` : '/api/v2/signals?symbol={symbol}',
+    source: `${symbol} signal stream`,
+    source_type: 'websocket',
+    pollIntervalMs: 2_000,
+    staleThresholdMs: 20_000,
+    mode: 'paper',
+    enabled: Boolean(user && safeSymbol),
+  });
 
-  const signInUrl = `/login?returnTo=${encodeURIComponent(`/market/${symbol}`)}`;
+  const streamTicker = useMemo(
+    () => streamTickerForSymbol(marketStream.ticker, querySymbol),
+    [marketStream.ticker, querySymbol],
+  );
+  const streamCandles = useMemo(
+    () => streamCandlesForSymbol(marketStream.candles, querySymbol, timeframe),
+    [marketStream.candles, querySymbol, timeframe],
+  );
+  const resourceTicker = useMemo(
+    () => tickerForSymbol(tickerResource.envelope.data, querySymbol),
+    [tickerResource.envelope.data, querySymbol],
+  );
+  const resourceCandles = useMemo(
+    () => candleRowsForSymbol(candleResource.envelope.data, querySymbol, timeframe),
+    [candleResource.envelope.data, querySymbol, timeframe],
+  );
+  const depth = useMemo(
+    () => (marketStream.depth && envelopeMatchesSymbol(marketStream.depth, querySymbol) ? marketStream.depth.data : resourceForSymbol(depthResource.envelope.data, querySymbol)),
+    [depthResource.envelope.data, marketStream.depth, querySymbol],
+  );
+  const trades = useMemo(
+    () => (marketStream.trades && envelopeMatchesSymbol(marketStream.trades, querySymbol) ? marketStream.trades.data : resourceForSymbol(tradesResource.envelope.data, querySymbol)),
+    [marketStream.trades, querySymbol, tradesResource.envelope.data],
+  );
+  const derivatives = useMemo(
+    () => resourceForSymbol(derivativesResource.envelope.data, querySymbol),
+    [derivativesResource.envelope.data, querySymbol],
+  );
+  const indicators = useMemo(
+    () => resourceForSymbol(indicatorsResource.envelope.data, querySymbol),
+    [indicatorsResource.envelope.data, querySymbol],
+  );
+  const ticker = useMemo(
+    () => (streamTicker ? mergeTicker(resourceTicker, streamTicker) : resourceTicker),
+    [resourceTicker, streamTicker],
+  );
+  const candles = useMemo(
+    () => (streamCandles.length ? mergeCandleRows(resourceCandles, streamCandles) : resourceCandles),
+    [resourceCandles, streamCandles],
+  );
+  const tickerError = tickerResource.error ?? tickerResource.envelope.errors[0] ?? null;
+  const candleError = candleResource.error ?? candleResource.envelope.errors[0] ?? null;
+  const tickerLoading = Boolean(safeSymbol) && tickerResource.loading && !streamTicker && !resourceTicker;
+  const candleLoading = Boolean(safeSymbol) && candleResource.loading && streamCandles.length === 0 && resourceCandles.length === 0;
+
+  const signInUrl = `/login?returnTo=${encodeURIComponent(`/market/${safeSymbol ?? 'BTCUSDT'}`)}`;
   function goSignIn(): void { navigate(signInUrl); }
-
-  // ---------------------------------------------------------------------------
-  // Ticker polling — 10s
-  // ---------------------------------------------------------------------------
-
-  const fetchTicker = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/v2/market/${symbol}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as { data?: unknown };
-      if (!json?.data || typeof json.data !== 'object') throw new Error('Empty response');
-      setTicker(json.data as TickerData);
-      setTickerError(null);
-    } catch (err) {
-      setTickerError(err instanceof Error ? err.message : 'Unavailable');
-    } finally {
-      setTickerLoading(false);
-    }
-  }, [symbol]);
-
-  useEffect(() => {
-    setTickerLoading(true);
-    setTicker(null);
-    setTickerError(null);
-    void fetchTicker();
-    const id = window.setInterval(fetchTicker, 10_000);
-    return () => window.clearInterval(id);
-  }, [fetchTicker]);
-
-  // ---------------------------------------------------------------------------
-  // Candles — refresh on symbol/timeframe change
-  // ---------------------------------------------------------------------------
-
-  const fetchCandles = useCallback(async () => {
-    setCandleLoading(true);
-    try {
-      const res = await fetch(`/api/v2/market/${symbol}/candles?interval=${timeframe}&limit=200`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as { data?: { candles?: unknown } };
-      const rows = json?.data?.candles;
-      if (!Array.isArray(rows) || rows.length === 0) throw new Error('No candle data');
-      setCandles(rows as CandleRow[]);
-      setCandleError(null);
-    } catch (err) {
-      setCandleError(err instanceof Error ? err.message : 'Unavailable');
-    } finally {
-      setCandleLoading(false);
-    }
-  }, [symbol, timeframe]);
-
-  useEffect(() => {
-    setCandles([]);
-    setCandleError(null);
-    void fetchCandles();
-  }, [fetchCandles]);
-
-  // ---------------------------------------------------------------------------
-  // Signal — 30s poll, only when authenticated
-  // ---------------------------------------------------------------------------
-
-  useEffect(() => {
-    if (!user) { setSignal(null); setSignalLoading(false); return undefined; }
-    let active = true;
-    setSignalLoading(true);
-
-    async function load(): Promise<void> {
-      try {
-        const res = await fetch(`/api/v2/signals?symbol=${symbol}`);
-        if (!res.ok) return;
-        const json = (await res.json()) as { data?: { active_signal?: unknown } };
-        if (active) setSignal((json?.data?.active_signal ?? null) as SignalData | null);
-      } catch { /* best-effort */ } finally {
-        if (active) setSignalLoading(false);
-      }
-    }
-
-    void load();
-    const id = window.setInterval(load, 30_000);
-    return () => { active = false; window.clearInterval(id); };
-  }, [symbol, user]);
 
   // ---------------------------------------------------------------------------
   // Derived values
   // ---------------------------------------------------------------------------
 
+  const signal = user && safeSymbol ? (signalResource.envelope.data?.active_signal ?? null) as SignalData | null : null;
+  const signalLoading = Boolean(user) && signalResource.loading && !signalResource.envelope.data;
   const price = ticker?.last_price ?? null;
   const change = ticker?.change_24h ?? null;
   const changeDisplay = useMemo(() => {
@@ -531,7 +714,10 @@ export default function MarketPage(): JSX.Element {
 
   // Auth overlay is shown mid-session only (TraderShell handles full redirect before mount)
   const showAuthOverlay = !authLoading && !user;
-  const baseTicker = symbol.replace('USDT', '');
+  const baseTicker = safeSymbol ? safeSymbol.replace('USDT', '') : 'MARKET';
+  const latestTrade = trades?.trades?.[0] ?? null;
+  const liquidationLevels = derivatives?.liquidation_levels ?? null;
+  const liquidationStatus = derivatives?.liquidation_stream_status ?? null;
 
   // ---------------------------------------------------------------------------
   // Render
@@ -578,18 +764,27 @@ export default function MarketPage(): JSX.Element {
               </div>
             </>
           ) : tickerLoading ? (
-            <span className="mdc-header__loading">Loading market data…</span>
+            <span className="mdc-header__loading">Connecting market stream…</span>
           ) : (
-            <span className="mdc-header__error">Market data unavailable — retrying…</span>
+            <span className="mdc-header__error">Live market stream syncing</span>
           )}
         </div>
       </header>
 
+      {!safeSymbol && (
+        <section className="mdc-panel mdc-invalid-panel" role="status" aria-label="Invalid market symbol">
+          <div className="mdc-stats-error">
+            <AlertTriangle size={16} />
+            <span>Enter a valid market symbol to connect the realtime market stream.</span>
+          </div>
+        </section>
+      )}
+
       {/* ── Chart + Stats row (70/30 split) ── */}
-      <div className="mdc-chart-section">
+      <div className="mdc-chart-section" data-testid="market-chart-section">
         {/* Chart — hero element */}
         <div className="mdc-chart-col">
-          <div className="mdc-panel mdc-chart-panel">
+          <div className="mdc-panel mdc-chart-panel" data-testid="chart-panel">
             {/* Timeframe toolbar */}
             <div className="mdc-toolbar">
               <div className="mdc-toolbar__tf" role="group" aria-label="Chart timeframe">
@@ -651,14 +846,17 @@ export default function MarketPage(): JSX.Element {
             {!tickerLoading && tickerError && !ticker && (
               <div className="mdc-stats-error">
                 <AlertTriangle size={14} />
-                <span>Market data unavailable — retrying…</span>
+                <span>Live market stream syncing</span>
               </div>
             )}
 
             {ticker && (
               <div className="mdc-stats-grid">
+                <Stat label="Last price" value={fmtPrice(ticker.last_price)} />
                 <Stat label="Mark Price" value={fmtPrice(ticker.mark_price)} />
                 <Stat label="Index Price" value={fmtPrice(ticker.index_price)} />
+                <Stat label="1h Change" value={fmtPct(ticker.change_1h ?? null)} tone={changeClass(ticker.change_1h ?? null)} />
+                <Stat label="4h Change" value={fmtPct(ticker.change_4h ?? null)} tone={changeClass(ticker.change_4h ?? null)} />
                 <Stat label="24h High" value={fmtPrice(ticker.high_24h)} tone="mdc-pos" />
                 <Stat label="24h Low" value={fmtPrice(ticker.low_24h)} tone="mdc-neg" />
                 <Stat label="24h Change" value={fmtPct(ticker.change_24h)} tone={changeClass(ticker.change_24h)} />
@@ -675,8 +873,24 @@ export default function MarketPage(): JSX.Element {
 
       {/* ── Lower grid: AI Signal + Derivatives + Source ── */}
       <div className="mdc-lower-grid">
+        {/* Microstructure */}
+        <div className="mdc-panel" data-testid="market-microstructure-section">
+          <div className="mdc-panel__head">
+            <span className="mdc-panel__eyebrow">Microstructure</span>
+            <h2>Order book &amp; tape</h2>
+          </div>
+          <div className="mdc-stats-grid">
+            <Stat label="Order book" value={depth ? `${depth.bids.length} bid / ${depth.asks.length} ask` : 'Connecting'} />
+            <Stat label="Spread" value={fmtBps(depth?.spread_bps ?? ticker?.spread_bps ?? null)} />
+            <Stat label="Bid" value={fmtPrice(ticker?.bid ?? depth?.bids?.[0]?.[0] ?? null)} />
+            <Stat label="Ask" value={fmtPrice(ticker?.ask ?? depth?.asks?.[0]?.[0] ?? null)} />
+            <Stat label="Recent trades" value={trades?.trades?.length ? `${trades.trades.length} prints` : 'Connecting'} />
+            <Stat label="Last tape" value={latestTrade ? `${latestTrade.side.toUpperCase()} ${fmtPrice(latestTrade.price)}` : 'Connecting'} />
+          </div>
+        </div>
+
         {/* AI Signal */}
-        <div className="mdc-panel">
+        <div className="mdc-panel" data-testid="market-signal-section">
           <div className="mdc-panel__head">
             <span className="mdc-panel__eyebrow">AI / Signals</span>
             <h2>Active Prediction</h2>
@@ -697,33 +911,42 @@ export default function MarketPage(): JSX.Element {
         </div>
 
         {/* Derivatives */}
-        <div className="mdc-panel">
+        <div className="mdc-panel" data-testid="market-derivatives-section">
           <div className="mdc-panel__head">
             <span className="mdc-panel__eyebrow">Derivatives</span>
             <h2>Funding &amp; OI</h2>
           </div>
           <div className="mdc-stats-grid">
-            <Stat label="Funding Rate" value={fmtFunding(fundingRate)} tone={fundingTone} />
-            <Stat label="Next Funding" value={fmtNextFunding(ticker?.next_funding ?? null)} />
-            <Stat label="Open Interest" value={fmtCompact(ticker?.open_interest ?? null)} />
+            <Stat label="Funding Rate" value={fmtFunding(derivatives?.funding_rate ?? fundingRate)} tone={fundingTone} />
+            <Stat label="Next Funding" value={fmtNextFunding(derivatives?.next_funding ?? ticker?.next_funding ?? null)} />
+            <Stat label="Open Interest" value={fmtCompact(derivatives?.open_interest ?? ticker?.open_interest ?? null)} />
             <Stat label="Mark Price" value={fmtPrice(ticker?.mark_price ?? null)} />
             <Stat label="Index Price" value={fmtPrice(ticker?.index_price ?? null)} />
-            <Stat label="24h Change" value={fmtPct(ticker?.change_24h ?? null)} tone={changeClass(ticker?.change_24h ?? null)} />
+            <Stat label="Long / Short" value={fmtCompact(derivatives?.long_short_ratio ?? null)} />
+            <Stat label="Liquidation stream" value={liquidationStatus?.stream_active ? 'Live' : liquidationStatus?.status ?? 'Connecting'} />
+            <Stat
+              label="Liquidation levels"
+              value={liquidationLevels
+                ? `${fmtPrice(liquidationLevels.long_level)} / ${fmtPrice(liquidationLevels.short_level)}`
+                : 'Connecting'}
+            />
+            <Stat label="Funding history" value={`${derivatives?.funding_history?.length ?? 0} rows`} />
+            <Stat label="Open interest history" value={`${derivatives?.open_interest_history?.length ?? 0} rows`} />
           </div>
         </div>
 
         {/* Source / Evidence */}
-        <div className="mdc-panel">
+        <div className="mdc-panel" data-testid="market-evidence-section">
           <div className="mdc-panel__head">
             <span className="mdc-panel__eyebrow">Evidence</span>
             <h2>Data Sources</h2>
           </div>
-          <div className="mdc-meta-grid">
+          <div className="mdc-meta-grid" data-testid="market-evidence-drawer">
             <div className="mdc-meta-row">
               <Activity size={14} aria-hidden="true" />
-              <span>Market API</span>
+              <span>Market stream</span>
               <strong className={tickerError ? 'mdc-neg' : ticker ? 'mdc-pos' : ''}>
-                {tickerError ? 'Unavailable — retrying…' : ticker ? 'Connected' : 'Connecting…'}
+                {tickerError ? 'Connecting stream fallback…' : streamTicker ? 'Realtime stream' : ticker ? 'Fallback connected' : 'Connecting stream…'}
               </strong>
             </div>
             <div className="mdc-meta-row">
@@ -731,16 +954,30 @@ export default function MarketPage(): JSX.Element {
               <span>Candle source</span>
               <strong className={candleError && !candles.length ? 'mdc-neg' : candles.length ? 'mdc-pos' : ''}>
                 {candleError && !candles.length
-                  ? 'Unavailable — retrying…'
+                  ? 'Connecting stream fallback…'
                   : candles.length
                     ? `${candles.length} bars · ${timeframe}`
-                    : 'Loading…'}
+                    : 'Connecting stream…'}
               </strong>
             </div>
             <div className="mdc-meta-row">
               <Activity size={14} aria-hidden="true" />
               <span>Mode</span>
               <strong>Live market view</strong>
+            </div>
+            <div className="mdc-meta-row">
+              <Activity size={14} aria-hidden="true" />
+              <span>Indicators</span>
+              <strong className={indicators?.indicator_count ? 'mdc-pos' : ''}>
+                {indicators?.indicator_count ? `${indicators.indicator_count} current indicator source` : 'Current indicator source connecting'}
+              </strong>
+            </div>
+            <div className="mdc-meta-row">
+              <ShieldCheck size={14} aria-hidden="true" />
+              <span>Source validation</span>
+              <strong className={derivatives?.production_source_validation?.valid ? 'mdc-pos' : ''}>
+                {derivatives?.production_source_validation?.valid ? 'Source evidence verified' : 'Source evidence pending'}
+              </strong>
             </div>
             <div className="mdc-meta-row">
               <ShieldCheck size={14} aria-hidden="true" />

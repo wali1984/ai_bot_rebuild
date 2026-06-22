@@ -393,7 +393,7 @@ export default function MarketBrainPage(): JSX.Element {
           {filteredSymbols.length === 0 ? (
             <div style={S.noData}>
               {states.length === 0
-                ? 'No market state data. Run: python3 v2/backend/app/cli/v2_market_state_brain_worker.py --once'
+                ? 'Market state stream connecting. Waiting for live classifications.'
                 : 'No symbols match the current filter.'}
             </div>
           ) : (
@@ -455,7 +455,7 @@ export default function MarketBrainPage(): JSX.Element {
               </div>
               {eg.symbol_exclusion_list?.length > 0 && (
                 <div style={{ marginTop: 12 }}>
-                  <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>Zero-Edge Symbols (BLOCKED from new paper entries — soak evidence 2026-06-16):</div>
+                  <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>Zero-Edge Symbols (blocked from new entries)</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {eg.symbol_exclusion_list.map(s => (
                       <span key={s} style={{ background: '#1a0000', border: '1px solid #7f1d1d', borderRadius: 4, padding: '2px 8px', color: '#fca5a5', fontSize: 11 }}>{s}</span>

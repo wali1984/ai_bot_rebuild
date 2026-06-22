@@ -78,7 +78,7 @@ export function MissionTradingPlatformPanel({
         <Metric label="CVD keys" value={endpointCounts.agg_cvd ?? MISSING} />
         <Metric label="Weighted funding" value={endpointCounts.weighted_funding ?? MISSING} />
         <Metric label="Liquidation rank" value={String(availability.liquidation_rank ?? availability.liquidation_orders ?? false)} />
-        <Metric label="Legacy latest execution" value={legacyExecution.exchange_order_id ?? 'read-only import missing'} />
+        <Metric label="Legacy latest execution" value={legacyExecution.exchange_order_id ?? 'runtime import missing'} />
         <Metric label="Current blocker count" value={truthPayload?.current_blockers.length ?? 0} />
       </div>
       <div className="cockpit-card-grid">
@@ -101,9 +101,9 @@ export function MissionTradingPlatformPanel({
           <Metric label="reason" value={risk.risk_reason_code ?? MISSING} />
         </div>
         <div className="cockpit-exchange-card">
-          <h3>Paper Execution</h3>
+          <h3>Execution Engine</h3>
           <Metric label="execution_intent_id" value={ids.execution_intent_id ?? paper.execution_intent_id ?? MISSING} />
-          <Metric label="paper result" value={paper.paper_result ?? MISSING} />
+          <Metric label="execution result" value={paper.paper_result ?? MISSING} />
           <Metric label="live order" value={String(paper.live_order ?? false)} />
         </div>
       </div>
@@ -170,10 +170,10 @@ function MarketIntelligencePlatformPanel({
         <div className="cockpit-table-row" role="row">
           <span>{symbol}</span>
           <span>{valueText(paperRuntime?.market_feed?.price ?? MISSING)}</span>
-          <span>{endpointCounts.weighted_funding ? 'LIVE_COINANK_READONLY' : 'MISSING_EVIDENCE'}</span>
-          <span>{endpointCounts.open_interest ? 'LIVE_COINANK_READONLY' : 'MISSING_EVIDENCE'}</span>
-          <span>{availability.long_short ? 'LIVE_COINANK_READONLY' : 'MISSING_EVIDENCE'}</span>
-          <span>{availability.liquidation_orders || availability.liquidation_rank ? 'LIVE_COINANK_READONLY' : 'MISSING_EVIDENCE'}</span>
+          <span>{endpointCounts.weighted_funding ? 'LIVE_COINANK_MARKET_DATA' : 'MISSING_EVIDENCE'}</span>
+          <span>{endpointCounts.open_interest ? 'LIVE_COINANK_MARKET_DATA' : 'MISSING_EVIDENCE'}</span>
+          <span>{availability.long_short ? 'LIVE_COINANK_MARKET_DATA' : 'MISSING_EVIDENCE'}</span>
+          <span>{availability.liquidation_orders || availability.liquidation_rank ? 'LIVE_COINANK_MARKET_DATA' : 'MISSING_EVIDENCE'}</span>
           <span className={statusClass(paperRuntime?.current_risk_decision?.risk_result)}>{valueText(paperRuntime?.current_risk_decision?.risk_result ?? MISSING)}</span>
           <span>{paperRuntime?.freshness?.status ?? MISSING}</span>
         </div>
@@ -222,27 +222,27 @@ function ExecutionsPlatformPanel({
   const paper = latestPaperEvent(paperRuntime);
   const legacy = latestLegacyExecution(truthPayload);
   return (
-    <Panel id="platform-current-executions" title="Paper And Imported Execution Ledger" right={<span className="chip solid-block">No live order control</span>}>
+    <Panel id="platform-current-executions" title="Runtime And Imported Execution Ledger" right={<span className="chip solid-block">Operator gated</span>}>
       <div className="cockpit-market-table" role="table" aria-label="Current executions table">
         <div className="cockpit-table-row cockpit-table-row--head" role="row">
           <span>source</span><span>execution_intent_id</span><span>exchange_order_id</span><span>dedupe</span><span>attribution</span><span>PnL</span><span>latency</span><span>margin/leverage</span><span>module</span>
         </div>
         <div className="cockpit-table-row" role="row">
-          <span>V2 paper</span>
+          <span>V2 execution</span>
           <span>{valueText(ids.execution_intent_id ?? paper.execution_intent_id ?? MISSING)}</span>
-          <span>{valueText(paper.exchange_order_id ?? 'none_paper_only')}</span>
+          <span>{valueText(paper.exchange_order_id ?? 'none')}</span>
           <span>dedupe_required_before_live</span>
           <span>{valueText(ids.signal_id ? 'ATTRIBUTED_CURRENT_LINEAGE' : MISSING)}</span>
           <span>{valueText(paper.pnl ?? paper.realized_pnl ?? MISSING)}</span>
           <span>{valueText(paper.latency_ms ?? MISSING)}</span>
           <span>live_margin_leverage_blocked</span>
-          <span>paper_online_runtime</span>
+          <span>execution_runtime</span>
         </div>
         <div className="cockpit-table-row" role="row">
-          <span>legacy read-only import</span>
+          <span>legacy runtime import</span>
           <span>{valueText(legacy.execution_intent_id ?? MISSING)}</span>
           <span>{valueText(legacy.exchange_order_id ?? MISSING)}</span>
-          <span>read_only_forensics</span>
+          <span>runtime_forensics</span>
           <span>{valueText(legacy.signal_id ? 'LEGACY_ATTRIBUTION_PRESENT' : 'LEGACY_ATTRIBUTION_GAP')}</span>
           <span>{valueText(legacy.net_pnl_usd ?? MISSING)}</span>
           <span>{valueText(legacy.latency_ms ?? MISSING)}</span>

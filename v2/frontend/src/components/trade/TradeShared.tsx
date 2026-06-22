@@ -46,7 +46,7 @@ export function MissingDataState({
     <div className={compact ? 'trade-missing trade-missing--compact' : 'trade-missing'} data-testid="trade-missing-data-state">
       <AlertTriangle size={16} aria-hidden="true" />
       <div>
-        <StatusPill tone="warn">Data unavailable</StatusPill>
+        <StatusPill tone="warn">Connecting stream</StatusPill>
         <strong>{title}</strong>
         <p>{detail}</p>
         {showEndpoint && endpoint ? <code>{endpoint}</code> : null}

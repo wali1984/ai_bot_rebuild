@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
-import { getV2Portfolio } from '../api/v2Portfolio';
 import type { ApiV2Envelope, PortfolioData } from '../types/apiV2';
+import type { ValidatedDataEnvelope } from '../types/dataContract';
+import { useMemo } from 'react';
 import { usePayloadFile } from './usePayloadFile';
 import { useAuth } from './useAuth';
+import { useRealtimeResource } from './useRealtimeResource';
 import { finite } from '../lib/tradeFormatters';
 
 export const PAPER_ACCOUNT_TRUTH_PATH = '/operator_runtime/v2_runtime_truth/latest/operator_runtime_truth.json';
@@ -108,6 +109,46 @@ function traderFacingReason(value: string | null | undefined): string | null {
   return value?.trim() ? traderFacingText(value) : null;
 }
 
+function isoTimestamp(value: number | string | null | undefined): string | null {
+  if (typeof value === 'string' && value.trim()) return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return new Date(value).toISOString();
+  return null;
+}
+
+function apiSourceType(value: ValidatedDataEnvelope<unknown>['source_type']): ApiV2Envelope<unknown>['source_type'] {
+  if (value === 'repository' || value === 'redis_live' || value === 'static_payload' || value === 'unavailable') return value;
+  if (value === 'websocket' || value === 'stream' || value === 'sse') return 'websocket';
+  if (value === 'api' || value === 'cache') return 'api';
+  return 'unavailable';
+}
+
+function apiMode(value: ValidatedDataEnvelope<unknown>['mode']): ApiV2Envelope<unknown>['mode'] {
+  if (value === 'paper' || value === 'read_only' || value === 'live_blocked') return value;
+  return 'read_only';
+}
+
+function portfolioEnvelopeFromResource(
+  envelope: ValidatedDataEnvelope<PortfolioData>,
+): ApiV2Envelope<PortfolioData> | null {
+  if (envelope.data === null || envelope.data === undefined) return null;
+  const receivedAt = isoTimestamp(envelope.received_at) ?? new Date().toISOString();
+  return {
+    data: envelope.data,
+    source: envelope.source,
+    source_type: apiSourceType(envelope.source_type) as ApiV2Envelope<PortfolioData>['source_type'],
+    endpoint: envelope.endpoint ?? '/api/v2/portfolio',
+    timestamp: isoTimestamp(envelope.timestamp) ?? receivedAt,
+    received_at: receivedAt,
+    lag_ms: envelope.lag_ms,
+    stale: envelope.freshness_status === 'stale' || envelope.freshness_status === 'offline' || envelope.freshness_status === 'unavailable',
+    missing_fields: envelope.missing_fields,
+    warnings: envelope.warnings,
+    mode: apiMode(envelope.mode) as ApiV2Envelope<PortfolioData>['mode'],
+    trader_context: (envelope as unknown as { trader_context?: ApiV2Envelope<PortfolioData>['trader_context'] }).trader_context ?? null,
+    account_scope: (envelope as unknown as { account_scope?: ApiV2Envelope<PortfolioData>['account_scope'] }).account_scope ?? null,
+  };
+}
+
 function scopedUnavailableAccount(reason: string, source = '/api/v2/portfolio'): PaperAccountTruth {
   return {
     equity: null,
@@ -158,13 +199,13 @@ export function resolveTypedPortfolioAccount(
   const data = portfolio?.data;
   if (!portfolio || !data) {
     return scopedUnavailableAccount(
-      portfolio?.warnings?.[0] ?? 'Trader-specific account source unavailable',
+      portfolio?.warnings?.[0] ?? 'Trader-specific account source connecting',
       portfolio?.endpoint ?? '/api/v2/portfolio',
     );
   }
   if (!typedPortfolioMatchesCurrentScope(portfolio, traderId, paperAccountId)) {
     return scopedUnavailableAccount(
-      portfolio.warnings?.[0] ?? 'Trader-specific account data unavailable or withheld',
+      portfolio.warnings?.[0] ?? 'Trader-specific account data connecting or withheld',
       portfolio.endpoint,
     );
   }
@@ -233,45 +274,23 @@ export function usePaperAccountTruth(intervalMs = 8_000, options: UsePaperAccoun
   const { user, loading: authLoading } = useAuth();
   const traderId = user?.trader_id ?? null;
   const paperAccountId = user?.paper_account_id ?? null;
-  const [typedPortfolio, setTypedPortfolio] = useState<ApiV2Envelope<PortfolioData> | null>(null);
-  const [typedLoading, setTypedLoading] = useState(Boolean(options.requireTraderScope));
   const fallbackPayloadsEnabled = options.requireTraderScope !== true;
+  const typedPortfolioResource = useRealtimeResource<PortfolioData>({
+    url: '/api/v2/portfolio',
+    source: '/api/v2/portfolio',
+    source_type: 'websocket',
+    pollIntervalMs: intervalMs,
+    staleThresholdMs: Math.max(30_000, intervalMs * 4),
+    enabled: options.requireTraderScope === true && Boolean(traderId && paperAccountId),
+    mode: 'paper',
+  });
+  const typedPortfolio = useMemo(
+    () => portfolioEnvelopeFromResource(typedPortfolioResource.envelope),
+    [typedPortfolioResource.envelope],
+  );
   const truth = usePayloadFile<PaperAccountTruthPayload>(PAPER_ACCOUNT_TRUTH_PATH, intervalMs, { enabled: fallbackPayloadsEnabled });
   const runtimePages = usePayloadFile<RuntimePagesPayload>(RUNTIME_PAGES_PATH, intervalMs, { enabled: fallbackPayloadsEnabled });
   const portfolio = usePayloadFile<PortfolioStatePayload>(PORTFOLIO_STATE_PATH, intervalMs, { enabled: fallbackPayloadsEnabled });
-
-  useEffect(() => {
-    if (!options.requireTraderScope) return undefined;
-    let active = true;
-    setTypedPortfolio(null);
-    if (!traderId || !paperAccountId) {
-      setTypedLoading(false);
-      return () => {
-        active = false;
-      };
-    }
-
-    async function loadTypedPortfolio(): Promise<void> {
-      setTypedLoading(true);
-      try {
-        const next = await getV2Portfolio();
-        if (!active) return;
-        setTypedPortfolio(next);
-      } catch {
-        if (!active) return;
-        setTypedPortfolio(null);
-      } finally {
-        if (active) setTypedLoading(false);
-      }
-    }
-
-    void loadTypedPortfolio();
-    const id = window.setInterval(loadTypedPortfolio, intervalMs);
-    return () => {
-      active = false;
-      window.clearInterval(id);
-    };
-  }, [intervalMs, options.requireTraderScope, paperAccountId, traderId]);
 
   const account = useMemo(
     () => {
@@ -291,9 +310,11 @@ export function usePaperAccountTruth(intervalMs = 8_000, options: UsePaperAccoun
 
   return {
     account,
-    loading: options.requireTraderScope ? authLoading || typedLoading : truth.loading || runtimePages.loading || portfolio.loading,
-    error: truth.error ?? runtimePages.error ?? portfolio.error,
-    ageSeconds: runtimePages.ageSeconds ?? truth.ageSeconds ?? portfolio.ageSeconds,
+    loading: options.requireTraderScope ? authLoading || typedPortfolioResource.loading : truth.loading || runtimePages.loading || portfolio.loading,
+    error: options.requireTraderScope ? typedPortfolioResource.error : truth.error ?? runtimePages.error ?? portfolio.error,
+    ageSeconds: options.requireTraderScope && typedPortfolioResource.envelope.received_at
+      ? Math.max(0, Math.round((Date.now() - typedPortfolioResource.envelope.received_at) / 1000))
+      : runtimePages.ageSeconds ?? truth.ageSeconds ?? portfolio.ageSeconds,
     paths: {
       truth: PAPER_ACCOUNT_TRUTH_PATH,
       runtimePages: RUNTIME_PAGES_PATH,

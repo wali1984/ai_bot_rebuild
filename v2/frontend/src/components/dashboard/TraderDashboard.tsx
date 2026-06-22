@@ -1,27 +1,25 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { getV2MarketCandles, getV2MarketOverview, getV2MarketTicker } from '../../api/v2Market';
-import { getV2AccountReadiness, getV2Portfolio, getV2Positions } from '../../api/v2Portfolio';
-import { getV2Signals } from '../../api/v2Signals';
 import {
   formatAdaptiveMoney,
   missingAccuracyCellCount,
   pnlWindow,
   useAdaptiveCapitalDashboard,
 } from '../../data/adaptiveCapitalProductivity';
+import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { AdaptiveCapitalTelemetryPanel } from '../trading/AdaptiveCapitalTelemetryPanel';
 import { DataFreshnessBadge, MetricCard, StatusPill } from '../trading/TradingPrimitives';
-import type { ApiV2Envelope, MarketCandlesData, MarketCandle, MarketTickerData, PortfolioData, PositionsData, SignalData } from '../../types/apiV2';
+import type { MarketCandlesData, MarketCandle, MarketTickerData, PortfolioData, PositionsData, SignalData, AccountReadinessData } from '../../types/apiV2';
+import type { ValidatedDataEnvelope } from '../../types/dataContract';
+import type { MarketOverviewData } from '../../api/v2Market';
 
 const DASHBOARD_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'] as const;
 
-type MarketOverviewEnvelope = Awaited<ReturnType<typeof getV2MarketOverview>>;
-type TickerEnvelope = ApiV2Envelope<MarketTickerData>;
-type SignalEnvelope = ApiV2Envelope<SignalData>;
-type PortfolioEnvelope = ApiV2Envelope<PortfolioData>;
-type PositionsEnvelope = ApiV2Envelope<PositionsData>;
-type CandlesEnvelope = ApiV2Envelope<MarketCandlesData>;
-type AccountReadinessEnvelope = Awaited<ReturnType<typeof getV2AccountReadiness>>;
+type DashboardEnvelope<T> = ValidatedDataEnvelope<T>;
+type TickerEnvelope = DashboardEnvelope<MarketTickerData>;
+type SignalEnvelope = DashboardEnvelope<SignalData>;
+type PortfolioEnvelope = DashboardEnvelope<PortfolioData>;
+type PositionsEnvelope = DashboardEnvelope<PositionsData>;
 
 function formatMoney(value: number | null | undefined): string {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 'Connecting';
@@ -44,20 +42,39 @@ function compactNumber(value: number | null | undefined): string {
   return Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 }).format(value);
 }
 
-function sourceName(envelope: ApiV2Envelope<unknown> | null | undefined, fallback: string): string {
+function envelopeUsable(envelope: DashboardEnvelope<unknown> | null | undefined): boolean {
+  return Boolean(
+    envelope?.data
+    && envelope.source_type !== 'unavailable'
+    && envelope.freshness_status !== 'offline'
+    && envelope.freshness_status !== 'unavailable'
+    && envelope.freshness_status !== 'stale'
+    && envelope.data_quality_status !== 'invalid'
+    && envelope.data_quality_status !== 'missing',
+  );
+}
+
+function freshnessTimestamp(envelope: DashboardEnvelope<unknown> | null | undefined): string | null {
+  const value = envelope?.timestamp ?? envelope?.received_at;
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  return new Date(value).toISOString();
+}
+
+function sourceName(envelope: DashboardEnvelope<unknown> | null | undefined, fallback: string): string {
   if (!envelope) return fallback;
   if (envelope.source_type === 'unavailable') return `${fallback} incident`;
   const source = envelope.source?.toLowerCase() ?? '';
+  if (envelope.source_type === 'websocket') return `${fallback} stream`;
   if (source.includes('binance')) return 'Exchange market feed';
   if (source.includes('redis')) return 'Realtime cache';
-  if (source.includes('portfolio')) return 'Paper account service';
+  if (source.includes('portfolio')) return 'Runtime account service';
   if (source.includes('signal')) return 'Signal service';
   return fallback;
 }
 
 function activeSignal(signal: SignalEnvelope | null): Record<string, unknown> | null {
-  if (!signal || signal.stale || signal.source_type === 'unavailable') return null;
-  const candidate = signal.data?.active_signal;
+  if (!envelopeUsable(signal)) return null;
+  const candidate = signal?.data?.active_signal;
   return candidate && typeof candidate === 'object' && !Array.isArray(candidate) ? candidate : null;
 }
 
@@ -112,7 +129,7 @@ function CandleStrip({ candles }: { candles: MarketCandle[] }): JSX.Element {
 }
 
 function MarketPulseCard({ symbol, envelope }: { symbol: string; envelope?: TickerEnvelope }): JSX.Element {
-  const data = envelope?.source_type !== 'unavailable' && !envelope?.stale ? envelope?.data : null;
+  const data = envelopeUsable(envelope) ? envelope?.data : null;
   const change = data?.change_24h ?? data?.change_4h ?? data?.change_1h;
   const up = typeof change === 'number' ? change >= 0 : true;
   return (
@@ -126,55 +143,90 @@ function MarketPulseCard({ symbol, envelope }: { symbol: string; envelope?: Tick
 
 export function TraderDashboard(): JSX.Element {
   const adaptiveCapital = useAdaptiveCapitalDashboard(30_000);
-  const [overview, setOverview] = useState<MarketOverviewEnvelope | null>(null);
-  const [tickers, setTickers] = useState<Record<string, TickerEnvelope>>({});
-  const [candles, setCandles] = useState<CandlesEnvelope | null>(null);
-  const [signal, setSignal] = useState<SignalEnvelope | null>(null);
-  const [portfolio, setPortfolio] = useState<PortfolioEnvelope | null>(null);
-  const [positions, setPositions] = useState<PositionsEnvelope | null>(null);
-  const [accountReadiness, setAccountReadiness] = useState<AccountReadinessEnvelope | null>(null);
-
-  useEffect(() => {
-    let active = true;
-
-    async function loadDashboard(): Promise<void> {
-      const [nextOverview, tickerPairs, nextCandles, nextSignal, nextPortfolio, nextPositions, nextReadiness] = await Promise.all([
-        getV2MarketOverview().catch(() => null),
-        Promise.all(DASHBOARD_SYMBOLS.map(async (symbol) => [symbol, await getV2MarketTicker(symbol).catch(() => null)] as const)),
-        getV2MarketCandles('BTCUSDT', '5m').catch(() => null),
-        getV2Signals('BTCUSDT', '5m').catch(() => null),
-        getV2Portfolio().catch(() => null),
-        getV2Positions().catch(() => null),
-        getV2AccountReadiness().catch(() => null),
-      ]);
-      if (!active) return;
-      const nextTickers: Record<string, TickerEnvelope> = {};
-      for (const [symbol, envelope] of tickerPairs) {
-        if (envelope) nextTickers[symbol] = envelope;
-      }
-      setOverview(nextOverview);
-      setTickers(nextTickers);
-      setCandles(nextCandles);
-      setSignal(nextSignal);
-      setPortfolio(nextPortfolio);
-      setPositions(nextPositions);
-      setAccountReadiness(nextReadiness);
-    }
-
-    void loadDashboard();
-    const id = window.setInterval(loadDashboard, 12_000);
-    return () => {
-      active = false;
-      window.clearInterval(id);
-    };
-  }, []);
+  const { envelope: overview } = useRealtimeResource<MarketOverviewData>({
+    url: '/api/v2/market/overview',
+    source: 'dashboard market overview',
+    source_type: 'websocket',
+    pollIntervalMs: 2_000,
+    staleThresholdMs: 20_000,
+    mode: 'public',
+  });
+  const { envelope: btcTicker } = useRealtimeResource<MarketTickerData>({
+    url: '/api/v2/market/BTCUSDT/ticker',
+    source: 'BTCUSDT dashboard ticker',
+    source_type: 'websocket',
+    pollIntervalMs: 1_000,
+    staleThresholdMs: 10_000,
+    mode: 'public',
+  });
+  const { envelope: ethTicker } = useRealtimeResource<MarketTickerData>({
+    url: '/api/v2/market/ETHUSDT/ticker',
+    source: 'ETHUSDT dashboard ticker',
+    source_type: 'websocket',
+    pollIntervalMs: 1_000,
+    staleThresholdMs: 10_000,
+    mode: 'public',
+  });
+  const { envelope: solTicker } = useRealtimeResource<MarketTickerData>({
+    url: '/api/v2/market/SOLUSDT/ticker',
+    source: 'SOLUSDT dashboard ticker',
+    source_type: 'websocket',
+    pollIntervalMs: 1_000,
+    staleThresholdMs: 10_000,
+    mode: 'public',
+  });
+  const { envelope: candles } = useRealtimeResource<MarketCandlesData>({
+    url: '/api/v2/market/BTCUSDT/candles?timeframe=5m',
+    source: 'BTCUSDT dashboard candles',
+    source_type: 'websocket',
+    pollIntervalMs: 2_000,
+    staleThresholdMs: 20_000,
+    mode: 'public',
+  });
+  const { envelope: signal } = useRealtimeResource<SignalData>({
+    url: '/api/v2/signals?symbol=BTCUSDT',
+    source: 'BTCUSDT dashboard signal',
+    source_type: 'websocket',
+    pollIntervalMs: 2_000,
+    staleThresholdMs: 20_000,
+    mode: 'paper',
+  });
+  const { envelope: portfolio } = useRealtimeResource<PortfolioData>({
+    url: '/api/v2/portfolio',
+    source: 'dashboard portfolio stream',
+    source_type: 'websocket',
+    pollIntervalMs: 2_000,
+    staleThresholdMs: 20_000,
+    mode: 'paper',
+  });
+  const { envelope: positions } = useRealtimeResource<PositionsData>({
+    url: '/api/v2/account/positions',
+    source: 'dashboard position stream',
+    source_type: 'websocket',
+    pollIntervalMs: 2_000,
+    staleThresholdMs: 20_000,
+    mode: 'paper',
+  });
+  const { envelope: accountReadiness } = useRealtimeResource<AccountReadinessData>({
+    url: '/api/v2/account/readiness',
+    source: 'dashboard account readiness stream',
+    source_type: 'websocket',
+    pollIntervalMs: 5_000,
+    staleThresholdMs: 30_000,
+    mode: 'paper',
+  });
+  const tickers: Record<(typeof DASHBOARD_SYMBOLS)[number], TickerEnvelope> = {
+    BTCUSDT: btcTicker,
+    ETHUSDT: ethTicker,
+    SOLUSDT: solTicker,
+  };
 
   const currentSignal = activeSignal(signal);
   const signalDirection = firstText(currentSignal?.direction, currentSignal?.trend, currentSignal?.selected_action, currentSignal?.action) ?? 'Signal stream warming';
   const confidence = firstNumber(currentSignal?.confidence, currentSignal?.model_confidence, currentSignal?.score);
   const marketRegime = firstText(currentSignal?.market_regime, currentSignal?.regime, currentSignal?.trend) ?? 'Market regime monitored';
-  const portfolioData = portfolio?.source_type !== 'unavailable' && !portfolio?.stale ? portfolio?.data : null;
-  const positionRows = positions?.source_type !== 'unavailable' && !positions?.stale ? positions?.data?.positions ?? [] : [];
+  const portfolioData = envelopeUsable(portfolio) ? portfolio.data : null;
+  const positionRows = envelopeUsable(positions) ? positions.data?.positions ?? [] : [];
   const totalPnl = (portfolioData?.realized_pnl ?? 0) + (portfolioData?.unrealized_pnl ?? 0);
   const capitalStatus = adaptiveCapital.data?.capital_productivity_runtime_status ?? null;
   const pnlHistory = adaptiveCapital.data?.pnl_history_status ?? capitalStatus?.pnl_history ?? null;
@@ -186,12 +238,12 @@ export function TraderDashboard(): JSX.Element {
     ?? null;
   const missingAccuracyCells = missingAccuracyCellCount(accuracyStatus);
   const dataReadyCount = [
-    overview?.source_type !== 'unavailable' && !overview?.stale,
-    Object.values(tickers).some((ticker) => ticker.source_type !== 'unavailable' && !ticker.stale),
-    candles?.source_type !== 'unavailable' && !candles?.stale,
-    signal?.source_type !== 'unavailable' && !signal?.stale,
-    portfolio?.source_type !== 'unavailable' && !portfolio?.stale,
-    positions?.source_type !== 'unavailable' && !positions?.stale,
+    envelopeUsable(overview),
+    Object.values(tickers).some((ticker) => envelopeUsable(ticker)),
+    envelopeUsable(candles),
+    envelopeUsable(signal),
+    envelopeUsable(portfolio),
+    envelopeUsable(positions),
   ].filter(Boolean).length;
 
   const chartCandles = useMemo(() => candles?.data?.candles?.filter((candle) => candle.is_final !== false) ?? [], [candles]);
@@ -210,7 +262,7 @@ export function TraderDashboard(): JSX.Element {
         <div className="trader-dashboard-hero__actions">
           <StatusPill tone="ok">Live platform</StatusPill>
           <StatusPill tone="warn">Risk governed</StatusPill>
-          <DataFreshnessBadge generatedAt={overview?.timestamp ?? overview?.received_at} source={sourceName(overview, 'Market overview')} staleAfterSeconds={120} />
+          <DataFreshnessBadge generatedAt={freshnessTimestamp(overview)} source={sourceName(overview, 'Market overview')} staleAfterSeconds={120} />
         </div>
       </header>
 
@@ -222,7 +274,7 @@ export function TraderDashboard(): JSX.Element {
         <MetricCard label="30D PnL" value={formatAdaptiveMoney(thirtyDayPnl?.realized_pnl_usd)} detail={`${thirtyDayPnl?.closed_trade_count ?? 0} closes`} tone={(thirtyDayPnl?.realized_pnl_usd ?? 0) >= 0 ? 'ok' : 'block'} />
         <MetricCard
           label="Capital status"
-          value={capitalStatus?.status ?? 'Awaiting feed'}
+          value={capitalStatus?.status ?? 'CONNECTING'}
           detail={capitalStatus?.capital_utilization_classification ?? 'Adaptive sizing'}
           tone={(capitalStatus?.status ?? '').toUpperCase() === 'PASSED' ? 'ok' : 'block'}
         />
@@ -255,7 +307,7 @@ export function TraderDashboard(): JSX.Element {
               <p className="eyebrow">BTCUSDT 5m</p>
               <h2 className="panel-title">Market structure chart</h2>
             </div>
-            <DataFreshnessBadge generatedAt={candles?.timestamp ?? candles?.received_at} source={sourceName(candles, 'Candle service')} staleAfterSeconds={180} />
+            <DataFreshnessBadge generatedAt={freshnessTimestamp(candles)} source={sourceName(candles, 'Candle service')} staleAfterSeconds={180} />
           </div>
           <CandleStrip candles={chartCandles} />
           <div className="trader-dashboard-chart__footer">
@@ -296,7 +348,7 @@ export function TraderDashboard(): JSX.Element {
         <div className="panel trader-dashboard-positions">
           <div className="panel-head">
             <h2 className="panel-title">Live positions</h2>
-            <DataFreshnessBadge generatedAt={positions?.timestamp ?? positions?.received_at} source={sourceName(positions, 'Position source')} staleAfterSeconds={180} />
+            <DataFreshnessBadge generatedAt={freshnessTimestamp(positions)} source={sourceName(positions, 'Position source')} staleAfterSeconds={180} />
           </div>
           {positionRows.length ? (
             <div className="trader-dashboard-position-list">

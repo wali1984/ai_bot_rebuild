@@ -301,6 +301,10 @@
   color: var(--mdc-red);
 }
 
+.mdc-chart-overlay--sync {
+  color: var(--mdc-muted);
+}
+
 /* Auth overlay */
 .mdc-auth-overlay {
   position: absolute;

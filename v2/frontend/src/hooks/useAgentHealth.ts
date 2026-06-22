@@ -1,5 +1,4 @@
-import { useCallback } from 'react';
-import { fetchJson, usePollingQuery, type PollingQueryResult } from './usePollingQuery';
+import { useRealtimeQuery, type RealtimeQueryResult } from './useRealtimeQuery';
 
 export interface SupervisorHeartbeat {
   pid: number;
@@ -40,12 +39,8 @@ export interface AgentHealthEnvelope {
 
 export const AGENT_HEALTH_URL = '/api/v1/_meta/agent-health';
 
-export function useAgentHealth(): PollingQueryResult<AgentHealthEnvelope> {
-  const fetcher = useCallback(
-    (signal: AbortSignal) => fetchJson<AgentHealthEnvelope>(AGENT_HEALTH_URL, signal),
-    [],
-  );
-  return usePollingQuery<AgentHealthEnvelope>('agent-health', fetcher, {
+export function useAgentHealth(): RealtimeQueryResult<AgentHealthEnvelope> {
+  return useRealtimeQuery<AgentHealthEnvelope>(AGENT_HEALTH_URL, {
     refetchIntervalMs: 15_000,
   });
 }

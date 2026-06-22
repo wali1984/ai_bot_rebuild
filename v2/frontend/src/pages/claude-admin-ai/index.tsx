@@ -16,7 +16,7 @@ export default function ClaudeAdminAiPage(): JSX.Element {
       <SourceRibbon labels={['Claude primary builder', 'Codex parallel auditor', 'Ollama draft-only helper', 'final live gate human-only']} />
       {truthPayload ? <RouteTruthSummary payload={truthPayload} title="Claude Admin AI" /> : <OperatorTruthLoading error={truthError} />}
       <PaperOnlineRuntimeStatusPanel payload={paperRuntime} />
-      <Panel id="claude-admin-ai-query-surface" title="Non-Live Operator Query Surface" right={<span className="chip">read-only evidence</span>}>
+      <Panel id="claude-admin-ai-query-surface" title="Operator Evidence Query Surface" right={<span className="chip">live evidence</span>}>
         <div className="cockpit-two-col">
           <label className="field-stack">
             <span>Question</span>
@@ -28,7 +28,7 @@ export default function ClaudeAdminAiPage(): JSX.Element {
           </label>
           <div className="cockpit-evidence-list">
             {[
-              'Answers must cite operator truth, paper runtime, risk decisions, audit ledger, or build status.',
+              'Answers must cite operator truth, execution runtime, risk decisions, audit ledger, or build status.',
               'If evidence is missing, the assistant must say evidence missing and name the source needed.',
               'Live enablement, exchange keys, leverage, margin, and order actions remain disabled.',
             ].map((rule) => (

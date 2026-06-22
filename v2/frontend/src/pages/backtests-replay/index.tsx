@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
   CandlestickSeries,
@@ -11,7 +11,7 @@ import {
 } from 'lightweight-charts';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { FreshnessBadge } from '../../components/data/FreshnessBadge';
-import { getV2MarketCandles } from '../../api/v2Market';
+import type { MarketCandlesData } from '../../types/apiV2';
 import meta from './meta';
 import rbac from './rbac';
 import route from './route';
@@ -32,8 +32,6 @@ interface CandleBar {
 }
 
 interface ReplayState {
-  bars: CandleBar[];
-  volumes: Array<{ time: UTCTimestamp; value: number; color: string }>;
   cursor: number;
   playing: boolean;
   speed: 1 | 2 | 5 | 10;
@@ -127,61 +125,68 @@ function ReplayChart({ bars, volumes, cursor }: {
 export default function BacktestsReplayPage(): JSX.Element {
   const [symbol, setSymbol] = useState('BTCUSDT');
   const [timeframe, setTimeframe] = useState('1h');
-  const [state, setState] = useState<ReplayState>({ bars: [], volumes: [], cursor: 0, playing: false, speed: 1 });
-  const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [state, setState] = useState<ReplayState>({ cursor: 0, playing: false, speed: 1 });
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const candleUrl = `/api/v2/market/${symbol}/candles?timeframe=${encodeURIComponent(timeframe)}&limit=500`;
 
   const { envelope: replayEnv } = useRealtimeResource<ReplayStatus>({
     url: '/api/v2/replay/status',
     source: '/api/v2/replay/status',
-    source_type: 'api',
+    source_type: 'websocket',
     pollIntervalMs: 30_000,
     staleThresholdMs: 90_000,
     mode: 'read_only',
   });
 
-  // Load candles from backend
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setLoadError(null);
-    setState((s) => ({ ...s, playing: false, cursor: 0 }));
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    try {
-      const env = await getV2MarketCandles(symbol, timeframe);
-      const candles = env?.data?.candles ?? [];
-      const bars: CandleBar[] = candles
-        .filter((c) => c.open_time_ms && c.open != null && c.high != null && c.low != null && c.close != null)
-        .map((c) => ({
-          time: Math.floor(c.open_time_ms! / 1000) as UTCTimestamp,
-          open: c.open!, high: c.high!, low: c.low!, close: c.close!,
-          volume: c.volume ?? 0,
-        }))
-        .sort((a, b) => (a.time as number) - (b.time as number));
-      const volumes = bars.map((b) => ({
-        time: b.time,
-        value: b.volume ?? 0,
-        color: b.close >= b.open ? 'rgba(38,194,129,0.35)' : 'rgba(239,83,80,0.35)',
-      }));
-      setState((s) => ({ ...s, bars, volumes, cursor: Math.min(50, bars.length - 1) }));
-    } catch (e) {
-      setLoadError(String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [symbol, timeframe]);
+  const {
+    envelope: candleEnv,
+    loading: candleLoading,
+    error: candleError,
+    refetch: syncCandles,
+  } = useRealtimeResource<MarketCandlesData>({
+    url: candleUrl,
+    source: `/api/v2/market/${symbol}/candles`,
+    source_type: 'websocket',
+    pollIntervalMs: 5_000,
+    staleThresholdMs: 20_000,
+    mode: 'read_only',
+  });
 
-  // Load initial data
+  const bars = useMemo<CandleBar[]>(() => {
+    const candles = candleEnv.data?.candles ?? [];
+    return candles
+      .filter((c) => c.open_time_ms && c.open != null && c.high != null && c.low != null && c.close != null)
+      .map((c) => ({
+        time: Math.floor(c.open_time_ms! / 1000) as UTCTimestamp,
+        open: c.open!,
+        high: c.high!,
+        low: c.low!,
+        close: c.close!,
+        volume: c.volume ?? 0,
+      }))
+      .sort((a, b) => (a.time as number) - (b.time as number));
+  }, [candleEnv.data?.candles]);
+
+  const volumes = useMemo(() => bars.map((b) => ({
+    time: b.time,
+    value: b.volume ?? 0,
+    color: b.close >= b.open ? 'rgba(38,194,129,0.35)' : 'rgba(239,83,80,0.35)',
+  })), [bars]);
+
   useEffect(() => {
-    void loadData();
-  }, [loadData]);
+    setState((s) => ({
+      ...s,
+      cursor: bars.length ? Math.min(s.cursor, bars.length - 1) : 0,
+      playing: bars.length ? s.playing : false,
+    }));
+  }, [bars.length]);
 
   // Playback ticker
   useEffect(() => {
     if (state.playing) {
       intervalRef.current = setInterval(() => {
         setState((s) => {
-          if (s.cursor >= s.bars.length - 1) {
+          if (s.cursor >= bars.length - 1) {
             clearInterval(intervalRef.current!);
             return { ...s, playing: false };
           }
@@ -192,12 +197,12 @@ export default function BacktestsReplayPage(): JSX.Element {
       if (intervalRef.current) clearInterval(intervalRef.current);
     }
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [state.playing, state.speed]);
+  }, [bars.length, state.playing, state.speed]);
 
-  const currentBar = state.bars[state.cursor];
-  const progress = state.bars.length > 1 ? (state.cursor / (state.bars.length - 1)) * 100 : 0;
-  const change = currentBar && state.bars[0] ? ((currentBar.close - state.bars[0].open) / state.bars[0].open) * 100 : null;
-  const isUp = currentBar && state.cursor > 0 ? currentBar.close >= state.bars[state.cursor - 1].close : null;
+  const currentBar = bars[state.cursor];
+  const progress = bars.length > 1 ? (state.cursor / (bars.length - 1)) * 100 : 0;
+  const change = currentBar && bars[0] ? ((currentBar.close - bars[0].open) / bars[0].open) * 100 : null;
+  const isUp = currentBar && state.cursor > 0 ? currentBar.close >= bars[state.cursor - 1].close : null;
 
   return (
     <div
@@ -242,15 +247,18 @@ export default function BacktestsReplayPage(): JSX.Element {
           ))}
         </div>
 
-        <button onClick={() => void loadData()} disabled={loading} style={{
+        <button onClick={() => {
+          setState((s) => ({ ...s, playing: false }));
+          syncCandles();
+        }} disabled={candleLoading} style={{
           padding: '5px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600,
-          border: '1px solid #1e2435', background: 'transparent', color: loading ? '#4b5563' : '#9ca3af', cursor: loading ? 'not-allowed' : 'pointer',
+          border: '1px solid #1e2435', background: 'transparent', color: candleLoading ? '#4b5563' : '#9ca3af', cursor: candleLoading ? 'not-allowed' : 'pointer',
         }}>
-          {loading ? 'Loading…' : 'Load'}
+          {candleLoading ? 'Syncing…' : 'Sync'}
         </button>
 
         <div style={{ flex: 1 }} />
-        <FreshnessBadge status={replayEnv.freshness_status} lagMs={replayEnv.lag_ms} />
+        <FreshnessBadge status={candleEnv.freshness_status} lagMs={candleEnv.lag_ms} />
       </div>
 
       {/* ── Main layout ── */}
@@ -258,20 +266,20 @@ export default function BacktestsReplayPage(): JSX.Element {
 
         {/* Chart */}
         <div style={{ gridColumn: 1, gridRow: 1, minHeight: 0, position: 'relative' }}>
-          {loading && (
+          {candleLoading && bars.length === 0 && (
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(13,17,23,0.8)', zIndex: 10 }}>
-              <div style={{ fontSize: 13, color: '#6b7280' }}>Loading {symbol} {timeframe} candles…</div>
+              <div style={{ fontSize: 13, color: '#6b7280' }}>Syncing {symbol} {timeframe} candles…</div>
             </div>
           )}
-          {loadError && (
+          {candleError && bars.length === 0 && (
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 10 }}>
               <div style={{ fontSize: 20 }}>⚠</div>
-              <p style={{ color: '#ef5350', fontSize: 13, margin: 0 }}>{loadError}</p>
-              <button onClick={() => void loadData()} style={{ padding: '6px 16px', borderRadius: 6, border: '1px solid #ef535040', background: 'rgba(239,83,80,0.08)', color: '#ef5350', fontSize: 12, cursor: 'pointer' }}>Retry</button>
+              <p style={{ color: '#ef5350', fontSize: 13, margin: 0 }}>{candleError}</p>
+              <button onClick={syncCandles} style={{ padding: '6px 16px', borderRadius: 6, border: '1px solid #ef535040', background: 'rgba(239,83,80,0.08)', color: '#ef5350', fontSize: 12, cursor: 'pointer' }}>Retry</button>
             </div>
           )}
-          {state.bars.length > 0 && (
-            <ReplayChart bars={state.bars} volumes={state.volumes} cursor={state.cursor} />
+          {bars.length > 0 && (
+            <ReplayChart bars={bars} volumes={volumes} cursor={state.cursor} />
           )}
         </div>
 
@@ -317,7 +325,7 @@ export default function BacktestsReplayPage(): JSX.Element {
               </div>
               <div>
                 <div style={{ fontSize: 9, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Bars Replayed</div>
-                <div style={{ fontSize: 12, fontFamily: 'monospace', color: '#9ca3af' }}>{state.cursor + 1} / {state.bars.length}</div>
+                <div style={{ fontSize: 12, fontFamily: 'monospace', color: '#9ca3af' }}>{state.cursor + 1} / {bars.length}</div>
               </div>
               <div>
                 <div style={{ fontSize: 9, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Progress</div>
@@ -348,14 +356,22 @@ export default function BacktestsReplayPage(): JSX.Element {
             </div>
           </div>
 
-          {/* Pending features */}
+          {/* Candle resource status */}
           <div style={{ padding: '12px 14px', background: '#0d1117', borderRadius: 8, border: '1px solid #1e2435' }}>
-            <div style={{ fontSize: 10, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Pending Features</div>
-            {['Signal overlays', 'Risk decision replay', 'Equity curve', 'Feature snapshots', 'Scenario comparison'].map((f) => (
-              <div key={f} style={{ fontSize: 11, color: '#4b5563', padding: '3px 0', borderBottom: '1px solid #1e2435', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ color: '#f59e0b' }}>○</span> {f}
+            <div style={{ fontSize: 10, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Candle Stream</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ fontSize: 11, color: '#9ca3af', fontFamily: 'monospace' }}>
+                Source: {candleEnv.source_type}
               </div>
-            ))}
+              <div style={{ fontSize: 11, color: '#9ca3af', fontFamily: 'monospace' }}>
+                Candles: {bars.length.toLocaleString()}
+              </div>
+              {candleEnv.warnings.length > 0 && (
+                <div style={{ fontSize: 10, color: '#f59e0b', lineHeight: 1.4 }}>
+                  {candleEnv.warnings[0]}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -379,13 +395,13 @@ export default function BacktestsReplayPage(): JSX.Element {
           {/* Play/Pause */}
           <button
             onClick={() => setState((s) => ({ ...s, playing: !s.playing }))}
-            disabled={state.bars.length === 0}
+            disabled={bars.length === 0}
             title={state.playing ? 'Pause' : 'Play'}
             style={{
               width: 40, height: 40, borderRadius: 10,
               border: `1px solid ${state.playing ? '#3b82f640' : '#3b82f6'}`,
               background: state.playing ? 'rgba(59,130,246,0.2)' : 'rgba(59,130,246,0.1)',
-              color: '#60a5fa', cursor: state.bars.length === 0 ? 'not-allowed' : 'pointer',
+              color: '#60a5fa', cursor: bars.length === 0 ? 'not-allowed' : 'pointer',
               fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700,
             }}
           >
@@ -394,17 +410,18 @@ export default function BacktestsReplayPage(): JSX.Element {
 
           {/* Step forward */}
           <button
-            onClick={() => setState((s) => ({ ...s, cursor: Math.min(s.bars.length - 1, s.cursor + 1), playing: false }))}
+            onClick={() => setState((s) => ({ ...s, cursor: Math.min(bars.length - 1, s.cursor + 1), playing: false }))}
             title="Step forward one bar"
-            disabled={state.cursor >= state.bars.length - 1}
-            style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #1e2435', background: 'transparent', color: state.cursor >= state.bars.length - 1 ? '#2d3748' : '#6b7280', cursor: state.cursor >= state.bars.length - 1 ? 'not-allowed' : 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            disabled={state.cursor >= bars.length - 1}
+            style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #1e2435', background: 'transparent', color: state.cursor >= bars.length - 1 ? '#2d3748' : '#6b7280', cursor: state.cursor >= bars.length - 1 ? 'not-allowed' : 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >⏵</button>
 
           {/* Fast forward */}
           <button
-            onClick={() => setState((s) => ({ ...s, cursor: s.bars.length - 1, playing: false }))}
+            onClick={() => setState((s) => ({ ...s, cursor: bars.length - 1, playing: false }))}
             title="Jump to end"
-            style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #1e2435', background: 'transparent', color: '#6b7280', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            disabled={bars.length === 0}
+            style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #1e2435', background: 'transparent', color: bars.length === 0 ? '#2d3748' : '#6b7280', cursor: bars.length === 0 ? 'not-allowed' : 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >⏭</button>
 
           {/* Divider */}
@@ -435,12 +452,12 @@ export default function BacktestsReplayPage(): JSX.Element {
           {/* Timeline scrubber */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 200 }}>
             <span style={{ fontSize: 10, color: '#4b5563', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>
-              {state.cursor + 1}/{state.bars.length}
+              {state.cursor + 1}/{bars.length}
             </span>
             <input
               type="range"
               min={0}
-              max={Math.max(0, state.bars.length - 1)}
+              max={Math.max(0, bars.length - 1)}
               value={state.cursor}
               onChange={(e) => setState((s) => ({ ...s, cursor: Number(e.target.value), playing: false }))}
               style={{ flex: 1, accentColor: '#3b82f6' }}

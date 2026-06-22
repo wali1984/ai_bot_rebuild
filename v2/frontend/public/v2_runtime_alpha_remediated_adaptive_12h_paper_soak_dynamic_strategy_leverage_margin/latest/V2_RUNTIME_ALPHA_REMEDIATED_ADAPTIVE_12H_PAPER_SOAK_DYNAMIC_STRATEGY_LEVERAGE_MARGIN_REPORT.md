@@ -1,4 +1,4 @@
-# V2 Runtime Alpha Remediated Adaptive 1h Paper Soak Dynamic Strategy Leverage Margin Report
+# V2 Runtime Alpha Remediated Adaptive 1h Operator-Gated Dynamic Strategy Leverage Margin Report
 
 Generated: `2026-06-15T18:53:38Z`
 
@@ -14,8 +14,8 @@ Status: `BLOCKED`
 
 ## Safety
 
-- Paper only: `true`
-- Live order submitted: `false`
+- Operator-gated validation mode: `true`
+- Exchange order submitted: `false`
 - Test order called: `false`
 - Exchange leverage mutation: `false`
 - Exchange margin-mode mutation: `false`

@@ -11,14 +11,14 @@ import {
   type ISeriesApi,
   type UTCTimestamp,
 } from 'lightweight-charts';
-import { getV2MarketCandles, getV2MarketIndicators } from '../../api/v2Market';
 import { useMarketDataStream } from '../../hooks/useMarketDataStream';
+import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { formatAge, formatCompact, formatPrice } from '../../lib/tradeFormatters';
 import type { ApiV2Envelope, MarketCandle, MarketCandlesData, MarketIndicatorsData } from '../../types/apiV2';
+import type { ValidatedDataEnvelope } from '../../types/dataContract';
 import { MissingDataState, TradePanel } from './TradeShared';
 
 const TIMEFRAMES = ['1m', '3m', '5m', '15m', '1h', '4h', '1d', '1w'] as const;
-const BINANCE_USDM_KLINES_URL = 'https://fapi.binance.com/fapi/v1/klines';
 
 interface ChartCandle {
   time?: number;
@@ -33,12 +33,6 @@ interface ChartCandle {
 
 function finite(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
-}
-
-function klineNumber(value: unknown): number | null {
-  if (typeof value === 'number') return finite(value);
-  if (typeof value === 'string' && value.trim()) return finite(Number(value));
-  return null;
 }
 
 function timestampSeconds(value: unknown): number | null {
@@ -66,58 +60,6 @@ function candleTime(candle: ChartCandle): number | null {
 function validOhlc(open: number, high: number, low: number, close: number): boolean {
   if (open <= 0 || high <= 0 || low <= 0 || close <= 0) return false;
   return low <= open && low <= close && high >= open && high >= close;
-}
-
-function publicRestKlineEnvelope(symbol: string, timeframe: string, rows: unknown): ApiV2Envelope<MarketCandlesData> | null {
-  if (!Array.isArray(rows)) return null;
-  const now = Date.now();
-  const candles = rows
-    .map((row): MarketCandle | null => {
-      if (!Array.isArray(row)) return null;
-      const openTime = klineNumber(row[0]);
-      const open = klineNumber(row[1]);
-      const high = klineNumber(row[2]);
-      const low = klineNumber(row[3]);
-      const close = klineNumber(row[4]);
-      const volume = klineNumber(row[5]);
-      const closeTime = klineNumber(row[6]);
-      if (openTime === null || open === null || high === null || low === null || close === null || !validOhlc(open, high, low, close)) return null;
-      return {
-        time: Math.floor(openTime / 1000),
-        open_time_ms: openTime,
-        close_time_ms: closeTime ?? undefined,
-        open,
-        high,
-        low,
-        close,
-        volume: volume ?? undefined,
-        quote_volume: klineNumber(row[7]),
-        trade_count: klineNumber(row[8]),
-        taker_buy_base_volume: klineNumber(row[9]),
-        taker_buy_quote_volume: klineNumber(row[10]),
-        is_final: closeTime === null ? undefined : closeTime <= now,
-        source: 'binance_usdm_public_rest_poll',
-      };
-    })
-    .filter((row): row is MarketCandle => row !== null);
-  if (!candles.length) return null;
-  const latest = candles.at(-1);
-  const latestEventTime = latest?.close_time_ms ?? latest?.open_time_ms ?? now;
-  return {
-    data: { symbol, timeframe, candles, candle_count: candles.length },
-    source: 'Public REST candle source',
-    source_type: 'api',
-    endpoint: `${BINANCE_USDM_KLINES_URL}?symbol=${symbol}&interval=${timeframe}&limit=240`,
-    timestamp: new Date(latestEventTime).toISOString(),
-    received_at: new Date(now).toISOString(),
-    lag_ms: Math.max(0, now - latestEventTime),
-    stale: false,
-    missing_fields: [],
-    warnings: ['Public REST candle source. Latest candle can be forming and display-only.'],
-    symbol,
-    exchange: 'Binance USD-M',
-    mode: 'read_only',
-  };
 }
 
 function normalizeCandles(candles: ChartCandle[] | undefined): CandlestickData<UTCTimestamp>[] {
@@ -154,8 +96,63 @@ function normalizeVolume(candles: ChartCandle[] | undefined): HistogramData<UTCT
     .sort((a, b) => Number(a.time) - Number(b.time));
 }
 
+function latestIndicatorValue(points: { value?: number | null }[] | undefined): number | null {
+  for (let index = (points?.length ?? 0) - 1; index >= 0; index -= 1) {
+    const value = finite(points?.[index]?.value);
+    if (value !== null) return value;
+  }
+  return null;
+}
+
+function vwapFromCandles(candles: ChartCandle[]): number | null {
+  let notional = 0;
+  let volumeSum = 0;
+  for (const candle of candles) {
+    const close = finite(candle.close);
+    const volume = finite(candle.volume);
+    if (close === null || volume === null || volume <= 0) continue;
+    notional += close * volume;
+    volumeSum += volume;
+  }
+  return volumeSum > 0 ? notional / volumeSum : null;
+}
+
+function compactIndicator(value: number | null, digits = 2): string {
+  if (value === null) return '—';
+  return value.toLocaleString('en-US', { maximumFractionDigits: digits });
+}
+
 function cssVar(name: string, fallback: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+}
+
+function currentMarketSourceType(sourceType: ApiV2Envelope<unknown>['source_type'] | undefined): boolean {
+  return sourceType === 'websocket'
+    || sourceType === 'api'
+    || sourceType === 'repository'
+    || sourceType === 'redis_live';
+}
+
+function resourceEnvelopeToApi<T>(
+  envelope: ValidatedDataEnvelope<T>,
+  endpoint: string,
+): ApiV2Envelope<T> | null {
+  if (envelope.data === null || envelope.data === undefined) return null;
+  const receivedAt = envelope.received_at ?? Date.now();
+  const timestamp = envelope.timestamp ?? receivedAt;
+  return {
+    data: envelope.data,
+    source: envelope.source,
+    source_type: envelope.source_type as ApiV2Envelope<T>['source_type'],
+    endpoint: envelope.endpoint ?? endpoint,
+    timestamp: typeof timestamp === 'number' ? new Date(timestamp).toISOString() : null,
+    received_at: typeof receivedAt === 'number' ? new Date(receivedAt).toISOString() : new Date().toISOString(),
+    lag_ms: envelope.lag_ms,
+    stale: envelope.freshness_status === 'stale' || envelope.freshness_status === 'offline' || envelope.data_quality_status === 'invalid',
+    missing_fields: envelope.missing_fields,
+    warnings: envelope.warnings,
+    mode: envelope.mode as ApiV2Envelope<T>['mode'],
+  };
 }
 
 export function candleEnvelopeCanDriveTradingChart(
@@ -166,7 +163,7 @@ export function candleEnvelopeCanDriveTradingChart(
   const basicValid = Boolean(
     envelope
     && envelope.stale === false
-    && (envelope.source_type === 'api' || envelope.source_type === 'repository')
+    && currentMarketSourceType(envelope.source_type)
     && Array.isArray(envelope.data?.candles)
   );
   if (!basicValid) return false;
@@ -182,22 +179,45 @@ export function candleEnvelopeCanDriveTradingChart(
 }
 
 export function indicatorSourceLabel(envelope: ApiV2Envelope<MarketIndicatorsData> | null): string {
-  if (!envelope) return 'Indicator source unavailable';
-  if (envelope.source_type === 'unavailable') return 'Indicator source unavailable';
+  if (!envelope) return 'Indicator source connecting';
+  if (envelope.source_type === 'unavailable') return 'Indicator source connecting';
   if (envelope.stale) return 'Stale indicator source';
   if (envelope.source_type === 'static_payload') return 'Static indicators withheld';
-  return envelope.data?.controls_enabled ? 'Indicators available' : 'Indicators unavailable';
+  return (envelope.data?.indicator_count ?? 0) > 0 ? 'Indicators available' : 'Indicators connecting';
 }
 
 export function TradingChartPanel({ symbol }: { symbol: string }): JSX.Element {
   const [timeframe, setTimeframe] = useState<(typeof TIMEFRAMES)[number]>('1m');
   const [chartKey, setChartKey] = useState(0);
-  const [candleEnvelope, setCandleEnvelope] = useState<ApiV2Envelope<MarketCandlesData> | null>(null);
-  const [publicRestEnvelope, setPublicRestEnvelope] = useState<ApiV2Envelope<MarketCandlesData> | null>(null);
-  const [indicatorEnvelope, setIndicatorEnvelope] = useState<ApiV2Envelope<MarketIndicatorsData> | null>(null);
   const marketStream = useMarketDataStream(symbol, 2_000, timeframe);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const candleUrl = `/api/v2/market/${symbol}/candles?timeframe=${encodeURIComponent(timeframe)}`;
+  const indicatorUrl = `/api/v2/market/${symbol}/indicators?timeframe=${encodeURIComponent(timeframe)}`;
+  const candleResource = useRealtimeResource<MarketCandlesData>({
+    url: candleUrl,
+    source: candleUrl,
+    source_type: 'websocket',
+    pollIntervalMs: 2_000,
+    staleThresholdMs: 15_000,
+    mode: 'read_only',
+  });
+  const indicatorResource = useRealtimeResource<MarketIndicatorsData>({
+    url: indicatorUrl,
+    source: indicatorUrl,
+    source_type: 'websocket',
+    pollIntervalMs: 3_000,
+    staleThresholdMs: 30_000,
+    mode: 'read_only',
+  });
+  const candleEnvelope = useMemo(
+    () => resourceEnvelopeToApi(candleResource.envelope, candleUrl),
+    [candleResource.envelope, candleUrl],
+  );
+  const indicatorEnvelope = useMemo(
+    () => resourceEnvelopeToApi(indicatorResource.envelope, indicatorUrl),
+    [indicatorResource.envelope, indicatorUrl],
+  );
+  const loading = candleResource.loading && !candleEnvelope;
+  const error = candleResource.error;
   const shellRef = useRef<HTMLElement | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -205,20 +225,20 @@ export function TradingChartPanel({ symbol }: { symbol: string }): JSX.Element {
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const fittedOnceRef = useRef(false);
   const typedCandlesAreRealtime = candleEnvelopeCanDriveTradingChart(candleEnvelope, symbol, timeframe);
-  const publicRestCandlesAreRealtime = candleEnvelopeCanDriveTradingChart(publicRestEnvelope, symbol, timeframe);
+  const streamCandlesAreRealtime = candleEnvelopeCanDriveTradingChart(marketStream.candles, symbol, timeframe);
   const typedRawCandles = typedCandlesAreRealtime ? candleEnvelope?.data?.candles ?? [] : [];
-  const publicRestRawCandles = publicRestCandlesAreRealtime ? publicRestEnvelope?.data?.candles ?? [] : [];
+  const streamRawCandles = streamCandlesAreRealtime ? marketStream.candles?.data?.candles ?? [] : [];
   const rawCandles = typedRawCandles.length >= 20
     ? typedRawCandles
-    : publicRestRawCandles.length >= 20
-      ? publicRestRawCandles
+    : streamRawCandles.length >= 20
+      ? streamRawCandles
       : typedRawCandles.length
         ? typedRawCandles
-        : publicRestRawCandles;
-  const activeCandleEnvelope = typedRawCandles.length >= 20 || (typedRawCandles.length > 0 && publicRestRawCandles.length < 20)
+        : streamRawCandles;
+  const activeCandleEnvelope = typedRawCandles.length >= 20 || (typedRawCandles.length > 0 && streamRawCandles.length < 20)
     ? candleEnvelope
-    : publicRestRawCandles.length > 0
-      ? publicRestEnvelope
+    : streamRawCandles.length > 0
+      ? marketStream.candles
       : candleEnvelope;
   const displayRawCandles = useMemo(() => {
     const base = [...rawCandles];
@@ -240,96 +260,41 @@ export function TradingChartPanel({ symbol }: { symbol: string }): JSX.Element {
   const latest = candles[candles.length - 1];
   const hasLiveCandle = marketStream.liveCandle !== null && marketStream.stale === false;
   const hasNativeLiveCandle = marketStream.streamSource === 'binance_usdm_public_websocket' && hasLiveCandle;
-  const chartReady = candles.length > 0 && (typedCandlesAreRealtime || publicRestCandlesAreRealtime || hasLiveCandle);
+  const hasResourceCandleFeed = typedCandlesAreRealtime && typedRawCandles.length > 0 && candleResource.envelope.freshness_status === 'fresh';
+  const chartReady = candles.length > 0 && (typedCandlesAreRealtime || streamCandlesAreRealtime || hasLiveCandle);
   const activeLagMs = activeCandleEnvelope?.lag_ms;
   const ageSeconds = activeLagMs === null || activeLagMs === undefined
     ? null
     : Math.round(activeLagMs / 1000);
-  const sourcePosture = candleEnvelope?.source_type === 'static_payload' && !publicRestCandlesAreRealtime
+  const sourcePosture = candleEnvelope?.source_type === 'static_payload'
     ? 'Fallback candles withheld'
-    : candleEnvelope?.stale && !publicRestCandlesAreRealtime
+    : candleEnvelope?.stale
     ? 'Stale candles withheld'
     : hasNativeLiveCandle
       ? 'Public market stream + candle source'
     : hasLiveCandle
       ? 'Live market stream + candle source'
-    : publicRestCandlesAreRealtime
-      ? 'Current public exchange candles'
-      : candleEnvelope?.source_type === 'api' || candleEnvelope?.source_type === 'repository'
+    : hasResourceCandleFeed
+      ? 'WebSocket candle source'
+    : currentMarketSourceType(candleEnvelope?.source_type)
         ? 'Current candle source'
-      : 'Data source unavailable';
+      : 'Connecting stream';
   const liveCandleLabel = marketStream.liveCandle
     ? marketStream.liveCandle.is_final === false
       ? 'Forming display-only'
       : 'Closed stream update'
-    : 'Waiting for stream';
+    : hasResourceCandleFeed
+      ? 'WebSocket candle feed'
+      : 'Waiting for stream';
   const indicatorPosture = indicatorSourceLabel(indicatorEnvelope);
   const indicatorTitle = indicatorEnvelope?.warnings?.join(' ') || 'Indicator source has not returned yet.';
-
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-
-    async function load(): Promise<void> {
-      try {
-        const [nextCandles, nextIndicators] = await Promise.all([
-          getV2MarketCandles(symbol, timeframe),
-          getV2MarketIndicators(symbol, timeframe),
-        ]);
-        if (!active) return;
-        setCandleEnvelope(nextCandles);
-        setIndicatorEnvelope(nextIndicators);
-        setError(null);
-      } catch (err) {
-        if (!active) return;
-        setError(err instanceof Error ? err.message : 'Candle endpoint unavailable');
-      } finally {
-        if (active) setLoading(false);
-      }
-    }
-
-    void load();
-    const interval = window.setInterval(load, 3_000);
-    return () => {
-      active = false;
-      window.clearInterval(interval);
-    };
-  }, [symbol, timeframe]);
-
-  // REST is backup only: fetch from Binance public klines only when the
-  // backend candle source has fewer than 20 candles or is stale/absent.
-  // Backend source is always tried first (see CLAUDE.md "Unified Binance data").
-  const backendCandlesSufficient = typedCandlesAreRealtime && typedRawCandles.length >= 20;
-
-  useEffect(() => {
-    if (backendCandlesSufficient) {
-      // Backend source is healthy — do not make a direct Binance REST request.
-      setPublicRestEnvelope(null);
-      return undefined;
-    }
-    let active = true;
-    setPublicRestEnvelope(null);
-
-    async function loadPublicRestCandles(): Promise<void> {
-      try {
-        const params = new URLSearchParams({ symbol: symbol.toUpperCase(), interval: timeframe, limit: '240' });
-        // REST backup reason: backend candle source absent or insufficient.
-        const response = await fetch(`${BINANCE_USDM_KLINES_URL}?${params.toString()}`);
-        if (!response.ok) throw new Error(`Binance public kline fallback failed: ${response.status}`);
-        const rows = await response.json();
-        if (active) setPublicRestEnvelope(publicRestKlineEnvelope(symbol.toUpperCase(), timeframe, rows));
-      } catch {
-        if (active) setPublicRestEnvelope(null);
-      }
-    }
-
-    void loadPublicRestCandles();
-    const interval = window.setInterval(loadPublicRestCandles, 5_000);
-    return () => {
-      active = false;
-      window.clearInterval(interval);
-    };
-  }, [symbol, timeframe, backendCandlesSufficient]);
+  const indicatorData = indicatorEnvelope?.data;
+  const indicatorSnapshot = indicatorData?.indicator_snapshot;
+  const ema20Value = latestIndicatorValue(indicatorData?.ema20);
+  const ema50Value = latestIndicatorValue(indicatorData?.ema50);
+  const vwapValue = useMemo(() => vwapFromCandles(displayRawCandles), [displayRawCandles]);
+  const rsiValue = finite(indicatorSnapshot?.rsi_14);
+  const macdValue = finite(indicatorSnapshot?.macd);
 
   useEffect(() => {
     fittedOnceRef.current = false;
@@ -431,20 +396,20 @@ export function TradingChartPanel({ symbol }: { symbol: string }): JSX.Element {
               {item}
             </button>
           ))}
-          <span title={indicatorTitle}>MA unavailable</span>
-          <span title={indicatorTitle}>EMA unavailable</span>
-          <span title={indicatorTitle}>VWAP unavailable</span>
-          <span title={indicatorTitle}>RSI unavailable</span>
-          <span title={indicatorTitle}>MACD unavailable</span>
+          <span title={indicatorTitle}>MA20 {formatPrice(ema20Value)}</span>
+          <span title={indicatorTitle}>EMA50 {formatPrice(ema50Value)}</span>
+          <span title="Volume-weighted average derived from displayed candle volume.">VWAP {formatPrice(vwapValue)}</span>
+          <span title={indicatorTitle}>RSI {compactIndicator(rsiValue, 1)}</span>
+          <span title={indicatorTitle}>MACD {compactIndicator(macdValue, 4)}</span>
         </div>
 
         <div className="trade-chart-canvas-wrap">
           <div ref={canvasRef} className="trade-chart-canvas" key={chartKey} />
-          {loading ? <div className="trade-chart-loading">Loading chart data</div> : null}
+          {loading ? <div className="trade-chart-loading">Connecting chart stream</div> : null}
           {!loading && (!chartReady || error) ? (
             <MissingDataState
-              title="Candles unavailable"
-              detail={error ? 'Candle data is unavailable from the current market source.' : activeCandleEnvelope?.warnings?.[0] ?? 'A current market data source is required before the chart can be treated as current evidence.'}
+              title="Candles connecting"
+              detail={error ? 'Candle stream is reconnecting through the shared market resource.' : activeCandleEnvelope?.warnings?.[0] ?? 'A current market data source is required before the chart can be treated as current evidence.'}
               endpoint={activeCandleEnvelope?.endpoint ?? '/api/v2/market/{symbol}/candles'}
               compact
             />

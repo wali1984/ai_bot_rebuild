@@ -1,13 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useRoles } from '../../auth/rbac';
-import { getV2MarketOverview } from '../../api/v2Market';
+import { useRealtimeResource } from '../../hooks/useRealtimeResource';
+import type { MarketOverviewData } from '../../api/v2Market';
 
 interface WatchlistSymbol {
   symbol: string;
   price: number | null;
   signal: string | null;
   source_age_s: number | null;
+}
+
+interface ChartSymbolsData {
+  symbols?: WatchlistSymbol[];
 }
 
 // Public fallback favorites. Signed-in traders use their saved watchlist first.
@@ -45,7 +50,7 @@ function mergeSymbols(primary: WatchlistSymbol[], supplemental: WatchlistSymbol[
 function freshnessLabel(sourceAgeSeconds: number | null | undefined): { label: string; stale: boolean; title: string } {
   if (sourceAgeSeconds == null || !Number.isFinite(sourceAgeSeconds)) {
     return {
-      label: 'Data source unavailable',
+      label: 'Connecting stream',
       stale: true,
       title: 'No current source age is available for this symbol.',
     };
@@ -68,32 +73,50 @@ function freshnessLabel(sourceAgeSeconds: number | null | undefined): { label: s
 export function ProChartSymbolPanel({ activeSymbol, onSymbolSelect }: ProChartSymbolPanelProps): JSX.Element {
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<'fav' | 'all'>('fav');
-  const [symbols, setSymbols] = useState<WatchlistSymbol[]>([]);
   const { user } = useAuth();
   const sessionRole = useRoles();
-
-  useEffect(() => {
-    let active = true;
-    const load = async (): Promise<void> => {
-      const typedOverview = await getV2MarketOverview().catch(() => null);
-      const typedSymbols = (typedOverview?.data?.symbols ?? [])
-        .map((symbol) => normalizeSymbol(symbol))
-        .filter((symbol): symbol is string => symbol !== null)
-        .map((symbol) => ({ symbol, price: null, signal: null, source_age_s: null }));
-      const supplementalSymbols = await fetch('/api/v1/chart/symbols', { credentials: 'include' })
-        .then(r => r.ok ? r.json() as Promise<{ symbols?: WatchlistSymbol[] }> : { symbols: [] })
-        .then((d) => d.symbols ?? [])
-        .catch(() => []);
-      if (!active) return;
-      setSymbols(mergeSymbols(typedSymbols, supplementalSymbols));
-    };
-    void load();
-    const id = window.setInterval(() => void load(), 10_000);
-    return () => {
-      active = false;
-      window.clearInterval(id);
-    };
-  }, []);
+  const overview = useRealtimeResource<MarketOverviewData>({
+    url: '/api/v2/market/overview',
+    source: '/api/v2/market/overview',
+    source_type: 'websocket',
+    pollIntervalMs: 10_000,
+    staleThresholdMs: 30_000,
+    mode: 'read_only',
+  });
+  const supplemental = useRealtimeResource<ChartSymbolsData>({
+    url: '/api/v1/chart/symbols',
+    source: '/api/v1/chart/symbols',
+    source_type: 'websocket',
+    pollIntervalMs: 30_000,
+    staleThresholdMs: 90_000,
+    mode: 'read_only',
+  });
+  const symbols = useMemo(() => {
+    const sourceAgeSeconds = overview.envelope.lag_ms == null
+      ? null
+      : Math.max(0, overview.envelope.lag_ms / 1000);
+    const tickerBySymbol = new Map(
+      (overview.envelope.data?.tickers ?? [])
+        .map((row) => {
+          const symbol = normalizeSymbol(row.symbol);
+          return symbol ? [symbol, row] as const : null;
+        })
+        .filter((row): row is readonly [string, NonNullable<MarketOverviewData['tickers']>[number]] => row !== null),
+    );
+    const typedSymbols = (overview.envelope.data?.symbols ?? [])
+      .map((symbol) => normalizeSymbol(symbol))
+      .filter((symbol): symbol is string => symbol !== null)
+      .map((symbol) => ({
+        symbol,
+        price: tickerBySymbol.get(symbol)?.last_price ?? null,
+        signal: null,
+        source_age_s: sourceAgeSeconds,
+      }));
+    const supplementalSymbols = Array.isArray(supplemental.envelope.data?.symbols)
+      ? supplemental.envelope.data.symbols
+      : [];
+    return mergeSymbols(supplementalSymbols, typedSymbols);
+  }, [overview.envelope.data, overview.envelope.lag_ms, supplemental.envelope.data]);
 
   const bySymbol = new Map(symbols.map(s => [s.symbol, s]));
   const previewWatchlist = !user && sessionRole === 'trader' ? LOCAL_TRADER_PREVIEW_WATCHLIST : DEFAULT_FAVORITES;
@@ -136,7 +159,7 @@ export function ProChartSymbolPanel({ activeSymbol, onSymbolSelect }: ProChartSy
           const displayName = s.symbol.replace('USDT', '');
           const priceStr = s.price != null
             ? `$${s.price.toLocaleString('en-US', { maximumFractionDigits: 4 })}`
-            : 'Data unavailable';
+            : 'Connecting stream';
           const freshness = freshnessLabel(s.source_age_s);
           return (
             <button

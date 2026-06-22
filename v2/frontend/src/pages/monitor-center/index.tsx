@@ -35,10 +35,10 @@ function KV({ label, value, color }: { label: string; value: string; color?: str
 }
 
 export default function MonitorCenterPage(): JSX.Element {
-  const routes = useRealtimeResource<RoutesData>({ url: '/api/v2/admin/monitoring/routes', source: '/api/v2/admin/monitoring/routes', source_type: 'api', pollIntervalMs: 60_000, staleThresholdMs: 180_000, mode: 'read_only' });
-  const surfaces = useRealtimeResource<SurfacesData>({ url: '/api/v2/admin/monitoring/data-surfaces', source: '/api/v2/admin/monitoring/data-surfaces', source_type: 'api', pollIntervalMs: 60_000, staleThresholdMs: 180_000, mode: 'read_only' });
-  const streams = useRealtimeResource<StreamsData>({ url: '/api/v2/admin/monitoring/realtime-streams', source: '/api/v2/admin/monitoring/realtime-streams', source_type: 'api', pollIntervalMs: 30_000, staleThresholdMs: 90_000, mode: 'read_only' });
-  const build = useRealtimeResource<BuildStatus>({ url: '/api/v2/admin/monitoring/build-status', source: '/api/v2/admin/monitoring/build-status', source_type: 'api', pollIntervalMs: 60_000, staleThresholdMs: 180_000, mode: 'read_only' });
+  const routes = useRealtimeResource<RoutesData>({ url: '/api/v2/admin/monitoring/routes', source: '/api/v2/admin/monitoring/routes', source_type: 'websocket', pollIntervalMs: 60_000, staleThresholdMs: 180_000, mode: 'read_only' });
+  const surfaces = useRealtimeResource<SurfacesData>({ url: '/api/v2/admin/monitoring/data-surfaces', source: '/api/v2/admin/monitoring/data-surfaces', source_type: 'websocket', pollIntervalMs: 60_000, staleThresholdMs: 180_000, mode: 'read_only' });
+  const streams = useRealtimeResource<StreamsData>({ url: '/api/v2/admin/monitoring/realtime-streams', source: '/api/v2/admin/monitoring/realtime-streams', source_type: 'websocket', pollIntervalMs: 30_000, staleThresholdMs: 90_000, mode: 'read_only' });
+  const build = useRealtimeResource<BuildStatus>({ url: '/api/v2/admin/monitoring/build-status', source: '/api/v2/admin/monitoring/build-status', source_type: 'websocket', pollIntervalMs: 60_000, staleThresholdMs: 180_000, mode: 'read_only' });
 
   const rData = routes.envelope.data;
   const sData = surfaces.envelope.data;
@@ -100,7 +100,7 @@ export default function MonitorCenterPage(): JSX.Element {
                 </tbody>
               </table>
             </div>
-          ) : <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>No route data available.</p>
+          ) : <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>Route stream connecting.</p>
         )}
       </div>
 
@@ -133,7 +133,7 @@ export default function MonitorCenterPage(): JSX.Element {
                 </tbody>
               </table>
             </div>
-          ) : <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>No data surface info available.</p>
+          ) : <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>Data surface stream connecting.</p>
         )}
       </div>
 
@@ -156,7 +156,7 @@ export default function MonitorCenterPage(): JSX.Element {
                 </div>
               ))}
             </div>
-          ) : <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>No stream data available.</p>
+          ) : <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>Realtime stream registry connecting.</p>
         )}
       </div>
 

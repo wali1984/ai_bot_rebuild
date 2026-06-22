@@ -10,13 +10,25 @@ import {
   type PredictionSignalExplanationsPayload,
 } from '../../data/predictionSignalExplanations';
 
-function compact(value: unknown, fallback = 'Data source unavailable', max = 34): string {
+function compact(value: unknown, fallback = 'Connecting stream', max = 34): string {
   if (value === null || value === undefined || value === '') return fallback;
-  const text = String(value);
+  const text = runtimeCopy(value);
   return text.length > max ? `${text.slice(0, max - 1)}...` : text;
 }
 
-function readableSource(value: unknown, fallback = 'Data source unavailable', max = 54): string {
+function runtimeCopy(value: unknown, fallback = 'Connecting stream'): string {
+  if (value === null || value === undefined || value === '') return fallback;
+  return String(value)
+    .replace(/PAPER_FILL_GATE_/gi, '')
+    .replace(/PAPER_LEDGER_/gi, '')
+    .replace(/\bpaper[_\s-]*fill\b/gi, 'execution fill')
+    .replace(/\bpaper[_\s-]*gate\b/gi, 'execution gate')
+    .replace(/\bpaper[_\s-]*ledger\b/gi, 'execution ledger')
+    .replace(/\bpaper[_\s-]*intent\b/gi, 'execution intent')
+    .replace(/\bpaper\b/gi, 'runtime');
+}
+
+function readableSource(value: unknown, fallback = 'Connecting stream', max = 54): string {
   if (value === null || value === undefined || value === '') return fallback;
   const text = String(value).trim();
   if (!text) return fallback;
@@ -34,23 +46,23 @@ function readableSource(value: unknown, fallback = 'Data source unavailable', ma
 }
 
 function prettyKey(value: string): string {
-  const text = value.replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
-  if (!text) return 'Data source unavailable';
+  const text = runtimeCopy(value).replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!text) return 'Connecting stream';
   const normalized = /[A-Z_]{2,}/.test(value) ? text.toLowerCase() : text;
   return normalized.replace(/^./u, (char) => char.toUpperCase());
 }
 
 function prettyValue(value: unknown, max = 48): string {
-  if (value === null || value === undefined || value === '') return 'Data source unavailable';
-  if (typeof value === 'number') return Number.isFinite(value) ? value.toLocaleString('en-US', { maximumFractionDigits: 8 }) : 'Data source unavailable';
+  if (value === null || value === undefined || value === '') return 'Connecting stream';
+  if (typeof value === 'number') return Number.isFinite(value) ? value.toLocaleString('en-US', { maximumFractionDigits: 8 }) : 'Connecting stream';
   if (typeof value === 'boolean') return value ? 'Passed' : 'Blocked';
-  const text = String(value);
+  const text = runtimeCopy(value);
   const friendly = text.includes('_') || /^[A-Z0-9 -]+$/.test(text) ? prettyKey(text) : text;
   return friendly.length > max ? `${friendly.slice(0, max - 1)}...` : friendly;
 }
 
 function prettyEvidence(value: unknown, max = 86): string {
-  if (value === null || value === undefined || value === '') return 'Data source unavailable';
+  if (value === null || value === undefined || value === '') return 'Connecting stream';
   if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'string') return prettyValue(value, max);
   try {
     const text = JSON.stringify(value);
@@ -61,14 +73,14 @@ function prettyEvidence(value: unknown, max = 86): string {
 }
 
 function formatSignedExplainerPercent(value: number | null | undefined): string {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return 'Data source unavailable';
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 'Connecting stream';
   const formatted = `${(value * 100).toFixed(1)}%`;
   return value > 0 ? `+${formatted}` : formatted;
 }
 
 function compactList(values: string[] | undefined, empty = 'none reported'): string {
   if (!values?.length) return empty;
-  return values.slice(0, 8).join(', ');
+  return values.slice(0, 8).map((value) => runtimeCopy(value)).join(', ');
 }
 
 function actionTone(action: string | null | undefined): 'ok' | 'warn' | 'block' | 'neutral' {
@@ -128,10 +140,10 @@ function gateReadyText(row: PredictionSignalExplanation): string {
         : 'Risk gate pending';
   const paperText =
     paper === true
-      ? 'Paper execution ready'
+      ? 'Execution ready'
       : paper === false
-        ? 'Paper blocked'
-        : 'Paper decision pending';
+        ? 'Execution blocked'
+        : 'Execution decision pending';
   const routingText =
     routing === true
       ? 'Routing approved'
@@ -163,8 +175,8 @@ function ExplanationCard({
   const featureSamples = row.feature_value_samples ?? [];
   const featureCount = row.feature_value_count ?? featureSamples.length;
   const targetDistance = explainDistanceToTarget(row.price_target, row.last_price);
-  const selectedAction = row.selected_action ?? 'Action source unavailable';
-  const selectedActionLabel = compact(selectedAction, 'Action source unavailable', 24);
+  const selectedAction = row.selected_action ?? 'Action source connecting';
+  const selectedActionLabel = compact(selectedAction, 'Action source connecting', 24);
   const riskGateStatus = row.risk_gate?.pre_trade_allowed
     ? 'Execution risk gate passed'
     : 'Execution risk gate review required';
@@ -194,7 +206,7 @@ function ExplanationCard({
         {row.natural_language_summary ?? row.prediction_plain_english}
       </p>
       <p className="cockpit-evidence-note">{row.risk_plain_english}</p>
-      <p className="cockpit-evidence-note">{row.paper_plain_english}</p>
+      <p className="cockpit-evidence-note">{runtimeCopy(row.paper_plain_english)}</p>
       {row.truth_policy_plain_english ? <p className="cockpit-evidence-note">{row.truth_policy_plain_english}</p> : null}
 
       <div className="cockpit-lineage-grid" style={{ marginTop: '0.75rem' }}>
@@ -205,17 +217,17 @@ function ExplanationCard({
         </div>
         <div>
           <span>Target outcome</span>
-          <strong>{targetDistance === 'target distance pending' ? 'Awaiting market snapshot' : targetDistance}</strong>
+          <strong>{targetDistance === 'target distance pending' ? 'Market snapshot connecting' : targetDistance}</strong>
           <small>{confidenceText} vs runner-up action</small>
         </div>
-        <div><span>Data completeness</span><strong>{typeof row.data_coverage_percent === 'number' ? `${row.data_coverage_percent.toFixed(1)}%` : 'Data source unavailable'}</strong></div>
-        <div><span>Market-state integrity</span><strong>{typeof row.market_state?.market_state_integrity_score === 'number' ? row.market_state.market_state_integrity_score.toFixed(2) : 'Data source unavailable'}</strong></div>
+        <div><span>Data completeness</span><strong>{typeof row.data_coverage_percent === 'number' ? `${row.data_coverage_percent.toFixed(1)}%` : 'Connecting stream'}</strong></div>
+        <div><span>Market-state integrity</span><strong>{typeof row.market_state?.market_state_integrity_score === 'number' ? row.market_state.market_state_integrity_score.toFixed(2) : 'Connecting stream'}</strong></div>
         <div><span>Readiness</span><strong>{readinessText}</strong></div>
         <div><span>Data freshness</span><strong>{prettyValue(row.market_state?.freshness_seconds)}s</strong></div>
         <div><span>Last snapshot</span><strong>{prettyValue(row.market_state?.source_event_time_est)}</strong></div>
         <div><span>Risk gate</span><strong>{riskGateStatus}</strong></div>
         <div><span>Routing</span><strong>{routingStatus}</strong></div>
-        <div><span>Paper gate</span><strong>{paperGateStatus}</strong></div>
+        <div><span>Execution gate</span><strong>{paperGateStatus}</strong></div>
       </div>
 
       {confidence ? (
@@ -237,7 +249,7 @@ function ExplanationCard({
               <div>
                 <span>Calibrated confidence</span>
                 <strong>{formatExplainerPercent(confidence.calibrated_confidence ?? row.confidence_calibrated)}</strong>
-                <small>{prettyKey(confidence.calibration_direction ?? 'Calibration source unavailable')}</small>
+                <small>{prettyKey(confidence.calibration_direction ?? 'Calibration source connecting')}</small>
               </div>
               <div>
                 <span>Action edge</span>
@@ -286,7 +298,7 @@ function ExplanationCard({
 
       <details className="mission-evidence-details" style={{ marginTop: '0.75rem' }}>
         <summary>
-          <span>Routing, risk, and paper chain</span>
+          <span>Routing, risk, and execution chain</span>
           <small>why this signal moved from model to execution readiness</small>
         </summary>
         <div className="mission-evidence-details__body">
@@ -296,7 +308,7 @@ function ExplanationCard({
             <div><span>Risk result</span><strong>{prettyValue(row.risk_gate?.risk_result)}</strong></div>
             <div><span>Pre-trade</span><strong>{prettyValue(row.risk_gate?.pre_trade_allowed)}</strong></div>
             <div><span>Fee gate</span><strong>{prettyValue(row.risk_gate?.fee_gate_allowed)}</strong></div>
-            <div><span>Paper blockers</span><strong>{compactList(row.paper_gate?.paper_fill_gate_block_reasons)}</strong></div>
+            <div><span>Execution blockers</span><strong>{compactList(row.paper_gate?.paper_fill_gate_block_reasons)}</strong></div>
           </div>
         </div>
       </details>
@@ -314,12 +326,12 @@ function ExplanationCard({
             <div><span>Feature snapshot</span><strong><code>{compact(row.feature_snapshot_id)}</code></strong></div>
             <div><span>Checkpoint</span><strong><code>{compact(row.checkpoint_id)}</code></strong></div>
             <div><span>Market state</span><strong><code>{compact(row.market_state?.market_state_id)}</code></strong></div>
-            <div><span>Prediction source</span><strong><code>{readableSource(row.prediction_source_key ?? row.runtime_source_paths?.prediction_payload, 'Data source unavailable', 54)}</code></strong></div>
-            <div><span>Feature sources</span><strong><code>{readableSource((row.feature_source_keys ?? []).join(', ') || row.feature_source, 'Data source unavailable', 72)}</code></strong></div>
-            <div><span>Target source</span><strong><code>{readableSource((row.target_source_keys ?? []).join(', ') || row.runtime_source_paths?.price_targets, 'Data source unavailable', 72)}</code></strong></div>
+            <div><span>Prediction source</span><strong><code>{readableSource(row.prediction_source_key ?? row.runtime_source_paths?.prediction_payload, 'Connecting stream', 54)}</code></strong></div>
+            <div><span>Feature sources</span><strong><code>{readableSource((row.feature_source_keys ?? []).join(', ') || row.feature_source, 'Connecting stream', 72)}</code></strong></div>
+            <div><span>Target source</span><strong><code>{readableSource((row.target_source_keys ?? []).join(', ') || row.runtime_source_paths?.price_targets, 'Connecting stream', 72)}</code></strong></div>
             <div><span>Risk ID</span><strong><code>{compact(row.risk_decision_id)}</code></strong></div>
             <div><span>Orchestrator ID</span><strong><code>{compact(row.orchestrator_decision_id ?? row.orchestrator_gate?.orchestrator_decision_id)}</code></strong></div>
-            <div><span>Paper intent</span><strong><code>{compact(row.paper_fill_intent_id ?? row.paper_intent_id)}</code></strong></div>
+            <div><span>Execution intent</span><strong><code>{compact(row.paper_fill_intent_id ?? row.paper_intent_id)}</code></strong></div>
           </div>
         </div>
       </details>
@@ -451,18 +463,18 @@ export function PredictionSignalExplanationPanel({
           </>
         }
       >
-        {error ? <p className="cockpit-evidence-gap">Explanation source unavailable: {error}</p> : null}
+        {error ? <p className="cockpit-evidence-gap">Explanation stream connecting: {error}</p> : null}
         <div className="cockpit-analytics-grid">
-          <Metric label="Predictions explained" value={explanationCount ?? 'Data source unavailable'} />
-          <Metric label="Prediction rows" value={data?.summary?.prediction_rows ?? 'Data source unavailable'} />
-          <Metric label="Symbols explained" value={uniqueSymbolCount ?? 'Data source unavailable'} />
-          <Metric label="Timeframes explained" value={uniqueTimeframes.length ? uniqueTimeframes.join(', ') : 'Data source unavailable'} />
-          <Metric label="Live trading" value={data?.summary?.live_gate ? 'Live platform guarded' : 'Data source unavailable'} />
+          <Metric label="Predictions explained" value={explanationCount ?? 'Connecting stream'} />
+          <Metric label="Prediction rows" value={data?.summary?.prediction_rows ?? 'Connecting stream'} />
+          <Metric label="Symbols explained" value={uniqueSymbolCount ?? 'Connecting stream'} />
+          <Metric label="Timeframes explained" value={uniqueTimeframes.length ? uniqueTimeframes.join(', ') : 'Connecting stream'} />
+          <Metric label="Live trading" value={data?.summary?.live_gate ? 'Operator gated' : 'Connecting stream'} />
           <Metric label="Trader mode" value={prettyValue(data?.summary?.trader_state)} />
           <Metric label="Live trading guard" value={prettyValue(data?.summary?.live_submit_blocker, 64)} />
-          <Metric label="Paper accepted/blocked" value={`${data?.summary?.paper_accepted_count ?? 0}/${data?.summary?.paper_blocked_count ?? 0}`} />
-          <Metric label="Paper-eligible predictions" value={data?.summary?.prediction_paper_fill_allowed_count ?? 'Data source unavailable'} />
-          <Metric label="Routed signal candidates" value={data?.summary?.prediction_routes_to_orchestrator_count ?? 'Data source unavailable'} />
+          <Metric label="Execution accepted/blocked" value={`${data?.summary?.paper_accepted_count ?? 0}/${data?.summary?.paper_blocked_count ?? 0}`} />
+          <Metric label="Execution-eligible predictions" value={data?.summary?.prediction_paper_fill_allowed_count ?? 'Connecting stream'} />
+          <Metric label="Routed signal candidates" value={data?.summary?.prediction_routes_to_orchestrator_count ?? 'Connecting stream'} />
         </div>
         <div className="source-health-grid prediction-blocker-grid" style={{ marginTop: '1rem' }}>
           {(data?.plain_english_overview ?? []).slice(0, 5).map((text) => (
@@ -484,10 +496,10 @@ export function PredictionSignalExplanationPanel({
       </Panel>
 
       {paperReasons.length || predictionGateReasons.length ? (
-        <Panel id={`prediction-signal-paper-blockers-${safeId}`} title="Paper Block Reasons In Plain English">
+        <Panel id={`prediction-signal-execution-blockers-${safeId}`} title="Execution Block Reasons In Plain English">
           <div className="source-health-grid prediction-blocker-grid">
             {[
-              ...paperReasons.map(([reason, count]) => ({ reason, count, source: 'paper ledger' })),
+              ...paperReasons.map(([reason, count]) => ({ reason, count, source: 'execution ledger' })),
               ...predictionGateReasons.map(([reason, count]) => ({ reason, count, source: 'prediction gate' })),
             ].map(({ reason, count, source }) => (
               <div className="source-health-grid__warn" key={`${source}-${reason}`}>
@@ -495,7 +507,7 @@ export function PredictionSignalExplanationPanel({
                 <strong>{count}</strong>
                 <small>
                   {reason.includes('MARKET_STATE')
-                    ? 'The paper gate needs market-state integrity evidence before it can treat the candidate as executable paper.'
+                    ? 'The execution gate needs market-state integrity evidence before it can treat the candidate as executable.'
                     : `The ${source} is holding or blocking this candidate until the source reason is resolved.`}
                 </small>
               </div>

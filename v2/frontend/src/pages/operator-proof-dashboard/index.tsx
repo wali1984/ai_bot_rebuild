@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { AdaptiveCapitalTelemetryPanel } from '../../components/trading/AdaptiveCapitalTelemetryPanel';
 import { useAdaptiveCapitalDashboard, type AdaptiveCapitalDashboardPayload } from '../../data/adaptiveCapitalProductivity';
+import { usePayloadFile } from '../../hooks/usePayloadFile';
 import meta from './meta';
 import rbac from './rbac';
 import route from './route';
@@ -301,12 +302,6 @@ interface SettingRow {
 
 const cockpitPath = '/operator_gui_real_data_and_explainability/latest/operator_cockpit_payload.json';
 const quarantinePath = '/external_manual_position_quarantine/latest/operator_dashboard_payload.json';
-
-async function fetchJson<T>(path: string): Promise<T> {
-  const response = await fetch(path, { cache: 'no-store' });
-  if (!response.ok) throw new Error(`${path}: ${response.status}`);
-  return response.json() as Promise<T>;
-}
 
 function statusClass(value: Primitive): string {
   const normalized = String(value).toLowerCase();
@@ -682,9 +677,9 @@ function ConfigAdmin({ rows }: { rows: SettingRow[] }): JSX.Element {
 
 function TraderFleet({ paper, shadow }: { paper: PaperRow[]; shadow: ShadowRow[] }): JSX.Element {
   return (
-    <Section id="trader-fleet" title="Trader Fleet / Paper-Shadow Actions">
+    <Section id="trader-fleet" title="Trader Fleet / Runtime-Shadow Actions">
       <div className="operator-split">
-        <DataList title="Paper ledger actions" rows={paper} empty="No paper ledger evidence." />
+        <DataList title="Execution ledger actions" rows={paper} empty="No execution ledger evidence." />
         <DataList title="Shadow comparisons" rows={shadow} empty="No shadow comparison evidence." />
       </div>
     </Section>
@@ -816,31 +811,9 @@ function SimpleCoverageSections({ payload }: { payload: CockpitPayload }): JSX.E
 }
 
 export default function OperatorProofDashboardPage(): JSX.Element {
-  const [payload, setPayload] = useState<CockpitPayload | null>(null);
-  const [quarantine, setQuarantine] = useState<ExternalManualPositionQuarantine | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { data: payload, error } = usePayloadFile<CockpitPayload>(cockpitPath, 15_000);
+  const { data: quarantine } = usePayloadFile<ExternalManualPositionQuarantine>(quarantinePath, 30_000);
   const adaptiveCapital = useAdaptiveCapitalDashboard(30_000);
-
-  useEffect(() => {
-    let active = true;
-    fetchJson<CockpitPayload>(cockpitPath)
-      .then((next) => {
-        if (active) setPayload(next);
-      })
-      .catch((err: unknown) => {
-        if (active) setError(err instanceof Error ? err.message : 'NERVYX evidence payload unavailable');
-      });
-    fetchJson<ExternalManualPositionQuarantine>(quarantinePath)
-      .then((next) => {
-        if (active) setQuarantine(next);
-      })
-      .catch(() => {
-        if (active) setQuarantine(null);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const pageAttrs = useMemo(
     () => ({

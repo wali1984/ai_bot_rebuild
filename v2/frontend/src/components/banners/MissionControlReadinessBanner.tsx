@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
 import {
   DEFAULT_ONLINE_READINESS_BANNER,
   deriveLaneStatus,
   type OnlineReadinessBannerPayload,
   type OnlineReadinessLane,
 } from '../../constants/onlineReadinessBanner';
+import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 
 const BANNER_ENDPOINT = '/api/v1/live-readiness/banner';
 
@@ -48,43 +48,22 @@ function normalizePayload(raw: Partial<OnlineReadinessBannerPayload> | null | un
 }
 
 export function MissionControlReadinessBanner(): JSX.Element {
-  const [payload, setPayload] = useState<OnlineReadinessBannerPayload>(DEFAULT_ONLINE_READINESS_BANNER);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [loaded, setLoaded] = useState<boolean>(import.meta.env.VITE_ENABLE_ONLINE_READINESS_BANNER_API !== 'true');
-
-  useEffect(() => {
-    if (import.meta.env.VITE_ENABLE_ONLINE_READINESS_BANNER_API !== 'true') return;
-    let cancelled = false;
-    async function load(): Promise<void> {
-      try {
-        const res = await fetch(BANNER_ENDPOINT, {
-          method: 'GET',
-          credentials: 'same-origin',
-          headers: { Accept: 'application/json' },
-        });
-        if (cancelled) return;
-        if (!res.ok) {
-          setLoadError(`http_${res.status}`);
-          setLoaded(true);
-          return;
-        }
-        const data = (await res.json()) as Partial<OnlineReadinessBannerPayload>;
-        if (cancelled) return;
-        setPayload(normalizePayload(data));
-        setLoadError(null);
-        setLoaded(true);
-      } catch {
-        if (!cancelled) {
-          setLoadError('fetch_failed');
-          setLoaded(true);
-        }
-      }
-    }
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const apiEnabled = import.meta.env.VITE_ENABLE_ONLINE_READINESS_BANNER_API === 'true';
+  const { envelope, loading, error } = useRealtimeResource<OnlineReadinessBannerPayload>({
+    url: BANNER_ENDPOINT,
+    source: BANNER_ENDPOINT,
+    source_type: 'websocket',
+    pollIntervalMs: 30_000,
+    staleThresholdMs: 90_000,
+    initialFetch: true,
+    httpFallback: true,
+    enabled: apiEnabled,
+    mode: 'read_only',
+    transform: (raw) => normalizePayload(raw as Partial<OnlineReadinessBannerPayload>),
+  });
+  const payload = apiEnabled ? envelope.data ?? DEFAULT_ONLINE_READINESS_BANNER : DEFAULT_ONLINE_READINESS_BANNER;
+  const loadError = apiEnabled ? error ?? envelope.errors[0] ?? null : null;
+  const loaded = !apiEnabled || !loading || envelope.data !== null || Boolean(loadError);
 
   const ready = payload.all_required_matched;
   const chipLabel = ready ? 'READY' : 'BLOCKED';

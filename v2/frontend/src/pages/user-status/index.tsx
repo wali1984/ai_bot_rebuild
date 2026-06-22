@@ -4,9 +4,10 @@ import rbac from './rbac';
 import route from './route';
 import { useFrontendTruthPayload } from '../../data/runtimePayloads';
 import { SimpleCard, StatusBadge } from '../../components/status-simple/StatusBadge';
+import { publicRuntimeCopy } from '../../lib/tradeCopy';
 
 const EVIDENCE_UNAVAILABLE =
-  'Status source unavailable. We cannot show a status without current evidence.';
+  'Status stream is connecting. We cannot show a status without current evidence.';
 const PUBLIC_STATUS_SOURCE = 'Public status summary';
 
 function statusColor(value: string): 'green' | 'yellow' | 'red' {
@@ -17,7 +18,7 @@ function statusColor(value: string): 'green' | 'yellow' | 'red' {
 }
 
 function publicStatusText(value: string | null | undefined): string {
-  if (!value?.trim()) return 'Data source unavailable';
+  if (!value?.trim()) return 'Connecting stream';
   return value
     .trim()
     .replace(/operator_runtime/gi, 'status source')
@@ -25,6 +26,10 @@ function publicStatusText(value: string | null | undefined): string {
     .replace(/payloads?/gi, 'source')
     .replace(/\/[A-Za-z0-9._/-]+/g, 'status source')
     .replace(/\b[A-Z0-9]+_[A-Z0-9_]+\b/g, (match) => match.replaceAll('_', ' ').toLowerCase());
+}
+
+function publicStatusRuntimeText(value: string | null | undefined): string {
+  return publicRuntimeCopy(publicStatusText(value), 'Connecting stream');
 }
 
 export default function UserStatusPage(): ReactElement {
@@ -44,11 +49,11 @@ export default function UserStatusPage(): ReactElement {
       </header>
 
       {loading && !payload && (
-        <p data-testid="user-status-loading">Loading the simple status...</p>
+        <p data-testid="user-status-loading">Connecting status stream...</p>
       )}
       {error && !payload && (
         <p data-testid="user-status-error">
-          <StatusBadge color="red" label="Evidence source unavailable" /> {EVIDENCE_UNAVAILABLE}
+          <StatusBadge color="red" label="Evidence stream connecting" /> {EVIDENCE_UNAVAILABLE}
         </p>
       )}
 
@@ -64,10 +69,10 @@ export default function UserStatusPage(): ReactElement {
             }}
           >
             <p style={{ margin: 0, fontSize: '1.1rem' }}>
-              <strong>{publicStatusText(payload.plain_english_summary) || EVIDENCE_UNAVAILABLE}</strong>
+              <strong>{publicStatusRuntimeText(payload.plain_english_summary) || EVIDENCE_UNAVAILABLE}</strong>
             </p>
             <p style={{ margin: '4px 0 0 0' }}>
-              <em>Today's goal:</em> {publicStatusText(payload.current_goal) || EVIDENCE_UNAVAILABLE}
+              <em>Today's goal:</em> {publicStatusRuntimeText(payload.current_goal) || EVIDENCE_UNAVAILABLE}
             </p>
             <div
               data-testid="user-status-badges"
@@ -75,23 +80,23 @@ export default function UserStatusPage(): ReactElement {
             >
               <StatusBadge
                 color="red"
-                label="Bot is not allowed to trade live"
+                label="Operator gate active"
               />
               <StatusBadge
                 color={statusColor(payload.paper_edge_status)}
-                label={`Paper edge: ${payload.paper_edge_status || 'Data source unavailable'}`}
+                label={`Execution edge: ${publicRuntimeCopy(payload.paper_edge_status, 'Connecting stream')}`}
               />
               <StatusBadge
                 color={statusColor(payload.trainer_parity_status)}
-                label={`Trainer parity: ${payload.trainer_parity_status || 'Data source unavailable'}`}
+                label={`Trainer parity: ${publicRuntimeCopy(payload.trainer_parity_status, 'Connecting stream')}`}
               />
               <StatusBadge
                 color={statusColor(payload.decision_quality_status)}
-                label={`Decision quality: ${payload.decision_quality_status || 'Data source unavailable'}`}
+                label={`Decision quality: ${publicRuntimeCopy(payload.decision_quality_status, 'Connecting stream')}`}
               />
               <StatusBadge
                 color={statusColor(payload.shutdown_recommendation)}
-                label={`Shutdown: ${payload.shutdown_recommendation || 'Data source unavailable'}`}
+                label={`Shutdown: ${publicRuntimeCopy(payload.shutdown_recommendation, 'Connecting stream')}`}
               />
             </div>
           </section>
@@ -106,7 +111,7 @@ export default function UserStatusPage(): ReactElement {
             ) : (
               <ul>
                 {payload.blockers_simple.map((b) => (
-                  <li key={b}>{publicStatusText(b)}</li>
+                  <li key={b}>{publicStatusRuntimeText(b)}</li>
                 ))}
               </ul>
             )}
@@ -123,13 +128,13 @@ export default function UserStatusPage(): ReactElement {
               payload.page_cards.map((card) => (
                 <SimpleCard
                   key={card.id}
-                  title={card.title}
+                  title={publicStatusRuntimeText(card.title)}
                   color={card.color}
-                  summary={publicStatusText(card.summary)}
-                  whyItMatters={publicStatusText(card.why_it_matters)}
-                  whatNeedsToHappenNext={publicStatusText(card.what_needs_to_happen_next)}
+                  summary={publicStatusRuntimeText(card.summary)}
+                  whyItMatters={publicStatusRuntimeText(card.why_it_matters)}
+                  whatNeedsToHappenNext={publicStatusRuntimeText(card.what_needs_to_happen_next)}
                   evidencePaths={[]}
-                  sourceStatus={publicStatusText(card.source_status).toUpperCase()}
+                  sourceStatus={publicStatusRuntimeText(card.source_status).toUpperCase()}
                 />
               ))
             )}
@@ -148,12 +153,12 @@ export default function UserStatusPage(): ReactElement {
               <h2 style={{ marginBottom: 4 }}>Some evidence is old or missing</h2>
               {payload.stale_payloads.length > 0 && (
                 <p>
-                  <strong>Old:</strong> {payload.stale_payloads.map(publicStatusText).join(', ')}
+                  <strong>Old:</strong> {payload.stale_payloads.map(publicStatusRuntimeText).join(', ')}
                 </p>
               )}
               {payload.missing_payloads.length > 0 && (
                 <p>
-                  <strong>Missing:</strong> {payload.missing_payloads.map(publicStatusText).join(', ')}
+                  <strong>Missing:</strong> {payload.missing_payloads.map(publicStatusRuntimeText).join(', ')}
                 </p>
               )}
             </section>
@@ -163,8 +168,8 @@ export default function UserStatusPage(): ReactElement {
 
       <footer style={{ marginTop: 24, opacity: 0.7, fontSize: '0.8rem' }}>
         <p>
-          This page is read-only. It does not place orders, change leverage, or change live status.
-          The bot is blocked from live trading and only a human can change that.
+          This page shows live account telemetry. It does not place orders, change leverage, or change live status.
+          Order submission remains operator gated.
           Source: {PUBLIC_STATUS_SOURCE}.
         </p>
       </footer>

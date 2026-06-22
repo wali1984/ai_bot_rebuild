@@ -86,7 +86,7 @@ export default function LogsErrorsPage(): JSX.Element {
           <p>{meta.description}</p>
         </div>
         <div className="hero-meta">
-          <span className="badge badge--neutral">read-only · V2 namespace</span>
+          <span className="badge badge--neutral">live telemetry · V2 namespace</span>
         </div>
       </header>
 

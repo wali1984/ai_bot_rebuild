@@ -1,43 +1,19 @@
 import meta from './meta';
 import rbac from './rbac';
 import route from './route';
-import { useEffect, useState } from 'react';
 import { Metric, Panel, SystemAtlasGapRemediationPanel } from '../cockpitComponents';
 import type { SystemAtlasGapRemediationPayload, SystemAtlasPayload } from '../cockpitData';
+import { usePayloadFile } from '../../hooks/usePayloadFile';
 
 export default function CoverageSystemAtlasPage(): JSX.Element {
-  const [payload, setPayload] = useState<SystemAtlasPayload | null>(null);
-  const [gapPayload, setGapPayload] = useState<SystemAtlasGapRemediationPayload | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    fetch('/system_atlas_runtime_coverage/latest/operator_dashboard_payload.json', { cache: 'no-store' })
-      .then((res) => {
-        if (!res.ok) throw new Error(`system atlas payload ${res.status}`);
-        return res.json() as Promise<SystemAtlasPayload>;
-      })
-      .then((next) => {
-        if (active) setPayload(next);
-      })
-      .catch((err: unknown) => {
-        if (active) setError(err instanceof Error ? err.message : 'system atlas payload unavailable');
-      });
-    fetch('/system_atlas_gap_remediation/latest/operator_dashboard_payload.json', { cache: 'no-store' })
-      .then((res) => {
-        if (!res.ok) throw new Error(`system atlas gap remediation payload ${res.status}`);
-        return res.json() as Promise<SystemAtlasGapRemediationPayload>;
-      })
-      .then((next) => {
-        if (active) setGapPayload(next);
-      })
-      .catch(() => {
-        if (active) setGapPayload(null);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
+  const { data: payload, error } = usePayloadFile<SystemAtlasPayload>(
+    '/system_atlas_runtime_coverage/latest/operator_dashboard_payload.json',
+    30_000,
+  );
+  const { data: gapPayload } = usePayloadFile<SystemAtlasGapRemediationPayload>(
+    '/system_atlas_gap_remediation/latest/operator_dashboard_payload.json',
+    30_000,
+  );
 
   return (
     <article className="enterprise-cockpit-page" data-testid="page-coverage-system-atlas" data-page-id={meta.id} data-page-path={route.path} data-page-min-role={rbac.minRole}>
@@ -49,7 +25,7 @@ export default function CoverageSystemAtlasPage(): JSX.Element {
         </div>
       </header>
       {!payload ? (
-        <p className="cockpit-evidence-gap">{error ?? 'Loading system atlas evidence...'}</p>
+        <p className="cockpit-evidence-gap">{error ?? 'Connecting system atlas evidence stream...'}</p>
       ) : (
         <>
           <Panel id="system-atlas-summary" title="System Atlas Runtime Coverage Gate">

@@ -29,11 +29,11 @@ function resolveGateChipClass(p: LiveGateRuntimePayload | null | undefined): str
 }
 
 function resolveGateLabel(p: LiveGateRuntimePayload | null | undefined): string {
-  if (!p) return 'read-only';
+  if (!p) return 'operator gated';
   if (p.live_order_submit_allowed === false || p.live_blocked === true) {
     return p.live_blocker ?? 'BLOCKED';
   }
-  return p.live_gate ?? 'read-only';
+  return p.live_gate ?? 'operator gated';
 }
 
 interface ContractPageProps {
@@ -98,7 +98,7 @@ export function Phase1ContractPage({
       <Panel id={`${meta.id}-safety`} title="Safety State" right={<span className={resolveGateChipClass(liveGateRuntime)}>{resolveGateLabel(liveGateRuntime)}</span>}>
         <div className="cockpit-card-grid">
           {[
-            'This contract page is read-only.',
+            'This contract page shows live telemetry without order submission.',
             'Legacy shutdown is blocked.',
             'Candidate symbols are not adopted automatically.',
             'Recovery requires proof of edge before scaling.',

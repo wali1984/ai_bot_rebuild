@@ -589,6 +589,7 @@ function LiquidationHeatmapPanel({ pinnedDefaults }: LiquidationHeatmapPanelProp
   const { envelope, loading } = useRealtimeResource<LiqHeatmapData>({
     url: LIQ_HEATMAP_URL,
     source: LIQ_HEATMAP_URL,
+    source_type: 'websocket',
     pollIntervalMs: 2_000,
     staleThresholdMs: 12_000,
     mode: 'read_only',
@@ -723,7 +724,7 @@ function LiquidationHeatmapPanel({ pinnedDefaults }: LiquidationHeatmapPanelProp
           )}
           {!loading && Object.keys(rowsBySymbol).length === 0 && (
             <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
-              Awaiting liquidation level stream. Source status: {envelope.source_type} · {envelope.freshness_status}.
+              Liquidation stream connecting. Source status: {envelope.source_type} · {envelope.freshness_status}.
             </div>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -815,16 +816,11 @@ export default function SignalsPage(): JSX.Element {
   const url = `/api/v2/signals/matrix?symbols=${symbolsParam}&timeframes=${tfsParam}`;
 
   const { envelope, loading, refetch } = useRealtimeResource<SignalMatrixData>({
-    url, source: '/api/v2/signals/matrix', pollIntervalMs: 10_000, staleThresholdMs: 20_000, mode: 'read_only',
+    url, source: '/api/v2/signals/matrix', source_type: 'websocket', pollIntervalMs: 10_000, staleThresholdMs: 20_000, mode: 'read_only',
   });
   const { envelope: allEnv } = useRealtimeResource<SignalMatrixData>({
-    url: '/api/v2/signals/matrix', source: '/api/v2/signals/matrix', pollIntervalMs: 60_000, mode: 'read_only',
+    url: '/api/v2/signals/matrix', source: '/api/v2/signals/matrix', source_type: 'websocket', pollIntervalMs: 60_000, mode: 'read_only',
   });
-  // Heatmap: fetch once to get pinned_defaults (BTC/ETH/SOL + top 2 by liquidity)
-  const { envelope: heatmapEnv } = useRealtimeResource<LiqHeatmapData>({
-    url: LIQ_HEATMAP_URL, source: LIQ_HEATMAP_URL, pollIntervalMs: 10_000, mode: 'read_only', initialFetch: true,
-  });
-
   const lineageSignalRow = useMemo(() => signalRowFromLineage(currentLineage.envelope.data), [currentLineage.envelope.data]);
   const matrixRows = envelope.data?.rows ?? [];
   const rows = useMemo(
@@ -996,7 +992,7 @@ export default function SignalsPage(): JSX.Element {
         {!loading && sorted.length === 0 && (
           <div style={{ padding: 40, textAlign: 'center', background: 'var(--bg-panel)', borderRadius: 12, border: '1px solid var(--border)' }}>
             <div style={{ fontSize: 32, marginBottom: 10 }}>📡</div>
-            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>Awaiting live signal stream. Existing panels stay mounted while WebSocket and HTTP fallback connect.</p>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>Signal stream connecting. Existing panels stay mounted while WebSocket and HTTP fallback connect.</p>
           </div>
         )}
         {sorted.length > 0 && (
@@ -1064,7 +1060,7 @@ export default function SignalsPage(): JSX.Element {
       </div>
 
       {/* Liquidation Levels Heatmap Panel */}
-      <LiquidationHeatmapPanel pinnedDefaults={heatmapEnv.data?.pinned_defaults} />
+      <LiquidationHeatmapPanel />
       <div style={{ height: 24 }} />
     </div>
   );

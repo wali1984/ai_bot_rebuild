@@ -23,7 +23,7 @@ export function getV2ExchangeReadOnlyAccount(): Promise<ApiV2Envelope<ExchangeRe
   return fetchV2Contract<ExchangeReadOnlyAccountData>(
     '/api/v2/account/exchange-readonly',
     ['account_snapshot', 'positions', 'credential'],
-    'Trader exchange account source unavailable.',
+    'Trader exchange account source connecting.',
     { mode: 'read_only' },
   );
 }
@@ -59,7 +59,7 @@ export function getV2AuditEvents(): Promise<ApiV2Envelope<AuditEventsData>> {
   return fetchV2Contract<AuditEventsData>(
     '/api/v2/execution/audit-events',
     ['audit_events'],
-    'Paper audit event endpoint is unavailable.',
+    'Execution audit event endpoint is unavailable.',
     { mode: 'paper' },
   );
 }

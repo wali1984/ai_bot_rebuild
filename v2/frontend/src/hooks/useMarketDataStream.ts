@@ -112,10 +112,10 @@ function streamUrls(symbol: string, intervalMs: number, timeframe: string): stri
     url.searchParams.set('timeframe', safeTimeframe);
     return url.toString();
   });
-  // Backend proxy is primary; Binance direct WSS is fallback so the browser
-  // always goes through the V2 backend first.  REST is the final fallback
-  // at the TradingChartPanel layer; see CLAUDE.md "Unified Binance data".
-  return [...backendUrls, `wss://fstream.binance.com/stream?streams=${nativeStreams}`];
+  // Native Binance public WSS is the realtime source for ticker, depth, trade,
+  // and kline frames. Backend sockets stay in the list as local fallbacks for
+  // environments where direct public WSS is unavailable.
+  return [`wss://fstream.binance.com/stream?streams=${nativeStreams}`, ...backendUrls];
 }
 
 function streamIdleRotateMs(intervalMs: number): number {
@@ -156,10 +156,10 @@ function envelope<T>(
   warnings: string[],
   missingFields: string[] = [],
 ): ApiV2Envelope<T> {
-  return {
-    data,
-    source,
-    source_type: 'api',
+	  return {
+	    data,
+	    source,
+	    source_type: 'websocket',
     endpoint,
     timestamp: eventIso(eventTime),
     received_at: nowIso(),
@@ -309,7 +309,12 @@ function candleEnvelopeCanDriveRealtime(
   return Boolean(
     envelopeValue
     && envelopeValue.stale === false
-    && (envelopeValue.source_type === 'api' || envelopeValue.source_type === 'repository'),
+    && (
+      envelopeValue.source_type === 'websocket'
+      || envelopeValue.source_type === 'api'
+      || envelopeValue.source_type === 'repository'
+      || envelopeValue.source_type === 'redis_live'
+    ),
   );
 }
 
@@ -356,6 +361,68 @@ function mergeStreamCandleHistory(
     byTime.set(identity, row);
   }
   if (nextIdentity !== null) byTime.set(nextIdentity, candle);
+  return [...byTime.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([, row]) => row)
+    .slice(-limit);
+}
+
+const TIMEFRAME_DURATION_MS: Record<string, number> = {
+  '1m': 60_000,
+  '3m': 180_000,
+  '5m': 300_000,
+  '15m': 900_000,
+  '1h': 3_600_000,
+  '4h': 14_400_000,
+  '1d': 86_400_000,
+  '1w': 604_800_000,
+};
+
+function timeframeDurationMs(timeframe: string): number | null {
+  return TIMEFRAME_DURATION_MS[timeframe] ?? null;
+}
+
+function mergeTradeCandleHistory(
+  prior: MarketCandle[],
+  price: number,
+  size: number,
+  eventTimeMs: number,
+  timeframe: string,
+  limit = 240,
+): MarketCandle[] {
+  const durationMs = timeframeDurationMs(timeframe);
+  if (durationMs === null || eventTimeMs <= 0 || price <= 0 || size < 0) {
+    return prior.filter(validEnvelopeCandle).slice(-limit);
+  }
+  const openTimeMs = Math.floor(eventTimeMs / durationMs) * durationMs;
+  const closeTimeMs = openTimeMs + durationMs - 1;
+  const byTime = new Map<number, MarketCandle>();
+  for (const row of prior) {
+    if (!validEnvelopeCandle(row)) continue;
+    const identity = candleIdentity(row);
+    if (identity === null) continue;
+    byTime.set(identity, row);
+  }
+  const existing = byTime.get(openTimeMs);
+  const existingTradeCandle = existing?.source === 'binance_usdm_public_trade_ws';
+  const baseVolume = existingTradeCandle ? numeric(existing?.volume) ?? 0 : null;
+  const baseQuoteVolume = existingTradeCandle ? numeric(existing?.quote_volume) ?? 0 : null;
+  const baseTradeCount = existingTradeCandle ? numeric(existing?.trade_count) ?? 0 : null;
+  const next: MarketCandle = {
+    time: Math.floor(openTimeMs / 1000),
+    open_time_ms: openTimeMs,
+    close_time_ms: closeTimeMs,
+    open: numeric(existing?.open) ?? price,
+    high: Math.max(numeric(existing?.high) ?? price, price),
+    low: Math.min(numeric(existing?.low) ?? price, price),
+    close: price,
+    volume: baseVolume === null ? numeric(existing?.volume) ?? size : baseVolume + size,
+    quote_volume: baseQuoteVolume === null ? numeric(existing?.quote_volume) : baseQuoteVolume + (price * size),
+    trade_count: baseTradeCount === null ? numeric(existing?.trade_count) : baseTradeCount + 1,
+    is_final: false,
+    source: 'binance_usdm_public_trade_ws',
+  };
+  byTime.set(openTimeMs, next);
   return [...byTime.entries()]
     .sort(([left], [right]) => left - right)
     .map(([, row]) => row)
@@ -482,8 +549,9 @@ function handleNativeMessage(
     const price = numeric(data.p);
     const size = numeric(data.q);
     if (price !== null && size !== null) {
+      const eventTime = timestampMilliseconds(data.T ?? data.E ?? Date.now()) ?? Date.now();
       const trade = {
-        time: eventIso(data.T ?? data.E ?? Date.now()),
+        time: eventIso(eventTime),
         price,
         size,
         side: data.m === true ? 'sell' as const : 'buy' as const,
@@ -497,6 +565,21 @@ function handleNativeMessage(
         { symbol, trades: [trade, ...prior].slice(0, 48) },
         publicStreamWarnings(),
       );
+      const priorStreamCandles = matchesRequestedCandles(current.candles, symbol, timeframe)
+        ? current.candles?.data?.candles ?? []
+        : [];
+      const candleHistory = mergeTradeCandleHistory(priorStreamCandles, price, size, eventTime, timeframe);
+      if (candleHistory.length) {
+        next.liveCandle = candleHistory.at(-1) ?? null;
+        next.candles = envelope<MarketCandlesData>(
+          symbol,
+          endpoint,
+          'binance_usdm_public_trade_candle_ws',
+          eventTime,
+          { symbol, timeframe, candles: candleHistory, candle_count: candleHistory.length },
+          publicStreamWarnings('Trade-derived forming candle is display-only until a closed kline frame arrives'),
+        );
+      }
     }
     return next;
   }

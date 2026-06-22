@@ -37,8 +37,8 @@ struct DashboardView: View {
             }
             .refreshable { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) }
         }
-        .task { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) }
-        .onDisappear { vm.stopStreams() }
+        .onAppear { vm.startAutoRefresh(token: auth.currentToken(), baseURL: appState.baseURL) }
+        .onDisappear { vm.stopAutoRefresh() }
     }
 
     // MARK: - Stream bar

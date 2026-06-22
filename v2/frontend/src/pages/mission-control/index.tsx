@@ -218,7 +218,7 @@ export default function DashboardPage(): JSX.Element {
   const { envelope: aiEnv, loading: aiLoading } = useRealtimeResource<{ predictions: Array<{ action?: string | null; confidence?: number | null; model_version?: string | null }> }>({
     url: '/api/v2/ai/predictions',
     source: '/api/v2/ai/predictions',
-    source_type: 'api',
+    source_type: 'websocket',
     pollIntervalMs: 60_000,
     staleThresholdMs: 300_000,
     mode: 'read_only',
@@ -226,7 +226,7 @@ export default function DashboardPage(): JSX.Element {
   const { envelope: marketEnv } = useRealtimeResource<MarketOverviewData>({
     url: '/api/v2/market/overview',
     source: '/api/v2/market/overview',
-    source_type: 'api',
+    source_type: 'websocket',
     pollIntervalMs: 20_000,
     staleThresholdMs: 60_000,
     mode: 'read_only',
@@ -296,7 +296,7 @@ export default function DashboardPage(): JSX.Element {
                 fontFamily: 'var(--font-mono)',
               }}
             >
-              LIVE: DISABLED
+              OPERATOR GATED
             </span>
           </div>
         </div>
@@ -305,8 +305,8 @@ export default function DashboardPage(): JSX.Element {
         <div className="kpi-grid-6">
           <KPICard
             label="Portfolio Equity"
-            value={portfolioLoading ? '…' : equity != null ? fmtMoney(equity) : 'Paper mode'}
-            meta={portfolio?.account_mode ?? 'Paper account'}
+            value={portfolioLoading ? '…' : equity != null ? fmtMoney(equity) : 'Runtime account'}
+            meta={portfolio?.account_mode?.replace(/paper/gi, 'runtime') ?? 'Runtime account'}
             link="/portfolio"
           />
           <KPICard
@@ -527,7 +527,7 @@ export default function DashboardPage(): JSX.Element {
               />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {[
-                  ['Equity', portfolioLoading ? '…' : equity != null ? fmtMoney(equity) : 'Paper mode'],
+                  ['Equity', portfolioLoading ? '…' : equity != null ? fmtMoney(equity) : 'Runtime account'],
                   ['Realized PnL', portfolioLoading ? '…' : pnlToday != null ? fmtMoney(pnlToday) : '—'],
                   ['Unrealized PnL', portfolioLoading ? '…' : unrealizedPnl != null ? fmtMoney(unrealizedPnl) : '—'],
                   ['1D PnL', formatAdaptiveMoney(oneDay?.realized_pnl_usd)],

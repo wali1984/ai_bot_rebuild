@@ -37,6 +37,8 @@ export interface ValidatedDataEnvelope<T = unknown> {
 
   symbol?: string;
   exchange?: string;
+  trader_context?: unknown;
+  account_scope?: unknown;
 
   timestamp: number | null;
   received_at: number | null;

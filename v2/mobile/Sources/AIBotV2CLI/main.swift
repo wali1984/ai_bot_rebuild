@@ -58,10 +58,10 @@ func printHelp() {
 
     Commands:
       status            System dashboard (default)
-      positions         Open paper positions
+      positions         Open execution positions
       signals           Latest signals
       alerts            Recent market alerts
-      paper             Paper trading summary
+      execute           Execution runtime summary
       risk              Risk gate status
       health            System health check
       admin             Admin summary (requires admin role)
@@ -110,7 +110,7 @@ func renderDashboard(_ d: MobileDashboard, health: MobileHealth?) {
     }
 
     print("")
-    print(b("  PAPER TRADING"))
+    print(b("  EXECUTION RUNTIME"))
     print("  ├─ Open positions : \(cy("\(d.paper.open_positions)"))")
     print("  ├─ Closed trades  : \(d.paper.closed_trades)")
     print("  ├─ Signals seen   : \(d.paper.signals_seen)")
@@ -155,8 +155,8 @@ func renderDashboard(_ d: MobileDashboard, health: MobileHealth?) {
 // MARK: - Positions
 
 func renderPositions(_ resp: MobilePositionsResponse) {
-    printHeader("PAPER POSITIONS")
-    print("  Mode: \(cy("PAPER"))  |  Live gate: \(C.red)BLOCKED\(C.reset)")
+    printHeader("EXECUTION POSITIONS")
+    print("  Mode: \(cy("RUNTIME"))  |  Live gate: \(C.red)BLOCKED\(C.reset)")
     print("")
 
     let s = resp.summary
@@ -251,7 +251,7 @@ func renderHealth(_ h: MobileHealth) {
         print("     Temp : \(tempStr)")
     }
     print("")
-    print(b("  PAPER"))
+    print(b("  RUNTIME"))
     print("  ├─ Open positions : \(h.paper.open_positions)")
     print("  ├─ Accepted       : \(g("\(h.paper.intents_accepted)"))")
     print("  └─ Blocked        : \(r("\(h.paper.intents_blocked)"))")
@@ -259,11 +259,11 @@ func renderHealth(_ h: MobileHealth) {
     print(b(separator("═")))
 }
 
-// MARK: - Paper
+// MARK: - Execution Runtime
 
 func renderPaper(_ s: MobilePaperSummary) {
-    printHeader("PAPER TRADING SUMMARY")
-    print("  Mode: \(cy("PAPER"))  |  Gate: \(r("BLOCKED"))")
+    printHeader("EXECUTION RUNTIME SUMMARY")
+    print("  Mode: \(cy("RUNTIME"))  |  Gate: \(r("BLOCKED"))")
     print("")
     print(b("  PnL"))
     print("  ├─ Total      : \(pnlStr(s.pnl.total_usd))")
@@ -305,7 +305,7 @@ func renderRisk(_ risk: MobileRiskStatus) {
     print("  ├─ Daily loss    : \(risk.daily_loss_limit_usd > 0 ? "$\(Int(risk.daily_loss_limit_usd))" : dim("N/A"))")
     print("  └─ Current loss  : \(pnlStr(-risk.current_daily_loss_usd))")
     print("")
-    print(b("  PAPER GATE"))
+    print(b("  EXECUTION GATE"))
     print("  ├─ Accepted : \(g("\(risk.paper_accepted_count)"))")
     print("  └─ Blocked  : \(r("\(risk.paper_blocked_count)"))")
     print("")
@@ -331,7 +331,7 @@ func renderAdmin(_ a: MobileAdminSummary) {
     print("  ├─ Utilization : \(bar(a.gpu.utilization_pct/100)) \(String(format: "%.0f%%", a.gpu.utilization_pct))")
     print("  └─ VRAM        : \(bar(a.gpu.vramPercent/100)) \(String(format: "%.1f/%.1f GB", a.gpu.vramUsedGB, a.gpu.vramTotalGB))")
     print("")
-    print(b("  PAPER"))
+    print(b("  RUNTIME"))
     print("  ├─ Open / Closed : \(a.paper.open_positions) / \(a.paper.closed_trades)")
     print("  ├─ Realized PnL  : \(pnlStr(a.paper.realized_pnl_usd))")
     print("  └─ Unrealized    : \(pnlStr(a.paper.unrealized_pnl_usd))")
@@ -472,9 +472,9 @@ Task {
             renderHealth(h)
         } catch { print(r("Error: \(error.localizedDescription)")) }
 
-    case "paper":
+    case "execute", "paper":
         guard token != nil else { print(r("Requires authentication. Run: aibot login")); return }
-        print(dim("Fetching paper summary…"))
+        print(dim("Fetching execution summary…"))
         do {
             let s: MobilePaperSummary = try await APIClient.shared.get(
                 path: APIEndpoints.mobilePaperSummary, token: token, baseURL: baseURL)

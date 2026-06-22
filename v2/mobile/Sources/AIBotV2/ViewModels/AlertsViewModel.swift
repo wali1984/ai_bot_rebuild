@@ -75,6 +75,7 @@ public final class AlertsViewModel {
                 token: token,
                 baseURL: baseURL
             )
+            WatchSyncCenter.shared.updateAlerts(response)
         } catch {
             self.error = error.localizedDescription
         }
@@ -85,6 +86,7 @@ public final class AlertsViewModel {
         do {
             response = try decodeMobileResourceMessage(MobileAlertsResponse.self, from: message)
             streamLabel = "Live"
+            WatchSyncCenter.shared.updateAlerts(response)
             isLoading = false
             error = nil
         } catch {

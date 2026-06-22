@@ -57,7 +57,7 @@ export default function TechnicalAnalysisPage(): JSX.Element {
   const ta = useRealtimeResource<TAStatusData>({
     url: '/api/v2/ai/model-state',
     source: '/api/v2/ai/model-state',
-    source_type: 'api',
+    source_type: 'websocket',
     pollIntervalMs: 30_000,
     staleThresholdMs: 60_000,
     mode: 'read_only',
@@ -66,7 +66,7 @@ export default function TechnicalAnalysisPage(): JSX.Element {
   const fp = useRealtimeResource<FeaturePipelineData>({
     url: '/api/v2/ai/predictions',
     source: '/api/v2/ai/predictions',
-    source_type: 'api',
+    source_type: 'websocket',
     pollIntervalMs: 60_000,
     staleThresholdMs: 120_000,
     mode: 'read_only',
@@ -100,7 +100,7 @@ export default function TechnicalAnalysisPage(): JSX.Element {
       <div style={{ padding: '20px 24px' }}>
         {ta.loading && !data && <LoadingSkeleton rows={6} />}
         {!ta.loading && ta.error && !data && (
-          <ErrorState message="Technical analysis data unavailable." retry={ta.refetch} />
+          <ErrorState message="Technical analysis stream reconnecting." retry={ta.refetch} />
         )}
 
         <section style={{ marginBottom: 24 }}>

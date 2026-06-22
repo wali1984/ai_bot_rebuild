@@ -88,7 +88,7 @@ export interface AllTimeframePriceTargetStatus {
 }
 
 export function formatCompactNumber(value: number | null | undefined, digits = 2): string {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return 'Data source unavailable';
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 'Connecting stream';
   const abs = Math.abs(value);
   if (abs >= 1_000_000_000) return `$${(value / 1_000_000_000).toFixed(2)}B`;
   if (abs >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
@@ -98,11 +98,11 @@ export function formatCompactNumber(value: number | null | undefined, digits = 2
 }
 
 export function formatBps(value: number | null | undefined): string {
-  return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)} bps` : 'Data source unavailable';
+  return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)} bps` : 'Connecting stream';
 }
 
 export function formatPercent(value: number | null | undefined): string {
-  return typeof value === 'number' && Number.isFinite(value) ? `${(value * 100).toFixed(1)}%` : 'Data source unavailable';
+  return typeof value === 'number' && Number.isFinite(value) ? `${(value * 100).toFixed(1)}%` : 'Connecting stream';
 }
 
 export function predictionStatusTone(status: string | null | undefined): 'ok' | 'warn' | 'block' | 'neutral' {

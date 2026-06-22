@@ -74,11 +74,15 @@ final class AIBotV2CoreTests: XCTestCase {
                 "APIEndpoints.mobileDashboard",
                 "APIEndpoints.mobileHealth",
                 "decodeMobileResourceMessage",
+                "WatchSyncCenter.shared.updateDashboard",
+                "fallbackTask",
+                "!dashboardStreamIsConnected || !healthStreamIsConnected",
             ],
             "ViewModels/PositionsViewModel.swift": [
                 "APIEndpoints.wsResourceURL",
                 "APIEndpoints.mobilePositions",
                 "decodeMobileResourceMessage",
+                "WatchSyncCenter.shared.updatePositions",
             ],
             "ViewModels/SignalsViewModel.swift": [
                 "APIEndpoints.wsResourceURL",
@@ -89,6 +93,7 @@ final class AIBotV2CoreTests: XCTestCase {
                 "APIEndpoints.wsResourceURL",
                 "APIEndpoints.mobileAlerts",
                 "decodeMobileResourceMessage",
+                "WatchSyncCenter.shared.updateAlerts",
             ],
             "ViewModels/PaperViewModel.swift": [
                 "APIEndpoints.wsResourceURL",
@@ -97,6 +102,7 @@ final class AIBotV2CoreTests: XCTestCase {
             ],
             "ViewModels/AdminViewModel.swift": [
                 "APIEndpoints.wsResourceURL",
+                "APIEndpoints.mobileAdminSummary",
                 "APIEndpoints.mobileRiskStatus",
                 "decodeMobileResourceMessage",
             ],
@@ -114,12 +120,58 @@ final class AIBotV2CoreTests: XCTestCase {
         }
     }
 
+    func testIOSResourceWebSocketUsesVersionedBackendRoute() throws {
+        let packageRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let endpointsURL = packageRoot.appendingPathComponent("Sources/AIBotV2/Networking/APIEndpoints.swift")
+        let text = try String(contentsOf: endpointsURL, encoding: .utf8)
+
+        XCTAssertTrue(
+            text.contains("public static let wsResource = \"/api/v2/ws/resource\""),
+            "iPhone resource streams must use the same versioned WebSocket route as the website"
+        )
+        XCTAssertTrue(
+            text.contains("URLQueryItem(name: \"path\", value: target.string ?? path)"),
+            "iPhone resource streams must preserve the API path and query string inside the WebSocket resource wrapper"
+        )
+    }
+
+    func testIOSWatchCompanionReceivesLiveResourceState() throws {
+        let packageRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let watchSyncURL = packageRoot.appendingPathComponent("Sources/AIBotV2/Watch/WatchSyncCenter.swift")
+        let watchAppURL = packageRoot.appendingPathComponent("Sources/AIBotV2Watch/App/WatchApp.swift")
+        let watchSyncText = try String(contentsOf: watchSyncURL, encoding: .utf8)
+        let watchAppText = try String(contentsOf: watchAppURL, encoding: .utf8)
+
+        for snippet in [
+            "WCSession.default",
+            "sendMessage(payload",
+            "updateApplicationContext(payload)",
+            "didReceiveApplicationContext",
+            "sessionReachabilityDidChange",
+            "\"dashboard\"",
+            "\"positions\"",
+            "\"alerts\"",
+            "\"action\"",
+            "\"refresh\"",
+        ] {
+            XCTAssertTrue(
+                watchSyncText.contains(snippet),
+                "WatchSyncCenter.swift must include \(snippet) so watchOS gets live iPhone WebSocket state"
+            )
+        }
+        XCTAssertTrue(
+            watchAppText.contains("WatchConnectivityManager.shared.sendMessage([\"action\": \"refresh\"])"),
+            "Watch app must request fresh state from the iPhone companion"
+        )
+    }
+
     func testIOSVisibleCopyDoesNotExposePaperOrSimulatedStates() throws {
         let packageRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let sourceRoot = packageRoot.appendingPathComponent("Sources/AIBotV2")
         let visibleRoots = [
             sourceRoot.appendingPathComponent("Views"),
             sourceRoot.appendingPathComponent("Models"),
+            packageRoot.appendingPathComponent("Sources/AIBotV2Watch/Views"),
         ]
         let forbidden = [
             "Paper only",

@@ -1,5 +1,6 @@
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import type { TradeTerminalState } from '../../hooks/useTradeTerminal';
+import { tradeCopy } from '../../lib/tradeCopy';
 
 interface PipelineStatus {
   live_gate?: string;
@@ -84,17 +85,17 @@ export function TradeSystemPanel({ state }: { state: TradeTerminalState }): JSX.
   return (
     <div style={{ padding: '4px 12px 16px', fontSize: 13, minHeight: 200 }}>
       {/* Signal summary */}
-      <SectionHead title="Active Signal" badge={state.signal.direction !== 'Signal unavailable' ? 'LIVE' : 'NONE'} tone={state.signal.direction !== 'Signal unavailable' ? 'ok' : undefined} />
+      <SectionHead title="Active Signal" badge={state.signal.direction !== 'Signal connecting' ? 'LIVE' : 'NONE'} tone={state.signal.direction !== 'Signal connecting' ? 'ok' : undefined} />
       <Row label="Symbol" value={state.symbol} />
-      <Row label="AI Direction" value={String(state.signal.direction).toUpperCase()} tone={state.signal.direction !== 'Signal unavailable' ? 'ok' : 'neutral'} />
+      <Row label="AI Direction" value={String(state.signal.direction).toUpperCase()} tone={state.signal.direction !== 'Signal connecting' ? 'ok' : 'neutral'} />
       <Row label="Confidence" value={state.signal.confidence !== null ? `${((state.signal.confidence as number) * 100).toFixed(1)}%` : '—'} />
-      <Row label="Risk Decision" value={String(state.signal.riskDecision)} tone={String(state.signal.riskDecision).includes('allow') ? 'ok' : String(state.signal.riskDecision).includes('unavailable') ? 'neutral' : 'warn'} />
+      <Row label="Risk Decision" value={tradeCopy(state.signal.riskDecision)} tone={String(state.signal.riskDecision).includes('allow') ? 'ok' : String(state.signal.riskDecision).includes('connecting') ? 'neutral' : 'warn'} />
       <Row label="Signal Source" value={state.signal.source} />
 
       {/* Orchestrator / Pipeline */}
       <SectionHead
         title="Orchestrator / Pipeline"
-        badge={pLoading ? 'Loading…' : p ? 'CONNECTED' : 'UNAVAILABLE'}
+        badge={pLoading ? 'Loading…' : p ? 'CONNECTED' : 'CONNECTING'}
         tone={p ? 'ok' : 'warn'}
       />
       <Row label="Live Gate" value={p?.live_gate?.replace(/_/g, ' ').toUpperCase() ?? '—'} tone={gateTone} />
@@ -110,7 +111,7 @@ export function TradeSystemPanel({ state }: { state: TradeTerminalState }): JSX.
       {/* Risk Gate */}
       <SectionHead
         title="Risk Gate"
-        badge={rLoading ? 'Loading…' : r?.live_gate ? r.live_gate.replace(/_/g, ' ').toUpperCase() : 'UNAVAILABLE'}
+        badge={rLoading ? 'Loading…' : r?.live_gate ? r.live_gate.replace(/_/g, ' ').toUpperCase() : 'CONNECTING'}
         tone={gateOpen ? 'ok' : 'block'}
       />
       <Row label="Go / No-Go" value={r?.go_no_go?.replace(/_/g, ' ') ?? '—'} tone={gateOpen ? 'ok' : 'block'} />

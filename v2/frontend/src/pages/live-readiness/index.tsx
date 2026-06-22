@@ -40,12 +40,12 @@ export default function LiveReadinessPage(): JSX.Element {
           </div>
         </Panel>
       ) : <CockpitLoading error={error} />}
-      <Panel id="live-like-risk-profile" title="Live-Like Paper/Shadow Risk Profile" right={<span className="chip solid-block">CANARY BLOCKED</span>}>
+      <Panel id="live-like-risk-profile" title="Live-Like Execution / Shadow Risk Profile" right={<span className="chip solid-block">CANARY BLOCKED</span>}>
         <div className="cockpit-analytics-grid">
           <Metric label="Tonight status" value={tonightPayload?.status ?? 'MISSING_EVIDENCE'} />
           <Metric label="Risk profile" value={tonightPayload?.risk_profile_status ?? 'MISSING_EVIDENCE'} />
           <Metric label="Canary preflight" value={tonightPayload?.canary_preflight_status ?? 'MISSING_EVIDENCE'} />
-          <Metric label="V2 paper runtime" value={tonightPayload?.v2_paper_runtime_status ?? 'MISSING_EVIDENCE'} />
+          <Metric label="V2 execution runtime" value={tonightPayload?.v2_paper_runtime_status ?? 'MISSING_EVIDENCE'} />
           <Metric label="Legacy bridge" value={tonightPayload?.legacy_bridge_status ?? 'MISSING_EVIDENCE'} />
           <Metric label="Public route failures" value={tonightPayload?.public_route_failed_count ?? 'MISSING_EVIDENCE'} />
           <Metric label="Old Redis writes" value={String(tonightPayload?.old_redis_writes ?? false)} />

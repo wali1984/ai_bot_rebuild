@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { gotoAs } from './_shared';
@@ -104,6 +104,30 @@ test.describe('market detail redesign', () => {
     await expect(page.getByTestId('market-symbol-header')).toBeVisible();
   });
 
+  test('market detail route uses readonly WebSocket market stream as primary data path', () => {
+    const source = readFileSync(path.resolve(process.cwd(), 'src/pages/market/index.tsx'), 'utf8');
+    const hookSource = readFileSync(path.resolve(process.cwd(), 'src/hooks/useMarketDetail.ts'), 'utf8');
+
+    expect(source).toContain("useMarketDataStream(querySymbol, 2_000, timeframe)");
+    expect(source).toContain('useRealtimeResource<MarketTickerData>');
+    expect(source).toContain('useRealtimeResource<MarketCandlesData>');
+    expect(source).toContain('streamTickerForSymbol(marketStream.ticker, querySymbol)');
+    expect(source).toContain('streamCandlesForSymbol(marketStream.candles, querySymbol, timeframe)');
+    expect(source).toContain("source_type: 'websocket'");
+    expect(source).not.toMatch(/Ticker polling/i);
+    expect(source).not.toMatch(/Candles — refresh/i);
+    expect(source).not.toContain('fetchTicker');
+    expect(source).not.toContain('fetchCandles');
+    expect(source).not.toContain('setInterval(');
+    expect(source).not.toContain("fetch(`/api/v2/market");
+    expect(hookSource).toContain('useRealtimeResource<MarketCandlesData>');
+    expect(hookSource).toContain('useRealtimeResource<MarketDerivativesData>');
+    expect(hookSource).toContain("source_type: 'websocket'");
+    expect(hookSource).not.toContain('setInterval(');
+    expect(hookSource).not.toContain('getV2MarketCandles');
+    expect(hookSource).not.toContain('getV2Signals');
+  });
+
   test('does not show forbidden public copy or raw JSON by default', async ({ page }) => {
     await openMarket(page);
     const text = await page.locator('body').innerText();
@@ -160,14 +184,14 @@ test.describe('market detail redesign', () => {
     await openMarket(page);
     await expect(page.getByText(/Depth data not connected|Depth data unavailable|Data source unavailable|Order book|Spread/i).first()).toBeVisible();
     await expect(page.getByText(/Recent trades unavailable|Trade tape unavailable|Data source unavailable|Recent trades|Buy|Sell/i).first()).toBeVisible();
-    await expect(page.getByText(/Liquidation feed unavailable|Liquidations unavailable|Liquidation data unavailable|Data source unavailable/i).first()).toBeVisible();
+    await expect(page.getByText(/Liquidation stream|Liquidation levels|Connecting/i).first()).toBeVisible();
     await expect(page.getByText(/Liquidation stream/i).first()).toBeVisible();
     await expect(page.getByText(/Liquidation levels/i).first()).toBeVisible();
     await expect(page.getByText(/Funding history|Funding chart unavailable|Open interest history|Open interest chart unavailable/i).first()).toBeVisible();
     await expect(page.getByText(/Source validation|Source evidence pending|Source evidence verified/i).first()).toBeVisible();
-    await expect(page.getByText(/Signal evidence unavailable|Active Signal Summary|Prediction source unavailable|Data source unavailable/i).first()).toBeVisible();
+    await expect(page.getByText(/Signal evidence unavailable|Active Prediction|Sign in to see AI signals|Prediction source unavailable/i).first()).toBeVisible();
     await expect(page.getByText(/Indicators unavailable|Indicator source unavailable|current indicator source/i).first()).toBeVisible();
-    await expect(page.getByText('/api/v2/market/{symbol}/indicators').first()).toBeVisible();
+    await expect(page.getByText('/api/v2/market/{symbol}/indicators')).toHaveCount(0);
   });
 
   test('invalid route symbols show designed unavailable state without fallback market identity', async ({ page }) => {

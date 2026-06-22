@@ -1,6 +1,7 @@
-"""Admin monitoring endpoints — read-only observability layer.
+"""Monitoring endpoints — read-only observability layer.
 
-These endpoints expose system observability data for admin and superadmin users.
+These endpoints expose system observability data for authenticated users who can
+see the Monitor Center page.
 They never mutate any state, place orders, or restart services.
 """
 from __future__ import annotations
@@ -26,10 +27,7 @@ def _repo_root() -> Path:
     return Path(os.environ.get("V2_REPO_ROOT", "/home/wali/Desktop/AI BOT REBUILD"))
 
 
-def _require_admin(user: UserRecord = Depends(require_auth)) -> UserRecord:
-    if user.role not in ("admin", "superadmin"):
-        from fastapi import HTTPException
-        raise HTTPException(status_code=403, detail="Admin role required")
+def _require_monitoring_reader(user: UserRecord = Depends(require_auth)) -> UserRecord:
     return user
 
 
@@ -81,7 +79,7 @@ _DATA_SURFACES: list[dict[str, Any]] = [
 
 
 @router.get("/routes")
-async def get_monitoring_routes(_: UserRecord = Depends(_require_admin)) -> dict[str, Any]:
+async def get_monitoring_routes(_: UserRecord = Depends(_require_monitoring_reader)) -> dict[str, Any]:
     """Return all known application routes with surface and ownership metadata."""
     return {
         "routes": _KNOWN_ROUTES,
@@ -93,7 +91,7 @@ async def get_monitoring_routes(_: UserRecord = Depends(_require_admin)) -> dict
 
 
 @router.get("/data-surfaces")
-async def get_monitoring_data_surfaces(_: UserRecord = Depends(_require_admin)) -> dict[str, Any]:
+async def get_monitoring_data_surfaces(_: UserRecord = Depends(_require_monitoring_reader)) -> dict[str, Any]:
     """Return all known data surfaces with endpoint and source type metadata."""
     return {
         "surfaces": _DATA_SURFACES,
@@ -107,7 +105,7 @@ async def get_monitoring_data_surfaces(_: UserRecord = Depends(_require_admin)) 
 
 
 @router.get("/realtime-streams")
-async def get_monitoring_realtime_streams(_: UserRecord = Depends(_require_admin)) -> dict[str, Any]:
+async def get_monitoring_realtime_streams(_: UserRecord = Depends(_require_monitoring_reader)) -> dict[str, Any]:
     """Return status of known realtime data streams."""
     streams = [
         {"name": "Binance USD-M Ticker WS", "type": "websocket", "status": "check_required", "endpoint": "wss://fstream.binance.com"},
@@ -128,7 +126,7 @@ async def get_monitoring_realtime_streams(_: UserRecord = Depends(_require_admin
 
 
 @router.get("/frontend-errors")
-async def get_monitoring_frontend_errors(_: UserRecord = Depends(_require_admin)) -> dict[str, Any]:
+async def get_monitoring_frontend_errors(_: UserRecord = Depends(_require_monitoring_reader)) -> dict[str, Any]:
     """Return recent frontend error events (stub — no persistent frontend error log yet)."""
     return {
         "errors": [],
@@ -141,7 +139,7 @@ async def get_monitoring_frontend_errors(_: UserRecord = Depends(_require_admin)
 
 
 @router.get("/backend-errors")
-async def get_monitoring_backend_errors(_: UserRecord = Depends(_require_admin)) -> dict[str, Any]:
+async def get_monitoring_backend_errors(_: UserRecord = Depends(_require_monitoring_reader)) -> dict[str, Any]:
     """Return recent backend error events from the error log if available."""
     errors: list[dict[str, Any]] = []
     log_path = _repo_root() / "v2" / "backend" / "logs" / "errors.jsonl"
@@ -167,7 +165,7 @@ async def get_monitoring_backend_errors(_: UserRecord = Depends(_require_admin))
 
 
 @router.get("/test-status")
-async def get_monitoring_test_status(_: UserRecord = Depends(_require_admin)) -> dict[str, Any]:
+async def get_monitoring_test_status(_: UserRecord = Depends(_require_monitoring_reader)) -> dict[str, Any]:
     """Return last known test run status."""
     result_path = _repo_root() / "v2" / "backend" / ".test_status.json"
     result: dict[str, Any] | None = None
@@ -187,7 +185,7 @@ async def get_monitoring_test_status(_: UserRecord = Depends(_require_admin)) ->
 
 
 @router.get("/build-status")
-async def get_monitoring_build_status(_: UserRecord = Depends(_require_admin)) -> dict[str, Any]:
+async def get_monitoring_build_status(_: UserRecord = Depends(_require_monitoring_reader)) -> dict[str, Any]:
     """Return last known frontend build status."""
     dist_path = _repo_root() / "v2" / "frontend" / "dist"
     build_exists = dist_path.exists()
@@ -204,7 +202,7 @@ async def get_monitoring_build_status(_: UserRecord = Depends(_require_admin)) -
 
 
 @router.get("/data-contract-violations")
-async def get_monitoring_data_contract_violations(_: UserRecord = Depends(_require_admin)) -> dict[str, Any]:
+async def get_monitoring_data_contract_violations(_: UserRecord = Depends(_require_monitoring_reader)) -> dict[str, Any]:
     """Return data contract violations captured by the frontend (stub)."""
     return {
         "violations": [],

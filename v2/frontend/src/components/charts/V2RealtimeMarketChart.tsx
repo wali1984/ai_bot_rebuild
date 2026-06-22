@@ -45,7 +45,7 @@ function finite(value: unknown): number | null {
 
 function money(value: unknown): string {
   const n = finite(value);
-  if (n === null) return 'Data unavailable';
+  if (n === null) return 'Connecting stream';
   if (n >= 1000) return `$${n.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
   if (n >= 1) return `$${n.toLocaleString('en-US', { maximumFractionDigits: 4 })}`;
   return `$${n.toLocaleString('en-US', { maximumFractionDigits: 8 })}`;
@@ -59,17 +59,17 @@ function shortTs(ms: unknown): string {
 
 function chartStatusLabel(value: string | undefined, loading: boolean): string {
   if (loading) return 'Loading';
-  if (!value) return 'Data source unavailable';
+  if (!value) return 'Connecting stream';
   const text = value.trim().toUpperCase();
   if (text === 'CURRENT') return 'Current';
   if (text.includes('STALE')) return 'Stale data';
-  if (text.includes('MISSING') || text.includes('UNAVAILABLE') || text.includes('ERROR')) return 'Data source unavailable';
+  if (text.includes('MISSING') || text.includes('UNAVAILABLE') || text.includes('ERROR')) return 'Connecting stream';
   return value.replace(/[_-]+/g, ' ').replace(/^./u, (char) => char.toUpperCase());
 }
 
 function chartSourceLabel(value: unknown): string {
   const text = String(value ?? '').trim().toLowerCase();
-  if (!text) return 'Market chart source unavailable';
+  if (!text) return 'Market chart source connecting';
   if (text.includes('websocket') || text.includes('stream')) return 'Live market stream';
   if (text.includes('api') || text.includes('contract')) return 'Current market data source';
   if (text.includes('static') || text.includes('fallback')) return 'Fallback market data';
@@ -113,7 +113,7 @@ export function V2RealtimeMarketChart({
       return `${x.toFixed(2)},${y.toFixed(2)}`;
     })
     .join(' ');
-  const status = data?.status ?? (loading ? 'Loading' : 'Data source unavailable');
+  const status = data?.status ?? (loading ? 'Connecting' : 'Connecting stream');
   const statusCopy = chartStatusLabel(data?.status, loading);
   const freshClass = ageClass(ageSeconds, 10);
   const isCurrent = status === 'CURRENT' && !error && samples.length > 0;
@@ -143,7 +143,7 @@ export function V2RealtimeMarketChart({
 
       {error ? (
         <div className="v2-realtime-market-chart__empty" role="status">
-          Data source unavailable. Market chart data could not be loaded.
+          Market chart stream is connecting.
         </div>
       ) : samples.length > 0 ? (
         <svg
@@ -169,7 +169,7 @@ export function V2RealtimeMarketChart({
         </svg>
       ) : (
         <div className="v2-realtime-market-chart__empty" role="status">
-          Data source unavailable: {data?.blocker ? chartStatusLabel(data.blocker, false) : 'No current market-price samples are available.'}
+          Market chart stream connecting: {data?.blocker ? chartStatusLabel(data.blocker, false) : 'current market-price samples are connecting.'}
         </div>
       )}
 
@@ -177,9 +177,9 @@ export function V2RealtimeMarketChart({
         <span>samples {data?.sample_count ?? samples.length}</span>
         <span>bid {money(latest?.best_bid_px)}</span>
         <span>ask {money(latest?.best_ask_px)}</span>
-        <span>spread {finite(latest?.spread) === null ? 'Data unavailable' : `${(finite(latest?.spread) as number).toFixed(6)}`}</span>
+        <span>spread {finite(latest?.spread) === null ? 'Connecting stream' : `${(finite(latest?.spread) as number).toFixed(6)}`}</span>
         <span>event {shortTs(latest?.event_ts_ms)}</span>
-        <span>source age {data?.source_event_age_seconds == null ? 'Data unavailable' : `${data.source_event_age_seconds}s`}</span>
+        <span>source age {data?.source_event_age_seconds == null ? 'Connecting stream' : `${data.source_event_age_seconds}s`}</span>
       </div>
     </div>
   );

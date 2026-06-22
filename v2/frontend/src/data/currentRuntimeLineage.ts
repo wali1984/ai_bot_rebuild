@@ -19,7 +19,7 @@ export function useCurrentRuntimeLineage(pollIntervalMs = 10_000) {
   return useRealtimeResource<CurrentRuntimeLineagePayload>({
     url: CURRENT_RUNTIME_LINEAGE_PATH,
     source: CURRENT_RUNTIME_LINEAGE_PATH,
-    source_type: 'static_snapshot',
+    source_type: 'websocket',
     pollIntervalMs,
     staleThresholdMs: pollIntervalMs * 3,
     initialFetch: true,

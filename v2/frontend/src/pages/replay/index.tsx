@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
+import { usePayloadFile } from '../../hooks/usePayloadFile';
 import { FreshnessBadge } from '../../components/data/FreshnessBadge';
 import { SourceBadge } from '../../components/data/SourceBadge';
 import { LoadingSkeleton } from '../../components/ui/LoadingSkeleton';
@@ -29,18 +29,7 @@ interface ReplaySummary {
   estimated_loss_avoided_by_v2?: string;
 }
 
-function useReplaySummary(): ReplaySummary | null {
-  const [summary, setSummary] = useState<ReplaySummary | null>(null);
-  useEffect(() => {
-    let active = true;
-    fetch('/historical_30d_replay_and_paper_proof/latest/historical_30d_summary.json', { cache: 'no-store' })
-      .then((r) => r.ok ? r.json() as Promise<ReplaySummary> : null)
-      .then((next) => { if (active && next) setSummary(next); })
-      .catch(() => undefined);
-    return () => { active = false; };
-  }, []);
-  return summary;
-}
+const REPLAY_SUMMARY_PATH = '/historical_30d_replay_and_paper_proof/latest/historical_30d_summary.json';
 
 function StatCard({ label, value, color, sub }: { label: string; value: string; color?: string; sub?: string }): JSX.Element {
   return (
@@ -67,13 +56,13 @@ export default function ReplayPage(): JSX.Element {
   const { envelope, loading, refetch } = useRealtimeResource<ReplayStatus>({
     url: '/api/v2/replay/status',
     source: '/api/v2/replay/status',
-    source_type: 'api',
+    source_type: 'websocket',
     pollIntervalMs: 30_000,
     staleThresholdMs: 90_000,
     mode: 'read_only',
   });
 
-  const summary = useReplaySummary();
+  const { data: summary } = usePayloadFile<ReplaySummary>(REPLAY_SUMMARY_PATH, 30_000);
   const status = envelope.data;
   const hasLastRun = status?.last_run != null;
   const hasEvents = status?.bounded_events_count != null;
@@ -163,7 +152,7 @@ export default function ReplayPage(): JSX.Element {
                 ))}
               </div>
               <p style={{ margin: '12px 0 0', fontSize: 11, color: 'var(--text-muted)' }}>
-                Source: /historical_30d_replay_and_paper_proof/latest/ · Static proof fixture · Not a live runtime stream
+                Source: historical 30-day replay proof · Static proof fixture · Not a live runtime stream
               </p>
             </div>
           </div>

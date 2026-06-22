@@ -2,8 +2,8 @@ import meta from './meta';
 import rbac from './rbac';
 import route from './route';
 import { DesignPageShell } from '../designShell';
-import { fetchJson, usePollingQuery } from '../../hooks/usePollingQuery';
 import { usePayloadFile } from '../../hooks/usePayloadFile';
+import { publicRuntimeCopy } from '../../lib/tradeCopy';
 
 const REPORT_INDEX_PATH = '/v2_report_center/latest/report_index.json';
 const REPORT_DASHBOARD_PATH = '/v2_report_center/latest/operator_dashboard_payload.json';
@@ -269,9 +269,9 @@ function ExecutiveBigStateBanner({
             className={`report-metric-card report-metric-card--${executiveTone(e.value)}`}
             data-testid={`report-center-exec-state-${e.key}`}
           >
-            <span>{e.key.replace(/_/g, ' ')}</span>
+            <span>{publicRuntimeCopy(e.key.replace(/_/g, ' '))}</span>
             <strong>{e.value}</strong>
-            <small>{e.plain_english}</small>
+            <small>{publicRuntimeCopy(e.plain_english)}</small>
           </div>
         ))
       )}
@@ -292,7 +292,7 @@ function ExecutiveTruthCallout({
       aria-label="Plain-English current truth"
     >
       <strong>Plain-English truth</strong>
-      <span>{exec.plain_english_truth}</span>
+      <span>{publicRuntimeCopy(exec.plain_english_truth)}</span>
       <a href="/system/executive-summary">Open Executive Summary</a>
     </section>
   );
@@ -337,8 +337,8 @@ function LiveRefreshStrip({
     <section className="report-refresh-strip" aria-label="Realtime refresh status">
       <span className={fetching ? 'report-pulse report-pulse--active' : 'report-pulse'} />
       <div>
-        <strong>{fetching ? 'Refreshing live payloads' : 'Live polling active'}</strong>
-        <small>dashboard 15s / report index 30s / cache bypass enabled</small>
+        <strong>{fetching ? 'Streaming live payloads' : 'Live resource stream active'}</strong>
+        <small>WebSocket resource stream · API fallback enabled</small>
       </div>
       <code>index {formatFreshness(payloadAge(index?.generated_at))}</code>
       <code>dashboard {formatFreshness(payloadAge(dashboard?.generated_at))}</code>
@@ -428,7 +428,7 @@ function ExecutiveScorecardPanel({ dashboard }: { dashboard: OperatorDashboardPa
       ) : (
         <div className="report-meter-stack">
           {categories.map(([name, body]) => (
-            <BarMeter key={name} label={name.replace(/_/g, ' ')} value={body.score ?? 0} total={100} tone={(body.score ?? 0) >= 80 ? 'ok' : 'warn'} />
+            <BarMeter key={name} label={publicRuntimeCopy(name).replace(/_/g, ' ')} value={body.score ?? 0} total={100} tone={(body.score ?? 0) >= 80 ? 'ok' : 'warn'} />
           ))}
         </div>
       )}
@@ -446,17 +446,17 @@ function ControllerStatePanel({ dashboard }: { dashboard: OperatorDashboardPaylo
           <p className="eyebrow">Automation</p>
           <h2>Controller state</h2>
         </div>
-        <span className="chip solid-paper">{state?.selector_status ?? 'n/a'}</span>
+        <span className="chip solid-paper">{publicRuntimeCopy(state?.selector_status, 'n/a')}</span>
       </div>
       <div className="report-fact-grid">
         <div><span>Automatable</span><strong>{state?.automatable_issue_count ?? 0}</strong></div>
         <div><span>Operator-held</span><strong>{state?.operator_owned_issue_count ?? 0}</strong></div>
-        <div><span>GO/NO-GO</span><code>{state?.go_no_go ?? 'n/a'}</code></div>
+        <div><span>GO/NO-GO</span><code>{publicRuntimeCopy(state?.go_no_go, 'n/a')}</code></div>
       </div>
       {work ? (
         <div className="report-callout report-callout--warn">
-          <strong>{work.category ?? 'selected work'}</strong>
-          <span>{work.remediation ?? work.source ?? 'No remediation text in payload.'}</span>
+          <strong>{publicRuntimeCopy(work.category, 'selected work')}</strong>
+          <span>{publicRuntimeCopy(work.remediation ?? work.source, 'No remediation text in payload.')}</span>
         </div>
       ) : (
         <div className="report-callout report-callout--ok">
@@ -509,15 +509,15 @@ function BlockerMatrixPanel({ dashboard }: { dashboard: OperatorDashboardPayload
           {blockers.map((b) => (
             <article className="report-work-card report-work-card--block" key={b.report_id}>
               <div>
-                <strong>{b.title}</strong>
-                <span>{b.report_id}</span>
+                <strong>{publicRuntimeCopy(b.title)}</strong>
+                <span>{publicRuntimeCopy(b.report_id)}</span>
               </div>
-              <p>{b.next_action ?? 'No next action provided.'}</p>
+              <p>{publicRuntimeCopy(b.next_action, 'No next action provided.')}</p>
               <div className="report-chip-row">
-                <span className="chip">{b.status}</span>
+                <span className="chip">{publicRuntimeCopy(b.status)}</span>
                 {b.blocks_live ? <span className="chip solid-block">blocks live</span> : null}
                 {b.blocks_shutdown ? <span className="chip solid-block">blocks shutdown</span> : null}
-                <span className="chip solid-paper">owner {b.owner}</span>
+                <span className="chip solid-paper">owner {publicRuntimeCopy(b.owner)}</span>
               </div>
             </article>
           ))}
@@ -547,16 +547,16 @@ function NextActionsPanel({ dashboard }: { dashboard: OperatorDashboardPayload |
           </div>
         ) : auto.map((a) => (
           <article className="report-work-card" key={a.report_id}>
-            <strong>{a.title}</strong>
-            <p>{a.next_action ?? ''}</p>
-            <span className="chip solid-paper">{a.status} / {a.owner}</span>
+            <strong>{publicRuntimeCopy(a.title)}</strong>
+            <p>{publicRuntimeCopy(a.next_action ?? '')}</p>
+            <span className="chip solid-paper">{publicRuntimeCopy(a.status)} / {publicRuntimeCopy(a.owner)}</span>
           </article>
         ))}
         {op.map((a) => (
           <article className="report-work-card report-work-card--warn" key={a.report_id}>
-            <strong>{a.title}</strong>
-            <p>{a.next_action ?? ''}</p>
-            <span className="chip solid-warn">operator decision / {a.owner}</span>
+            <strong>{publicRuntimeCopy(a.title)}</strong>
+            <p>{publicRuntimeCopy(a.next_action ?? '')}</p>
+            <span className="chip solid-warn">operator decision / {publicRuntimeCopy(a.owner)}</span>
           </article>
         ))}
       </div>
@@ -565,11 +565,7 @@ function NextActionsPanel({ dashboard }: { dashboard: OperatorDashboardPayload |
 }
 
 function LatestCodexFailuresPanel(): JSX.Element {
-  const codexFails = usePollingQuery<CodexFailuresPayload>(
-    REPORT_CODEX_FAILS_PATH,
-    (signal) => fetchJson(REPORT_CODEX_FAILS_PATH, signal),
-    { refetchIntervalMs: 15_000 },
-  );
+  const codexFails = usePayloadFile<CodexFailuresPayload>(REPORT_CODEX_FAILS_PATH, 15_000);
   const fails = codexFails.data?.codex_failures ?? [];
   return (
     <section className="report-panel" aria-label="Latest Codex failures">
@@ -586,9 +582,9 @@ function LatestCodexFailuresPanel(): JSX.Element {
         <div className="report-card-list">
           {fails.map((f) => (
             <article className="report-work-card report-work-card--block" key={f.report_id}>
-              <strong>{f.title}</strong>
-              <code>{f.go_no_go ?? ''}</code>
-              <p>{f.next_action ?? ''}</p>
+              <strong>{publicRuntimeCopy(f.title)}</strong>
+              <code>{publicRuntimeCopy(f.go_no_go ?? '')}</code>
+              <p>{publicRuntimeCopy(f.next_action ?? '')}</p>
             </article>
           ))}
         </div>
@@ -614,9 +610,9 @@ function StaleReportsPanel({ index }: { index: ReportIndexPayload | null }): JSX
         <div className="report-card-list report-card-list--compact">
           {stale.slice(0, 10).map((l) => (
             <article className="report-work-card report-work-card--warn" key={l.report_id}>
-              <strong>{l.title}</strong>
-              <span>{formatFreshness(l.freshness_seconds)} / {l.status}</span>
-              <p>{l.next_action ?? 'No next action in lane payload.'}</p>
+              <strong>{publicRuntimeCopy(l.title)}</strong>
+              <span>{formatFreshness(l.freshness_seconds)} / {publicRuntimeCopy(l.status)}</span>
+              <p>{publicRuntimeCopy(l.next_action, 'No next action in lane payload.')}</p>
             </article>
           ))}
         </div>
@@ -648,17 +644,17 @@ function ReportStatusTable({ index }: { index: ReportIndexPayload | null }): JSX
         {lanes.map((lane) => (
           <div className={lane.stale ? 'report-lane-row report-lane-row--stale' : 'report-lane-row'} role="row" key={lane.report_id}>
             <span>
-              <strong>{lane.title}</strong>
-              <small>{lane.report_id}</small>
+              <strong>{publicRuntimeCopy(lane.title)}</strong>
+              <small>{publicRuntimeCopy(lane.report_id)}</small>
             </span>
             <span>
-              <em className={`report-status-pill report-status-pill--${toneForStatus(lane.status)}`}>{lane.status}</em>
+              <em className={`report-status-pill report-status-pill--${toneForStatus(lane.status)}`}>{publicRuntimeCopy(lane.status)}</em>
               {lane.stale ? <small>stale</small> : null}
             </span>
-            <span>{lane.owner}</span>
+            <span>{publicRuntimeCopy(lane.owner)}</span>
             <span>{formatFreshness(lane.freshness_seconds)}</span>
-            <code>{lane.go_no_go ?? ''}</code>
-            <span>{lane.next_action ?? ''}</span>
+            <code>{publicRuntimeCopy(lane.go_no_go ?? '')}</code>
+            <span>{publicRuntimeCopy(lane.next_action ?? '')}</span>
           </div>
         ))}
       </div>
@@ -667,19 +663,11 @@ function ReportStatusTable({ index }: { index: ReportIndexPayload | null }): JSX
 }
 
 export default function ReportCenterPage(): JSX.Element {
-  const indexQ = usePollingQuery<ReportIndexPayload>(
-    REPORT_INDEX_PATH,
-    (signal) => fetchJson(REPORT_INDEX_PATH, signal),
-    { refetchIntervalMs: 30_000 },
-  );
-  const dashboardQ = usePollingQuery<OperatorDashboardPayload>(
-    REPORT_DASHBOARD_PATH,
-    (signal) => fetchJson(REPORT_DASHBOARD_PATH, signal),
-    { refetchIntervalMs: 15_000 },
-  );
+  const indexQ = usePayloadFile<ReportIndexPayload>(REPORT_INDEX_PATH, 30_000);
+  const dashboardQ = usePayloadFile<OperatorDashboardPayload>(REPORT_DASHBOARD_PATH, 15_000);
 
   const payloadFailed = indexQ.error || dashboardQ.error;
-  const fetching = indexQ.isFetching || dashboardQ.isFetching;
+  const fetching = indexQ.loading || dashboardQ.loading;
 
   return (
     <DesignPageShell

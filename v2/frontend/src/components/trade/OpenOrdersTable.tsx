@@ -5,7 +5,7 @@ import { formatNumber, formatPrice, formatTime } from '../../lib/tradeFormatters
 import { TRADE_ENDPOINTS, tradeCopy } from '../../lib/tradeCopy';
 import { MissingDataState } from './TradeShared';
 
-function rowText(row: Record<string, unknown>, keys: string[], fallback = 'Data unavailable'): string {
+function rowText(row: Record<string, unknown>, keys: string[], fallback = 'Connecting stream'): string {
   for (const key of keys) {
     const value = row[key];
     if (typeof value === 'string' && value.trim()) return tradeCopy(value);
@@ -111,7 +111,7 @@ export function OpenOrdersTable({
     try {
       await fillV2PaperOrder(orderId, {
         price,
-        reason: 'Manual paper fill from trade terminal',
+        reason: 'Manual local execution fill from trade terminal',
       });
     } finally {
       setFillingId(null);
@@ -152,7 +152,7 @@ export function OpenOrdersTable({
             return (
               <div className="trade-table__row trade-table__row--orders" role="row" key={`${orderId || 'order'}-${index}`}>
                 <span data-label="Time">{formatTime(rowText(row, ['time', 'created_at', 'updated_at'], ''))}</span>
-                <span data-label="Symbol">{rowRawText(row, ['symbol']).toUpperCase() || 'Data unavailable'}</span>
+                <span data-label="Symbol">{rowRawText(row, ['symbol']).toUpperCase() || 'Connecting stream'}</span>
                 <span data-label="Side">{rowText(row, ['side', 'direction'])}</span>
                 <span data-label="Type">{rowText(row, ['type', 'order_type'])}</span>
                 <span data-label="Price">{formatPrice(rowNumber(row, ['price', 'limit_price', 'stop_price']))}</span>

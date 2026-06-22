@@ -70,9 +70,9 @@ export const DANGEROUS_CONTROLS = {
   },
   switch_paper_to_live: {
     id: 'switch_paper_to_live',
-    label: 'Switch paper to live',
+    label: 'Switch runtime to live',
     level: 'L5',
-    rationale: 'Paper-to-live transition is L5 and gated by Live Readiness GO.',
+    rationale: 'Runtime-to-live transition is L5 and gated by Live Readiness GO.',
   },
 } as const satisfies Record<string, DangerousControl>;
 

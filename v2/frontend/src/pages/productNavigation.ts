@@ -233,7 +233,7 @@ export const PAGE_OVERRIDES: Record<string, ProductPageOverride> = {
     navCategory: 'backtests',
     navOrder: 20,
     hideFromNav: true,
-    path: '/backtests/replay',
+    path: '/replay',
   },
   'market-intelligence': {
     title: 'Research',

@@ -11,7 +11,7 @@ import {
 import { useMarketDataStream } from '../../hooks/useMarketDataStream';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { useAuth } from '../../hooks/useAuth';
-import { getV2MarketCandles } from '../../api/v2Market';
+import type { MarketCandlesData } from '../../types/apiV2';
 import { AdaptiveCapitalTelemetryPanel } from '../../components/trading/AdaptiveCapitalTelemetryPanel';
 import { useAdaptiveCapitalDashboard } from '../../data/adaptiveCapitalProductivity';
 import meta from './meta';
@@ -205,9 +205,21 @@ function BinanceChart({ symbol, timeframe, streamCandle }: { symbol: string; tim
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [chartError, setChartError] = useState<string | null>(null);
   const [lastCount, setLastCount] = useState(0);
+  const candleUrl = `/api/v2/market/${symbol}/candles?timeframe=${encodeURIComponent(timeframe)}&limit=500`;
+  const {
+    envelope: candleEnv,
+    loading: candleLoading,
+    error: candleError,
+  } = useRealtimeResource<MarketCandlesData>({
+    url: candleUrl,
+    source: `/api/v2/market/${symbol}/candles`,
+    source_type: 'websocket',
+    pollIntervalMs: 5_000,
+    staleThresholdMs: 20_000,
+    mode: 'read_only',
+  });
 
   useEffect(() => {
     const container = containerRef.current;
@@ -239,40 +251,36 @@ function BinanceChart({ symbol, timeframe, streamCandle }: { symbol: string; tim
   }, []);
 
   useEffect(() => {
-    if (!symbol || !timeframe) return;
-    setLoading(true);
-    setError(null);
-    void (async () => {
-      try {
-        const env = await getV2MarketCandles(symbol, timeframe);
-        const candles = env?.data?.candles ?? [];
-        if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
-        const bars = candles
-          .filter((c) => c.open_time_ms && c.open && c.high && c.low && c.close)
-          .map((c) => ({
-            time: Math.floor(c.open_time_ms! / 1000) as UTCTimestamp,
-            open: c.open!, high: c.high!, low: c.low!, close: c.close!,
-          }))
-          .sort((a, b) => (a.time as number) - (b.time as number));
-        const vols = candles
-          .filter((c) => c.open_time_ms && c.volume != null)
-          .map((c) => ({
-            time: Math.floor(c.open_time_ms! / 1000) as UTCTimestamp,
-            value: c.volume ?? 0,
-            color: (c.close ?? 0) >= (c.open ?? 0) ? 'rgba(38,166,154,0.35)' : 'rgba(239,83,80,0.35)',
-          }))
-          .sort((a, b) => (a.time as number) - (b.time as number));
-        candleSeriesRef.current.setData(bars);
-        volumeSeriesRef.current.setData(vols);
-        setLastCount(bars.length);
-        chartRef.current?.timeScale().fitContent();
-      } catch (e) {
-        setError(String(e));
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [symbol, timeframe]);
+    const candles = candleEnv.data?.candles ?? [];
+    if (!candles.length || !candleSeriesRef.current || !volumeSeriesRef.current) return;
+    try {
+      const bars = candles
+        .filter((c) => c.open_time_ms && c.open != null && c.high != null && c.low != null && c.close != null)
+        .map((c) => ({
+          time: Math.floor(c.open_time_ms! / 1000) as UTCTimestamp,
+          open: c.open!,
+          high: c.high!,
+          low: c.low!,
+          close: c.close!,
+        }))
+        .sort((a, b) => (a.time as number) - (b.time as number));
+      const vols = candles
+        .filter((c) => c.open_time_ms && c.volume != null)
+        .map((c) => ({
+          time: Math.floor(c.open_time_ms! / 1000) as UTCTimestamp,
+          value: c.volume ?? 0,
+          color: (c.close ?? 0) >= (c.open ?? 0) ? 'rgba(38,166,154,0.35)' : 'rgba(239,83,80,0.35)',
+        }))
+        .sort((a, b) => (a.time as number) - (b.time as number));
+      candleSeriesRef.current.setData(bars);
+      volumeSeriesRef.current.setData(vols);
+      setLastCount(bars.length);
+      setChartError(null);
+      chartRef.current?.timeScale().fitContent();
+    } catch (e) {
+      setChartError(String(e));
+    }
+  }, [candleEnv.data?.candles]);
 
   useEffect(() => {
     if (!streamCandle || !candleSeriesRef.current) return;
@@ -291,13 +299,13 @@ function BinanceChart({ symbol, timeframe, streamCandle }: { symbol: string; tim
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
-      {loading && (
+      {candleLoading && lastCount === 0 && (
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)', borderRadius: 4 }}>
-          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading {lastCount > 0 ? `(${lastCount} candles)` : '…'}</span>
+          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Syncing candles…</span>
         </div>
       )}
-      {error && !loading && (
-        <div style={{ position: 'absolute', bottom: 8, left: 8, fontSize: 11, color: 'var(--warn, #f59e0b)' }}>Chart error: {error}</div>
+      {(chartError || candleError) && !candleLoading && lastCount === 0 && (
+        <div style={{ position: 'absolute', bottom: 8, left: 8, fontSize: 11, color: 'var(--warn, #f59e0b)' }}>Chart stream reconnecting: {chartError ?? candleError}</div>
       )}
     </div>
   );
@@ -456,7 +464,7 @@ function OrderTicket({ symbol, lastPrice, equity, onSubmit }: { symbol: string; 
       )}
 
       <div style={{ padding: '6px 8px', background: 'color-mix(in oklch, var(--sell, #ef5350) 8%, transparent)', border: '1px solid color-mix(in oklch, var(--sell, #ef5350) 20%, transparent)', borderRadius: 'var(--radius-sm)', fontSize: 10, color: 'var(--sell, #ef5350)', fontFamily: 'var(--font-mono)', textAlign: 'center' }}>
-        LIVE ORDER SUBMISSION BLOCKED · SIMULATED ONLY
+        LIVE ORDER SUBMISSION BLOCKED · OPERATOR GATED
       </div>
     </div>
   );
@@ -660,7 +668,7 @@ export default function BinancePage(): JSX.Element {
   const { envelope: accountEnv } = useRealtimeResource<ExchangeAccountData>({
     url: '/api/v2/account/exchange-readonly',
     source: '/api/v2/account/exchange-readonly',
-    source_type: 'api',
+    source_type: 'websocket',
     pollIntervalMs: 15_000,
     staleThresholdMs: 30_000,
     mode: 'read_only',
@@ -669,7 +677,7 @@ export default function BinancePage(): JSX.Element {
   const { envelope: portfolioEnv, refetch: refetchPortfolio } = useRealtimeResource<PortfolioData>({
     url: '/api/v2/portfolio',
     source: '/api/v2/portfolio',
-    source_type: 'repository',
+    source_type: 'websocket',
     pollIntervalMs: 10_000,
     staleThresholdMs: 30_000,
     mode: 'read_only',
@@ -678,7 +686,7 @@ export default function BinancePage(): JSX.Element {
   const { envelope: positionsEnv } = useRealtimeResource<{ positions: Position[] }>({
     url: '/api/v2/account/positions',
     source: '/api/v2/account/positions',
-    source_type: 'repository',
+    source_type: 'websocket',
     pollIntervalMs: 10_000,
     staleThresholdMs: 30_000,
     mode: 'read_only',
@@ -687,7 +695,7 @@ export default function BinancePage(): JSX.Element {
   const { envelope: ordersEnv } = useRealtimeResource<{ orders: Order[] }>({
     url: '/api/v2/execution/orders',
     source: '/api/v2/execution/orders',
-    source_type: 'repository',
+    source_type: 'websocket',
     pollIntervalMs: 10_000,
     staleThresholdMs: 30_000,
     mode: 'read_only',
@@ -696,7 +704,7 @@ export default function BinancePage(): JSX.Element {
   const { envelope: executionsEnv } = useRealtimeResource<{ executions: Execution[] }>({
     url: '/api/v2/execution/executions',
     source: '/api/v2/execution/executions',
-    source_type: 'repository',
+    source_type: 'websocket',
     pollIntervalMs: 15_000,
     staleThresholdMs: 60_000,
     mode: 'read_only',
@@ -705,7 +713,7 @@ export default function BinancePage(): JSX.Element {
   const { envelope: signalsEnv } = useRealtimeResource<SignalsData>({
     url: '/api/v2/signals',
     source: '/api/v2/signals',
-    source_type: 'api',
+    source_type: 'websocket',
     pollIntervalMs: 8_000,
     staleThresholdMs: 20_000,
     mode: 'read_only',
@@ -714,7 +722,7 @@ export default function BinancePage(): JSX.Element {
   const { envelope: predictionsEnv } = useRealtimeResource<PredictionsData>({
     url: '/api/v2/ai/predictions',
     source: '/api/v2/ai/predictions',
-    source_type: 'api',
+    source_type: 'websocket',
     pollIntervalMs: 30_000,
     staleThresholdMs: 90_000,
     mode: 'read_only',
