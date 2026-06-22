@@ -64,4 +64,101 @@ final class AIBotV2CoreTests: XCTestCase {
                                   opened_at: "2026-06-18T00:00:00Z", status: "open")
         XCTAssertTrue(pos.isBuy)
     }
+
+    func testIOSViewModelsUseResourceWebSocketStreams() throws {
+        let packageRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let sourceRoot = packageRoot.appendingPathComponent("Sources/AIBotV2")
+        let expectations: [String: [String]] = [
+            "ViewModels/DashboardViewModel.swift": [
+                "APIEndpoints.wsResourceURL",
+                "APIEndpoints.mobileDashboard",
+                "APIEndpoints.mobileHealth",
+                "decodeMobileResourceMessage",
+            ],
+            "ViewModels/PositionsViewModel.swift": [
+                "APIEndpoints.wsResourceURL",
+                "APIEndpoints.mobilePositions",
+                "decodeMobileResourceMessage",
+            ],
+            "ViewModels/SignalsViewModel.swift": [
+                "APIEndpoints.wsResourceURL",
+                "APIEndpoints.mobileSignals",
+                "decodeMobileResourceMessage",
+            ],
+            "ViewModels/AlertsViewModel.swift": [
+                "APIEndpoints.wsResourceURL",
+                "APIEndpoints.mobileAlerts",
+                "decodeMobileResourceMessage",
+            ],
+            "ViewModels/PaperViewModel.swift": [
+                "APIEndpoints.wsResourceURL",
+                "APIEndpoints.mobilePaperSummary",
+                "decodeMobileResourceMessage",
+            ],
+            "ViewModels/AdminViewModel.swift": [
+                "APIEndpoints.wsResourceURL",
+                "APIEndpoints.mobileRiskStatus",
+                "decodeMobileResourceMessage",
+            ],
+        ]
+
+        for (relativePath, requiredSnippets) in expectations {
+            let url = sourceRoot.appendingPathComponent(relativePath)
+            let text = try String(contentsOf: url, encoding: .utf8)
+            for snippet in requiredSnippets {
+                XCTAssertTrue(
+                    text.contains(snippet),
+                    "\(relativePath) must contain \(snippet) so the iPhone app stays on resource WebSocket streams"
+                )
+            }
+        }
+    }
+
+    func testIOSVisibleCopyDoesNotExposePaperOrSimulatedStates() throws {
+        let packageRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let sourceRoot = packageRoot.appendingPathComponent("Sources/AIBotV2")
+        let visibleRoots = [
+            sourceRoot.appendingPathComponent("Views"),
+            sourceRoot.appendingPathComponent("Models"),
+        ]
+        let forbidden = [
+            "Paper only",
+            "PAPER ONLY",
+            "Paper mode",
+            "Paper account",
+            "Paper Fill Blocked",
+            "Live trading platform",
+            "simulated",
+            "Simulated",
+            "NO DATA",
+            "DATA UNAVAILABLE",
+            "Loading paper",
+        ]
+
+        for root in visibleRoots {
+            let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)
+            while let fileURL = enumerator?.nextObject() as? URL {
+                guard fileURL.pathExtension == "swift" else { continue }
+                let text = try String(contentsOf: fileURL, encoding: .utf8)
+                for literal in swiftStringLiterals(in: text) {
+                    for needle in forbidden {
+                        XCTAssertFalse(
+                            literal.contains(needle),
+                            "\(fileURL.lastPathComponent) visible string literal exposes \(needle): \(literal)"
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private func swiftStringLiterals(in text: String) -> [String] {
+        let pattern = #""(?:\\.|[^"\\])*""#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        return regex.matches(in: text, range: range).compactMap { match in
+            guard let swiftRange = Range(match.range, in: text) else { return nil }
+            return String(text[swiftRange])
+        }
+    }
 }
