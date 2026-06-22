@@ -233,6 +233,19 @@
         "safety_validation_path": "goal_state/.../SAFETY_VALIDATION.json",
         "gate": "G16 PASS"
       }
+    },
+    {
+      "id": "WQ-R15",
+      "phase": "ACTIVE_CODE_FIX",
+      "title": "G08 accounting reconciliation: deduplicate closed_trades before Redis write",
+      "status": "DONE",
+      "completed_utc": "2026-06-22T22:12:00Z",
+      "evidence": {
+        "root_cause": "6 duplicate close_id entries in v2:paper:closed_trades; verifier sums all rows, publisher deduplicates first; constant /bin/bash.028301 gap",
+        "fix": "v2_trade_management_paper_loop.py line 5768: dedup lifecycle_result[\"closed_trades\"] by close_id before assigning to closes",
+        "finding": "CG-F019",
+        "g08_resolution": "Will pass after next paper loop iteration writes deduped closes to Redis"
+      }
     }
   ]
 }

@@ -51,6 +51,7 @@ DEFAULT_PAYLOAD_PATH = Path(
     "v2/frontend/public/operator_runtime/v2_trade_management_paper/live/latest/v2_trade_management_paper_live_status.json"
 )
 PAPER_LOOP_LOCK_PATH = Path("logs/v2_trade_management_paper_loop.lock")
+CHECKPOINT_DIR = Path(".local_models/v2_native_rl_masa_ppo")
 TRADE_MANAGEMENT_PUBLIC_DIR = Path(
     "v2/frontend/public/operator_runtime/v2_paper_trade_management/latest"
 )
@@ -75,6 +76,8 @@ PAPER_DRAWDOWN_RECOVERY_REASON = "PAPER_DRAWDOWN_RECOVERY_MINORITY_SIDE_REDUCE_S
 PAPER_DRAWDOWN_RECOVERY_MIN_CONFIDENCE = 0.65
 PAPER_DRAWDOWN_RECOVERY_SIZE_MULTIPLIER = 0.25
 PAPER_RUNTIME_EVIDENCE_BLOCK_REASON = "PAPER_RUNTIME_EVIDENCE_BLOCKED"
+PAPER_RUNTIME_TRANSIENT_TTL_SECONDS = 10 * 60
+PAPER_TRAINING_EVIDENCE_TTL_SECONDS = 30 * 24 * 60 * 60
 PAPER_AUDIT_ENTRY_GATE_NAME = "PAPER_ONLY_2026_06_19_AUDIT_ENTRY_GATE"
 PAPER_AUDIT_BLOCKED_ENTRY_TIMEFRAMES = frozenset({"5m", "4h"})
 PAPER_AUDIT_ALLOWED_ENTRY_TIMEFRAMES = frozenset({"1m", "15m", "1h"})
@@ -120,6 +123,9 @@ PAPER_TIER_A_GRADE_EXECUTION = "A_GRADE_EXECUTION_PAPER"
 PAPER_TIER_B_GRADE_EXPLORATION = "B_GRADE_EXPLORATION_PAPER"
 PAPER_TIER_SHADOW_ONLY = "SHADOW_ONLY"
 PAPER_TIER_NO_TRADE = "NO_TRADE"
+OUT_OF_SAMPLE_REVERIFY_SELECTOR_POLICY_FINGERPRINT = (
+    "c4b8fb1ed12aabcb87224723f1758563eefff10de90288be09866d2bf3fa74b5"
+)
 PAPER_OPPORTUNITY_TIERS = (
     PAPER_TIER_A_GRADE_EXECUTION,
     PAPER_TIER_B_GRADE_EXPLORATION,
@@ -155,7 +161,7 @@ def _runtime_default_symbol() -> str:
 
 
 def _utc_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def _connect_redis():
@@ -177,6 +183,7 @@ def _build_trainer_feedback_rows(
     outcome_labels: list[dict[str, Any]],
     entry_context_rows: list[dict[str, Any]] | None = None,
     predictions_by_id: dict[str, dict[str, Any]] | None = None,
+    feature_snapshots_by_id: dict[str, dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     outcomes_by_feedback_id = {
         row.get("trainer_feedback_id"): row
@@ -185,6 +192,8 @@ def _build_trainer_feedback_rows(
     }
     entry_context_by_fill_id = _entry_feedback_context_by_fill_id(entry_context_rows or [])
     predictions_by_id = predictions_by_id or {}
+    require_feature_snapshot_deref = feature_snapshots_by_id is not None
+    feature_snapshots_by_id = feature_snapshots_by_id or {}
     rows: list[dict[str, Any]] = []
     for close_event in close_events:
         if not isinstance(close_event, dict):
@@ -216,15 +225,24 @@ def _build_trainer_feedback_rows(
             outcome.get("feature_snapshot_id"),
         )
         prediction = predictions_by_id.get(entry_prediction_id, {}) if entry_prediction_id else {}
+        feature_snapshot = (
+            feature_snapshots_by_id.get(str(entry_feature_snapshot_id))
+            if entry_feature_snapshot_id
+            else None
+        )
         close_event = _reconstruct_trust_from_prediction(
             row=close_event,
             prediction=prediction,
+            feature_snapshot=feature_snapshot,
+            require_feature_snapshot_deref=require_feature_snapshot_deref,
             prediction_id=entry_prediction_id,
             feature_snapshot_id=entry_feature_snapshot_id,
         )
         outcome = _reconstruct_trust_from_prediction(
             row=outcome,
             prediction=prediction,
+            feature_snapshot=feature_snapshot,
+            require_feature_snapshot_deref=require_feature_snapshot_deref,
             prediction_id=entry_prediction_id,
             feature_snapshot_id=entry_feature_snapshot_id,
         )
@@ -246,6 +264,7 @@ _FEEDBACK_ENTRY_CONTEXT_FIELDS: tuple[str, ...] = (
     "entry_signal_id",
     "feature_snapshot_id",
     "entry_feature_snapshot_id",
+    "entry_feature_snapshot",
     "decision_id",
     "mtf_snapshot_id",
     "feature_cutoff",
@@ -255,6 +274,16 @@ _FEEDBACK_ENTRY_CONTEXT_FIELDS: tuple[str, ...] = (
     "model_version",
     "checkpoint_id",
     "source_hashes",
+    "confidence_raw",
+    "confidence_calibrated",
+    "selected_action_probability",
+    "expected_move_bps",
+    "expected_move_after_cost_bps",
+    "action_probabilities",
+    "policy_value",
+    "value_baseline",
+    "prediction_score_source",
+    "prediction_score_missing_reason",
     "feature_vector_hash",
     "input_feature_hash",
     "prediction_hash",
@@ -375,6 +404,8 @@ def _source_hashes_from_row(row: dict[str, Any]) -> dict[str, Any]:
         "feature_vector_hash": _first_present(row.get("feature_vector_hash"), row.get("input_feature_hash")),
         "prediction_hash": row.get("prediction_hash"),
         "source_lineage_hash": row.get("source_lineage_hash"),
+        "missing_mask_hash": row.get("missing_mask_hash"),
+        "stale_mask_hash": row.get("stale_mask_hash"),
     }.items():
         if value not in (None, ""):
             out.setdefault(key, value)
@@ -394,13 +425,61 @@ def _trust_envelope_from_prediction(prediction: dict[str, Any]) -> dict[str, Any
         "decision_id": _first_present(prediction.get("decision_id"), prediction.get("orchestrator_decision_id")),
         "feature_snapshot_id": prediction.get("feature_snapshot_id"),
         "mtf_snapshot_id": prediction.get("mtf_snapshot_id"),
-        "feature_cutoff": prediction.get("feature_cutoff"),
-        "decision_time": prediction.get("decision_time"),
-        "available_at": prediction.get("available_at"),
-        "selected_action": _first_present(prediction.get("selected_action"), prediction.get("action"), prediction.get("side")),
+        "feature_cutoff": _first_present(
+            prediction.get("feature_cutoff"),
+            prediction.get("ppo_feature_cutoff"),
+            prediction.get("masa_feature_cutoff"),
+        ),
+        "decision_time": _first_present(prediction.get("decision_time"), prediction.get("generated_at")),
+        "available_at": _first_present(prediction.get("available_at"), prediction.get("generated_at"), prediction.get("decision_time")),
+        "selected_action": _first_present(
+            prediction.get("selected_action"),
+            prediction.get("action"),
+            prediction.get("side"),
+            prediction.get("ppo_action"),
+        ),
         "model_version": _first_present(prediction.get("model_version"), prediction.get("model_source"), prediction.get("model_id")),
         "checkpoint_id": prediction.get("checkpoint_id"),
         "source_hashes": _source_hashes_from_row(prediction),
+        "confidence_raw": prediction.get("confidence_raw"),
+        "confidence_calibrated": _first_present(
+            prediction.get("confidence_calibrated"),
+            prediction.get("confidence"),
+        ),
+        "selected_action_probability": _first_present(
+            prediction.get("selected_action_probability"),
+            prediction.get("action_probability"),
+            prediction.get("probability_selected_action"),
+        ),
+        "expected_move_bps": _first_present(
+            prediction.get("expected_move_bps"),
+            prediction.get("price_target_bps"),
+        ),
+        "expected_move_after_cost_bps": _first_present(
+            prediction.get("expected_move_after_cost_bps"),
+            prediction.get("expected_net_edge_bps"),
+        ),
+        "action_probabilities": _first_present(
+            prediction.get("action_probabilities"),
+            prediction.get("policy_action_probabilities"),
+        ),
+        "policy_value": _first_present(
+            prediction.get("policy_value"),
+            prediction.get("value_estimate"),
+        ),
+        "value_baseline": prediction.get("value_baseline"),
+        "prediction_score_source": (
+            "VERIFIED_ENTRY_PREDICTION"
+            if _first_present(
+                prediction.get("confidence_calibrated"),
+                prediction.get("confidence"),
+            ) not in (None, "")
+            and _first_present(
+                prediction.get("expected_move_after_cost_bps"),
+                prediction.get("expected_net_edge_bps"),
+            ) not in (None, "")
+            else None
+        ),
         "feature_vector_hash": _first_present(prediction.get("feature_vector_hash"), prediction.get("input_feature_hash")),
         "input_feature_hash": prediction.get("input_feature_hash"),
     }
@@ -410,6 +489,8 @@ def _lineage_reconstruction_rejection_reasons(
     *,
     row: dict[str, Any],
     prediction: dict[str, Any],
+    feature_snapshot: dict[str, Any] | None = None,
+    require_feature_snapshot_deref: bool = False,
 ) -> list[str]:
     reasons: list[str] = []
     if not prediction:
@@ -423,14 +504,45 @@ def _lineage_reconstruction_rejection_reasons(
     if row_timeframe and prediction_timeframe and row_timeframe != prediction_timeframe:
         reasons.append("TIMEFRAME_MISMATCH")
     row_action = str(_first_present(row.get("selected_action"), row.get("action"), row.get("side")) or "").lower()
-    prediction_action = str(prediction.get("selected_action") or "").lower()
+    envelope = _trust_envelope_from_prediction(prediction)
+    prediction_action = str(envelope.get("selected_action") or "").lower()
     if row_action and prediction_action and row_action != prediction_action:
         reasons.append("ACTION_MISMATCH")
     row_feature = _first_present(row.get("entry_feature_snapshot_id"), row.get("feature_snapshot_id"))
-    prediction_feature = prediction.get("feature_snapshot_id")
+    prediction_feature = envelope.get("feature_snapshot_id")
     if row_feature and prediction_feature and str(row_feature) != str(prediction_feature):
         reasons.append("FEATURE_SNAPSHOT_MISMATCH")
-    envelope = _trust_envelope_from_prediction(prediction)
+    if require_feature_snapshot_deref:
+        if not isinstance(feature_snapshot, dict) or not feature_snapshot:
+            reasons.append("ENTRY_FEATURE_SNAPSHOT_NOT_FOUND")
+        else:
+            snapshot_id = feature_snapshot.get("feature_snapshot_id")
+            if row_feature and snapshot_id and str(row_feature) != str(snapshot_id):
+                reasons.append("ENTRY_FEATURE_SNAPSHOT_ID_MISMATCH")
+            snapshot_symbol = str(feature_snapshot.get("symbol") or "").upper()
+            if row_symbol and snapshot_symbol and row_symbol != snapshot_symbol:
+                reasons.append("ENTRY_FEATURE_SNAPSHOT_SYMBOL_MISMATCH")
+            snapshot_timeframe = str(feature_snapshot.get("timeframe") or "")
+            if row_timeframe and snapshot_timeframe and row_timeframe != snapshot_timeframe:
+                reasons.append("ENTRY_FEATURE_SNAPSHOT_TIMEFRAME_MISMATCH")
+            snapshot_available_at = _parse_strategy_time(
+                _first_present(
+                    feature_snapshot.get("available_at"),
+                    feature_snapshot.get("generated_utc"),
+                    feature_snapshot.get("generated_at"),
+                )
+            )
+            snapshot_feature_cutoff = _parse_strategy_time(
+                _first_present(
+                    feature_snapshot.get("feature_cutoff"),
+                    feature_snapshot.get("source_available_time"),
+                )
+            )
+            decision_time_for_snapshot = _parse_strategy_time(envelope.get("decision_time"))
+            if snapshot_available_at is not None and decision_time_for_snapshot is not None and snapshot_available_at > decision_time_for_snapshot:
+                reasons.append("ENTRY_FEATURE_SNAPSHOT_AVAILABLE_AT_AFTER_DECISION_TIME")
+            if snapshot_feature_cutoff is not None and decision_time_for_snapshot is not None and snapshot_feature_cutoff > decision_time_for_snapshot:
+                reasons.append("ENTRY_FEATURE_SNAPSHOT_FEATURE_CUTOFF_AFTER_DECISION_TIME")
     missing = [
         field
         for field in (
@@ -468,11 +580,18 @@ def _reconstruct_trust_from_prediction(
     *,
     row: dict[str, Any],
     prediction: dict[str, Any],
+    feature_snapshot: dict[str, Any] | None,
+    require_feature_snapshot_deref: bool,
     prediction_id: str,
     feature_snapshot_id: str | None,
 ) -> dict[str, Any]:
     enriched = dict(row)
-    reasons = _lineage_reconstruction_rejection_reasons(row=row, prediction=prediction)
+    reasons = _lineage_reconstruction_rejection_reasons(
+        row=row,
+        prediction=prediction,
+        feature_snapshot=feature_snapshot,
+        require_feature_snapshot_deref=require_feature_snapshot_deref,
+    )
     if reasons:
         enriched["trust_reconstructed"] = False
         enriched["trust_reconstruction_rejection_reasons"] = reasons
@@ -481,11 +600,23 @@ def _reconstruct_trust_from_prediction(
     for key, value in envelope.items():
         if value not in (None, "") and (key != "source_hashes" or value):
             enriched[key] = value
+    missing_score_fields = [
+        field
+        for field in ("confidence_calibrated", "expected_move_after_cost_bps")
+        if enriched.get(field) in (None, "")
+    ]
+    if missing_score_fields and enriched.get("prediction_score_missing_reason") in (None, ""):
+        enriched["prediction_score_missing_reason"] = (
+            "VERIFIED_ENTRY_PREDICTION_MISSING_SCORE_FIELDS:"
+            + ",".join(missing_score_fields)
+        )
     enriched["trust_reconstructed"] = True
     enriched["trust_source_ids"] = {
         "entry_prediction_id": prediction_id,
         "entry_feature_snapshot_id": feature_snapshot_id,
         "prediction_feature_snapshot_id": prediction.get("feature_snapshot_id"),
+        "replay_snapshot_id": prediction.get("replay_snapshot_id"),
+        "checkpoint_id": prediction.get("checkpoint_id"),
     }
     enriched["trust_reconstruction_rejection_reasons"] = []
     return enriched
@@ -899,6 +1030,176 @@ def _read_v2_market_price(r, symbol: str) -> tuple[float | None, str, str | None
     return None, ENTRY_PRICE_BLOCKER_MISSING_FILL, None
 
 
+def _validated_v2_feature_snapshot_payload(
+    payload: Any,
+    *,
+    redis_key: str,
+    decision_time: str,
+    expected_feature_snapshot_id: str | None = None,
+    expected_symbol: str | None = None,
+    expected_timeframe: str | None = None,
+) -> dict[str, Any]:
+    try:
+        parsed_payload = json.loads(payload) if isinstance(payload, str) else payload
+    except (TypeError, ValueError):
+        return {"features": {}, "unavailable_reason": "INVALID_V2_FEATURE_SNAPSHOT_JSON", "redis_key": redis_key}
+    if not isinstance(parsed_payload, dict):
+        return {"features": {}, "unavailable_reason": "INVALID_V2_FEATURE_SNAPSHOT_PAYLOAD", "redis_key": redis_key}
+    payload = parsed_payload
+    snapshot_id = _first_present(payload.get("feature_snapshot_id"), payload.get("snapshot_id"))
+    if expected_feature_snapshot_id and str(snapshot_id or "") != str(expected_feature_snapshot_id):
+        return {
+            "features": {},
+            "unavailable_reason": "FEATURE_SNAPSHOT_ID_MISMATCH",
+            "redis_key": redis_key,
+            "expected_feature_snapshot_id": expected_feature_snapshot_id,
+            "feature_snapshot_id": snapshot_id,
+        }
+    if expected_symbol and str(payload.get("symbol") or "").upper() != str(expected_symbol).upper():
+        return {
+            "features": {},
+            "unavailable_reason": "FEATURE_SNAPSHOT_SYMBOL_MISMATCH",
+            "redis_key": redis_key,
+            "expected_symbol": str(expected_symbol).upper(),
+            "symbol": payload.get("symbol"),
+        }
+    if expected_timeframe and str(payload.get("timeframe") or "") != str(expected_timeframe):
+        return {
+            "features": {},
+            "unavailable_reason": "FEATURE_SNAPSHOT_TIMEFRAME_MISMATCH",
+            "redis_key": redis_key,
+            "expected_timeframe": str(expected_timeframe),
+            "timeframe": payload.get("timeframe"),
+        }
+    if str(payload.get("feature_freshness_state") or "").upper() != "CURRENT":
+        return {
+            "features": {},
+            "unavailable_reason": "NON_CURRENT_V2_FEATURE_SNAPSHOT",
+            "feature_freshness_state": payload.get("feature_freshness_state"),
+            "redis_key": redis_key,
+        }
+    if payload.get("candle_closed_confirmed") is False:
+        return {
+            "features": {},
+            "unavailable_reason": "UNFINISHED_CANDLE_FEATURE_SNAPSHOT_REJECTED",
+            "redis_key": redis_key,
+        }
+    available_at = _first_present(
+        payload.get("available_at"),
+        payload.get("generated_at"),
+        payload.get("source_available_time"),
+    )
+    available_dt = _parse_strategy_time(available_at)
+    decision_dt = _parse_strategy_time(decision_time)
+    if available_dt is None or decision_dt is None:
+        return {
+            "features": {},
+            "unavailable_reason": "FEATURE_SNAPSHOT_TIME_UNPARSEABLE",
+            "available_at": available_at,
+            "decision_time": decision_time,
+            "redis_key": redis_key,
+        }
+    if available_dt > decision_dt:
+        return {
+            "features": {},
+            "unavailable_reason": "FEATURE_AVAILABLE_AT_AFTER_DECISION_TIME",
+            "available_at": available_at,
+            "decision_time": decision_time,
+            "redis_key": redis_key,
+        }
+    feature_cutoff = _first_present(
+        payload.get("feature_cutoff"),
+        payload.get("candle_close_time"),
+        payload.get("source_event_time_est"),
+    )
+    feature_cutoff_dt = _parse_strategy_time(feature_cutoff)
+    if feature_cutoff_dt is None:
+        return {
+            "features": {},
+            "unavailable_reason": "FEATURE_CUTOFF_MISSING_OR_UNPARSEABLE",
+            "feature_cutoff": feature_cutoff,
+            "decision_time": decision_time,
+            "redis_key": redis_key,
+        }
+    if feature_cutoff_dt > decision_dt:
+        return {
+            "features": {},
+            "unavailable_reason": "FEATURE_CUTOFF_AFTER_DECISION_TIME",
+            "feature_cutoff": feature_cutoff,
+            "decision_time": decision_time,
+            "redis_key": redis_key,
+        }
+    features = payload.get("features") if isinstance(payload.get("features"), dict) else {}
+    if not features:
+        return {"features": {}, "unavailable_reason": "EMPTY_V2_FEATURE_SNAPSHOT", "redis_key": redis_key}
+    return {
+        "features": features,
+        "redis_key": redis_key,
+        "feature_snapshot_id": snapshot_id,
+        "symbol": payload.get("symbol"),
+        "timeframe": payload.get("timeframe"),
+        "feature_freshness_state": payload.get("feature_freshness_state"),
+        "available_at": available_at,
+        "generated_at": payload.get("generated_at"),
+        "feature_cutoff": feature_cutoff,
+        "source_available_time": payload.get("source_available_time"),
+        "candle_close_time": payload.get("candle_close_time"),
+        "candle_closed_confirmed": payload.get("candle_closed_confirmed"),
+        "latest_unclosed_kline_excluded": payload.get("latest_unclosed_kline_excluded"),
+        "source_hashes": payload.get("source_hashes"),
+    }
+
+
+def _read_v2_feature_snapshot_by_id(
+    r,
+    feature_snapshot_id: Any,
+    *,
+    decision_time: str,
+    symbol: str | None = None,
+    timeframe: str | None = None,
+) -> dict[str, Any]:
+    if r is None or feature_snapshot_id in (None, ""):
+        return {"features": {}, "unavailable_reason": "MISSING_FEATURE_SNAPSHOT_ID_OR_REDIS"}
+    snapshot_id = str(feature_snapshot_id)
+    key = f"{V2_REDIS_PREFIX}features:snapshot:{snapshot_id}"
+    try:
+        raw = r.get(key)
+    except Exception:
+        raw = None
+    if not raw:
+        return {"features": {}, "unavailable_reason": "MISSING_V2_FEATURE_SNAPSHOT", "redis_key": key}
+    return _validated_v2_feature_snapshot_payload(
+        raw,
+        redis_key=key,
+        decision_time=decision_time,
+        expected_feature_snapshot_id=snapshot_id,
+        expected_symbol=symbol,
+        expected_timeframe=timeframe,
+    )
+
+
+def _entry_feature_snapshot_evidence(snapshot: dict[str, Any]) -> dict[str, Any] | None:
+    features = snapshot.get("features") if isinstance(snapshot.get("features"), dict) else {}
+    if not features:
+        return None
+    evidence = {
+        "feature_snapshot_id": snapshot.get("feature_snapshot_id"),
+        "symbol": snapshot.get("symbol"),
+        "timeframe": snapshot.get("timeframe"),
+        "available_at": snapshot.get("available_at"),
+        "generated_at": snapshot.get("generated_at"),
+        "feature_cutoff": snapshot.get("feature_cutoff"),
+        "source_available_time": snapshot.get("source_available_time"),
+        "candle_close_time": snapshot.get("candle_close_time"),
+        "candle_closed_confirmed": snapshot.get("candle_closed_confirmed"),
+        "latest_unclosed_kline_excluded": snapshot.get("latest_unclosed_kline_excluded"),
+        "feature_freshness_state": snapshot.get("feature_freshness_state"),
+        "source_hashes": snapshot.get("source_hashes"),
+        "features": dict(features),
+    }
+    return {key: value for key, value in evidence.items() if value not in (None, "", {}, [])}
+
+
 def _read_v2_feature_snapshot(
     r,
     symbol: str,
@@ -917,73 +1218,13 @@ def _read_v2_feature_snapshot(
         raw = None
     if not raw:
         return {"features": {}, "unavailable_reason": "MISSING_V2_FEATURE_SNAPSHOT", "redis_key": key}
-    try:
-        payload = json.loads(raw)
-    except (TypeError, ValueError):
-        return {"features": {}, "unavailable_reason": "INVALID_V2_FEATURE_SNAPSHOT_JSON", "redis_key": key}
-    if not isinstance(payload, dict):
-        return {"features": {}, "unavailable_reason": "INVALID_V2_FEATURE_SNAPSHOT_PAYLOAD", "redis_key": key}
-    if str(payload.get("feature_freshness_state") or "").upper() != "CURRENT":
-        return {
-            "features": {},
-            "unavailable_reason": "NON_CURRENT_V2_FEATURE_SNAPSHOT",
-            "feature_freshness_state": payload.get("feature_freshness_state"),
-            "redis_key": key,
-        }
-    if payload.get("candle_closed_confirmed") is False:
-        return {
-            "features": {},
-            "unavailable_reason": "UNFINISHED_CANDLE_FEATURE_SNAPSHOT_REJECTED",
-            "redis_key": key,
-        }
-    available_at = _first_present(
-        payload.get("available_at"),
-        payload.get("generated_at"),
-        payload.get("source_available_time"),
+    return _validated_v2_feature_snapshot_payload(
+        raw,
+        redis_key=key,
+        decision_time=decision_time,
+        expected_symbol=normalized_symbol,
+        expected_timeframe=normalized_timeframe,
     )
-    available_dt = _parse_strategy_time(available_at)
-    decision_dt = _parse_strategy_time(decision_time)
-    if available_dt is None or decision_dt is None:
-        return {
-            "features": {},
-            "unavailable_reason": "FEATURE_SNAPSHOT_TIME_UNPARSEABLE",
-            "available_at": available_at,
-            "decision_time": decision_time,
-            "redis_key": key,
-        }
-    if available_dt > decision_dt:
-        return {
-            "features": {},
-            "unavailable_reason": "FEATURE_AVAILABLE_AT_AFTER_DECISION_TIME",
-            "available_at": available_at,
-            "decision_time": decision_time,
-            "redis_key": key,
-        }
-    feature_cutoff = payload.get("feature_cutoff")
-    feature_cutoff_dt = _parse_strategy_time(feature_cutoff)
-    if feature_cutoff_dt is not None and feature_cutoff_dt > decision_dt:
-        return {
-            "features": {},
-            "unavailable_reason": "FEATURE_CUTOFF_AFTER_DECISION_TIME",
-            "feature_cutoff": feature_cutoff,
-            "decision_time": decision_time,
-            "redis_key": key,
-        }
-    features = payload.get("features") if isinstance(payload.get("features"), dict) else {}
-    if not features:
-        return {"features": {}, "unavailable_reason": "EMPTY_V2_FEATURE_SNAPSHOT", "redis_key": key}
-    return {
-        "features": features,
-        "redis_key": key,
-        "feature_snapshot_id": payload.get("feature_snapshot_id"),
-        "feature_freshness_state": payload.get("feature_freshness_state"),
-        "available_at": available_at,
-        "generated_at": payload.get("generated_at"),
-        "feature_cutoff": feature_cutoff,
-        "candle_close_time": payload.get("candle_close_time"),
-        "candle_closed_confirmed": payload.get("candle_closed_confirmed"),
-        "latest_unclosed_kline_excluded": payload.get("latest_unclosed_kline_excluded"),
-    }
 
 
 def _attach_entry_price_provenance(intent: dict, price: float | None, source: str, source_utc: str | None) -> None:
@@ -1099,8 +1340,26 @@ PERSISTENT_ACCEPTED_FILL_METADATA_FIELDS = (
     "allocation_id",
     "allocator_decision",
     "allocator_reason",
+    "entry_feature_snapshot",
+    "confidence_raw",
+    "confidence_calibrated",
+    "selected_action_probability",
+    "expected_move_bps",
+    "expected_move_after_cost_bps",
+    "action_probabilities",
+    "policy_value",
+    "value_baseline",
+    "prediction_score_source",
+    "prediction_score_missing_reason",
 )
 PERSISTENT_ACCEPTED_FILL_MODEL_INPUT_FIELDS = (
+    "confidence_raw",
+    "confidence_calibrated",
+    "selected_action_probability",
+    "expected_move_bps",
+    "expected_move_after_cost_bps",
+    "policy_value",
+    "value_baseline",
     "expected_funding_bps",
     "funding_bps",
     "funding_rate_bps",
@@ -1282,7 +1541,11 @@ def _merge_persistent_accepted_fills(existing: dict[str, dict], current: list[di
 def _backfill_fill_lineage_from_predictions(
     rows: list[dict[str, Any]],
     predictions_by_id: dict[str, dict[str, Any]],
+    *,
+    feature_snapshots_by_id: dict[str, dict[str, Any]] | None = None,
+    require_feature_snapshot_deref: bool = False,
 ) -> list[dict[str, Any]]:
+    feature_snapshots_by_id = feature_snapshots_by_id or {}
     repaired: list[dict[str, Any]] = []
     for row in rows:
         item = dict(row)
@@ -1305,15 +1568,23 @@ def _backfill_fill_lineage_from_predictions(
             ):
                 if item.get(target) in (None, "") and prediction.get(source) not in (None, ""):
                     item[target] = prediction.get(source)
+            feature_snapshot_id = _first_present(
+                item.get("entry_feature_snapshot_id"),
+                item.get("feature_snapshot_id"),
+                prediction.get("feature_snapshot_id"),
+            )
+            feature_snapshot = (
+                feature_snapshots_by_id.get(str(feature_snapshot_id))
+                if feature_snapshot_id not in (None, "")
+                else None
+            )
             item = _reconstruct_trust_from_prediction(
                 row=item,
                 prediction=prediction,
+                feature_snapshot=feature_snapshot,
+                require_feature_snapshot_deref=require_feature_snapshot_deref,
                 prediction_id=prediction_id,
-                feature_snapshot_id=_first_present(
-                    item.get("entry_feature_snapshot_id"),
-                    item.get("feature_snapshot_id"),
-                    prediction.get("feature_snapshot_id"),
-                ),
+                feature_snapshot_id=feature_snapshot_id,
             )
             if item.get("trust_reconstructed") is True:
                 item.setdefault("lineage_backfilled_from_prediction_id", prediction_id)
@@ -1373,6 +1644,184 @@ def _scan_predictions_by_id(r) -> dict[str, dict]:
     return out
 
 
+def _checkpoint_metadata_for_id(checkpoint_id: Any) -> dict[str, Any]:
+    if checkpoint_id in (None, ""):
+        return {}
+    checkpoint_id_str = str(checkpoint_id)
+    path = CHECKPOINT_DIR / f"{checkpoint_id_str}.json"
+    try:
+        metadata = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    if not isinstance(metadata, dict):
+        return {}
+    if str(metadata.get("checkpoint_id") or "") != checkpoint_id_str:
+        return {}
+    if metadata.get("weight_blob_written") is False:
+        return {}
+    return metadata
+
+
+def _lineage_context_by_prediction_id(*row_collections: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    contexts: dict[str, dict[str, Any]] = {}
+    fields = (
+        "prediction_id",
+        "entry_prediction_id",
+        "signal_id",
+        "entry_signal_id",
+        "feature_snapshot_id",
+        "entry_feature_snapshot_id",
+        "symbol",
+        "timeframe",
+        "selected_action",
+        "action",
+        "side",
+        "checkpoint_id",
+        "model_version",
+        "model_source",
+        "model_id",
+    )
+    for rows in row_collections:
+        for row in rows or []:
+            if not isinstance(row, dict):
+                continue
+            prediction_id = _first_present(row.get("entry_prediction_id"), row.get("prediction_id"))
+            if prediction_id in (None, ""):
+                continue
+            context = contexts.setdefault(str(prediction_id), {})
+            for field in fields:
+                value = row.get(field)
+                if context.get(field) in (None, "") and value not in (None, ""):
+                    context[field] = value
+    return contexts
+
+
+def _prediction_from_replay_snapshot(snapshot: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+    checkpoint_id = _first_present(snapshot.get("checkpoint_id"), context.get("checkpoint_id"))
+    checkpoint_metadata = _checkpoint_metadata_for_id(checkpoint_id)
+    checkpoint_id = checkpoint_metadata.get("checkpoint_id") if checkpoint_metadata else snapshot.get("checkpoint_id")
+    model_version = _first_present(
+        snapshot.get("model_version"),
+        snapshot.get("model_source"),
+        snapshot.get("model_id"),
+        context.get("model_version"),
+        context.get("model_source"),
+        context.get("model_id"),
+        checkpoint_metadata.get("model_id") if checkpoint_metadata else None,
+    )
+    merged = dict(snapshot)
+    merged.update(
+        {
+            "prediction_id": _first_present(snapshot.get("prediction_id"), context.get("entry_prediction_id"), context.get("prediction_id")),
+            "symbol": _first_present(snapshot.get("symbol"), context.get("symbol")),
+            "timeframe": _first_present(snapshot.get("timeframe"), context.get("timeframe")),
+            "selected_action": _first_present(
+                snapshot.get("selected_action"),
+                snapshot.get("action"),
+                snapshot.get("side"),
+                snapshot.get("ppo_action"),
+                context.get("selected_action"),
+                context.get("action"),
+                context.get("side"),
+            ),
+            "feature_snapshot_id": _first_present(
+                snapshot.get("feature_snapshot_id"),
+                context.get("entry_feature_snapshot_id"),
+                context.get("feature_snapshot_id"),
+            ),
+            "checkpoint_id": checkpoint_id,
+            "model_version": model_version,
+            "source_hashes": _source_hashes_from_row(snapshot),
+            "trust_reconstruction_source": "V2_REPLAY_SNAPSHOT_AND_CHECKPOINT_METADATA",
+        }
+    )
+    return merged
+
+
+def _read_replay_snapshot_predictions(
+    r,
+    contexts_by_prediction_id: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    out: dict[str, dict[str, Any]] = {}
+    if r is None:
+        return out
+    for prediction_id, context in contexts_by_prediction_id.items():
+        try:
+            raw = r.get(f"{V2_REDIS_PREFIX}replay:snapshots:{prediction_id}")
+        except Exception:
+            continue
+        if not raw:
+            continue
+        try:
+            snapshot = json.loads(raw)
+        except Exception:
+            continue
+        if not isinstance(snapshot, dict):
+            continue
+        prediction = _prediction_from_replay_snapshot(snapshot, context)
+        if prediction.get("prediction_id"):
+            out[str(prediction["prediction_id"])] = prediction
+    return out
+
+
+def _read_feature_snapshots_by_id(
+    r,
+    contexts_by_prediction_id: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    out: dict[str, dict[str, Any]] = {}
+    if r is None:
+        return out
+    feature_ids = sorted(
+        {
+            str(feature_id)
+            for context in contexts_by_prediction_id.values()
+            for feature_id in (
+                context.get("entry_feature_snapshot_id"),
+                context.get("feature_snapshot_id"),
+            )
+            if feature_id not in (None, "")
+        }
+    )
+    for feature_id in feature_ids:
+        try:
+            raw = r.get(f"{V2_REDIS_PREFIX}features:snapshot:{feature_id}")
+        except Exception:
+            continue
+        if not raw:
+            continue
+        try:
+            snapshot = json.loads(raw)
+        except Exception:
+            continue
+        if isinstance(snapshot, dict):
+            out[feature_id] = snapshot
+    return out
+
+
+def _feature_snapshots_from_replay_predictions(
+    replay_predictions_by_id: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    out: dict[str, dict[str, Any]] = {}
+    for prediction in replay_predictions_by_id.values():
+        if not isinstance(prediction, dict):
+            continue
+        snapshot = prediction.get("feature_snapshot")
+        if not isinstance(snapshot, dict) or not snapshot:
+            continue
+        snapshot_id = _first_present(
+            snapshot.get("feature_snapshot_id"),
+            snapshot.get("snapshot_id"),
+            prediction.get("feature_snapshot_id"),
+        )
+        prediction_snapshot_id = prediction.get("feature_snapshot_id")
+        if snapshot_id in (None, ""):
+            continue
+        if prediction_snapshot_id not in (None, "") and str(snapshot_id) != str(prediction_snapshot_id):
+            continue
+        out[str(snapshot_id)] = snapshot
+    return out
+
+
 def _first_present(*values):
     for value in values:
         if value is not None and value != "":
@@ -1408,6 +1857,40 @@ def _count_values(rows: list[dict[str, Any]], key: str) -> dict[str, int]:
         value = str(row.get(key) or "missing")
         counts[value] = counts.get(value, 0) + 1
     return counts
+
+
+def _paper_adaptive_sizing_runtime_status(
+    allocation_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    accepted_count = sum(
+        1
+        for row in allocation_rows
+        if row.get("allocator_decision") in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
+    )
+    blocked_count = sum(
+        1
+        for row in allocation_rows
+        if str(row.get("allocator_decision") or "").startswith("BLOCK_")
+    )
+    return {
+        "allocator": "V2_ADAPTIVE_AI_CAPITAL_ALLOCATOR",
+        "fixed_runtime_notional_removed": True,
+        "paper_candidates_with_allocation": len(allocation_rows),
+        "candidate_allocation_count": len(allocation_rows),
+        "candidate_allocations": allocation_rows,
+        "candidate_allocations_complete": True,
+        "candidate_allocations_source": (
+            "paper_loop_allocation_rows_before_sample_truncation"
+        ),
+        "candidate_allocations_selected_before_outcome": True,
+        "candidate_allocations_future_labels_used_as_features": False,
+        "allocator_decision_counts": _count_values(allocation_rows, "allocator_decision"),
+        "accepted_allocation_count": accepted_count,
+        "blocked_allocation_count": blocked_count,
+        "sample_allocations": allocation_rows[:25],
+        "generated_utc": _utc_iso(),
+        "paper_only": True,
+    }
 
 
 def _count_list_values(rows: list[dict[str, Any]], key: str) -> dict[str, int]:
@@ -2686,10 +3169,28 @@ def _build_market_state_envelope(
 def _parse_strategy_time(value: Any) -> datetime | None:
     if value in (None, ""):
         return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        iso_value = _iso_from_epoch_ms(value)
+        if iso_value is None:
+            return None
+        value = iso_value
     try:
         parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except ValueError:
-        return None
+        numeric_value = _coerce_float(value)
+        if numeric_value is not None:
+            iso_value = _iso_from_epoch_ms(numeric_value)
+            if iso_value is not None:
+                try:
+                    parsed = datetime.fromisoformat(iso_value.replace("Z", "+00:00"))
+                except ValueError:
+                    return None
+            else:
+                return None
+        else:
+            return None
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
@@ -2723,6 +3224,40 @@ def _future_cutoff_offenders(
             }
         )
     return offenders
+
+
+def _point_in_time_timeframe_rows(
+    *,
+    market_state_envelope: dict[str, Any],
+    timeframe_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    decision_time = _parse_strategy_time(
+        _first_present(
+            market_state_envelope.get("decision_time"),
+            market_state_envelope.get("available_at"),
+            market_state_envelope.get("generated_utc"),
+            market_state_envelope.get("generated_at"),
+        )
+    )
+    if decision_time is None:
+        return []
+    rows: list[dict[str, Any]] = []
+    for row in timeframe_rows:
+        if not isinstance(row, dict):
+            continue
+        row_available_at = _parse_strategy_time(
+            _first_present(
+                row.get("available_at"),
+                row.get("decision_time"),
+                row.get("generated_utc"),
+                row.get("generated_at"),
+            )
+        )
+        if row_available_at is None:
+            continue
+        if row_available_at <= decision_time:
+            rows.append(row)
+    return rows
 
 
 def _paper_signal_temporal_rejection_reasons(
@@ -3576,12 +4111,176 @@ def _ensure_margin_mode_selection_model_input(allocation: dict[str, Any]) -> Non
     )
 
 
+def _set_allocation_default_from_intent(
+    allocation: dict[str, Any],
+    intent: dict[str, Any],
+    target_field: str,
+    *intent_fields: str,
+) -> None:
+    if allocation.get(target_field) not in (None, ""):
+        return
+    source_fields = intent_fields or (target_field,)
+    for source_field in source_fields:
+        value = intent.get(source_field)
+        if value not in (None, ""):
+            allocation[target_field] = value
+            return
+
+
+def _attach_paper_allocation_decision_context(
+    intent: dict[str, Any],
+    allocation: dict[str, Any],
+) -> None:
+    allocation.setdefault("selector_policy_fingerprint", OUT_OF_SAMPLE_REVERIFY_SELECTOR_POLICY_FINGERPRINT)
+    allocation.setdefault("frozen_selector_fingerprint", OUT_OF_SAMPLE_REVERIFY_SELECTOR_POLICY_FINGERPRINT)
+    allocation.setdefault("candidate_selected_before_outcome", True)
+    allocation.setdefault("future_labels_used_as_features", False)
+    allocation.setdefault("paper_only", True)
+    allocation.setdefault("places_real_order", False)
+    allocation.setdefault("live_order", False)
+    allocation.setdefault("test_order", False)
+    allocation.setdefault("leverage_mutation", False)
+    allocation.setdefault("margin_mode_mutation", False)
+    allocation.setdefault(
+        "paper_allocation_decision_context_source",
+        "paper_intent_decision_time_context_before_outcome",
+    )
+
+    for field in (
+        "source_intent_id",
+        "intent_id",
+        "symbol",
+        "timeframe",
+        "side",
+        "selected_action",
+        "confidence_raw",
+        "confidence_calibrated",
+        "selected_action_probability",
+        "expected_move_bps",
+        "expected_move_after_cost_bps",
+        "action_probabilities",
+        "policy_value",
+        "value_baseline",
+        "prediction_score_source",
+        "prediction_score_missing_reason",
+        "decision_id",
+        "signal_id",
+        "source_prediction_id",
+        "prediction_id",
+        "risk_decision_id",
+        "orchestrator_decision_id",
+        "feature_snapshot_id",
+        "mtf_snapshot_id",
+        "feature_cutoff",
+        "decision_time",
+        "available_at",
+        "entry_feature_snapshot_id",
+        "entry_feature_available_at",
+        "entry_feature_generated_at",
+        "entry_feature_cutoff",
+        "entry_feature_decision_time",
+        "entry_feature_source",
+        "entry_feature_candle_closed_confirmed",
+        "model_version",
+        "checkpoint_id",
+        "source_hashes",
+        "feature_vector_hash",
+        "input_feature_hash",
+        "trainer_source",
+        "model_id",
+        "strategy_id",
+        "strategy_family",
+        "strategy_subtype",
+        "strategy_selected_mode",
+        "strategy_router_selected_mode",
+        "strategy_size_adjustment_mode",
+        "strategy_regime_labels",
+        "market_state_id",
+        "market_state_integrity_score",
+        "valid_for_paper",
+        "market_state_reject_reasons",
+        "entry_atr_bps",
+        "atr_bps",
+        "volatility_bps",
+        "liquidity_score",
+        "regime_score",
+        "allocator_liquidity_score",
+        "allocator_liquidity_score_source",
+        "allocator_liquidity_score_reason",
+        "allocator_regime_score",
+        "allocator_regime_score_source",
+        "allocator_regime_score_reason",
+        "correlation_exposure_pct",
+        "correlation_input_source",
+        "correlation_input_status",
+        "correlation_pair_count",
+        "actual_observed_spread_entry_bps",
+        "observed_bid_ask_spread_bps",
+        "bid_ask_spread_bps",
+        "entry_spread_source",
+        "entry_spread_available_at",
+        "entry_spread_decision_time",
+        "expected_slippage_bps",
+        "expected_slippage_source",
+        "fee_bps",
+        "fee_bps_source",
+        "expected_funding_bps",
+        "expected_funding_bps_source",
+        "funding_rate",
+        "funding_interval_seconds",
+        "orderbook_depth_usd",
+        "entry_orderbook_depth_usd",
+        "entry_orderbook_depth_side",
+        "bid_depth_usd",
+        "ask_depth_usd",
+        "top_of_book_depth_usd",
+        "market_depth_usd",
+        "orderbook_depth_source",
+        "orderbook_imbalance",
+        "price_target",
+        "price_target_after_cost",
+        "price_target_high",
+        "price_target_low",
+        "live_gate",
+    ):
+        _set_allocation_default_from_intent(allocation, intent, field)
+
+    _set_allocation_default_from_intent(allocation, intent, "action", "selected_action", "side")
+    _set_allocation_default_from_intent(allocation, intent, "strategy", "strategy_id", "strategy_family")
+    _set_allocation_default_from_intent(
+        allocation,
+        intent,
+        "generated_at",
+        "generated_at",
+        "entry_feature_generated_at",
+    )
+    _set_allocation_default_from_intent(
+        allocation,
+        intent,
+        "entry_spread_bps",
+        "entry_spread_bps",
+        "actual_observed_spread_entry_bps",
+        "observed_bid_ask_spread_bps",
+        "bid_ask_spread_bps",
+    )
+    _set_allocation_default_from_intent(
+        allocation,
+        intent,
+        "margin_mode",
+        "margin_mode",
+        "margin_mode_simulated",
+    )
+    if allocation.get("margin_mode") in (None, "") and allocation.get("recommended_margin_mode") not in (None, ""):
+        allocation["margin_mode"] = allocation.get("recommended_margin_mode")
+
+
 def _attach_paper_sizing(intent: dict[str, Any], allocation: dict[str, Any]) -> None:
     price = _coerce_float(_first_present(intent.get("fill_price"), intent.get("entry_price"), intent.get("price")))
     decision = str(allocation.get("allocator_decision") or "")
     notional = _coerce_float(allocation.get("target_notional_usdt"))
     quantity = _coerce_float(allocation.get("target_quantity"))
     _ensure_margin_mode_selection_model_input(allocation)
+    _attach_paper_allocation_decision_context(intent, allocation)
     intent["adaptive_allocation"] = allocation
     intent["adaptive_capital_policy_version"] = allocation.get("adaptive_capital_policy_version")
     if intent["adaptive_capital_policy_version"]:
@@ -4089,16 +4788,34 @@ def run_once() -> dict:
         )
         em_after = _coerce_float(s.get("expected_move_after_cost_bps"))
         em_after = 0.0 if em_after is None else em_after
+        confidence_calibrated = _first_present(s.get("confidence_calibrated"), s.get("confidence"))
+        confidence_raw = _first_present(s.get("confidence_raw"), prediction.get("confidence_raw"))
+        expected_move_bps = _first_present(
+            s.get("expected_move_bps"),
+            prediction.get("expected_move_bps"),
+            s.get("price_target_bps"),
+            prediction.get("price_target_bps"),
+        )
+        selected_action_probability = _first_present(
+            s.get("selected_action_probability"),
+            prediction.get("selected_action_probability"),
+            s.get("action_probability"),
+            prediction.get("action_probability"),
+        )
         market_state_envelope = _build_market_state_envelope(signal=s, prediction=prediction)
         symbol_predictions = predictions_by_symbol.get(symbol, [])
-        future_cutoff_offenders = _future_cutoff_offenders(
+        strategy_timeframe_rows = _point_in_time_timeframe_rows(
             market_state_envelope=market_state_envelope,
             timeframe_rows=symbol_predictions,
+        )
+        future_cutoff_offenders = _future_cutoff_offenders(
+            market_state_envelope=market_state_envelope,
+            timeframe_rows=strategy_timeframe_rows,
         )
         current_position_state = _derive_position_state(existing_ledger, symbol)
         strategy_router = route_strategy(
             market_state_envelope=market_state_envelope,
-            masa_predictions=symbol_predictions,
+            masa_predictions=strategy_timeframe_rows,
             ppo_proposed_action=str(side),
             current_position_state=current_position_state,
             recent_execution_success_metrics=execution_metrics,
@@ -4122,9 +4839,7 @@ def run_once() -> dict:
             current_position_state=current_position_state,
             paper_fill_allowed_upstream=paper_fill_allowed_upstream,
             expected_move_after_cost_bps=em_after,
-            confidence_calibrated=_coerce_float(
-                _first_present(s.get("confidence_calibrated"), s.get("confidence"))
-            ),
+            confidence_calibrated=_coerce_float(confidence_calibrated),
             live_gate=live_context["live_gate"],
         )
         drawdown_recovery_guard_evaluations.append(drawdown_recovery_guard)
@@ -4184,6 +4899,12 @@ def run_once() -> dict:
             "symbol": symbol,
             "timeframe": _first_present(s.get("timeframe"), prediction.get("timeframe")),
             "side": side,
+            "expected_move_after_cost_bps": em_after,
+            "expected_net_edge_bps": em_after,
+            "expected_move_bps": expected_move_bps,
+            "confidence_raw": confidence_raw,
+            "confidence_calibrated": confidence_calibrated,
+            "selected_action_probability": selected_action_probability,
             "pre_trade_allowed": pre["allowed"],
             "fee_gate_allowed": not fee_gate.blocked,
             "fee_gate_reason": fee_gate.reason,
@@ -4224,7 +4945,27 @@ def run_once() -> dict:
             "side": side,
             "signal_id": s.get("signal_id"),
             "expected_move_after_cost_bps": em_after,
-            "confidence_calibrated": _first_present(s.get("confidence_calibrated"), s.get("confidence")),
+            "expected_move_bps": expected_move_bps,
+            "confidence_raw": confidence_raw,
+            "confidence_calibrated": confidence_calibrated,
+            "selected_action_probability": selected_action_probability,
+            "action_probabilities": _first_present(
+                s.get("action_probabilities"),
+                prediction.get("action_probabilities"),
+                s.get("policy_action_probabilities"),
+                prediction.get("policy_action_probabilities"),
+            ),
+            "policy_value": _first_present(
+                s.get("policy_value"),
+                prediction.get("policy_value"),
+                s.get("value_estimate"),
+                prediction.get("value_estimate"),
+            ),
+            "value_baseline": _first_present(
+                s.get("value_baseline"),
+                prediction.get("value_baseline"),
+            ),
+            "prediction_score_source": "PAPER_INTENT_ENTRY_PREDICTION_SCORE_FIELDS",
             "price_target": _first_present(s.get("price_target"), s.get("price_target_after_cost")),
             "timeframe": s.get("timeframe"),
             "data_coverage_percent": s.get("data_coverage_percent"),
@@ -4325,6 +5066,17 @@ def run_once() -> dict:
             ),
             "paper_confidence_trial_lineage": s.get("paper_confidence_trial_lineage"),
         }
+        missing_score_fields = [
+            field
+            for field in ("confidence_calibrated", "expected_move_after_cost_bps")
+            if intent.get(field) in (None, "")
+        ]
+        if missing_score_fields:
+            intent["prediction_score_source"] = None
+            intent["prediction_score_missing_reason"] = (
+                "MISSING_PAPER_INTENT_ENTRY_PREDICTION_SCORE_FIELDS:"
+                + ",".join(missing_score_fields)
+            )
         # Attach V2-owned price provenance to every intent. The strict
         # paper-fill gate decides whether the intent becomes an accepted
         # paper fill; the provenance fields ride along regardless so
@@ -4332,11 +5084,20 @@ def run_once() -> dict:
         # available, and never fabricate a price.
         px, px_source, px_source_utc = _read_v2_market_price(r, symbol)
         _attach_entry_price_provenance(intent, px, px_source, px_source_utc)
-        entry_feature_snapshot = _read_v2_feature_snapshot(
+        entry_feature_decision_time = str(
+            _first_present(
+                intent.get("decision_time"),
+                trust_envelope.get("decision_time"),
+                intent.get("generated_utc"),
+                started,
+            )
+        )
+        entry_feature_snapshot = _read_v2_feature_snapshot_by_id(
             r,
-            symbol,
-            _first_present(intent.get("timeframe"), prediction.get("timeframe"), s.get("timeframe")),
-            decision_time=str(intent.get("generated_utc") or started),
+            trust_feature_snapshot_id,
+            decision_time=entry_feature_decision_time,
+            symbol=symbol,
+            timeframe=_first_present(intent.get("timeframe"), prediction.get("timeframe"), s.get("timeframe")),
         )
         entry_features = (
             entry_feature_snapshot.get("features")
@@ -4348,11 +5109,20 @@ def run_once() -> dict:
             intent["entry_feature_available_at"] = entry_feature_snapshot.get("available_at")
             intent["entry_feature_generated_at"] = entry_feature_snapshot.get("generated_at")
             intent["entry_feature_cutoff"] = entry_feature_snapshot.get("feature_cutoff")
-            intent["entry_feature_decision_time"] = intent.get("generated_utc")
+            intent["entry_feature_decision_time"] = entry_feature_decision_time
             intent["entry_feature_source"] = str(entry_feature_snapshot.get("redis_key") or "")
             intent["entry_feature_candle_closed_confirmed"] = entry_feature_snapshot.get(
                 "candle_closed_confirmed"
             )
+            snapshot_evidence = _entry_feature_snapshot_evidence(entry_feature_snapshot)
+            if snapshot_evidence is not None:
+                snapshot_evidence.setdefault("feature_snapshot_id", trust_feature_snapshot_id)
+                snapshot_evidence.setdefault("symbol", symbol)
+                snapshot_evidence.setdefault(
+                    "timeframe",
+                    _first_present(intent.get("timeframe"), prediction.get("timeframe"), s.get("timeframe")),
+                )
+                intent["entry_feature_snapshot"] = snapshot_evidence
         else:
             intent["entry_feature_unavailable_reason"] = entry_feature_snapshot.get(
                 "unavailable_reason"
@@ -4662,9 +5432,21 @@ def run_once() -> dict:
             "execution_live_symbols": live_context["execution_live_symbols"],
         })
     keys_written: list[str] = []
+    merged_accepted_fills = _merge_persistent_accepted_fills(existing_accepted, accepted)
+    accepted_lineage_contexts = _lineage_context_by_prediction_id(merged_accepted_fills)
+    accepted_replay_predictions = _read_replay_snapshot_predictions(r, accepted_lineage_contexts)
+    for prediction_id, replay_prediction in accepted_replay_predictions.items():
+        predictions_by_id.setdefault(prediction_id, replay_prediction)
+    accepted_feature_snapshots_by_id = _read_feature_snapshots_by_id(r, accepted_lineage_contexts)
+    accepted_feature_snapshots_by_id = {
+        **_feature_snapshots_from_replay_predictions(accepted_replay_predictions),
+        **accepted_feature_snapshots_by_id,
+    }
     accepted_for_ledger = _backfill_fill_lineage_from_predictions(
-        _merge_persistent_accepted_fills(existing_accepted, accepted),
+        merged_accepted_fills,
         predictions_by_id,
+        feature_snapshots_by_id=accepted_feature_snapshots_by_id,
+        require_feature_snapshot_deref=True,
     )
     mark_prices: dict[str, dict[str, Any]] = {}
     for symbol in sorted({str(row.get("symbol") or "").upper() for row in accepted_for_ledger if row.get("symbol")}):
@@ -4946,21 +5728,9 @@ def run_once() -> dict:
         "live_path_changed": False,
         "generated_utc": _utc_iso(),
     }
-    paper_adaptive_sizing_runtime_status = {
-        "allocator": "V2_ADAPTIVE_AI_CAPITAL_ALLOCATOR",
-        "fixed_runtime_notional_removed": True,
-        "paper_candidates_with_allocation": len(allocation_rows),
-        "allocator_decision_counts": _count_values(allocation_rows, "allocator_decision"),
-        "accepted_allocation_count": sum(
-            1 for row in allocation_rows if row.get("allocator_decision") in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
-        ),
-        "blocked_allocation_count": sum(
-            1 for row in allocation_rows if str(row.get("allocator_decision") or "").startswith("BLOCK_")
-        ),
-        "sample_allocations": allocation_rows[:25],
-        "generated_utc": _utc_iso(),
-        "paper_only": True,
-    }
+    paper_adaptive_sizing_runtime_status = _paper_adaptive_sizing_runtime_status(
+        allocation_rows,
+    )
     risk_envelope_dynamic_budget_status = {
         "operator_envelope_type": "PERCENTAGE_BASED_RISK_ENVELOPE",
         "equity_source": "v2:portfolio:state",
@@ -4995,14 +5765,45 @@ def run_once() -> dict:
         ],
         "generated_utc": _utc_iso(),
     }
-    closes: list[dict] = list(lifecycle_result["closed_trades"])
+    # Deduplicate by close_id before writing — prevents float-drift duplicates
+    # from accumulating when the same close event is processed in multiple loop
+    # iterations.  Keep first occurrence (matches portfolio publisher behaviour).
+    # Use close_id (authoritative), then paper_close_id, then a composite key
+    # of symbol+entry_time+exit_time+side — never bare position_id which is
+    # not unique across multiple trades on the same symbol.
+    _seen_close_ids: set[str] = set()
+    _deduped: list[dict] = []
+    for _ct in lifecycle_result["closed_trades"]:
+        _cid = (
+            _ct.get("close_id")
+            or _ct.get("paper_close_id")
+            or f"{_ct.get('symbol')}:{_ct.get('entry_time')}:{_ct.get('exit_time')}:{_ct.get('side')}"
+        )
+        if _cid not in _seen_close_ids:
+            _seen_close_ids.add(_cid)
+            _deduped.append(_ct)
+    closes: list[dict] = _deduped
     open_positions: list[dict] = list(lifecycle_result["open_positions"])
     outcome_labels: list[dict] = list(lifecycle_result["outcome_labels"])
+    feedback_lineage_contexts = _lineage_context_by_prediction_id(
+        closes,
+        outcome_labels,
+        accepted_for_ledger,
+    )
+    feedback_replay_predictions = _read_replay_snapshot_predictions(r, feedback_lineage_contexts)
+    for prediction_id, replay_prediction in feedback_replay_predictions.items():
+        predictions_by_id.setdefault(prediction_id, replay_prediction)
+    feature_snapshots_by_id = _read_feature_snapshots_by_id(r, feedback_lineage_contexts)
+    feature_snapshots_by_id = {
+        **_feature_snapshots_from_replay_predictions(feedback_replay_predictions),
+        **feature_snapshots_by_id,
+    }
     trainer_feedback_rows = _build_trainer_feedback_rows(
         close_events=closes,
         outcome_labels=outcome_labels,
         entry_context_rows=accepted_for_ledger,
         predictions_by_id=predictions_by_id,
+        feature_snapshots_by_id=feature_snapshots_by_id,
     )
     trainer_feedback_consumable_rows = [
         row for row in trainer_feedback_rows if row.get("trainer_consumable") is True
@@ -5027,19 +5828,36 @@ def run_once() -> dict:
         }
     )
     if r is not None:
-        if _safe_write(r, f"{V2_REDIS_PREFIX}paper:intents", json.dumps(intents), ex=600):
+        if _safe_write(
+            r,
+            f"{V2_REDIS_PREFIX}paper:intents",
+            json.dumps(intents),
+            ex=PAPER_RUNTIME_TRANSIENT_TTL_SECONDS,
+        ):
             keys_written.append(f"{V2_REDIS_PREFIX}paper:intents")
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}paper:intents_held_by_paper_fill_gate",
             json.dumps(held_by_gate_intents),
-            ex=600,
+            ex=PAPER_RUNTIME_TRANSIENT_TTL_SECONDS,
         ):
             keys_written.append(
                 f"{V2_REDIS_PREFIX}paper:intents_held_by_paper_fill_gate"
             )
-        if _safe_write(r, f"{V2_REDIS_PREFIX}risk:decisions", json.dumps(risk_decisions), ex=600):
+        if _safe_write(
+            r,
+            f"{V2_REDIS_PREFIX}risk:decisions",
+            json.dumps(risk_decisions),
+            ex=PAPER_RUNTIME_TRANSIENT_TTL_SECONDS,
+        ):
             keys_written.append(f"{V2_REDIS_PREFIX}risk:decisions")
+        if risk_decisions and _safe_write(
+            r,
+            f"{V2_REDIS_PREFIX}risk:decisions:latest",
+            json.dumps(risk_decisions[0]),
+            ex=PAPER_RUNTIME_TRANSIENT_TTL_SECONDS,
+        ):
+            keys_written.append(f"{V2_REDIS_PREFIX}risk:decisions:latest")
         ledger_payload = {
             "accepted_count": len(accepted_for_ledger),
             "current_cycle_accepted_count": len(accepted),
@@ -5121,26 +5939,46 @@ def run_once() -> dict:
             "places_real_order": False,
             "generated_utc": _utc_iso(),
         }
-        if _safe_write(r, f"{V2_REDIS_PREFIX}paper:ledger", json.dumps(ledger_payload), ex=600):
+        if _safe_write(
+            r,
+            f"{V2_REDIS_PREFIX}paper:ledger",
+            json.dumps(ledger_payload),
+            ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
+        ):
             keys_written.append(f"{V2_REDIS_PREFIX}paper:ledger")
-        if _safe_write(r, f"{V2_REDIS_PREFIX}paper:positions", json.dumps(open_positions), ex=600):
+        if _safe_write(
+            r,
+            f"{V2_REDIS_PREFIX}paper:positions",
+            json.dumps(open_positions),
+            ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
+        ):
             keys_written.append(f"{V2_REDIS_PREFIX}paper:positions")
-        if _safe_write(r, f"{V2_REDIS_PREFIX}paper:closed_trades", json.dumps(closes), ex=1800):
+        if _safe_write(
+            r,
+            f"{V2_REDIS_PREFIX}paper:closed_trades",
+            json.dumps(closes),
+            ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
+        ):
             keys_written.append(f"{V2_REDIS_PREFIX}paper:closed_trades")
-        if _safe_write(r, f"{V2_REDIS_PREFIX}paper:outcome_labels", json.dumps(outcome_labels), ex=1800):
+        if _safe_write(
+            r,
+            f"{V2_REDIS_PREFIX}paper:outcome_labels",
+            json.dumps(outcome_labels),
+            ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
+        ):
             keys_written.append(f"{V2_REDIS_PREFIX}paper:outcome_labels")
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}trainer:feedback:outcomes",
             json.dumps(trainer_feedback_consumable_rows),
-            ex=1800,
+            ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}trainer:feedback:outcomes")
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}trainer:feedback:outcomes:quarantine",
             json.dumps(trainer_feedback_quarantine_rows),
-            ex=1800,
+            ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}trainer:feedback:outcomes:quarantine")
         if _safe_write(
@@ -5168,21 +6006,21 @@ def run_once() -> dict:
                 },
                 "generated_utc": _utc_iso(),
             }),
-            ex=600,
+            ex=PAPER_RUNTIME_TRANSIENT_TTL_SECONDS,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}paper:trade_management:status")
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}paper:shadow_observations",
             json.dumps(shadow_observations),
-            ex=600,
+            ex=PAPER_RUNTIME_TRANSIENT_TTL_SECONDS,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}paper:shadow_observations")
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}paper:strategy_router_report",
             json.dumps(strategy_router_report),
-            ex=600,
+            ex=PAPER_RUNTIME_TRANSIENT_TTL_SECONDS,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}paper:strategy_router_report")
 
