@@ -300,6 +300,9 @@ def run_once(write_redis: bool = True) -> dict:
     accounting_inventory: list[dict[str, Any]] = []
     positions_by_symbol: list[dict[str, Any]] = []
     accounting: dict[str, Any] = {}
+    active_accepted_fill_total = 0
+    accepted_closed_filter_count = 0
+    accepted_closed_filter_sample: list[dict[str, Any]] = []
     paper_zero_pnl_reason: str | None = None
     last_fill_utc = None
     live_gate_status = "blocked_human_only"
@@ -361,6 +364,9 @@ def run_once(write_redis: bool = True) -> dict:
             )
             accounting_inventory = list(accounting.get("inventory") or [])
             positions_by_symbol = list(accounting.get("positions_by_symbol") or [])
+            active_accepted_fill_total = int(_safe_float(accounting.get("active_accepted_fill_count"), len(accepted_rows)))
+            accepted_closed_filter_count = int(_safe_float(accounting.get("accepted_closed_filter_count"), 0))
+            accepted_closed_filter_sample = list(accounting.get("accepted_closed_filter_sample") or [])
             economic_fill_total = int(_safe_float(accounting.get("economic_fill_count"), 0))
             non_economic_fill_total = int(_safe_float(accounting.get("non_economic_fill_count"), 0))
             pnl_blockers = list(accounting.get("non_economic_fill_blockers") or [])
@@ -480,7 +486,10 @@ def run_once(write_redis: bool = True) -> dict:
         or previous_portfolio_state.get("high_water_mark")
         or previous_portfolio_state.get("equity")
     )
-    equity_high_water_mark = max(PAPER_INITIAL_CAPITAL, previous_high_water or PAPER_INITIAL_CAPITAL, equity)
+    previous_open_positions = int(_safe_float(previous_portfolio_state.get("open_positions_count"), 0))
+    reset_stale_high_water = accepted_closed_filter_count > 0 and previous_open_positions > 0
+    carried_high_water = None if reset_stale_high_water else previous_high_water
+    equity_high_water_mark = max(PAPER_INITIAL_CAPITAL, carried_high_water or PAPER_INITIAL_CAPITAL, equity)
     current_drawdown_usd = max(0.0, equity_high_water_mark - equity)
     current_drawdown_bps = (
         current_drawdown_usd / equity_high_water_mark * 10000.0
@@ -491,11 +500,27 @@ def run_once(write_redis: bool = True) -> dict:
         accounting.get("equity_reconciliation_difference"),
         equity - (PAPER_INITIAL_CAPITAL + realized_pnl_usd + unrealized_pnl_usd),
     )
-    closed_ledger_net_pnl = _safe_float(accounting.get("closed_ledger_net_pnl"), _sum_closed_realized(closed_rows))
+    # When the standalone v2:paper:closed_trades list is populated, derive
+    # closed_ledger_net_pnl from it exclusively — it is the same source the G08
+    # guardian verifier reads, so both will always agree regardless of when the
+    # portfolio publisher runs relative to the paper loop's write cycle.
+    # The ledger dict's "closed_trades" key holds only the last-50 sample, which
+    # can cause transient gaps if the portfolio is published between the standalone
+    # write and the ledger-dict write.
+    # Fall back to the merged/accounting path only when standalone is empty
+    # (early startup, test fixtures that don't populate the standalone key).
+    closed_ledger_net_pnl = (
+        _sum_closed_realized(standalone_closed_rows)
+        if standalone_closed_rows
+        else _safe_float(accounting.get("closed_ledger_net_pnl"), _sum_closed_realized(closed_rows))
+    )
     portfolio_realized_matches_closed_ledger = abs(realized_pnl_usd - closed_ledger_net_pnl) <= 0.01
     if accepted_fill_total == 0:
         classification = "PORTFOLIO_STATE_CURRENT_PAPER_LEDGER_NO_ACCEPTED_FILLS"
         paper_equity_reason = "NO_ACCEPTED_PAPER_FILL_IN_CURRENT_V2_LEDGER"
+    elif active_accepted_fill_total == 0 and closed_rows:
+        classification = "PORTFOLIO_STATE_CURRENT_PAPER_LEDGER_CLOSED_ONLY"
+        paper_equity_reason = "ALL_ACCEPTED_FILLS_ALREADY_REPRESENTED_IN_CLOSED_TRADE_LEDGER"
     elif economic_fill_total == 0:
         classification = "PORTFOLIO_STATE_CURRENT_PAPER_LEDGER_NO_ECONOMIC_FILLS"
         paper_equity_reason = paper_zero_pnl_reason or "NO_ECONOMIC_FILLS"
@@ -540,6 +565,8 @@ def run_once(write_redis: bool = True) -> dict:
         "shadow_observation_total": shadow_total,
         "accepted_intent_total": accepted_total,
         "accepted_fill_total": accepted_fill_total,
+        "active_accepted_fill_total": active_accepted_fill_total,
+        "accepted_fills_suppressed_by_closed_ledger_count": accepted_closed_filter_count,
         "economic_fill_total": economic_fill_total,
         "non_economic_fill_total": non_economic_fill_total,
         "held_by_paper_fill_gate_total": held_total,
@@ -556,6 +583,14 @@ def run_once(write_redis: bool = True) -> dict:
         "equity": round(equity, 8),
         "current_session_equity": round(equity, 8),
         "equity_high_water_mark": round(equity_high_water_mark, 8),
+        "equity_high_water_mark_reset_reason": (
+            "RESET_STALE_HIGH_WATER_AFTER_CLOSED_LEDGER_SUPPRESSED_PHANTOM_OPEN_INVENTORY"
+            if reset_stale_high_water
+            else None
+        ),
+        "previous_equity_high_water_mark": round(previous_high_water, 8)
+        if previous_high_water is not None
+        else None,
         "current_drawdown_usd": round(current_drawdown_usd, 8),
         "current_drawdown_bps": round(current_drawdown_bps, 8),
         "closed_ledger_net_pnl_usd": round(closed_ledger_net_pnl, 8),
@@ -577,6 +612,7 @@ def run_once(write_redis: bool = True) -> dict:
         "paper_equity_source": "v2:paper:ledger + v2:market:prices",
         "paper_zero_pnl_reason": paper_zero_pnl_reason,
         "pnl_blockers": pnl_blockers,
+        "accepted_closed_filter_sample": accepted_closed_filter_sample[:25],
         "paper_fill_economic_inventory": accounting_inventory[:100],
         "positions_by_symbol": positions_by_symbol[:100],
         "positions": positions[:25],  # top 25
