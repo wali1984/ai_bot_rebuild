@@ -31,12 +31,34 @@ CODEX_PASS_MARKER = "V2_PAPER_ONLINE_FULL_OPERATIONAL_CODEX_PASS"
 CODEX_FAIL_MARKER = "V2_PAPER_ONLINE_FULL_OPERATIONAL_CODEX_FAIL"
 PAPER_ONLINE_INTENTS_KEY = "v2:paper_online:intents"
 PAPER_ONLINE_LEDGER_KEY = "v2:paper_online:ledger"
+PAPER_ONLINE_RISK_DECISIONS_KEY = "v2:risk:paper_online_decisions"
+PAPER_ONLINE_RISK_DECISIONS_LATEST_KEY = "v2:risk:paper_online_decisions:latest"
+PAPER_ONLINE_RISK_GATEWAY_DECISIONS_KEY = "v2:risk:gateway:paper_online_decisions"
+PAPER_ONLINE_RISK_GATEWAY_DECISIONS_LATEST_KEY = "v2:risk:gateway:paper_online_decisions:latest"
+CANONICAL_RISK_TRUST_REQUIRED_FIELDS = (
+    "prediction_id",
+    "decision_id",
+    "feature_snapshot_id",
+    "mtf_snapshot_id",
+    "feature_cutoff",
+    "decision_time",
+    "available_at",
+    "symbol",
+    "timeframe",
+    "selected_action",
+    "model_version",
+    "checkpoint_id",
+    "source_hashes",
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 V2_ROOT = REPO_ROOT / "v2"
 PUBLIC_RUNTIME_DIR = V2_ROOT / "frontend" / "public" / "operator_runtime" / "paper_online" / "latest"
 LOCAL_RUNTIME_DIR = V2_ROOT / "runtime" / "paper_online" / "latest"
 FINAL_DIR = REPO_ROOT / "claude_worklog" / "final_readiness" / "v2_paper_online_recovery" / "latest"
+SYMBOL_UNIVERSE_PUBLIC_PATH = (
+    V2_ROOT / "frontend" / "public" / "operator_runtime" / "symbol_universe" / "latest" / "symbol_universe_status.json"
+)
 TRAINER_BRIDGE_STATUS_FILE = (
     V2_ROOT
     / "frontend"
@@ -46,6 +68,14 @@ TRAINER_BRIDGE_STATUS_FILE = (
     / "latest"
     / "v2_trainer_bridge_status.json"
 )
+
+
+def _has_complete_canonical_risk_trust_envelope(row: dict[str, Any]) -> bool:
+    for field in CANONICAL_RISK_TRUST_REQUIRED_FIELDS:
+        value = row.get(field)
+        if value in (None, "", [], {}):
+            return False
+    return isinstance(row.get("source_hashes"), dict)
 
 
 def _resolve_runtime_symbol(symbol: str | None, *, smoke_test: bool = False) -> str:
@@ -595,12 +625,38 @@ def _expected_move_model_review_contract() -> tuple[dict[str, Any], list[str]]:
     )
 
 
+def _derive_reduce_only_clear(
+    intent: dict[str, Any],
+    previous_position: dict[str, Any] | None,
+) -> bool:
+    if previous_position is None:
+        return True
+    intent_side = str(intent.get("side") or "").lower()
+    position_side = str(previous_position.get("side") or "").lower()
+    # Reduce-only is in force when there's an open position in the same direction
+    # (pyramiding blocked). Closing or flipping is allowed.
+    return intent_side != position_side
+
+
+def _derive_intelligent_close_guard_clear(
+    previous_position: dict[str, Any] | None,
+    generated_at: str,
+) -> bool:
+    if previous_position is None:
+        return True
+    age = _position_age_seconds(previous_position, generated_at)
+    if age is None:
+        return False
+    return age >= PAPER_POSITION_MIN_HOLD_SECONDS
+
+
 def apply_paper_tightening_gate(
     lineage: dict[str, Any],
     *,
     generated_at: str,
     recent_events: list[dict[str, Any]],
     now_ms: int | None = None,
+    previous_position: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     gated = copy.deepcopy(lineage)
     risk = gated["risk_decision"]
@@ -685,11 +741,13 @@ def apply_paper_tightening_gate(
             "cooldown_clear": "same_symbol_same_direction_cooldown"
             not in set(gate.get("blockers") or []),
             "flip_churn_clear": "flip_churn_cooldown" not in set(gate.get("blockers") or []),
-            "reduce_only_clear": True,
-            "intelligent_close_guard_clear": True,
+            "reduce_only_clear": _derive_reduce_only_clear(intent, previous_position),
+            "intelligent_close_guard_clear": _derive_intelligent_close_guard_clear(
+                previous_position, generated_at
+            ),
             "microstructure_toxicity_clear": microstructure_toxicity_clear,
         },
-        paper_symbols=[str(intent.get("symbol") or signal.get("symbol") or "").upper()],
+        paper_symbols=resolve_symbols(include_baseline=True),
         live_symbols=[],
         live_gate=LIVE_GATE_STATUS,
     )
@@ -706,8 +764,10 @@ def apply_paper_tightening_gate(
         "minimum_hold_seconds": PAPER_POSITION_MIN_HOLD_SECONDS,
         "dynamic_take_profit_model": "expected_move_after_cost_bps_floor",
         "dynamic_stop_model": "paper_static_stop_floor_until_legacy_dynamic_stop_parity",
-        "reduce_only_protection_clear": True,
-        "intelligent_close_guard_clear": True,
+        "reduce_only_protection_clear": _derive_reduce_only_clear(intent, previous_position),
+        "intelligent_close_guard_clear": _derive_intelligent_close_guard_clear(
+            previous_position, generated_at
+        ),
         "microstructure_toxicity_score_bps": microstructure_toxicity_score_bps,
         "microstructure_toxicity_max_bps": PAPER_MICROSTRUCTURE_TOXICITY_MAX_BPS,
         "microstructure_toxicity_clear": microstructure_toxicity_clear,
@@ -1402,6 +1462,7 @@ def build_runtime_payload(symbol: str, interval: int) -> tuple[dict[str, Any], d
             _read_jsonl_tail(LOCAL_RUNTIME_DIR / "paper_events.jsonl"),
             previous_last_closed_position,
         ),
+        previous_position=previous_position,
     )
     if previous_position:
         ledger_entry, paper_account, position_lifecycle = build_position_lifecycle_entry(
@@ -1603,8 +1664,14 @@ def _push_decisions_to_redis(payload: dict[str, Any]) -> None:
         if risk_decision:
             risk_entry = dict(risk_decision)
             risk_entry.setdefault("generated_at", generated_at)
-            # Delay list append until we have symbol_key (done below in signal_id block).
-            r.set("v2:risk:decisions:latest", json.dumps(risk_entry))
+            # Delay canonical list append until we have symbol_key (done below
+            # in signal_id block). Synthetic paper-online ticks without the
+            # point-in-time trust envelope must not overwrite canonical risk
+            # decision evidence consumed by training and lineage auditors.
+            if _has_complete_canonical_risk_trust_envelope(risk_entry):
+                r.set("v2:risk:decisions:latest", json.dumps(risk_entry))
+            else:
+                r.set(PAPER_ONLINE_RISK_DECISIONS_LATEST_KEY, json.dumps(risk_entry))
 
         if orch_decision:
             orch_entry = dict(orch_decision)
@@ -1673,16 +1740,24 @@ def _push_decisions_to_redis(payload: dict[str, Any]) -> None:
                     "risk_action": risk_decision.get("risk_action"),
                     "risk_result": risk_decision.get("risk_result"),
                 }
-                r.set("v2:risk:gateway:decisions:latest", json.dumps(gateway_entry))
-                _append_to_json_list("v2:risk:gateway:decisions", gateway_entry)
+                if _has_complete_canonical_risk_trust_envelope(gateway_entry):
+                    r.set("v2:risk:gateway:decisions:latest", json.dumps(gateway_entry))
+                    _append_to_json_list("v2:risk:gateway:decisions", gateway_entry)
+                else:
+                    r.set(PAPER_ONLINE_RISK_GATEWAY_DECISIONS_LATEST_KEY, json.dumps(gateway_entry))
+                    _append_to_json_list(PAPER_ONLINE_RISK_GATEWAY_DECISIONS_KEY, gateway_entry)
                 # Also inject symbol into the risk decision entry so _by_symbol fallback works
                 if risk_decision:
                     risk_entry_sym = dict(risk_decision)
                     risk_entry_sym["symbol"] = symbol_key
                     risk_entry_sym["orchestrator_decision_id"] = orch_decision.get("orchestrator_decision_id")
                     risk_entry_sym.setdefault("generated_at", generated_at)
-                    r.set("v2:risk:decisions:latest", json.dumps(risk_entry_sym))
-                    _append_to_json_list("v2:risk:decisions", risk_entry_sym)
+                    if _has_complete_canonical_risk_trust_envelope(risk_entry_sym):
+                        r.set("v2:risk:decisions:latest", json.dumps(risk_entry_sym))
+                        _append_to_json_list("v2:risk:decisions", risk_entry_sym)
+                    else:
+                        r.set(PAPER_ONLINE_RISK_DECISIONS_LATEST_KEY, json.dumps(risk_entry_sym))
+                        _append_to_json_list(PAPER_ONLINE_RISK_DECISIONS_KEY, risk_entry_sym)
         # Phase 6: backfill realized outcome when a position just closed
         if ledger_entries:
             _ledger_result = (ledger_entries[0] or {}).get("paper_result", "")

@@ -171,10 +171,10 @@
   "silently_dropped_behaviors": [],
   "task_id": "claude_map_legacy_protective_behaviors_to_v2_paper",
   "validation": {
-    "forbidden_mutation_scan": "PENDING_THIS_PACKET",
-    "json_validation": "PENDING_THIS_PACKET",
+    "forbidden_mutation_scan": "PASS_NO_EXCHANGE_MUTATION_FOUND",
+    "json_validation": "PASS",
     "py_compile": "PASS",
-    "secret_scan": "PENDING_THIS_PACKET",
-    "targeted_pytest": "PASS_20_TESTS"
+    "secret_scan": "PASS_NO_SECRET_EXPOSURE_FOUND",
+    "targeted_pytest": "PASS_103_TESTS_2026_06_23"
   }
 }
