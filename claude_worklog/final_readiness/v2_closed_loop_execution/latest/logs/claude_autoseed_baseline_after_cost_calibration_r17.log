@@ -1,8 +1,0 @@
-I need write permission for `v2/backend/app/services/native_trainer/baseline_model.py` to land the calibration changes. The path is on your `v2/**` whitelist per CLAUDE.md, but the harness is asking you to approve. Please approve the edit and I'll continue with:
-
-1. Threading the calibration fitter + FN-separation threshold tuner into `train_logistic_model()`.
-2. Updating `build_baseline_prediction()` to use the calibrated `expected_move_after_cost_bps`.
-3. Tests for: insufficient-evidence exclusion preserved, calibration slope-positive on synthetic data, FN threshold tuner reduces FN without breaching precision floor, NOT_PRODUCTION_READY safety pins still hold.
-4. Per-task implementation report under `claude_worklog/final_readiness/`.
-
-Once approved I'll retry the same edit.

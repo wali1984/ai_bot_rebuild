@@ -1,8 +1,0 @@
-The edit needs your approval. The file `v2/backend/app/services/rl_core/full_observation_builder.py` is V2-scoped (per CLAUDE.md `v2/**` write boundary), but Claude Code is asking permission. Please approve the write so I can proceed with the three plumbing edits:
-
-1. `_project_liquidations` — accept and forward `v2_liquidation_per_symbol`
-2. `_build_unified_features_slice` — accept the new optional kwarg and pass it through the dispatcher
-3. `build_full_observation_for_symbol` — accept the new optional kwarg
-4. `build_full_observation_status` — read `v2:market:liquidations:{latest,aggregate}:{sym}` and pass them in
-
-Once approved I'll apply all four edits, add a focused unit test, run the targeted suites, and emit the per-task implementation report under `v2/frontend/public/`.

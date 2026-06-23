@@ -1,4 +1,0 @@
-[2026-06-20T17:21:18Z] guardian_stop_hook: checkpoint written session=d58ec71b-e7cc-445a-b1ca-ffa6c17988f4 findings=18 critical=5 gates=3/18
-[2026-06-20T17:46:33Z] guardian_stop_hook: checkpoint written session=d58ec71b-e7cc-445a-b1ca-ffa6c17988f4 findings=18 critical=5 gates=6/18
-[2026-06-20T18:10:29Z] guardian_stop_hook: checkpoint written session=e966a2ab-1374-465d-ba10-9ca014a32186 findings=0 critical=0 gates=18/18
-[2026-06-20T18:48:16Z] guardian_stop_hook: checkpoint written session=d58ec71b-e7cc-445a-b1ca-ffa6c17988f4 findings=0 critical=0 gates=18/18

@@ -1,9 +1,0 @@
-I'm blocked on write permissions. Every Edit/Write call to paths I need (replay_miner.py, the IMPLEMENTATION_REPORT.md under claude_worklog, and the test file) is prompting for approval and not being granted.
-
-The CLAUDE.md write boundary allows `./v2/**` and `./claude_worklog/**`, but `.claude/settings.local.json` doesn't have an `allow` rule for `Edit`/`Write`, so each call is being interactively prompted. Could you approve the prompts (or add `Edit(./v2/**)`, `Write(./v2/**)`, `Edit(./claude_worklog/**)`, `Write(./claude_worklog/**)` to the permission allowlist) so I can:
-
-1. Patch `v2/backend/app/services/edge_proof/replay_miner.py` to add `build_altdata_snapshot()`, wire it into `_new_bundle_from_row`, and extend `validate_bundle_row`
-2. Extend the existing test file `v2/backend/tests/integration/cli/test_v2_post_hoc_replay_outcome_miner.py` with new altdata-attachment cases
-3. Write the per-task implementation report at `claude_worklog/final_readiness/v2_autonomous_mission_backlog/per_task/altdata_replay_bundle_snapshot_attachment/IMPLEMENTATION_REPORT.md`
-
-Once approved I'll proceed with a single combined edit per file to minimize further prompts.

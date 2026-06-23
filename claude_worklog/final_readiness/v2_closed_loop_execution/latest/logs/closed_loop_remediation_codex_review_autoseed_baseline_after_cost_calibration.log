@@ -1,8 +1,0 @@
-I'm being denied write permission for `v2/backend/app/services/native_trainer/baseline_model.py`. Could you grant write access for this file (and the test file plus the CLI in `v2/backend/app/cli/v2_native_trainer_baseline_evaluator.py`)? They're all under the `v2/**` writable scope per CLAUDE.md, but the harness is still prompting.
-
-Once approved I'll:
-1. Add `MIN_CALIBRATION_SAMPLE_COUNT`, `AfterCostCalibration` dataclass, and `_fit_after_cost_calibration()` (closed-form OLS gated by sample count + RMSE vs `(p−0.5)·50 − 7`) in `baseline_model.py`.
-2. Attach `after_cost_calibration` to `EvaluationResult` and use it in `build_baseline_prediction` / `publish_baseline_predictions` with hardcoded-formula fallback.
-3. Surface the calibration in `render_baseline_status` / dashboard payload.
-4. Add focused tests for accept/reject/insufficient-samples/no-variance paths.
-5. Write an `IMPLEMENTATION_REPORT.md` under `claude_worklog/final_readiness/v2_autonomous_mission_backlog/per_task/baseline_after_cost_calibration/` and run the test suite.

@@ -1,7 +1,0 @@
-The harness is asking permission to edit `v2/backend/app/services/edge_proof/replay_miner.py`. Please approve so I can apply the narrow change to record `paper_fill_gate_block_reasons` + lineage (and emit `MISSING_SOURCE` when evidence is unavailable), then I'll run the targeted tests and write the per-task implementation report.
-
-Plan once permission is granted:
-1. `v2/backend/app/services/edge_proof/replay_miner.py` — add `_resolve_paper_fill_gate_block_reasons` helper + constants (`PAPER_FILL_GATE_MISSING_SOURCE`, `PAPER_FILL_GATE_EVIDENCE_SOURCES`); wire into `_new_bundle_from_row` so `paper_gate_decision` carries both `paper_fill_gate_block_reasons` and a new `paper_fill_gate_block_reasons_lineage`. `paper_fill_allowed` itself is untouched (strict gate preserved).
-2. `v2/backend/app/services/war_room/parallel_recovery_24h.py` — teach `_classify_false_negative` that `["MISSING_SOURCE"]` is still an unrecorded reason (so the existing remediation task continues to fire) and surface the lineage in notes.
-3. Tests in `v2/backend/tests/integration/cli/test_v2_post_hoc_replay_outcome_miner.py` + `test_v2_24h_parallel_recovery_war_room.py` proving: (a) reasons-passthrough when raw evidence exists, (b) MISSING_SOURCE + lineage when blocked with no evidence, (c) no MISSING_SOURCE on `paper_fill_allowed=True`, (d) no behaviour change to predictions (not tradeable; gate remains False).
-4. Emit `claude_worklog/final_readiness/v2_autonomous_mission_backlog/per_task/paper_fill_gate_block_reason_recording/IMPLEMENTATION_REPORT.md`.
