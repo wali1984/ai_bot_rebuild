@@ -35,4 +35,8 @@ public enum AppTab: Hashable {
     case monitor
     case admin
     case settings
+    case predictions
+    case activity
+    case readiness
+    case audit
 }

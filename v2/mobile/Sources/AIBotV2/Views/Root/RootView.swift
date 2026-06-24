@@ -74,21 +74,27 @@ struct iPadLayout: View {
         NavigationSplitView {
             List {
                 Section("NERVYX EXECUTE") {
-                    sidebarRow(.dashboard,  "Dashboard",     "gauge.high")
-                    sidebarRow(.positions,  "Positions",     "chart.line.uptrend.xyaxis")
-                    sidebarRow(.signals,    "Signals",       "antenna.radiowaves.left.and.right")
-                    sidebarRow(.paper,      "Execute",       "bolt.horizontal.circle")
-                    sidebarRow(.alerts,     "Alerts",        "bell.badge")
+                    sidebarRow(.dashboard,  "Mission Control",  "gauge.high")
+                    sidebarRow(.positions,  "Portfolio",        "chart.line.uptrend.xyaxis")
+                    sidebarRow(.signals,    "Signals",          "antenna.radiowaves.left.and.right")
+                    sidebarRow(.paper,      "Execute",          "bolt.horizontal.circle")
+                    sidebarRow(.alerts,     "Alerts",           "bell.badge")
+                }
+                Section("NERVYX CORE") {
+                    sidebarRow(.predictions, "Signal Matrix",   "waveform.path.ecg.rectangle")
+                    sidebarRow(.activity,    "Executions",      "clock.arrow.circlepath")
                 }
                 Section("NERVYX GUARD") {
-                    sidebarRow(.risk,    "Risk Control", "shield.lefthalf.filled")
+                    sidebarRow(.risk,        "Risk Control",    "shield.lefthalf.filled")
+                    sidebarRow(.readiness,   "Live Readiness",  "checkmark.shield")
                 }
                 Section("NERVYX OBSERVE") {
-                    sidebarRow(.monitor, "Monitor",      "server.rack")
+                    sidebarRow(.monitor,     "System Monitor",  "server.rack")
                 }
                 if auth.currentSession?.isAdmin == true {
                     Section("Ops Terminal") {
-                        sidebarRow(.admin, "Admin", "person.badge.key")
+                        sidebarRow(.admin,  "Admin",            "person.badge.key")
+                        sidebarRow(.audit,  "Audit Ledger",     "list.clipboard")
                     }
                 }
                 Section("Account") {
@@ -116,15 +122,19 @@ struct iPadLayout: View {
     @ViewBuilder
     private func detailView(for tab: AppTab) -> some View {
         switch tab {
-        case .dashboard: DashboardView()
-        case .positions: PositionsView()
-        case .signals:   SignalsView()
-        case .paper:     PaperTradingView()
-        case .alerts:    AlertsView()
-        case .risk:      RiskControlView()
-        case .monitor:   MonitorView()
-        case .admin:     AdminDashboardView()
-        case .settings:  SettingsView()
+        case .dashboard:   DashboardView()
+        case .positions:   PositionsView()
+        case .signals:     SignalsView()
+        case .paper:       PaperTradingView()
+        case .alerts:      AlertsView()
+        case .risk:        RiskControlView()
+        case .monitor:     MonitorView()
+        case .admin:       AdminDashboardView()
+        case .settings:    SettingsView()
+        case .predictions: TrainerPredictionView()
+        case .activity:    ActivityView()
+        case .readiness:   LiveReadinessView()
+        case .audit:       AuditLedgerView()
         }
     }
 }
@@ -139,20 +149,29 @@ struct MoreView: View {
         NavigationStack {
             List {
                 Section("NERVYX OBSERVE") {
-                    NavigationLink("Alerts") { AlertsView() }
-                    NavigationLink("Risk Control") { RiskControlView() }
-                    NavigationLink("Monitor") { MonitorView() }
+                    NavigationLink("Alerts", destination: AlertsView())
+                    NavigationLink("System Monitor", destination: MonitorView())
+                    NavigationLink("Live Readiness", destination: LiveReadinessView())
+                }
+                Section("NERVYX GUARD") {
+                    NavigationLink("Risk Control", destination: RiskControlView())
+                }
+                Section("NERVYX CORE") {
+                    NavigationLink("Signal Matrix", destination: TrainerPredictionView())
+                    NavigationLink("Executions", destination: ActivityView())
                 }
                 if auth.currentSession?.isAdmin == true {
                     Section("Ops Terminal") {
-                        NavigationLink("Admin Dashboard") { AdminDashboardView() }
+                        NavigationLink("Admin Dashboard", destination: AdminDashboardView())
+                        NavigationLink("Audit Ledger", destination: AuditLedgerView())
                     }
                 }
                 Section("Account") {
-                    NavigationLink("Settings") { SettingsView() }
+                    NavigationLink("Settings", destination: SettingsView())
                 }
             }
             .navigationTitle("More")
+            .listStyle(.insetGrouped)
         }
     }
 }

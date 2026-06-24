@@ -233,7 +233,7 @@ struct AdminDashboardView: View {
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(NerVyx.warning)
             }
-            Text("Live trading, leverage, and kill switch controls require explicit human approval via web admin. These actions are blocked on mobile.")
+            Text("Live order routing, leverage, and kill switch controls require explicit human approval via web admin. These actions are blocked on mobile.")
                 .font(.system(size: 12))
                 .foregroundStyle(NerVyx.textMuted)
             if s.mobile_live_trading_blocked {
@@ -304,39 +304,185 @@ struct AdminDashboardView: View {
     }
 }
 
-// MARK: - Audit Ledger
+// MARK: - Audit Ledger (live data)
 
 struct AuditLedgerView: View {
+    @Environment(AuthManager.self) private var auth
     @Environment(AppState.self) private var appState
+    @State private var vm = AuditViewModel()
 
     var body: some View {
         ZStack {
             NerVyx.bg.ignoresSafeArea()
-            VStack(spacing: 16) {
-                Image(systemName: "list.clipboard")
-                    .font(.system(size: 36))
-                    .foregroundStyle(NerVyx.signal)
-                Text("Audit Ledger")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(NerVyx.textPrimary)
-                Text("Open Web Admin for the full audit ledger with search, filtering, and export.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(NerVyx.textMuted)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
-                Link("Open Audit Ledger ↗", destination: URL(string: appState.baseURL + "/audit-ledger")!)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(NerVyx.signal)
+            Group {
+                if vm.isLoading && vm.entries.isEmpty && vm.summary == nil {
+                    VStack(spacing: 12) {
+                        ProgressView().tint(NerVyx.primary)
+                        Text("Loading audit ledger…")
+                            .font(.system(size: 14))
+                            .foregroundStyle(NerVyx.textMuted)
+                    }
+                } else if let err = vm.error, vm.entries.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 32))
+                            .foregroundStyle(NerVyx.warning)
+                        Text(err)
+                            .foregroundStyle(NerVyx.textSecondary)
+                            .multilineTextAlignment(.center)
+                        Button("Retry") {
+                            Task { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) }
+                        }
+                        .foregroundStyle(NerVyx.signal)
+                    }.padding(32)
+                } else {
+                    auditContent
+                }
             }
         }
         .navigationTitle("Audit Ledger")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Link("Web ↗", destination: URL(string: appState.baseURL + "/audit-ledger")!)
-                    .foregroundStyle(NerVyx.signal)
+                HStack(spacing: 12) {
+                    Button {
+                        Task { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) }
+                    } label: {
+                        Image(systemName: "arrow.clockwise").foregroundStyle(NerVyx.signal)
+                    }
+                    Link("Web ↗", destination: URL(string: appState.baseURL + "/audit-ledger")!)
+                        .foregroundStyle(NerVyx.signal)
+                        .font(.system(size: 13, weight: .medium))
+                }
             }
         }
+        .refreshable { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) }
+        .task { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) }
+        .onAppear { vm.startAutoRefresh(token: auth.currentToken(), baseURL: appState.baseURL) }
+        .onDisappear { vm.stopAutoRefresh() }
+    }
+
+    private var auditContent: some View {
+        ScrollView {
+            VStack(spacing: 12) {
+                if let s = vm.summary { summaryCard(s) }
+                entriesSection
+            }
+            .padding(16)
+            .padding(.bottom, 32)
+        }
+    }
+
+    private func summaryCard(_ s: AuditLedgerSummary) -> some View {
+        HStack(spacing: 12) {
+            Circle()
+                .fill(s.chain_ok ? NerVyx.validation.opacity(0.15) : NerVyx.sell.opacity(0.15))
+                .frame(width: 44, height: 44)
+                .overlay(
+                    Image(systemName: s.chain_ok ? "link" : "link.badge.plus")
+                        .font(.system(size: 18))
+                        .foregroundStyle(s.chain_ok ? NerVyx.validation : NerVyx.sell)
+                )
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Chain: \(s.chainLabel)")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(s.chain_ok ? NerVyx.validation : NerVyx.sell)
+                HStack(spacing: 10) {
+                    Text("Last event \(s.ageLabel)")
+                        .font(.system(size: 12))
+                        .foregroundStyle(NerVyx.textMuted)
+                    if let ts = s.last_event_ts {
+                        Text(String(ts.prefix(19)))
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(NerVyx.textMuted)
+                    }
+                }
+            }
+            Spacer()
+            NerVyxBadge(
+                text: s.chainLabel,
+                color: s.chain_ok ? NerVyx.validation : NerVyx.sell,
+                small: true
+            )
+        }
+        .padding(14)
+        .background(s.chain_ok ? NerVyx.validation.opacity(0.06) : NerVyx.sell.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(s.chain_ok ? NerVyx.validation.opacity(0.25) : NerVyx.sell.opacity(0.25), lineWidth: 1)
+        )
+    }
+
+    private var entriesSection: some View {
+        VStack(spacing: 0) {
+            SectionHeader(title: "Recent Events (\(vm.entries.count))", accent: NerVyx.signal)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+
+            if vm.entries.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "list.clipboard")
+                        .font(.system(size: 28))
+                        .foregroundStyle(NerVyx.textMuted)
+                    Text("No audit events in ledger")
+                        .font(.system(size: 13))
+                        .foregroundStyle(NerVyx.textMuted)
+                }
+                .padding(32)
+                .frame(maxWidth: .infinity)
+            } else {
+                ForEach(vm.entries) { entry in
+                    AuditEntryRow(entry: entry)
+                    if entry.id != vm.entries.last?.id {
+                        NerVyxDivider().padding(.horizontal, 16)
+                    }
+                }
+            }
+        }
+        .background(NerVyx.panel)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(NerVyx.borderSubtle, lineWidth: 1))
+    }
+}
+
+struct AuditEntryRow: View {
+    let entry: AuditLedgerEntry
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Circle()
+                .fill(entry.chainOk ? NerVyx.validation.opacity(0.15) : NerVyx.sell.opacity(0.15))
+                .frame(width: 8, height: 8)
+                .padding(.top, 6)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(entry.displayAct.uppercased())
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(entry.chainOk ? NerVyx.textPrimary : NerVyx.sell)
+                    Text("·")
+                        .foregroundStyle(NerVyx.textMuted)
+                    Text(entry.displaySource)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(NerVyx.textMuted)
+                    Spacer()
+                    Text(entry.ageLabel)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(NerVyx.textMuted)
+                }
+                Text(entry.displayReason)
+                    .font(.system(size: 11))
+                    .foregroundStyle(NerVyx.textMuted)
+                    .lineLimit(2)
+                if let chain = entry.chain_status, !chain.isEmpty {
+                    NerVyxBadge(text: chain.uppercased(), color: entry.chainOk ? NerVyx.validation : NerVyx.sell, small: true)
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .contentShape(Rectangle())
     }
 }
 

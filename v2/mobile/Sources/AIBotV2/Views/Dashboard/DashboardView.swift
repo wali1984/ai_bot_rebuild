@@ -98,6 +98,8 @@ struct DashboardView: View {
             signalTrainerStatsRow(d)
             // PnL summary
             pnlSection(d.paper)
+            // Capital productivity quick stats
+            capitalQuickStats(d.paper)
             // Paper loop
             paperLoopSection(d.paper)
             // Trainer
@@ -173,7 +175,7 @@ struct DashboardView: View {
 
     private func pnlSection(_ paper: PaperState) -> some View {
         VStack(spacing: 0) {
-            SectionHeader(title: "PnL Summary", accent: NerVyx.buy, trailing: "LIVE")
+            SectionHeader(title: "PnL Summary", accent: NerVyx.buy, trailing: "REALTIME")
                 .padding(.bottom, 12)
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -204,6 +206,60 @@ struct DashboardView: View {
             }
         }
         .nerVyxCard(accent: NerVyx.borderSubtle)
+    }
+
+    private func capitalQuickStats(_ paper: PaperState) -> some View {
+        VStack(spacing: 10) {
+            SectionHeader(title: "Capital Snapshot", accent: NerVyx.inference, trailing: "\(paper.closed_trades) closed")
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                NerVyxStatCard(
+                    label: "OPEN",
+                    value: "\(paper.open_positions)",
+                    accent: NerVyx.paper
+                )
+                NerVyxStatCard(
+                    label: "CLOSED",
+                    value: "\(paper.closed_trades)",
+                    accent: NerVyx.borderStrong
+                )
+                NerVyxStatCard(
+                    label: "ACCEPT %",
+                    value: String(format: "%.0f%%", paper.acceptanceRate),
+                    valueColor: paper.acceptanceRate > 50 ? NerVyx.validation : NerVyx.warning,
+                    accent: NerVyx.signal
+                )
+            }
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Realized")
+                        .font(.system(size: 11))
+                        .foregroundStyle(NerVyx.textMuted)
+                    Text(String(format: "$%.2f", paper.realized_pnl_usd))
+                        .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(NerVyx.pnlColor(paper.realized_pnl_usd))
+                }
+                Spacer()
+                VStack(alignment: .center, spacing: 3) {
+                    Text("Unrealized")
+                        .font(.system(size: 11))
+                        .foregroundStyle(NerVyx.textMuted)
+                    Text(String(format: "$%.2f", paper.unrealized_pnl_usd))
+                        .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(NerVyx.pnlColor(paper.unrealized_pnl_usd))
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 3) {
+                    Text("Classification")
+                        .font(.system(size: 11))
+                        .foregroundStyle(NerVyx.textMuted)
+                    Text(nervyxPublicRuntimeText(paper.classification).uppercased())
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(NerVyx.paper)
+                        .lineLimit(1)
+                }
+            }
+        }
+        .nerVyxCard(accent: NerVyx.inference.opacity(0.25))
     }
 
     private func paperLoopSection(_ paper: PaperState) -> some View {

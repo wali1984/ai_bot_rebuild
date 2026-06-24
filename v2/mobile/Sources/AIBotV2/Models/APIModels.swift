@@ -109,14 +109,26 @@ public struct MobilePosition: Decodable, Identifiable, Equatable {
     public let symbol: String
     public let side: String
     public let qty: Double
-    public let entry_price: Double
-    public let mark_price: Double
-    public let unrealized_pnl: Double
+    public let entry_price: Double?
+    public let entry_price_source: String?
+    public let exit_price: Double?
+    public let exit_price_source: String?
+    public let mark_price: Double?
+    public let mark_price_source: String?
+    public let mark_price_generated_at: String?
+    public let mark_price_age_seconds: Double?
+    public let mark_price_stale: Bool?
+    public let unrealized_pnl: Double?
     public let realized_pnl: Double
     public let opened_at: String
+    public let closed_at: String?
+    public let close_reason: String?
     public let status: String
+    public let signal_id: String?
+    public let prediction_id: String?
+    public let decision_reasoning: PositionDecisionReasoning?
 
-    public var total_pnl: Double { unrealized_pnl + realized_pnl }
+    public var total_pnl: Double { (unrealized_pnl ?? 0) + realized_pnl }
     public var isBuy: Bool { side.lowercased() == "long" || side.lowercased() == "buy" }
     public var pnlSign: String { total_pnl >= 0 ? "+" : "" }
     public var shortSymbol: String {
@@ -124,17 +136,50 @@ public struct MobilePosition: Decodable, Identifiable, Equatable {
     }
 }
 
+public struct PositionDecisionReasoning: Decodable, Equatable {
+    public let source: String?
+    public let signal_id: String?
+    public let prediction_id: String?
+    public let timeframe: String?
+    public let action: String?
+    public let confidence: Double?
+    public let risk_state: String?
+    public let paper_fill_status: String?
+    public let market_regime: String?
+    public let expected_move_bps: Double?
+    public let data_coverage: Double?
+    public let reason: String?
+    public let available_at: String?
+    public let decision_time: String?
+    public let generated_at: String?
+    public let model_version: String?
+}
+
 public struct MobilePositionsResponse: Decodable {
     public let generated_utc: String
     public let positions: [MobilePosition]
+    public let closed_positions: [MobilePosition]?
+    public let historical_positions: [MobilePosition]?
+    public let position_pricing: PositionPricing?
+    public let warnings: [String]?
     public let summary: PositionSummary
     public let mode: String
     public let live_gate: String
     public let places_real_order: Bool
 }
 
+public struct PositionPricing: Decodable, Equatable {
+    public let unrealized_pnl_usd: Double?
+    public let total_open_notional: Double?
+    public let mark_to_market_live: Bool?
+    public let live_mark_price_count: Int?
+    public let stale_mark_price_count: Int?
+    public let missing_mark_price_count: Int?
+}
+
 public struct PositionSummary: Decodable, Equatable {
     public let open_count: Int
+    public let closed_count: Int?
     public let total_pnl_usd: Double
     public let realized_pnl_usd: Double
     public let unrealized_pnl_usd: Double
@@ -272,6 +317,7 @@ public struct MobilePaperSummary: Decodable, Equatable {
     public let live_gate: String
     public let loop: PaperLoop
     public let positions: PaperPositions
+    public let position_pricing: PositionPricing?
     public let pnl: PaperPnL
     public let trainer_feedback: TrainerFeedback
 }
@@ -366,6 +412,168 @@ public struct AdminRisk: Decodable, Equatable {
     public let state: String
     public let classification: String?
     public let kill_switch_active: Bool
+}
+
+// MARK: - Audit Ledger
+
+public struct AuditLedgerSummary: Decodable, Equatable {
+    public let chain_ok: Bool
+    public let tail_age_ms: Int?
+    public let last_event_id: String?
+    public let last_event_ts: String?
+
+    public var chainLabel: String { chain_ok ? "OK" : "BROKEN" }
+    public var ageLabel: String {
+        guard let ms = tail_age_ms else { return "—" }
+        let s = ms / 1000
+        if s < 60 { return "\(s)s ago" }
+        if s < 3600 { return "\(s / 60)m ago" }
+        return "\(s / 3600)h ago"
+    }
+}
+
+public struct AuditLedgerEntry: Decodable, Identifiable, Equatable {
+    public let evt_id: String
+    public let source: String?
+    public let act: String?
+    public let decision_id: String?
+    public let reason: String?
+    public let chain_status: String?
+    public let age_seconds: Double?
+
+    public var id: String { evt_id }
+    public var displaySource: String { source ?? "unknown" }
+    public var displayAct: String { act ?? "event" }
+    public var displayReason: String { reason ?? "—" }
+    public var ageLabel: String {
+        guard let s = age_seconds else { return "—" }
+        if s < 60 { return "\(Int(s))s ago" }
+        if s < 3600 { return "\(Int(s / 60))m ago" }
+        return "\(Int(s / 3600))h ago"
+    }
+    public var chainOk: Bool {
+        guard let c = chain_status?.lowercased() else { return true }
+        return !["broken", "mismatch", "false"].contains(c)
+    }
+}
+
+// MARK: - Live Readiness
+
+public struct LiveReadinessGate: Decodable, Identifiable, Equatable {
+    public let id: String
+    public let name: String
+    public let sub: String
+    public let source_route_or_key: String
+    public let state: String
+
+    public var isPassed: Bool { state == "passed" }
+    public var isBlocked: Bool { state == "blocked" }
+    public var isLocked: Bool { state == "locked" }
+    public var displayState: String { state.uppercased() }
+    public var stateEmoji: String {
+        switch state {
+        case "passed": return "✓"
+        case "blocked": return "✗"
+        case "locked": return "⊘"
+        default: return "…"
+        }
+    }
+}
+
+// MARK: - Paper Activity / Executions
+
+public struct PaperActivityEvent: Decodable, Identifiable, Equatable {
+    public let event_id: String?
+    public let event_type: String?
+    public let symbol: String?
+    public let side: String?
+    public let action: String?
+    public let realized_pnl_usd: Double?
+    public let entry_price: Double?
+    public let exit_price: Double?
+    public let quantity: Double?
+    public let timestamp: String?
+    public let reason: String?
+    public let strategy_id: String?
+
+    public var id: String { event_id ?? UUID().uuidString }
+    public var displayType: String { event_type?.uppercased() ?? "EVENT" }
+    public var displaySymbol: String {
+        guard let s = symbol else { return "—" }
+        return s.hasSuffix("USDT") ? String(s.dropLast(4)) : s
+    }
+    public var isBuy: Bool { (side ?? action ?? "").lowercased().contains("long") || (side ?? action ?? "").lowercased().contains("buy") }
+    public var pnlSign: String { (realized_pnl_usd ?? 0) >= 0 ? "+" : "" }
+}
+
+public struct PaperActivityResponse: Decodable {
+    public let generated_utc: String
+    public let events: [PaperActivityEvent]
+    public let total_returned: Int?
+    public let mode: String?
+}
+
+// MARK: - Capital Productivity (extended from paper summary)
+
+public struct MobileCapitalProductivity: Decodable, Equatable {
+    public let generated_utc: String
+    public let win_rate_pct: Double?
+    public let profit_factor: Double?
+    public let mean_pnl_bps: Double?
+    public let max_drawdown_pct: Double?
+    public let total_trades: Int?
+    public let winning_trades: Int?
+    public let losing_trades: Int?
+    public let avg_win_usd: Double?
+    public let avg_loss_usd: Double?
+    public let expectancy_usd: Double?
+}
+
+// MARK: - Signal Matrix (for Predictions/Explainability)
+
+public struct SignalMatrixRow: Decodable, Identifiable, Equatable {
+    public let signal_id: String?
+    public let symbol: String?
+    public let timeframe: String?
+    public let action: String?
+    public let confidence: Double?
+    public let actionable: Bool?
+    public let live_gate: String?
+    public let risk_state: String?
+    public let paper_fill_status: String?
+    public let data_coverage_percent: Double?
+    public let market_state_integrity_score: Double?
+    public let generated_at: String?
+    public let age_seconds: Double?
+    public let model_version: String?
+    public let checkpoint_id: String?
+    public let expected_move_bps: Double?
+    public let feature_coverage_pct: Double?
+    public let orchestrator_state: String?
+
+    public var id: String { signal_id ?? UUID().uuidString }
+    public var displaySymbol: String {
+        guard let s = symbol else { return "—" }
+        return s.hasSuffix("USDT") ? String(s.dropLast(4)) : s
+    }
+    public var confidencePct: String {
+        guard let c = confidence else { return "—" }
+        return "\(Int(c * 100))%"
+    }
+    public var ageLabel: String {
+        guard let s = age_seconds else { return "—" }
+        if s < 60 { return "\(Int(s))s" }
+        if s < 3600 { return "\(Int(s / 60))m" }
+        return "\(Int(s / 3600))h"
+    }
+    public var isBuy: Bool { (action ?? "").lowercased().contains("long") || (action ?? "").lowercased().contains("buy") }
+}
+
+public struct SignalMatrixResponse: Decodable {
+    public let generated_utc: String?
+    public let signals: [SignalMatrixRow]
+    public let total_returned: Int?
+    public let actionable_count: Int?
 }
 
 // MARK: - App Configuration

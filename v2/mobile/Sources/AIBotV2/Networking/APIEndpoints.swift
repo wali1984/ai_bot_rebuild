@@ -35,16 +35,19 @@ public enum APIEndpoints {
 
     // MARK: - Audit
     public static let auditLedger = "/api/v2/audit-ledger"
+    public static let auditLedgerSummary = "/api/v2/audit-ledger/summary"
+    public static let auditLedgerTail = "/api/v2/audit-ledger/tail"
     public static let auditEvents = "/api/v2/execution/audit-events"
 
-    // MARK: - Live gate
+    // MARK: - Live gate + readiness
     public static let liveGateStatus = "/api/v2/live-gate/status"
+    public static let liveReadinessGates = "/api/v2/live-readiness/gates"
 
     // MARK: - Paper activity
     public static let paperActivity = "/api/v2/paper/activity"
     public static let paperStatus = "/api/v2/paper/status"
 
-    // MARK: - Signals / predictions
+    // MARK: - Signals / predictions / explainability
     public static let signalMatrix = "/api/v2/signals/matrix"
     public static let predictionMatrix = "/api/v2/predictions/matrix"
 
