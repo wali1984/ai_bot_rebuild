@@ -9,12 +9,19 @@ public final class PositionsViewModel {
     public private(set) var isLoading = false
     public private(set) var error: String?
     public private(set) var streamLabel = "Connecting"
+    public private(set) var sourceType: String?
+    public private(set) var lastUpdatedAt: String?
+    public private(set) var isStale = false
+    public private(set) var streamWarnings: [String] = []
+    public private(set) var missingFields: [String] = []
 
     private let stream = WebSocketClient()
     private var fallbackTask: Task<Void, Never>?
     private let streamIntervalMs = 1_500
 
     public var positions: [MobilePosition] { response?.positions ?? [] }
+    public var closedPositions: [MobilePosition] { response?.closed_positions ?? [] }
+    public var historicalPositions: [MobilePosition] { response?.historical_positions ?? response?.closed_positions ?? [] }
     public var summary: PositionSummary? { response?.summary }
 
     public func load(token: String?, baseURL: String) async {
@@ -73,6 +80,11 @@ public final class PositionsViewModel {
                 token: token,
                 baseURL: baseURL
             )
+            sourceType = "api"
+            lastUpdatedAt = response?.generated_utc
+            isStale = false
+            streamWarnings = response?.warnings ?? []
+            missingFields = []
             WatchSyncCenter.shared.updatePositions(response)
         } catch {
             self.error = error.localizedDescription
@@ -82,8 +94,14 @@ public final class PositionsViewModel {
 
     private func applyStream(_ message: String) {
         do {
-            response = try decodeMobileResourceMessage(MobilePositionsResponse.self, from: message)
-            streamLabel = "Live"
+            let snapshot = try decodeMobileResourceSnapshot(MobilePositionsResponse.self, from: message)
+            response = snapshot.payload
+            streamLabel = "Realtime"
+            sourceType = snapshot.sourceType ?? snapshot.transport ?? "websocket"
+            lastUpdatedAt = snapshot.timestamp ?? snapshot.receivedAt ?? snapshot.payload.generated_utc
+            isStale = snapshot.stale
+            streamWarnings = snapshot.warnings.isEmpty ? (snapshot.payload.warnings ?? []) : snapshot.warnings
+            missingFields = snapshot.missingFields
             WatchSyncCenter.shared.updatePositions(response)
             isLoading = false
             error = nil

@@ -17,18 +17,55 @@ public final class WebSocketClient: NSObject {
     private var pingTimer: Timer?
     private var onMessage: ((String) -> Void)?
 
+    public static func messages(urlString: String, token: String?) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            guard let url = authenticatedURL(urlString: urlString, token: token) else {
+                continuation.finish(throwing: APIError.websocket("Invalid WebSocket URL"))
+                return
+            }
+
+            let session = URLSession(configuration: .default)
+            let task = session.webSocketTask(with: url)
+            task.resume()
+
+            let reader = Task {
+                do {
+                    while !Task.isCancelled {
+                        let message = try await task.receive()
+                        switch message {
+                        case .string(let text):
+                            continuation.yield(text)
+                        case .data(let data):
+                            if let text = String(data: data, encoding: .utf8) {
+                                continuation.yield(text)
+                            }
+                        @unknown default:
+                            continue
+                        }
+                    }
+                    continuation.finish()
+                } catch {
+                    if Task.isCancelled {
+                        continuation.finish()
+                    } else {
+                        continuation.finish(throwing: error)
+                    }
+                }
+            }
+
+            continuation.onTermination = { @Sendable _ in
+                reader.cancel()
+                task.cancel(with: .goingAway, reason: nil)
+                session.invalidateAndCancel()
+            }
+        }
+    }
+
     public func connect(urlString: String, token: String?, onMessage: @escaping (String) -> Void) {
         disconnect()
         self.onMessage = onMessage
 
-        var components = URLComponents(string: urlString)
-        if let token {
-            var queryItems = components?.queryItems ?? []
-            queryItems.append(URLQueryItem(name: "token", value: token))
-            components?.queryItems = queryItems
-        }
-
-        guard let url = components?.url else {
+        guard let url = Self.authenticatedURL(urlString: urlString, token: token) else {
             state = .failed("Invalid WebSocket URL")
             return
         }
@@ -55,6 +92,16 @@ public final class WebSocketClient: NSObject {
     }
 
     // MARK: - Private
+
+    private static func authenticatedURL(urlString: String, token: String?) -> URL? {
+        var components = URLComponents(string: urlString)
+        if let token {
+            var queryItems = components?.queryItems ?? []
+            queryItems.append(URLQueryItem(name: "token", value: token))
+            components?.queryItems = queryItems
+        }
+        return components?.url
+    }
 
     private func receiveNextMessage() {
         task?.receive { [weak self] result in

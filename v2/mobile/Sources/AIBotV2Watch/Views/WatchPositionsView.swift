@@ -38,9 +38,22 @@ struct WatchPositionsView: View {
             HStack {
                 Text("PnL:")
                     .font(.caption2).foregroundStyle(.secondary)
-                Text(String(format: "$%.2f", pos.unrealizedPnL))
+                Text(pos.unrealizedPnL.map { String(format: "$%.2f", $0) } ?? "Unavailable")
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(pos.unrealizedPnL >= 0 ? .green : .red)
+                    .foregroundStyle((pos.unrealizedPnL ?? 0) >= 0 ? .green : .red)
+            }
+            HStack {
+                Text("Mark:")
+                    .font(.caption2).foregroundStyle(.secondary)
+                Text(pos.markPrice.map { String(format: "%.4f", $0) } ?? "Unavailable")
+                    .font(.caption2)
+                    .foregroundStyle(pos.markPriceStale ? .yellow : .secondary)
+            }
+            if !pos.reason.isEmpty {
+                Text(pos.reason)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
             }
         }
         .padding(.vertical, 2)

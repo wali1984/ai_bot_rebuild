@@ -151,7 +151,7 @@ struct LoginView: View {
                             .foregroundStyle(.white)
                     }
                 } else {
-                    Text("Sign In to NerVyx")
+                    Text("Sign In to NERVYX ONE")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(.white)
                 }

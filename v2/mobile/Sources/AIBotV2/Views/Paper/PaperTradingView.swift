@@ -1,5 +1,63 @@
 import SwiftUI
 
+private func paperPositionPriceText(_ value: Double?) -> String {
+    guard let value, value > 0 else { return "Unavailable" }
+    return String(format: "%.4f", value)
+}
+
+private func paperPositionMoneyText(_ value: Double?) -> String {
+    guard let value else { return "Unavailable" }
+    return String(format: "%@$%.2f", value >= 0 ? "+" : "", value)
+}
+
+private func paperPositionAgeText(_ value: Double?) -> String {
+    guard let value else { return "age unavailable" }
+    if value < 60 { return "\(Int(value.rounded()))s" }
+    if value < 3_600 { return "\(Int(value / 60))m" }
+    return "\(Int(value / 3_600))h"
+}
+
+private func paperPositionSourceText(_ value: String?) -> String {
+    guard let value, !value.isEmpty else { return "source unavailable" }
+    return nervyxPublicRuntimeText(value)
+}
+
+private func paperPositionReasoningText(_ position: MobilePosition) -> String? {
+    if let reason = position.decision_reasoning?.reason, !reason.isEmpty {
+        return nervyxPublicRuntimeText(reason)
+    }
+    if let risk = position.decision_reasoning?.risk_state, !risk.isEmpty {
+        return nervyxPublicRuntimeText(risk)
+    }
+    if let signal = position.signal_id, !signal.isEmpty {
+        return "Signal \(signal)"
+    }
+    return nil
+}
+
+private func executionStreamStatusText(
+    sourceType: String?,
+    lastUpdatedAt: String?,
+    isStale: Bool,
+    missingFields: [String],
+    warnings: [String]
+) -> String {
+    var parts = [sourceType?.uppercased() ?? "CONNECTING"]
+    if let lastUpdatedAt, !lastUpdatedAt.isEmpty {
+        parts.append(String(lastUpdatedAt.prefix(19)))
+    }
+    if isStale {
+        parts.append("stale")
+    }
+    if !missingFields.isEmpty {
+        parts.append("missing \(missingFields.count)")
+    }
+    if !warnings.isEmpty {
+        parts.append("warnings \(warnings.count)")
+    }
+    return parts.joined(separator: " · ")
+}
+
 struct PaperTradingView: View {
     @Environment(AuthManager.self) private var auth
     @Environment(AppState.self) private var appState
@@ -46,7 +104,6 @@ struct PaperTradingView: View {
     private func paperContent(_ s: MobilePaperSummary) -> some View {
         ScrollView {
             VStack(spacing: 14) {
-                // Mode banner
                 HStack(spacing: 8) {
                     LivePulse(color: NerVyx.paper)
                     Text("Execution runtime · \(nervyxPublicRuntimeText(s.live_gate))")
@@ -57,14 +114,53 @@ struct PaperTradingView: View {
                 }
                 .padding(.horizontal, 4)
 
+                streamStatusCard
                 pnlCard(s.pnl)
                 loopCard(s.loop)
                 positionsCard(s.positions)
+                if let pricing = s.position_pricing {
+                    positionPricingCard(pricing)
+                }
                 feedbackCard(s.trainer_feedback)
             }
             .padding(16)
             .padding(.bottom, 24)
         }
+    }
+
+    private var streamStatusCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                LivePulse(color: vm.isStale ? NerVyx.warning : NerVyx.signal)
+                Text("Execution stream")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(NerVyx.textPrimary)
+                Spacer()
+                NerVyxBadge(
+                    text: vm.isStale ? "STALE" : vm.streamLabel.uppercased(),
+                    color: vm.isStale ? NerVyx.warning : NerVyx.signal,
+                    small: true
+                )
+            }
+            Text(
+                executionStreamStatusText(
+                    sourceType: vm.sourceType,
+                    lastUpdatedAt: vm.lastUpdatedAt,
+                    isStale: vm.isStale,
+                    missingFields: vm.missingFields,
+                    warnings: vm.streamWarnings
+                )
+            )
+            .font(.system(size: 11, design: .monospaced))
+            .foregroundStyle(vm.isStale ? NerVyx.warning : NerVyx.textMuted)
+            if let warning = vm.streamWarnings.first, !warning.isEmpty {
+                Text(nervyxPublicRuntimeText(warning))
+                    .font(.system(size: 11))
+                    .foregroundStyle(NerVyx.warning)
+                    .lineLimit(2)
+            }
+        }
+        .nerVyxCard(accent: (vm.isStale ? NerVyx.warning : NerVyx.signal).opacity(0.3))
     }
 
     // MARK: - PnL
@@ -160,27 +256,66 @@ struct PaperTradingView: View {
             if !positions.positions_preview.isEmpty {
                 NerVyxDivider()
                 ForEach(positions.positions_preview.prefix(3)) { pos in
-                    HStack(spacing: 10) {
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(pos.isBuy ? NerVyx.buy : NerVyx.sell)
-                            .frame(width: 3, height: 32)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(pos.shortSymbol)
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundStyle(NerVyx.textPrimary)
-                            Text("Mark \(String(format: "%.4f", pos.mark_price))")
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(NerVyx.textMuted)
+                    NavigationLink(destination: PositionDetailView(position: pos)) {
+                        HStack(spacing: 10) {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(pos.isBuy ? NerVyx.buy : NerVyx.sell)
+                                .frame(width: 3, height: 42)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(pos.shortSymbol)
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundStyle(NerVyx.textPrimary)
+                                Text("Entry \(paperPositionPriceText(pos.entry_price)) -> Mark \(paperPositionPriceText(pos.mark_price))")
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .foregroundStyle(pos.mark_price_stale == true ? NerVyx.warning : NerVyx.textMuted)
+                                    .lineLimit(1)
+                                Text("\(paperPositionAgeText(pos.mark_price_age_seconds)) · \(paperPositionSourceText(pos.mark_price_source))")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(pos.mark_price_stale == true ? NerVyx.warning : NerVyx.textMuted)
+                                    .lineLimit(1)
+                                if let reasoning = paperPositionReasoningText(pos) {
+                                    Text(reasoning)
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(NerVyx.textSecondary)
+                                        .lineLimit(2)
+                                }
+                            }
+                            Spacer()
+                            Text(pos.unrealized_pnl.map { String(format: "%@$%.2f", $0 >= 0 ? "+" : "", $0) } ?? "Unavailable")
+                                .font(.system(size: 13, weight: .bold, design: .monospaced))
+                                .foregroundStyle(NerVyx.pnlColor(pos.unrealized_pnl ?? 0))
                         }
-                        Spacer()
-                        Text(String(format: "%@$%.2f", pos.unrealized_pnl >= 0 ? "+" : "", pos.unrealized_pnl))
-                            .font(.system(size: 13, weight: .bold, design: .monospaced))
-                            .foregroundStyle(NerVyx.pnlColor(pos.unrealized_pnl))
                     }
+                    .buttonStyle(.plain)
                 }
             }
         }
         .nerVyxCard()
+    }
+
+    private func positionPricingCard(_ pricing: PositionPricing) -> some View {
+        VStack(spacing: 10) {
+            SectionHeader(title: "Realtime Mark Pricing", accent: NerVyx.signal)
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                NerVyxStatCard(label: "MARKS", value: "\(pricing.live_mark_price_count ?? 0)", accent: NerVyx.signal)
+                NerVyxStatCard(
+                    label: "STALE",
+                    value: "\(pricing.stale_mark_price_count ?? 0)",
+                    valueColor: (pricing.stale_mark_price_count ?? 0) > 0 ? NerVyx.warning : NerVyx.textPrimary,
+                    accent: NerVyx.warning
+                )
+                NerVyxStatCard(
+                    label: "MISSING",
+                    value: "\(pricing.missing_mark_price_count ?? 0)",
+                    valueColor: (pricing.missing_mark_price_count ?? 0) > 0 ? NerVyx.sell : NerVyx.textPrimary,
+                    accent: NerVyx.sell
+                )
+            }
+            NerVyxDivider()
+            DataRow(label: "Open notional", value: paperPositionMoneyText(pricing.total_open_notional), mono: true)
+            DataRow(label: "Unrealized PnL", value: paperPositionMoneyText(pricing.unrealized_pnl_usd), valueColor: NerVyx.pnlColor(pricing.unrealized_pnl_usd ?? 0), mono: true)
+        }
+        .nerVyxCard(accent: NerVyx.signal.opacity(0.3))
     }
 
     // MARK: - Trainer Feedback

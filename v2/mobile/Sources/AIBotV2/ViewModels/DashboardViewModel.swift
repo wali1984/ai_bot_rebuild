@@ -117,7 +117,7 @@ public final class DashboardViewModel {
     private func applyDashboardMessage(_ message: String) {
         do {
             dashboard = try decodeMobileResourceMessage(MobileDashboard.self, from: message)
-            dashboardStreamLabel = "Live"
+            dashboardStreamLabel = "Realtime"
             lastStreamMessageAt = Date()
             WatchSyncCenter.shared.updateDashboard(dashboard, health: health)
             isLoading = false
@@ -132,7 +132,7 @@ public final class DashboardViewModel {
     private func applyHealthMessage(_ message: String) {
         do {
             health = try decodeMobileResourceMessage(MobileHealth.self, from: message)
-            healthStreamLabel = "Live"
+            healthStreamLabel = "Realtime"
             lastStreamMessageAt = Date()
             WatchSyncCenter.shared.updateDashboard(dashboard, health: health)
             isLoading = false

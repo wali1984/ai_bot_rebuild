@@ -46,15 +46,24 @@ final class WatchSyncCenter: NSObject, WCSessionDelegate {
     }
 
     func updatePositions(_ response: MobilePositionsResponse?) {
-        positionsPayload = (response?.positions ?? []).map { position in
-            [
+        let rows = response?.positions.isEmpty == false
+            ? response?.positions ?? []
+            : response?.closed_positions ?? []
+        positionsPayload = rows.prefix(8).map { position in
+            var payload: [String: Any] = [
                 "id": position.id,
                 "symbol": position.symbol,
                 "side": position.side,
-                "unrealized_pnl": position.unrealized_pnl,
-                "entry_price": position.entry_price,
-                "mark_price": position.mark_price,
             ]
+            if let unrealized = position.unrealized_pnl { payload["unrealized_pnl"] = unrealized }
+            if let entry = position.entry_price { payload["entry_price"] = entry }
+            if let exit = position.exit_price { payload["exit_price"] = exit }
+            if let mark = position.mark_price { payload["mark_price"] = mark }
+            if let age = position.mark_price_age_seconds { payload["mark_price_age_seconds"] = age }
+            if !position.status.isEmpty { payload["status"] = position.status }
+            payload["mark_price_stale"] = position.mark_price_stale == true
+            payload["reason"] = position.decision_reasoning?.reason ?? position.close_reason ?? position.decision_reasoning?.risk_state ?? ""
+            return payload
         }
         publishCurrentSnapshot()
     }

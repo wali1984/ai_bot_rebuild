@@ -3,6 +3,7 @@ options:
   bundleIdPrefix: com.wali1984
   deploymentTarget:
     iOS: "17.0"
+    watchOS: "10.0"
   createIntermediateGroups: true
   xcodeVersion: "15"
 
@@ -43,3 +44,21 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.wali1984.aibot-v2
         INFOPLIST_FILE: Sources/AIBotV2/Info.plist
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+
+  AIBotV2Watch:
+    type: application
+    platform: watchOS
+    deploymentTarget: "10.0"
+    sources:
+      - path: Sources/AIBotV2Watch
+    dependencies:
+      - sdk: WatchConnectivity.framework
+        embed: false
+      - sdk: WatchKit.framework
+        embed: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.wali1984.aibot-v2.watch
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: NERVYX ONE
+        INFOPLIST_KEY_WKWatchOnly: YES

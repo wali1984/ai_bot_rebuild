@@ -28,7 +28,7 @@ struct WatchDashboardView: View {
                 // Blocked badge
                 HStack {
                     Image(systemName: "lock.fill").foregroundStyle(.red).font(.caption)
-                    Text("LIVE").font(.caption2.weight(.bold)).foregroundStyle(.green)
+                    Text("EXECUTION RESTRICTED").font(.caption2.weight(.bold)).foregroundStyle(.yellow)
                 }
             }
             .padding(.horizontal, 4)

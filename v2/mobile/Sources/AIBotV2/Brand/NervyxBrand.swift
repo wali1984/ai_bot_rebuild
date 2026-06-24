@@ -22,6 +22,9 @@ public enum NervyxModule: String, CaseIterable, Identifiable {
     public var id: String { rawValue }
 
     public var displayName: String {
+        if let generated = NervyxGeneratedThemeManifest.modules[rawValue]?["displayName"] {
+            return generated
+        }
         switch self {
         case .sense: return "NERVYX SENSE"
         case .core: return "NERVYX CORE"
@@ -34,6 +37,9 @@ public enum NervyxModule: String, CaseIterable, Identifiable {
     }
 
     public var description: String {
+        if let generated = NervyxGeneratedThemeManifest.modules[rawValue]?["description"] {
+            return Self.publicSafeDescription(generated)
+        }
         switch self {
         case .sense: return "Data ingestion and market-state trust"
         case .core: return "PPO + MASA inference"
@@ -43,6 +49,12 @@ public enum NervyxModule: String, CaseIterable, Identifiable {
         case .execute: return "Execution lifecycle"
         case .observe: return "Monitoring, soak, and operational proof"
         }
+    }
+
+    private static func publicSafeDescription(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "Paper/live", with: "Execution")
+            .replacingOccurrences(of: "paper/live", with: "execution")
     }
 }
 
@@ -54,6 +66,9 @@ public enum NervyxTheme: String, CaseIterable, Identifiable {
     public var id: String { rawValue }
 
     public var displayName: String {
+        if let generated = NervyxGeneratedThemeManifest.themes[rawValue]?["name"] {
+            return generated
+        }
         switch self {
         case .midnightNeural: return "Midnight Neural"
         case .polarSignal: return "Polar Signal"
@@ -125,7 +140,7 @@ public enum NervyxStatusStyle {
     public var label: String {
         switch self {
         case .live: return "Live"
-        case .paper: return "Live"
+        case .paper: return "Gated"
         case .blocked: return "Blocked"
         case .stale: return "Stale"
         case .offline: return "Offline"

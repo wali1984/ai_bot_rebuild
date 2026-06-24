@@ -59,10 +59,185 @@ final class AIBotV2CoreTests: XCTestCase {
 
     func testMobilePositionIsBuy() {
         let pos = MobilePosition(id: "1", symbol: "BTC", side: "LONG",
-                                  qty: 0.1, entry_price: 60000, mark_price: 61000,
+                                  qty: 0.1, entry_price: 60000,
+                                  entry_price_source: "avg_entry_price",
+                                  exit_price: nil, exit_price_source: nil,
+                                  mark_price: 61000,
+                                  mark_price_source: "unit", mark_price_generated_at: nil,
+                                  mark_price_age_seconds: 1, mark_price_stale: false,
                                   unrealized_pnl: 100, realized_pnl: 0,
-                                  opened_at: "2026-06-18T00:00:00Z", status: "open")
+                                  opened_at: "2026-06-18T00:00:00Z",
+                                  closed_at: nil, close_reason: nil,
+                                  status: "open",
+                                  signal_id: "sig-1", prediction_id: "pred-1",
+                                  decision_reasoning: nil)
         XCTAssertTrue(pos.isBuy)
+    }
+
+    func testMobilePositionsDecodeOpenClosedHistoryAndReasoning() throws {
+        let json = """
+        {
+          "generated_utc": "2026-06-18T00:00:00Z",
+          "positions": [{
+            "id": "open-1",
+            "symbol": "BTCUSDT",
+            "side": "LONG",
+            "qty": 0.01,
+            "entry_price": 60000.0,
+            "entry_price_source": "avg_entry_price",
+            "mark_price": 62000.0,
+            "mark_price_source": "v2:market:coinapi:wsds:BTCUSDT.mid_px",
+            "mark_price_generated_at": "2026-06-18T00:00:01Z",
+            "mark_price_age_seconds": 1.5,
+            "mark_price_stale": false,
+            "unrealized_pnl": 20.0,
+            "realized_pnl": 0.0,
+            "opened_at": "2026-06-18T00:00:00Z",
+            "status": "open",
+            "signal_id": "sig-open",
+            "prediction_id": "pred-open",
+            "decision_reasoning": {
+              "source": "v2:signals:latest:BTCUSDT",
+              "signal_id": "sig-open",
+              "prediction_id": "pred-open",
+              "action": "LONG",
+              "confidence": 0.81,
+              "reason": "fresh_features_positive_edge"
+            }
+          }],
+          "closed_positions": [{
+            "id": "closed-1",
+            "symbol": "ETHUSDT",
+            "side": "SHORT",
+            "qty": 0.5,
+            "entry_price": 2500.0,
+            "entry_price_source": "entry_price",
+            "exit_price": 2400.0,
+            "exit_price_source": "paper_exit_price",
+            "unrealized_pnl": null,
+            "realized_pnl": 50.0,
+            "opened_at": "2026-06-17T00:00:00Z",
+            "closed_at": "2026-06-18T00:00:00Z",
+            "close_reason": "TIER_2_TAKE_PROFIT",
+            "status": "closed",
+            "signal_id": "sig-close",
+            "prediction_id": "pred-close",
+            "decision_reasoning": {
+              "source": "v2:paper:closed_trades",
+              "signal_id": "sig-close",
+              "prediction_id": "pred-close",
+              "action": "SHORT",
+              "confidence": 0.74,
+              "reason": "TIER_2_TAKE_PROFIT"
+            }
+          }],
+          "historical_positions": [],
+          "position_pricing": {
+            "unrealized_pnl_usd": 20.0,
+            "total_open_notional": 620.0,
+            "mark_to_market_live": true,
+            "live_mark_price_count": 1,
+            "stale_mark_price_count": 0,
+            "missing_mark_price_count": 0
+          },
+          "warnings": [],
+          "summary": {
+            "open_count": 1,
+            "closed_count": 1,
+            "total_pnl_usd": 70.0,
+            "realized_pnl_usd": 50.0,
+            "unrealized_pnl_usd": 20.0
+          },
+          "mode": "paper",
+          "live_gate": "blocked_human_only",
+          "places_real_order": false
+        }
+        """.data(using: .utf8)!
+
+        let response = try JSONDecoder().decode(MobilePositionsResponse.self, from: json)
+        XCTAssertEqual(response.positions.first?.mark_price, 62000.0)
+        XCTAssertEqual(response.positions.first?.mark_price_stale, false)
+        XCTAssertEqual(response.positions.first?.decision_reasoning?.reason, "fresh_features_positive_edge")
+        XCTAssertEqual(response.closed_positions?.first?.exit_price, 2400.0)
+        XCTAssertEqual(response.closed_positions?.first?.exit_price_source, "paper_exit_price")
+        XCTAssertEqual(response.closed_positions?.first?.decision_reasoning?.signal_id, "sig-close")
+        XCTAssertEqual(response.summary.closed_count, 1)
+        XCTAssertEqual(response.position_pricing?.live_mark_price_count, 1)
+    }
+
+    func testMobilePaperSummaryDecodesPositionPricingAndReasoningPreview() throws {
+        let json = """
+        {
+          "generated_utc": "2026-06-18T00:00:00Z",
+          "mode": "paper",
+          "places_real_order": false,
+          "live_gate": "blocked_human_only",
+          "loop": {
+            "signals_seen": 4,
+            "intents_built": 2,
+            "intents_accepted": 1,
+            "intents_blocked": 1,
+            "classification": "RUNNING"
+          },
+          "positions": {
+            "open_count": 1,
+            "closed_count": 3,
+            "positions_preview": [{
+              "id": "pos-btc",
+              "symbol": "BTCUSDT",
+              "side": "LONG",
+              "qty": 0.01,
+              "entry_price": 60000.0,
+              "entry_price_source": "avg_entry_price",
+              "mark_price": 62000.0,
+              "mark_price_source": "v2:market:coinapi:wsds:BTCUSDT.mid_px",
+              "mark_price_generated_at": "2026-06-18T00:00:01Z",
+              "mark_price_age_seconds": 1.5,
+              "mark_price_stale": false,
+              "unrealized_pnl": 20.0,
+              "realized_pnl": 0.0,
+              "opened_at": "2026-06-18T00:00:00Z",
+              "status": "open",
+              "signal_id": "sig-BTC",
+              "prediction_id": "pred-BTC",
+              "decision_reasoning": {
+                "source": "v2:signals:latest:BTCUSDT",
+                "signal_id": "sig-BTC",
+                "prediction_id": "pred-BTC",
+                "action": "LONG",
+                "confidence": 0.81,
+                "reason": "fresh_features_positive_edge"
+              }
+            }]
+          },
+          "position_pricing": {
+            "unrealized_pnl_usd": 20.0,
+            "total_open_notional": 620.0,
+            "mark_to_market_live": true,
+            "live_mark_price_count": 1,
+            "stale_mark_price_count": 0,
+            "missing_mark_price_count": 0
+          },
+          "pnl": {
+            "realized_usd": 12.5,
+            "unrealized_usd": 20.0,
+            "total_usd": 32.5,
+            "win_rate_pct": 66.7
+          },
+          "trainer_feedback": {
+            "outcome_labels": 3,
+            "consumable_rows": 2,
+            "quarantined_rows": 1
+          }
+        }
+        """.data(using: .utf8)!
+
+        let summary = try JSONDecoder().decode(MobilePaperSummary.self, from: json)
+        XCTAssertEqual(summary.position_pricing?.live_mark_price_count, 1)
+        XCTAssertEqual(summary.position_pricing?.missing_mark_price_count, 0)
+        XCTAssertEqual(summary.positions.positions_preview.first?.mark_price, 62000.0)
+        XCTAssertEqual(summary.positions.positions_preview.first?.decision_reasoning?.reason, "fresh_features_positive_edge")
+        XCTAssertEqual(summary.pnl.unrealized_usd, 20.0)
     }
 
     func testIOSViewModelsUseResourceWebSocketStreams() throws {
@@ -81,7 +256,10 @@ final class AIBotV2CoreTests: XCTestCase {
             "ViewModels/PositionsViewModel.swift": [
                 "APIEndpoints.wsResourceURL",
                 "APIEndpoints.mobilePositions",
-                "decodeMobileResourceMessage",
+                "decodeMobileResourceSnapshot",
+                "sourceType = snapshot.sourceType",
+                "lastUpdatedAt = snapshot.timestamp",
+                "missingFields = snapshot.missingFields",
                 "WatchSyncCenter.shared.updatePositions",
             ],
             "ViewModels/SignalsViewModel.swift": [
@@ -98,7 +276,10 @@ final class AIBotV2CoreTests: XCTestCase {
             "ViewModels/PaperViewModel.swift": [
                 "APIEndpoints.wsResourceURL",
                 "APIEndpoints.mobilePaperSummary",
-                "decodeMobileResourceMessage",
+                "decodeMobileResourceSnapshot",
+                "sourceType = snapshot.sourceType",
+                "lastUpdatedAt = snapshot.timestamp",
+                "missingFields = snapshot.missingFields",
             ],
             "ViewModels/AdminViewModel.swift": [
                 "APIEndpoints.wsResourceURL",
@@ -117,6 +298,88 @@ final class AIBotV2CoreTests: XCTestCase {
                     "\(relativePath) must contain \(snippet) so the iPhone app stays on resource WebSocket streams"
                 )
             }
+        }
+    }
+
+    func testIOSResourceStreamsExposeAsyncAndEnvelopeMetadata() throws {
+        let packageRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let sourceRoot = packageRoot.appendingPathComponent("Sources/AIBotV2")
+        let socket = try String(
+            contentsOf: sourceRoot.appendingPathComponent("Networking/WebSocketClient.swift"),
+            encoding: .utf8
+        )
+        let stream = try String(
+            contentsOf: sourceRoot.appendingPathComponent("Networking/MobileResourceStream.swift"),
+            encoding: .utf8
+        )
+        let positionsVM = try String(
+            contentsOf: sourceRoot.appendingPathComponent("ViewModels/PositionsViewModel.swift"),
+            encoding: .utf8
+        )
+        let paperVM = try String(
+            contentsOf: sourceRoot.appendingPathComponent("ViewModels/PaperViewModel.swift"),
+            encoding: .utf8
+        )
+        let positionsView = try String(
+            contentsOf: sourceRoot.appendingPathComponent("Views/Positions/PositionsView.swift"),
+            encoding: .utf8
+        )
+        let paperView = try String(
+            contentsOf: sourceRoot.appendingPathComponent("Views/Paper/PaperTradingView.swift"),
+            encoding: .utf8
+        )
+
+        for snippet in [
+            "AsyncThrowingStream<String, Error>",
+            "try await task.receive()",
+            "continuation.onTermination",
+        ] {
+            XCTAssertTrue(socket.contains(snippet), "WebSocketClient must expose async/await stream support: \(snippet)")
+        }
+
+        for snippet in [
+            "struct MobileResourceSnapshot<T>",
+            "let sourceType: String?",
+            "let missingFields: [String]",
+            "let warnings: [String]",
+            "func decodeMobileResourceSnapshot",
+            "decodeMobileResourceMessage",
+        ] {
+            XCTAssertTrue(stream.contains(snippet), "Mobile resource stream decoder must preserve envelope metadata: \(snippet)")
+        }
+
+        for text in [positionsVM, paperVM] {
+            for snippet in [
+                "public private(set) var sourceType: String?",
+                "public private(set) var lastUpdatedAt: String?",
+                "public private(set) var isStale = false",
+                "public private(set) var streamWarnings: [String] = []",
+                "public private(set) var missingFields: [String] = []",
+                "sourceType = \"api\"",
+                "decodeMobileResourceSnapshot",
+            ] {
+                XCTAssertTrue(text.contains(snippet), "Mobile view models must preserve stream freshness metadata: \(snippet)")
+            }
+        }
+
+        for snippet in [
+            "private var streamStatusCard: some View",
+            "positionStreamStatusText",
+            "Position stream",
+            "missingFields: vm.missingFields",
+            "warnings: vm.streamWarnings",
+        ] {
+            XCTAssertTrue(positionsView.contains(snippet), "Positions view must render stream metadata: \(snippet)")
+        }
+
+        for snippet in [
+            "private var streamStatusCard: some View",
+            "executionStreamStatusText",
+            "Execution stream",
+            "missingFields: vm.missingFields",
+            "warnings: vm.streamWarnings",
+        ] {
+            XCTAssertTrue(paperView.contains(snippet), "Execution view must render stream metadata: \(snippet)")
         }
     }
 
@@ -165,6 +428,99 @@ final class AIBotV2CoreTests: XCTestCase {
         )
     }
 
+    func testNervyxGeneratedThemeManifestCarriesRoleGatedThemeParity() throws {
+        let packageRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let manifestURL = packageRoot.appendingPathComponent("Sources/AIBotV2/Brand/Generated/NervyxThemeManifest.swift")
+        let brandURL = packageRoot.appendingPathComponent("Sources/AIBotV2/Brand/NervyxBrand.swift")
+        let manifest = try String(contentsOf: manifestURL, encoding: .utf8)
+        let brand = try String(contentsOf: brandURL, encoding: .utf8)
+
+        for snippet in [
+            "public static let themes: [String: [String: String]]",
+            "\"midnightNeural\": [",
+            "\"polarSignal\": [",
+            "\"opsTerminal\": [",
+            "\"midnightNeural\": [\"public\", \"trader\"]",
+            "\"polarSignal\": [\"public\", \"trader\"]",
+            "\"opsTerminal\": [\"admin\", \"superadmin\"]",
+            "public static let modules: [String: [String: String]]",
+            "\"execute\": [",
+            "\"displayName\": \"NERVYX EXECUTE\"",
+            "\"description\": \"Execution order lifecycle\"",
+        ] {
+            XCTAssertTrue(
+                manifest.contains(snippet),
+                "Generated Swift theme manifest must contain \(snippet)"
+            )
+        }
+
+        XCTAssertFalse(
+            manifest.contains("Paper/live"),
+            "Generated Swift presentation manifest must not expose paper/live wording"
+        )
+        XCTAssertTrue(
+            brand.contains("NervyxGeneratedThemeManifest.modules[rawValue]"),
+            "Swift brand adapter must read generated module metadata"
+        )
+        XCTAssertTrue(
+            brand.contains("NervyxGeneratedThemeManifest.themes[rawValue]"),
+            "Swift brand adapter must read generated theme metadata"
+        )
+        XCTAssertTrue(
+            brand.contains("theme == .opsTerminal && !backendConfirmedAdmin"),
+            "Ops Terminal theme must stay role-gated by backend-confirmed admin state"
+        )
+    }
+
+    func testNativeAppleValidationLaneDefinesWatchTargetWithoutSigningMutation() throws {
+        let packageRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let projectURL = packageRoot.appendingPathComponent("project.yml")
+        let workflowURL = packageRoot
+            .deletingLastPathComponent()
+            .appendingPathComponent(".github/workflows/nervyx-ios-macos-validation.yml")
+        let rootWorkflowURL = packageRoot
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent(".github/workflows/nervyx-ios-macos-validation.yml")
+        let project = try String(contentsOf: projectURL, encoding: .utf8)
+        let workflow = try String(contentsOf: workflowURL, encoding: .utf8)
+        let rootWorkflow = try String(contentsOf: rootWorkflowURL, encoding: .utf8)
+
+        for snippet in [
+            "watchOS: \"10.0\"",
+            "AIBotV2Watch:",
+            "platform: watchOS",
+            "PRODUCT_BUNDLE_IDENTIFIER: com.wali1984.aibot-v2.watch",
+            "GENERATE_INFOPLIST_FILE: YES",
+            "INFOPLIST_KEY_CFBundleDisplayName: NERVYX ONE",
+            "INFOPLIST_KEY_WKWatchOnly: YES",
+        ] {
+            XCTAssertTrue(project.contains(snippet), "project.yml must define watch target snippet: \(snippet)")
+        }
+
+        for snippet in [
+            "runs-on: macos-15",
+            "WATCH_XCODEGEN_SCHEME: AIBotV2Watch",
+            "xcodegen generate --spec project.yml",
+            "-scheme \"$WATCH_XCODEGEN_SCHEME\"",
+            "-destination \"generic/platform=watchOS Simulator\"",
+            "CODE_SIGNING_ALLOWED=NO",
+        ] {
+            XCTAssertTrue(workflow.contains(snippet), "native workflow must contain \(snippet)")
+            XCTAssertTrue(rootWorkflow.contains(snippet), "root native workflow must contain \(snippet)")
+        }
+
+        XCTAssertFalse(workflow.contains("DEVELOPMENT_TEAM"), "workflow must not alter signing team")
+        XCTAssertFalse(workflow.contains("fastlane pilot"), "workflow must not upload to TestFlight")
+        XCTAssertFalse(workflow.contains("altool"), "workflow must not use App Store upload tooling")
+        XCTAssertFalse(workflow.contains("notarytool"), "workflow must not use Apple upload tooling")
+        XCTAssertTrue(rootWorkflow.contains("v2/mobile/**"), "root workflow must be triggerable for mobile changes")
+        XCTAssertFalse(rootWorkflow.contains("DEVELOPMENT_TEAM"), "root workflow must not alter signing team")
+        XCTAssertFalse(rootWorkflow.contains("fastlane pilot"), "root workflow must not upload to TestFlight")
+        XCTAssertFalse(rootWorkflow.contains("altool"), "root workflow must not use App Store upload tooling")
+        XCTAssertFalse(rootWorkflow.contains("notarytool"), "root workflow must not use Apple upload tooling")
+    }
+
     func testIOSVisibleCopyDoesNotExposePaperOrSimulatedStates() throws {
         let packageRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let sourceRoot = packageRoot.appendingPathComponent("Sources/AIBotV2")
@@ -202,6 +558,92 @@ final class AIBotV2CoreTests: XCTestCase {
                 }
             }
         }
+    }
+
+    func testPositionsViewDoesNotDisplayZeroPricesAsAvailable() throws {
+        let packageRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let viewURL = packageRoot.appendingPathComponent("Sources/AIBotV2/Views/Positions/PositionsView.swift")
+        let text = try String(contentsOf: viewURL, encoding: .utf8)
+        XCTAssertTrue(
+            text.contains("guard let value, value > 0 else { return \"Unavailable\" }"),
+            "PositionsView must render non-positive entry, exit, and mark prices as unavailable"
+        )
+    }
+
+    func testPositionsViewExposesOpenClosedHistoricalReasoningDetails() throws {
+        let packageRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let viewURL = packageRoot.appendingPathComponent("Sources/AIBotV2/Views/Positions/PositionsView.swift")
+        let text = try String(contentsOf: viewURL, encoding: .utf8)
+
+        for snippet in [
+            "case open = \"Open\"",
+            "case closed = \"Closed\"",
+            "case historical = \"Historical\"",
+            "case .historical: return vm.historicalPositions",
+            "NavigationLink(destination: PositionDetailView(position: pos))",
+            "SectionHeader(title: \"AI Reasoning\", accent: NerVyx.primary)",
+            "DataRow(label: \"Signal\", value: reasoning.signal_id ?? position.signal_id ?? \"Unavailable\", mono: true)",
+            "DataRow(label: \"Prediction\", value: reasoning.prediction_id ?? position.prediction_id ?? \"Unavailable\", mono: true)",
+            "DataRow(label: \"Entry Price\", value: positionPriceText(position.entry_price), mono: true)",
+            "DataRow(label: \"Exit Price\", value: positionPriceText(position.exit_price), mono: true)",
+            "label: \"Mark Price\"",
+            "DataRow(label: \"Mark Source\", value: position.mark_price_source ?? \"Unavailable\", mono: true)",
+        ] {
+            XCTAssertTrue(
+                text.contains(snippet),
+                "PositionsView must keep open/closed/historical position detail evidence snippet: \(snippet)"
+            )
+        }
+    }
+
+    func testPaperPositionPreviewUsesUnavailableZeroPriceAndLinksReasoningDetail() throws {
+        let packageRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let viewURL = packageRoot.appendingPathComponent("Sources/AIBotV2/Views/Paper/PaperTradingView.swift")
+        let text = try String(contentsOf: viewURL, encoding: .utf8)
+        XCTAssertTrue(
+            text.contains("guard let value, value > 0 else { return \"Unavailable\" }"),
+            "Paper position preview must render non-positive mark prices as unavailable"
+        )
+        XCTAssertTrue(
+            text.contains("paperPositionPriceText(pos.mark_price)"),
+            "Paper position preview must use the positive-price formatter for mark prices"
+        )
+        XCTAssertTrue(
+            text.contains("paperPositionPriceText(pos.entry_price)"),
+            "Paper position preview must show real entry price beside realtime mark price"
+        )
+        XCTAssertTrue(
+            text.contains("paperPositionAgeText(pos.mark_price_age_seconds)"),
+            "Paper position preview must show realtime mark freshness"
+        )
+        XCTAssertTrue(
+            text.contains("paperPositionSourceText(pos.mark_price_source)"),
+            "Paper position preview must show mark source evidence"
+        )
+        XCTAssertFalse(
+            text.contains("pos.mark_price.map { String(format: \"%.4f\", $0) }"),
+            "Paper position preview must not format zero mark prices as available values"
+        )
+        XCTAssertTrue(
+            text.contains("NavigationLink(destination: PositionDetailView(position: pos))"),
+            "Paper position preview rows must open the position detail view that renders AI reasoning"
+        )
+        XCTAssertTrue(
+            text.contains("paperPositionReasoningText(pos)"),
+            "Paper position preview must surface available signal/prediction reasoning"
+        )
+        XCTAssertTrue(
+            text.contains("if let pricing = s.position_pricing"),
+            "Paper execution screen must surface optional realtime mark-pricing metrics"
+        )
+        XCTAssertTrue(
+            text.contains("positionPricingCard(pricing)"),
+            "Paper execution screen must render the compact mark-pricing card"
+        )
+        XCTAssertTrue(
+            text.contains("paperPositionMoneyText(pricing.total_open_notional)"),
+            "Paper execution screen must render open notional from backend pricing metrics"
+        )
     }
 
     private func swiftStringLiterals(in text: String) -> [String] {

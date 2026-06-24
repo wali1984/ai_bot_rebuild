@@ -45,22 +45,26 @@ struct WatchPosition: Identifiable {
     let id: String
     let symbol: String
     let side: String
-    let unrealizedPnL: Double
-    let entryPrice: Double
-    let markPrice: Double
+    let unrealizedPnL: Double?
+    let entryPrice: Double?
+    let markPrice: Double?
+    let markPriceStale: Bool
+    let reason: String
 
     init?(from dict: [String: Any]) {
         guard let sym = dict["symbol"] as? String, !sym.isEmpty else { return nil }
         id = dict["id"] as? String ?? UUID().uuidString
         symbol = sym
         side = dict["side"] as? String ?? ""
-        unrealizedPnL = dict["unrealized_pnl"] as? Double ?? 0
-        entryPrice = dict["entry_price"] as? Double ?? 0
-        markPrice = dict["mark_price"] as? Double ?? 0
+        unrealizedPnL = dict["unrealized_pnl"] as? Double
+        entryPrice = dict["entry_price"] as? Double
+        markPrice = dict["mark_price"] as? Double
+        markPriceStale = dict["mark_price_stale"] as? Bool ?? false
+        reason = dict["reason"] as? String ?? ""
     }
 
     var isBuy: Bool { side.lowercased().contains("long") || side.lowercased().contains("buy") }
-    var pnlColor: WatchColor { unrealizedPnL >= 0 ? .green : .red }
+    var pnlColor: WatchColor { (unrealizedPnL ?? 0) >= 0 ? .green : .red }
 }
 
 struct WatchAlert: Identifiable {

@@ -9,6 +9,11 @@ public final class PaperViewModel {
     public private(set) var isLoading = false
     public private(set) var error: String?
     public private(set) var streamLabel = "Connecting"
+    public private(set) var sourceType: String?
+    public private(set) var lastUpdatedAt: String?
+    public private(set) var isStale = false
+    public private(set) var streamWarnings: [String] = []
+    public private(set) var missingFields: [String] = []
 
     private let stream = WebSocketClient()
     private var fallbackTask: Task<Void, Never>?
@@ -70,6 +75,11 @@ public final class PaperViewModel {
                 token: token,
                 baseURL: baseURL
             )
+            sourceType = "api"
+            lastUpdatedAt = summary?.generated_utc
+            isStale = false
+            streamWarnings = []
+            missingFields = []
         } catch {
             self.error = error.localizedDescription
         }
@@ -78,8 +88,14 @@ public final class PaperViewModel {
 
     private func applyStream(_ message: String) {
         do {
-            summary = try decodeMobileResourceMessage(MobilePaperSummary.self, from: message)
-            streamLabel = "Live"
+            let snapshot = try decodeMobileResourceSnapshot(MobilePaperSummary.self, from: message)
+            summary = snapshot.payload
+            streamLabel = "Realtime"
+            sourceType = snapshot.sourceType ?? snapshot.transport ?? "websocket"
+            lastUpdatedAt = snapshot.timestamp ?? snapshot.receivedAt ?? snapshot.payload.generated_utc
+            isStale = snapshot.stale
+            streamWarnings = snapshot.warnings
+            missingFields = snapshot.missingFields
             isLoading = false
             error = nil
         } catch {

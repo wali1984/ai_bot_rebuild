@@ -85,7 +85,7 @@ public final class AlertsViewModel {
     private func applyStream(_ message: String) {
         do {
             response = try decodeMobileResourceMessage(MobileAlertsResponse.self, from: message)
-            streamLabel = "Live"
+            streamLabel = "Realtime"
             WatchSyncCenter.shared.updateAlerts(response)
             isLoading = false
             error = nil

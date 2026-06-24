@@ -63,27 +63,72 @@ public struct MobilePosition: Decodable, Sendable {
     public let symbol: String
     public let side: String
     public let qty: Double
-    public let entry_price: Double
-    public let mark_price: Double
-    public let unrealized_pnl: Double
+    public let entry_price: Double?
+    public let entry_price_source: String?
+    public let exit_price: Double?
+    public let exit_price_source: String?
+    public let mark_price: Double?
+    public let mark_price_source: String?
+    public let mark_price_generated_at: String?
+    public let mark_price_age_seconds: Double?
+    public let mark_price_stale: Bool?
+    public let unrealized_pnl: Double?
     public let realized_pnl: Double
     public let opened_at: String
+    public let closed_at: String?
+    public let close_reason: String?
     public let status: String
-    public var total_pnl: Double { unrealized_pnl + realized_pnl }
+    public let signal_id: String?
+    public let prediction_id: String?
+    public let decision_reasoning: PositionDecisionReasoning?
+    public var total_pnl: Double { (unrealized_pnl ?? 0) + realized_pnl }
     public var isBuy: Bool { side.lowercased().contains("long") || side.lowercased() == "buy" }
+}
+
+public struct PositionDecisionReasoning: Decodable, Sendable {
+    public let source: String?
+    public let signal_id: String?
+    public let prediction_id: String?
+    public let timeframe: String?
+    public let action: String?
+    public let confidence: Double?
+    public let risk_state: String?
+    public let paper_fill_status: String?
+    public let market_regime: String?
+    public let expected_move_bps: Double?
+    public let data_coverage: Double?
+    public let reason: String?
+    public let available_at: String?
+    public let decision_time: String?
+    public let generated_at: String?
+    public let model_version: String?
 }
 
 public struct MobilePositionsResponse: Decodable, Sendable {
     public let generated_utc: String
     public let positions: [MobilePosition]
+    public let closed_positions: [MobilePosition]?
+    public let historical_positions: [MobilePosition]?
+    public let position_pricing: PositionPricing?
+    public let warnings: [String]?
     public let summary: PositionSummary
     public let mode: String
     public let live_gate: String
     public let places_real_order: Bool
 }
 
+public struct PositionPricing: Decodable, Sendable {
+    public let unrealized_pnl_usd: Double?
+    public let total_open_notional: Double?
+    public let mark_to_market_live: Bool?
+    public let live_mark_price_count: Int?
+    public let stale_mark_price_count: Int?
+    public let missing_mark_price_count: Int?
+}
+
 public struct PositionSummary: Decodable, Sendable {
     public let open_count: Int
+    public let closed_count: Int?
     public let total_pnl_usd: Double
     public let realized_pnl_usd: Double
     public let unrealized_pnl_usd: Double
@@ -189,6 +234,7 @@ public struct MobilePaperSummary: Decodable, Sendable {
     public let live_gate: String
     public let loop: PaperLoop
     public let positions: PaperPositions
+    public let position_pricing: PositionPricing?
     public let pnl: PaperPnL
     public let trainer_feedback: TrainerFeedback
 }

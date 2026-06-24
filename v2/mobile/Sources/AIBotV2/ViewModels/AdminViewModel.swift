@@ -125,7 +125,7 @@ public final class AdminViewModel {
     private func applySummaryStream(_ message: String) {
         do {
             summary = try decodeMobileResourceMessage(MobileAdminSummary.self, from: message)
-            summaryStreamLabel = "Live"
+            summaryStreamLabel = "Realtime"
             isLoading = false
             error = nil
         } catch let err as APIError where err.isUnauthorized {
@@ -146,7 +146,7 @@ public final class AdminViewModel {
     private func applyRiskStream(_ message: String) {
         do {
             riskStatus = try decodeMobileResourceMessage(MobileRiskStatus.self, from: message)
-            riskStreamLabel = "Live"
+            riskStreamLabel = "Realtime"
             isLoading = false
             if summary != nil {
                 error = nil

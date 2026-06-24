@@ -195,7 +195,7 @@ struct RiskControlView: View {
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(NerVyx.warning)
             }
-            Text("Enabling live trading, changing leverage, disabling the kill switch, and other dangerous actions require explicit human approval through the web admin interface. These actions CANNOT be approved from this app.")
+            Text("Enabling live order routing, changing leverage, disabling the kill switch, and other dangerous actions require explicit human approval through the web admin interface. These actions CANNOT be approved from this app.")
                 .font(.system(size: 12))
                 .foregroundStyle(NerVyx.textMuted)
                 .fixedSize(horizontal: false, vertical: true)

@@ -174,9 +174,10 @@ func renderPositions(_ resp: MobilePositionsResponse) {
         print("  " + separator("─", width: 56))
         for p in resp.positions {
             let sideStr = p.isBuy ? g(p.side.uppercased()) : C.red + p.side.uppercased() + C.reset
-            let upnl    = pnlStr(p.unrealized_pnl)
-            print(String(format: "  %-12s %-15s %10.4f %12.4f  %s",
-                          p.symbol, sideStr, p.qty, p.entry_price, upnl))
+            let upnl = p.unrealized_pnl.map { pnlStr($0) } ?? dim("unavailable")
+            let entry = p.entry_price.map { String(format: "%.4f", $0) } ?? "unavailable"
+            print(String(format: "  %-12s %-15s %10.4f %12s  %s",
+                          p.symbol, sideStr, p.qty, entry, upnl))
         }
     }
     print("")
