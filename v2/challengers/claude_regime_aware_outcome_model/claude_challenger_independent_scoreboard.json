@@ -1,0 +1,44 @@
+{
+  "DRIFT_DETECTED": false,
+  "challenger_status": "PASSED_PAPER_CHALLENGER_READY",
+  "drift_check": {
+    "exclude_prefixes": [
+      "goal_state/",
+      "claude_worklog/",
+      "v2/frontend/public/operator_runtime/",
+      "v2/challengers/claude_regime_aware_outcome_model/"
+    ],
+    "inspect_after_utc": "2026-06-24T21:57:46Z",
+    "method": "git_log_source_code_changes_after_freeze_commit",
+    "source_extensions_checked": [
+      ".go",
+      ".js",
+      ".jsx",
+      ".py",
+      ".rs",
+      ".swift",
+      ".ts",
+      ".tsx"
+    ],
+    "unrelated_change_count": 0,
+    "unrelated_source_changes": []
+  },
+  "drift_rationale": "No unrelated source changes detected after freeze commit.",
+  "final_marker": "CLAUDE_FROZEN_HOLDOUT_ARTIFACT_VERIFIED_BLIND_LOCKBOX_AND_FORWARD_CANARY_BLOCKED",
+  "generated_utc": "2026-06-24T22:11:36Z",
+  "goal_lock_commit": "3ca20d8862",
+  "goal_lock_utc": "2026-06-24T21:57:46Z",
+  "holdout_metrics": {
+    "after_cost_expectancy_bps": 70.0137337135041,
+    "directional_accuracy": 0.6577181208053692,
+    "positive_expectancy": true,
+    "trade_count": 149
+  },
+  "paper_publication": {
+    "canary_started": false,
+    "published_count": 0,
+    "rejected_count": 520
+  },
+  "result_hash": "dac06564dad31483a8cada1d4b3bd37b3f2322bd7ccd06a89312e5a4558927a2",
+  "verifier": "CLAUDE_INDEPENDENT_SCOREBOARD_V2"
+}
