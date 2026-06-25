@@ -724,7 +724,14 @@ def _frozen_policy_status(
     return payload
 
 
-def _blocked_forward_artifacts(candidate_id: str, policy_fingerprint: str, feature_parity_pass: bool) -> dict[str, dict[str, Any]]:
+def _blocked_forward_artifacts(
+    candidate_id: str,
+    policy_fingerprint: str,
+    feature_parity_pass: bool,
+    *,
+    reproducibility_pass: bool,
+    cost_evidence_production_grade_pass: bool,
+) -> dict[str, dict[str, Any]]:
     lockbox_manifest = {
         "schema_version": "challenger_v2_blind_lockbox_manifest_v1",
         "generated_utc": utc_now(),
@@ -754,12 +761,37 @@ def _blocked_forward_artifacts(candidate_id: str, policy_fingerprint: str, featu
         "long_count": 0,
         "short_count": 0,
         "no_trade_count": 0,
+        "directional_accuracy": None,
         "after_cost_expectancy_bps": None,
         "expectancy_95pct_lower_bound_bps": None,
         "profit_factor": None,
+        "brier_score": None,
+        "ece": None,
+        "expected_move_mae_bps": None,
         "false_positive_rate": None,
+        "maximum_drawdown": None,
+        "worst_1pct_loss_bps": None,
+        "symbol_concentration": {},
+        "timeframe_concentration": {},
+        "strategy_concentration": {},
+        "regime_concentration": {},
+        "max_concentration_pct": None,
         "point_in_time_violations": 0,
         "pass": False,
+        "minimum_pass": {
+            "selected_candidates_gte_300": False,
+            "symbols_gte_30": False,
+            "long_gt_0": False,
+            "short_gt_0": False,
+            "after_cost_expectancy_gt_0": False,
+            "expectancy_95pct_lower_bound_gt_0": False,
+            "profit_factor_gte_1_5": False,
+            "false_positive_rate_lte_0_40": False,
+            "no_concentration_dimension_gt_30pct": False,
+            "worst_1pct_loss_inside_risk_envelope": False,
+            "point_in_time_violations_eq_0": True,
+            "production_grade_cost_evidence": cost_evidence_production_grade_pass,
+        },
         "zero_row_lockbox_is_blocked_not_verified": True,
     }
     forward_shadow = {
@@ -809,7 +841,8 @@ def _blocked_forward_artifacts(candidate_id: str, policy_fingerprint: str, featu
         "generated_utc": utc_now(),
         "candidate_id": candidate_id,
         "status": "BLOCKED",
-        "reproducibility_pass": False,
+        "reproducibility_pass": reproducibility_pass,
+        "cost_evidence_production_grade_pass": cost_evidence_production_grade_pass,
         "blind_lockbox_pass": False,
         "forward_paper_canary_pass": False,
         "claude_independent_verification_pass": False,
@@ -1018,6 +1051,10 @@ def run_pipeline(
             candidate_id,
             policy_fingerprint,
             feature_parity_pass=feature_parity_pass,
+            reproducibility_pass=reproducibility.get("reproducibility_status") == "PASS",
+            cost_evidence_production_grade_pass=dataset_manifest.get("production_grade_cost_rows", 0)
+            >= dataset_manifest.get("production_cost_replay_rows", 0)
+            and dataset_manifest.get("production_cost_replay_rows", 0) > 0,
         )
     )
     artifacts["challenger_v2_forward_shadow_status.json"] = _forward_shadow_status(
