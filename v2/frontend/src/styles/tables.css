@@ -230,16 +230,30 @@
   width: 100%;
 }
 
+.signal-stream-table {
+  overflow: auto;
+}
+
 .signal-stream-table .signal-stream-row,
 .signal-stream-table__row {
   grid-template-columns: 2fr 1.3fr 1fr 1fr 1fr 1fr;
   padding-inline: 10px;
 }
 
+.signal-stream-table .signal-stream-row > span,
+.signal-stream-table__row > span,
+.cockpit-table-row > span {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: break-word;
+}
+
 .operator-proof-table {
   border: 1px solid var(--line-soft);
   border-radius: 10px;
-  overflow: hidden;
+  overflow: visible;
   background: var(--bg-panel);
 }
 
@@ -247,6 +261,17 @@
 .operator-proof-table__row {
   display: grid;
   grid-template-columns: 1.2fr 1fr 1fr 1fr;
+}
+
+.operator-proof-table [role="row"] > span,
+.operator-proof-table__row > span,
+.operator-proof-table__header > span {
+  min-width: 0;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .ledger-table,

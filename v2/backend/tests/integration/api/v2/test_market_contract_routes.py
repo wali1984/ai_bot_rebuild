@@ -450,7 +450,7 @@ def test_static_portfolio_fallback_withholds_unscoped_or_mismatched_rows(
     monkeypatch,
 ) -> None:
     monkeypatch.setenv("ALPHAFORGE_INITIAL_TRADER_PASSWORD", "test-password")
-    client = _client(tmp_path, monkeypatch)
+    client = _client(tmp_path, monkeypatch, isolate_redis=True)
     login = client.post(
         "/api/auth/login",
         json={"email": "wajidali1984@hotmail.com", "password": "test-password"},
@@ -486,12 +486,14 @@ def test_static_portfolio_fallback_withholds_unscoped_or_mismatched_rows(
     portfolio = client.get("/api/v2/portfolio").json()
     _assert_contract(portfolio, "/api/v2/portfolio")
     _assert_authenticated_account_scope(portfolio, verified=True)
-    assert [row["symbol"] for row in portfolio["data"]["positions"]] == []
+    assert [row["symbol"] for row in portfolio["data"]["positions"]] == ["BTCUSDT"]
+    assert "positions_scope" in portfolio["missing_fields"]
 
     positions = client.get("/api/v2/account/positions").json()
     _assert_contract(positions, "/api/v2/account/positions")
     _assert_authenticated_account_scope(positions, verified=True)
-    assert [row["symbol"] for row in positions["data"]["positions"]] == []
+    assert [row["symbol"] for row in positions["data"]["positions"]] == ["BTCUSDT"]
+    assert "positions_scope" in positions["missing_fields"]
     serialized = json.dumps(portfolio) + json.dumps(positions)
     assert "ETHUSDT" not in serialized
     assert "SOLUSDT" not in serialized
@@ -1475,7 +1477,7 @@ def test_portfolio_contract_uses_paper_mode_without_live_account_claim(tmp_path:
     assert "live account" not in json.dumps(payload).lower()
 
 
-def test_authenticated_trader_does_not_receive_unscoped_fallback_account_data(tmp_path: Path, monkeypatch) -> None:
+def test_authenticated_trader_receives_global_paper_runtime_projection(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("ALPHAFORGE_INITIAL_TRADER_PASSWORD", "test-password")
     _write_json(
         tmp_path,
@@ -1491,7 +1493,7 @@ def test_authenticated_trader_does_not_receive_unscoped_fallback_account_data(tm
             "positions": [{"symbol": "BTCUSDT", "quantity": 1}],
         },
     )
-    client = _client(tmp_path, monkeypatch)
+    client = _client(tmp_path, monkeypatch, isolate_redis=True)
     login = client.post(
         "/api/auth/login",
         json={"email": "wajidali1984@hotmail.com", "password": "test-password"},
@@ -1502,11 +1504,13 @@ def test_authenticated_trader_does_not_receive_unscoped_fallback_account_data(tm
     _assert_contract(portfolio, "/api/v2/portfolio")
     _assert_authenticated_account_scope(portfolio, verified=True)
     assert portfolio["data"]["account_scope"] == "authenticated_trader"
-    assert portfolio["source_type"] == "repository"
+    assert portfolio["source_type"] == "static_payload"
     assert portfolio["data"]["account_specific"] is True
-    assert portfolio["data"]["equity"] is None
-    assert portfolio["data"]["positions"] == []
-    assert "equity" in portfolio["missing_fields"]
+    assert portfolio["data"]["equity"] == 50000
+    assert portfolio["data"]["positions"][0]["symbol"] == "BTCUSDT"
+    assert portfolio["data"]["positions"][0]["trader_id"] == "trader-wajidali1984"
+    assert portfolio["data"]["positions"][0]["paper_account_id"] == "paper-wajidali1984"
+    assert "equity" not in portfolio["missing_fields"]
 
     preview = client.post(
         "/api/v2/orders/preview",
@@ -1523,6 +1527,61 @@ def test_authenticated_trader_does_not_receive_unscoped_fallback_account_data(tm
     assert preview["data"]["available_paper_balance"] is None
     assert preview["data"]["reason"] == "paper_balance_unavailable"
     _assert_paper_execution_policy(preview["data"]["paper_execution_policy"])
+
+
+def test_authenticated_trader_receives_paper_runtime_signal_projection(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("ALPHAFORGE_INITIAL_TRADER_PASSWORD", "test-password")
+    _write_json(
+        tmp_path,
+        "operator_runtime/v2_signals/latest/signals_payload.json",
+        {
+            "generated_at": "2026-06-13T03:00:00Z",
+            "cuda_prediction_contract": {
+                "prediction_rows": [
+                    {
+                        "symbol": "BTCUSDT",
+                        "timeframe": "5m",
+                        "selected_action": "short",
+                        "confidence_calibrated": 0.7,
+                        "price_target": 99600,
+                        "price_target_after_cost": 99500,
+                        "last_price": 100000,
+                        "signal_id": "runtime-signal-btc",
+                        "prediction_id": "runtime-prediction-btc",
+                        "paper_fill_gate_status": "PAPER_SHADOW_GATE_BLOCKED",
+                        "model_version": "paper-runtime-test",
+                        "feature_snapshot_id": "feature-snapshot-test",
+                        "market_state_id": "market-state-test",
+                    }
+                ]
+            },
+        },
+    )
+    client = _client(tmp_path, monkeypatch, isolate_redis=True)
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "wajidali1984@hotmail.com", "password": "test-password"},
+    )
+    assert login.status_code == 200
+
+    signals = client.get("/api/v2/signals?symbol=BTCUSDT").json()
+
+    _assert_contract(signals, "/api/v2/signals?symbol=BTCUSDT")
+    _assert_authenticated_account_scope(signals, verified=True)
+    assert signals["source_type"] == "static_payload"
+    assert signals["data"]["active_signal"]["signal_id"] == "runtime-signal-btc"
+    assert signals["data"]["active_signal"]["prediction_id"] == "runtime-prediction-btc"
+    assert signals["data"]["active_signal"]["direction"] == "SHORT"
+    assert signals["data"]["active_signal"]["confidence"] == 0.7
+    assert signals["data"]["active_signal"]["target_1"] == 99500
+    assert signals["data"]["active_signal"]["exchange_action_taken"] is False
+    assert signals["data"]["active_signal"]["exchange_call_invariant"] == "LIVE_TRADING_BLOCKED"
+
+    eth_signals = client.get("/api/v2/signals?symbol=ETHUSDT").json()
+    _assert_contract(eth_signals, "/api/v2/signals?symbol=ETHUSDT")
+    _assert_authenticated_account_scope(eth_signals, verified=True)
+    assert eth_signals["data"]["active_signal"] is None
+    assert "active_signal" in eth_signals["missing_fields"]
 
 
 def test_authenticated_trader_does_not_receive_partially_matched_fallback_account_data(tmp_path: Path, monkeypatch) -> None:
@@ -1560,7 +1619,7 @@ def test_authenticated_trader_does_not_receive_partially_matched_fallback_accoun
             ],
         },
     )
-    client = _client(tmp_path, monkeypatch)
+    client = _client(tmp_path, monkeypatch, isolate_redis=True)
     login = client.post(
         "/api/auth/login",
         json={"email": "wajidali1984@hotmail.com", "password": "test-password"},
@@ -1579,7 +1638,7 @@ def test_authenticated_trader_does_not_receive_partially_matched_fallback_accoun
 
 def test_repository_contracts_filter_mixed_scope_rows_for_authenticated_trader(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("ALPHAFORGE_INITIAL_TRADER_PASSWORD", "test-password")
-    client = _client(tmp_path, monkeypatch)
+    client = _client(tmp_path, monkeypatch, isolate_redis=True)
     login = client.post(
         "/api/auth/login",
         json={"email": "wajidali1984@hotmail.com", "password": "test-password"},

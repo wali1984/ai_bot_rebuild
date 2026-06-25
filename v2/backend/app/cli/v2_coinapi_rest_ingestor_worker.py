@@ -574,7 +574,15 @@ def build_payload(
 
 def write_payload(payload: dict[str, Any], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n")
+    try:
+        path.write_text(json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n")
+    except OSError as exc:
+        import errno as _errno
+        print(
+            f"[write_payload] WARNING: could not write {path}: {exc}"
+            + (" (disk full — check available space)" if exc.errno == _errno.ENOSPC else ""),
+            file=sys.stderr,
+        )
 
 
 def main(argv: list[str] | None = None) -> int:

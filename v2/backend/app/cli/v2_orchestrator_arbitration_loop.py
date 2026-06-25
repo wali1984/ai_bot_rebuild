@@ -286,6 +286,16 @@ def _prediction_to_proposal_and_signal(p: dict) -> tuple[dict, dict] | None:
         "model_id": p.get("model_id"),
         "checkpoint_id": p.get("checkpoint_id"),
     }
+    signal.update(_copy_trust_envelope_fields(p))
+    signal["signal_id"] = prediction_id
+    signal["prediction_id"] = prediction_id
+    signal["source_prediction_id"] = prediction_id
+    signal["symbol"] = symbol
+    signal["timeframe"] = p.get("timeframe")
+    signal["selected_action"] = p.get("selected_action")
+    signal["model_version"] = model_version
+    signal["checkpoint_id"] = p.get("checkpoint_id")
+    signal["feature_snapshot_id"] = feature_snapshot_id
     return proposal, signal
 
 
@@ -299,6 +309,48 @@ def _prediction_to_proposal_and_signal(p: dict) -> tuple[dict, dict] | None:
 _HPPM_MIN_CONFIDENCE_CALIBRATED = 0.60
 _HPPM_MIN_EXPECTED_MOVE_AFTER_COST_BPS = 5.0
 _HPPM_MIN_DATA_COVERAGE_PCT = 80.0
+
+_TRUST_ENVELOPE_FIELDS = (
+    "decision_id",
+    "feature_snapshot_id",
+    "mtf_snapshot_id",
+    "feature_cutoff",
+    "decision_time",
+    "available_at",
+    "symbol",
+    "timeframe",
+    "selected_action",
+    "model_version",
+    "checkpoint_id",
+    "source_hashes",
+    "feature_vector_hash",
+    "input_feature_hash",
+    "all_tf_candle_timestamps",
+    "all_source_event_times",
+    "source_candle_timestamps",
+    "replay_snapshot_id",
+    "replay_snapshot_key",
+    "replay_snapshot_write_success",
+    "trust_gate_result",
+)
+
+
+def _copy_trust_envelope_fields(source: dict[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for field in _TRUST_ENVELOPE_FIELDS:
+        value = source.get(field)
+        if value in (None, ""):
+            continue
+        if isinstance(value, dict):
+            out[field] = dict(value)
+        elif isinstance(value, list):
+            out[field] = list(value)
+        else:
+            out[field] = value
+    source_hashes = source.get("source_hashes")
+    if isinstance(source_hashes, dict) and source_hashes:
+        out["source_hashes"] = dict(source_hashes)
+    return out
 
 
 def _high_precision_paper_mode_active() -> bool:
@@ -480,8 +532,10 @@ def run_once() -> dict:
     deconflict = deconflict_signals(signals)
     keys_written: list[str] = []
     if r is not None:
-        proposals_payload = [
-            {
+        proposals_payload = []
+        for pr in proposals:
+            lineage = signal_by_prediction_id.get(str(pr.proposal_id)) or {}
+            row = {
                 "proposal_id": pr.proposal_id,
                 "symbol": pr.symbol,
                 "side": pr.side,
@@ -492,13 +546,24 @@ def run_once() -> dict:
                 "model_version": pr.model_version,
                 "generated_utc": pr.generated_utc,
             }
-            for pr in proposals
-        ]
-        bucket_winners = [
-            {
+            row.update(_copy_trust_envelope_fields(lineage))
+            row["proposal_id"] = pr.proposal_id
+            row["symbol"] = pr.symbol
+            row["side"] = pr.side
+            row["model_version"] = pr.model_version
+            proposals_payload.append(row)
+        bucket_winners = []
+        for w in arb.bucket_winners:
+            lineage = signal_by_prediction_id.get(str(w.winner.proposal_id)) or {}
+            decision_id = _first_text(lineage.get("decision_id")) or f"dec_{w.winner.proposal_id}"
+            row = {
                 "symbol": w.symbol,
                 "side": w.side,
                 "winner_proposal_id": w.winner.proposal_id,
+                "prediction_id": w.winner.proposal_id,
+                "signal_id": lineage.get("signal_id") or f"sig_{w.winner.proposal_id}",
+                "decision_id": decision_id,
+                "orchestrator_decision_id": f"dec_{w.winner.proposal_id}",
                 "winner_confidence_calibrated": w.winner.confidence_calibrated,
                 "winner_expected_move_after_cost_bps": w.winner.expected_move_after_cost_bps,
                 "winner_freshness_seconds": w.winner.freshness_seconds,
@@ -506,8 +571,17 @@ def run_once() -> dict:
                 "considered_proposal_ids": list(w.considered_proposal_ids),
                 "score": w.score,
             }
-            for w in arb.bucket_winners
-        ]
+            row.update(_copy_trust_envelope_fields(lineage))
+            row["symbol"] = w.symbol
+            row["side"] = w.side
+            row["winner_proposal_id"] = w.winner.proposal_id
+            row["prediction_id"] = w.winner.proposal_id
+            row["signal_id"] = lineage.get("signal_id") or f"sig_{w.winner.proposal_id}"
+            row["decision_id"] = decision_id
+            row["orchestrator_decision_id"] = f"dec_{w.winner.proposal_id}"
+            row["winner_model_version"] = w.winner.model_version
+            row["model_version"] = lineage.get("model_version") or w.winner.model_version
+            bucket_winners.append(row)
         decisions_payload = {
             "schema_version": "v2_orchestrator_decisions_v2",
             "generated_utc": _utc_iso(),
@@ -537,25 +611,27 @@ def run_once() -> dict:
         # paper_fill_allowed=False are excluded from arbitration above).
         # Propagate paper_fill_allowed=True and enrichment fields so
         # v2_trade_management_paper_loop can record accepted paper fills.
-        sig_payload = [
-            {
-                "signal_id": (signal_by_prediction_id.get(str(w["winner_proposal_id"])) or {}).get("signal_id")
-                or f"sig_{w['winner_proposal_id']}",
+        sig_payload = []
+        for w in bucket_winners:
+            lineage = signal_by_prediction_id.get(str(w["winner_proposal_id"])) or {}
+            signal_row = {
+                "signal_id": lineage.get("signal_id") or f"sig_{w['winner_proposal_id']}",
                 "side": w["side"],
                 "symbol": w["symbol"],
-                "timeframe": (signal_by_prediction_id.get(str(w["winner_proposal_id"])) or {}).get("timeframe"),
+                "timeframe": lineage.get("timeframe"),
                 "winner_proposal_id": w["winner_proposal_id"],
                 "prediction_id": w["winner_proposal_id"],
                 "source_prediction_id": w["winner_proposal_id"],
                 "risk_decision_id": f"rd_{w['winner_proposal_id']}",
-                "orchestrator_decision_id": f"dec_{w['winner_proposal_id']}",
+                "orchestrator_decision_id": w.get("orchestrator_decision_id") or f"dec_{w['winner_proposal_id']}",
+                "decision_id": w.get("decision_id") or lineage.get("decision_id") or f"dec_{w['winner_proposal_id']}",
                 "expected_move_after_cost_bps": w["winner_expected_move_after_cost_bps"],
                 "confidence_calibrated": w["winner_confidence_calibrated"],
-                "model_version": w.get("winner_model_version"),
-                "trainer_source": (signal_by_prediction_id.get(str(w["winner_proposal_id"])) or {}).get("trainer_source"),
-                "model_id": (signal_by_prediction_id.get(str(w["winner_proposal_id"])) or {}).get("model_id"),
-                "checkpoint_id": (signal_by_prediction_id.get(str(w["winner_proposal_id"])) or {}).get("checkpoint_id"),
-                "feature_snapshot_id": (signal_by_prediction_id.get(str(w["winner_proposal_id"])) or {}).get("feature_snapshot_id"),
+                "model_version": lineage.get("model_version") or w.get("winner_model_version"),
+                "trainer_source": lineage.get("trainer_source"),
+                "model_id": lineage.get("model_id"),
+                "checkpoint_id": lineage.get("checkpoint_id"),
+                "feature_snapshot_id": lineage.get("feature_snapshot_id"),
                 "paper_fill_allowed": True,
                 "paper_fill_gate_status": "PAPER_FILL_ALLOWED_BY_ORCHESTRATOR_GATE",
                 "paper_fill_gate_block_reasons": [],
@@ -574,8 +650,26 @@ def run_once() -> dict:
                 "execution_live_symbols": live_context["execution_live_symbols"],
                 "places_real_order": False,
             }
-            for w in bucket_winners
-        ]
+            signal_row.update(_copy_trust_envelope_fields(lineage))
+            signal_row["signal_id"] = lineage.get("signal_id") or f"sig_{w['winner_proposal_id']}"
+            signal_row["side"] = w["side"]
+            signal_row["symbol"] = w["symbol"]
+            signal_row["timeframe"] = lineage.get("timeframe")
+            signal_row["selected_action"] = lineage.get("selected_action")
+            signal_row["winner_proposal_id"] = w["winner_proposal_id"]
+            signal_row["prediction_id"] = w["winner_proposal_id"]
+            signal_row["source_prediction_id"] = w["winner_proposal_id"]
+            signal_row["risk_decision_id"] = f"rd_{w['winner_proposal_id']}"
+            signal_row["orchestrator_decision_id"] = w.get("orchestrator_decision_id") or f"dec_{w['winner_proposal_id']}"
+            signal_row["decision_id"] = (
+                w.get("decision_id")
+                or lineage.get("decision_id")
+                or signal_row["orchestrator_decision_id"]
+            )
+            signal_row["model_version"] = lineage.get("model_version") or w.get("winner_model_version")
+            signal_row["checkpoint_id"] = lineage.get("checkpoint_id")
+            signal_row["feature_snapshot_id"] = lineage.get("feature_snapshot_id")
+            sig_payload.append(signal_row)
         if _safe_write(
             r, f"{V2_REDIS_PREFIX}signals:paper",
             json.dumps(sig_payload), ex=600,

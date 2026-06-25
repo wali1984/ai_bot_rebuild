@@ -350,6 +350,7 @@ export default function BacktestsPage(): JSX.Element {
   });
 
   const results = envelope.data?.results ?? [];
+  const backtestSourceUnavailable = !envelope.data || envelope.source_type === 'unavailable';
 
   const handleRunStarted = useCallback((runId: string) => {
     setPendingRunIds(prev => [runId, ...prev]);
@@ -373,7 +374,7 @@ export default function BacktestsPage(): JSX.Element {
               <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Backtest Engine</h1>
             </div>
             <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>
-              Historical replay of AI signals against real OHLCV data · Equity curves · Trade journal · Live execution research
+              Historical replay of AI signals against real OHLCV data · Equity curves · Trade journal · Execution-restricted research
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -417,9 +418,13 @@ export default function BacktestsPage(): JSX.Element {
         {!loading && results.length === 0 && (
           <div style={{ padding: 40, textAlign: 'center', background: 'var(--bg-panel)', borderRadius: 12, border: '1px solid var(--border)' }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>📊</div>
-            <h3 style={{ margin: '0 0 8px', fontSize: 15, fontWeight: 700 }}>No Backtest Results Yet</h3>
+            <h3 style={{ margin: '0 0 8px', fontSize: 15, fontWeight: 700 }}>
+              {backtestSourceUnavailable ? 'Backtest engine unavailable' : 'Backtest engine unavailable or empty'}
+            </h3>
             <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>
-              Use the Run form above to start your first backtest. Results are stored in Redis for 7 days.
+              {backtestSourceUnavailable
+                ? 'Paper account context only. No sourced backtest rows are available from the read-only endpoint; this is a source availability state, not backtest results.'
+                : 'Paper account context only. The sourced result set is empty; this is an empty source state, not backtest results. Use the Run form above to start a backtest. Results are stored in Redis for 7 days.'}
             </p>
           </div>
         )}

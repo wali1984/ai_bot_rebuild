@@ -10,9 +10,9 @@ export interface DangerousControl {
 export const DANGEROUS_CONTROLS = {
   enable_live_trading: {
     id: 'enable_live_trading',
-    label: 'Enable live trading',
+    label: 'Enable live order routing',
     level: 'L5',
-    rationale: 'Default-deny per CLAUDE.md Admin Control Rule. LIVE TRADING: BLOCKED.',
+    rationale: 'Default-deny per CLAUDE.md Admin Control Rule. LIVE ORDER ROUTING: BLOCKED.',
   },
   add_live_api_keys: {
     id: 'add_live_api_keys',

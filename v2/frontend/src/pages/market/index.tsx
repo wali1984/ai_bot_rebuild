@@ -9,7 +9,7 @@
  * component mounts. If auth state resolves to no-user mid-session, an inline
  * overlay prompts sign-in without a full-page redirect.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   CandlestickSeries,
@@ -26,6 +26,9 @@ import { Activity, AlertTriangle, ChevronRight, Sparkles, TrendingDown, Trending
 import { safeV2MarketSymbol } from '../../api/v2Market';
 import { useMarketDataStream } from '../../hooks/useMarketDataStream';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
+import { useTraderSnapshot } from '../../hooks/useTraderSnapshot';
+import { CanonicalMetricValue } from '../../components/data/CanonicalMetric';
+import { selectMarketBySymbol, selectMarketMetric } from '../../selectors/marketSelectors';
 import type {
   ApiV2Envelope,
   MarketCandlesData,
@@ -498,7 +501,7 @@ function CandlestickChart({ candles, loading, error }: CandlestickChartProps): J
 // Stat chip
 // ---------------------------------------------------------------------------
 
-function Stat({ label, value, tone }: { label: string; value: string; tone?: string }): JSX.Element {
+function Stat({ label, value, tone }: { label: string; value: ReactNode; tone?: string }): JSX.Element {
   return (
     <div className="mdc-stat">
       <span className="mdc-stat__label">{label}</span>
@@ -573,6 +576,7 @@ function AuthOverlay({ symbol, onSignIn }: { symbol: string; onSignIn: () => voi
 export default function MarketPage(): JSX.Element {
   const params = useParams();
   const navigate = useNavigate();
+  const traderSnapshot = useTraderSnapshot();
   const requestedSymbol = (params.symbol ?? 'BTCUSDT').toUpperCase().trim();
   const safeSymbol = safeV2MarketSymbol(requestedSymbol);
   const symbol = safeSymbol ?? 'Invalid market symbol';
@@ -701,7 +705,8 @@ export default function MarketPage(): JSX.Element {
 
   const signal = user && safeSymbol ? (signalResource.envelope.data?.active_signal ?? null) as SignalData | null : null;
   const signalLoading = Boolean(user) && signalResource.loading && !signalResource.envelope.data;
-  const price = ticker?.last_price ?? null;
+  const canonicalMarket = safeSymbol ? selectMarketBySymbol(traderSnapshot, safeSymbol) ?? {} : {};
+  const canonicalMarketMetric = (fieldId: string) => selectMarketMetric(traderSnapshot, canonicalMarket, fieldId);
   const change = ticker?.change_24h ?? null;
   const changeDisplay = useMemo(() => {
     if (change === null) return null;
@@ -733,7 +738,7 @@ export default function MarketPage(): JSX.Element {
           <span className="mdc-kicker">Perpetual Futures · Live Market</span>
           <h1>
             {symbol}
-            {price !== null && <span className="mdc-header__price">{fmtPrice(price)}</span>}
+            {safeSymbol && <span className="mdc-header__price"><CanonicalMetricValue metric={canonicalMarketMetric('market.last_price')} /></span>}
             {changeDisplay && (
               <span className={`mdc-header__change ${changeDisplay.positive ? 'mdc-pos' : 'mdc-neg'}`}>
                 {changeDisplay.positive ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
@@ -744,6 +749,18 @@ export default function MarketPage(): JSX.Element {
         </div>
 
         <div className="mdc-header__strip">
+          <div className="mdc-hstat">
+            <span>Last Price</span>
+            <strong><CanonicalMetricValue metric={canonicalMarketMetric('market.last_price')} /></strong>
+          </div>
+          <div className="mdc-hstat">
+            <span>Mark Price</span>
+            <strong><CanonicalMetricValue metric={canonicalMarketMetric('market.mark_price')} /></strong>
+          </div>
+          <div className="mdc-hstat">
+            <span>Index Price</span>
+            <strong><CanonicalMetricValue metric={canonicalMarketMetric('market.index_price')} /></strong>
+          </div>
           {ticker ? (
             <>
               <div className="mdc-hstat">
@@ -852,9 +869,9 @@ export default function MarketPage(): JSX.Element {
 
             {ticker && (
               <div className="mdc-stats-grid">
-                <Stat label="Last price" value={fmtPrice(ticker.last_price)} />
-                <Stat label="Mark Price" value={fmtPrice(ticker.mark_price)} />
-                <Stat label="Index Price" value={fmtPrice(ticker.index_price)} />
+                <Stat label="Last price" value={<CanonicalMetricValue metric={canonicalMarketMetric('market.last_price')} />} />
+                <Stat label="Mark Price" value={<CanonicalMetricValue metric={canonicalMarketMetric('market.mark_price')} />} />
+                <Stat label="Index Price" value={<CanonicalMetricValue metric={canonicalMarketMetric('market.index_price')} />} />
                 <Stat label="1h Change" value={fmtPct(ticker.change_1h ?? null)} tone={changeClass(ticker.change_1h ?? null)} />
                 <Stat label="4h Change" value={fmtPct(ticker.change_4h ?? null)} tone={changeClass(ticker.change_4h ?? null)} />
                 <Stat label="24h High" value={fmtPrice(ticker.high_24h)} tone="mdc-pos" />
@@ -981,7 +998,7 @@ export default function MarketPage(): JSX.Element {
             </div>
             <div className="mdc-meta-row">
               <ShieldCheck size={14} aria-hidden="true" />
-              <span>Live trading</span>
+              <span>Execution routing</span>
               <strong className="mdc-pos">GUARDED</strong>
             </div>
           </div>

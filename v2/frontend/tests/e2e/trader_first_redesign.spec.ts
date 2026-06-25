@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { gotoAs } from './_shared';
+import { mockAuth } from './helpers/auth';
 
 const PRIMARY_TRADER_ROUTES = [
   '/dashboard',
@@ -17,9 +18,10 @@ const FORBIDDEN_NAV_TERMS = /admin|operator|war room|mission control|codex|claud
 
 test.describe('Trader-first product navigation contract', () => {
   test('primary trader nav stays trader-facing and excludes admin/operator destinations', async ({ page }) => {
+    await mockAuth(page, 'trader');
     await gotoAs(page, '/dashboard', 'trader');
 
-    const topNav = page.locator('nav[aria-label="Primary route navigation"], nav[aria-label="Public navigation"]').first();
+    const topNav = page.getByTestId('topbar-primary-nav');
     await expect(topNav).toBeVisible();
     await expect(topNav).toContainText('Dashboard');
     await expect(topNav).toContainText('Markets');
@@ -30,10 +32,10 @@ test.describe('Trader-first product navigation contract', () => {
   for (const route of PRIMARY_TRADER_ROUTES) {
     test(`${route} renders inside the trader product shell without horizontal overflow`, async ({ page }) => {
       await page.setViewportSize({ width: 1440, height: 900 });
-      await gotoAs(page, route, route === '/backtests' ? 'admin' : 'trader');
+      await mockAuth(page, 'trader');
+      await gotoAs(page, route, 'trader');
 
-      await expect(page.getByTestId('live-block-banner')).toBeVisible();
-      await expect(page.getByTestId('live-block-banner')).toContainText(/Paper \/ read-only mode active|Live trading disabled/i);
+      await expect(page.getByTestId('live-block-banner')).toHaveCount(0);
       await expect(page.locator('body')).not.toContainText(/LIVE RUNTIME|enabled_operator_approved|role override|local role/i);
 
       const hasHorizontalScroll = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);

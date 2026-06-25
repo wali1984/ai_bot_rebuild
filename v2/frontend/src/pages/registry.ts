@@ -1,6 +1,73 @@
 import type { PageModule } from '../types/page';
 import { resolvePageModule } from './productNavigation';
 
+// ── Canonical admin pages (new consolidated IA) ──────────────────────────────
+import AdminOverviewPage from './admin-overview';
+import adminOverviewMeta from './admin-overview/meta';
+import adminOverviewRbac from './admin-overview/rbac';
+import adminOverviewRoute from './admin-overview/route';
+
+import AdminDataPage from './admin-data';
+import adminDataMeta from './admin-data/meta';
+import adminDataRbac from './admin-data/rbac';
+import adminDataRoute from './admin-data/route';
+
+import AdminIntelligencePage from './admin-intelligence';
+import adminIntelligenceMeta from './admin-intelligence/meta';
+import adminIntelligenceRbac from './admin-intelligence/rbac';
+import adminIntelligenceRoute from './admin-intelligence/route';
+
+import AdminOrchestrationPage from './admin-orchestration';
+import adminOrchestrationMeta from './admin-orchestration/meta';
+import adminOrchestrationRbac from './admin-orchestration/rbac';
+import adminOrchestrationRoute from './admin-orchestration/route';
+
+import AdminRiskPage from './admin-risk';
+import adminRiskMeta from './admin-risk/meta';
+import adminRiskRbac from './admin-risk/rbac';
+import adminRiskRoute from './admin-risk/route';
+
+import AdminExecutionPage from './admin-execution';
+import adminExecutionMeta from './admin-execution/meta';
+import adminExecutionRbac from './admin-execution/rbac';
+import adminExecutionRoute from './admin-execution/route';
+
+import AdminExchangesPage from './admin-exchanges';
+import adminExchangesMeta from './admin-exchanges/meta';
+import adminExchangesRbac from './admin-exchanges/rbac';
+import adminExchangesRoute from './admin-exchanges/route';
+
+import AdminConfigPage from './admin-config';
+import adminConfigMeta from './admin-config/meta';
+import adminConfigRbac from './admin-config/rbac';
+import adminConfigRoute from './admin-config/route';
+
+import AdminUsersPage from './admin-users';
+import adminUsersMeta from './admin-users/meta';
+import adminUsersRbac from './admin-users/rbac';
+import adminUsersRoute from './admin-users/route';
+
+import AdminReportsPage from './admin-reports';
+import adminReportsMeta from './admin-reports/meta';
+import adminReportsRbac from './admin-reports/rbac';
+import adminReportsRoute from './admin-reports/route';
+
+import AdminLogsPage from './admin-logs';
+import adminLogsMeta from './admin-logs/meta';
+import adminLogsRbac from './admin-logs/rbac';
+import adminLogsRoute from './admin-logs/route';
+
+import AdminAuditPage from './admin-audit';
+import adminAuditMeta from './admin-audit/meta';
+import adminAuditRbac from './admin-audit/rbac';
+import adminAuditRoute from './admin-audit/route';
+
+import AdminToolsPage from './admin-tools';
+import adminToolsMeta from './admin-tools/meta';
+import adminToolsRbac from './admin-tools/rbac';
+import adminToolsRoute from './admin-tools/route';
+
+// ── Legacy pages (kept as redirect stubs / still registered at old paths) ────
 import DashboardPage from './dashboard';
 import dashboardMeta from './dashboard/meta';
 import dashboardRbac from './dashboard/rbac';
@@ -236,10 +303,7 @@ import marketMeta from './market/meta';
 import marketRbac from './market/rbac';
 import marketRoute from './market/route';
 
-import MarketRootAliasPage from './market-root';
-import marketRootAliasMeta from './market-root/meta';
-import marketRootAliasRbac from './market-root/rbac';
-import marketRootAliasRoute from './market-root/route';
+// market-root omitted: /market is handled by MERGED_LEGACY_PATHS → /markets
 
 import MarketsPage from './markets';
 import marketsMeta from './markets/meta';
@@ -281,10 +345,7 @@ import traderMeta from './trader/meta';
 import traderRbac from './trader/rbac';
 import traderRoute from './trader/route';
 
-import TraderLegacyAliasPage from './trader-legacy';
-import traderLegacyAliasMeta from './trader-legacy/meta';
-import traderLegacyAliasRbac from './trader-legacy/rbac';
-import traderLegacyAliasRoute from './trader-legacy/route';
+// trader-legacy omitted: /trader is handled by MERGED_LEGACY_PATHS → /trade
 
 import UserStatusPage from './user-status';
 import userStatusMeta from './user-status/meta';
@@ -296,12 +357,25 @@ import marketBrainMeta from './market-brain/meta';
 import marketBrainRbac from './market-brain/rbac';
 import marketBrainRoute from './market-brain/route';
 
-import ConfigAliasPage from './config';
-import configAliasMeta from './config/meta';
-import configAliasRbac from './config/rbac';
-import configAliasRoute from './config/route';
+// config (config-admin-alias) omitted: /admin/config is owned by admin-config canonical page
 
 const RAW_PAGES: ReadonlyArray<PageModule> = [
+  // ── Canonical admin pages (10 primary + 3 secondary) ─────────────────────
+  { meta: adminOverviewMeta, rbac: adminOverviewRbac, route: adminOverviewRoute, Component: AdminOverviewPage },
+  { meta: adminDataMeta, rbac: adminDataRbac, route: adminDataRoute, Component: AdminDataPage },
+  { meta: adminIntelligenceMeta, rbac: adminIntelligenceRbac, route: adminIntelligenceRoute, Component: AdminIntelligencePage },
+  { meta: adminOrchestrationMeta, rbac: adminOrchestrationRbac, route: adminOrchestrationRoute, Component: AdminOrchestrationPage },
+  { meta: adminRiskMeta, rbac: adminRiskRbac, route: adminRiskRoute, Component: AdminRiskPage },
+  { meta: adminExecutionMeta, rbac: adminExecutionRbac, route: adminExecutionRoute, Component: AdminExecutionPage },
+  { meta: adminExchangesMeta, rbac: adminExchangesRbac, route: adminExchangesRoute, Component: AdminExchangesPage },
+  { meta: adminConfigMeta, rbac: adminConfigRbac, route: adminConfigRoute, Component: AdminConfigPage },
+  { meta: adminUsersMeta, rbac: adminUsersRbac, route: adminUsersRoute, Component: AdminUsersPage },
+  { meta: adminReportsMeta, rbac: adminReportsRbac, route: adminReportsRoute, Component: AdminReportsPage },
+  { meta: adminLogsMeta, rbac: adminLogsRbac, route: adminLogsRoute, Component: AdminLogsPage },
+  { meta: adminAuditMeta, rbac: adminAuditRbac, route: adminAuditRoute, Component: AdminAuditPage },
+  { meta: adminToolsMeta, rbac: adminToolsRbac, route: adminToolsRoute, Component: AdminToolsPage },
+
+  // ── Trader app pages ────────────────────────────────────────────────────────
   { meta: dashboardMeta, rbac: dashboardRbac, route: dashboardRoute, Component: DashboardPage },
   { meta: permanentMigrationMeta, rbac: permanentMigrationRbac, route: permanentMigrationRoute, Component: PermanentMigrationPage },
   { meta: missionControlMeta, rbac: missionControlRbac, route: missionControlRoute, Component: MissionControlPage },
@@ -349,7 +423,6 @@ const RAW_PAGES: ReadonlyArray<PageModule> = [
   { meta: liquidationBridgeMeta, rbac: liquidationBridgeRbac, route: liquidationBridgeRoute, Component: LiquidationBridgePage },
   { meta: logsErrorsMeta, rbac: logsErrorsRbac, route: logsErrorsRoute, Component: LogsErrorsPage },
   { meta: marketMeta, rbac: marketRbac, route: marketRoute, Component: MarketPage },
-  { meta: marketRootAliasMeta, rbac: marketRootAliasRbac, route: marketRootAliasRoute, Component: MarketRootAliasPage },
   { meta: marketsMeta, rbac: marketsRbac, route: marketsRoute, Component: MarketsPage },
   { meta: proChartMeta, rbac: proChartRbac, route: proChartRoute, Component: ProChartPage },
   { meta: publicLandingV2Meta, rbac: publicLandingV2Rbac, route: publicLandingV2Route, Component: PublicLandingV2Page },
@@ -358,10 +431,8 @@ const RAW_PAGES: ReadonlyArray<PageModule> = [
   { meta: backtestsReplayMeta, rbac: backtestsReplayRbac, route: backtestsReplayRoute, Component: BacktestsReplayPage },
   { meta: technicalAnalysisMeta, rbac: technicalAnalysisRbac, route: technicalAnalysisRoute, Component: TechnicalAnalysisPage },
   { meta: traderMeta, rbac: traderRbac, route: traderRoute, Component: TraderPage },
-  { meta: traderLegacyAliasMeta, rbac: traderLegacyAliasRbac, route: traderLegacyAliasRoute, Component: TraderLegacyAliasPage },
   { meta: userStatusMeta, rbac: userStatusRbac, route: userStatusRoute, Component: UserStatusPage },
   { meta: marketBrainMeta, rbac: marketBrainRbac, route: marketBrainRoute, Component: MarketBrainPage },
-  { meta: configAliasMeta, rbac: configAliasRbac, route: configAliasRoute, Component: ConfigAliasPage },
 ];
 
 export const PAGES: ReadonlyArray<PageModule> = RAW_PAGES.map(resolvePageModule);

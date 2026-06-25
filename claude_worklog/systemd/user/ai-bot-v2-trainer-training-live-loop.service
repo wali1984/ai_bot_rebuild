@@ -1,4 +1,6 @@
 [Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
 Description=AI BOT V2 trainer training live loop (signal-only, V2 namespace)
 After=network-online.target ai-bot-v2-feature-pipeline-native-loop.service ai-bot-v2-rl-core-inference-loop.service
 Wants=network-online.target

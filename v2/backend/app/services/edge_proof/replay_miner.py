@@ -340,13 +340,30 @@ def _find_window_slice(
 # ---------------------------------------------------------------------------
 
 REPLAY_BUNDLES_PATH = STATE_DIR / "replay_bundles.jsonl"
+# Pending store: only bundles still awaiting at least one outcome window.
+# mine_once() reads and writes ONLY this file on every normal run (small).
+# Fully-filled bundles are appended to REPLAY_BUNDLES_PATH (archive) and
+# removed from here, so this file stays tiny regardless of archive size.
+REPLAY_BUNDLES_PENDING_PATH = STATE_DIR / "replay_bundles_pending.jsonl"
+EVAL_METRICS_PATH = STATE_DIR / "eval_metrics.jsonl"
+
+# Fields extracted from each outcome window for the compact eval store.
+_EVAL_WINDOW_KEYS: tuple[str, ...] = (
+    "window_id",
+    "window_seconds",
+    "return_bps",
+    "after_cost_return_bps",
+    "drawdown_bps",
+    "stop_hit",
+    "samples",
+)
 
 
-def _read_bundles() -> list[dict[str, Any]]:
-    if not REPLAY_BUNDLES_PATH.exists():
+def _read_bundles_from(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
         return []
     out: list[dict[str, Any]] = []
-    with REPLAY_BUNDLES_PATH.open("r", encoding="utf-8") as f:
+    with path.open("r", encoding="utf-8") as f:
         for line in f:
             try:
                 out.append(json.loads(line))
@@ -355,13 +372,66 @@ def _read_bundles() -> list[dict[str, Any]]:
     return out
 
 
-def _write_bundles(bundles: list[dict[str, Any]]) -> None:
-    STATE_DIR.mkdir(parents=True, exist_ok=True)
-    tmp = REPLAY_BUNDLES_PATH.with_suffix(".jsonl.tmp")
+def _read_bundles() -> list[dict[str, Any]]:
+    return _read_bundles_from(REPLAY_BUNDLES_PATH)
+
+
+def _write_bundles_to(bundles: list[dict[str, Any]], path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".jsonl.tmp")
     with tmp.open("w", encoding="utf-8") as f:
         for b in bundles:
             f.write(json.dumps(b, sort_keys=True, default=str) + "\n")
-    os.replace(tmp, REPLAY_BUNDLES_PATH)
+    os.replace(tmp, path)
+
+
+def _write_bundles(bundles: list[dict[str, Any]]) -> None:
+    _write_bundles_to(bundles, REPLAY_BUNDLES_PATH)
+
+
+def _append_to_archive(bundles: list[dict[str, Any]]) -> None:
+    """Append fully-filled bundles to the archive. Never rewrites the archive."""
+    if not bundles:
+        return
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    with REPLAY_BUNDLES_PATH.open("a", encoding="utf-8") as f:
+        for b in bundles:
+            f.write(json.dumps(b, sort_keys=True, default=str) + "\n")
+
+
+def _append_to_eval_metrics(bundles: list[dict[str, Any]]) -> None:
+    """Append compact eval rows for newly-filled bundles. Never full rewrite."""
+    if not bundles:
+        return
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    with EVAL_METRICS_PATH.open("a", encoding="utf-8") as f:
+        for b in bundles:
+            f.write(json.dumps(_compact_bundle(b), sort_keys=True) + "\n")
+
+
+def _is_fully_filled(b: dict[str, Any]) -> bool:
+    """True when every outcome window has a realized after-cost return."""
+    outcomes = b.get("future_outcomes") or {}
+    return all(
+        (outcomes.get(wid) or {}).get("after_cost_return_bps") is not None
+        for wid, _ in OUTCOME_WINDOWS_SECONDS
+    )
+
+
+def _seed_pending_from_archive() -> None:
+    """One-time migration: read archive, split filled vs pending, write pending file.
+
+    The archive is rewritten to contain only fully-filled bundles.
+    eval_metrics.jsonl is rebuilt from those filled bundles.
+    The pending file is seeded with the unfilled subset.
+    This runs once when REPLAY_BUNDLES_PENDING_PATH does not yet exist.
+    """
+    all_bundles = _read_bundles()
+    filled = [b for b in all_bundles if _is_fully_filled(b)]
+    pending = [b for b in all_bundles if not _is_fully_filled(b)]
+    _write_bundles(filled)
+    _write_eval_metrics(filled)
+    _write_bundles_to(pending, REPLAY_BUNDLES_PENDING_PATH)
 
 
 def _legacy_reference_action_for(symbol: str) -> dict[str, Any] | None:
@@ -855,25 +925,141 @@ def mine_once(
     appended = [append_price_snapshot(s) for s in symbols]
     # 2. Harvest paper evidence and merge into bundle store.
     paper_rows = _harvest_paper_evidence()
-    existing = _read_bundles()
-    merged, added = _merge_new_paper_rows(existing, paper_rows)
+
+    # --- Incremental processing ---
+    # On first run: seed the pending file from the full archive (one-time cost).
+    # On all subsequent runs: only read/write the small pending file.
+    if not REPLAY_BUNDLES_PENDING_PATH.exists():
+        _seed_pending_from_archive()
+
+    pending = _read_bundles_from(REPLAY_BUNDLES_PENDING_PATH)
+
+    # Prune stale pending bundles before processing. Bundles older than
+    # _MAX_PENDING_AGE_SECONDS can never have their outcome windows filled
+    # (longest window is 1h; 4h gives a generous safety margin). This prevents
+    # the pending file from growing without bound when symbols outside the
+    # tracked set accumulate entries that are never processed.
+    _MAX_PENDING_AGE_SECONDS = 4 * 3600
+    _now_ts = time.time()
+    fresh_pending = [
+        b for b in pending
+        if isinstance(b.get("anchor_ts"), (int, float))
+        and _now_ts - b["anchor_ts"] <= _MAX_PENDING_AGE_SECONDS
+    ]
+    stale_pruned = len(pending) - len(fresh_pending)
+    pending = fresh_pending
+
+    merged, added = _merge_new_paper_rows(pending, paper_rows)
+
     # 3. Fill outcomes for any bundle whose windows are now sourceable.
     timeline_by_symbol = {s: load_price_timeline(s) for s in symbols}
-    filled: list[dict[str, Any]] = []
+    now_filled: list[dict[str, Any]] = []
+    still_pending: list[dict[str, Any]] = []
     for b in merged:
-        filled.append(fill_outcomes(b, timeline_by_symbol=timeline_by_symbol))
-    _write_bundles(filled)
+        updated = fill_outcomes(b, timeline_by_symbol=timeline_by_symbol)
+        if _is_fully_filled(updated):
+            now_filled.append(updated)
+        else:
+            still_pending.append(updated)
+
+    # Append newly-completed bundles to the append-only archive + eval metrics.
+    if now_filled:
+        _append_to_archive(now_filled)
+        _append_to_eval_metrics(now_filled)
+
+    # Write back only the remaining unfilled bundles.
+    _write_bundles_to(still_pending, REPLAY_BUNDLES_PENDING_PATH)
+
     return {
         "symbols": list(symbols),
         "price_snapshots": appended,
         "paper_rows_observed": len(paper_rows),
-        "bundles_total": len(filled),
+        "bundles_pending": len(still_pending),
+        "bundles_newly_filled": len(now_filled),
         "bundles_added_this_cycle": added,
+        "bundles_stale_pruned": stale_pruned,
         "timeline_lengths": {s: len(timeline_by_symbol[s]) for s in symbols},
     }
 
 
 def load_filled_bundles() -> list[dict[str, Any]]:
+    return _read_bundles()
+
+
+def _compact_bundle(b: dict[str, Any]) -> dict[str, Any]:
+    """Return only the fields the evaluator needs — ~300 bytes vs ~56 KB full."""
+    future_outcomes: dict[str, Any] = {}
+    for wid, secs in OUTCOME_WINDOWS_SECONDS:
+        full_win = (b.get("future_outcomes") or {}).get(wid) or {}
+        future_outcomes[wid] = {k: full_win.get(k) for k in _EVAL_WINDOW_KEYS}
+
+    paper_gate = b.get("paper_gate_decision") or {}
+    trainer = b.get("trainer_output") or {}
+    legacy = b.get("legacy_reference_action") or {}
+    market = b.get("market_snapshot") or {}
+    paper_intent = b.get("paper_intent") or {}
+
+    return {
+        "label": b.get("label"),
+        "symbol": b.get("symbol"),
+        "future_outcomes": future_outcomes,
+        "paper_intent": {"decision": paper_intent.get("decision")},
+        "paper_gate_decision": {
+            "paper_fill_allowed": paper_gate.get("paper_fill_allowed"),
+            "paper_fill_gate_block_reasons": paper_gate.get("paper_fill_gate_block_reasons") or [],
+            "latency_seconds": paper_gate.get("latency_seconds"),
+        },
+        "trainer_output": {
+            "selected_action": trainer.get("selected_action"),
+            "expected_move_after_cost_bps": trainer.get("expected_move_after_cost_bps"),
+            "paper_fill_gate_block_reasons": trainer.get("paper_fill_gate_block_reasons") or [],
+        },
+        "legacy_reference_action": {
+            "action": legacy.get("action"),
+            "selected_action": legacy.get("selected_action"),
+        },
+        "market_snapshot": {
+            "fee_bps": market.get("fee_bps"),
+            "slippage_estimate_bps": market.get("slippage_estimate_bps"),
+        },
+    }
+
+
+def _write_eval_metrics(bundles: list[dict[str, Any]]) -> None:
+    """Atomically write the compact eval-metrics file from the canonical store.
+
+    Written after every mine_once() and after any backfill that mutates
+    REPLAY_BUNDLES_PATH, so load_eval_bundles_or_fallback() always reads
+    a file that is consistent with the current full bundle store.
+    """
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = EVAL_METRICS_PATH.with_suffix(".jsonl.tmp")
+    with tmp.open("w", encoding="utf-8") as f:
+        for b in bundles:
+            f.write(json.dumps(_compact_bundle(b), sort_keys=True) + "\n")
+    os.replace(tmp, EVAL_METRICS_PATH)
+
+
+def load_eval_bundles_or_fallback() -> list[dict[str, Any]]:
+    """Load compact eval rows (fast ~30 MB read) with fallback to full store.
+
+    The compact file is always written in sync with the full bundle store
+    by mine_once() and backfill_jsonl_store(). If it is absent or
+    unreadable for any reason, falls back to _read_bundles() which reads
+    the full 6+ GB store — identical to the previous behaviour.
+    """
+    if EVAL_METRICS_PATH.exists():
+        try:
+            rows: list[dict[str, Any]] = []
+            with EVAL_METRICS_PATH.open("r", encoding="utf-8") as f:
+                for line in f:
+                    try:
+                        rows.append(json.loads(line))
+                    except Exception:  # noqa: BLE001
+                        continue
+            return rows
+        except Exception:  # noqa: BLE001
+            pass
     return _read_bundles()
 
 
@@ -1132,6 +1318,8 @@ def backfill_jsonl_store(path: Path) -> dict[str, Any]:
             for r in new_rows:
                 f.write(json.dumps(r, sort_keys=True, default=str) + "\n")
         os.replace(tmp, path)
+        if path == REPLAY_BUNDLES_PATH:
+            _write_eval_metrics(new_rows)
     return {
         "path": str(path),
         "exists": True,
@@ -1153,6 +1341,7 @@ def backfill_all_replay_bundle_stores() -> dict[str, Any]:
         WORKLOG_DIR / "replay_outcome_bundles.jsonl",
         PUBLIC_DIR / "replay_outcome_bundles.jsonl",
         REPLAY_BUNDLES_PATH,
+        REPLAY_BUNDLES_PENDING_PATH,
     ]
     return {
         "stores": [backfill_jsonl_store(p) for p in targets],

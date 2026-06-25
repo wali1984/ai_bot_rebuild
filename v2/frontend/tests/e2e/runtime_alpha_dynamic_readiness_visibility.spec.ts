@@ -42,7 +42,7 @@ async function gotoRoute(page: Page, path: string, role: TestAuthRole): Promise<
 test.describe('runtime alpha dynamic readiness visibility', () => {
   for (const route of PUBLIC_ROUTES) {
     test(`${route.path} hides the trainer/runtime-alpha proof panel from trader surfaces`, async ({ page }) => {
-      await gotoAs(page, route.path, route.role, { waitUntil: 'domcontentloaded' });
+      await gotoRoute(page, route.path, route.role);
       await page.waitForLoadState('domcontentloaded').catch(() => undefined);
       await expect(page).toHaveURL(route.expectedUrl ?? escapedRoute(route.path));
       await expect(page.getByTestId('runtime-alpha-dynamic-readiness-panel')).toHaveCount(0);

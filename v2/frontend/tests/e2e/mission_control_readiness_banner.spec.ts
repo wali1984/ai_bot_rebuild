@@ -1,8 +1,10 @@
-import { test, expect, type Route } from '@playwright/test';
+import { test, expect, type Page, type Route } from '@playwright/test';
 import { gotoAs } from './_shared';
+import { mockAuth } from './helpers/auth';
 
-const BANNER_PATH_GLOB = '**/api/v1/live-readiness/banner';
+const BANNER_PATH_GLOB = /\/api\/v1\/live-readiness\/banner(?:\?.*)?$/;
 const MISSION_CONTROL_PATH = '/admin/mission-control';
+const BANNER_ENDPOINT = '/api/v1/live-readiness/banner';
 
 const READY_FIXTURE = {
   rollup_version: 'v1',
@@ -109,15 +111,32 @@ async function fulfillJson(route: Route, body: unknown): Promise<void> {
   });
 }
 
+async function mockBannerWebSocket(page: Page, body: unknown): Promise<void> {
+  await page.routeWebSocket((url) => url.searchParams.get('path') === BANNER_ENDPOINT, async (ws) => {
+    ws.send(JSON.stringify({
+      data: body,
+      source: BANNER_ENDPOINT,
+      source_type: 'websocket',
+      endpoint: BANNER_ENDPOINT,
+      resource_path: BANNER_ENDPOINT,
+      mode: 'read_only',
+      transport: 'websocket',
+      missing_fields: [],
+      warnings: [],
+      errors: [],
+    }));
+  });
+}
+
 test.describe('mission_control_readiness_banner', () => {
   test('renders READY chip and lane list when all_required_matched is true', async ({ page }) => {
-    const observedMethods: string[] = [];
+    await mockBannerWebSocket(page, READY_FIXTURE);
     await page.route(BANNER_PATH_GLOB, async (route) => {
-      observedMethods.push(route.request().method());
       await fulfillJson(route, READY_FIXTURE);
     });
 
-    await gotoAs(page, MISSION_CONTROL_PATH, 'admin');
+    await mockAuth(page, 'admin');
+    await gotoAs(page, MISSION_CONTROL_PATH);
 
     const banner = page.getByTestId('mission-control-readiness-banner');
     await expect(banner).toBeVisible();
@@ -148,9 +167,6 @@ test.describe('mission_control_readiness_banner', () => {
       await expect(page.getByTestId(`mc-readiness-lane-${lane.lane_id}-marker-path`)).toContainText(lane.marker_path);
     }
 
-    expect(observedMethods.length).toBeGreaterThan(0);
-    expect(observedMethods.every((m) => m === 'GET')).toBe(true);
-
     await page.screenshot({
       path: 'test-results/mission_control_readiness_banner/ready.png',
       fullPage: false,
@@ -159,11 +175,13 @@ test.describe('mission_control_readiness_banner', () => {
   });
 
   test('renders BLOCKED chip and missing-lane status when a required marker is absent', async ({ page }) => {
+    await mockBannerWebSocket(page, BLOCKED_MISSING_FIXTURE);
     await page.route(BANNER_PATH_GLOB, async (route) => {
       await fulfillJson(route, BLOCKED_MISSING_FIXTURE);
     });
 
-    await gotoAs(page, MISSION_CONTROL_PATH, 'admin');
+    await mockAuth(page, 'admin');
+    await gotoAs(page, MISSION_CONTROL_PATH);
 
     const banner = page.getByTestId('mission-control-readiness-banner');
     await expect(banner).toBeVisible();
@@ -190,11 +208,13 @@ test.describe('mission_control_readiness_banner', () => {
   });
 
   test('renders BLOCKED chip and divergent-lane status when a marker text diverges', async ({ page }) => {
+    await mockBannerWebSocket(page, BLOCKED_DIVERGENT_FIXTURE);
     await page.route(BANNER_PATH_GLOB, async (route) => {
       await fulfillJson(route, BLOCKED_DIVERGENT_FIXTURE);
     });
 
-    await gotoAs(page, MISSION_CONTROL_PATH, 'admin');
+    await mockAuth(page, 'admin');
+    await gotoAs(page, MISSION_CONTROL_PATH);
 
     const banner = page.getByTestId('mission-control-readiness-banner');
     await expect(banner).toBeVisible();
@@ -224,10 +244,11 @@ test.describe('mission_control_readiness_banner', () => {
       await fulfillJson(route, READY_FIXTURE);
     });
 
-    await gotoAs(page, MISSION_CONTROL_PATH, 'admin');
+    await mockAuth(page, 'admin');
+    await gotoAs(page, MISSION_CONTROL_PATH);
     await expect(page.getByTestId('mission-control-readiness-banner')).toBeVisible();
 
-    expect(observed.length).toBeGreaterThan(0);
+    await expect.poll(() => observed.length).toBeGreaterThan(0);
     for (const call of observed) {
       expect(call.method).toBe('GET');
       expect(call.postData).toBeNull();

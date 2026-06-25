@@ -14,6 +14,7 @@ import {
   type AdaptiveCapitalPassConditionStatus,
   type AdaptiveCapitalDashboardPayload,
   type CapitalProductivityRuntimeStatus,
+  type ContinuousEdgeGuardianStatus,
   type PnlHistoryStatus,
   type PnlHistoryWindow,
   type SignalPredictionAccuracyCell,
@@ -33,6 +34,7 @@ interface TelemetryViewModel {
   aGradeReadiness: AdaptiveCapitalAGradeReadiness | null;
   readiness: AdaptiveCapitalOperatorGoReadiness | null;
   passConditions: AdaptiveCapitalPassConditionStatus | null;
+  guardian: ContinuousEdgeGuardianStatus | null;
   pnlHistory: PnlHistoryStatus | null;
   accuracy: SignalPredictionAccuracyStatus | null;
   windows: Array<{ label: '1D' | '1W' | '30D'; row: PnlHistoryWindow | null }>;
@@ -176,6 +178,7 @@ function resolveTelemetry(payload: AdaptiveCapitalDashboardPayload | null | unde
       : null);
   const pnlHistory = payload?.pnl_history_status ?? capital?.pnl_history ?? null;
   const accuracy = payload?.signal_prediction_accuracy_status ?? capital?.signal_prediction_accuracy_status ?? null;
+  const guardian = payload?.continuous_edge_guardian_status ?? null;
   return {
     generatedUtc: payload?.generated_utc ?? null,
     overallStatus: payload?.overall_status ?? null,
@@ -185,6 +188,7 @@ function resolveTelemetry(payload: AdaptiveCapitalDashboardPayload | null | unde
     aGradeReadiness: counterfactual?.a_grade_readiness ?? null,
     readiness,
     passConditions,
+    guardian,
     pnlHistory,
     accuracy,
     windows: [
@@ -276,8 +280,6 @@ function HeaderMetric({ label, value, color }: { label: string; value: string; c
         fontWeight: 800,
         fontFamily: 'var(--font-mono)',
         color: color ?? 'var(--text-primary)',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
         whiteSpace: 'normal',
         overflowWrap: 'anywhere',
         wordBreak: 'break-word',
@@ -351,6 +353,26 @@ function TelemetrySection({ title, meta, children }: { title: string; meta?: str
   );
 }
 
+function TelemetryEmptyState({ message }: { message: string }): JSX.Element {
+  return (
+    <div style={{
+      display: 'grid',
+      minHeight: 72,
+      placeItems: 'center',
+      border: '1px dashed var(--border,#1f2937)',
+      borderRadius: 8,
+      background: 'color-mix(in oklch, var(--bg-elevated,#0f172a) 72%, transparent)',
+      color: 'var(--text-muted)',
+      fontSize: 11,
+      lineHeight: 1.4,
+      padding: 14,
+      textAlign: 'center',
+    }}>
+      {message}
+    </div>
+  );
+}
+
 function TimeframeAccuracyCards({ rows, compact }: {
   rows: SignalPredictionTimeframeSummary[];
   compact: boolean;
@@ -414,7 +436,7 @@ function SymbolAccuracyCards({ rows, compact, maxHeight }: {
             background: 'var(--bg-elevated,#0f172a)',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-              <strong title={row.symbol} style={{ minWidth: 0, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', fontSize: compact ? 12 : 13, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <strong title={row.symbol} style={{ minWidth: 0, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', fontSize: compact ? 12 : 13, overflowWrap: 'anywhere', whiteSpace: 'normal', wordBreak: 'break-word' }}>
                 {row.symbol}
               </strong>
               <span style={{ flex: '0 0 auto', color: accuracyVisualColor(row.accuracy, row.status), fontFamily: 'var(--font-mono)', fontSize: compact ? 11 : 12, fontWeight: 800 }}>
@@ -460,7 +482,7 @@ function AccuracyHeatmap({ rows, compact, maxHeight }: {
     : `minmax(92px, 1.15fr) repeat(${timeframes.length}, minmax(62px, 1fr))`;
 
   return (
-    <TelemetrySection title="Symbol / Timeframe Heatmap" meta={`${countText(rows.length)} cells`}>
+    <TelemetrySection title="All Symbol/TF Accuracy" meta={`${countText(rows.length)} cells`}>
       <div style={{
         maxHeight,
         overflow: 'auto',
@@ -486,7 +508,7 @@ function AccuracyHeatmap({ rows, compact, maxHeight }: {
           ))}
           {symbols.map((symbol) => (
             <div key={symbol} style={{ display: 'contents' }}>
-              <strong title={symbol} style={{ minWidth: 0, padding: compact ? '7px 6px' : '8px 9px', color: 'var(--text-primary)', background: 'var(--bg-elevated,#0f172a)', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <strong title={symbol} style={{ minWidth: 0, padding: compact ? '7px 6px' : '8px 9px', color: 'var(--text-primary)', background: 'var(--bg-elevated,#0f172a)', fontFamily: 'var(--font-mono)', overflowWrap: 'anywhere', whiteSpace: 'normal', wordBreak: 'break-word' }}>
                 {symbol}
               </strong>
               {timeframes.map((timeframe) => {
@@ -503,9 +525,9 @@ function AccuracyHeatmap({ rows, compact, maxHeight }: {
                       background: row ? heatBackground(row.accuracy, row.status) : 'var(--bg-elevated,#0f172a)',
                       fontFamily: 'var(--font-mono)',
                       fontWeight: 800,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
+                      overflowWrap: 'anywhere',
+                      whiteSpace: 'normal',
+                      wordBreak: 'break-word',
                     }}
                   >
                     {row ? formatAdaptivePercent(row.accuracy) : '—'}
@@ -560,6 +582,10 @@ export function AdaptiveCapitalTelemetryPanel({
     ?? predictionReadiness?.source_kind_counts?.prediction
     ?? predictionAgrade?.row_count;
   const passConditions = view.passConditions;
+  const guardian = view.guardian;
+  const guardianMetrics = guardian?.realtime_a_grade_metrics;
+  const guardianTruth = guardian?.readiness_truth;
+  const guardianGate = guardian?.a_grade_execution_gate;
   const accuracy = view.accuracy;
   const accuracyCellTotal = accuracy?.symbol_timeframe_cell_count ?? accuracy?.required_symbol_timeframe_cell_count;
   const positiveEdgeDiagnostics = capital?.positive_edge_non_a_grade_diagnostics;
@@ -643,7 +669,59 @@ export function AdaptiveCapitalTelemetryPanel({
           color={adaptiveStatusColor(passConditions?.status)}
         />
         <HeaderMetric label="Failed Gates" value={countText(passConditions?.failed_conditions?.length)} color={adaptiveStatusColor(passConditions?.status)} />
+        <HeaderMetric
+          label="Trainer Learning"
+          value={guardianTruth?.online_learning_status ?? (guardianTruth?.WEIGHTS_UPDATING ? 'WEIGHTS_UPDATING' : 'CONNECTING')}
+          color={guardianTruth?.WEIGHTS_UPDATING ? 'var(--buy,#10b981)' : '#f59e0b'}
+        />
+        <HeaderMetric
+          label="A-grade Gate"
+          value={guardian?.guardian_status ?? guardianGate?.status ?? 'CONNECTING'}
+          color={guardianGate?.a_grade_new_entries_allowed ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
+          label="A-grade Trades"
+          value={countText(guardianMetrics?.closed_economic_trade_count)}
+          color={(guardianMetrics?.closed_economic_trade_count ?? 0) >= 1000 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
+          label="A-grade 100/300/1000"
+          value={`${formatAdaptivePercent(guardianMetrics?.rolling_100_trade_win_rate)} / ${formatAdaptivePercent(guardianMetrics?.rolling_300_trade_win_rate)} / ${formatAdaptivePercent(guardianMetrics?.rolling_1000_trade_win_rate)}`}
+          color={guardianGate?.a_grade_new_entries_allowed ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
+          label="A-grade Edge"
+          value={`${formatAdaptiveBps(guardianMetrics?.after_cost_expectancy_bps)} · PF ${guardianMetrics?.profit_factor ?? '—'}`}
+          color={guardianGate?.a_grade_new_entries_allowed ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
+          label="Liquidations"
+          value={countText(guardianMetrics?.liquidation_event_count)}
+          color={(guardianMetrics?.liquidation_event_count ?? 0) === 0 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
+          label="1000x Trajectory"
+          value={guardian?.trajectory_status?.status ?? 'INSUFFICIENT_EVIDENCE'}
+          color={guardian?.trajectory_status?.status === 'ON_1000X_TRAJECTORY' ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
       </div>
+
+      {guardianGate?.block_all_new_a_grade_entries && (
+        <div style={{ padding: compact ? '0 12px 12px' : '0 16px 16px' }}>
+          <div style={{
+            border: '1px solid color-mix(in oklch, var(--sell,#ef4444) 35%, transparent)',
+            background: 'color-mix(in oklch, var(--sell,#ef4444) 10%, transparent)',
+            borderRadius: 6,
+            padding: '8px 10px',
+            fontSize: 11,
+            color: 'var(--text-primary)',
+            fontFamily: 'var(--font-mono)',
+            overflowWrap: 'anywhere',
+          }}>
+            {publicTelemetryText(guardian?.guardian_status ?? guardianGate.status)} · new A-grade entries route to {publicTelemetryText(guardianGate.new_candidate_tier_override ?? 'SHADOW_ONLY')} · {publicTelemetryText(guardianGate.failure_reasons?.[0]?.reason)}
+          </div>
+        </div>
+      )}
 
       {showCapital && (
         <div style={{
@@ -939,9 +1017,15 @@ export function AdaptiveCapitalTelemetryPanel({
         </div>
       )}
 
-      {showMatrix && view.matrixRows.length > 0 && (
+      {showMatrix && (
         <div style={{ padding: compact ? '0 12px 12px' : '0 16px 16px' }}>
-          <AccuracyHeatmap rows={view.matrixRows} compact={compact} maxHeight={matrixHeight} />
+          {view.matrixRows.length > 0 ? (
+            <AccuracyHeatmap rows={view.matrixRows} compact={compact} maxHeight={matrixHeight} />
+          ) : (
+            <TelemetrySection title="All Symbol/TF Accuracy" meta="CONNECTING">
+              <TelemetryEmptyState message="Awaiting realtime symbol/timeframe accuracy cells. Missing values remain unavailable until a sourced frame arrives." />
+            </TelemetrySection>
+          )}
         </div>
       )}
     </section>

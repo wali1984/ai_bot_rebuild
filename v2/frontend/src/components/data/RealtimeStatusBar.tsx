@@ -89,7 +89,7 @@ export function RealtimeStatusBar({ streams = [], backendUrl, compact = false }:
             borderRadius: 3,
           }}
         >
-          LIVE PLATFORM
+          EXECUTION RESTRICTED
         </span>
       </div>
     </div>

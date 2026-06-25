@@ -1,4 +1,6 @@
 [Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
 Description=AI BOT V2 all-timeframe prediction/signal/price-target website publisher (paper/shadow only)
 After=network-online.target redis.service
 Wants=network-online.target

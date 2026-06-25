@@ -16,6 +16,8 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
 ProtectHome=false
+MemoryMax=6G
+TimeoutSec=300
 
 [Install]
 WantedBy=default.target

@@ -6,6 +6,12 @@ import {
 } from 'recharts';
 import { usePaperActivityStream } from '../../hooks/usePaperActivityStream';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
+import { useAuth } from '../../hooks/useAuth';
+import { useTraderSnapshot } from '../../hooks/useTraderSnapshot';
+import { canSee, normalizeRole } from '../../auth/rbac';
+import { MissionControlReadinessBanner } from '../../components/banners/MissionControlReadinessBanner';
+import { StaleStateAlertsPanel } from '../../components/dashboard/StaleStateAlertsPanel';
+import { CanonicalMetricValue } from '../../components/data/CanonicalMetric';
 import { AdaptiveCapitalTelemetryPanel } from '../../components/trading/AdaptiveCapitalTelemetryPanel';
 import {
   adaptiveStatusColor,
@@ -21,6 +27,9 @@ import {
 } from '../../data/adaptiveCapitalProductivity';
 import { NERVYX_BRAND } from '../../brand/nervyxBrand';
 import type { ValidatedDataEnvelope } from '../../types/dataContract';
+import { selectAccountMetric, selectSectionMetric, type CanonicalMetric } from '../../selectors/accountSelectors';
+import { selectActiveSignal, selectSignalMetric } from '../../selectors/signalSelectors';
+import { selectRiskStatus } from '../../selectors/riskSelectors';
 import meta from './meta';
 
 // ─── types ───────────────────────────────────────────────────────────────────
@@ -207,6 +216,8 @@ function publicDashboardText(value: string | null | undefined): string {
   const cleaned = raw
     .replace(/paper/gi, 'runtime')
     .replace(/no data/gi, 'Connecting stream')
+    .replace(/data[_\s-]*coverage/gi, 'data quality')
+    .replace(/\bcoverage\b/gi, 'quality')
     .replace(/blocked[_\s-]*human[_\s-]*only/gi, 'operator gated')
     .replace(/[_-]+/g, ' ')
     .replace(/\s+/g, ' ')
@@ -302,13 +313,15 @@ function PanelHead({ title, sub, to, badge, badgeTone }: {
   );
 }
 
-function KPITile({ label, value, sub, valueColor, to }: {
-  label: string; value: string; sub?: string; valueColor?: string; to?: string;
+function KPITile({ label, value, metric, sub, valueColor, to }: {
+  label: string; value?: string; metric?: CanonicalMetric; sub?: string; valueColor?: string; to?: string;
 }): JSX.Element {
   const inner = (
     <div className="nervyx-dashboard-kpi" data-clickable={to ? 'true' : 'false'}>
       <span className="nervyx-dashboard-kpi__label">{label}</span>
-      <span className="nervyx-dashboard-kpi__value" style={{ color: valueColor ?? 'var(--text-primary)' }}>{value}</span>
+      <span className="nervyx-dashboard-kpi__value" style={{ color: valueColor ?? 'var(--text-primary)' }}>
+        {metric ? <CanonicalMetricValue metric={metric} /> : value}
+      </span>
       {sub && <span className="nervyx-dashboard-kpi__sub">{sub}</span>}
     </div>
   );
@@ -330,8 +343,8 @@ function StatusBar({ orch, risk }: {
   risk: { heartbeat?: RiskHeartbeat } | null;
 }): JSX.Element {
   const pills: Array<{ label: string; value: string; tone: 'ok' | 'warn' | 'block' }> = [
-    { label: 'Execution Gate', value: 'GUARDED', tone: 'ok' },
-    { label: 'Mode', value: 'LIVE', tone: 'ok' },
+    { label: 'Execution', value: 'RESTRICTED', tone: 'warn' },
+    { label: 'Automation', value: orch?.heartbeat ? 'ACTIVE' : 'UNKNOWN', tone: orch?.heartbeat ? 'ok' : 'warn' },
     {
       label: 'Orchestrator',
       value: orch?.heartbeat?.classification?.includes('OK') ? 'OK' : '—',
@@ -414,13 +427,28 @@ function DashboardStreamStatus({ items, browser }: {
 
 // ─── Active Signal panel ──────────────────────────────────────────────────────
 
-function ActiveSignalPanel({ signal }: { signal: ActiveSignal | null }): JSX.Element {
+function ActiveSignalPanel({
+  signal,
+  signalIdMetric,
+  signalConfidenceMetric,
+}: {
+  signal: ActiveSignal | null;
+  signalIdMetric: CanonicalMetric;
+  signalConfidenceMetric: CanonicalMetric;
+}): JSX.Element {
   if (!signal) {
     return (
       <Panel style={{ padding: 16, minHeight: 180 }}>
         <PanelHead title="Active Signal" to="/signals" />
-        <div style={{ padding: '16px 0 0', fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-          Connecting signal stream…
+        <div style={{ padding: '16px 0 0', fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', display: 'grid', gap: 8 }}>
+          <div>
+            <span style={{ display: 'block', fontSize: 10, textTransform: 'uppercase' }}>Signal ID</span>
+            <CanonicalMetricValue metric={signalIdMetric} />
+          </div>
+          <div>
+            <span style={{ display: 'block', fontSize: 10, textTransform: 'uppercase' }}>Confidence</span>
+            <CanonicalMetricValue metric={signalConfidenceMetric} />
+          </div>
         </div>
       </Panel>
     );
@@ -448,7 +476,9 @@ function ActiveSignalPanel({ signal }: { signal: ActiveSignal | null }): JSX.Ele
         <div style={{ marginBottom: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
             <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Confidence</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: conf != null && conf >= 0.66 ? 'var(--buy,#10b981)' : '#f59e0b', fontFamily: 'var(--font-mono)' }}>{fPct(conf)}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: conf != null && conf >= 0.66 ? 'var(--buy,#10b981)' : '#f59e0b', fontFamily: 'var(--font-mono)' }}>
+              <CanonicalMetricValue metric={signalConfidenceMetric} />
+            </span>
           </div>
           <ConfBar pct={conf ?? 0} color={conf != null && conf >= 0.66 ? 'var(--buy,#10b981)' : '#f59e0b'} />
         </div>
@@ -458,7 +488,7 @@ function ActiveSignalPanel({ signal }: { signal: ActiveSignal | null }): JSX.Ele
           {[
             ['Target', signal.target_1 != null ? '$' + signal.target_1.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'],
             ['Exp. Move', fBps(signal.expected_move_after_cost_bps)],
-            ['Data Coverage', signal.data_coverage_percent != null ? signal.data_coverage_percent.toFixed(1) + '%' : '—'],
+            ['Data Quality', signal.data_coverage_percent != null ? signal.data_coverage_percent.toFixed(1) + '%' : '—'],
             ['State Score', signal.market_state_integrity_score != null ? signal.market_state_integrity_score.toFixed(1) + '%' : '—'],
             ['Risk Result', signal.risk_result ?? '—'],
             ['Fill Allowed', signal.paper_fill_allowed ? 'YES' : 'NO'],
@@ -520,7 +550,7 @@ function OrchestratorPanel({ proposals, heartbeat }: {
         {heartbeat && (
           <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--border)', fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', display: 'flex', justifyContent: 'space-between' }}>
             <span>{heartbeat.proposals_arbitrated ?? 0} arbitrated</span>
-          <span style={{ color: 'var(--buy,#10b981)' }}>Live platform</span>
+          <span style={{ color: 'var(--buy,#10b981)' }}>Realtime data</span>
           </div>
         )}
       </div>
@@ -635,7 +665,7 @@ function PaperFillsPanel({ fills, summary }: { fills: PaperFill[]; summary: Pape
                 <td style={{ padding: '5px 6px', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.fill_price != null ? f.fill_price.toLocaleString('en-US', { maximumFractionDigits: 6 }) : '—'}</td>
                 <td style={{ padding: '5px 6px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f$(f.notional_usd)}</td>
                 <td style={{ padding: '5px 6px', color: f.confidence != null && f.confidence >= 0.66 ? 'var(--buy,#10b981)' : '#f59e0b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fPct(f.confidence)}</td>
-                <td style={{ padding: '5px 6px', color: 'var(--text-muted)', fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.market_regime ?? '—'}</td>
+                <td style={{ padding: '5px 6px', color: 'var(--text-muted)', fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{publicDashboardText(f.market_regime)}</td>
               </tr>
             ))}
           </tbody>
@@ -789,7 +819,7 @@ function EquityPanel({ equity, realized, unrealized, pnlHistory }: {
           <div className="nervyx-dashboard-chart-empty">Awaiting account stream…</div>
         )}
         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, fontFamily: 'var(--font-mono)' }}>
-          Starting capital: $10,000.00 · Live execution telemetry
+          Starting capital: $10,000.00 · Execution-restricted telemetry
         </div>
       </div>
     </Panel>
@@ -927,6 +957,8 @@ function QuickNav(): JSX.Element {
 // ─── Main dashboard ───────────────────────────────────────────────────────────
 
 export default function DashboardPage(): JSX.Element {
+  const { user } = useAuth();
+  const traderSnapshot = useTraderSnapshot();
   const browserStatus = useBrowserStatus();
   const paperActivity = usePaperActivityStream(1000);
   const adaptiveCapital = useAdaptiveCapitalDashboard(30_000);
@@ -945,7 +977,6 @@ export default function DashboardPage(): JSX.Element {
   const marketData = marketStream.data;
   const healthData = healthStream.data;
   const streamSummary = (paperActivity.data.summary ?? {}) as PaperSummary;
-  const hasActivityEnvelope = Boolean(paperActivity.envelope);
   const streamFills = (paperActivity.data.fills ?? []) as unknown as PaperFill[];
   const fills = streamFills;
   const paperSummary = Object.keys(streamSummary).length ? streamSummary : null;
@@ -970,18 +1001,18 @@ export default function DashboardPage(): JSX.Element {
   const capitalStatus = adaptiveCapital.data?.capital_productivity_runtime_status ?? null;
   const pnlHistory = adaptiveCapital.data?.pnl_history_status ?? capitalStatus?.pnl_history ?? null;
   const accuracyStatus = adaptiveCapital.data?.signal_prediction_accuracy_status ?? capitalStatus?.signal_prediction_accuracy_status ?? null;
-  const oneDayPnl = pnlWindow(pnlHistory, '1d');
-  const sevenDayPnl = pnlWindow(pnlHistory, '7d');
-  const thirtyDayPnl = pnlWindow(pnlHistory, '30d');
-  const missingAccuracyCells = missingAccuracyCellCount(accuracyStatus);
+  const showAdminDiagnostics = user?.role ? canSee(normalizeRole(user.role), 'admin') : false;
+  const accountMetric = (fieldId: string) => selectAccountMetric(traderSnapshot, fieldId);
+  const canonicalSignal = selectActiveSignal(traderSnapshot, activeSignal?.symbol);
+  const signalMetric = (fieldId: string) => selectSignalMetric(traderSnapshot, canonicalSignal ?? {}, fieldId);
+  const riskMetric = selectSectionMetric(
+    traderSnapshot,
+    'risk',
+    'position.risk_status',
+    selectRiskStatus(traderSnapshot),
+  );
 
-  // KPI strip values
-  const openPositions = paperSummary?.open_position_count ?? (hasActivityEnvelope ? paperActivity.data.positions.length : null);
-  const totalNotional = paperSummary?.total_open_notional ?? null;
-  const signalsSeen = paperSummary?.paper_signals_seen ?? null;
-  const fillCount = hasActivityEnvelope ? fills.length : null;
-  const confs = fills.map(f => f.confidence).filter((c): c is number => c != null);
-  const avgConf = confs.length ? confs.reduce((a, b) => a + b, 0) / confs.length : null;
+  // Source status strip.
   const dashboardStreamItems = useMemo(() => ([
     { label: 'Activity', envelope: paperActivity.envelope as ValidatedDataEnvelope<unknown> | null, loading: paperActivity.loading, error: paperActivity.error },
     { label: 'Portfolio', envelope: portfolioStream.envelope as ValidatedDataEnvelope<unknown>, loading: portfolioStream.loading, error: portfolioStream.error },
@@ -1019,7 +1050,7 @@ export default function DashboardPage(): JSX.Element {
           <div>
             <h1>NERVYX EXECUTE</h1>
             <p>
-              {NERVYX_BRAND.descriptor} · Real-time execution telemetry · {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              {NERVYX_BRAND.descriptor} · Realtime data and execution-gate telemetry · {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
             </p>
           </div>
         </div>
@@ -1030,29 +1061,12 @@ export default function DashboardPage(): JSX.Element {
 
       {/* KPI strip */}
       <div className="nervyx-dashboard__kpis">
-        <KPITile label="Account Equity" value={portfolioStream.loading && equity == null ? '…' : equity == null ? '—' : '$' + equity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} sub="Runtime account stream" to="/portfolio" />
-        <KPITile label="Open Positions" value={paperActivity.loading && openPositions == null ? '…' : openPositions == null ? '—' : String(openPositions)} sub={totalNotional != null ? `${f$(totalNotional)} notional` : 'Runtime exposure'} to="/portfolio" />
-        <KPITile label="Total Fills" value={paperActivity.loading && fillCount == null ? '…' : fillCount == null ? '—' : String(fillCount)} sub="Streamed execution fills" to="/executions" />
-        <KPITile label="Avg Confidence" value={fPct(avgConf)} sub="Across all fills" />
-        <KPITile label="Signals Seen" value={signalsSeen != null ? String(signalsSeen) : '—'} sub="By orchestrator" />
-        <KPITile label="Capital Status" value={publicDashboardText(capitalStatus?.status)} sub={publicDashboardText(capitalStatus?.capital_utilization_classification ?? 'Adaptive sizing')} valueColor={adaptiveStatusColor(capitalStatus?.status)} />
-        <KPITile label="1D PnL" value={formatAdaptiveMoney(oneDayPnl?.realized_pnl_usd)} sub={`${oneDayPnl?.closed_trade_count ?? 0} closes`} valueColor={pnlColor(oneDayPnl?.realized_pnl_usd)} to="/portfolio" />
-        <KPITile label="1W PnL" value={formatAdaptiveMoney(sevenDayPnl?.realized_pnl_usd)} sub={`${sevenDayPnl?.closed_trade_count ?? 0} closes`} valueColor={pnlColor(sevenDayPnl?.realized_pnl_usd)} to="/portfolio" />
-        <KPITile label="30D PnL" value={formatAdaptiveMoney(thirtyDayPnl?.realized_pnl_usd)} sub={`${thirtyDayPnl?.closed_trade_count ?? 0} closes`} valueColor={pnlColor(thirtyDayPnl?.realized_pnl_usd)} to="/portfolio" />
-        <KPITile
-          label="Accuracy Cells"
-          value={`${accuracyStatus?.evaluated_symbol_timeframe_cell_count ?? 0}/${accuracyStatus?.symbol_timeframe_cell_count ?? accuracyStatus?.required_symbol_timeframe_cell_count ?? 0}`}
-          sub={`${missingAccuracyCells ?? 0} missing evaluated cells`}
-          valueColor={(missingAccuracyCells ?? 0) > 0 ? 'var(--sell,#ef4444)' : 'var(--buy,#10b981)'}
-          to="/signals"
-        />
-        <KPITile
-          label="AI Direction"
-          value={activeSignal?.side?.toUpperCase() ?? '—'}
-          sub={activeSignal ? fPct(activeSignal.confidence_calibrated ?? activeSignal.confidence) + ' conf' : 'No signal'}
-          valueColor={activeSignal?.side ? sideColor(activeSignal.side) : undefined}
-          to="/signals"
-        />
+        <KPITile label="Account Equity" metric={accountMetric('account.equity')} sub="Trader snapshot" to="/portfolio" />
+        <KPITile label="Available Balance" metric={accountMetric('account.available_balance')} sub="Trader snapshot" to="/portfolio" />
+        <KPITile label="Unrealized PnL" metric={accountMetric('account.unrealized_pnl')} sub="Open position PnL" valueColor={pnlColor(accountMetric('account.unrealized_pnl').value as number | null)} to="/portfolio" />
+        <KPITile label="Open Positions" metric={accountMetric('account.open_position_count')} sub="Scoped account count" to="/portfolio" />
+        <KPITile label="Active Signal" metric={signalMetric('signal.id')} sub="Stable signal ID" to="/signals" />
+        <KPITile label="Risk Status" metric={riskMetric} sub="Execution remains restricted" to="/portfolio" />
       </div>
 
       <AdaptiveCapitalTelemetryPanel
@@ -1063,9 +1077,24 @@ export default function DashboardPage(): JSX.Element {
         maxMatrixHeight={220}
       />
 
+      {showAdminDiagnostics ? (
+        <section
+          aria-label="Admin runtime diagnostics"
+          className="nervyx-dashboard__admin-diagnostics"
+          data-testid="dashboard-admin-diagnostics"
+        >
+          <MissionControlReadinessBanner />
+          <StaleStateAlertsPanel />
+        </section>
+      ) : null}
+
       {/* Row 2: Signal + Orchestrator + Risk (3 columns) */}
       <div className="nervyx-dashboard__grid nervyx-dashboard__grid--tri">
-        <ActiveSignalPanel signal={activeSignal} />
+        <ActiveSignalPanel
+          signal={activeSignal}
+          signalIdMetric={signalMetric('signal.id')}
+          signalConfidenceMetric={signalMetric('signal.confidence')}
+        />
         <OrchestratorPanel proposals={proposals} heartbeat={orchHeartbeat} />
         <RiskPanel profile={riskProfile} latestResult={latestRiskResult} heartbeat={riskHeartbeat} />
       </div>

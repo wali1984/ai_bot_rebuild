@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { BarChart3, BookOpen, Activity, ListChecks, FileText, Wifi } from 'lucide-react';
 import { useTradeTerminal } from '../../hooks/useTradeTerminal';
-import { formatMoney, formatPercent, formatPrice } from '../../lib/tradeFormatters';
-import { tradeCopy } from '../../lib/tradeCopy';
+import { useTraderSnapshot } from '../../hooks/useTraderSnapshot';
+import { CanonicalMetricValue } from '../data/CanonicalMetric';
 import { MarketDepthPanel } from './MarketDepthPanel';
 import { OrderBookPanel } from './OrderBookPanel';
 import { PaperOrderTicket } from './PaperOrderTicket';
@@ -13,6 +13,10 @@ import { TradeIntelligenceBar } from './TradeIntelligenceBar';
 import { TradingChartPanel } from './TradingChartPanel';
 import { AdaptiveCapitalTelemetryPanel } from '../trading/AdaptiveCapitalTelemetryPanel';
 import { useAdaptiveCapitalDashboard } from '../../data/adaptiveCapitalProductivity';
+import { selectAccountMetric, selectSectionMetric } from '../../selectors/accountSelectors';
+import { selectMarketBySymbol, selectMarketMetric } from '../../selectors/marketSelectors';
+import { selectActiveSignal, selectSignalMetric } from '../../selectors/signalSelectors';
+import { selectRiskStatus } from '../../selectors/riskSelectors';
 
 const MOBILE_MODULES = [
   { key: 'chart', label: 'Chart', Icon: BarChart3 },
@@ -34,34 +38,22 @@ interface PaperSummary {
 
 export function TradeTerminal(): JSX.Element {
   const state = useTradeTerminal();
+  const traderSnapshot = useTraderSnapshot();
   const adaptiveCapital = useAdaptiveCapitalDashboard(30_000);
   const [mobileModule, setMobileModule] = useState<MobileModule>('chart');
 
   const paper = state.paper.activity.summary as PaperSummary | undefined;
-  const realizedPnl = paper?.realized_pnl_usd != null ? paper.realized_pnl_usd : null;
-  const unrealizedPnl = paper?.unrealized_pnl_usd != null ? paper.unrealized_pnl_usd : state.account.unrealizedPnl;
-  const openNotional = paper?.total_open_notional != null ? paper.total_open_notional : null;
-  const openPositionCount = paper?.open_position_count != null ? paper.open_position_count : null;
-
-  const paperBalance = state.account.availablePaperBalance ?? state.account.equity ?? (
-    state.account.totalPnl != null ? 10_000 + state.account.totalPnl : null
+  const accountMetric = (fieldId: string) => selectAccountMetric(traderSnapshot, fieldId);
+  const selectedMarket = selectMarketBySymbol(traderSnapshot, state.symbol) ?? {};
+  const marketMetric = (fieldId: string) => selectMarketMetric(traderSnapshot, selectedMarket, fieldId);
+  const canonicalSignal = selectActiveSignal(traderSnapshot, state.symbol);
+  const signalMetric = (fieldId: string) => selectSignalMetric(traderSnapshot, canonicalSignal ?? {}, fieldId);
+  const riskMetric = selectSectionMetric(
+    traderSnapshot,
+    'risk',
+    'position.risk_status',
+    selectRiskStatus(traderSnapshot),
   );
-
-  const hasLiveSignal = state.signal.direction !== 'Signal connecting';
-  const signalDirection = hasLiveSignal
-    ? String(state.signal.direction).toUpperCase()
-    : '—';
-  const signalColor = hasLiveSignal
-    ? signalDirection.includes('SHORT') ? 'var(--sell)' : 'var(--buy)'
-    : undefined;
-
-  const riskRaw = state.signal.paperFillAllowed
-    ? 'Execution Fill Open'
-    : tradeCopy(state.signal.riskDecision);
-  const riskLabel = riskRaw;
-  const riskColor = riskLabel.toLowerCase().includes('allow') || riskLabel === 'Execution Fill Open'
-    ? 'var(--buy)'
-    : riskLabel !== 'Risk result connecting' ? 'var(--sell)' : undefined;
 
   const dataLoading = state.paper.loading && !paper;
   const pollPulse = state.paper.connected || state.paper.source === 'http_fallback';
@@ -73,7 +65,7 @@ export function TradeTerminal(): JSX.Element {
     <article className="trade-terminal" data-testid="page-trader" data-mobile-active={mobileModule}>
       <SymbolHeader state={state} />
 
-      {/* Live data status banner */}
+      {/* Realtime data status banner */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8,
         padding: '5px 16px',
@@ -84,64 +76,68 @@ export function TradeTerminal(): JSX.Element {
       }}>
         <Wifi size={11} aria-hidden="true" style={{ color: pollPulse ? 'var(--buy)' : dataLoading ? 'var(--warn)' : 'var(--text-muted)' }} />
         {dataLoading
-          ? 'Live data loading… connecting to execution engine'
-          : `Live data · execution engine · ${state.paper.connected ? 'WebSocket stream' : 'HTTP fallback'} · ${state.symbols.length} symbols`}
+          ? 'Realtime data loading... connecting to execution runtime'
+          : `Realtime data · execution runtime · ${state.paper.connected ? 'WebSocket stream' : 'HTTP fallback'} · ${state.symbols.length} symbols`}
         <span style={{ marginLeft: 'auto', color: 'var(--text-muted)' }}>
           {state.market.lastPrice ? `${state.symbol} $${state.market.lastPrice.toFixed(2)}` : state.symbol}
         </span>
       </div>
 
-      {/* Account KPI strip — reads from Redis paper heartbeat */}
+      {/* Account KPI strip - canonical trader snapshot source */}
       <section className="trade-account-strip" aria-label="Account status">
         <div>
           <span>Account Balance</span>
-          <strong style={{ color: paperBalance != null ? 'var(--buy)' : undefined }}>
-            {paperBalance != null ? formatMoney(paperBalance) : '—'}
+          <strong style={{ color: 'var(--buy)' }}>
+            <CanonicalMetricValue metric={accountMetric('account.available_balance')} />
           </strong>
         </div>
         <div>
           <span>Realized PnL</span>
-          <strong style={{ color: pnlColor(realizedPnl) }}>
-            {realizedPnl !== null ? formatMoney(realizedPnl) : '—'}
+          <strong style={{ color: pnlColor(accountMetric('account.realized_pnl').value as number | null) }}>
+            <CanonicalMetricValue metric={accountMetric('account.realized_pnl')} />
           </strong>
         </div>
         <div>
           <span>Unrealized PnL</span>
-          <strong style={{ color: pnlColor(unrealizedPnl) }}>
-            {unrealizedPnl !== null ? formatMoney(unrealizedPnl) : '—'}
+          <strong style={{ color: pnlColor(accountMetric('account.unrealized_pnl').value as number | null) }}>
+            <CanonicalMetricValue metric={accountMetric('account.unrealized_pnl')} />
           </strong>
         </div>
         <div>
-          <span>Open Notional</span>
-          <strong>{openNotional !== null ? `$${openNotional.toFixed(0)}` : '—'}</strong>
+          <span>Exposure</span>
+          <strong><CanonicalMetricValue metric={accountMetric('account.exposure')} /></strong>
         </div>
         <div>
           <span>Open Positions</span>
-          <strong>{openPositionCount !== null ? String(openPositionCount) : '—'}</strong>
+          <strong><CanonicalMetricValue metric={accountMetric('account.open_position_count')} /></strong>
         </div>
         <div>
           <span>AI Signal</span>
-          <strong style={{ color: signalColor }}>{signalDirection}</strong>
+          <strong><CanonicalMetricValue metric={signalMetric('signal.id')} /></strong>
         </div>
         <div>
           <span>Confidence</span>
-          <strong>{state.signal.confidence !== null ? formatPercent(state.signal.confidence) : '—'}</strong>
+          <strong><CanonicalMetricValue metric={signalMetric('signal.confidence')} /></strong>
         </div>
         <div>
           <span>Risk Gate</span>
-          <strong style={{ color: riskColor }}>{riskLabel}</strong>
+          <strong><CanonicalMetricValue metric={riskMetric} /></strong>
         </div>
         <div>
           <span>Last Price</span>
-          <strong>{formatPrice(state.market.lastPrice)}</strong>
+          <strong><CanonicalMetricValue metric={marketMetric('market.last_price')} /></strong>
         </div>
         <div>
-          <span>Funding</span>
-          <strong>{formatPercent(state.market.fundingRate)}</strong>
+          <span>Mark Price</span>
+          <strong><CanonicalMetricValue metric={marketMetric('market.mark_price')} /></strong>
+        </div>
+        <div>
+          <span>Index Price</span>
+          <strong><CanonicalMetricValue metric={marketMetric('market.index_price')} /></strong>
         </div>
         <div>
           <span>Mode</span>
-          <strong>{tradeCopy(state.mode.traderState, 'Live platform')}</strong>
+          <strong><CanonicalMetricValue metric={accountMetric('account.mode')} /></strong>
         </div>
         <div>
           <span>Account</span>

@@ -1,5 +1,6 @@
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { FreshnessBadge } from '../../components/data/FreshnessBadge';
+import { DangerousControlPanel } from '../../components/controls/DangerousControlPanel';
 import meta from './meta';
 import rbac from './rbac';
 import route from './route';
@@ -222,7 +223,7 @@ function DecisionsTable({ decisions }: { decisions: RecentDecision[] }): JSX.Ele
                 <td style={{ padding: '5px 8px', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{d.symbol ?? '—'}</td>
                 <td style={{ padding: '5px 8px', fontWeight: 700, color: sideColor(d.side) }}>{(d.side ?? '—').toUpperCase()}</td>
                 <td style={{ padding: '5px 8px', whiteSpace: 'nowrap' }}><Chip label={d.risk_action ?? '—'} tone={tone} /></td>
-                <td style={{ padding: '5px 8px', color: 'var(--text-muted)', fontSize: 10, whiteSpace: 'nowrap', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis' }}>{(d.risk_reason_code ?? '—').replace(/_/g, ' ')}</td>
+                <td style={{ padding: '5px 8px', color: 'var(--text-muted)', fontSize: 10, maxWidth: 220, overflowWrap: 'anywhere', whiteSpace: 'normal', wordBreak: 'break-word' }}>{(d.risk_reason_code ?? '—').replace(/_/g, ' ')}</td>
                 <td style={{ padding: '5px 8px', color: d.pre_trade_allowed ? '#26c281' : '#ef5350' }}>{d.pre_trade_allowed == null ? '—' : d.pre_trade_allowed ? '✓' : '✗'}</td>
                 <td style={{ padding: '5px 8px', color: d.fee_gate_allowed ? '#26c281' : '#ef5350' }}>{d.fee_gate_allowed == null ? '—' : d.fee_gate_allowed ? '✓' : '✗'}</td>
                 <td style={{ padding: '5px 8px', color: d.churn_blocked ? '#f59e0b' : '#26c281' }}>{d.churn_blocked == null ? '—' : d.churn_blocked ? 'HOLD' : 'OK'}</td>
@@ -315,6 +316,8 @@ export default function RiskControlPage(): JSX.Element {
       </div>
 
       <div style={{ padding: '16px 20px' }}>
+        <DangerousControlPanel controlIds={meta.dangerousControlIds} />
+
         {/* Top KPI strip */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 16 }}>
           {[

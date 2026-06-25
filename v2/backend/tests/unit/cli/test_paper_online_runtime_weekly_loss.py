@@ -240,8 +240,40 @@ def test_paper_online_redis_writes_do_not_clobber_authoritative_paper_keys(
 
     assert paper_runtime.PAPER_ONLINE_INTENTS_KEY in fake.store
     assert paper_runtime.PAPER_ONLINE_LEDGER_KEY in fake.store
+    assert paper_runtime.PAPER_ONLINE_RISK_DECISIONS_KEY in fake.store
+    assert paper_runtime.PAPER_ONLINE_RISK_DECISIONS_LATEST_KEY in fake.store
+    assert paper_runtime.PAPER_ONLINE_RISK_GATEWAY_DECISIONS_KEY in fake.store
+    assert paper_runtime.PAPER_ONLINE_RISK_GATEWAY_DECISIONS_LATEST_KEY in fake.store
     assert "v2:paper:intents" not in fake.store
     assert "v2:paper:ledger" not in fake.store
+    assert "v2:risk:decisions" not in fake.store
+    assert "v2:risk:decisions:latest" not in fake.store
+    assert "v2:risk:gateway:decisions" not in fake.store
+    assert "v2:risk:gateway:decisions:latest" not in fake.store
+
+
+def test_prediction_id_alone_is_not_sufficient_canonical_risk_trust() -> None:
+    assert paper_runtime._has_complete_canonical_risk_trust_envelope({
+        "prediction_id": "pred_unit",
+        "feature_snapshot_id": "fs_unit",
+        "symbol": "BTCUSDT",
+    }) is False
+
+    assert paper_runtime._has_complete_canonical_risk_trust_envelope({
+        "prediction_id": "pred_unit",
+        "decision_id": "decision_unit",
+        "feature_snapshot_id": "fs_unit",
+        "mtf_snapshot_id": "mtf_unit",
+        "feature_cutoff": "2026-06-18T12:59:00Z",
+        "decision_time": "2026-06-18T13:00:00Z",
+        "available_at": "2026-06-18T12:59:30Z",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "selected_action": "long",
+        "model_version": "model_v1",
+        "checkpoint_id": "ckpt_v1",
+        "source_hashes": {"feature_vector_hash": "hash_unit"},
+    }) is True
 
 
 def test_native_trainer_bridge_expected_move_flows_to_paper_gate(

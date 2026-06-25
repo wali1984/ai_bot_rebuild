@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from types import SimpleNamespace
 
 import pytest
 
@@ -10,6 +11,25 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.confidence impor
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.model import V2HybridPolicyModel
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import FeatureTensorRecord
+
+
+def test_cuda_memory_cap_uses_lower_of_12gb_or_75_percent() -> None:
+    calls: list[tuple[float, int]] = []
+
+    class _FakeCuda:
+        @staticmethod
+        def get_device_properties(_index: int) -> SimpleNamespace:
+            return SimpleNamespace(total_memory=24 * 1024 * 1024 * 1024)
+
+        @staticmethod
+        def set_per_process_memory_fraction(fraction: float, index: int) -> None:
+            calls.append((fraction, index))
+
+    fake_torch = SimpleNamespace(cuda=_FakeCuda())
+
+    V2HybridPolicyModel._apply_cuda_memory_cap(fake_torch)
+
+    assert calls == [(0.5, 0)]
 
 
 def test_expected_move_does_not_force_short_without_policy_agreement() -> None:

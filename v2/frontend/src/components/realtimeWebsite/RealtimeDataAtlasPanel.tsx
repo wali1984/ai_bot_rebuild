@@ -127,7 +127,7 @@ function publicSafeText(value: string): string {
     .replace(/runtime alpha/gi, 'AI forecast')
     .replace(/enabled operator approved/gi, 'approval gated')
     .replace(/blocked human only/gi, 'operator-gated guard')
-    .replace(/\blive gate\b/gi, 'live trading guard')
+    .replace(/\blive gate\b/gi, 'execution guard')
     .replace(/\bworker health\b/gi, 'service health')
     .replace(/\bsource pending\b/gi, 'data source connecting')
     .replace(/\bjson\b/gi, 'data')
@@ -156,7 +156,7 @@ function payloadDetail(payload: Record<string, unknown>): string {
     ['active', payload.active_count],
     ['rows', payload.rows],
     ['events', payload.events_received ?? payload.events_processed],
-    ['live trading guard', payload.live_gate],
+    ['execution guard', payload.live_gate],
   ] as const;
   const parts = candidates
     .map(([label, value]) => {

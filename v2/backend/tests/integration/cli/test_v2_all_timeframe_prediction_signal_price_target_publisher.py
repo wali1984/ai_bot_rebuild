@@ -30,6 +30,21 @@ class _MemoryClient:
         self.store[key] = value
         return True
 
+    def scan_iter(self, match: str | None = None):
+        keys = list(self.store)
+        if not match:
+            yield from keys
+            return
+        if match.endswith("*"):
+            prefix = match[:-1]
+            for key in keys:
+                if key.startswith(prefix):
+                    yield key
+            return
+        for key in keys:
+            if key == match:
+                yield key
+
 
 def _write_symbol_scope(paths: svc.PublisherPaths, symbols: list[str]) -> None:
     paths.symbol_universe_path.parent.mkdir(parents=True, exist_ok=True)
@@ -75,6 +90,11 @@ def _seed_closed_price(client: _MemoryClient, symbol: str, price: float = 100.0)
     )
 
 
+def test_iso_utc_preserves_millisecond_precision_when_present() -> None:
+    assert svc.iso_utc("2026-06-22T07:36:01.914Z") == "2026-06-22T07:36:01.914Z"
+    assert svc.iso_utc("2026-06-22T07:36:01Z") == "2026-06-22T07:36:01Z"
+
+
 def _seed_feature_snapshot(client: _MemoryClient, symbol: str, timeframe: str) -> None:
     client.set(
         svc.feature_latest_key(symbol, timeframe),
@@ -100,13 +120,26 @@ def _seed_feature_snapshot(client: _MemoryClient, symbol: str, timeframe: str) -
 
 
 def _prediction(symbol: str, timeframe: str, *, generated: str | None = None, expected: Any = 25.0, after: Any = 13.0) -> dict[str, Any]:
+    generated_at = generated or svc.est_now()
     return {
         "prediction_id": f"pred_{symbol}_{timeframe}",
-        "generated_est": generated or svc.est_now(),
+        "decision_id": f"decision_{symbol}_{timeframe}",
+        "generated_est": generated_at,
+        "available_at": generated_at,
+        "decision_time": generated_at,
+        "feature_cutoff": generated_at,
         "symbol": symbol,
         "timeframe": timeframe,
         "trainer_source": svc.TRAINER_SOURCE_REQUIRED,
         "model_source": svc.MODEL_SOURCE_REQUIRED,
+        "model_version": svc.MODEL_SOURCE_REQUIRED,
+        "checkpoint_id": f"ckpt_{symbol}_{timeframe}",
+        "mtf_snapshot_id": f"mtf_{symbol}_{timeframe}",
+        "source_hashes": {
+            "feature_vector_hash": f"fv_{symbol}_{timeframe}",
+            "input_feature_hash": f"ih_{symbol}_{timeframe}",
+            "source_timestamp_hash": f"ts_{symbol}_{timeframe}",
+        },
         "selected_action": "long",
         "selected_action_index": 1,
         "policy_action_probabilities": [0.1, 0.8, 0.1],
@@ -199,6 +232,59 @@ def test_prediction_row_uses_available_at_as_audited_prediction_timestamp() -> N
     assert row["source_lineage"]["prediction_timestamp_source_field"] == "available_at"
     assert row["source_lineage"]["prediction_available_at"] == available_at
     assert row["prediction_temporal_block_reasons"] == []
+
+
+def test_prediction_row_preserves_trust_envelope_and_normalizes_epoch_cutoff() -> None:
+    now = svc.dt.datetime.now(svc.dt.timezone.utc)
+    decision = (now - svc.dt.timedelta(seconds=30)).isoformat(timespec="seconds").replace("+00:00", "Z")
+    cutoff_dt = now - svc.dt.timedelta(seconds=90)
+    cutoff_ms = int(cutoff_dt.timestamp() * 1000)
+    expected_cutoff = (
+        svc.dt.datetime.fromtimestamp(cutoff_ms / 1000, tz=svc.dt.timezone.utc)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+    )
+    prediction = _paper_ready_prediction_from_available_at("BTCUSDT", "1h", available_at=decision)
+    prediction["feature_cutoff"] = cutoff_ms
+    prediction["masa_feature_cutoff"] = cutoff_ms
+
+    row = svc.build_prediction_row(
+        symbol="BTCUSDT",
+        timeframe="1h",
+        prediction=prediction,
+        price_payload={"ticker_24hr": {"lastPrice": "100.0"}},
+        feature_payload=None,
+        stale_seconds=900,
+    )
+    signal = svc.build_signal_from_row(
+        row,
+        existing_signal={
+            "risk_decision_id": "risk_1",
+            "orchestrator_decision_id": "orch_1",
+            "paper_intent_id": "intent_1",
+            "paper_ledger_id": "ledger_1",
+        },
+    )
+
+    assert row["feature_cutoff"] == expected_cutoff
+    assert row["masa_feature_cutoff"] == expected_cutoff
+    assert row["model_version"] == svc.MODEL_SOURCE_REQUIRED
+    assert row["checkpoint_id"] == "ckpt_BTCUSDT_1h"
+    assert row["mtf_snapshot_id"] == "mtf_BTCUSDT_1h"
+    assert row["decision_id"] == "decision_BTCUSDT_1h"
+    assert row["signal_id"]
+    assert row["source_hashes"] == {
+        "feature_vector_hash": "fv_BTCUSDT_1h",
+        "input_feature_hash": "ih_BTCUSDT_1h",
+        "source_timestamp_hash": "ts_BTCUSDT_1h",
+    }
+    assert signal["signal_id"] == row["signal_id"]
+    assert signal["feature_cutoff"] == expected_cutoff
+    assert signal["model_version"] == row["model_version"]
+    assert signal["checkpoint_id"] == row["checkpoint_id"]
+    assert signal["mtf_snapshot_id"] == row["mtf_snapshot_id"]
+    assert signal["decision_id"] == row["decision_id"]
+    assert signal["source_hashes"] == row["source_hashes"]
 
 
 def test_prediction_row_propagates_pit_market_cost_evidence_to_signal() -> None:
@@ -933,6 +1019,47 @@ def test_partial_runtime_truth_writes_blockers_and_signals(tmp_path: Path, monke
     assert second_prediction_status["current_prediction_count"] == 1
     assert second_prediction_status["stale_prediction_count"] == 1
     assert second_prediction_status["missing_prediction_count"] == 8
+
+
+def test_publisher_retires_stale_routeable_primary_prediction_keys(tmp_path: Path, monkeypatch) -> None:
+    _ok_production(monkeypatch)
+    paths = default_paths(tmp_path)
+    _write_symbol_scope(paths, ["BTCUSDT"])
+    client = _MemoryClient()
+    store = V2KeyValueStore(client)
+    _seed_price(client, "BTCUSDT", 100.0)
+    current = _paper_ready_prediction_from_available_at(
+        "BTCUSDT",
+        "1m",
+        available_at=_utc_now_minus(30),
+    )
+    stale = _paper_ready_prediction_from_available_at(
+        "STALEUSDT",
+        "1m",
+        available_at=_utc_now_minus(3_600),
+    )
+    client.set("v2:prediction:BTCUSDT:1m", json.dumps(current))
+    client.set("v2:prediction:STALEUSDT:1m", json.dumps(stale))
+
+    result = build_packet(
+        paths=paths,
+        store=store,
+        stale_seconds=60,
+        production_base_url="https://example.test",
+        routes=["/signals"],
+    )
+
+    stale_after = json.loads(client.get("v2:prediction:STALEUSDT:1m"))
+    current_after = json.loads(client.get("v2:prediction:BTCUSDT:1m"))
+    dashboard = result.payloads["operator_dashboard_payload.json"]
+    assert stale_after["routes_to_orchestrator"] is False
+    assert stale_after["paper_fill_allowed"] is False
+    assert stale_after["stale_prediction_retired_by_publisher"] is True
+    assert "STALE_PREDICTION_RETIRED_BY_PUBLISHER" in stale_after["paper_fill_gate_block_reasons"]
+    assert current_after["routes_to_orchestrator"] is True
+    assert current_after["paper_fill_allowed"] is True
+    assert "stale_prediction_retired_by_publisher" not in current_after
+    assert dashboard["redis_publish_audit"]["retired_stale_prediction_key_writes"] == 1
 
 
 def test_all_tf_missing_symbol_with_explicit_trainer_trust_rejection_is_removed_from_expected_grid(

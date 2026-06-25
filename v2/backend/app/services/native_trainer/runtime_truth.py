@@ -21,6 +21,10 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping
 from zoneinfo import ZoneInfo
 
+from v2.backend.app.services.native_trainer.learning_readiness import (
+    build_learning_readiness,
+)
+
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
 PUBLIC_ROOT = REPO_ROOT / "v2/frontend/public"
@@ -174,85 +178,22 @@ def online_learning_runtime_fields(
     training = as_dict(training)
     persistent_runtime = as_dict(persistent_runtime)
     metrics = as_dict(training.get("metrics"))
-    trusted_rows = int(
-        finite_float(metrics.get("trusted_rows_loaded"))
-        or finite_float(training.get("trusted_rows_loaded"))
-        or finite_float(training.get("train_rows"))
-        or finite_float(persistent_runtime.get("trusted_rows_loaded"))
-        or 0
+    rows_rejected_by_reason = as_dict(
+        metrics.get("rows_rejected_by_reason")
+        or training.get("rows_rejected_by_reason")
+        or persistent_runtime.get("rows_rejected_by_reason")
+        or {}
     )
-    optimizer_steps = int(
-        finite_float(metrics.get("optimizer_steps_this_cycle"))
-        or finite_float(training.get("optimizer_steps_this_cycle"))
-        or finite_float(persistent_runtime.get("optimizer_steps_this_cycle"))
-        or 0
+    readiness = build_learning_readiness(
+        training=training,
+        persistent_runtime=persistent_runtime,
+        prediction_rows=prediction_rows,
     )
-    parameter_hash_before = (
-        metrics.get("parameter_hash_before")
-        or training.get("parameter_hash_before")
-        or persistent_runtime.get("parameter_hash_before")
-    )
-    parameter_hash_after = (
-        metrics.get("parameter_hash_after")
-        or training.get("parameter_hash_after")
-        or persistent_runtime.get("parameter_hash_after")
-    )
-    weight_delta_norm = finite_float(
-        metrics.get("weight_delta_norm")
-        or training.get("weight_delta_norm")
-        or persistent_runtime.get("weight_delta_norm")
-    ) or 0.0
-    checkpoint_written = bool(
-        metrics.get("checkpoint_weight_blob_written")
-        or training.get("checkpoint_weight_blob_written")
-        or persistent_runtime.get("checkpoint_weight_blob_written")
-    )
-    checkpoint_reload_verified = bool(
-        metrics.get("checkpoint_reload_verified")
-        or training.get("checkpoint_reload_verified")
-        or persistent_runtime.get("checkpoint_reload_verified")
-    )
-    last_successful = (
-        metrics.get("last_successful_weight_update_at")
-        or training.get("last_successful_weight_update_at")
-        or persistent_runtime.get("last_successful_weight_update_at")
-    )
-    weight_mutated = bool(
-        optimizer_steps > 0
-        and parameter_hash_before
-        and parameter_hash_after
-        and parameter_hash_before != parameter_hash_after
-        and weight_delta_norm > 0.0
-        and checkpoint_written
-        and checkpoint_reload_verified
-    )
-    blocker = str(persistent_runtime.get("last_training_blocker_reason") or training.get("status") or "")
-    if weight_mutated and last_successful:
-        online_learning_status = "WEIGHTS_UPDATING"
-        effective_trainer_mode = "WEIGHTS_UPDATING"
-        last_successful_weight_update_at = last_successful
-    elif trusted_rows <= 0 or "NO_TRUSTED" in blocker:
-        online_learning_status = "BLOCKED_NO_TRUSTED_FEEDBACK"
-        effective_trainer_mode = "INFERENCE_ONLY"
-        last_successful_weight_update_at = None
-    else:
-        online_learning_status = "BLOCKED_NO_DURABLE_WEIGHT_UPDATE"
-        effective_trainer_mode = "INFERENCE_ONLY"
-        last_successful_weight_update_at = None
     return {
-        "trainer_process_status": "ACTIVE",
-        "cuda_inference_status": "ACTIVE",
-        "prediction_publication_status": "ACTIVE" if int(prediction_rows) > 0 else "BLOCKED_NO_PREDICTIONS",
-        "online_learning_status": online_learning_status,
-        "effective_trainer_mode": effective_trainer_mode,
-        "last_successful_weight_update_at": last_successful_weight_update_at,
-        "trusted_rows_loaded": trusted_rows,
-        "optimizer_steps_this_cycle": optimizer_steps,
-        "parameter_hash_before": parameter_hash_before,
-        "parameter_hash_after": parameter_hash_after,
-        "weight_delta_norm": weight_delta_norm,
-        "checkpoint_weight_blob_written": checkpoint_written,
-        "checkpoint_reload_verified": checkpoint_reload_verified,
+        **readiness,
+        "rows_rejected_by_reason": rows_rejected_by_reason,
+        "loss_before": metrics.get("loss_before") or training.get("loss_before"),
+        "loss_after": metrics.get("loss_after") or training.get("loss_after"),
     }
 
 

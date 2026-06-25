@@ -59,3 +59,27 @@ def test_static_only_spread_source_stays_quarantined() -> None:
     )
 
     assert "UNSOURCED_OBSERVED_SPREAD_EVIDENCE" in audit_quality_rejection_reasons(row)
+
+
+def test_no_trade_strategy_feedback_is_not_entry_training_evidence() -> None:
+    row = _clean_audit_quality_row(
+        strategy_id="no_trade_mode",
+        market_regime_at_entry="MODEL_DISAGREEMENT,NO_TRADE",
+    )
+
+    assert "LIFECYCLE_OR_NO_TRADE_STRATEGY_NOT_ENTRY_EVIDENCE" in (
+        audit_quality_rejection_reasons(row)
+    )
+
+
+def test_lifecycle_reduce_feedback_is_not_entry_training_evidence() -> None:
+    row = _clean_audit_quality_row(
+        strategy_id="trend_mode",
+        strategy_router_selected_mode="reduce_size_mode",
+        entry_reason="reduce_size_mode",
+        market_regime_at_entry="TREND",
+    )
+
+    assert "LIFECYCLE_OR_NO_TRADE_STRATEGY_NOT_ENTRY_EVIDENCE" in (
+        audit_quality_rejection_reasons(row)
+    )

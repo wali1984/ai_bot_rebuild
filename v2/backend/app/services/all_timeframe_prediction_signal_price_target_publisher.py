@@ -21,6 +21,10 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader impo
     V2HybridTrainerDataLoader,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.safety import V2OnlyJsonIO
+from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
+    SnapshotArchiveError,
+    load_snapshot as load_durable_feature_snapshot,
+)
 from v2.backend.app.services.v2_symbol_runtime_universe import (
     BASELINE_25_SYMBOLS,
     is_valid_runtime_symbol,
@@ -127,9 +131,20 @@ def est_now() -> str:
 
 
 def parse_ts(value: Any) -> dt.datetime | None:
+    if isinstance(value, (int, float)) and math.isfinite(float(value)):
+        epoch_value = float(value)
+        if abs(epoch_value) > 10_000_000_000:
+            epoch_value /= 1000.0
+        try:
+            return dt.datetime.fromtimestamp(epoch_value, tz=dt.timezone.utc)
+        except (OSError, OverflowError, ValueError):
+            return None
     if not isinstance(value, str) or not value:
         return None
-    text = value.replace("Z", "+00:00")
+    stripped = value.strip()
+    if stripped.replace(".", "", 1).isdigit():
+        return parse_ts(float(stripped))
+    text = stripped.replace("Z", "+00:00")
     try:
         parsed = dt.datetime.fromisoformat(text)
     except ValueError:
@@ -137,6 +152,15 @@ def parse_ts(value: Any) -> dt.datetime | None:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=EST)
     return parsed.astimezone(dt.timezone.utc)
+
+
+def iso_utc(value: Any) -> str | None:
+    parsed = parse_ts(value)
+    if parsed is None:
+        return None
+    parsed_utc = parsed.astimezone(dt.timezone.utc)
+    timespec = "milliseconds" if parsed_utc.microsecond else "seconds"
+    return parsed_utc.isoformat(timespec=timespec).replace("+00:00", "Z")
 
 
 def to_est(value: Any) -> str | None:
@@ -1349,6 +1373,29 @@ def build_prediction_row(
     target = price_targets(last_price, expected_move, expected_after_cost, action)
     trainer_source = str(prediction.get("trainer_source") or "missing source")
     model_source = str(prediction.get("model_source") or prediction.get("model_id") or prediction.get("checkpoint_id") or "missing source")
+    replay_snapshot = as_dict(prediction.get("replay_snapshot"))
+    decision_id = prediction.get("decision_id") or replay_snapshot.get("decision_id")
+    model_version = (
+        prediction.get("model_version")
+        or prediction.get("model_source")
+        or prediction.get("model_id")
+    )
+    checkpoint_id = (
+        prediction.get("checkpoint_id")
+        or prediction.get("model_checkpoint_id")
+        or prediction.get("model_checkpoint")
+    )
+    prediction_id = prediction.get("prediction_id")
+    signal_id = prediction.get("signal_id") or stable_id("sig", prediction_id or selected_prediction_key, timeframe)
+    source_hashes = as_dict(prediction.get("source_hashes"))
+    normalized_available_at = iso_utc(prediction.get("available_at")) or prediction.get("available_at")
+    normalized_decision_time = (
+        iso_utc(prediction.get("decision_time") or prediction.get("decision_time_est"))
+        or prediction.get("decision_time")
+        or prediction.get("decision_time_est")
+    )
+    normalized_feature_cutoff = iso_utc(prediction.get("feature_cutoff")) or prediction.get("feature_cutoff")
+    normalized_masa_feature_cutoff = iso_utc(prediction.get("masa_feature_cutoff")) or prediction.get("masa_feature_cutoff")
     missing_reason = None
     status = "PRESENT_CURRENT"
     temporal_block_reasons = prediction_temporal_block_reasons(prediction)
@@ -1390,10 +1437,11 @@ def build_prediction_row(
         "prediction_generated_est": to_est(generated),
         "prediction_generated_raw": generated,
         "prediction_timestamp_source_field": prediction_timestamp_source_field,
-        "prediction_available_at": prediction.get("available_at"),
-        "prediction_decision_time": prediction.get("decision_time") or prediction.get("decision_time_est"),
-        "prediction_feature_cutoff": prediction.get("feature_cutoff"),
-        "prediction_masa_feature_cutoff": prediction.get("masa_feature_cutoff"),
+        "prediction_available_at": normalized_available_at,
+        "prediction_decision_time": normalized_decision_time,
+        "prediction_feature_cutoff": normalized_feature_cutoff,
+        "prediction_masa_feature_cutoff": normalized_masa_feature_cutoff,
+        "prediction_decision_id": decision_id,
         "prediction_temporal_block_reasons": temporal_block_reasons,
         "feature_redis_key": selected_feature_key,
         "feature_lookup_status": feature_lookup_status or "FEATURE_LATEST_LOOKUP",
@@ -1466,21 +1514,35 @@ def build_prediction_row(
         and not temporal_block_reasons
     )
     return {
-        "prediction_id": prediction.get("prediction_id"),
+        "prediction_id": prediction_id,
+        "signal_id": signal_id,
+        "decision_id": decision_id,
         "prediction_redis_key": selected_prediction_key,
         "primary_prediction_redis_key": prediction_key(symbol, timeframe),
         "generated_est": to_est(generated) or est_now(),
         "prediction_timestamp_source_field": prediction_timestamp_source_field,
-        "available_at": prediction.get("available_at"),
-        "decision_time": prediction.get("decision_time") or prediction.get("decision_time_est"),
-        "feature_cutoff": prediction.get("feature_cutoff"),
-        "masa_feature_cutoff": prediction.get("masa_feature_cutoff"),
+        "available_at": normalized_available_at,
+        "decision_time": normalized_decision_time,
+        "feature_cutoff": normalized_feature_cutoff,
+        "masa_feature_cutoff": normalized_masa_feature_cutoff,
+        "mtf_snapshot_id": prediction.get("mtf_snapshot_id"),
         "prediction_temporal_block_reasons": temporal_block_reasons,
         "symbol": symbol,
         "timeframe": timeframe,
         "status": status,
         "trainer_source": trainer_source,
         "model_source": model_source,
+        "model_version": model_version,
+        "checkpoint_id": checkpoint_id,
+        "source_hashes": source_hashes,
+        "feature_vector_hash": (
+            prediction.get("feature_vector_hash")
+            or prediction.get("input_feature_hash")
+            or source_hashes.get("feature_vector_hash")
+            or source_hashes.get("feature_tensor_id")
+        ),
+        "input_feature_hash": prediction.get("input_feature_hash") or source_hashes.get("input_feature_hash"),
+        "source_timestamp_hash": prediction.get("source_timestamp_hash") or source_hashes.get("source_timestamp_hash"),
         "selected_action": action,
         "selected_action_index": selected_action_index(prediction, action),
         "action_probabilities": action_probability_map(prediction),
@@ -1864,6 +1926,12 @@ def feature_payload_for_prediction(
         archived = store.get_json(snapshot_key)
         if isinstance(archived, dict):
             return archived, snapshot_key, "EXACT_ARCHIVED_FEATURE_SNAPSHOT"
+        try:
+            durable = load_durable_feature_snapshot(snapshot_id)
+        except SnapshotArchiveError:
+            durable = None
+        if isinstance(durable, dict):
+            return durable, f"disk:{snapshot_id}", "EXACT_DURABLE_FEATURE_SNAPSHOT_ARCHIVE"
     latest_key = feature_latest_key(symbol, timeframe)
     return (
         store.get_json(latest_key),
@@ -2239,7 +2307,10 @@ def build_signal_from_row(
     live_symbols = as_list(context.get("live_symbols")) or as_list(row.get("live_symbols"))
     execution_live_symbols = as_list(context.get("execution_live_symbols")) or as_list(row.get("execution_live_symbols"))
     prediction_id = str(row.get("prediction_id") or "")
-    signal_id = stable_id("sig", prediction_id or row.get("prediction_redis_key"), row.get("timeframe"))
+    signal_id = str(
+        row.get("signal_id")
+        or stable_id("sig", prediction_id or row.get("prediction_redis_key"), row.get("timeframe"))
+    )
     status = str(row.get("status"))
     risk_state = "BLOCKED"
     blocked_reason = row.get("missing_stale_reason")
@@ -2325,6 +2396,7 @@ def build_signal_from_row(
     return {
         "signal_id": signal_id,
         "prediction_id": prediction_id or None,
+        "decision_id": row.get("decision_id"),
         "risk_decision_id": lineage_ids["risk_decision_id"],
         "orchestrator_decision_id": lineage_ids["orchestrator_decision_id"],
         "orchestrator_decision_source": lineage_ids.get("orchestrator_decision_source"),
@@ -2335,6 +2407,13 @@ def build_signal_from_row(
         "action": action,
         "selected_action": action,
         "feature_snapshot_id": row.get("feature_snapshot_id"),
+        "mtf_snapshot_id": row.get("mtf_snapshot_id"),
+        "model_version": row.get("model_version"),
+        "checkpoint_id": row.get("checkpoint_id"),
+        "source_hashes": as_dict(row.get("source_hashes")),
+        "feature_vector_hash": row.get("feature_vector_hash"),
+        "input_feature_hash": row.get("input_feature_hash"),
+        "source_timestamp_hash": row.get("source_timestamp_hash"),
         "last_price": row.get("last_price"),
         "price_target": row.get("price_target"),
         "price_target_after_cost": row.get("price_target_after_cost"),
@@ -3249,11 +3328,19 @@ def build_cuda_prediction_status(prediction_status: Mapping[str, Any]) -> dict[s
     rows: list[dict[str, Any]] = []
     required_fields = [
         "prediction_id",
+        "decision_id",
         "generated_est",
+        "available_at",
+        "decision_time",
+        "feature_cutoff",
         "symbol",
         "timeframe",
         "trainer_source",
         "model_source",
+        "model_version",
+        "checkpoint_id",
+        "mtf_snapshot_id",
+        "source_hashes",
         "selected_action",
         "selected_action_index",
         "action_probabilities",
@@ -3736,11 +3823,66 @@ def build_website_truth(
     }
 
 
+def retire_stale_routeable_prediction_keys(
+    *,
+    store: V2KeyValueStore,
+    protected_current_prediction_keys: set[str],
+    stale_seconds: int,
+) -> int:
+    client = store.client
+    if client is None or not hasattr(client, "scan_iter"):
+        return 0
+    retired = 0
+    try:
+        keys = list(client.scan_iter(match="v2:prediction:*"))
+    except Exception as exc:  # noqa: BLE001
+        store.audit.errors.append(f"scan_failed:v2:prediction:*:{type(exc).__name__}")
+        return 0
+    retired_at = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    for raw_key in keys:
+        key = raw_key.decode("utf-8") if isinstance(raw_key, (bytes, bytearray)) else str(raw_key)
+        if not key.startswith("v2:prediction:") or ":rl_core:" in key or key in protected_current_prediction_keys:
+            continue
+        payload = store.get_json(key)
+        if payload is None:
+            continue
+        generated, _timestamp_source = prediction_timestamp_field(payload)
+        age = freshness_seconds(generated)
+        if age is None or age <= stale_seconds:
+            continue
+        if payload.get("routes_to_orchestrator") is not True and payload.get("paper_fill_allowed") is not True:
+            continue
+        patched = dict(payload)
+        patched["routes_to_orchestrator"] = False
+        patched["paper_fill_allowed"] = False
+        patched["paper_fill_gate_status"] = "PAPER_SHADOW_GATE_BLOCKED_STALE"
+        patched["stale_prediction_retired_by_publisher"] = True
+        patched["stale_prediction_retired_at"] = retired_at
+        patched["stale_prediction_retired_reason"] = "STALE_PREDICTION_RETIRED_BY_PUBLISHER"
+        reasons = as_list(
+            patched.get("paper_fill_gate_block_reasons")
+            or patched.get("paper_fill_block_reasons")
+            or patched.get("block_reasons")
+        )
+        reasons.append("STALE_PREDICTION_RETIRED_BY_PUBLISHER")
+        patched["paper_fill_gate_block_reasons"] = sorted(set(str(reason) for reason in reasons if reason))
+        if store.set_json(key, patched):
+            retired += 1
+    return retired
+
+
 def publish_v2_keys(store: V2KeyValueStore, prediction_status: Mapping[str, Any], signal_status: Mapping[str, Any]) -> dict[str, Any]:
     blocker_writes = 0
     blocker_suppressed = 0
     signal_writes = 0
     integrity_writes = 0
+    retired_stale_prediction_writes = 0
+    protected_current_prediction_keys = {
+        str(as_dict(row).get("prediction_redis_key"))
+        for row in as_list(prediction_status.get("prediction_rows"))
+        if as_dict(row).get("status") in CURRENT_PREDICTION_STATUSES
+        and as_dict(row).get("prediction_redis_key")
+    }
     for row in as_list(prediction_status.get("prediction_rows")):
         item = as_dict(row)
         symbol = str(item.get("symbol") or "")
@@ -3772,6 +3914,11 @@ def publish_v2_keys(store: V2KeyValueStore, prediction_status: Mapping[str, Any]
         if item.get("status") != "MISSING_TF_PREDICTION":
             continue
         blocker_suppressed += 1
+    retired_stale_prediction_writes = retire_stale_routeable_prediction_keys(
+        store=store,
+        protected_current_prediction_keys=protected_current_prediction_keys,
+        stale_seconds=int(prediction_status.get("stale_threshold_seconds") or DEFAULT_STALE_SECONDS),
+    )
     latest_by_symbol: dict[str, dict[str, Any]] = {}
     for signal in as_list(signal_status.get("published_signals")):
         item = as_dict(signal)
@@ -3789,6 +3936,7 @@ def publish_v2_keys(store: V2KeyValueStore, prediction_status: Mapping[str, Any]
         "blocker_prediction_key_writes": blocker_writes,
         "blocker_prediction_key_writes_suppressed": blocker_suppressed,
         "market_state_integrity_key_writes": integrity_writes,
+        "retired_stale_prediction_key_writes": retired_stale_prediction_writes,
         "signal_key_writes": signal_writes,
         "old_redis_write_attempts": store.audit.old_redis_write_attempts,
         "keys_written": list(store.audit.keys_written),
@@ -4037,6 +4185,7 @@ def build_packet(
     redis_publish_audit = publish_v2_keys(store, prediction_status, signal_status) if write_redis else {
         "redis_writes_performed": False,
         "blocker_prediction_key_writes": 0,
+        "retired_stale_prediction_key_writes": 0,
         "signal_key_writes": 0,
         "old_redis_write_attempts": store.audit.old_redis_write_attempts,
         "keys_written": [],

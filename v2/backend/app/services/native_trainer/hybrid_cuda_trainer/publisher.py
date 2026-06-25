@@ -52,6 +52,11 @@ from v2.backend.app.services.market_state_integrity.trust import (
     mark_runtime_trust_denied,
     validate_prediction_trust_contract,
 )
+from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
+    SnapshotArchiveError,
+    append_snapshot,
+    build_archive_record_from_prediction_payload,
+)
 from v2.backend.app.services.risk_gateway.service import assemble_risk_decision_record
 from v2.backend.app.services.trainer_prediction_output.service import (
     assemble_prediction_record,
@@ -316,9 +321,12 @@ def _market_state_fields_from_example(example: TrainingExample, prediction_id: s
 def _trusted_replay_snapshot(
     *,
     prediction_id: str,
+    signal_id: str,
     example: TrainingExample,
     model_output: ModelForwardResult,
     trust_row: dict[str, Any],
+    checkpoint: CheckpointManifest | None,
+    source_hashes: dict[str, Any],
 ) -> tuple[dict[str, Any], list[str]]:
     reasons: list[str] = []
     explicit_trust = _has_explicit_market_state_trust_evidence(trust_row)
@@ -330,6 +338,24 @@ def _trusted_replay_snapshot(
     ppo_ts = trust_row.get("ppo_observation_timestamp") or "not_applicable_internal_model_forward"
     mtf_snapshot_id = trust_row.get("mtf_snapshot_id") or trust_row.get("decision_snapshot_id")
     decision_id = trust_row.get("decision_id") or prediction_id
+    feature_snapshot = {
+        "feature_snapshot_id": example.tensor.feature_snapshot_id,
+        "symbol": example.symbol,
+        "timeframe": example.timeframe,
+        "features": dict(trust_row.get("features") or {}),
+        "feature_cutoff": feature_cutoff,
+        "available_at": trust_row.get("available_at") or trust_row.get("source_available_time"),
+        "generated_at": trust_row.get("generated_at") or trust_row.get("created_at"),
+        "feature_freshness_state": trust_row.get("feature_freshness_state"),
+        "trainer_consumable": trust_row.get("trainer_consumable"),
+        "candle_closed_confirmed": trust_row.get("candle_closed_confirmed"),
+        "candle_open_time": trust_row.get("candle_open_time"),
+        "candle_close_time": trust_row.get("candle_close_time"),
+        "source_event_time_est": trust_row.get("source_event_time_est"),
+        "source_received_time_est": trust_row.get("source_received_time_est"),
+        "source_available_time": trust_row.get("source_available_time"),
+        "source_hashes": dict(source_hashes),
+    }
     mtf_snapshot_valid = trust_row.get("mtf_snapshot_valid")
     mtf_snapshot_reject_reasons = list(trust_row.get("mtf_snapshot_reject_reasons") or [])
     if not explicit_trust:
@@ -352,27 +378,44 @@ def _trusted_replay_snapshot(
         reasons.append("DECISION_ID_MISSING")
     prediction = {
         "prediction_id": prediction_id,
+        "signal_id": signal_id,
         "decision_id": decision_id,
         "mtf_snapshot_id": mtf_snapshot_id,
         "mtf_snapshot_valid": mtf_snapshot_valid,
         "mtf_snapshot_reject_reasons": mtf_snapshot_reject_reasons,
         "multi_timeframe_decision_snapshot": trust_row.get("multi_timeframe_decision_snapshot"),
-        "generated_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "generated_utc": datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
         "symbol": example.symbol,
         "timeframe": example.timeframe,
+        "feature_snapshot_id": example.tensor.feature_snapshot_id,
+        "feature_snapshot": feature_snapshot,
         "feature_cutoff": feature_cutoff,
         "available_at": trust_row.get("available_at") or trust_row.get("source_available_time"),
+        "source_available_time": trust_row.get("source_available_time"),
         "all_tf_candle_timestamps": list(all_tf_candle_timestamps),
         "all_source_event_times": list(all_source_event_times),
         "feature_vector_hash": feature_hash,
+        "source_hashes": dict(source_hashes),
         "feature_names": list(example.tensor.feature_names),
         "missing_feature_flags": list(example.tensor.missing_feature_names),
         "stale_feature_flags": list(example.tensor.stale_feature_names),
+        "feature_freshness_state": trust_row.get("feature_freshness_state"),
+        "trainer_consumable": trust_row.get("trainer_consumable"),
+        "candle_closed_confirmed": trust_row.get("candle_closed_confirmed"),
+        "candle_open_time": trust_row.get("candle_open_time"),
+        "candle_close_time": trust_row.get("candle_close_time"),
         "masa_prediction_timestamp": masa_ts,
         "ppo_observation_timestamp": ppo_ts,
         "ppo_selected_action": model_output.selected_action,
+        "selected_action": model_output.selected_action,
+        "action_probabilities": list(model_output.action_probabilities),
         "expected_move_bps": model_output.expected_move_bps,
         "confidence_calibrated": model_output.confidence_calibrated,
+        "policy_value": model_output.policy_value,
+        "model_source": MODEL_SOURCE,
+        "model_version": MODEL_SOURCE,
+        "model_id": model_output.model_id,
+        "checkpoint_id": checkpoint.checkpoint_id if checkpoint else "v2_hybrid_checkpoint_manifest_pending",
     }
     return build_replay_snapshot(decision_id=str(decision_id), prediction=prediction), reasons
 
@@ -388,6 +431,8 @@ def build_prediction_payload(
     min_edge_after_cost_bps: float,
 ) -> dict[str, Any]:
     tensor = example.tensor
+    generated_utc = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    generated_est = _est_iso()
     selected_action = str(model_output.selected_action or "hold").strip().lower()
     if selected_action == "long":
         expected_after_cost = float(model_output.expected_move_bps - abs(round_trip_cost_bps))
@@ -405,6 +450,7 @@ def build_prediction_payload(
         tensor.tensor_id,
         model_output.model_id,
     )
+    signal_id = "sig_" + prediction_id
     paper_fill_allowed = (
         tensor.data_coverage_percent >= min_data_coverage_percent
         and model_output.confidence_calibrated >= min_confidence_calibrated
@@ -425,11 +471,33 @@ def build_prediction_payload(
     integrity = _market_state_fields_from_example(example, prediction_id)
     trust_row = dict(example.trust_row or {})
     trust_reject_reasons = [str(reason) for reason in (trust_row.get("reject_reasons") or []) if str(reason)]
+    feature_hash = trust_row.get("feature_vector_hash") or tensor.tensor_id
+    timestamp_source_hash_material = {
+        "all_tf_candle_timestamps": list(trust_row.get("all_tf_candle_timestamps") or []),
+        "all_source_event_times": list(trust_row.get("all_source_event_times") or []),
+    }
+    source_hashes = dict(trust_row.get("source_hashes") or {})
+    source_hashes.update(
+        {
+            "feature_vector_hash": feature_hash,
+            "input_feature_hash": feature_hash,
+            "feature_tensor_id": tensor.tensor_id,
+            "feature_names_hash": hashlib.sha256(
+                json.dumps(list(tensor.feature_names), sort_keys=True, separators=(",", ":")).encode("utf-8")
+            ).hexdigest(),
+            "source_timestamp_hash": hashlib.sha256(
+                json.dumps(timestamp_source_hash_material, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            ).hexdigest(),
+        }
+    )
     replay_snapshot, replay_reasons = _trusted_replay_snapshot(
         prediction_id=prediction_id,
+        signal_id=signal_id,
         example=example,
         model_output=model_output,
         trust_row=trust_row,
+        checkpoint=checkpoint,
+        source_hashes=source_hashes,
     )
     replay_snapshot_id = None
     if isinstance(replay_snapshot, dict):
@@ -444,12 +512,6 @@ def build_prediction_payload(
         block_reasons.append(f"training_trust:{reason}")
     for reason in integrity["market_state_reject_reasons"]:
         block_reasons.append(f"market_state:{reason}")
-    feature_hash = trust_row.get("feature_vector_hash") or tensor.tensor_id
-    source_hashes = {
-        "feature_vector_hash": feature_hash,
-        "input_feature_hash": feature_hash,
-        "feature_tensor_id": tensor.tensor_id,
-    }
     paper_fill_allowed = (
         paper_fill_allowed
         and integrity["valid_for_prediction"] is True
@@ -465,7 +527,10 @@ def build_prediction_payload(
     )
     payload = {
         "prediction_id": prediction_id,
-        "generated_est": _est_iso(),
+        "signal_id": signal_id,
+        "generated_est": generated_est,
+        "generated_utc": generated_utc,
+        "generated_at": generated_utc,
         "symbol": example.symbol,
         "timeframe": example.timeframe,
         "selected_action": model_output.selected_action,
@@ -532,7 +597,8 @@ def build_prediction_payload(
         "decision_id": trust_row.get("decision_id") or prediction_id,
         "mtf_snapshot_id": trust_row.get("mtf_snapshot_id"),
         "mtf_snapshot_valid": trust_row.get("mtf_snapshot_valid"),
-        "decision_time": trust_row.get("decision_time_est") or trust_row.get("decision_time"),
+        "decision_time": generated_utc,
+        "feature_decision_time": trust_row.get("decision_time_est") or trust_row.get("decision_time"),
         "source_candle_timestamps": list(trust_row.get("all_tf_candle_timestamps") or []),
         "input_feature_hash": feature_hash,
         "prediction_eligible": paper_fill_allowed,
@@ -586,6 +652,21 @@ def is_publishable(payload: dict[str, Any]) -> bool:
     return True
 
 
+def _requires_replay_snapshot_write(payload: dict[str, Any]) -> bool:
+    return any(
+        payload.get(field) is True
+        for field in (
+            "paper_fill_allowed",
+            "routes_to_orchestrator",
+            "prediction_eligible",
+            "risk_eligible",
+            "paper_eligible",
+            "routed_to_paper",
+            "pre_trade_allowed",
+        )
+    )
+
+
 class V2HybridPredictionPublisher:
     def __init__(self, *, io: V2OnlyJsonIO | None = None) -> None:
         self.io = io or V2OnlyJsonIO(client=None)
@@ -593,14 +674,41 @@ class V2HybridPredictionPublisher:
     def publish_prediction(self, payload: dict[str, Any]) -> bool:
         if not is_publishable(payload):
             return False
+        payload = dict(payload)
+        archive_record = build_archive_record_from_prediction_payload(payload)
+        if archive_record is not None:
+            try:
+                archived = append_snapshot(archive_record)
+                payload["durable_feature_snapshot_archive_write_success"] = True
+                payload["durable_feature_snapshot_archive_snapshot_id"] = archived.snapshot_id
+                payload["durable_feature_snapshot_archive_content_sha256"] = archived.content_sha256
+                payload["durable_feature_snapshot_archive_blob_path"] = str(archived.blob_path)
+            except SnapshotArchiveError as exc:
+                payload["durable_feature_snapshot_archive_write_success"] = False
+                payload["durable_feature_snapshot_archive_error"] = str(exc)
+                reasons = list(payload.get("paper_fill_gate_block_reasons") or [])
+                reasons.append(f"durable_snapshot_archive:{type(exc).__name__}")
+                payload["paper_fill_gate_block_reasons"] = sorted(set(str(reason) for reason in reasons))
+                payload["paper_fill_allowed"] = False
+                payload["routes_to_orchestrator"] = False
+                payload["prediction_eligible"] = False
+                payload["risk_eligible"] = False
+                payload["paper_eligible"] = False
         if payload.get("replay_snapshot_required") is True:
             snapshot = payload.get("replay_snapshot")
             if not isinstance(snapshot, dict) or payload.get("replay_snapshot_ready") is not True:
-                return False
+                if _requires_replay_snapshot_write(payload):
+                    return False
+                contract = validate_prediction_trust_contract(payload)
+                payload["trust_gate_result"] = contract.to_dict()
+                key = PREDICTION_KEY_TEMPLATE.format(
+                    symbol=payload["symbol"],
+                    timeframe=payload["timeframe"],
+                )
+                return self.io.set_json(key, payload)
             snapshot_key = f"v2:replay:snapshots:{payload['prediction_id']}"
-            if not self.io.set_json(snapshot_key, snapshot):
+            if not self.io.set_json(snapshot_key, snapshot, ex=86400):  # 24h TTL
                 return False
-            payload = dict(payload)
             payload["replay_snapshot_write_success"] = True
             payload["replay_snapshot_key"] = snapshot_key
             payload["replay_snapshot_id"] = (
@@ -660,6 +768,7 @@ class V2HybridPredictionPublisher:
         )
         decision_id = prediction_payload.get("decision_id") or orchestrator_record.decision_id
         prediction_id = prediction_record.prediction_id
+        signal_id = str(prediction_payload.get("signal_id") or ("sig_" + prediction_id))
         mtf_snapshot_id = prediction_payload.get("mtf_snapshot_id")
         replay_snapshot_id = prediction_payload.get("replay_snapshot_id")
         orchestrator_dict = attach_runtime_trust_metadata(
@@ -684,6 +793,7 @@ class V2HybridPredictionPublisher:
             replay_snapshot_id=replay_snapshot_id,
         )
         for record in (orchestrator_dict, risk_dict, paper_entry_dict):
+            record["signal_id"] = signal_id
             record["feature_snapshot_id"] = prediction_payload.get("feature_snapshot_id")
             record["feature_cutoff"] = prediction_payload.get("feature_cutoff")
             record["available_at"] = prediction_payload.get("available_at")
@@ -708,7 +818,7 @@ class V2HybridPredictionPublisher:
             paper_entry_dict = mark_runtime_trust_denied(paper_entry_dict, lineage_contract)
         paper_intent_id = "pei_" + risk_record.risk_decision_id
         signal_payload = {
-            "signal_id": "sig_" + prediction_record.prediction_id,
+            "signal_id": signal_id,
             "generated_est": _est_iso(),
             "prediction_id": prediction_record.prediction_id,
             "trainer_prediction_id": prediction_record.prediction_id,

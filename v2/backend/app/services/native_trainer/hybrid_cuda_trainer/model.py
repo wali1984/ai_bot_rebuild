@@ -14,6 +14,9 @@ from .confidence import calibrate_confidence, softmax
 from .masa import V2MASAAdapter
 from .tensor_builder import FeatureTensorRecord
 
+TRAINER_CUDA_MEMORY_CAP_BYTES = 12 * 1024 * 1024 * 1024
+TRAINER_CUDA_MEMORY_CAP_FRACTION = 0.75
+
 
 @dataclass(frozen=True)
 class ModelForwardResult:
@@ -85,6 +88,8 @@ class V2HybridPolicyModel:
         try:
             torch.manual_seed(self.seed)
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            if device.type == "cuda":
+                self._apply_cuda_memory_cap(torch)
 
             class _ResidualBlock(torch.nn.Module):
                 def __init__(self, hidden: int, dropout: float) -> None:
@@ -147,6 +152,19 @@ class V2HybridPolicyModel:
             self._torch = None
             self._net = None
             self._device = "cpu"
+
+    @staticmethod
+    def _apply_cuda_memory_cap(torch: Any) -> None:
+        try:
+            props = torch.cuda.get_device_properties(0)
+            total_memory = float(getattr(props, "total_memory", 0.0) or 0.0)
+            if total_memory <= 0.0:
+                return
+            fraction = min(TRAINER_CUDA_MEMORY_CAP_FRACTION, TRAINER_CUDA_MEMORY_CAP_BYTES / total_memory)
+            fraction = max(0.01, min(TRAINER_CUDA_MEMORY_CAP_FRACTION, fraction))
+            torch.cuda.set_per_process_memory_fraction(float(fraction), 0)
+        except Exception:
+            return
 
     def _make_fallback_weights(self) -> list[float]:
         rng = random.Random(self.seed)

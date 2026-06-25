@@ -123,7 +123,7 @@ class V2OnlyJsonIO:
             out[field] = value
         return out
 
-    def set_json(self, key: str, payload: Any) -> bool:
+    def set_json(self, key: str, payload: Any, *, ex: int | None = None) -> bool:
         self.audit.writes_attempted += 1
         try:
             assert_prediction_or_trainer_key(key)
@@ -137,7 +137,7 @@ class V2OnlyJsonIO:
             self.audit.errors.append(f"no_client:{key}")
             return False
         try:
-            self.client.set(key, json.dumps(payload, sort_keys=True, default=str))
+            self.client.set(key, json.dumps(payload, sort_keys=True, default=str), ex=ex)
         except Exception as exc:  # noqa: BLE001
             self.audit.writes_failed += 1
             self.audit.errors.append(f"set_failed:{key}:{type(exc).__name__}")

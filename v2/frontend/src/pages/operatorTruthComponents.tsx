@@ -1,8 +1,12 @@
-import { Panel, Metric } from './cockpitComponents';
+import { Panel, Metric, publicRuntimeText } from './cockpitComponents';
 import type { CoinankMarketIntelligencePayload, OperatorTruthPayload, OperatorTruthStatusRow, PaperOnlineRuntimePayload } from './operatorTruthData';
 import { statusClass, valueText } from './cockpitData';
 
 const MISSING = 'Evidence missing — cannot explain without guessing.';
+
+function truthText(value: unknown): string {
+  return publicRuntimeText(value);
+}
 
 function boolStatus(value: boolean): string {
   return value ? 'yes' : 'no';
@@ -58,10 +62,10 @@ function TruthStateCard({ label, value, detail, source }: { label: string; value
   const tone = truthTone(value);
   return (
     <div className={`truth-state-card truth-state-card--${tone}`}>
-      <span className="truth-state-card__label">{label}</span>
-      <strong className={statusClass(value)}>{valueText(value)}</strong>
-      <small>{detail}</small>
-      <span className="truth-source-chip">{source}</span>
+      <span className="truth-state-card__label">{truthText(label)}</span>
+      <strong className={statusClass(value)}>{truthText(value)}</strong>
+      <small>{truthText(detail)}</small>
+      <span className="truth-source-chip">{truthText(source)}</span>
     </div>
   );
 }
@@ -112,13 +116,13 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
           </p>
         </div>
         <div className="operator-command-deck__status">
-          <span className="chip solid-block">LIVE TRADING: {payload.live_gate_status}</span>
-          <span className={`chip ${truthTone(supervisorState) === 'good' ? 'solid-ok' : 'solid-warn'}`}>{supervisorState}</span>
-          <span className={`chip ${hasCurrentTrainer ? 'solid-ok' : 'solid-warn'}`}>{trainer.status}</span>
-          {legacyRestartStatus ? <span className={`chip ${truthTone(legacyRestartStatus) === 'good' ? 'solid-ok' : 'solid-warn'}`}>Legacy trainer: {legacyRestartStatus}</span> : null}
-          {liveObserverStatus ? <span className={`chip ${truthTone(liveObserverStatus) === 'good' ? 'solid-ok' : 'solid-warn'}`}>Observer: {liveObserverStatus}</span> : null}
-          {payload.canonical_truth_bridge ? <span className="chip solid-ok">{payload.canonical_truth_bridge.status}</span> : null}
-          <span className="chip solid-paper">Redis trim: {payload.redis_trim_status}</span>
+          <span className="chip solid-block">EXECUTION ROUTING: {truthText(payload.live_gate_status)}</span>
+          <span className={`chip ${truthTone(supervisorState) === 'good' ? 'solid-ok' : 'solid-warn'}`}>{truthText(supervisorState)}</span>
+          <span className={`chip ${hasCurrentTrainer ? 'solid-ok' : 'solid-warn'}`}>{truthText(trainer.status)}</span>
+          {legacyRestartStatus ? <span className={`chip ${truthTone(legacyRestartStatus) === 'good' ? 'solid-ok' : 'solid-warn'}`}>Legacy trainer: {truthText(legacyRestartStatus)}</span> : null}
+          {liveObserverStatus ? <span className={`chip ${truthTone(liveObserverStatus) === 'good' ? 'solid-ok' : 'solid-warn'}`}>Observer: {truthText(liveObserverStatus)}</span> : null}
+          {payload.canonical_truth_bridge ? <span className="chip solid-ok">{truthText(payload.canonical_truth_bridge.status)}</span> : null}
+          <span className="chip solid-paper">Redis trim: {truthText(payload.redis_trim_status)}</span>
         </div>
       </div>
       <div className="truth-command-grid">
@@ -191,7 +195,7 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
       </div>
       <div className="truth-classification-rail" aria-label="Data truth classification legend">
         {['REALTIME_RUNTIME_EVIDENCE', 'LIVE_MARKET_FEED', 'ACCOUNT_FEED', 'RUNTIME_MONITOR_PAYLOAD', 'V2_PROOF_ARTIFACT', 'ARCHIVE_ONLY_FIXTURE', 'STALE_PAYLOAD', 'MISSING_EVIDENCE'].map((label) => (
-          <span key={label} className={`truth-source-chip truth-source-chip--${truthTone(label)}`}>{label}</span>
+          <span key={label} className={`truth-source-chip truth-source-chip--${truthTone(label)}`}>{truthText(label)}</span>
         ))}
       </div>
     </section>
@@ -203,7 +207,7 @@ export function RuntimeTruthMatrix({ payload }: { payload: OperatorTruthPayload 
   const paperOnline = payload.runtime_monitor_status.paper_online_runtime_status;
   const rows = [
     ['Canonical truth source', payload.canonical_truth_bridge?.status ?? 'OPERATOR_TRUTH_PAYLOAD', payload.canonical_truth_bridge?.source ?? 'operator_truth/latest/operator_truth_payload.json'],
-    ['Control plane', controlPlaneValue(payload), payload.supervisor_status.canonical_snapshot_fresh ? 'fresh process/runtime bridge snapshot' : 'agent_supervisor/status/current_status.json'],
+    ['System status', controlPlaneValue(payload), payload.supervisor_status.canonical_snapshot_fresh ? 'fresh process/runtime bridge snapshot' : 'agent_supervisor/status/current_status.json'],
     ['Current task', payload.supervisor_status.current_running_task ?? 'NO_ACTIVE_SUPERVISOR_TASK', `last completed: ${payload.supervisor_status.last_completed_task ?? 'none'}`],
     ['Master planner', payload.supervisor_status.master_planner_running ? 'RUNNING' : 'NOT_RUNNING', 'process list + status payload'],
     ['Autonomous governor', payload.supervisor_status.autonomous_governor_active ? 'ACTIVE' : 'NOT_OBSERVED', 'process list + status payload'],
@@ -223,9 +227,9 @@ export function RuntimeTruthMatrix({ payload }: { payload: OperatorTruthPayload 
     <section className="runtime-truth-matrix" data-testid="runtime-truth-matrix" aria-label="Runtime truth matrix">
       {rows.map(([label, value, source]) => (
         <div className={`runtime-truth-cell runtime-truth-cell--${truthTone(value)}`} key={label}>
-          <span>{label}</span>
-          <strong className={statusClass(value)}>{valueText(value)}</strong>
-          <small>{source}</small>
+          <span>{truthText(label)}</span>
+          <strong className={statusClass(value)}>{truthText(value)}</strong>
+          <small>{truthText(source)}</small>
         </div>
       ))}
     </section>
@@ -414,10 +418,10 @@ function RuntimeProcessGroup({ label, status, rows, note }: { label: string; sta
   return (
     <div className={`runtime-process-group runtime-process-group--${truthTone(status)}`}>
       <div className="runtime-process-group__head">
-        <span>{label}</span>
-        <strong className={statusClass(status)}>{status}</strong>
+        <span>{truthText(label)}</span>
+        <strong className={statusClass(status)}>{truthText(status)}</strong>
       </div>
-      <p>{note}</p>
+      <p>{truthText(note)}</p>
       <details className="truth-details">
         <summary>{rows.length} runtime observed process row{rows.length === 1 ? '' : 's'}</summary>
         <div className="truth-raw-list">
@@ -435,7 +439,7 @@ export function ActualRuntimeNowPanel({ payload }: { payload: OperatorTruthPaylo
   const supervisor = payload.supervisor_status;
   const groups = [
     {
-      label: 'Control plane',
+      label: 'System status',
       status: controlPlaneValue(payload),
       rows: supervisor.supervisor_processes,
       note: `Current task: ${supervisor.current_running_task ?? 'none'}; last completed: ${supervisor.last_completed_task ?? 'none'}; next: ${payload.current_next_task ?? 'missing'}.`,
@@ -462,7 +466,7 @@ export function ActualRuntimeNowPanel({ payload }: { payload: OperatorTruthPaylo
       label: 'Trader',
       status: runtime.trader_status,
       rows: runtime.trader_processes,
-      note: 'Process observation only. No order, cancel, leverage, margin, or live action was performed by this dashboard.',
+      note: 'Process observation only. No order, cancel, leverage, margin, or exchange action was performed by this dashboard.',
     },
     {
       label: 'Trainer runtime',
@@ -496,7 +500,7 @@ export function RouteTruthSummary({ payload, title }: { payload: OperatorTruthPa
         <h2>Current evidence state</h2>
       </div>
       <div className="route-truth-summary__grid">
-        <TruthStateCard label="Control plane" value={controlPlaneValue(payload)} detail="Dashboard must disclose missing control-plane daemons and stale historical status files separately." source={payload.canonical_truth_bridge ? 'PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE' : 'RUNTIME_MONITOR_PAYLOAD'} />
+        <TruthStateCard label="System status" value={controlPlaneValue(payload)} detail="Dashboard must disclose missing system-status daemons and stale historical status files separately." source={payload.canonical_truth_bridge ? 'PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE' : 'RUNTIME_MONITOR_PAYLOAD'} />
         <TruthStateCard label="Trainer" value={payload.trainer_monitor_status.status} detail="No prediction can be explained unless runtime evidence exists." source="REALTIME_RUNTIME_EVIDENCE" />
         <TruthStateCard label="Signal lineage" value={payload.signal_lineage_status.status} detail="Static proof lineage is not current runtime truth." source={payload.signal_lineage_status.status} />
         <TruthStateCard label="Payloads" value={`${payload.dashboard_freshness_status.stale_payload_count} stale`} detail={`${payload.dashboard_freshness_status.static_fixture_count} static fixtures; ${payload.dashboard_freshness_status.missing_evidence_count} missing.`} source="PUBLIC_PAYLOAD_AUDIT" />

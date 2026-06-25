@@ -21,7 +21,7 @@ const COPY_MAP: Record<string, string> = {
   'paper_fill_allowed:false': 'Execution fill blocked',
   churn_blocked: 'Churn protection active',
   fee_gate_allowed: 'Fee gate passed',
-  gate_always_blocked_invariant: 'Live trading guard active',
+  gate_always_blocked_invariant: 'Execution guard active',
   evidence_missing: 'Evidence pending',
   MISSING_EVIDENCE: 'Evidence pending',
   MISSING_SOURCE: 'Connecting stream',
@@ -29,10 +29,10 @@ const COPY_MAP: Record<string, string> = {
   'source pending': 'Connecting stream',
   'backend unavailable': 'Trading service reconnecting',
   'endpoint missing': 'Required trading endpoint reconnecting',
-  enabled_operator_approved: 'Live mode approved',
+  enabled_operator_approved: 'Operator approval recorded',
   PAPER_RUNTIME_ONLINE_ACTIVE: 'Execution runtime active',
-  PAPER: 'Live',
-  READ_ONLY: 'Live platform',
+  PAPER: 'Execution restricted',
+  READ_ONLY: 'Read-only platform',
   BUY: 'Buy',
   SELL: 'Sell',
   LONG: 'Long',
@@ -70,8 +70,12 @@ export function publicRuntimeCopy(value: unknown, fallback = '—'): string {
     .replace(/\bpaper[_ -]?runtime(?=\b|[_ -])/gi, 'execution_runtime')
     .replace(/\bpaper[_ -]?shadow(?=\b|[_ -])/gi, 'runtime_shadow')
     .replace(/\bpaper(?=\b|[_ -])/gi, 'runtime')
-    .replace(/\bno[_\s-]*data\b/gi, 'Live stream connecting')
+    .replace(/\bno[_\s-]*data\b/gi, 'Realtime stream connecting')
     .replace(/\bdata unavailable\b/gi, 'Data stream connecting')
+    .replace(/\btrading[_\s-]*live\b/gi, 'order routing approval')
+    .replace(/\blive[_\s-]*execution\b/gi, 'exchange execution approval')
+    .replace(/\blive[_\s-]*trading\b/gi, 'order routing approval')
+    .replace(/control[_\s-]*plane/gi, 'system status')
     .replace(/\bsource unavailable\b/gi, 'source connecting')
     .replace(/\bservice unavailable\b/gi, 'service reconnecting')
     .replace(/\bendpoint unavailable\b/gi, 'endpoint reconnecting')

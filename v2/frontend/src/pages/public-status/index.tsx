@@ -6,11 +6,31 @@ interface PublicStatusData {
   runtime_state?: string;
   public_route_failed_count?: number | null;
   supervisor_health?: string;
+  status_dimensions?: TruthfulStatusDimensions;
 }
 
 interface MarketHealth {
   count?: number;
   symbols?: string[];
+}
+
+type StatusTone = 'ok' | 'warn' | 'block' | 'neutral';
+type MarketDataStatus = 'LIVE' | 'DELAYED' | 'STALE' | 'OFFLINE';
+type AutomationStatus = 'ACTIVE' | 'PAUSED' | 'DEGRADED' | 'UNKNOWN';
+type ExecutionStatus = 'RESTRICTED' | 'PAPER' | 'LIVE_APPROVED' | 'DISABLED';
+type AccountStatus = 'CONNECTED' | 'UNAVAILABLE' | 'UNAUTHORIZED';
+
+interface TruthfulStatusDimensions {
+  market_data?: MarketDataStatus;
+  automation?: AutomationStatus;
+  execution?: ExecutionStatus;
+  account?: AccountStatus;
+  live_trading_enabled?: boolean;
+  order_submission_enabled?: boolean;
+  places_real_order?: boolean;
+  exchange_mutation_enabled?: boolean;
+  source?: string;
+  updated_at?: string | null;
 }
 
 function Chip({ label, tone }: { label: string; tone: 'ok' | 'warn' | 'block' | 'neutral' }): JSX.Element {
@@ -63,6 +83,22 @@ function StatusRow({ label, value, tone, detail }: { label: string; value: strin
   );
 }
 
+function statusLabel(value: string | null | undefined): string {
+  if (!value) return 'Unavailable';
+  return value
+    .toLowerCase()
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function statusTone(label: string | null | undefined): StatusTone {
+  const status = String(label ?? '').toUpperCase();
+  if (status === 'LIVE' || status === 'ACTIVE' || status === 'CONNECTED') return 'ok';
+  if (status === 'OFFLINE' || status === 'DISABLED') return 'block';
+  if (status === 'UNAUTHORIZED' || status === 'UNAVAILABLE') return 'neutral';
+  return 'warn';
+}
+
 export default function PublicStatusPage(): JSX.Element {
   const statusResource = useRealtimeResource<PublicStatusData>({
     url: '/api/v2/public/status',
@@ -91,6 +127,12 @@ export default function PublicStatusPage(): JSX.Element {
     && marketResource.envelope.data_quality_status !== 'invalid';
   const symbolCount = marketHealth?.count ?? marketHealth?.symbols?.length ?? null;
   const apiUp = statusConnected || marketFresh;
+  const dimensions = statusData?.status_dimensions ?? {};
+  const marketDataStatus = dimensions.market_data ?? (marketFresh ? 'LIVE' : apiUp ? 'DELAYED' : 'OFFLINE');
+  const automationStatus = dimensions.automation ?? (statusConnected ? 'ACTIVE' : 'UNKNOWN');
+  const executionStatus = dimensions.execution ?? 'RESTRICTED';
+  const accountStatus = dimensions.account ?? 'UNAUTHORIZED';
+  const overallHealthy = apiUp && marketDataStatus !== 'OFFLINE';
 
   return (
     <main
@@ -121,7 +163,7 @@ export default function PublicStatusPage(): JSX.Element {
           NERVYX ONE Status
         </h1>
         <p style={{ margin: 0, fontSize: 14, color: 'var(--text-muted)' }}>
-          Public-facing platform health summary. No internal diagnostics, logs, or error details are shown here.
+          Public-facing platform health summary. No internal diagnostics or error details are shown here.
         </p>
       </div>
 
@@ -155,7 +197,7 @@ export default function PublicStatusPage(): JSX.Element {
             }}
           />
           <span style={{ fontSize: 14, fontWeight: 600, color: apiUp ? 'var(--ok)' : 'var(--error)' }}>
-            {loading ? 'Checking platform status…' : apiUp ? 'All systems operational' : 'Checking system availability'}
+            {loading ? 'Checking platform status…' : overallHealthy ? 'Platform telemetry available' : 'Checking system availability'}
           </span>
         </div>
 
@@ -177,27 +219,27 @@ export default function PublicStatusPage(): JSX.Element {
           />
           <StatusRow
             label="Market Data"
-            value={loading ? 'Checking…' : marketFresh ? 'Live' : apiUp ? 'Partial' : 'Unavailable'}
-            tone={loading ? 'neutral' : marketFresh ? 'ok' : apiUp ? 'warn' : 'warn'}
+            value={loading ? 'Checking…' : statusLabel(marketDataStatus)}
+            tone={loading ? 'neutral' : statusTone(marketDataStatus)}
             detail={symbolCount != null ? `${symbolCount} symbols in universe` : 'USD-M perpetual futures'}
           />
           <StatusRow
-            label="Signal Feed"
-            value="Live Platform"
-            tone="neutral"
-            detail="Evidence-based signal stream"
+            label="Automation"
+            value={loading ? 'Checking…' : statusLabel(automationStatus)}
+            tone={loading ? 'neutral' : statusTone(automationStatus)}
+            detail="Automated analysis state"
           />
           <StatusRow
-            label="Execution Mode"
-            value="Risk-gated"
-            tone="warn"
-            detail="Live-gate controlled execution paths"
+            label="Execution"
+            value={statusLabel(executionStatus)}
+            tone={statusTone(executionStatus)}
+            detail="Order submission disabled unless backend approval is active"
           />
           <StatusRow
-            label="Order Routing"
-            value="Guarded"
-            tone="warn"
-            detail="Live-gate controls are enforced before any routed action"
+            label="Account"
+            value={statusLabel(accountStatus)}
+            tone={statusTone(accountStatus)}
+            detail="Sign-in required for account-specific status"
           />
           <StatusRow
             label="Data Freshness"
@@ -280,7 +322,7 @@ export default function PublicStatusPage(): JSX.Element {
 
         {/* Footer note */}
         <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
-          Status updates from live resource streams. No internal IDs, logs, or diagnostics are exposed on this public page.
+          Status updates from live resource streams. No internal IDs or diagnostics are exposed on this public page.
           For platform sign-in, visit <a href="/login" style={{ color: 'var(--accent)' }}>/login</a>.
         </p>
       </div>

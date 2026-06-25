@@ -312,7 +312,7 @@ export default function DashboardPage(): JSX.Element {
           <KPICard
             label="Today PnL"
             value={portfolioLoading ? '…' : pnlToday != null ? fmtMoney(pnlToday) : '—'}
-            meta={unrealizedPnl != null ? `Unrealized: ${fmtMoney(unrealizedPnl)}` : 'Live platform'}
+            meta={unrealizedPnl != null ? `Unrealized: ${fmtMoney(unrealizedPnl)}` : 'Realtime account feed'}
             valueColor={pnlToday != null ? pnlColor(pnlToday) : undefined}
             link="/portfolio"
           />
@@ -535,7 +535,7 @@ export default function DashboardPage(): JSX.Element {
                   ['30D PnL', formatAdaptiveMoney(thirtyDay?.realized_pnl_usd)],
                   ['Capital Productivity', capitalStatus?.status ?? '—'],
                   ['Open Positions', portfolioLoading ? '…' : String(openPositions.length)],
-                  ['Mode', portfolio?.account_mode ?? 'Live platform'],
+                  ['Mode', portfolio?.account_mode ?? 'Execution restricted'],
                 ].map(([k, v]) => (
                   <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12 }}>
                     <span style={{ color: 'var(--text-muted)' }}>{k}</span>

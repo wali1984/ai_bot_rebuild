@@ -1,4 +1,6 @@
 [Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
 Description=AI BOT V2 legacy log intelligence observer (read-only)
 After=ai-bot-v2-production-equivalence-comparator.service
 

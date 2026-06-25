@@ -1,9 +1,12 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
+import { useTraderSnapshot } from '../../hooks/useTraderSnapshot';
 import { FreshnessBadge } from '../../components/data/FreshnessBadge';
 import { SourceBadge } from '../../components/data/SourceBadge';
+import { CanonicalMetricCard } from '../../components/data/CanonicalMetric';
 import { LoadingSkeleton } from '../../components/ui/LoadingSkeleton';
 import { AdaptiveCapitalTelemetryPanel } from '../../components/trading/AdaptiveCapitalTelemetryPanel';
+import { selectActiveSignal, selectSignalMetric } from '../../selectors/signalSelectors';
 import {
   publicRuntimeId,
   publicRuntimeLabel,
@@ -808,6 +811,7 @@ export default function SignalsPage(): JSX.Element {
   const [showAllSymbols, setShowAllSymbols] = useState(false);
   const [symbolSearch, setSymbolSearch] = useState('');
   const [routeFilter, setRouteFilter] = useState<'all' | 'ready' | 'live' | 'blocked'>('all');
+  const traderSnapshot = useTraderSnapshot();
   const adaptiveCapital = useAdaptiveCapitalDashboard(30_000);
   const currentLineage = useCurrentRuntimeLineage(10_000);
 
@@ -885,6 +889,8 @@ export default function SignalsPage(): JSX.Element {
   const totalAccuracyCells = accuracyStatus?.symbol_timeframe_cell_count
     ?? accuracyStatus?.required_symbol_timeframe_cell_count;
   const missingAccuracyCells = missingAccuracyCellCount(accuracyStatus);
+  const canonicalSignal = selectActiveSignal(traderSnapshot);
+  const signalMetric = (fieldId: string) => selectSignalMetric(traderSnapshot, canonicalSignal ?? {}, fieldId);
 
   return (
     <div data-testid="page-signals" data-page-id={meta.id} data-page-path={route.path} data-page-min-role={rbac.minRole}
@@ -926,6 +932,11 @@ export default function SignalsPage(): JSX.Element {
               <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--font-mono)', color: k.color }}>{k.value}</span>
             </div>
           ))}
+        </div>
+
+        <div className="trader-metric-grid" style={{ marginBottom: 12 }}>
+          <CanonicalMetricCard label="Active Signal ID" metric={signalMetric('signal.id')} />
+          <CanonicalMetricCard label="Signal Confidence" metric={signalMetric('signal.confidence')} />
         </div>
 
         {/* Route filter */}

@@ -1,4 +1,6 @@
 [Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
 Description=AI BOT V2 production replacement runtime guard
 After=ai-bot-v2-trade-management-paper-loop.service
 

@@ -45,10 +45,18 @@ export interface TradePosition {
   quantity?: number;
   notional?: number;
   entry_price?: number;
+  entry_price_source?: string;
+  mark_price?: number;
   current_price?: number;
+  mark_price_source?: string;
+  mark_price_age_seconds?: number;
+  mark_price_stale?: boolean;
   unrealized_pnl?: number;
   unrealized_pnl_pct?: number;
   opened_utc?: string;
+  signal_id?: string;
+  prediction_id?: string;
+  decision_reasoning?: Record<string, unknown>;
 }
 
 function uniqueSymbols(values: Array<string | undefined>): string[] {
@@ -98,8 +106,13 @@ function paperActivityTradePositions(value: unknown): TradePosition[] {
     side: typeof row.side === 'string' ? row.side : undefined,
     quantity: finite(row.net_quantity) ?? finite(row.quantity) ?? undefined,
     notional: finite(row.notional_usd) ?? finite(row.notional) ?? undefined,
-    entry_price: finite(row.avg_entry_price) ?? finite(row.entry_price) ?? undefined,
-    current_price: finite(row.last_mark_price) ?? finite(row.current_price) ?? undefined,
+    entry_price: positiveFinite(row.avg_entry_price) ?? positiveFinite(row.entry_price) ?? undefined,
+    entry_price_source: typeof row.entry_price_source === 'string' ? row.entry_price_source : undefined,
+    mark_price: positiveFinite(row.mark_price) ?? positiveFinite(row.last_mark_price) ?? positiveFinite(row.current_price) ?? undefined,
+    current_price: positiveFinite(row.mark_price) ?? positiveFinite(row.last_mark_price) ?? positiveFinite(row.current_price) ?? undefined,
+    mark_price_source: typeof row.mark_price_source === 'string' ? row.mark_price_source : undefined,
+    mark_price_age_seconds: finite(row.mark_price_age_seconds) ?? undefined,
+    mark_price_stale: row.mark_price_stale === true,
     unrealized_pnl: finite(row.unrealized_pnl) ?? undefined,
     unrealized_pnl_pct: finite(row.unrealized_pnl_pct) ?? (
       finite(row.unrealized_pnl_bps) !== null ? (finite(row.unrealized_pnl_bps) as number) / 10000 : undefined
@@ -109,6 +122,11 @@ function paperActivityTradePositions(value: unknown): TradePosition[] {
       : typeof row.opened_est === 'string'
         ? row.opened_est
         : undefined,
+    signal_id: typeof row.signal_id === 'string' ? row.signal_id : undefined,
+    prediction_id: typeof row.prediction_id === 'string' ? row.prediction_id : undefined,
+    decision_reasoning: row.decision_reasoning && typeof row.decision_reasoning === 'object'
+      ? row.decision_reasoning as Record<string, unknown>
+      : undefined,
   }));
 }
 
@@ -118,6 +136,11 @@ function scopeToken(value: unknown): string | null {
 
 function symbolToken(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim().toUpperCase() : null;
+}
+
+function positiveFinite(value: unknown): number | null {
+  const n = finite(value);
+  return n !== null && n > 0 ? n : null;
 }
 
 function rowMatchesSymbol(row: Record<string, unknown>, symbol: string): boolean {
@@ -703,9 +726,9 @@ export function useTradeTerminal() {
       ageSeconds: null,
     },
     mode: {
-      label: 'Live Trading',
-      liveGate: 'Live platform',
-      traderState: 'Live Trading',
+      label: 'Execution Restricted',
+      liveGate: 'Operator gated',
+      traderState: 'Realtime Trading Workspace',
     },
     market: {
       lastPrice,

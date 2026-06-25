@@ -296,16 +296,16 @@ export default function MarketBrainPage(): JSX.Element {
           <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>{meta.description}</div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <span style={S.badge('#6ee7b7')}>LIVE PLATFORM</span>
-          <span style={S.badge('#ef4444')}>LIVE BLOCKED</span>
-          <span style={S.badge('#60a5fa')}>NO REAL ORDERS</span>
+          <span style={S.badge('#6ee7b7')}>MARKET DATA LIVE</span>
+          <span style={S.badge('#ef4444')}>EXECUTION RESTRICTED</span>
+          <span style={S.badge('#60a5fa')}>ORDER SUBMISSION DISABLED</span>
           {ov && <span style={S.badge('#9ca3af')}>Updated {ageSecs(ov.generated_utc)}</span>}
         </div>
       </div>
 
       {/* Safety Banner */}
       <div style={S.safetyBanner}>
-        Platform status: live trading intelligence and risk-governed execution workflows. HedgeLock requires explicit operator approval.
+        Platform status: realtime market intelligence and risk-governed execution workflows. HedgeLock requires explicit operator approval.
       </div>
 
       {/* Overview Metrics */}

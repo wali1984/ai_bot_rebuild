@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -172,28 +173,56 @@ def check_gates() -> list[dict]:
         {"symbol_count": symbol_count},
     ))
 
-    # --- G08: Accounting reconciliation <= $0.01 ------------------------
-    portfolio = rget("v2:portfolio:state") or {}
-    if closed_trades and portfolio:
-        trade_sum = sum(float(t.get("realized_pnl_usd") or 0) for t in closed_trades)
-        ledger = float(portfolio.get("closed_ledger_net_pnl_usd") or portfolio.get("total_realized_pnl_usd") or 0)
-        diff = abs(trade_sum - ledger)
-        # Threshold: $0.02 absolute. A running counter accumulates float drift;
-        # portfolio reports portfolio_realized_matches_closed_ledger=True so the
-        # system's own accounting is consistent. 0.018% relative error over 1549
-        # trades is acceptable for a paper simulation counter.
+    # --- G08: Accounting reconciliation <= $0.02 ------------------------
+    # Retry up to 3 times with 2s delay: the paper loop updates closed_trades
+    # and portfolio:state in separate writes; a trade closing mid-read creates a
+    # transient gap of ~1 trade PnL. After the loop settles, diff returns to ~$0.
+    _g08_portfolio = rget("v2:portfolio:state") or {}
+    _g08_trades = closed_trades  # already loaded above
+    _g08_retries = 0
+    while True:
+        if _g08_trades and _g08_portfolio:
+            _g08_sum = sum(float(t.get("realized_pnl_usd") or 0) for t in _g08_trades)
+            _g08_ledger = float(
+                _g08_portfolio.get("closed_ledger_net_pnl_usd")
+                or _g08_portfolio.get("total_realized_pnl_usd")
+                or 0
+            )
+            _g08_diff = abs(_g08_sum - _g08_ledger)
+        else:
+            _g08_sum = 0.0
+            _g08_ledger = 0.0
+            _g08_diff = 9999.0
+        if _g08_diff <= 0.02 or _g08_retries >= 3:
+            break
+        time.sleep(2)
+        _g08_retries += 1
+        _g08_portfolio = rget("v2:portfolio:state") or {}
+        raw2 = _r.get("v2:paper:closed_trades") if REDIS_OK and _r else None
+        try:
+            _g08_trades = json.loads(raw2) if raw2 else []
+        except Exception:
+            _g08_trades = []
+
+    portfolio = _g08_portfolio  # re-expose for G14/G15 which use this variable
+    if _g08_trades and _g08_portfolio:
         results.append(gate(
             "G08", "Accounting reconciliation difference <= $0.02",
-            diff <= 0.02,
-            f"|trade_sum={trade_sum:.4f} - ledger={ledger:.4f}| = {diff:.6f} USD",
-            {"trade_sum_usd": trade_sum, "ledger_net_usd": ledger, "difference_usd": diff, "threshold_usd": 0.02},
+            _g08_diff <= 0.02,
+            f"|trade_sum={_g08_sum:.4f} - ledger={_g08_ledger:.4f}| = {_g08_diff:.6f} USD"
+            + (f" (after {_g08_retries} retries)" if _g08_retries else ""),
+            {
+                "trade_sum_usd": _g08_sum, "ledger_net_usd": _g08_ledger,
+                "difference_usd": _g08_diff, "threshold_usd": 0.02,
+                "retries": _g08_retries,
+            },
         ))
     else:
         results.append(gate(
             "G08", "Accounting reconciliation difference <= $0.02",
             False,
             "Cannot compute: closed_trades or portfolio state unavailable in Redis",
-            {"redis_ok": REDIS_OK, "trade_count": total_count, "portfolio_present": bool(portfolio)},
+            {"redis_ok": REDIS_OK, "trade_count": total_count, "portfolio_present": bool(_g08_portfolio)},
         ))
 
     # --- G09: No unexplained feedback quarantine ------------------------

@@ -1,7 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
 import { gotoAs } from './_shared';
+import { mockAuth } from './helpers/auth';
 
 const MISSION_CONTROL_PATH = '/admin/mission-control';
+const QUEUE_STATUS_PATH = '/api/v1/_meta/queue-status';
 
 const NOW_ISO = new Date().toISOString();
 
@@ -159,6 +161,20 @@ async function mockSupervisorEndpoints(
   page: Page,
   queue: typeof ALERT_QUEUE_PAYLOAD,
 ): Promise<void> {
+  await page.routeWebSocket((url) => url.searchParams.get('path') === QUEUE_STATUS_PATH, async (ws) => {
+    ws.send(JSON.stringify({
+      data: queue,
+      source: QUEUE_STATUS_PATH,
+      source_type: 'websocket',
+      endpoint: QUEUE_STATUS_PATH,
+      resource_path: QUEUE_STATUS_PATH,
+      mode: 'read_only',
+      transport: 'websocket',
+      missing_fields: [],
+      warnings: [],
+      errors: [],
+    }));
+  });
   // Keep the existing live-block banner mock honest: route any banner fetch
   // to a "blocked" payload so the layout assertion in nav_smoke does not
   // regress through this spec.
@@ -202,7 +218,8 @@ async function mockSupervisorEndpoints(
 test.describe('stale_state_alerts', () => {
   test('surfaces all five alert categories with task ids', async ({ page }) => {
     await mockSupervisorEndpoints(page, ALERT_QUEUE_PAYLOAD);
-    await gotoAs(page, MISSION_CONTROL_PATH, 'admin');
+    await mockAuth(page, 'admin');
+    await gotoAs(page, MISSION_CONTROL_PATH);
 
     const panel = page.getByTestId('stale-state-alerts-panel');
     await expect(panel).toBeVisible();
@@ -256,7 +273,8 @@ test.describe('stale_state_alerts', () => {
 
   test('renders empty-state for each category when feed is clean', async ({ page }) => {
     await mockSupervisorEndpoints(page, CLEAN_QUEUE_PAYLOAD);
-    await gotoAs(page, MISSION_CONTROL_PATH, 'admin');
+    await mockAuth(page, 'admin');
+    await gotoAs(page, MISSION_CONTROL_PATH);
 
     const panel = page.getByTestId('stale-state-alerts-panel');
     await expect(panel).toHaveAttribute('data-state', 'ok');

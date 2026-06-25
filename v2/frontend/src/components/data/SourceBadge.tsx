@@ -52,11 +52,12 @@ export function SourceBadge({ sourceType, source, endpoint, compact = false }: P
       style={{
         display: 'inline-flex',
         alignItems: 'center',
+        minWidth: 0,
         gap: compact ? 3 : 5,
         fontSize: compact ? '10px' : '11px',
         fontWeight: 500,
         color: 'var(--text-secondary)',
-        whiteSpace: 'nowrap',
+        whiteSpace: 'normal',
       }}
     >
       <span
@@ -76,9 +77,12 @@ export function SourceBadge({ sourceType, source, endpoint, compact = false }: P
       {!compact && (
         <span
           style={{
-            maxWidth: 120,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
+            maxWidth: 260,
+            minWidth: 0,
+            overflow: 'visible',
+            overflowWrap: 'anywhere',
+            textOverflow: 'clip',
+            wordBreak: 'break-word',
           }}
         >
           {safeSource}

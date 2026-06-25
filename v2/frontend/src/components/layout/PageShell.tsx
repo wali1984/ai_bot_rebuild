@@ -34,7 +34,7 @@ const ROUTE_PROFILES: Record<string, { source: string; status: string; next: str
   },
   executions: {
     source: 'V2_PROOF_ARTIFACT / execution ledger',
-    status: 'live execution workflow',
+    status: 'operator-gated execution workflow',
     next: 'Wire current execution ledger and execution_intent_id evidence.',
     data: ['execution_intent_id', 'risk_decision_id', 'execution fill state', 'PnL', 'operator gate reason'],
   },

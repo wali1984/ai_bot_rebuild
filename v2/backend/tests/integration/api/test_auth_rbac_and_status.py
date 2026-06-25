@@ -2807,6 +2807,7 @@ def test_public_status_exposes_no_forbidden_internal_fields(tmp_path: Path, monk
         "data_status",
         "paper_mode",
         "live_trading_enabled",
+        "status_dimensions",
         "market_stream",
         "market_stream_alert",
         "market_stream_alert_history",
@@ -2820,6 +2821,13 @@ def test_public_status_exposes_no_forbidden_internal_fields(tmp_path: Path, monk
         "warnings",
     }
     assert payload["live_trading_enabled"] is False
+    assert payload["status_dimensions"]["market_data"] in {"LIVE", "DELAYED", "STALE", "OFFLINE"}
+    assert payload["status_dimensions"]["automation"] in {"ACTIVE", "PAUSED", "DEGRADED", "UNKNOWN"}
+    assert payload["status_dimensions"]["execution"] == "RESTRICTED"
+    assert payload["status_dimensions"]["account"] == "UNAUTHORIZED"
+    assert payload["status_dimensions"]["places_real_order"] is False
+    assert payload["status_dimensions"]["order_submission_enabled"] is False
+    assert payload["status_dimensions"]["exchange_mutation_enabled"] is False
     assert payload["market_stream"]["symbol"] == "BTCUSDT"
     assert set(payload["market_stream"]) == {
         "symbol",

@@ -263,7 +263,7 @@ function PortfolioPlatformPanel({
   truthPayload: OperatorTruthPayload | null;
 }): JSX.Element {
   return (
-    <Panel id="platform-portfolio-positions" title="Execution / Portfolio" right={<span className="chip solid-paper">Live platform</span>}>
+    <Panel id="platform-portfolio-positions" title="Execution / Portfolio" right={<span className="chip solid-paper">Execution restricted</span>}>
       <div className="cockpit-analytics-grid">
         <Metric label="Account equity" value={paperRuntime?.paper_account?.equity ?? MISSING} />
         <Metric label="Realized PnL" value={paperRuntime?.paper_account?.realized_pnl ?? MISSING} />

@@ -193,7 +193,7 @@ function ConnDot({ connected, label }: { connected: boolean; label: string }): J
 function LiveBadge(): JSX.Element {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 999, fontSize: 10, fontWeight: 700, background: 'color-mix(in oklch, var(--sell, #ef5350) 12%, transparent)', border: '1px solid color-mix(in oklch, var(--sell, #ef5350) 35%, transparent)', color: 'var(--sell, #ef5350)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-      ✕ Live Trading Blocked
+      ✕ Execution Blocked
     </span>
   );
 }

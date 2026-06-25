@@ -1,4 +1,6 @@
 [Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
 Description=AI BOT V2 production payload freshness refresher (paper-only)
 After=ai-bot-v2-trade-management-paper-loop.service
 

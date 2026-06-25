@@ -58,6 +58,32 @@ WORKLOG_STATUS_FILE = (
     / "v2_risk_gateway_runtime_worker_status.json"
 )
 
+_TRUST_ENVELOPE_FIELDS = (
+    "signal_id",
+    "decision_id",
+    "orchestrator_decision_id",
+    "feature_snapshot_id",
+    "mtf_snapshot_id",
+    "feature_cutoff",
+    "decision_time",
+    "available_at",
+    "symbol",
+    "timeframe",
+    "selected_action",
+    "model_version",
+    "checkpoint_id",
+    "source_hashes",
+    "feature_vector_hash",
+    "input_feature_hash",
+    "all_tf_candle_timestamps",
+    "all_source_event_times",
+    "source_candle_timestamps",
+    "replay_snapshot_id",
+    "replay_snapshot_key",
+    "replay_snapshot_write_success",
+    "trust_gate_result",
+)
+
 
 def _utc_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
@@ -136,6 +162,44 @@ def _read_json_key(client, key: str) -> dict[str, Any] | None:
     return payload if isinstance(payload, dict) else None
 
 
+def _copy_trust_envelope_fields(source: dict[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for field in _TRUST_ENVELOPE_FIELDS:
+        value = source.get(field)
+        if value in (None, ""):
+            continue
+        if isinstance(value, dict):
+            out[field] = dict(value)
+        elif isinstance(value, list):
+            out[field] = list(value)
+        else:
+            out[field] = value
+    source_hashes = source.get("source_hashes")
+    if isinstance(source_hashes, dict) and source_hashes:
+        out["source_hashes"] = dict(source_hashes)
+    return out
+
+
+def _enrich_risk_payload(
+    *,
+    risk_record: Any,
+    decision: OrchestratorDecisionRecord,
+    winner: dict[str, Any],
+) -> dict[str, Any]:
+    payload = asdict(risk_record)
+    payload.update(_copy_trust_envelope_fields(winner))
+    payload["prediction_id"] = decision.prediction_id
+    payload["feature_snapshot_id"] = decision.feature_snapshot_id
+    payload["symbol"] = decision.symbol
+    payload["decision_id"] = winner.get("decision_id") or decision.decision_id
+    payload["orchestrator_decision_id"] = (
+        winner.get("orchestrator_decision_id") or decision.decision_id
+    )
+    payload["selected_action"] = winner.get("selected_action") or winner.get("side")
+    payload["model_version"] = winner.get("model_version") or winner.get("winner_model_version")
+    return payload
+
+
 def _winner_to_decision(winner: dict[str, Any], *, now_ms: int) -> OrchestratorDecisionRecord:
     symbol = str(winner.get("symbol") or "").upper()
     prediction_id = str(winner.get("winner_proposal_id") or f"missing_prediction_{symbol}")
@@ -188,6 +252,7 @@ def _status_from_records(
     decisions_payload: dict[str, Any] | None,
     decision_records: list[OrchestratorDecisionRecord],
     risk_records: list[Any],
+    risk_payloads: list[dict[str, Any]] | None,
     keys_written: list[str],
     redis_ok: bool,
     live_context: dict[str, Any],
@@ -212,7 +277,7 @@ def _status_from_records(
         "orchestrator_winners_seen": len((decisions_payload or {}).get("bucket_winners") or []),
         "decisions_processed_total": len(risk_records),
         "denials_breakdown": denials,
-        "risk_decisions": [asdict(rec) for rec in risk_records],
+        "risk_decisions": risk_payloads if risk_payloads is not None else [asdict(rec) for rec in risk_records],
         "v2_risk_keys_written": keys_written,
         "v2_risk_keys_written_count": len(keys_written),
         "redis_ok": redis_ok,
@@ -235,6 +300,7 @@ def _status_from_records(
         "approves_canary": False,
         "approves_legacy_shutdown": False,
     }
+    latest_payload = risk_payloads[-1] if risk_payloads else None
     if latest is not None and latest_decision is not None:
         status.update({
             "last_decision_id": latest_decision.decision_id,
@@ -253,6 +319,10 @@ def _status_from_records(
             "input_prediction_freshness_flag": latest_decision.input_prediction_freshness_flag,
             "input_worker_health_status": latest_decision.input_worker_health_status,
         })
+        if latest_payload:
+            for field in _TRUST_ENVELOPE_FIELDS:
+                if field in latest_payload:
+                    status[field] = latest_payload[field]
     return status
 
 
@@ -274,6 +344,7 @@ def run_once(*, ttl_seconds: int = 300) -> dict[str, Any]:
     now = _now_ms()
     decisions: list[OrchestratorDecisionRecord] = []
     risks: list[Any] = []
+    risk_payloads: list[dict[str, Any]] = []
     for winner in winners:
         if not isinstance(winner, dict):
             continue
@@ -297,12 +368,18 @@ def run_once(*, ttl_seconds: int = 300) -> dict[str, Any]:
             continue
         decisions.append(decision)
         risks.append(risk)
+        risk_payloads.append(
+            _enrich_risk_payload(
+                risk_record=risk,
+                decision=decision,
+                winner=winner,
+            )
+        )
     keys_written: list[str] = []
     if client is not None:
-        risk_payload = [asdict(rec) for rec in risks]
         for key, body in (
-            (f"{V2_REDIS_PREFIX}risk:gateway:decisions", risk_payload),
-            (f"{V2_REDIS_PREFIX}risk:gateway:latest", asdict(risks[-1]) if risks else {}),
+            (f"{V2_REDIS_PREFIX}risk:gateway:decisions", risk_payloads),
+            (f"{V2_REDIS_PREFIX}risk:gateway:latest", risk_payloads[-1] if risk_payloads else {}),
         ):
             if _safe_set_v2(client, key, body, ex=ttl_seconds):
                 keys_written.append(key)
@@ -311,6 +388,7 @@ def run_once(*, ttl_seconds: int = 300) -> dict[str, Any]:
         decisions_payload=payload,
         decision_records=decisions,
         risk_records=risks,
+        risk_payloads=risk_payloads,
         keys_written=keys_written,
         redis_ok=client is not None,
         live_context=live_context,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import hashlib
 from typing import Any
 
@@ -41,6 +42,26 @@ def _allocation_id(row: AllocationInput, mode: str) -> str:
         ]
     )
     return "alloc_" + hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
+
+
+def _paper_economic_edge_after_cost_bps(row: AllocationInput, *, mode: str) -> float:
+    """Return positive economic edge for paper sizing without changing live behavior."""
+    if mode != "paper":
+        return max(0.0, float(row.expected_move_after_cost_bps or 0.0))
+    action = str(row.action or "").strip().lower()
+    signed_edge = float(row.expected_move_after_cost_bps or 0.0)
+    if action == "short":
+        return max(0.0, -signed_edge)
+    if action == "long":
+        return max(0.0, signed_edge)
+    return 0.0
+
+
+def _paper_sizing_row(row: AllocationInput, *, mode: str) -> AllocationInput:
+    edge = _paper_economic_edge_after_cost_bps(row, mode=mode)
+    if mode != "paper" or edge == row.expected_move_after_cost_bps:
+        return row
+    return replace(row, expected_move_after_cost_bps=edge)
 
 
 def _adaptive_hedge_budget_selection(row: AllocationInput, envelope: RiskEnvelope) -> tuple[float, dict[str, float | str]]:
@@ -276,6 +297,7 @@ def _block(row: AllocationInput, *, mode: str, decision: str, reason: str, envel
         row,
         mode=mode,
         envelope=envelope,
+        sizing_row=_paper_sizing_row(row, mode=mode),
         decision=decision,
         target_notional=0.0,
         target_quantity=0.0,
@@ -303,6 +325,7 @@ def _result(
     *,
     mode: str,
     envelope: RiskEnvelope,
+    sizing_row: AllocationInput | None = None,
     decision: str,
     target_notional: float,
     target_quantity: float,
@@ -318,8 +341,9 @@ def _result(
     margin_mode: str | None = None,
     margin_mode_selection: dict[str, Any] | None = None,
 ) -> AllocationResult:
+    sizing_row = sizing_row or row
     available_margin = row.available_margin if row.available_margin > 0 else 1.0
-    hedge_budget_pct, hedge_selection = _adaptive_hedge_budget_selection(row, envelope)
+    hedge_budget_pct, hedge_selection = _adaptive_hedge_budget_selection(sizing_row, envelope)
     model_inputs: dict[str, Any] = {
         "mode": mode,
         "price": row.price,
@@ -341,6 +365,15 @@ def _result(
         "total_exposure_usdt": row.total_exposure_usdt,
         "correlation_exposure_pct": row.correlation_exposure_pct,
         "regime_score": row.regime_score,
+        "signed_expected_move_after_cost_bps": row.expected_move_after_cost_bps,
+        "allocator_economic_edge_after_cost_bps": _paper_economic_edge_after_cost_bps(
+            row,
+            mode=mode,
+        ),
+        "allocator_edge_sign_convention": (
+            "paper_short_negative_signed_move_is_positive_economic_edge"
+            if mode == "paper" else "live_existing_positive_edge_semantics"
+        ),
         "min_qty": row.min_qty,
         "step_size": row.step_size,
         "min_notional": row.min_notional,
@@ -369,7 +402,7 @@ def _result(
     expected_fees_usd = gross_notional * fee_bps / 10000.0
     expected_slippage_usd = gross_notional * slippage_bps / 10000.0
     expected_funding_usd = gross_notional * funding_bps / 10000.0
-    expected_net_pnl_usd = gross_notional * row.expected_move_after_cost_bps / 10000.0
+    expected_net_pnl_usd = gross_notional * sizing_row.expected_move_after_cost_bps / 10000.0
     expected_shortfall_usd = risk_budget_usd * max(0.0, envelope.tail_loss_multiplier)
     hedge_budget_usd = risk_budget_usd * hedge_budget_pct
     return AllocationResult(
@@ -402,13 +435,13 @@ def _result(
         confidence_calibrated=row.confidence_calibrated,
         expected_move_after_cost_bps=row.expected_move_after_cost_bps,
         market_state_integrity_score=row.market_state_integrity_score,
-        volatility_adjustment=round(volatility_adjustment(row), 8),
-        liquidity_adjustment=round(liquidity_adjustment(row), 8),
-        spread_slippage_adjustment=round(spread_slippage_adjustment(row), 8),
-        drawdown_adjustment=round(drawdown_adjustment(row, envelope), 8),
-        exposure_adjustment=round(exposure_adjustment(row, envelope), 8),
-        correlation_adjustment=round(correlation_adjustment(row, envelope), 8),
-        regime_adjustment=round(regime_adjustment(row), 8),
+        volatility_adjustment=round(volatility_adjustment(sizing_row), 8),
+        liquidity_adjustment=round(liquidity_adjustment(sizing_row), 8),
+        spread_slippage_adjustment=round(spread_slippage_adjustment(sizing_row), 8),
+        drawdown_adjustment=round(drawdown_adjustment(sizing_row, envelope), 8),
+        exposure_adjustment=round(exposure_adjustment(sizing_row, envelope), 8),
+        correlation_adjustment=round(correlation_adjustment(sizing_row, envelope), 8),
+        regime_adjustment=round(regime_adjustment(sizing_row), 8),
         exchange_min_order_adjustment=round(min_order_notional(min_qty=row.min_qty, min_notional=row.min_notional, price=row.price), 8),
         final_size_reason=final_size_reason,
         risk_veto_reason_if_blocked=risk_veto_reason,
@@ -489,17 +522,19 @@ def _select_margin_configuration(
 
 
 def _allocate(row: AllocationInput, *, mode: str, envelope: RiskEnvelope) -> AllocationResult:
+    sizing_row = _paper_sizing_row(row, mode=mode)
+    economic_edge_bps = sizing_row.expected_move_after_cost_bps
     if row.risk_veto:
         return _block(row, mode=mode, decision="BLOCK_EXPOSURE_BUDGET", reason=row.risk_veto_reason or "risk_envelope_veto", envelope=envelope)
     if row.market_state_integrity_score < 70.0:
         return _block(row, mode=mode, decision="BLOCK_BAD_MARKET_STATE", reason="market_state_integrity_score_below_minimum", envelope=envelope)
     if row.confidence_calibrated < 0.50:
         return _block(row, mode=mode, decision="BLOCK_LOW_CONFIDENCE", reason="confidence_below_adaptive_minimum", envelope=envelope)
-    if row.expected_move_after_cost_bps <= 0.0:
+    if economic_edge_bps <= 0.0:
         return _block(row, mode=mode, decision="BLOCK_NO_EDGE", reason="expected_move_after_cost_not_positive", envelope=envelope)
     if row.liquidity_score <= 0.05:
         return _block(row, mode=mode, decision="BLOCK_INSUFFICIENT_LIQUIDITY", reason="liquidity_score_too_low", envelope=envelope)
-    if row.spread_bps + row.slippage_bps >= max(1.0, row.expected_move_after_cost_bps):
+    if row.spread_bps + row.slippage_bps >= max(1.0, economic_edge_bps):
         return _block(row, mode=mode, decision="BLOCK_SPREAD_SLIPPAGE", reason="spread_plus_slippage_exceeds_expected_edge", envelope=envelope)
     if row.drawdown_bps >= envelope.max_daily_drawdown_pct * 10000.0:
         return _block(row, mode=mode, decision="BLOCK_DRAWDOWN_GUARD", reason="drawdown_guard_breached", envelope=envelope)
@@ -510,7 +545,7 @@ def _allocate(row: AllocationInput, *, mode: str, envelope: RiskEnvelope) -> All
     if ceiling <= 0:
         return _block(row, mode=mode, decision="BLOCK_EXPOSURE_BUDGET", reason="risk_envelope_budget_exhausted", envelope=envelope)
 
-    budget_pct = adaptive_budget_pct(row, envelope)
+    budget_pct = adaptive_budget_pct(sizing_row, envelope)
     risk_budget_usd = row.equity * budget_pct
     stop_distance_bps = _stop_distance_bps(row)
     if risk_budget_usd <= 0:
@@ -522,9 +557,9 @@ def _allocate(row: AllocationInput, *, mode: str, envelope: RiskEnvelope) -> All
             target_notional = min_notional
         else:
             return _block(row, mode=mode, decision="BLOCK_EXCHANGE_MIN_ORDER", reason="adaptive_size_below_exchange_min_order", envelope=envelope)
-    target_leverage, leverage_selection = _adaptive_leverage_target_selection(row, envelope, mode=mode)
+    target_leverage, leverage_selection = _adaptive_leverage_target_selection(sizing_row, envelope, mode=mode)
     margin_config = _select_margin_configuration(
-        row,
+        sizing_row,
         gross_notional=target_notional,
         stop_distance_bps=stop_distance_bps,
         envelope=envelope,
@@ -552,6 +587,7 @@ def _allocate(row: AllocationInput, *, mode: str, envelope: RiskEnvelope) -> All
         row,
         mode=mode,
         envelope=envelope,
+        sizing_row=sizing_row,
         decision=decision,
         target_notional=adjusted_notional,
         target_quantity=quantity,

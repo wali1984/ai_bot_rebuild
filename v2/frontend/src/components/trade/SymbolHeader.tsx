@@ -53,14 +53,14 @@ export function SymbolHeader({ state }: { state: TradeTerminalState }): JSX.Elem
         </div>
         <div>
           <h1>{state.symbol} Perpetual</h1>
-          <p>Professional live trading terminal · {state.trader.accountLabel}</p>
+          <p>Professional realtime trading terminal · {state.trader.accountLabel}</p>
         </div>
       </div>
 
       <div className="trade-symbol-header__badges">
         <ModeBadge />
         <span className="trade-mode-badge" title={state.trader.credentialStatus}>{state.trader.accountBindingStatus}</span>
-        <StatusPill tone="ok">{tradeCopy(state.mode.liveGate, 'Live platform')}</StatusPill>
+        <StatusPill tone="ok">{tradeCopy(state.mode.liveGate, 'Execution restricted')}</StatusPill>
         <DataFreshnessBadge generatedAt={state.account.generatedAt ?? undefined} source="Trade data" />
       </div>
 

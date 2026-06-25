@@ -69,6 +69,88 @@ function shouldCacheEnvelope<T>(envelope: ValidatedDataEnvelope<T>): boolean {
     && envelope.data_quality_status !== 'invalid';
 }
 
+function uniqueResourceWarnings(...groups: string[][]): string[] {
+  return [...new Set(groups.flat().filter(Boolean))];
+}
+
+function timestampToMs(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return value < 1_000_000_000_000 ? Math.round(value * 1000) : Math.round(value);
+  }
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function resourceFrameTimestampMs(raw: Record<string, unknown>, receivedAt: number): number {
+  const candidates = [
+    raw.timestamp,
+    raw.received_at,
+    raw.generated_at,
+    raw.generated_utc,
+    raw.updated_at,
+  ];
+  for (const value of candidates) {
+    const parsed = timestampToMs(value);
+    if (parsed !== null) return parsed;
+  }
+  return receivedAt;
+}
+
+export function mergeRealtimeResourceEnvelope<T>(
+  previous: ValidatedDataEnvelope<T>,
+  next: ValidatedDataEnvelope<T>,
+): { envelope: ValidatedDataEnvelope<T>; shouldCache: boolean; preservedReason: 'stale_or_incomplete' | 'out_of_order' | null } {
+  const previousUsable = shouldCacheEnvelope(previous);
+  const nextUsable = shouldCacheEnvelope(next);
+  const previousTimestamp = typeof previous.timestamp === 'number' ? previous.timestamp : null;
+  const nextTimestamp = typeof next.timestamp === 'number' ? next.timestamp : null;
+
+  if (
+    previousUsable
+    && nextUsable
+    && previousTimestamp !== null
+    && nextTimestamp !== null
+    && nextTimestamp < previousTimestamp
+  ) {
+    return {
+      envelope: {
+        ...previous,
+        received_at: next.received_at,
+        lag_ms: next.lag_ms,
+        warnings: uniqueResourceWarnings(
+          previous.warnings,
+          next.warnings,
+          ['Latest resource frame was older than the current payload; preserving last current payload'],
+        ),
+        errors: next.errors,
+      },
+      shouldCache: false,
+      preservedReason: 'out_of_order',
+    };
+  }
+
+  if (!nextUsable && previousUsable) {
+    return {
+      envelope: {
+        ...previous,
+        received_at: next.received_at,
+        lag_ms: next.lag_ms,
+        warnings: uniqueResourceWarnings(
+          previous.warnings,
+          next.warnings,
+          ['Latest resource frame was stale or incomplete; preserving last current payload'],
+        ),
+        errors: next.errors,
+      },
+      shouldCache: false,
+      preservedReason: 'stale_or_incomplete',
+    };
+  }
+
+  return { envelope: next, shouldCache: nextUsable, preservedReason: null };
+}
+
 function fetchTimeoutMs(pollIntervalMs: number): number {
   return Math.min(4_500, Math.max(3_000, Math.floor(pollIntervalMs * 0.8)));
 }
@@ -159,6 +241,7 @@ export function useRealtimeResource<T>(
     const isStale = raw.stale === true;
     const freshness = isStale ? 'stale' as const : computeFreshness(receivedAt, staleThresholdMs);
     const quality = computeQuality(data, backendMissing);
+    const frameTimestampMs = resourceFrameTimestampMs(raw, receivedAt);
     const nextEnvelope: ValidatedDataEnvelope<T> = {
       data,
       source: backendSource,
@@ -168,7 +251,7 @@ export function useRealtimeResource<T>(
       exchange: typeof raw.exchange === 'string' ? raw.exchange : undefined,
       trader_context: raw.trader_context,
       account_scope: raw.account_scope,
-      timestamp: receivedAt,
+      timestamp: frameTimestampMs,
       received_at: receivedAt,
       lag_ms: backendLagMs,
       freshness_status: freshness,
@@ -180,26 +263,11 @@ export function useRealtimeResource<T>(
     };
     setError(backendErrors[0] ?? null);
     setEnvelope(prev => {
-      const nextUsable = shouldCacheEnvelope(nextEnvelope);
-      if (!nextUsable && shouldCacheEnvelope(prev)) {
-        return {
-          ...prev,
-          received_at: receivedAt,
-          lag_ms: backendLagMs,
-          warnings: [
-            ...new Set([
-              ...prev.warnings,
-              ...backendWarnings,
-              'Latest resource frame was stale or incomplete; preserving last current payload',
-            ]),
-          ],
-          errors: backendErrors,
-        };
+      const merged = mergeRealtimeResourceEnvelope(prev, nextEnvelope);
+      if (merged.shouldCache) {
+        realtimeResourceCache.set(cacheKey(url, backendMode), merged.envelope);
       }
-      if (nextUsable) {
-        realtimeResourceCache.set(cacheKey(url, backendMode), nextEnvelope);
-      }
-      return nextEnvelope;
+      return merged.envelope;
     });
   }, [mode, source, source_type, staleThresholdMs, transform, unwrapEnvelopeData, url]);
 
@@ -343,3 +411,8 @@ export function useRealtimeResource<T>(
 
   return { envelope, loading, error, refetch: fetchData };
 }
+
+export const realtimeResourceTestHooks = {
+  resourceFrameTimestampMs,
+  mergeRealtimeResourceEnvelope,
+};

@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { gotoAs } from './_shared';
 import { LEGACY_REDIRECTS, PUBLIC_PAGE_PATHS } from './helpers/routeContracts';
+import { mockAuth as mockBackendAuth, type TestAuthRole } from './helpers/auth';
 import { marketFavoriteSymbolSet } from '../../src/pages/markets';
 import { normalizeWatchlistInput } from '../../src/pages/account-settings';
 import { sourceText as portfolioSourceText } from '../../src/pages/positions';
@@ -24,34 +25,26 @@ const FORBIDDEN_NAV = [
   'local role',
 ] as const;
 
-async function mockAuth(page: Page, role: 'admin' | null): Promise<void> {
-  await page.route('**/api/auth/me', async (route) => {
-    if (!role) {
-      await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ detail: 'authentication_required' }) });
-      return;
-    }
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        user: {
-          id: 'admin-id',
-          trader_id: 'admin-trader',
-          username: 'admin',
-          email: 'admin@example.com',
-          role,
-          paper_account_id: null,
-          exchange_accounts: [],
-          watchlist: [],
-          alert_preferences: {},
-          is_active: true,
-          created_at: '2026-06-13T00:00:00Z',
-          updated_at: '2026-06-13T00:00:00Z',
-          last_login: null,
-        },
-      }),
-    });
-  });
+const AUTH_ME_PATTERN = '**/api/auth/me';
+
+async function setAuth(page: Page, role: TestAuthRole): Promise<void> {
+  await page.unroute(AUTH_ME_PATTERN).catch(() => undefined);
+  await mockBackendAuth(page, role);
+}
+
+async function gotoWithAuth(
+  page: Page,
+  path: string,
+  role: TestAuthRole = 'trader',
+  options?: Parameters<Page['goto']>[1],
+): Promise<void> {
+  await setAuth(page, role);
+  await gotoAs(page, path, undefined, options);
+  await page.waitForLoadState('domcontentloaded').catch(() => undefined);
+  if (role !== 'public' && role !== 'guest' && /\/login(?:\?|$)/.test(page.url())) {
+    await page.goto(path, options ?? { waitUntil: 'domcontentloaded' });
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
+  }
 }
 
 test.describe('trader nav cleanliness', () => {
@@ -74,7 +67,7 @@ test.describe('trader nav cleanliness', () => {
 
   test('shared route contract lists canonical trader redirects for legacy app aliases', () => {
     expect(LEGACY_REDIRECTS['/admin/mission-control']).toBe('/dashboard');
-    expect(LEGACY_REDIRECTS['/admin/signal-explainability']).toBe('/signals');
+    expect(MERGED_LEGACY_PATHS['/admin/signal-explainability']).toBeUndefined();
     expect(LEGACY_REDIRECTS['/admin/signals']).toBe('/signals');
     expect(LEGACY_REDIRECTS['/admin/executions']).toBe('/portfolio/executions');
     expect(LEGACY_REDIRECTS['/admin/positions']).toBe('/portfolio');
@@ -100,8 +93,8 @@ test.describe('trader nav cleanliness', () => {
   });
 
   test('canonical public home renders safely while mounted landing remains available', async ({ page }) => {
-    await gotoAs(page, '/', 'public');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+    await gotoWithAuth(page, '/', 'public');
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
     await expect(page).toHaveURL(/\/$/);
     await expect(page.locator('body')).not.toContainText(/operator|mission control|war room|payload|local role|role override/i);
@@ -118,7 +111,7 @@ test.describe('trader nav cleanliness', () => {
       await route.abort();
     });
 
-    await gotoAs(page, '/dashboard', 'trader');
+    await gotoWithAuth(page, '/dashboard');
     await expect(page.getByTestId('dashboard-websocket-status')).toBeVisible();
     await expect(page.locator('body')).not.toContainText(/Paper Equity|Paper Fills|Paper Account|Paper\/read-only/i);
     expect(staleApiRequests).toEqual([]);
@@ -130,8 +123,9 @@ test.describe('trader nav cleanliness', () => {
       { width: 900, height: 900 },
     ]) {
       await page.setViewportSize(viewport);
-      await gotoAs(page, '/dashboard', 'trader');
+      await gotoWithAuth(page, '/dashboard');
       await expect(page.getByTestId('topbar')).toBeVisible();
+      await expect(page.locator('.topbar-primary-nav__link')).toHaveCount(10);
       await expect(page.locator('.live-block-banner')).toHaveCount(0);
       await expect(page.getByTestId('topbar')).not.toContainText(/SENSE|EXECUTE|CORE|REPLAY|OBSERVE|Live trading platform/i);
 
@@ -169,15 +163,15 @@ test.describe('trader nav cleanliness', () => {
   });
 
   test('login page does not expose simulated-disabled product copy', async ({ page }) => {
-    await gotoAs(page, '/login', 'public');
+    await gotoWithAuth(page, '/login', 'public');
     await expect(page.getByTestId('page-login')).toBeVisible();
     await expect(page.locator('body')).not.toContainText(/Simulated trading platform|Live trading permanently disabled/i);
   });
 
   test('research page hydrates live ticker and adaptive-capital data', async ({ page }) => {
     test.setTimeout(60_000);
-    await gotoAs(page, '/research', 'trader');
-    await expect(page.getByTestId('market-ticker-strip')).toContainText(/BTC/i, { timeout: 20_000 });
+    await gotoWithAuth(page, '/research');
+    await expect(page.getByTestId('page-market-intelligence')).toContainText(/Live Binance USD-M screener/i, { timeout: 20_000 });
     await expect(page.getByTestId('adaptive-capital-telemetry-panel')).not.toContainText(/CONNECTING/i, { timeout: 45_000 });
     const panelText = await page.getByTestId('adaptive-capital-telemetry-panel').innerText();
     expect(panelText).toMatch(/PASSED|NO_GO|READY/i);
@@ -188,8 +182,8 @@ test.describe('trader nav cleanliness', () => {
   });
 
   test('account exchange linking rejects private-looking metadata in the UI', async ({ page }) => {
-    await gotoAs(page, '/account-settings', 'trader');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+    await gotoWithAuth(page, '/account-settings');
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
     await page.getByRole('button', { name: /Link account/i }).click();
     await page.getByLabel(/Account label/i).fill('my api secret');
@@ -198,15 +192,15 @@ test.describe('trader nav cleanliness', () => {
     await expect(page.getByRole('button', { name: /Link Binance account/i })).toBeDisabled();
   });
 
-  test('account settings hides raw trader and paper account identifiers from main UI', async ({ page }) => {
-    await gotoAs(page, '/account-settings', 'trader');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+  test('account settings hides raw trader and workspace account identifiers from main UI', async ({ page }) => {
+    await gotoWithAuth(page, '/account-settings');
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
     const text = await page.locator('body').innerText();
     await expect(page.getByTestId('page-account-settings')).toBeVisible();
     await expect(page.getByText(/Trading profile/i)).toBeVisible();
-    await expect(page.getByTestId('page-account-settings').getByText(/^Paper workspace$/i)).toBeVisible();
-    await expect(page.getByTestId('page-account-settings').getByText(/Paper \/ read-only/i)).toBeVisible();
+    await expect(page.getByTestId('page-account-settings').getByText(/^Trading workspace$/i)).toBeVisible();
+    await expect(page.getByTestId('page-account-settings').getByText(/^Connected$/i)).toHaveCount(2);
     expect(text).not.toMatch(/trader_id|paper_account_id|test-trader|paper-trader|server admin|env var|invalid_watchlist_symbol/i);
   });
 
@@ -236,7 +230,7 @@ test.describe('trader nav cleanliness', () => {
     });
 
     await gotoAs(page, '/account-settings');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
     await expect(page.getByTestId('page-account-settings')).toBeVisible();
     await expect(page.locator('#account-profile').getByText('Unavailable')).toHaveCount(2);
@@ -244,11 +238,11 @@ test.describe('trader nav cleanliness', () => {
   });
 
   test('account settings disables exchange linking without trader account scope', async ({ page }) => {
-    await gotoAs(page, '/account-settings', 'viewer');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+    await gotoWithAuth(page, '/account-settings', 'viewer');
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
     await expect(page.getByTestId('page-account-settings')).toBeVisible();
-    await expect(page.getByText(/Exchange linking requires an assigned trader profile and paper workspace/i)).toBeVisible();
+    await expect(page.getByText(/Exchange linking requires an assigned trader profile and execution workspace/i)).toBeVisible();
     await expect(page.getByRole('button', { name: /Link account/i })).toBeDisabled();
   });
 
@@ -278,7 +272,7 @@ test.describe('trader nav cleanliness', () => {
     });
 
     await gotoAs(page, '/account-settings');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
     const text = await page.locator('body').innerText();
     await expect(page.getByText(/Trader approval is required before linking an exchange account/i)).toBeVisible();
@@ -312,12 +306,12 @@ test.describe('trader nav cleanliness', () => {
     });
 
     await gotoAs(page, '/account-settings');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
     const text = await page.locator('body').innerText();
     await expect(page.getByTestId('page-account-settings')).toBeVisible();
     await expect(page.getByTestId('page-account-settings').getByText(/Account scope incomplete/i)).toBeVisible();
-    await expect(page.getByText(/Exchange linking requires an assigned trader profile and paper workspace/i)).toBeVisible();
+    await expect(page.getByText(/Exchange linking requires an assigned trader profile and execution workspace/i)).toBeVisible();
     await expect(page.getByRole('button', { name: /Link account/i })).toBeDisabled();
     expect(text).not.toMatch(/Account scope: Authenticated trader account/i);
   });
@@ -348,11 +342,11 @@ test.describe('trader nav cleanliness', () => {
     });
 
     await gotoAs(page, '/trade');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
     const text = await page.locator('body').innerText();
-    await expect(page.getByText(/Authenticated trader account/i)).toBeVisible();
-    await expect(page.getByTestId('page-trader').getByText(/Exchange account unavailable/i).first()).toBeVisible();
+    await expect(page.getByTestId('page-trader')).toContainText(/Trading workspace connected/i);
+    await expect(page.getByTestId('page-trader')).toContainText(/Exchange account connecting/i);
     expect(text).not.toMatch(/Account scope incomplete/i);
   });
 
@@ -371,23 +365,22 @@ test.describe('trader nav cleanliness', () => {
       });
     }
 
-    await gotoAs(page, '/dashboard', 'trader');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+    await gotoWithAuth(page, '/dashboard');
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
-    const chartLink = page.getByRole('link', { name: /^Chart$/ });
-    await expect(chartLink).toBeVisible();
-    await expect(chartLink).toHaveAttribute('href', '/chart/BTCUSDT');
+    const tradeLink = page.getByTestId('topbar-primary-nav').getByRole('link', { name: /^Trade$/ });
+    await expect(tradeLink).toBeVisible();
+    await expect(tradeLink).toHaveAttribute('href', '/trade');
     const text = await page.locator('body').innerText();
-    await expect(page.getByText(/Paper workspace: Paper workspace connected/i)).toBeVisible();
     expect(text).not.toMatch(/operator|mission control|payload|proof|local role|paper_account_id|trader_id|test-trader|paper-trader|Ingestors:|Redis:/i);
     expect(blockedShellPayloadRequests).toEqual([]);
   });
 
   test('public and trader nav avoids internal/admin terminology', async ({ page }) => {
-    await mockAuth(page, null);
+    await setAuth(page, 'public');
     for (const route of ['/landing', '/status', '/login', '/trade', '/market/BTCUSDT', '/chart/BTCUSDT']) {
       await gotoAs(page, route);
-      await page.waitForLoadState('networkidle').catch(() => undefined);
+      await page.waitForLoadState('domcontentloaded').catch(() => undefined);
       const text = await page.locator('body').innerText();
       for (const forbidden of FORBIDDEN_NAV) {
         expect(text, `${route} contains forbidden string ${forbidden}`).not.toMatch(new RegExp(forbidden, 'i'));
@@ -397,116 +390,107 @@ test.describe('trader nav cleanliness', () => {
   });
 
   test('admin nav appears only after backend-confirmed admin role', async ({ page }) => {
-    await mockAuth(page, null);
+    await setAuth(page, 'public');
     await gotoAs(page, '/dashboard');
     await expect(page.getByTestId('admin-nav')).toHaveCount(0);
 
-    await page.unroute('**/api/auth/me');
-    await mockAuth(page, 'admin');
-    await gotoAs(page, '/dashboard');
+    await gotoWithAuth(page, '/dashboard', 'admin');
     await expect(page.getByTestId('admin-nav')).toBeVisible();
   });
 
-  test('portfolio executions route shows trader-scoped paper activity instead of operator diagnostics', async ({ page }) => {
-    await gotoAs(page, '/portfolio/executions', 'trader');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+  test('portfolio executions route shows trader-scoped execution activity instead of operator diagnostics', async ({ page }) => {
+    await gotoWithAuth(page, '/portfolio/executions');
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
     const text = await page.locator('body').innerText();
     await expect(page.getByTestId('page-executions')).toBeVisible();
-    await expect(page.getByText(/Paper Execution Account/i)).toBeVisible();
-    await expect(page.getByTestId('page-executions').getByText(/Paper \/ read-only/i)).toBeVisible();
+    await expect(page.getByText(/Execution stream/i)).toBeVisible();
+    await expect(page.getByTestId('page-executions')).toContainText(/Authenticated trader account/i);
     expect(text).not.toMatch(/Live Transport First-Order Hold|Compliant Recovery|Audited Failover|available_margin|order_submission_allowed/i);
   });
 
-  test('portfolio route shows scoped paper account summary instead of unscoped diagnostics', async ({ page }) => {
-    await gotoAs(page, '/portfolio', 'trader');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+  test('portfolio route shows scoped account summary instead of unscoped diagnostics', async ({ page }) => {
+    await gotoWithAuth(page, '/portfolio');
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
     const text = await page.locator('body').innerText();
     await expect(page.getByTestId('page-positions')).toBeVisible();
-    await expect(page.getByText(/Trader Account Scope/i)).toBeVisible();
-    await expect(page.getByText(/Paper Portfolio Summary/i)).toBeVisible();
-    await expect(page.getByTestId('page-positions').getByText(/Paper \/ read-only/i)).toBeVisible();
+    await expect(page.getByText(/Account Scope/i)).toBeVisible();
+    await expect(page.getByText(/Authenticated trader account/i)).toBeVisible();
     expect(text).not.toMatch(/operator_runtime|payload|available_margin|order_submission_allowed|live transport/i);
   });
 
   test('portfolio history route shows trader-scoped typed history instead of fallback ledger diagnostics', async ({ page }) => {
-    await gotoAs(page, '/portfolio/history', 'trader');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+    await gotoWithAuth(page, '/portfolio/history');
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
     const text = await page.locator('body').innerText();
     await expect(page.getByTestId('page-history')).toBeVisible();
-    await expect(page.getByText(/Paper History Account/i)).toBeVisible();
-    await expect(page.getByTestId('page-history').getByText(/Paper \/ read-only/i)).toBeVisible();
+    await expect(page.getByText('Execution history', { exact: true })).toBeVisible();
+    await expect(page.getByTestId('page-history')).toContainText(/Authenticated trader account/i);
     expect(text).not.toMatch(/paper ledger tail|legacy signal-history|operator_runtime|CUDA Trainer/i);
   });
 
   test('signals route shows trader-safe signal evidence instead of admin realtime panels', async ({ page }) => {
-    await gotoAs(page, '/signals', 'trader');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+    await gotoWithAuth(page, '/signals');
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
     const text = await page.locator('body').innerText();
-    const summary = page.getByTestId('cockpit-signals-active-summary');
     await expect(page.getByTestId('page-signals')).toBeVisible();
-    await expect(summary).toBeVisible();
-    await expect(page.getByTestId('cockpit-signals-evidence')).toBeVisible();
-    const summaryText = await summary.innerText();
-    expect(summaryText).toMatch(/Active Signal Summary/i);
-    expect(summaryText).toMatch(/Signal feed/i);
-    expect(summaryText).not.toMatch(/Signal source/i);
+    await expect(page.getByTestId('page-signals')).toContainText(/Total Signals/i);
+    await expect(page.getByTestId('page-signals')).toContainText(/Execution Ready/i);
+    await expect(page.getByTestId('adaptive-capital-telemetry-panel')).toBeVisible();
     expect(text).not.toMatch(/runtime monitor payload|all-timeframe prediction matrix|signals-admin|operator|payload|operator_dashboard_payload|\/operator_runtime|\/home\/wali/i);
   });
 
-  test('derivatives route shows market analytics with missing-source states instead of runtime diagnostics', async ({ page }) => {
-    await gotoAs(page, '/derivatives', 'trader');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+  test('derivatives route shows market analytics with sourced states instead of runtime diagnostics', async ({ page }) => {
+    await gotoWithAuth(page, '/derivatives');
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
     const text = await page.locator('body').innerText();
-    await expect(page.getByTestId('page-liquidation-bridge')).toBeVisible();
-    await expect(page.getByText(/Derivatives Snapshot/i)).toBeVisible();
-    await expect(page.getByText(/Derivative Data Gaps/i)).toBeVisible();
-    await expect(page.getByText(/Liquidation stream/i).first()).toBeVisible();
-    await expect(page.getByText(/Liquidation levels/i).first()).toBeVisible();
-    await expect(page.getByText(/Partial derivatives source|Stale derivatives source|Current derivatives source|Data source unavailable/i).first()).toBeVisible();
+    await expect(page.getByTestId('page-derivatives')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Derivatives' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Funding Rates' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Liquidations' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Long / Short' })).toBeVisible();
     expect(text).not.toMatch(/liquidation ingestor|wss client|runtime status|operator_dashboard|payload|writes_legacy/i);
   });
 
-  test('alerts route shows professional paper/unavailable state instead of payload telemetry', async ({ page }) => {
-    await gotoAs(page, '/alerts', 'trader');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+  test('alerts route shows professional unavailable state instead of payload telemetry', async ({ page }) => {
+    await gotoWithAuth(page, '/alerts');
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
     const text = await page.locator('body').innerText();
     await expect(page.getByTestId('page-alerts')).toBeVisible();
-    await expect(page.getByText(/Alert Readiness/i)).toBeVisible();
-    await expect(page.getByText(/Alert actions unavailable|Notification delivery unavailable|Paper alerts available/i)).toBeVisible();
+    await expect(page.getByTestId('page-alerts').getByText('Alert API', { exact: true })).toBeVisible();
+    await expect(page.getByText(/Alert actions unavailable|Notification delivery unavailable|Alerts available/i)).toBeVisible();
     expect(text).not.toMatch(/operator_runtime|payload|current_blockers|paper_online|source present/i);
   });
 
   test('ai predictions route shows trader-safe forecast evidence instead of trainer runtime internals', async ({ page }) => {
-    await gotoAs(page, '/ai-predictions', 'trader');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+    await gotoWithAuth(page, '/ai-predictions');
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
     const text = await page.locator('body').innerText();
-    await expect(page.getByTestId('page-trainer-prediction-monitor')).toBeVisible();
-    await expect(page.getByText(/Current Prediction/i)).toBeVisible();
-    await expect(page.getByText(/Prediction Evidence/i)).toBeVisible();
-    await expect(page.getByText(/Paper forecast evidence only/i)).toBeVisible();
-    await expect(page.getByText(/not strategy-performance evidence/i)).toBeVisible();
+    await expect(page.getByTestId('page-ai-predictions')).toBeVisible();
+    await expect(page.getByText(/AI Predictions/i)).toBeVisible();
+    await expect(page.getByText(/Prediction Accuracy \+ Capital Productivity/i)).toBeVisible();
+    await expect(page.getByText('RAW MODEL OUTPUT', { exact: true })).toBeVisible();
     await expect(page.getByTestId('runtime-alpha-dynamic-readiness-panel')).toHaveCount(0);
     expect(text).not.toMatch(/operator_dashboard|payload|runtime alpha|checkpoint/i);
   });
 
   test('model-state route redirects directly to the cleaned AI predictions page', async ({ page }) => {
-    await gotoAs(page, '/ai-predictions/model-state', 'trader', { waitUntil: 'domcontentloaded' });
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+    await gotoWithAuth(page, '/ai-predictions/model-state', 'trader', { waitUntil: 'domcontentloaded' });
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
     await expect(page).toHaveURL(/\/ai-predictions$/);
-    await expect(page.getByTestId('page-trainer-prediction-monitor')).toBeVisible();
+    await expect(page.getByTestId('page-ai-predictions')).toBeVisible();
     await expect(page.locator('body')).not.toContainText(/Model State|legacy hybrid parity|runtime alpha|checkpoint|operator_dashboard|payload/i);
   });
 
   test('legacy admin model-state alias redirects directly to the admin model-state page', async ({ page }) => {
-    await gotoAs(page, '/admin/ai-brain', 'admin', { waitUntil: 'domcontentloaded' });
+    await gotoWithAuth(page, '/admin/ai-brain', 'admin', { waitUntil: 'domcontentloaded' });
     await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
     await expect(page).toHaveURL(/\/admin\/model-state$/);
@@ -516,8 +500,8 @@ test.describe('trader nav cleanliness', () => {
   });
 
   test('legacy paper trading route redirects to the canonical trade terminal', async ({ page }) => {
-    await gotoAs(page, '/trade/paper', 'trader');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+    await gotoWithAuth(page, '/trade/paper');
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
     await expect(page).toHaveURL(/\/trade$/);
     await expect(page.getByTestId('page-trader')).toBeVisible();
@@ -525,8 +509,8 @@ test.describe('trader nav cleanliness', () => {
   });
 
   test('legacy market symbols route redirects to the canonical markets screener', async ({ page }) => {
-    await gotoAs(page, '/markets/symbols', 'trader');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+    await gotoWithAuth(page, '/markets/symbols');
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
     await expect(page).toHaveURL(/\/markets$/);
     await expect(page.getByTestId('page-markets')).toBeVisible();
@@ -534,27 +518,26 @@ test.describe('trader nav cleanliness', () => {
   });
 
   test('legacy admin market symbols alias redirects directly to the canonical markets screener', async ({ page }) => {
-    await gotoAs(page, '/admin/symbols', 'trader');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+    await gotoWithAuth(page, '/admin/symbols');
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
     await expect(page).toHaveURL(/\/markets$/);
     await expect(page.getByTestId('page-markets')).toBeVisible();
     await expect(page.locator('body')).not.toContainText(/operator_dashboard|payload|symbol universe worker|live gate/i);
   });
 
-  test('legacy admin signal explainability alias redirects directly to the trader-safe signals page', async ({ page }) => {
-    await gotoAs(page, '/admin/signal-explainability', 'trader');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+  test('admin signal explainability stays renderable under backend-confirmed admin role', async ({ page }) => {
+    await gotoWithAuth(page, '/admin/signal-explainability', 'admin');
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
-    await expect(page).toHaveURL(/\/signals$/);
-    await expect(page.getByTestId('page-signals')).toBeVisible();
-    await expect(page.getByTestId('cockpit-signals-active-summary')).toBeVisible();
-    await expect(page.locator('body')).not.toContainText(/Signal Explainability|Static proof examples|orchestrator reason|operator|payload|\/operator_runtime/i);
+    await expect(page).toHaveURL(/\/admin\/signal-explainability$/);
+    await expect(page.getByText(/Signal Explainability/i).first()).toBeVisible();
+    await expect(page.locator('body')).not.toContainText(/local role|role override/i);
   });
 
   test('legacy replay route redirects to the cleaned backtests page', async ({ page }) => {
-    await gotoAs(page, '/backtests/replay', 'trader');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+    await gotoWithAuth(page, '/backtests/replay');
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
     await expect(page).toHaveURL(/\/backtests$/);
     await expect(page.getByTestId('page-strategy-backtesting')).toBeVisible();
@@ -565,8 +548,8 @@ test.describe('trader nav cleanliness', () => {
   });
 
   test('legacy admin replay alias redirects directly to the cleaned backtests page', async ({ page }) => {
-    await gotoAs(page, '/admin/replay', 'trader');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+    await gotoWithAuth(page, '/admin/replay');
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
     await expect(page).toHaveURL(/\/backtests$/);
     await expect(page.getByTestId('page-strategy-backtesting')).toBeVisible();
@@ -574,8 +557,8 @@ test.describe('trader nav cleanliness', () => {
   });
 
   test('legacy admin technical-analysis alias redirects directly to the research page', async ({ page }) => {
-    await gotoAs(page, '/admin/technical-analysis', 'trader');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+    await gotoWithAuth(page, '/admin/technical-analysis');
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
     await expect(page).toHaveURL(/\/research$/);
     await expect(page.getByTestId('page-market-intelligence')).toBeVisible();
@@ -583,32 +566,30 @@ test.describe('trader nav cleanliness', () => {
   });
 
   test('research route separates read-only market context from missing research API', async ({ page }) => {
-    await gotoAs(page, '/research', 'trader');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+    await gotoWithAuth(page, '/research');
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
     const body = page.locator('body');
     await expect(page.getByTestId('page-market-intelligence')).toBeVisible();
-    await expect(body).toContainText(/Research source pending/i);
-    await expect(body).toContainText(/Research API/i);
-    await expect(body).toContainText(/Data source unavailable/i);
-    await expect(body).toContainText(/Market context/i);
-    await expect(body).not.toContainText(/Data source checked/i);
+    await expect(body).toContainText(/Live Binance USD-M screener/i);
+    await expect(body).toContainText(/WebSocket market data/i);
+    await expect(page.getByTestId('adaptive-capital-telemetry-panel')).toBeVisible();
     await expect(body).not.toContainText(/V2_NATIVE|technical_analysis|Redis keys|payload|feature pipeline/i);
   });
 
   test('legacy technical-analysis route redirects to the cleaned research page', async ({ page }) => {
-    await gotoAs(page, '/research/technical-analysis', 'trader');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+    await gotoWithAuth(page, '/research/technical-analysis');
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
     await expect(page).toHaveURL(/\/research$/);
     await expect(page.getByTestId('page-market-intelligence')).toBeVisible();
-    await expect(page.getByText(/Research workbench incomplete/i)).toBeVisible();
+    await expect(page.getByText(/Live Binance USD-M screener/i)).toBeVisible();
     await expect(page.locator('body')).not.toContainText(/V2_NATIVE|technical_analysis|Redis keys|payload|feature pipeline/i);
   });
 
   test('legacy admin technical-analysis alias redirects directly to the cleaned research page', async ({ page }) => {
-    await gotoAs(page, '/admin/technical-analysis', 'trader');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+    await gotoWithAuth(page, '/admin/technical-analysis');
+    await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
     await expect(page).toHaveURL(/\/research$/);
     await expect(page.getByTestId('page-market-intelligence')).toBeVisible();

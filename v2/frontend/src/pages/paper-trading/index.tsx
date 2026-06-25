@@ -28,6 +28,8 @@ interface PaperPosition {
   side: string;
   net_quantity: number | null;
   avg_entry_price: number | null;
+  entry_price_source?: string | null;
+  mark_price?: number | null;
   last_mark_price: number | null;
   notional_usd: number | null;
   leverage: number;
@@ -35,6 +37,7 @@ interface PaperPosition {
   unrealized_pnl_bps: number | null;
   mark_price_age_seconds?: number | null;
   mark_price_source?: string | null;
+  mark_price_stale?: boolean | null;
   timeframe: string | null;
   strategy_id: string | null;
   market_regime_at_entry: string | null;
@@ -43,6 +46,9 @@ interface PaperPosition {
   paper_fill_allowed: boolean | null;
   places_real_order: boolean | null;
   hedge_state: string | null;
+  signal_id?: string | null;
+  prediction_id?: string | null;
+  decision_reasoning?: Record<string, unknown> | null;
 }
 
 interface ClosedTrade {
@@ -50,7 +56,9 @@ interface ClosedTrade {
   symbol: string;
   side: string;
   entry_price: number | null;
+  entry_price_source?: string | null;
   exit_price: number | null;
+  exit_price_source?: string | null;
   realized_pnl_usd: number | null;
   realized_pnl_bps: number | null;
   close_reason: string | null;
@@ -61,6 +69,9 @@ interface ClosedTrade {
   market_regime_at_entry: string | null;
   timeframe: string | null;
   exit_price_utc: string | null;
+  signal_id?: string | null;
+  prediction_id?: string | null;
+  decision_reasoning?: Record<string, unknown> | null;
 }
 
 interface EquityPoint { t: string | null; pnl: number; winner: boolean | null }
@@ -114,7 +125,7 @@ const fmt = {
     return '$' + v.toFixed(2);
   },
   price: (v: number | null | undefined) => {
-    if (v == null || !Number.isFinite(v)) return '—';
+    if (v == null || !Number.isFinite(v) || v <= 0) return '—';
     return v >= 100 ? '$' + v.toFixed(2) : v >= 1 ? '$' + v.toFixed(4) : '$' + v.toFixed(6);
   },
   bps: (v: number | null | undefined) => {
@@ -145,9 +156,116 @@ const fmt = {
   },
 };
 
+function runtimeText(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) return '—';
+  return value
+    .replace(/paper fill/gi, 'execution decision')
+    .replace(/paper/gi, 'runtime')
+    .replace(/_/g, ' ')
+    .trim();
+}
+
+function decisionBasis(row: { decision_reasoning?: Record<string, unknown> | null; signal_id?: string | null; prediction_id?: string | null; close_reason?: string | null }): { primary: string; secondary: string } {
+  const reasoning = row.decision_reasoning && typeof row.decision_reasoning === 'object' ? row.decision_reasoning : null;
+  const primary = runtimeText(reasoning?.reason ?? reasoning?.risk_state ?? row.close_reason ?? '—');
+  const signal = runtimeText(reasoning?.signal_id ?? row.signal_id);
+  const prediction = runtimeText(reasoning?.prediction_id ?? row.prediction_id);
+  return {
+    primary,
+    secondary: signal !== '—' ? `Signal ${signal}` : prediction !== '—' ? `Prediction ${prediction}` : 'Evidence unavailable',
+  };
+}
+
 function pnlColor(v: number | null | undefined): string {
   if (v == null) return 'var(--text-muted)';
   return v >= 0 ? 'var(--buy, #22c55e)' : 'var(--sell, #ef4444)';
+}
+
+function EvidenceMetric({
+  label,
+  value,
+  color,
+  title,
+}: {
+  label: string;
+  value: string;
+  color?: string;
+  title?: string;
+}) {
+  return (
+    <div style={{
+      minWidth: 0,
+      background: 'color-mix(in oklch, var(--bg-elevated) 78%, transparent)',
+      border: '1px solid color-mix(in oklch, var(--border) 76%, transparent)',
+      borderRadius: 6,
+      padding: '8px 10px',
+    }}>
+      <div style={{
+        marginBottom: 3,
+        color: 'var(--text-muted)',
+        fontSize: 10,
+        letterSpacing: '0.05em',
+        textTransform: 'uppercase',
+      }}>
+        {label}
+      </div>
+      <div
+        title={title}
+        style={{
+          color: color ?? 'var(--text-primary)',
+          fontSize: 13,
+          fontWeight: 700,
+          fontFamily: 'var(--font-mono)',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function DecisionBasisPanel({
+  row,
+}: {
+  row: {
+    decision_reasoning?: Record<string, unknown> | null;
+    signal_id?: string | null;
+    prediction_id?: string | null;
+    close_reason?: string | null;
+  };
+}) {
+  const basis = decisionBasis(row);
+  const reasoning = row.decision_reasoning && typeof row.decision_reasoning === 'object' ? row.decision_reasoning : null;
+  const confidence = typeof reasoning?.confidence === 'number' ? `${Math.round(reasoning.confidence * 100)}%` : '—';
+  return (
+    <div style={{
+      display: 'grid',
+      gap: 8,
+      borderTop: '1px solid var(--border)',
+      paddingTop: 10,
+      marginTop: 10,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <span style={{ color: 'var(--text-muted)', fontSize: 10, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+          AI Basis
+        </span>
+        <span style={{ color: 'var(--text-muted)', fontSize: 10, fontFamily: 'var(--font-mono)' }}>
+          {basis.secondary}
+        </span>
+      </div>
+      <div style={{ color: 'var(--text-primary)', fontSize: 12, lineHeight: 1.45 }}>
+        {basis.primary}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+        <EvidenceMetric label="Action" value={runtimeText(reasoning?.action)} />
+        <EvidenceMetric label="Confidence" value={confidence} />
+        <EvidenceMetric label="Source" value={runtimeText(reasoning?.source)} />
+      </div>
+    </div>
+  );
 }
 
 // ── Side Badge ───────────────────────────────────────────────────────────────
@@ -352,7 +470,7 @@ function KpiStrip({
   );
 }
 
-// ── Positions Table ───────────────────────────────────────────────────────────
+// ── Position Cards ────────────────────────────────────────────────────────────
 
 function PositionsTab({ positions }: { positions: PaperPosition[] }) {
   const [sortKey, setSortKey] = useState<'symbol' | 'notional' | 'pnl' | 'age'>('notional');
@@ -427,71 +545,57 @@ function PositionsTab({ positions }: { positions: PaperPosition[] }) {
         </span>
       </div>
 
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, fontFamily: 'var(--font-mono)' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid var(--border)' }}>
-              {(['Symbol', 'Side', 'Trade Size', 'Leverage', 'TF', 'Entry', 'Mark', 'Net PnL', 'PnL bps', 'Strategy', 'Regime', 'Age'] as const).map(h => (
-                <th key={h} style={{
-                  padding: '8px 10px', textAlign: 'left', color: 'var(--text-muted)',
-                  fontWeight: 500, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase',
-                  whiteSpace: 'nowrap',
-                }}>
-                  {h === 'Trade Size' ? <SortBtn col="notional" label={h} />
-                    : h === 'Net PnL' ? <SortBtn col="pnl" label={h} />
-                    : h === 'Symbol' ? <SortBtn col="symbol" label={h} />
-                    : h === 'Age' ? <SortBtn col="age" label={h} />
-                    : h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((pos, i) => (
-              <tr key={pos.position_id ?? i} style={{
-                borderBottom: '1px solid var(--border)',
-                background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)',
-              }}>
-                <td style={{ padding: '8px 10px', fontWeight: 700, color: 'var(--text-primary)' }}>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+        <SortBtn col="symbol" label="Symbol" />
+        <SortBtn col="notional" label="Trade Size" />
+        <SortBtn col="pnl" label="Net PnL" />
+        <SortBtn col="age" label="Age" />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 12 }}>
+        {sorted.map((pos, i) => (
+          <article key={pos.position_id ?? i} style={{
+            minWidth: 0,
+            background: 'var(--bg-panel)',
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            padding: '14px 16px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ color: 'var(--text-primary)', fontSize: 16, fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
                   {pos.symbol}
-                </td>
-                <td style={{ padding: '8px 10px' }}>
-                  <SideBadge side={pos.side} />
-                </td>
-                <td style={{ padding: '8px 10px', color: 'var(--text-primary)', fontWeight: 600 }}>
-                  {fmt.usdRaw(pos.notional_usd)}
-                </td>
-                <td style={{ padding: '8px 10px', color: 'var(--text-secondary)' }}>
-                  {pos.leverage}x
-                </td>
-                <td style={{ padding: '8px 10px', color: 'var(--text-secondary)' }}>
-                  {pos.timeframe ?? '—'}
-                </td>
-                <td style={{ padding: '8px 10px', color: 'var(--text-secondary)' }}>
-                  {fmt.price(pos.avg_entry_price)}
-                </td>
-                <td style={{ padding: '8px 10px', color: 'var(--text-secondary)' }} title={pos.mark_price_source ?? undefined}>
-                  {fmt.price(pos.last_mark_price)}
-                </td>
-                <td style={{ padding: '8px 10px', fontWeight: 600, color: pnlColor(pos.unrealized_pnl) }}>
-                  {fmt.usd(pos.unrealized_pnl)}
-                </td>
-                <td style={{ padding: '8px 10px', color: pnlColor(pos.unrealized_pnl_bps), fontSize: 11 }}>
-                  {fmt.bps(pos.unrealized_pnl_bps)}
-                </td>
-                <td style={{ padding: '8px 10px', color: 'var(--text-muted)', fontSize: 11 }}>
-                  {pos.strategy_id ?? '—'}
-                </td>
-                <td style={{ padding: '8px 10px' }}>
+                </div>
+                <div style={{ marginTop: 4, display: 'flex', gap: 8, flexWrap: 'wrap', color: 'var(--text-muted)', fontSize: 11 }}>
+                  <span>{pos.timeframe ?? 'TF unavailable'}</span>
+                  <span>{runtimeText(pos.strategy_id)}</span>
                   <RegimeBadge regime={pos.market_regime_at_entry} />
-                </td>
-                <td style={{ padding: '8px 10px', color: 'var(--text-muted)', fontSize: 11 }}>
-                  {fmt.age(pos.position_age_seconds)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </div>
+              </div>
+              <SideBadge side={pos.side} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+              <EvidenceMetric label="Trade Size" value={fmt.usdRaw(pos.notional_usd)} />
+              <EvidenceMetric label="Leverage" value={`${pos.leverage}x`} />
+              <EvidenceMetric label="Entry" value={fmt.price(pos.avg_entry_price)} title={pos.entry_price_source ?? undefined} />
+              <EvidenceMetric
+                label="Mark"
+                value={fmt.price(pos.mark_price ?? pos.last_mark_price)}
+                color={pos.mark_price_stale ? 'var(--warn)' : undefined}
+                title={pos.mark_price_source ?? undefined}
+              />
+              <EvidenceMetric label="Net PnL" value={fmt.usd(pos.unrealized_pnl)} color={pnlColor(pos.unrealized_pnl)} />
+              <EvidenceMetric label="PnL bps" value={fmt.bps(pos.unrealized_pnl_bps)} color={pnlColor(pos.unrealized_pnl_bps)} />
+              <EvidenceMetric label="Age" value={fmt.age(pos.position_age_seconds)} />
+              <EvidenceMetric
+                label="Mark Age"
+                value={fmt.age(pos.mark_price_age_seconds)}
+                color={pos.mark_price_stale ? 'var(--warn)' : undefined}
+              />
+            </div>
+            <DecisionBasisPanel row={pos} />
+          </article>
+        ))}
       </div>
 
       <div style={{
@@ -499,11 +603,11 @@ function PositionsTab({ positions }: { positions: PaperPosition[] }) {
         background: 'rgba(34,197,94,0.05)', borderRadius: 6,
         border: '1px solid rgba(34,197,94,0.15)',
         fontSize: 11, color: 'var(--text-muted)',
-        display: 'flex', gap: 16,
+        display: 'flex', gap: 16, flexWrap: 'wrap',
       }}>
-        <span>✓ Real-time platform telemetry</span>
-        <span>✓ Execution fills synchronized</span>
-        <span>✓ Risk-governed workflow</span>
+        <span>Realtime position stream</span>
+        <span>Execution fills synchronized</span>
+        <span>Risk-governed workflow</span>
       </div>
     </div>
   );
@@ -620,65 +724,51 @@ function HistoryTab({
         </span>
       </div>
 
-      {/* Trade history table */}
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: 'var(--font-mono)' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid var(--border)' }}>
-              {['Symbol', 'Side', 'TF', 'Entry', 'Exit', 'Realized PnL', 'bps', 'Hold', 'Close Reason', 'Regime', 'Time'].map(h => (
-                <th key={h} style={{
-                  padding: '7px 8px', textAlign: 'left', color: 'var(--text-muted)',
-                  fontWeight: 500, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase',
-                  whiteSpace: 'nowrap',
-                }}>
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((t, i) => (
-              <tr key={t.close_id ?? i} style={{
-                borderBottom: '1px solid rgba(255,255,255,0.04)',
-                background: t.winner ? 'rgba(34,197,94,0.02)' : 'rgba(239,68,68,0.02)',
-              }}>
-                <td style={{ padding: '6px 8px', fontWeight: 700, color: 'var(--text-primary)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 12 }}>
+        {filtered.map((t, i) => (
+          <article key={t.close_id ?? i} style={{
+            minWidth: 0,
+            background: 'var(--bg-panel)',
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            padding: '14px 16px',
+            boxShadow: t.winner ? 'inset 3px 0 0 rgba(34,197,94,0.75)' : 'inset 3px 0 0 rgba(239,68,68,0.75)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ color: 'var(--text-primary)', fontSize: 16, fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
                   {t.symbol}
-                </td>
-                <td style={{ padding: '6px 8px' }}>
-                  <SideBadge side={t.side} />
-                </td>
-                <td style={{ padding: '6px 8px', color: 'var(--text-muted)' }}>
-                  {t.timeframe ?? '—'}
-                </td>
-                <td style={{ padding: '6px 8px', color: 'var(--text-secondary)' }}>
-                  {fmt.price(t.entry_price)}
-                </td>
-                <td style={{ padding: '6px 8px', color: 'var(--text-secondary)' }}>
-                  {fmt.price(t.exit_price)}
-                </td>
-                <td style={{ padding: '6px 8px', fontWeight: 600, color: pnlColor(t.realized_pnl_usd) }}>
-                  {fmt.usd(t.realized_pnl_usd)}
-                </td>
-                <td style={{ padding: '6px 8px', color: pnlColor(t.realized_pnl_bps), fontSize: 10 }}>
-                  {fmt.bps(t.realized_pnl_bps)}
-                </td>
-                <td style={{ padding: '6px 8px', color: 'var(--text-muted)' }}>
-                  {fmt.holdTime(t.hold_time_seconds)}
-                </td>
-                <td style={{ padding: '6px 8px', fontSize: 10, color: 'var(--text-secondary)' }}>
-                  {(t.close_reason ?? '—').replace(/_/g, ' ')}
-                </td>
-                <td style={{ padding: '6px 8px' }}>
+                </div>
+                <div style={{ marginTop: 4, display: 'flex', gap: 8, flexWrap: 'wrap', color: 'var(--text-muted)', fontSize: 11 }}>
+                  <span>{t.timeframe ?? 'TF unavailable'}</span>
                   <RegimeBadge regime={t.market_regime_at_entry} />
-                </td>
-                <td style={{ padding: '6px 8px', color: 'var(--text-muted)', fontSize: 10 }}>
-                  {fmt.ts(t.exit_price_utc)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  <span>{fmt.ts(t.exit_price_utc)}</span>
+                </div>
+              </div>
+              <div style={{ display: 'grid', justifyItems: 'end', gap: 6 }}>
+                <SideBadge side={t.side} />
+                <span style={{
+                  color: t.winner ? 'var(--buy, #22c55e)' : 'var(--sell, #ef4444)',
+                  fontSize: 10,
+                  fontWeight: 800,
+                  letterSpacing: '0.05em',
+                  textTransform: 'uppercase',
+                }}>
+                  {t.winner ? 'Winner' : 'Loss'}
+                </span>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+              <EvidenceMetric label="Entry" value={fmt.price(t.entry_price)} title={t.entry_price_source ?? undefined} />
+              <EvidenceMetric label="Exit" value={fmt.price(t.exit_price)} title={t.exit_price_source ?? undefined} />
+              <EvidenceMetric label="Realized PnL" value={fmt.usd(t.realized_pnl_usd)} color={pnlColor(t.realized_pnl_usd)} />
+              <EvidenceMetric label="PnL bps" value={fmt.bps(t.realized_pnl_bps)} color={pnlColor(t.realized_pnl_bps)} />
+              <EvidenceMetric label="Hold" value={fmt.holdTime(t.hold_time_seconds)} />
+              <EvidenceMetric label="Close Reason" value={runtimeText(t.close_reason)} />
+            </div>
+            <DecisionBasisPanel row={t} />
+          </article>
+        ))}
       </div>
     </div>
   );
@@ -842,10 +932,10 @@ export default function PaperTradingPage(): JSX.Element {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>
-            Live Trading
+            Execution Runtime
           </h1>
           <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
-            Trainer-driven execution telemetry and live trading workflow
+            Trainer-driven telemetry and operator-gated execution workflow
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -866,10 +956,17 @@ export default function PaperTradingPage(): JSX.Element {
             background: 'rgba(34,197,94,0.12)', color: '#22c55e',
             border: '1px solid rgba(34,197,94,0.3)',
           }}>
-            ● LIVE MODE
+            ● MARKET DATA LIVE
+          </span>
+          <span style={{
+            padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+            background: 'rgba(245,158,11,0.10)', color: '#f59e0b',
+            border: '1px solid rgba(245,158,11,0.28)',
+          }}>
+            EXECUTION RESTRICTED
           </span>
           <span style={{ fontSize: 11, color: paperActivity.connected ? 'var(--buy)' : 'var(--text-muted)' }}>
-            {paperActivity.connected ? 'WebSocket live' : paperActivity.source === 'http_fallback' ? 'HTTP fallback' : 'Connecting…'}
+            {paperActivity.connected ? 'Position stream connected' : paperActivity.source === 'http_fallback' ? 'API fallback' : 'Connecting…'}
           </span>
           {(loading || paperActivity.loading) && (
             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Connecting…</span>
@@ -947,10 +1044,7 @@ export default function PaperTradingPage(): JSX.Element {
 
       {/* Tab content */}
       <div style={{
-        background: 'var(--bg-panel)',
-        border: '1px solid var(--border)',
-        borderRadius: 8,
-        padding: '16px',
+        minWidth: 0,
       }}>
         {tab === 'positions' && <PositionsTab positions={positions} />}
         {tab === 'history' && (

@@ -1,4 +1,6 @@
 [Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
 Description=AI BOT V2 liquidation levels engine (read-only inputs; V2 namespace only)
 After=ai-bot-v2-liquidation-wss-paper-shadow.service ai-bot-v2-native-ingestors-live-loop.service
 

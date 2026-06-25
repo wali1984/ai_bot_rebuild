@@ -394,6 +394,31 @@ def test_data_loader_trusted_only_filters_backfilled_live_example() -> None:
     assert trusted == []
 
 
+def test_snapshot_fast_path_derives_closed_higher_timeframe_candles_from_raw_ohlcv() -> None:
+    client = _MemoryClient()
+    _seed_loader(client)
+    rows_by_timeframe = {
+        "1m": [1781136000000, "100", "101", "99", "100.5", "10", 1781136059999, "1000", 10, "5", "500", "0"],
+        "5m": [1781135700000, "100", "101", "99", "100.5", "10", 1781135999999, "1000", 10, "5", "500", "0"],
+        "15m": [1781135100000, "100", "101", "99", "100.5", "10", 1781135999999, "1000", 10, "5", "500", "0"],
+        "1h": [1781132400000, "100", "101", "99", "100.5", "10", 1781135999999, "1000", 10, "5", "500", "0"],
+        "4h": [1781121600000, "100", "101", "99", "100.5", "10", 1781135999999, "1000", 10, "5", "500", "0"],
+    }
+    for timeframe, row in rows_by_timeframe.items():
+        client.set(f"v2:market:ohlcv:binance:BTCUSDT:{timeframe}", json.dumps([row]))
+    loader = V2HybridTrainerDataLoader(io=V2OnlyJsonIO(client=client))
+
+    example = loader.build_example(symbol="BTCUSDT", timeframe="1m", snapshot_fast_path=True)
+    trust_row = example.trust_row or {}
+
+    assert trust_row["mtf_snapshot_valid"] is True
+    assert len(trust_row["all_tf_candle_timestamps"]) == 5
+    assert "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_1h" not in trust_row.get("reject_reasons", [])
+    assert "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_4h" not in trust_row.get("reject_reasons", [])
+    assert "v2:market:ohlcv:binance:BTCUSDT:1h" in example.payload_keys
+    assert "v2:market:ohlcv:binance:BTCUSDT:4h" in example.payload_keys
+
+
 def test_recorded_state_verification_passes_clean_export(tmp_path: Path) -> None:
     run_dir = _write_records(tmp_path, _clean_records())
     output_dir = tmp_path / "out-clean"

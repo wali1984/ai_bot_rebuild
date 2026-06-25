@@ -147,6 +147,27 @@ class PaperNetPosition:
     model_version: str | None = None
     checkpoint_id: str | None = None
     source_hashes: dict[str, Any] | None = None
+    confidence_raw: float | None = None
+    confidence_calibrated: float | None = None
+    selected_action_probability: float | None = None
+    expected_move_bps: float | None = None
+    action_probabilities: Any | None = None
+    policy_value: float | None = None
+    value_baseline: float | None = None
+    prediction_score_source: str | None = None
+    prediction_score_missing_reason: str | None = None
+    selector_policy_fingerprint: str | None = None
+    frozen_selector_fingerprint: str | None = None
+    candidate_selected_before_outcome: bool | None = None
+    candidate_selected_after_outcome: bool | None = None
+    post_outcome_candidate_selection: bool | None = None
+    future_labels_used_as_features: bool | None = None
+    paper_opportunity_tier: str | None = None
+    paper_opportunity_tier_reason: str | None = None
+    explicit_paper_opportunity_tier: str | None = None
+    paper_fill_allowed_source: str | None = None
+    strict_paper_fill_allowed_upstream: bool | None = None
+    calibration_label_purpose: str | None = None
     entry_market_state_id: str | None = None
     strategy_id: str | None = None
     strategy_family: str | None = None
@@ -198,9 +219,28 @@ class PaperNetPosition:
     entry_feature_source: str | None = None
     entry_feature_candle_closed_confirmed: bool | None = None
     entry_feature_unavailable_reason: str | None = None
+    entry_feature_snapshot: dict[str, Any] | None = None
     entry_observed_spread_bps: float | None = None
     entry_spread_source: str | None = None
     entry_spread_unavailable_reason: str | None = None
+    bid_depth_usd: float | None = None
+    ask_depth_usd: float | None = None
+    orderbook_depth_usd: float | None = None
+    entry_orderbook_depth_usd: float | None = None
+    entry_orderbook_depth_side: str | None = None
+    top_of_book_depth_usd: float | None = None
+    market_depth_usd: float | None = None
+    orderbook_depth_source: str | None = None
+    depth_utilization_pct: float | None = None
+    depth_price_impact_bps: float | None = None
+    depth_price_impact_source: str | None = None
+    depth_price_impact_model: str | None = None
+    depth_price_impact_side: str | None = None
+    depth_price_impact_quantity: float | None = None
+    depth_price_impact_filled_quantity: float | None = None
+    depth_price_impact_fill_complete: bool | None = None
+    depth_price_impact_vwap: float | None = None
+    depth_price_impact_touch_price: float | None = None
     expected_slippage_bps: float | None = None
     expected_slippage_usd: float | None = None
     expected_slippage_source: str | None = None
@@ -215,6 +255,23 @@ class PaperNetPosition:
     realized_slippage_bps: float | None = None
     realized_slippage_usd: float | None = None
     decision_latency_ms: float | None = None
+    latency_source: str | None = None
+    maker_probability: float | None = None
+    taker_probability: float | None = None
+    maker_taker_probability: float | None = None
+    maker_taker_probabilities: dict[str, Any] | None = None
+    maker_taker_probability_source: str | None = None
+    partial_fill_count: int | None = None
+    partial_fills: list[dict[str, Any]] | None = None
+    fill_count: int | None = None
+    all_partial_fills: list[dict[str, Any]] | None = None
+    partial_fill_plan: dict[str, Any] | list[dict[str, Any]] | None = None
+    mark_index_divergence_bps: float | None = None
+    mark_index_divergence: float | None = None
+    mark_index_source: str | None = None
+    mark_index_available_at: str | None = None
+    mark_price: float | None = None
+    index_price: float | None = None
     fill_ids: list[str] = field(default_factory=list)
     best_favorable_price: float | None = None
     worst_adverse_price: float | None = None
@@ -364,6 +421,7 @@ class PaperNetPosition:
             "entry_feature_source": self.entry_feature_source,
             "entry_feature_candle_closed_confirmed": self.entry_feature_candle_closed_confirmed,
             "entry_feature_unavailable_reason": self.entry_feature_unavailable_reason,
+            "entry_feature_snapshot": self.entry_feature_snapshot,
             "opened_est": self.opened_est,
             "last_mark_est": self.last_mark_est,
             "last_mark_price": self.last_mark_price,
@@ -371,6 +429,7 @@ class PaperNetPosition:
             "unrealized_pnl_bps": self.unrealized_pnl_bps(),
             "realized_pnl": self.realized_pnl,
             "source_signal_id": self.source_signal_id,
+            "signal_id": self.source_signal_id,
             "prediction_id": self.prediction_id,
             "risk_decision_id": self.risk_decision_id,
             "orchestrator_decision_id": self.orchestrator_decision_id,
@@ -379,6 +438,7 @@ class PaperNetPosition:
             "trainer_source": self.trainer_source,
             "timeframe": self.timeframe,
             "feature_snapshot_id": self.feature_snapshot_id,
+            "entry_feature_snapshot_id": self.feature_snapshot_id,
             "decision_id": self.decision_id,
             "mtf_snapshot_id": self.mtf_snapshot_id,
             "feature_cutoff": self.feature_cutoff,
@@ -388,6 +448,28 @@ class PaperNetPosition:
             "model_version": self.model_version,
             "checkpoint_id": self.checkpoint_id,
             "source_hashes": self.source_hashes,
+            "confidence_raw": self.confidence_raw,
+            "confidence_calibrated": self.confidence_calibrated,
+            "selected_action_probability": self.selected_action_probability,
+            "expected_move_bps": self.expected_move_bps,
+            "expected_move_after_cost_bps": self.expected_move_after_cost_bps,
+            "action_probabilities": self.action_probabilities,
+            "policy_value": self.policy_value,
+            "value_baseline": self.value_baseline,
+            "prediction_score_source": self.prediction_score_source,
+            "prediction_score_missing_reason": self.prediction_score_missing_reason,
+            "selector_policy_fingerprint": self.selector_policy_fingerprint,
+            "frozen_selector_fingerprint": self.frozen_selector_fingerprint,
+            "candidate_selected_before_outcome": self.candidate_selected_before_outcome,
+            "candidate_selected_after_outcome": self.candidate_selected_after_outcome,
+            "post_outcome_candidate_selection": self.post_outcome_candidate_selection,
+            "future_labels_used_as_features": self.future_labels_used_as_features,
+            "paper_opportunity_tier": self.paper_opportunity_tier,
+            "paper_opportunity_tier_reason": self.paper_opportunity_tier_reason,
+            "explicit_paper_opportunity_tier": self.explicit_paper_opportunity_tier,
+            "paper_fill_allowed_source": self.paper_fill_allowed_source,
+            "strict_paper_fill_allowed_upstream": self.strict_paper_fill_allowed_upstream,
+            "calibration_label_purpose": self.calibration_label_purpose,
             "strategy_id": self.strategy_id,
             "strategy_family": self.strategy_family,
             "strategy_selected_mode": self.strategy_selected_mode,
@@ -419,6 +501,24 @@ class PaperNetPosition:
             "actual_observed_spread_entry_bps": self.entry_observed_spread_bps,
             "entry_spread_source": self.entry_spread_source,
             "entry_spread_unavailable_reason": self.entry_spread_unavailable_reason,
+            "bid_depth_usd": self.bid_depth_usd,
+            "ask_depth_usd": self.ask_depth_usd,
+            "orderbook_depth_usd": self.orderbook_depth_usd,
+            "entry_orderbook_depth_usd": self.entry_orderbook_depth_usd,
+            "entry_orderbook_depth_side": self.entry_orderbook_depth_side,
+            "top_of_book_depth_usd": self.top_of_book_depth_usd,
+            "market_depth_usd": self.market_depth_usd,
+            "orderbook_depth_source": self.orderbook_depth_source,
+            "depth_utilization_pct": self.depth_utilization_pct,
+            "depth_price_impact_bps": self.depth_price_impact_bps,
+            "depth_price_impact_source": self.depth_price_impact_source,
+            "depth_price_impact_model": self.depth_price_impact_model,
+            "depth_price_impact_side": self.depth_price_impact_side,
+            "depth_price_impact_quantity": self.depth_price_impact_quantity,
+            "depth_price_impact_filled_quantity": self.depth_price_impact_filled_quantity,
+            "depth_price_impact_fill_complete": self.depth_price_impact_fill_complete,
+            "depth_price_impact_vwap": self.depth_price_impact_vwap,
+            "depth_price_impact_touch_price": self.depth_price_impact_touch_price,
             "expected_slippage_bps": self.expected_slippage_bps,
             "expected_slippage_usd": self.expected_slippage_usd,
             "expected_slippage_source": self.expected_slippage_source,
@@ -432,6 +532,28 @@ class PaperNetPosition:
             "realized_slippage_bps": self.realized_slippage_bps,
             "realized_slippage_usd": self.realized_slippage_usd,
             "decision_latency_ms": self.decision_latency_ms,
+            "latency_ms": self.decision_latency_ms,
+            "paper_fill_latency_ms": self.decision_latency_ms,
+            "fill_latency_ms": self.decision_latency_ms,
+            "execution_latency_ms": self.decision_latency_ms,
+            "simulated_latency_ms": self.decision_latency_ms,
+            "latency_source": self.latency_source,
+            "maker_probability": self.maker_probability,
+            "taker_probability": self.taker_probability,
+            "maker_taker_probability": self.maker_taker_probability,
+            "maker_taker_probabilities": self.maker_taker_probabilities,
+            "maker_taker_probability_source": self.maker_taker_probability_source,
+            "partial_fill_count": self.partial_fill_count,
+            "partial_fills": self.partial_fills,
+            "fill_count": self.fill_count,
+            "all_partial_fills": self.all_partial_fills,
+            "partial_fill_plan": self.partial_fill_plan,
+            "mark_index_divergence_bps": self.mark_index_divergence_bps,
+            "mark_index_divergence": self.mark_index_divergence,
+            "mark_index_source": self.mark_index_source,
+            "mark_index_available_at": self.mark_index_available_at,
+            "mark_price": self.mark_price,
+            "index_price": self.index_price,
             "source_fill_ids": list(self.fill_ids),
             "best_favorable_price": self.best_favorable_price,
             "worst_adverse_price": self.worst_adverse_price,
@@ -595,6 +717,78 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
             }.items()
             if value not in (None, "")
         }
+    action_probabilities = first_present(
+        fill.get("action_probabilities"),
+        fill.get("policy_action_probabilities"),
+        allocation.get("action_probabilities"),
+        allocation_model_inputs.get("action_probabilities"),
+    )
+    if not isinstance(action_probabilities, (dict, list, tuple)):
+        action_probabilities = None
+    confidence_raw = first_number(
+        fill.get("confidence_raw"),
+        allocation.get("confidence_raw"),
+        allocation_model_inputs.get("confidence_raw"),
+    )
+    confidence_calibrated = first_number(
+        fill.get("confidence_calibrated"),
+        fill.get("confidence"),
+        allocation.get("confidence_calibrated"),
+        allocation.get("confidence"),
+        allocation_model_inputs.get("confidence_calibrated"),
+        allocation_model_inputs.get("confidence"),
+    )
+    expected_move_bps = first_number(
+        fill.get("expected_move_bps"),
+        fill.get("price_target_bps"),
+        allocation.get("expected_move_bps"),
+        allocation.get("price_target_bps"),
+        allocation_model_inputs.get("expected_move_bps"),
+        allocation_model_inputs.get("price_target_bps"),
+    )
+    expected_move_after_cost_bps = first_number(
+        fill.get("expected_move_after_cost_bps"),
+        allocation.get("expected_move_after_cost_bps"),
+        allocation.get("expected_net_edge_bps"),
+        allocation_model_inputs.get("expected_move_after_cost_bps"),
+        allocation_model_inputs.get("expected_net_edge_bps"),
+    )
+    selected_action_probability = first_number(
+        fill.get("selected_action_probability"),
+        fill.get("action_probability"),
+        fill.get("probability_selected_action"),
+        allocation.get("selected_action_probability"),
+        allocation_model_inputs.get("selected_action_probability"),
+    )
+    policy_value = first_number(
+        fill.get("policy_value"),
+        fill.get("value_estimate"),
+        allocation.get("policy_value"),
+        allocation_model_inputs.get("policy_value"),
+    )
+    value_baseline = first_number(
+        fill.get("value_baseline"),
+        allocation.get("value_baseline"),
+        allocation_model_inputs.get("value_baseline"),
+    )
+    missing_score_fields = [
+        field
+        for field, value in (
+            ("confidence_calibrated", confidence_calibrated),
+            ("expected_move_after_cost_bps", expected_move_after_cost_bps),
+        )
+        if value is None
+    ]
+    prediction_score_source = (
+        "ENTRY_FILL_VERIFIED_PREDICTION_SCORE_FIELDS"
+        if not missing_score_fields
+        else None
+    )
+    prediction_score_missing_reason = (
+        None
+        if not missing_score_fields
+        else "MISSING_ENTRY_PREDICTION_SCORE_FIELDS:" + ",".join(missing_score_fields)
+    )
     return PaperNetPosition(
         position_id=f"paper_pos_{symbol}",
         symbol=symbol,
@@ -622,6 +816,68 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         model_version=first_present(fill.get("model_version"), fill.get("model_source"), fill.get("model_id")),
         checkpoint_id=fill.get("checkpoint_id"),
         source_hashes=source_hashes or None,
+        confidence_raw=confidence_raw,
+        confidence_calibrated=confidence_calibrated,
+        selected_action_probability=selected_action_probability,
+        expected_move_bps=expected_move_bps,
+        action_probabilities=(
+            list(action_probabilities)
+            if isinstance(action_probabilities, tuple)
+            else action_probabilities
+        ),
+        policy_value=policy_value,
+        value_baseline=value_baseline,
+        prediction_score_source=prediction_score_source,
+        prediction_score_missing_reason=prediction_score_missing_reason,
+        selector_policy_fingerprint=first_present(
+            fill.get("selector_policy_fingerprint"),
+            allocation.get("selector_policy_fingerprint"),
+            allocation_model_inputs.get("selector_policy_fingerprint"),
+        ),
+        frozen_selector_fingerprint=first_present(
+            fill.get("frozen_selector_fingerprint"),
+            allocation.get("frozen_selector_fingerprint"),
+            allocation_model_inputs.get("frozen_selector_fingerprint"),
+        ),
+        candidate_selected_before_outcome=fill.get("candidate_selected_before_outcome")
+        if isinstance(fill.get("candidate_selected_before_outcome"), bool)
+        else allocation.get("candidate_selected_before_outcome")
+        if isinstance(allocation.get("candidate_selected_before_outcome"), bool)
+        else None,
+        candidate_selected_after_outcome=fill.get("candidate_selected_after_outcome")
+        if isinstance(fill.get("candidate_selected_after_outcome"), bool)
+        else allocation.get("candidate_selected_after_outcome")
+        if isinstance(allocation.get("candidate_selected_after_outcome"), bool)
+        else None,
+        post_outcome_candidate_selection=fill.get("post_outcome_candidate_selection")
+        if isinstance(fill.get("post_outcome_candidate_selection"), bool)
+        else allocation.get("post_outcome_candidate_selection")
+        if isinstance(allocation.get("post_outcome_candidate_selection"), bool)
+        else None,
+        future_labels_used_as_features=fill.get("future_labels_used_as_features")
+        if isinstance(fill.get("future_labels_used_as_features"), bool)
+        else allocation.get("future_labels_used_as_features")
+        if isinstance(allocation.get("future_labels_used_as_features"), bool)
+        else None,
+        paper_opportunity_tier=first_present(fill.get("paper_opportunity_tier"), allocation.get("paper_opportunity_tier")),
+        paper_opportunity_tier_reason=first_present(
+            fill.get("paper_opportunity_tier_reason"),
+            allocation.get("paper_opportunity_tier_reason"),
+        ),
+        explicit_paper_opportunity_tier=first_present(
+            fill.get("explicit_paper_opportunity_tier"),
+            allocation.get("explicit_paper_opportunity_tier"),
+        ),
+        paper_fill_allowed_source=first_present(
+            fill.get("paper_fill_allowed_source"),
+            allocation.get("paper_fill_allowed_source"),
+        ),
+        strict_paper_fill_allowed_upstream=fill.get("strict_paper_fill_allowed_upstream")
+        if isinstance(fill.get("strict_paper_fill_allowed_upstream"), bool)
+        else allocation.get("strict_paper_fill_allowed_upstream")
+        if isinstance(allocation.get("strict_paper_fill_allowed_upstream"), bool)
+        else None,
+        calibration_label_purpose=first_present(fill.get("calibration_label_purpose"), allocation.get("calibration_label_purpose")),
         entry_market_state_id=fill.get("market_state_id"),
         strategy_id=fill.get("strategy_id") or fill.get("strategy_selected_mode"),
         strategy_family=fill.get("strategy_family") or fill.get("strategy_selected_mode"),
@@ -704,6 +960,9 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
             else None
         ),
         entry_feature_unavailable_reason=fill.get("entry_feature_unavailable_reason"),
+        entry_feature_snapshot=fill.get("entry_feature_snapshot")
+        if isinstance(fill.get("entry_feature_snapshot"), dict)
+        else None,
         entry_observed_spread_bps=entry_spread,
         entry_spread_source=(
             str(first_present(fill.get("entry_spread_source"), micro.get("source"), "V2_ENTRY_MICROSTRUCTURE_CONTEXT"))
@@ -713,6 +972,26 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         entry_spread_unavailable_reason=(
             None if entry_spread is not None else "MISSING_ENTRY_OBSERVED_SPREAD_BPS"
         ),
+        bid_depth_usd=first_number(fill.get("bid_depth_usd")),
+        ask_depth_usd=first_number(fill.get("ask_depth_usd")),
+        orderbook_depth_usd=first_number(fill.get("orderbook_depth_usd")),
+        entry_orderbook_depth_usd=first_number(fill.get("entry_orderbook_depth_usd")),
+        entry_orderbook_depth_side=fill.get("entry_orderbook_depth_side"),
+        top_of_book_depth_usd=first_number(fill.get("top_of_book_depth_usd")),
+        market_depth_usd=first_number(fill.get("market_depth_usd")),
+        orderbook_depth_source=fill.get("orderbook_depth_source"),
+        depth_utilization_pct=first_number(fill.get("depth_utilization_pct")),
+        depth_price_impact_bps=first_number(fill.get("depth_price_impact_bps")),
+        depth_price_impact_source=fill.get("depth_price_impact_source"),
+        depth_price_impact_model=fill.get("depth_price_impact_model"),
+        depth_price_impact_side=fill.get("depth_price_impact_side"),
+        depth_price_impact_quantity=first_number(fill.get("depth_price_impact_quantity")),
+        depth_price_impact_filled_quantity=first_number(fill.get("depth_price_impact_filled_quantity")),
+        depth_price_impact_fill_complete=fill.get("depth_price_impact_fill_complete")
+        if isinstance(fill.get("depth_price_impact_fill_complete"), bool)
+        else None,
+        depth_price_impact_vwap=first_number(fill.get("depth_price_impact_vwap")),
+        depth_price_impact_touch_price=first_number(fill.get("depth_price_impact_touch_price")),
         expected_slippage_bps=expected_slippage_bps,
         expected_slippage_usd=expected_slippage_usd,
         expected_slippage_source=fill.get("expected_slippage_source"),
@@ -727,8 +1006,33 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         correlation_diagnostics=fill.get("correlation_diagnostics")
         if isinstance(fill.get("correlation_diagnostics"), dict)
         else None,
-        expected_move_after_cost_bps=first_number(fill.get("expected_move_after_cost_bps")),
+        expected_move_after_cost_bps=expected_move_after_cost_bps,
         decision_latency_ms=first_number(fill.get("decision_latency_ms"), fill.get("latency_ms")),
+        latency_source=fill.get("latency_source"),
+        maker_probability=first_number(fill.get("maker_probability")),
+        taker_probability=first_number(fill.get("taker_probability")),
+        maker_taker_probability=first_number(fill.get("maker_taker_probability")),
+        maker_taker_probabilities=fill.get("maker_taker_probabilities")
+        if isinstance(fill.get("maker_taker_probabilities"), dict)
+        else None,
+        maker_taker_probability_source=fill.get("maker_taker_probability_source"),
+        partial_fill_count=int(first_number(fill.get("partial_fill_count"), fill.get("fill_count")) or 0)
+        if first_number(fill.get("partial_fill_count"), fill.get("fill_count")) is not None
+        else None,
+        partial_fills=fill.get("partial_fills") if isinstance(fill.get("partial_fills"), list) else None,
+        fill_count=int(first_number(fill.get("fill_count"), fill.get("partial_fill_count")) or 0)
+        if first_number(fill.get("fill_count"), fill.get("partial_fill_count")) is not None
+        else None,
+        all_partial_fills=fill.get("all_partial_fills") if isinstance(fill.get("all_partial_fills"), list) else None,
+        partial_fill_plan=fill.get("partial_fill_plan")
+        if isinstance(fill.get("partial_fill_plan"), (dict, list))
+        else None,
+        mark_index_divergence_bps=first_number(fill.get("mark_index_divergence_bps")),
+        mark_index_divergence=first_number(fill.get("mark_index_divergence")),
+        mark_index_source=fill.get("mark_index_source"),
+        mark_index_available_at=fill.get("mark_index_available_at"),
+        mark_price=first_number(fill.get("mark_price")),
+        index_price=first_number(fill.get("index_price")),
         fill_ids=[fill_id],
         best_favorable_price=price,
         worst_adverse_price=price,

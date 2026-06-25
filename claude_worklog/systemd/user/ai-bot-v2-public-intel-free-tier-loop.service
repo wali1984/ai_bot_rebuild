@@ -1,4 +1,6 @@
 [Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
 Description=AI Bot V2 public intel free-tier loop (V2 namespace, paper-shadow only)
 After=network-online.target ai-bot-v2-symbol-universe-publisher.service ai-bot-v2-dynamic-symbol-discovery-loop.service
 Wants=network-online.target

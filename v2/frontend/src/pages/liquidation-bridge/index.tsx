@@ -159,7 +159,7 @@ function normalizeRuntimeDerivatives(raw: unknown): DerivativesData {
       funding_positive_count: fundingRates.filter((value) => value > 0).length,
       funding_negative_count: fundingRates.filter((value) => value < 0).length,
     },
-    source: 'operator_runtime/v2_derivatives/latest/derivatives_payload.json',
+    source: 'Derivatives stream',
     timestamp: payload.generated_utc ?? null,
   };
 }
@@ -349,7 +349,7 @@ export default function DerivativesPage(): JSX.Element {
 
   const { envelope, loading, error, refetch } = useRealtimeResource<DerivativesData>({
     url: '/operator_runtime/v2_derivatives/latest/derivatives_payload.json',
-    source: '/operator_runtime/v2_derivatives/latest/derivatives_payload.json',
+    source: 'Derivatives stream',
     source_type: 'websocket',
     pollIntervalMs: 30_000,
     staleThresholdMs: 90_000,
@@ -382,7 +382,7 @@ export default function DerivativesPage(): JSX.Element {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <FreshnessBadge status={envelope.freshness_status} lagMs={envelope.lag_ms} />
-            <SourceBadge sourceType={envelope.source_type} source={envelope.source} endpoint={envelope.endpoint} />
+            <SourceBadge sourceType={envelope.source_type} source={envelope.source} />
             <button
               onClick={refetch}
               style={{ padding: '5px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 12, cursor: 'pointer' }}

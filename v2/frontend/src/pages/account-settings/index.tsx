@@ -1,8 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useRoles } from '../../auth/rbac';
+import { useTraderSnapshot } from '../../hooks/useTraderSnapshot';
 import { updateMyWatchlist } from '../../api/auth';
 import { Panel, Metric } from '../cockpitComponents';
+import { CanonicalMetricCard, CanonicalMetricValue } from '../../components/data/CanonicalMetric';
+import { selectAccountMetric } from '../../selectors/accountSelectors';
 import type { ExchangeAccount } from '../../api/auth';
 import meta from './meta';
 import rbac from './rbac';
@@ -365,6 +368,7 @@ function WatchlistForm({
 export default function AccountSettingsPage(): JSX.Element {
   const { user, refresh } = useAuth();
   const sessionRole = useRoles();
+  const traderSnapshot = useTraderSnapshot();
   const [showLinkForm, setShowLinkForm] = useState(false);
 
   const accounts: ExchangeAccount[] = user?.exchange_accounts ?? [];
@@ -377,6 +381,7 @@ export default function AccountSettingsPage(): JSX.Element {
     : !hasTraderApproval
       ? 'Trader approval is required before linking an exchange account.'
       : 'No exchange accounts linked yet. Click "+ Link account" to connect Binance, KuCoin, or Bybit.';
+  const accountMetric = (fieldId: string) => selectAccountMetric(traderSnapshot, fieldId);
 
   async function handleRemove(_id: string): Promise<void> {
     await refresh();
@@ -406,9 +411,31 @@ export default function AccountSettingsPage(): JSX.Element {
           <span className={`chip ${hasAccountScope ? 'solid-ok' : 'solid-warn'}`}>
             {hasAccountScope ? 'Account scope complete' : 'Account scope incomplete'}
           </span>
-          <span className="chip solid-ok">Execution ready</span>
+          <span className="chip solid-warn">Execution restricted</span>
         </div>
       </header>
+
+      <Panel id="account-canonical-status" title="Trader Account Source">
+        <div className="trader-metric-grid">
+          <CanonicalMetricCard label="Trader ID" metric={accountMetric('account.trader_id')} />
+          <CanonicalMetricCard label="Account ID" metric={accountMetric('account.account_id')} />
+          <CanonicalMetricCard label="Account Mode" metric={accountMetric('account.mode')} />
+          <CanonicalMetricCard label="Account Connection" metric={accountMetric('account.connection_status')} />
+          <CanonicalMetricCard label="Equity" metric={accountMetric('account.equity')} />
+          <CanonicalMetricCard label="Available Balance" metric={accountMetric('account.available_balance')} />
+        </div>
+        <div className="cockpit-analytics-grid" style={{ marginTop: 14 }}>
+          <Metric label="Backend session" value={user?.is_active ? 'Active' : 'Access unavailable'} />
+          <Metric label="Session role" value={accountRoleLabel(user?.role ?? sessionRole)} />
+          <Metric label="Exchange accounts" value={String(accounts.length)} />
+          <div className="cockpit-metric">
+            <span>Last account refresh</span>
+            <strong>
+              <CanonicalMetricValue metric={accountMetric('account.connection_status')} emptyText="Source offline" />
+            </strong>
+          </div>
+        </div>
+      </Panel>
 
       <Panel id="account-profile" title="Profile">
         <div className="cockpit-analytics-grid">

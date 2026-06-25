@@ -9,9 +9,12 @@ paths.
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
+import hashlib
 import json
 import math
 import os
+import signal
 import subprocess
 import time
 from collections import deque
@@ -21,16 +24,39 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping
 from zoneinfo import ZoneInfo
 
+from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
+    default_archive_root,
+    iter_snapshots,
+)
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint import (
+    V2HybridCheckpointManager,
+)
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.config import (
     DEFAULT_MAX_TRAINING_ROWS_PER_CYCLE,
     DEFAULT_TIMEFRAMES,
     TRAINER_SOURCE,
     HybridTrainerConfig,
 )
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
+    TrainingExample,
+    V2HybridTrainerDataLoader,
+)
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.model import (
+    V2HybridPolicyModel,
+)
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.runtime import (
     run_hybrid_trainer_cycle,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.safety import V2OnlyJsonIO
+from v2.backend.app.services.native_trainer.learning_readiness import (
+    GLOBAL_READINESS_ARTIFACT,
+    build_learning_readiness,
+    write_learning_readiness_artifact,
+)
+from v2.backend.app.services.native_trainer.trusted_replay.dataset import (
+    build_trusted_replay_row,
+    snapshot_to_final_candle,
+)
 from v2.backend.app.services.v2_symbol_runtime_universe import (
     SMOKE_TEST_SYMBOLS,
     resolve_symbols,
@@ -40,6 +66,7 @@ from v2.backend.app.services.v2_symbol_runtime_universe import (
 
 READY = "V2_PERSISTENT_CUDA_TRAINER_RESOURCE_UTILIZATION_AND_PAPER_DRAWDOWN_GUARD_READY"
 BLOCKED = "V2_PERSISTENT_CUDA_TRAINER_RESOURCE_UTILIZATION_AND_PAPER_DRAWDOWN_GUARD_BLOCKED"
+TRUSTED_REPLAY_GOAL_ID = "V2_TRUSTED_REPLAY_BOOTSTRAP_PAPER_EXPLORATION_AND_ONLINE_LEARNING_ACTIVATION"
 
 ARTIFACT_REL = Path("v2_persistent_cuda_trainer_resource_utilization_and_paper_drawdown_guard/latest")
 OPERATOR_REL = Path("operator_runtime/v2_native_trainer/latest")
@@ -58,7 +85,14 @@ TRIAL_DRAWDOWN_GUARD_REDIS_KEY = "v2:paper:confidence_threshold_trial:drawdown_g
 PREVIOUS_PAPER_PNL_BASELINE = 30.41842727
 TRIAL_DRAWDOWN_DELTA_THRESHOLD_USD = -50.0
 TRIAL_OVERLAY_PNL_THRESHOLD_USD = -25.0
+TRAINER_GPU_UTILIZATION_LIMIT_PERCENT = 75.0
+TRAINER_VRAM_LIMIT_MB = 12 * 1024
+TRAINER_CPU_QUOTA_PERCENT = 50.0
+TRAINER_RAM_LIMIT_GB = 75.0
 EST = ZoneInfo("America/New_York")
+DEFAULT_HOLDOUT_CALIBRATION_SCAN_LIMIT = 100_000
+DEFAULT_HOLDOUT_CALIBRATION_EVAL_LIMIT = 512
+_HOLDOUT_EXAMPLE_CACHE: dict[str, Any] = {}
 
 
 @dataclass(frozen=True)
@@ -141,6 +175,45 @@ def finite_float(value: Any) -> float | None:
     return None
 
 
+def _percentile(values: Iterable[float], q: float) -> float | None:
+    ordered = sorted(float(value) for value in values if math.isfinite(float(value)))
+    if not ordered:
+        return None
+    if len(ordered) == 1:
+        return ordered[0]
+    position = max(0.0, min(1.0, float(q))) * (len(ordered) - 1)
+    lower = int(math.floor(position))
+    upper = int(math.ceil(position))
+    if lower == upper:
+        return ordered[lower]
+    weight = position - lower
+    return ordered[lower] * (1.0 - weight) + ordered[upper] * weight
+
+
+def _distribution(values: Iterable[float]) -> dict[str, Any]:
+    numbers = [float(value) for value in values if math.isfinite(float(value))]
+    return {
+        "count": len(numbers),
+        "min": min(numbers) if numbers else None,
+        "p25": _percentile(numbers, 0.25),
+        "median": _percentile(numbers, 0.50),
+        "p75": _percentile(numbers, 0.75),
+        "max": max(numbers) if numbers else None,
+    }
+
+
+def parse_runtime_time(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
 def connect_redis() -> Any | None:
     try:
         import redis  # type: ignore
@@ -172,6 +245,999 @@ def redis_json(client: Any | None, key: str, default: Any = None) -> Any:
         return json.loads(raw)
     except Exception:
         return {} if default is None else default
+
+
+def _redis_json_list(key: str) -> list[dict[str, Any]]:
+    client = connect_redis()
+    payload = redis_json(client, key, default=[])
+    return [dict(row) for row in as_list(payload) if isinstance(row, Mapping)]
+
+
+def _prediction_rows(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
+    return [dict(row) for row in as_list(payload.get("prediction_rows")) if isinstance(row, Mapping)]
+
+
+def _trust_envelope_complete(row: Mapping[str, Any]) -> tuple[bool, list[str]]:
+    missing: list[str] = []
+    for field in (
+        "prediction_id",
+        "signal_id",
+        "decision_id",
+        "feature_snapshot_id",
+        "mtf_snapshot_id",
+        "feature_cutoff",
+        "decision_time",
+        "available_at",
+        "symbol",
+        "timeframe",
+        "selected_action",
+        "model_version",
+        "checkpoint_id",
+    ):
+        if row.get(field) in (None, "", [], {}):
+            missing.append(field)
+    if not as_dict(row.get("source_hashes")):
+        missing.append("source_hashes")
+    feature_cutoff = parse_runtime_time(row.get("feature_cutoff"))
+    decision_time = parse_runtime_time(row.get("decision_time"))
+    available_at = parse_runtime_time(row.get("available_at"))
+    if feature_cutoff is None:
+        missing.append("feature_cutoff_parseable")
+    if decision_time is None:
+        missing.append("decision_time_parseable")
+    if available_at is None:
+        missing.append("available_at_parseable")
+    if feature_cutoff is not None and decision_time is not None and feature_cutoff > decision_time:
+        missing.append("feature_cutoff_after_decision_time")
+    if available_at is not None and decision_time is not None and available_at > decision_time:
+        missing.append("available_at_after_decision_time")
+    return not missing, sorted(set(missing))
+
+
+def _allowed_exploration_blockers(blockers: Iterable[Any]) -> bool:
+    allowed = {"confidence_below_threshold", "expected_move_after_cost_below_threshold"}
+    return all(str(reason) in allowed for reason in blockers)
+
+
+def _binary_action_outcome(row: Mapping[str, Any]) -> float | None:
+    profitable = row.get("action_was_profitable")
+    if isinstance(profitable, bool):
+        return 1.0 if profitable else 0.0
+    trade_outcome = str(row.get("trade_outcome") or "").upper()
+    if trade_outcome == "WIN":
+        return 1.0
+    if trade_outcome == "LOSS":
+        return 0.0
+    return None
+
+
+def _trusted_feedback_metric_rows(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
+    calibration_rows: list[dict[str, float]] = []
+    expected_move_rows: list[dict[str, float]] = []
+    rejected: dict[str, int] = {}
+    holdout_rows = 0
+    trusted_rows = 0
+    for row in rows:
+        if row.get("trainer_consumable") is False:
+            rejected["trainer_consumable_false"] = rejected.get("trainer_consumable_false", 0) + 1
+            continue
+        trust_ok, trust_missing = _trust_envelope_complete(row)
+        if not trust_ok:
+            rejected["trust_envelope_incomplete"] = rejected.get("trust_envelope_incomplete", 0) + 1
+            for reason in trust_missing:
+                key = f"trust:{reason}"
+                rejected[key] = rejected.get(key, 0) + 1
+            continue
+        trusted_rows += 1
+        if row.get("out_of_sample_holdout") is True or row.get("untouched_holdout_window") is True:
+            holdout_rows += 1
+        confidence = finite_float(row.get("confidence_calibrated"))
+        outcome = _binary_action_outcome(row)
+        if confidence is not None and 0.0 <= confidence <= 1.0 and outcome is not None:
+            calibration_rows.append({"confidence": confidence, "outcome": outcome})
+        else:
+            rejected["missing_confidence_or_binary_outcome"] = rejected.get("missing_confidence_or_binary_outcome", 0) + 1
+        expected = finite_float(row.get("expected_move_after_cost_bps"))
+        realized = finite_float(row.get("realized_net_pnl_bps") or row.get("realized_pnl_bps"))
+        if expected is not None and realized is not None:
+            expected_move_rows.append({"expected": expected, "realized": realized})
+        else:
+            rejected["missing_expected_move_or_realized_pnl"] = rejected.get("missing_expected_move_or_realized_pnl", 0) + 1
+    return {
+        "trusted_rows": trusted_rows,
+        "holdout_rows": holdout_rows,
+        "calibration_rows": calibration_rows,
+        "expected_move_rows": expected_move_rows,
+        "rows_rejected_by_reason": rejected,
+    }
+
+
+def _brier_score(rows: Iterable[Mapping[str, float]]) -> float | None:
+    values = [
+        (float(row["confidence"]) - float(row["outcome"])) ** 2
+        for row in rows
+        if "confidence" in row and "outcome" in row
+    ]
+    return sum(values) / len(values) if values else None
+
+
+def _expected_calibration_error(rows: list[dict[str, float]], *, bucket_count: int = 10) -> tuple[float | None, list[dict[str, Any]]]:
+    if not rows:
+        return None, []
+    buckets: list[dict[str, Any]] = []
+    total = len(rows)
+    weighted_error = 0.0
+    for index in range(bucket_count):
+        low = index / bucket_count
+        high = (index + 1) / bucket_count
+        if index == bucket_count - 1:
+            bucket_rows = [row for row in rows if low <= row["confidence"] <= high]
+        else:
+            bucket_rows = [row for row in rows if low <= row["confidence"] < high]
+        if not bucket_rows:
+            continue
+        avg_conf = sum(row["confidence"] for row in bucket_rows) / len(bucket_rows)
+        empirical = sum(row["outcome"] for row in bucket_rows) / len(bucket_rows)
+        error = abs(avg_conf - empirical)
+        weighted_error += (len(bucket_rows) / total) * error
+        buckets.append(
+            {
+                "bucket_min": low,
+                "bucket_max": high,
+                "sample_count": len(bucket_rows),
+                "avg_confidence": avg_conf,
+                "empirical_success_rate": empirical,
+                "absolute_calibration_error": error,
+                "brier_score": _brier_score(bucket_rows),
+            }
+        )
+    return weighted_error, buckets
+
+
+def _expected_move_mae(rows: Iterable[Mapping[str, float]]) -> float | None:
+    errors = [
+        abs(float(row["expected"]) - float(row["realized"]))
+        for row in rows
+        if "expected" in row and "realized" in row
+    ]
+    return sum(errors) / len(errors) if errors else None
+
+
+def _bounded_env_int(name: str, default: int, *, minimum: int, maximum: int) -> int:
+    value = os.environ.get(name)
+    try:
+        parsed = int(value) if value not in (None, "") else int(default)
+    except (TypeError, ValueError):
+        parsed = int(default)
+    return max(int(minimum), min(int(maximum), parsed))
+
+
+def _sha256_path(path: Path | None) -> str | None:
+    if path is None or not path.exists() or not path.is_file():
+        return None
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _trusted_replay_holdout_manifest(repo_root: Path) -> dict[str, Any]:
+    candidates = (
+        repo_root
+        / "goal_state"
+        / TRUSTED_REPLAY_GOAL_ID
+        / "trusted_replay_train_validation_holdout_manifest.json",
+        repo_root
+        / "v2/frontend/public/operator_runtime/v2_native_trainer/latest/trusted_replay_train_validation_holdout_manifest.json",
+        repo_root
+        / "claude_worklog/final_readiness"
+        / TRUSTED_REPLAY_GOAL_ID
+        / "latest/trusted_replay_train_validation_holdout_manifest.json",
+    )
+    for path in candidates:
+        payload = as_dict(read_json(path))
+        holdout = as_dict(payload.get("holdout_window"))
+        if holdout.get("start_decision_time") and holdout.get("end_decision_time"):
+            return {**payload, "manifest_path": str(path)}
+    return {}
+
+
+def _holdout_window(manifest: Mapping[str, Any]) -> tuple[datetime | None, datetime | None, int]:
+    holdout = as_dict(manifest.get("holdout_window"))
+    start = parse_runtime_time(holdout.get("start_decision_time"))
+    end = parse_runtime_time(holdout.get("end_decision_time"))
+    rows = int(finite_float(holdout.get("rows")) or 0)
+    return start, end, rows
+
+
+def _sample_evenly(rows: list[Any], limit: int) -> list[Any]:
+    if limit <= 0:
+        return []
+    if len(rows) <= limit:
+        return list(rows)
+    if limit == 1:
+        return [rows[-1]]
+    last = len(rows) - 1
+    indices = [int(round((last * index) / (limit - 1))) for index in range(limit)]
+    out: list[Any] = []
+    seen: set[int] = set()
+    for index in indices:
+        if index in seen:
+            continue
+        seen.add(index)
+        out.append(rows[index])
+    return out
+
+
+def _selected_action_outcome(selected_action: Any, realized_after_cost_bps: float) -> float | None:
+    action = str(selected_action or "").lower()
+    if action == "long":
+        return 1.0 if realized_after_cost_bps > 0.0 else 0.0
+    if action == "short":
+        return 1.0 if realized_after_cost_bps < 0.0 else 0.0
+    if action == "hold":
+        return 1.0 if abs(realized_after_cost_bps) < 4.0 else 0.0
+    return None
+
+
+def _expected_after_cost_bps(expected_move_bps: float, *, round_trip_cost_bps: float = 2.0) -> float:
+    if expected_move_bps > 0.0:
+        return expected_move_bps - abs(round_trip_cost_bps)
+    if expected_move_bps < 0.0:
+        return expected_move_bps + abs(round_trip_cost_bps)
+    return 0.0
+
+
+def _directional_accuracy_hit(selected_action: Any, realized_after_cost_bps: float) -> bool | None:
+    action = str(selected_action or "").lower()
+    if action == "long":
+        return realized_after_cost_bps > 0.0
+    if action == "short":
+        return realized_after_cost_bps < 0.0
+    if action == "hold":
+        return abs(realized_after_cost_bps) < 4.0
+    return None
+
+
+def _trusted_replay_holdout_examples(
+    *,
+    repo_root: Path,
+    manifest: Mapping[str, Any],
+    scan_limit: int,
+    eval_limit: int,
+) -> dict[str, Any]:
+    start, end, manifest_rows = _holdout_window(manifest)
+    if start is None or end is None:
+        return {
+            "status": "BLOCKED_NO_TRUSTED_REPLAY_HOLDOUT_WINDOW",
+            "examples": [],
+            "rows_rejected_by_reason": {"holdout_window_missing": 1},
+        }
+    archive_root = default_archive_root(repo_root)
+    cache_key = hashlib.sha256(
+        json.dumps(
+            {
+                "archive_root": str(archive_root),
+                "start": start.isoformat(),
+                "end": end.isoformat(),
+                "manifest_rows": manifest_rows,
+                "scan_limit": int(scan_limit),
+                "eval_limit": int(eval_limit),
+            },
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+    cached = _HOLDOUT_EXAMPLE_CACHE.get(cache_key)
+    if isinstance(cached, Mapping):
+        return {**dict(cached), "cache_hit": True}
+
+    rejected: dict[str, int] = {}
+    archive_candles: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    candidates: list[tuple[str, str, dict[str, Any]]] = []
+    snapshots_scanned = 0
+    try:
+        for snapshot in iter_snapshots(archive_root, limit=scan_limit):
+            snapshots_scanned += 1
+            candle, _reasons = snapshot_to_final_candle(snapshot)
+            if candle is not None:
+                pair = (str(candle.get("symbol") or "").upper(), str(candle.get("timeframe") or ""))
+                archive_candles.setdefault(pair, []).append(candle)
+            decision_time = parse_runtime_time(snapshot.get("decision_time"))
+            if decision_time is None or decision_time < start or decision_time > end:
+                continue
+            sample_id = str(snapshot.get("snapshot_id") or snapshot.get("feature_snapshot_id") or "")
+            candidates.append((decision_time.isoformat(), sample_id, dict(snapshot)))
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "status": "BLOCKED_TRUSTED_REPLAY_HOLDOUT_ARCHIVE_SCAN_FAILED",
+            "examples": [],
+            "snapshots_scanned": snapshots_scanned,
+            "rows_rejected_by_reason": {f"archive_scan_failed:{type(exc).__name__}": 1},
+        }
+
+    for rows in archive_candles.values():
+        rows.sort(key=lambda row: str(row.get("candle_close_time") or ""))
+    candidates.sort(key=lambda item: (item[0], item[1]))
+    selected = _sample_evenly(candidates, eval_limit)
+    loader = V2HybridTrainerDataLoader(
+        io=V2OnlyJsonIO(client=None),
+        trusted_replay_archive_root=archive_root,
+    )
+    examples: list[TrainingExample] = []
+    sample_ids: list[str] = []
+    for _decision_time, _sample_id, snapshot in selected:
+        symbol = str(snapshot.get("symbol") or "").upper()
+        timeframe = str(snapshot.get("timeframe") or "")
+        if not symbol or not timeframe:
+            rejected["symbol_or_timeframe_missing"] = rejected.get("symbol_or_timeframe_missing", 0) + 1
+            continue
+        replay_row, reasons = build_trusted_replay_row(
+            snapshot,
+            candles=list(archive_candles.get((symbol, timeframe)) or []),
+        )
+        if replay_row is None:
+            for reason in reasons or ["trusted_replay_row_not_built"]:
+                rejected[str(reason)] = rejected.get(str(reason), 0) + 1
+            continue
+        features = snapshot.get("features") if isinstance(snapshot.get("features"), Mapping) else {}
+        if not features:
+            rejected["features_empty"] = rejected.get("features_empty", 0) + 1
+            continue
+        payloads = loader._payloads_from_feature_snapshot(  # noqa: SLF001
+            snapshot=snapshot,
+            features=features,
+            feedback_row=replay_row,
+        )
+        payloads["_keys"] = {
+            "features_latest": f"durable_feature_snapshot_archive:{snapshot.get('snapshot_id')}",
+            "trainer_feedback_outcomes": replay_row["sample_id"],
+            "ohlcv": "durable_feature_snapshot_archive_holdout",
+        }
+        try:
+            tensor = loader.tensor_builder.build(symbol=symbol, timeframe=timeframe, payloads=payloads)
+        except Exception as exc:  # noqa: BLE001
+            reason = f"tensor_build_failed:{type(exc).__name__}"
+            rejected[reason] = rejected.get(reason, 0) + 1
+            continue
+        if tensor.data_coverage_percent < 20.0:
+            rejected["data_coverage_below_20"] = rejected.get("data_coverage_below_20", 0) + 1
+            continue
+        classification = (
+            "STALE_MASKED"
+            if tensor.stale_feature_names
+            else "MISSING_MASKED"
+            if tensor.missing_feature_names
+            else "TRAINABLE"
+        )
+        trust_row = dict(replay_row)
+        trust_row.update(
+            {
+                "row_classification": classification,
+                "missing_feature_names": list(tensor.missing_feature_names),
+                "missing_feature_count": len(tensor.missing_feature_names),
+                "stale_feature_names": list(tensor.stale_feature_names),
+                "stale_feature_count": len(tensor.stale_feature_names),
+                "feature_vector_hash": tensor.tensor_id,
+                "reject_reasons": list(reasons),
+                "out_of_sample_holdout": True,
+                "untouched_holdout_window": True,
+            }
+        )
+        examples.append(
+            TrainingExample(
+                symbol=symbol,
+                timeframe=timeframe,
+                tensor=tensor,
+                label_action_index=loader._label_action(float(replay_row["future_return_after_cost_bps"])),  # noqa: SLF001
+                label_expected_move_after_cost_bps=float(replay_row["future_return_after_cost_bps"]),
+                payload_keys=tuple((payloads.get("_keys") or {}).values()),
+                row_classification=classification,
+                trust_row=trust_row,
+            )
+        )
+        sample_ids.append(str(replay_row.get("sample_id") or ""))
+
+    payload = {
+        "status": "ACTIVE_TRUSTED_REPLAY_HOLDOUT_EXAMPLES_LOADED" if examples else "BLOCKED_NO_USABLE_HOLDOUT_EXAMPLES",
+        "examples": examples,
+        "cache_hit": False,
+        "snapshots_scanned": snapshots_scanned,
+        "holdout_candidates_found": len(candidates),
+        "manifest_holdout_rows": manifest_rows,
+        "selected_candidate_rows": len(selected),
+        "usable_examples": len(examples),
+        "rows_rejected_by_reason": rejected,
+        "holdout_sample_identity_hash": hashlib.sha256(
+            json.dumps(sample_ids, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        if sample_ids
+        else None,
+    }
+    _HOLDOUT_EXAMPLE_CACHE.clear()
+    _HOLDOUT_EXAMPLE_CACHE[cache_key] = payload
+    return dict(payload)
+
+
+def build_trusted_replay_holdout_calibration(
+    *,
+    repo_root: Path | None,
+    model_dir: Path | None,
+    generated_utc: str,
+) -> dict[str, Any]:
+    if repo_root is None or model_dir is None:
+        return {
+            "schema_version": "trusted_replay_holdout_calibration_status_v1",
+            "generated_utc": generated_utc,
+            "status": "BLOCKED_NO_REPO_MODEL_CONTEXT",
+            "confidence_outcome_join_available": False,
+            "reason": "repo_root and model_dir are required for trusted replay holdout evaluation",
+        }
+    manifest = _trusted_replay_holdout_manifest(Path(repo_root))
+    start, end, manifest_rows = _holdout_window(manifest)
+    if start is None or end is None:
+        return {
+            "schema_version": "trusted_replay_holdout_calibration_status_v1",
+            "generated_utc": generated_utc,
+            "status": "BLOCKED_NO_TRUSTED_REPLAY_HOLDOUT_WINDOW",
+            "confidence_outcome_join_available": False,
+            "reason": "trusted replay temporal holdout manifest is missing or incomplete",
+        }
+    scan_limit = _bounded_env_int(
+        "V2_TRUSTED_REPLAY_HOLDOUT_SCAN_LIMIT",
+        DEFAULT_HOLDOUT_CALIBRATION_SCAN_LIMIT,
+        minimum=1_000,
+        maximum=250_000,
+    )
+    eval_limit = _bounded_env_int(
+        "V2_TRUSTED_REPLAY_HOLDOUT_EVAL_LIMIT",
+        DEFAULT_HOLDOUT_CALIBRATION_EVAL_LIMIT,
+        minimum=32,
+        maximum=5_000,
+    )
+    loaded = _trusted_replay_holdout_examples(
+        repo_root=Path(repo_root),
+        manifest=manifest,
+        scan_limit=scan_limit,
+        eval_limit=eval_limit,
+    )
+    examples = [example for example in as_list(loaded.get("examples")) if isinstance(example, TrainingExample)]
+    if not examples:
+        return {
+            "schema_version": "trusted_replay_holdout_calibration_status_v1",
+            "generated_utc": generated_utc,
+            "status": str(loaded.get("status") or "BLOCKED_NO_USABLE_HOLDOUT_EXAMPLES"),
+            "confidence_outcome_join_available": False,
+            "holdout_window": as_dict(manifest.get("holdout_window")),
+            "manifest_path": manifest.get("manifest_path"),
+            "manifest_holdout_rows": manifest_rows,
+            "scan_limit": scan_limit,
+            "eval_limit": eval_limit,
+            "rows_rejected_by_reason": as_dict(loaded.get("rows_rejected_by_reason")),
+            "reason": "no PIT-safe trusted replay holdout examples could be materialized",
+        }
+    input_dim = len(examples[0].tensor.model_vector)
+    checkpoint_manager = V2HybridCheckpointManager(Path(model_dir))
+    manifest_checkpoint = checkpoint_manager.latest_manifest(input_dim=input_dim)
+    if manifest_checkpoint is None or not manifest_checkpoint.weight_blob_written or not manifest_checkpoint.weight_file_path:
+        return {
+            "schema_version": "trusted_replay_holdout_calibration_status_v1",
+            "generated_utc": generated_utc,
+            "status": "BLOCKED_NO_COMPATIBLE_CHECKPOINT_WEIGHT_BLOB",
+            "confidence_outcome_join_available": False,
+            "holdout_window": as_dict(manifest.get("holdout_window")),
+            "manifest_path": manifest.get("manifest_path"),
+            "manifest_holdout_rows": manifest_rows,
+            "evaluated_rows": 0,
+            "reason": "latest compatible checkpoint manifest has no safe npz weight blob",
+        }
+    weight_path = Path(str(manifest_checkpoint.weight_file_path))
+    if not weight_path.is_absolute():
+        weight_path = Path(repo_root) / weight_path
+    model = V2HybridPolicyModel(input_dim=input_dim)
+    try:
+        load_result = model.load_weight_blob(weight_path)
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "schema_version": "trusted_replay_holdout_calibration_status_v1",
+            "generated_utc": generated_utc,
+            "status": "BLOCKED_CHECKPOINT_WEIGHT_BLOB_LOAD_FAILED",
+            "confidence_outcome_join_available": False,
+            "holdout_window": as_dict(manifest.get("holdout_window")),
+            "manifest_path": manifest.get("manifest_path"),
+            "checkpoint_id": manifest_checkpoint.checkpoint_id,
+            "checkpoint_path": str(weight_path),
+            "reason": f"checkpoint load failed: {type(exc).__name__}",
+        }
+
+    calibration_rows: list[dict[str, float]] = []
+    expected_move_rows: list[dict[str, float]] = []
+    rows_rejected = dict(as_dict(loaded.get("rows_rejected_by_reason")))
+    direction_hits = 0
+    direction_total = 0
+    preview: list[dict[str, Any]] = []
+    future_label_separation_ok = 0
+    for example in examples:
+        trust_row = as_dict(example.trust_row)
+        realized = finite_float(trust_row.get("future_return_after_cost_bps"))
+        if realized is None:
+            rows_rejected["missing_future_return_after_cost_bps"] = rows_rejected.get(
+                "missing_future_return_after_cost_bps", 0
+            ) + 1
+            continue
+        if trust_row.get("future_labels_not_in_feature_tensor") is True:
+            future_label_separation_ok += 1
+        try:
+            forward = model.forward(example.tensor)
+        except Exception as exc:  # noqa: BLE001
+            reason = f"model_forward_failed:{type(exc).__name__}"
+            rows_rejected[reason] = rows_rejected.get(reason, 0) + 1
+            continue
+        confidence = finite_float(forward.confidence_calibrated)
+        outcome = _selected_action_outcome(forward.selected_action, realized)
+        expected_after_cost = _expected_after_cost_bps(float(forward.expected_move_bps))
+        if confidence is not None and 0.0 <= confidence <= 1.0 and outcome is not None:
+            calibration_rows.append({"confidence": confidence, "outcome": outcome})
+        else:
+            rows_rejected["missing_confidence_or_selected_action_outcome"] = rows_rejected.get(
+                "missing_confidence_or_selected_action_outcome", 0
+            ) + 1
+        expected_move_rows.append({"expected": expected_after_cost, "realized": realized})
+        hit = _directional_accuracy_hit(forward.selected_action, realized)
+        if hit is not None:
+            direction_total += 1
+            direction_hits += 1 if hit else 0
+        if len(preview) < 25:
+            preview.append(
+                {
+                    "sample_id": trust_row.get("sample_id"),
+                    "symbol": example.symbol,
+                    "timeframe": example.timeframe,
+                    "decision_time": trust_row.get("decision_time"),
+                    "selected_action": forward.selected_action,
+                    "target_action": trust_row.get("target_action"),
+                    "confidence_calibrated": confidence,
+                    "expected_move_after_cost_bps": expected_after_cost,
+                    "future_return_after_cost_bps": realized,
+                    "action_was_profitable": outcome,
+                }
+            )
+    ece, buckets = _expected_calibration_error(calibration_rows)
+    brier = _brier_score(calibration_rows)
+    expected_mae = _expected_move_mae(expected_move_rows)
+    status = (
+        "ACTIVE_TRUSTED_HOLDOUT_CALIBRATION"
+        if calibration_rows and future_label_separation_ok == len(examples)
+        else "BLOCKED_NO_USABLE_HOLDOUT_CONFIDENCE_OUTCOMES"
+    )
+    return {
+        "schema_version": "trusted_replay_holdout_calibration_status_v1",
+        "generated_utc": generated_utc,
+        "status": status,
+        "confidence_outcome_join_available": bool(calibration_rows),
+        "calibration_source": "TRUSTED_REPLAY_TEMPORAL_HOLDOUT_CURRENT_CHECKPOINT_FORWARD",
+        "learning_mode": "EVALUATION_ONLY_NOT_TRAINING",
+        "paper_only": True,
+        "routes_to_live": False,
+        "future_labels_used_as_features": False,
+        "future_labels_not_in_feature_tensor_rows": future_label_separation_ok,
+        "future_labels_not_in_feature_tensor_verified": future_label_separation_ok == len(examples),
+        "uses_expected_move_as_realized_reward": False,
+        "holdout_window": as_dict(manifest.get("holdout_window")),
+        "manifest_path": manifest.get("manifest_path"),
+        "manifest_holdout_rows": manifest_rows,
+        "snapshots_scanned": loaded.get("snapshots_scanned"),
+        "holdout_candidates_found": loaded.get("holdout_candidates_found"),
+        "holdout_sample_identity_hash": loaded.get("holdout_sample_identity_hash"),
+        "scan_limit": scan_limit,
+        "eval_limit": eval_limit,
+        "evaluated_rows": len(examples),
+        "trusted_holdout_rows": len(calibration_rows),
+        "brier_score": brier,
+        "ece": ece,
+        "expected_move_mae": expected_mae,
+        "directional_accuracy": direction_hits / direction_total if direction_total else None,
+        "confidence_reliability_buckets": buckets,
+        "checkpoint_id": manifest_checkpoint.checkpoint_id,
+        "checkpoint_path": str(weight_path),
+        "checkpoint_hash": _sha256_path(weight_path),
+        "checkpoint_weight_blob_loaded": bool(load_result.get("model_state_restored")),
+        "device": model.device,
+        "cuda_active": model.cuda_active,
+        "cache_hit": bool(loaded.get("cache_hit")),
+        "rows_rejected_by_reason": rows_rejected,
+        "evaluation_rows_preview": preview,
+        "reason": None if status == "ACTIVE_TRUSTED_HOLDOUT_CALIBRATION" else "holdout rows lacked usable confidence/outcome joins",
+        "_calibration_rows": calibration_rows,
+        "_expected_move_rows": expected_move_rows,
+    }
+
+
+def build_paper_exploration_artifacts(
+    *,
+    prediction_public: Mapping[str, Any],
+    generated_utc: str,
+) -> dict[str, dict[str, Any]]:
+    rows = _prediction_rows(prediction_public)
+    scored: list[dict[str, Any]] = []
+    rejection_counts: dict[str, int] = {}
+    a_grade = 0
+    for row in rows:
+        trust_ok, trust_missing = _trust_envelope_complete(row)
+        action = str(row.get("selected_action") or "").lower()
+        edge = finite_float(row.get("expected_move_after_cost_bps")) or 0.0
+        confidence = finite_float(row.get("confidence_calibrated")) or 0.0
+        coverage = finite_float(row.get("data_coverage_percent")) or 0.0
+        integrity = finite_float(row.get("market_state_integrity_score")) or 0.0
+        spread = finite_float(row.get("actual_observed_spread_entry_bps"))
+        stale_count = int(finite_float(row.get("stale_feature_count")) or 0)
+        blockers = [str(reason) for reason in as_list(row.get("paper_fill_gate_block_reasons"))]
+        if trust_ok and row.get("paper_fill_allowed") is True and action in {"long", "short"}:
+            a_grade += 1
+        reasons: list[str] = []
+        if not trust_ok:
+            reasons.extend(f"missing_{name}" for name in trust_missing)
+        if action not in {"long", "short"}:
+            reasons.append("not_directional_action")
+        if edge <= 0.0:
+            reasons.append("non_positive_edge_after_cost")
+        if coverage < 70.0:
+            reasons.append("data_coverage_below_70")
+        if integrity < 80.0 or as_list(row.get("market_state_reject_reasons")):
+            reasons.append("market_state_integrity_not_clean")
+        if stale_count > 0:
+            reasons.append("stale_feature_present")
+        if spread is None or spread > 10.0:
+            reasons.append("spread_unacceptable_or_missing")
+        if not _allowed_exploration_blockers(blockers):
+            reasons.append("paper_risk_or_lineage_blocker_present")
+        if row.get("live_gate") != "blocked_human_only" or as_list(row.get("live_symbols")):
+            reasons.append("live_gate_or_live_symbol_not_blocked")
+        if reasons:
+            for reason in sorted(set(reasons)):
+                rejection_counts[reason] = rejection_counts.get(reason, 0) + 1
+            continue
+        uncertainty = max(0.0, 1.0 - abs(confidence - 0.5) * 2.0)
+        score = (edge * 0.55) + (coverage / 100.0 * 12.0) + (integrity / 100.0 * 12.0) + (uncertainty * 8.0)
+        scored.append(
+            {
+                "prediction_id": row.get("prediction_id"),
+                "symbol": row.get("symbol"),
+                "timeframe": row.get("timeframe"),
+                "selected_action": action,
+                "confidence_calibrated": confidence,
+                "expected_move_after_cost_bps": edge,
+                "data_coverage_percent": coverage,
+                "market_state_integrity_score": integrity,
+                "actual_observed_spread_entry_bps": spread,
+                "exploration_score": round(score, 6),
+                "uncertainty_score": round(uncertainty, 6),
+                "paper_only": True,
+                "routes_to_live": False,
+                "live_allowed": False,
+                "selected_before_outcome": True,
+            }
+        )
+    score_floor = _percentile([float(row["exploration_score"]) for row in scored], 0.80)
+    diversified: list[dict[str, Any]] = []
+    symbol_seen: set[str] = set()
+    side_counts: dict[str, int] = {}
+    timeframe_counts: dict[str, int] = {}
+    for row in sorted(scored, key=lambda item: float(item["exploration_score"]), reverse=True):
+        if score_floor is not None and float(row["exploration_score"]) < score_floor:
+            continue
+        symbol = str(row.get("symbol") or "")
+        side = str(row.get("selected_action") or "")
+        timeframe = str(row.get("timeframe") or "")
+        if symbol in symbol_seen:
+            continue
+        if side_counts.get(side, 0) >= 25 or timeframe_counts.get(timeframe, 0) >= 15:
+            continue
+        symbol_seen.add(symbol)
+        side_counts[side] = side_counts.get(side, 0) + 1
+        timeframe_counts[timeframe] = timeframe_counts.get(timeframe, 0) + 1
+        diversified.append(row)
+    status = "ACTIVE_PAPER_ONLY_EXPLORATION_SELECTION" if diversified else "BLOCKED_NO_EXPLORATION_CANDIDATES"
+    return {
+        "paper_exploration_tier_status.json": {
+            "schema_version": "paper_exploration_tier_status_v1",
+            "generated_utc": generated_utc,
+            "status": status,
+            "paper_only": True,
+            "routes_to_live": False,
+            "exchange_mutation": False,
+            "live_allowed": False,
+            "tiers": {
+                "A_GRADE_EXECUTION_PAPER": a_grade,
+                "B_GRADE_EXPLORATION_PAPER": len(diversified),
+                "SHADOW_ONLY": max(0, len(scored) - len(diversified)),
+                "NO_TRADE": max(0, len(rows) - len(scored) - a_grade),
+            },
+            "selection_method": "adaptive_top_quantile_by_edge_quality_uncertainty_with_side_timeframe_symbol_diversification",
+            "dynamic_score_floor": score_floor,
+            "candidate_rows": len(scored),
+            "selected_rows": len(diversified),
+            "rejection_counts": rejection_counts,
+        },
+        "paper_exploration_admission_matrix.json": {
+            "schema_version": "paper_exploration_admission_matrix_v1",
+            "generated_utc": generated_utc,
+            "status": status,
+            "selection_scope": "PAPER_ONLY_CURRENT_PREDICTION_ROWS",
+            "required_checks": [
+                "complete_trust_envelope",
+                "feature_cutoff_lte_decision_time",
+                "available_at_lte_decision_time",
+                "market_state_integrity_pass",
+                "no_stale_feature",
+                "positive_expected_move_after_observed_costs",
+                "acceptable_spread",
+                "paper_only_risk_envelope",
+                "candidate_selected_before_outcome",
+            ],
+            "rejection_counts": rejection_counts,
+            "selected_candidates": diversified[:50],
+        },
+        "paper_exploration_risk_budget_status.json": {
+            "schema_version": "paper_exploration_risk_budget_status_v1",
+            "generated_utc": generated_utc,
+            "status": status,
+            "paper_only": True,
+            "routes_to_live": False,
+            "exchange_mutation": False,
+            "fixed_usdt_sizing": False,
+            "exploration_risk_budget_formula": "normal_adaptive_risk_budget * posterior_exploration_multiplier * drawdown_multiplier",
+            "posterior_exploration_multiplier_source": "confidence_uncertainty_and_edge_quality_bucket",
+            "drawdown_multiplier_source": "paper_drawdown_guard",
+            "selected_candidate_count": len(diversified),
+            "candidate_budget_multipliers": [
+                {
+                    "prediction_id": row.get("prediction_id"),
+                    "symbol": row.get("symbol"),
+                    "timeframe": row.get("timeframe"),
+                    "posterior_exploration_multiplier": round(max(0.05, min(0.50, float(row["uncertainty_score"]) * 0.5)), 6),
+                    "drawdown_multiplier": 1.0,
+                }
+                for row in diversified[:50]
+            ],
+        },
+    }
+
+
+def build_confidence_artifacts(
+    *,
+    prediction_public: Mapping[str, Any],
+    generated_utc: str,
+    current_gate: float = 0.55,
+    repo_root: Path | None = None,
+    model_dir: Path | None = None,
+) -> dict[str, dict[str, Any]]:
+    rows = _prediction_rows(prediction_public)
+    raw_values = [value for row in rows if (value := finite_float(row.get("confidence_raw"))) is not None]
+    calibrated_values = [
+        value for row in rows if (value := finite_float(row.get("confidence_calibrated"))) is not None
+    ]
+    capable = [value for value in calibrated_values if value >= current_gate]
+    coverage_penalties = [max(0.0, 100.0 - (finite_float(row.get("data_coverage_percent")) or 0.0)) for row in rows]
+    missing_penalties = [float(finite_float(row.get("missing_feature_count")) or 0.0) for row in rows]
+    stale_penalties = [float(finite_float(row.get("stale_feature_count")) or 0.0) for row in rows]
+    reachability_status = (
+        "CONFIDENCE_GATE_REACHABLE_BY_CURRENT_CALIBRATION"
+        if capable
+        else "CONFIDENCE_GATE_UNREACHABLE_BY_CURRENT_CALIBRATION"
+    )
+    feedback_metrics = _trusted_feedback_metric_rows(_redis_json_list("v2:trainer:feedback:outcomes"))
+    holdout_artifact = build_trusted_replay_holdout_calibration(
+        repo_root=repo_root,
+        model_dir=model_dir,
+        generated_utc=generated_utc,
+    )
+    holdout_calibration_rows = [
+        dict(row)
+        for row in as_list(holdout_artifact.get("_calibration_rows"))
+        if isinstance(row, Mapping)
+    ]
+    public_holdout_artifact = {
+        key: value for key, value in holdout_artifact.items() if not str(key).startswith("_")
+    }
+    holdout_active = (
+        holdout_artifact.get("status") == "ACTIVE_TRUSTED_HOLDOUT_CALIBRATION"
+        and bool(holdout_calibration_rows)
+    )
+    calibration_rows = holdout_calibration_rows if holdout_active else list(feedback_metrics["calibration_rows"])
+    ece, buckets = _expected_calibration_error(calibration_rows)
+    brier = _brier_score(calibration_rows)
+    confidence_join_available = bool(calibration_rows)
+    trusted_holdout_available = bool(feedback_metrics["holdout_rows"]) or holdout_active
+    trusted_holdout_rows = (
+        int(finite_float(holdout_artifact.get("trusted_holdout_rows")) or 0)
+        if holdout_active
+        else feedback_metrics["holdout_rows"]
+    )
+    if holdout_active:
+        calibration_status = "ACTIVE_TRUSTED_HOLDOUT_CALIBRATION"
+        calibration_reason = None
+    elif confidence_join_available:
+        calibration_status = "ACTIVE_TRUSTED_CONFIDENCE_OUTCOME_CALIBRATION"
+        calibration_reason = (
+            "trusted confidence/outcome rows are available, but no untouched holdout rows are flagged"
+        )
+    else:
+        calibration_status = "BLOCKED_NO_CONFIDENCE_OUTCOME_JOIN_FOR_TRUSTED_HOLDOUT"
+        calibration_reason = "paper outcome labels currently omit confidence/expected-move prediction fields"
+    return {
+        "confidence_gate_reachability_status.json": {
+            "schema_version": "confidence_gate_reachability_status_v1",
+            "generated_utc": generated_utc,
+            "status": reachability_status,
+            "current_gate": current_gate,
+            "prediction_rows": len(rows),
+            "raw_confidence_distribution": _distribution(raw_values),
+            "temperature_scaled_distribution": None,
+            "coverage_penalty_distribution": _distribution(coverage_penalties),
+            "missing_feature_penalty": _distribution(missing_penalties),
+            "stale_feature_penalty": _distribution(stale_penalties),
+            "final_calibrated_distribution": _distribution(calibrated_values),
+            "rows_capable_of_reaching_current_gate": len(capable),
+            "percentage_capable_of_reaching_current_gate": (len(capable) / len(calibrated_values) * 100.0)
+            if calibrated_values
+            else 0.0,
+        },
+        "trusted_confidence_calibration_status.json": {
+            "schema_version": "trusted_confidence_calibration_status_v1",
+            "generated_utc": generated_utc,
+            "status": calibration_status,
+            "trusted_holdout_required": True,
+            "confidence_outcome_join_available": confidence_join_available,
+            "trusted_rows_scanned": feedback_metrics["trusted_rows"],
+            "trusted_confidence_outcome_rows": len(calibration_rows),
+            "trusted_holdout_rows": trusted_holdout_rows,
+            "trusted_holdout_available": trusted_holdout_available,
+            "trusted_replay_holdout_status": holdout_artifact.get("status"),
+            "trusted_replay_holdout_evaluated_rows": holdout_artifact.get("evaluated_rows"),
+            "trusted_replay_holdout_manifest_rows": holdout_artifact.get("manifest_holdout_rows"),
+            "trusted_replay_holdout_source": holdout_artifact.get("calibration_source"),
+            "trusted_replay_holdout_checkpoint_id": holdout_artifact.get("checkpoint_id"),
+            "trusted_replay_holdout_checkpoint_hash": holdout_artifact.get("checkpoint_hash"),
+            "future_labels_used_as_features": holdout_artifact.get("future_labels_used_as_features"),
+            "uses_expected_move_as_realized_reward": holdout_artifact.get("uses_expected_move_as_realized_reward"),
+            "temperature_scaling_fit": False,
+            "isotonic_calibration_fit": False,
+            "brier_score": brier,
+            "ece": ece,
+            "rows_rejected_by_reason": feedback_metrics["rows_rejected_by_reason"],
+            "trusted_replay_holdout_rows_rejected_by_reason": as_dict(
+                holdout_artifact.get("rows_rejected_by_reason")
+            ),
+            "reason": calibration_reason,
+        },
+        "confidence_reliability_matrix.json": {
+            "schema_version": "confidence_reliability_matrix_v1",
+            "generated_utc": generated_utc,
+            "status": calibration_status,
+            "buckets": buckets,
+            "sample_count": len(calibration_rows),
+            "brier_score": brier,
+            "ece": ece,
+            "reason": calibration_reason
+            or (
+                "confidence reliability buckets computed from trusted replay holdout rows"
+                if holdout_active
+                else "confidence reliability buckets computed from trusted feedback rows"
+            ),
+        },
+        "trusted_replay_holdout_calibration_status.json": public_holdout_artifact,
+    }
+
+
+def build_trainer_quality_artifact(*, generated_utc: str) -> dict[str, Any]:
+    rows = _redis_json_list("v2:trainer:feedback:outcomes")
+    feedback_metrics = _trusted_feedback_metric_rows(rows)
+    calibration_rows = list(feedback_metrics["calibration_rows"])
+    expected_move_rows = list(feedback_metrics["expected_move_rows"])
+    ece, reliability_buckets = _expected_calibration_error(calibration_rows)
+    brier = _brier_score(calibration_rows)
+    expected_move_mae = _expected_move_mae(expected_move_rows)
+    realized_values: list[float] = []
+    wins = losses = breakeven = 0
+    direction_correct = direction_total = 0
+    missing_expected_move = missing_confidence = 0
+    groups: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        realized = finite_float(row.get("realized_net_pnl_bps") or row.get("realized_pnl_bps"))
+        if realized is None:
+            continue
+        realized_values.append(realized)
+        if realized > 0:
+            wins += 1
+        elif realized < 0:
+            losses += 1
+        else:
+            breakeven += 1
+        action = str(row.get("selected_action") or row.get("side") or "").lower()
+        directional = str(row.get("directional_outcome") or "").upper()
+        if action in {"long", "short"} and directional in {"UP", "DOWN", "FLAT"}:
+            direction_total += 1
+            if (action == "long" and directional == "UP") or (action == "short" and directional == "DOWN"):
+                direction_correct += 1
+        if finite_float(row.get("expected_move_after_cost_bps")) is None:
+            missing_expected_move += 1
+        if finite_float(row.get("confidence_calibrated")) is None:
+            missing_confidence += 1
+        key = "|".join(
+            [
+                str(row.get("symbol") or "UNKNOWN"),
+                str(row.get("timeframe") or "UNKNOWN"),
+                action or "UNKNOWN",
+                str(row.get("market_regime_at_entry") or "UNKNOWN"),
+            ]
+        )
+        group = groups.setdefault(key, {"sample_count": 0, "net_bps": 0.0, "wins": 0, "losses": 0})
+        group["sample_count"] += 1
+        group["net_bps"] += realized
+        if realized > 0:
+            group["wins"] += 1
+        elif realized < 0:
+            group["losses"] += 1
+    profit = sum(value for value in realized_values if value > 0)
+    loss = abs(sum(value for value in realized_values if value < 0))
+    sample_count = len(realized_values)
+    by_group = []
+    for key, group in groups.items():
+        symbol, timeframe, side, regime = key.split("|", 3)
+        by_group.append(
+            {
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "side": side,
+                "regime": regime,
+                "sample_count": group["sample_count"],
+                "after_cost_expectancy_bps": group["net_bps"] / group["sample_count"]
+                if group["sample_count"]
+                else None,
+                "win_rate": group["wins"] / group["sample_count"] if group["sample_count"] else None,
+            }
+        )
+    by_group.sort(key=lambda item: int(item["sample_count"]), reverse=True)
+    metrics_available = bool(calibration_rows or expected_move_rows)
+    return {
+        "schema_version": "trainer_accuracy_calibration_runtime_status_v1",
+        "generated_utc": generated_utc,
+        "status": (
+            "ACTIVE_REALIZED_PAPER_QUALITY_METRICS"
+            if sample_count and metrics_available
+            else (
+                "ACTIVE_REALIZED_PAPER_QUALITY_METRICS_WITH_CALIBRATION_GAPS"
+                if sample_count
+                else "BLOCKED_NO_REALIZED_PAPER_FEEDBACK"
+            )
+        ),
+        "sample_count": sample_count,
+        "directional_accuracy": direction_correct / direction_total if direction_total else None,
+        "expected_move_mae": expected_move_mae,
+        "expected_move_mae_sample_count": len(expected_move_rows),
+        "brier_score": brier,
+        "ece": ece,
+        "calibration_sample_count": len(calibration_rows),
+        "confidence_reliability_buckets": reliability_buckets,
+        "after_cost_expectancy_bps": sum(realized_values) / sample_count if sample_count else None,
+        "profit_factor": profit / loss if loss > 0 else None,
+        "false_positive_rate": losses / (wins + losses) if (wins + losses) else None,
+        "false_negative_rate": None,
+        "trade_outcome_counts": {"WIN": wins, "LOSS": losses, "BREAKEVEN": breakeven},
+        "confidence_interval": None,
+        "missing_expected_move_rows": missing_expected_move,
+        "missing_confidence_rows": missing_confidence,
+        "trusted_rows_scanned": feedback_metrics["trusted_rows"],
+        "trusted_holdout_rows": feedback_metrics["holdout_rows"],
+        "rows_rejected_by_reason": feedback_metrics["rows_rejected_by_reason"],
+        "metrics_by_symbol_timeframe_side_regime": by_group[:100],
+        "calibration_gap_reason": (
+            None
+            if metrics_available
+            else "feedback rows do not yet preserve confidence_calibrated or expected_move_after_cost_bps"
+        ),
+    }
 
 
 def safe_v2_redis_set(client: Any | None, key: str, payload: Any, *, ex: int | None = None) -> bool:
@@ -610,6 +1676,11 @@ def build_resource_status(
     samples_per_second = finite_float(resource.get("tensor_rows_per_second"))
     target_batch_size = int(finite_float(resource.get("target_batch_size")) or DEFAULT_MAX_TRAINING_ROWS_PER_CYCLE)
     actual_batch_size = int(finite_float(resource.get("actual_batch_size")) or finite_float(training.get("batch_size")) or 0)
+    configured_vram_target_mb = (
+        min(float(TRAINER_VRAM_LIMIT_MB), float(vram_total) * (TRAINER_GPU_UTILIZATION_LIMIT_PERCENT / 100.0))
+        if vram_total
+        else float(TRAINER_VRAM_LIMIT_MB)
+    )
     training_blocker_reason = str(persistent_state.get("last_training_blocker_reason") or "")
     ram_total = finite_float(mem.get("ram_total_gb")) or 0.0
     ram_used = finite_float(mem.get("ram_used_gb")) or 0.0
@@ -644,11 +1715,16 @@ def build_resource_status(
         "generated_est": est_now(),
         "gpu_name": gpu.get("gpu_name") or resource.get("gpu_name"),
         "gpu_utilization_percent": gpu.get("gpu_utilization_percent"),
+        "gpu_utilization_limit_percent": TRAINER_GPU_UTILIZATION_LIMIT_PERCENT,
         "vram_used_mb": vram_used,
         "vram_total_mb": vram_total,
+        "vram_limit_mb": TRAINER_VRAM_LIMIT_MB,
+        "vram_target_mb": round(configured_vram_target_mb, 3),
         "cpu_utilization_percent": cpu,
+        "cpu_quota_percent": TRAINER_CPU_QUOTA_PERCENT,
         "ram_used_gb": mem.get("ram_used_gb"),
         "ram_total_gb": mem.get("ram_total_gb"),
+        "ram_limit_gb": TRAINER_RAM_LIMIT_GB,
         "batch_size": actual_batch_size or None,
         "target_batch_size": target_batch_size,
         "dataloader_workers": resource.get("dataloader_workers"),
@@ -689,6 +1765,229 @@ def latest_training_metrics_from_result(trainer_result: Any | None) -> dict[str,
     }
 
 
+def _blocked_feedback_training_metrics(*, reason: str, trusted_rows: int = 0) -> dict[str, Any]:
+    status = "NO_TRUSTED_TRAINING_ROWS" if trusted_rows <= 0 else "TRAINING_NOT_RUN"
+    return {
+        "status": status,
+        "train_rows": 0,
+        "validation_rows": 0,
+        "training_steps": 0,
+        "loss_before": None,
+        "loss_after": None,
+        "metrics": {
+            "trusted_rows_loaded": trusted_rows,
+            "training_trusted_rows": trusted_rows,
+            "outcome_supervised_rows": trusted_rows,
+            "ppo_on_policy_rows": 0,
+            "ppo_rows_rejected_missing_on_policy_fields": 0,
+            "optimizer_steps_this_cycle": 0,
+            "optimizer_steps_total": 0,
+            "learning_update_lane": "blocked",
+            "online_learning_status": "BLOCKED_NO_TRUSTED_FEEDBACK" if trusted_rows <= 0 else "BLOCKED_NO_DURABLE_WEIGHT_UPDATE",
+            "effective_trainer_mode": "INFERENCE_ONLY",
+            "rows_rejected_by_reason": {},
+            "feedback_source_status": reason,
+        },
+    }
+
+
+def _snapshot_backed_feedback_rejection_reason(client: Any, row: Mapping[str, Any]) -> str | None:
+    if row.get("trainer_consumable") is not True:
+        return "not_marked_trainer_consumable"
+    required_fields = (
+        "prediction_id",
+        "signal_id",
+        "decision_id",
+        "entry_feature_snapshot_id",
+        "mtf_snapshot_id",
+        "feature_cutoff",
+        "decision_time",
+        "available_at",
+        "symbol",
+        "timeframe",
+        "selected_action",
+        "model_version",
+        "checkpoint_id",
+    )
+    for field in required_fields:
+        if row.get(field) in (None, "", [], {}):
+            return f"missing_{field}"
+    source_hashes = row.get("source_hashes")
+    if not isinstance(source_hashes, dict) or not source_hashes:
+        return "missing_source_hashes"
+    decision_time = parse_runtime_time(row.get("decision_time"))
+    available_at = parse_runtime_time(row.get("available_at"))
+    feature_cutoff = parse_runtime_time(row.get("feature_cutoff"))
+    if decision_time is None:
+        return "invalid_decision_time"
+    if available_at is None:
+        return "invalid_available_at"
+    if feature_cutoff is None:
+        return "invalid_feature_cutoff"
+    if available_at > decision_time:
+        return "future_available_at"
+    if feature_cutoff > decision_time:
+        return "future_feature_cutoff"
+    snapshot_id = str(row.get("entry_feature_snapshot_id") or "")
+    snapshot_source = "redis"
+    try:
+        raw_snapshot = client.get(f"v2:features:snapshot:{snapshot_id}")
+    except Exception:
+        return "entry_feature_snapshot_read_error"
+    if raw_snapshot:
+        try:
+            snapshot = json.loads(raw_snapshot)
+        except Exception:
+            return "entry_feature_snapshot_invalid_json"
+    else:
+        snapshot_source = "trainer_feedback"
+        snapshot = None
+        for field in ("entry_feature_snapshot", "feature_snapshot"):
+            candidate = row.get(field)
+            if isinstance(candidate, dict):
+                snapshot = candidate
+                break
+        if snapshot is None:
+            return "entry_feature_snapshot_not_found"
+    if not isinstance(snapshot, dict):
+        return "entry_feature_snapshot_not_object"
+    snapshot_payload_id = snapshot.get("feature_snapshot_id") or snapshot.get("snapshot_id")
+    if snapshot_source == "trainer_feedback" and not snapshot_payload_id:
+        return "entry_feature_snapshot_id_missing"
+    if snapshot_payload_id and str(snapshot_payload_id) != snapshot_id:
+        return "entry_feature_snapshot_id_mismatch"
+    if str(snapshot.get("symbol") or "").upper() != str(row.get("symbol") or "").upper():
+        return "entry_feature_snapshot_symbol_mismatch"
+    if str(snapshot.get("timeframe") or "") != str(row.get("timeframe") or ""):
+        return "entry_feature_snapshot_timeframe_mismatch"
+    features = snapshot.get("features") if isinstance(snapshot.get("features"), dict) else {}
+    if not features:
+        return "entry_feature_snapshot_empty_features"
+    snapshot_available_at = parse_runtime_time(
+        snapshot.get("available_at") or snapshot.get("generated_utc") or snapshot.get("generated_at")
+    )
+    snapshot_feature_cutoff = parse_runtime_time(snapshot.get("feature_cutoff") or snapshot.get("source_available_time"))
+    if snapshot_available_at is not None and snapshot_available_at > decision_time:
+        return "entry_feature_snapshot_future_available_at"
+    if snapshot_feature_cutoff is not None and snapshot_feature_cutoff > decision_time:
+        return "entry_feature_snapshot_future_feature_cutoff"
+    return None
+
+
+def _increment_rejection_reason(counts: dict[str, int], reason: Any) -> None:
+    text = str(reason or "").strip()
+    if not text:
+        return
+    counts[text] = counts.get(text, 0) + 1
+
+
+def _quarantined_feedback_rejection_counts(client: Any) -> dict[str, int]:
+    try:
+        raw = client.get("v2:trainer:feedback:outcomes:quarantine")
+    except Exception:
+        return {}
+    try:
+        rows = json.loads(raw or "[]")
+    except Exception:
+        return {"quarantine_invalid_json": 1}
+    if not isinstance(rows, list):
+        return {"quarantine_not_list": 1}
+    counts: dict[str, int] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            _increment_rejection_reason(counts, "invalid_quarantine_row")
+            continue
+        emitted = False
+        for field in (
+            "trust_envelope_rejection_reasons",
+            "trust_reconstruction_rejection_reasons",
+            "audit_quality_rejection_reasons",
+            "missing_feedback_classifications",
+            "missing_feedback_fields",
+        ):
+            values = row.get(field)
+            if isinstance(values, list):
+                for value in values:
+                    _increment_rejection_reason(counts, value)
+                    emitted = True
+            elif values not in (None, "", [], {}):
+                _increment_rejection_reason(counts, values)
+                emitted = True
+        if not emitted:
+            _increment_rejection_reason(
+                counts,
+                row.get("quarantine_reason") or "quarantined_without_reason",
+            )
+    return counts
+
+
+def latest_training_metrics_from_current_feedback(*, fail_closed: bool = False) -> dict[str, Any] | None:
+    client = connect_redis()
+    if client is None:
+        return _blocked_feedback_training_metrics(reason="REDIS_UNAVAILABLE") if fail_closed else None
+    try:
+        raw = client.get("v2:trainer:feedback:outcomes")
+    except Exception:
+        return _blocked_feedback_training_metrics(reason="REDIS_READ_ERROR") if fail_closed else None
+    try:
+        rows = json.loads(raw or "[]")
+    except Exception:
+        rows = []
+    if not isinstance(rows, list):
+        rows = []
+    trusted_rows = 0
+    rejected_by_reason: dict[str, int] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            rejected_by_reason["invalid_feedback_row"] = rejected_by_reason.get("invalid_feedback_row", 0) + 1
+            continue
+        reason = _snapshot_backed_feedback_rejection_reason(client, row)
+        if reason is None:
+            trusted_rows += 1
+        else:
+            rejected_by_reason[reason] = rejected_by_reason.get(reason, 0) + 1
+    if trusted_rows <= 0:
+        for reason, count in _quarantined_feedback_rejection_counts(client).items():
+            rejected_by_reason[reason] = rejected_by_reason.get(reason, 0) + int(count)
+    metrics = _blocked_feedback_training_metrics(reason="CURRENT_FEEDBACK_ROWS", trusted_rows=trusted_rows)
+    metrics["metrics"]["rows_rejected_by_reason"] = rejected_by_reason
+    return metrics
+
+
+def _with_current_feedback_rejection_counts(
+    latest_training_metrics: Mapping[str, Any] | None,
+) -> dict[str, Any] | None:
+    metrics_payload = as_dict(latest_training_metrics)
+    if not metrics_payload:
+        return latest_training_metrics_from_current_feedback(fail_closed=True)
+    nested_metrics = as_dict(metrics_payload.get("metrics"))
+    trusted_rows = int(
+        finite_float(nested_metrics.get("trusted_rows_loaded"))
+        or finite_float(metrics_payload.get("train_rows"))
+        or 0
+    )
+    if trusted_rows > 0 or as_dict(nested_metrics.get("rows_rejected_by_reason")):
+        return metrics_payload
+    feedback_metrics = latest_training_metrics_from_current_feedback(fail_closed=True)
+    feedback_rejections = as_dict(
+        as_dict(feedback_metrics).get("metrics", {}).get("rows_rejected_by_reason")
+    )
+    if not feedback_rejections:
+        return metrics_payload
+    merged_nested = {
+        **nested_metrics,
+        "rows_rejected_by_reason": feedback_rejections,
+    }
+    if "feedback_source_status" not in merged_nested:
+        merged_nested["feedback_source_status"] = as_dict(feedback_metrics).get("metrics", {}).get(
+            "feedback_source_status"
+        )
+    return {
+        **metrics_payload,
+        "metrics": merged_nested,
+    }
+
+
 def online_learning_runtime_fields(
     *,
     training: Mapping[str, Any] | None = None,
@@ -699,73 +1998,37 @@ def online_learning_runtime_fields(
     training = as_dict(training)
     latest_training_metrics = as_dict(latest_training_metrics)
     nested_metrics = as_dict(latest_training_metrics.get("metrics")) or as_dict(training.get("metrics"))
-    status = str(training.get("status") or latest_training_metrics.get("status") or "")
-    trusted_rows = int(
-        finite_float(nested_metrics.get("trusted_rows_loaded"))
-        or finite_float(training.get("trusted_rows_loaded"))
-        or finite_float(training.get("train_rows"))
-        or 0
+    rows_rejected_by_reason = as_dict(
+        nested_metrics.get("rows_rejected_by_reason")
+        or training.get("rows_rejected_by_reason")
+        or {}
     )
-    optimizer_steps = int(
-        finite_float(nested_metrics.get("optimizer_steps_this_cycle"))
-        or finite_float(training.get("optimizer_steps_this_cycle"))
-        or 0
+    persistent_runtime = as_dict(persistent_state)
+    recent_events = prune_recent_events(as_list(persistent_runtime.get("step_events")), now_ts=time.time())
+    optimizer_steps_last_hour = sum(
+        int(finite_float(event.get("training_steps")) or 0)
+        for event in recent_events
     )
-    parameter_hash_before = nested_metrics.get("parameter_hash_before") or training.get("parameter_hash_before")
-    parameter_hash_after = nested_metrics.get("parameter_hash_after") or training.get("parameter_hash_after")
-    weight_delta_norm = finite_float(nested_metrics.get("weight_delta_norm") or training.get("weight_delta_norm")) or 0.0
-    checkpoint_written = bool(
-        nested_metrics.get("checkpoint_weight_blob_written")
-        or training.get("checkpoint_weight_blob_written")
+    if optimizer_steps_last_hour > 0:
+        nested_metrics = {
+            **nested_metrics,
+            "optimizer_steps_last_hour": optimizer_steps_last_hour,
+        }
+        latest_training_metrics = {
+            **latest_training_metrics,
+            "metrics": nested_metrics,
+        }
+    readiness = build_learning_readiness(
+        training=training,
+        latest_training_metrics=latest_training_metrics,
+        persistent_runtime=persistent_runtime,
+        prediction_rows=prediction_rows,
     )
-    checkpoint_reload_verified = bool(
-        nested_metrics.get("checkpoint_reload_verified")
-        or training.get("checkpoint_reload_verified")
-    )
-    weight_mutated = bool(
-        optimizer_steps > 0
-        and parameter_hash_before
-        and parameter_hash_after
-        and parameter_hash_before != parameter_hash_after
-        and weight_delta_norm > 0.0
-        and checkpoint_written
-        and checkpoint_reload_verified
-    )
-    successful_update_at = (
-        nested_metrics.get("last_successful_weight_update_at")
-        or training.get("last_successful_weight_update_at")
-    )
-    blocker = str(
-        as_dict(persistent_state).get("last_training_blocker_reason")
-        or status
-        or ""
-    )
-    if weight_mutated and successful_update_at:
-        online_learning_status = "WEIGHTS_UPDATING"
-        effective_trainer_mode = "WEIGHTS_UPDATING"
-        last_successful_weight_update_at = successful_update_at
-    elif trusted_rows <= 0 or "NO_TRUSTED" in blocker:
-        online_learning_status = "BLOCKED_NO_TRUSTED_FEEDBACK"
-        effective_trainer_mode = "INFERENCE_ONLY"
-        last_successful_weight_update_at = None
-    else:
-        online_learning_status = "BLOCKED_NO_DURABLE_WEIGHT_UPDATE"
-        effective_trainer_mode = "INFERENCE_ONLY"
-        last_successful_weight_update_at = None
     return {
-        "trainer_process_status": "ACTIVE",
-        "cuda_inference_status": "ACTIVE",
-        "prediction_publication_status": "ACTIVE" if int(prediction_rows) > 0 else "BLOCKED_NO_PREDICTIONS",
-        "online_learning_status": online_learning_status,
-        "effective_trainer_mode": effective_trainer_mode,
-        "last_successful_weight_update_at": last_successful_weight_update_at,
-        "trusted_rows_loaded": trusted_rows,
-        "optimizer_steps_this_cycle": optimizer_steps,
-        "parameter_hash_before": parameter_hash_before,
-        "parameter_hash_after": parameter_hash_after,
-        "weight_delta_norm": weight_delta_norm,
-        "checkpoint_weight_blob_written": checkpoint_written,
-        "checkpoint_reload_verified": checkpoint_reload_verified,
+        **readiness,
+        "rows_rejected_by_reason": rows_rejected_by_reason,
+        "loss_before": nested_metrics.get("loss_before") or training.get("loss_before"),
+        "loss_after": nested_metrics.get("loss_after") or training.get("loss_after"),
     }
 
 
@@ -1090,11 +2353,36 @@ def refresh_all_timeframe_payload(repo_root: Path) -> dict[str, Any]:
     }
 
 
-# Module-level in-memory replay buffer — survives across cycles, uses 128 GB RAM.
-# maxlen=65_536 targets ~1.6 GB for typical feature vector sizes; feeds 32K-row batches.
-_REPLAY_BUFFER: deque = deque(maxlen=65_536)
+# Module-level in-memory replay buffer. Keep it tightly bounded so a resident
+# trainer cannot retain enough examples to pressure system RAM after restarts.
+_REPLAY_BUFFER: deque = deque(maxlen=4_096)
 RESIDENT_MAX_TRAIN_STEPS_PER_CYCLE = 64
 RESIDENT_TRAIN_ROWS_PER_STEP = 512
+RESIDENT_NATIVE_CYCLE_TIMEOUT_SECONDS = 600
+
+
+class NativeCycleTimeout(TimeoutError):
+    """Raised when the resident native trainer cycle exceeds its watchdog."""
+
+
+@contextmanager
+def resident_native_cycle_timeout(seconds: int):
+    timeout_seconds = max(0, int(seconds))
+    if timeout_seconds <= 0 or not hasattr(signal, "SIGALRM"):
+        yield
+        return
+    previous_handler = signal.getsignal(signal.SIGALRM)
+
+    def _raise_timeout(_signum: int, _frame: Any) -> None:
+        raise NativeCycleTimeout(f"resident native trainer cycle exceeded {timeout_seconds}s")
+
+    signal.signal(signal.SIGALRM, _raise_timeout)
+    signal.setitimer(signal.ITIMER_REAL, float(timeout_seconds))
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0.0)
+        signal.signal(signal.SIGALRM, previous_handler)
 
 
 def resident_train_steps_for_max_rows(max_rows: int) -> int:
@@ -1355,9 +2643,13 @@ def publish_persistent_payloads(
         and missing_prediction_rows == 0
         and stale_prediction_rows == 0
     )
-    latest_training_metrics = latest_training_metrics_from_result(trainer_result) or current_runtime.get(
-        "latest_training_metrics"
-    )
+    if trainer_result is not None:
+        latest_training_metrics = latest_training_metrics_from_result(trainer_result) or current_runtime.get(
+            "latest_training_metrics"
+        )
+        latest_training_metrics = _with_current_feedback_rejection_counts(latest_training_metrics)
+    else:
+        latest_training_metrics = latest_training_metrics_from_current_feedback(fail_closed=True)
     online_learning = online_learning_runtime_fields(
         training=as_dict(as_dict(getattr(trainer_result, "metrics", {})).get("training")) if trainer_result is not None else {},
         latest_training_metrics=latest_training_metrics,
@@ -1447,7 +2739,239 @@ def publish_persistent_payloads(
         "paper_confidence_trial_guard_reason": guard.get("drawdown_guard_reason"),
         "paper_confidence_trial_guard_trial_enabled": guard.get("trial_enabled"),
     }
+    readiness_artifact = {
+        key: merged_runtime.get(key)
+        for key in (
+            "schema_version",
+            "generated_utc",
+            "trainer_learning_ready",
+            "trainer_process_status",
+            "cuda_inference_status",
+            "prediction_publication_status",
+            "offline_replay_learning_status",
+            "online_paper_learning_status",
+            "online_learning_status",
+            "effective_trainer_mode",
+            "allowed_effective_trainer_modes",
+            "last_successful_weight_update_at",
+            "trusted_rows_loaded",
+            "trusted_replay_rows_loaded",
+            "feedback_rows_entered_batch",
+            "optimizer_steps_this_cycle",
+            "optimizer_steps_last_hour",
+            "optimizer_steps_total",
+            "parameter_hash_before",
+            "parameter_hash_after",
+            "weight_delta_norm",
+            "checkpoint_weight_blob_written",
+            "checkpoint_path",
+            "checkpoint_hash",
+            "checkpoint_reload_verified",
+            "requirement_checks",
+            "readiness_blocking_reasons",
+        )
+        if key in merged_runtime
+    }
+    latest_metrics = as_dict(as_dict(latest_training_metrics).get("metrics"))
+    loss_before = latest_training_metrics.get("loss_before") or latest_metrics.get("loss_before")
+    loss_after = latest_training_metrics.get("loss_after") or latest_metrics.get("loss_after")
+    weight_mutation_proof = {
+        "schema_version": "online_learning_weight_mutation_proof_v1",
+        "generated_utc": generated_utc,
+        "trusted_rows_loaded": merged_runtime.get("trusted_rows_loaded"),
+        "trusted_replay_rows_loaded": merged_runtime.get("trusted_replay_rows_loaded"),
+        "feedback_rows_entered_batch": merged_runtime.get("feedback_rows_entered_batch"),
+        "optimizer_steps_this_cycle": merged_runtime.get("optimizer_steps_this_cycle"),
+        "optimizer_steps_last_hour": merged_runtime.get("optimizer_steps_last_hour"),
+        "optimizer_steps_total": merged_runtime.get("optimizer_steps_total"),
+        "parameter_hash_before": merged_runtime.get("parameter_hash_before"),
+        "parameter_hash_after": merged_runtime.get("parameter_hash_after"),
+        "weight_delta_norm": merged_runtime.get("weight_delta_norm"),
+        "loss_before": loss_before,
+        "loss_after": loss_after,
+        "finite_loss": finite_float(loss_before) is not None and finite_float(loss_after) is not None,
+        "checkpoint_weight_blob_written": merged_runtime.get("checkpoint_weight_blob_written"),
+        "checkpoint_path": merged_runtime.get("checkpoint_path"),
+        "checkpoint_hash": merged_runtime.get("checkpoint_hash"),
+        "checkpoint_reload_verified": merged_runtime.get("checkpoint_reload_verified"),
+        "last_successful_weight_update_at": merged_runtime.get("last_successful_weight_update_at"),
+        "learning_update_lane": latest_metrics.get("learning_update_lane"),
+        "ppo_objective_used": latest_metrics.get("ppo_objective_used"),
+        "outcome_supervised_update_used": latest_metrics.get("outcome_supervised_update_used"),
+        "uses_expected_move_as_realized_reward": latest_metrics.get("uses_expected_move_as_realized_reward"),
+        "trainer_learning_ready": merged_runtime.get("trainer_learning_ready"),
+    }
+    batch_consumption = {
+        "schema_version": "trusted_feedback_batch_consumption_status_v1",
+        "generated_utc": generated_utc,
+        "trusted_rows_loaded": merged_runtime.get("trusted_rows_loaded"),
+        "trusted_replay_rows_loaded": merged_runtime.get("trusted_replay_rows_loaded"),
+        "fresh_paper_feedback_rows_entered_batch": merged_runtime.get("feedback_rows_entered_batch"),
+        "online_paper_learning_status": merged_runtime.get("online_paper_learning_status"),
+        "offline_replay_learning_status": merged_runtime.get("offline_replay_learning_status"),
+        "rows_rejected_by_reason": merged_runtime.get("rows_rejected_by_reason"),
+    }
+    checkpoint_post_learning = {
+        "schema_version": "checkpoint_post_learning_status_v1",
+        "generated_utc": generated_utc,
+        "checkpoint_weight_blob_written": merged_runtime.get("checkpoint_weight_blob_written"),
+        "checkpoint_path": merged_runtime.get("checkpoint_path"),
+        "checkpoint_hash": merged_runtime.get("checkpoint_hash"),
+        "checkpoint_reload_verified": merged_runtime.get("checkpoint_reload_verified"),
+        "parameter_hash_before": merged_runtime.get("parameter_hash_before"),
+        "parameter_hash_after": merged_runtime.get("parameter_hash_after"),
+        "last_successful_weight_update_at": merged_runtime.get("last_successful_weight_update_at"),
+    }
+    training_lane = {
+        "schema_version": "training_lane_separation_status_v1",
+        "generated_utc": generated_utc,
+        "learning_update_lane": latest_metrics.get("learning_update_lane"),
+        "ppo_objective_used": latest_metrics.get("ppo_objective_used"),
+        "outcome_supervised_update_used": latest_metrics.get("outcome_supervised_update_used"),
+        "ppo_requires_on_policy_fields": latest_metrics.get("ppo_requires_on_policy_fields"),
+        "ppo_on_policy_rows": latest_metrics.get("ppo_on_policy_rows"),
+        "outcome_supervised_rows": latest_metrics.get("outcome_supervised_rows"),
+        "trusted_replay_rows_loaded": latest_metrics.get("trusted_replay_rows_loaded"),
+        "fresh_feedback_rows_loaded": latest_metrics.get("feedback_rows_entered_batch"),
+        "ppo_rows_rejected_missing_on_policy_fields": latest_metrics.get(
+            "ppo_rows_rejected_missing_on_policy_fields"
+        ),
+        "uses_expected_move_as_realized_reward": latest_metrics.get("uses_expected_move_as_realized_reward"),
+    }
+    ppo_validation = {
+        "schema_version": "ppo_on_policy_validation_status_v1",
+        "generated_utc": generated_utc,
+        "ppo_objective_used": latest_metrics.get("ppo_objective_used"),
+        "ppo_on_policy_rows": latest_metrics.get("ppo_on_policy_rows"),
+        "required_fields": [
+            "old_log_prob",
+            "old_value",
+            "reward",
+            "done",
+            "rollout_id",
+            "trajectory_step",
+            "trajectory_order",
+            "on_policy_checkpoint_id",
+        ],
+        "off_policy_rows_reported_as_ppo": False,
+    }
+    outcome_supervised = {
+        "schema_version": "outcome_supervised_learning_status_v1",
+        "generated_utc": generated_utc,
+        "active": latest_metrics.get("outcome_supervised_update_used") is True,
+        "trusted_rows_loaded": merged_runtime.get("trusted_rows_loaded"),
+        "trusted_replay_rows_loaded": merged_runtime.get("trusted_replay_rows_loaded"),
+        "fresh_feedback_rows_loaded": merged_runtime.get("feedback_rows_entered_batch"),
+        "realized_reward_source": latest_metrics.get("realized_reward_source"),
+        "uses_expected_move_as_realized_reward": latest_metrics.get("uses_expected_move_as_realized_reward"),
+    }
+    followup_artifacts = {
+        **build_paper_exploration_artifacts(
+            prediction_public=prediction_public,
+            generated_utc=generated_utc,
+        ),
+        **build_confidence_artifacts(
+            prediction_public=prediction_public,
+            generated_utc=generated_utc,
+            repo_root=paths.repo_root,
+            model_dir=paths.model_dir,
+        ),
+        "fresh_online_feedback_end_to_end_status.json": {
+            "schema_version": "fresh_online_feedback_end_to_end_status_v1",
+            "generated_utc": generated_utc,
+            "status": merged_runtime.get("online_paper_learning_status"),
+            "new_consumable_feedback_rows": merged_runtime.get("feedback_rows_entered_batch"),
+            "new_unexplained_quarantined_feedback_rows": None,
+        },
+        "trainer_accuracy_calibration_runtime_status.json": build_trainer_quality_artifact(
+            generated_utc=generated_utc
+        ),
+    }
+    trusted_replay_dataset = as_dict(
+        read_json(paths.repo_root / "goal_state" / TRUSTED_REPLAY_GOAL_ID / "trusted_replay_dataset_status.json")
+    ) or as_dict(read_json(paths.operator_dir / "trusted_replay_dataset_status.json"))
+    goal_blockers: list[str] = []
+    if not trusted_replay_dataset.get("trusted_replay_rows_requirement_met"):
+        goal_blockers.append("trusted_replay_rows_below_10000")
+    if not trusted_replay_dataset.get("symbol_count_requirement_met"):
+        goal_blockers.append("trusted_replay_symbol_count_below_50")
+    if trusted_replay_dataset.get("all_required_timeframes_present") is not True:
+        goal_blockers.append("trusted_replay_missing_required_timeframes")
+    if merged_runtime.get("online_learning_status") != "WEIGHTS_UPDATING":
+        goal_blockers.append("online_learning_not_weights_updating")
+    if merged_runtime.get("checkpoint_reload_verified") is not True:
+        goal_blockers.append("checkpoint_reload_not_verified")
+    if not merged_runtime.get("last_successful_weight_update_at"):
+        goal_blockers.append("last_successful_weight_update_missing")
+    if merged_runtime.get("online_paper_learning_status") != "ACTIVE":
+        goal_blockers.append("fresh_online_paper_feedback_not_consumed")
+    paper_status = str(as_dict(followup_artifacts.get("paper_exploration_tier_status.json")).get("status") or "")
+    confidence_status = str(
+        as_dict(followup_artifacts.get("trusted_confidence_calibration_status.json")).get("status") or ""
+    )
+    quality_status = str(
+        as_dict(followup_artifacts.get("trainer_accuracy_calibration_runtime_status.json")).get("status") or ""
+    )
+    if not paper_status.startswith("ACTIVE"):
+        goal_blockers.append("paper_exploration_not_implemented")
+    if confidence_status != "ACTIVE_TRUSTED_HOLDOUT_CALIBRATION":
+        goal_blockers.append("confidence_holdout_calibration_not_implemented")
+    if not quality_status.startswith("ACTIVE"):
+        goal_blockers.append("direct_trainer_quality_metrics_not_implemented")
+    goal_ready = not goal_blockers
+    goal_go_no_go = {
+        "status": f"{TRUSTED_REPLAY_GOAL_ID}_{'READY' if goal_ready else 'BLOCKED'}",
+        "ready": goal_ready,
+        "blockers": goal_blockers,
+    }
     write_json(current_runtime_path, merged_runtime)
+    write_learning_readiness_artifact(paths.operator_dir / GLOBAL_READINESS_ARTIFACT, readiness_artifact)
+    goal_dirs = (
+        paths.artifact_dir,
+        paths.worklog_dir,
+        paths.repo_root / "goal_state" / TRUSTED_REPLAY_GOAL_ID,
+        paths.repo_root / "claude_worklog/final_readiness" / TRUSTED_REPLAY_GOAL_ID / "latest",
+        paths.operator_dir,
+    )
+    goal_payloads = {
+        GLOBAL_READINESS_ARTIFACT: readiness_artifact,
+        "online_learning_weight_mutation_proof.json": weight_mutation_proof,
+        "trusted_feedback_batch_consumption_status.json": batch_consumption,
+        "checkpoint_post_learning_status.json": checkpoint_post_learning,
+        "training_lane_separation_status.json": training_lane,
+        "ppo_on_policy_validation_status.json": ppo_validation,
+        "outcome_supervised_learning_status.json": outcome_supervised,
+        **followup_artifacts,
+        "operator_dashboard_payload.json": dashboard,
+    }
+    for base in goal_dirs:
+        write_learning_readiness_artifact(base / GLOBAL_READINESS_ARTIFACT, readiness_artifact)
+        for name, payload in goal_payloads.items():
+            if name == GLOBAL_READINESS_ARTIFACT:
+                continue
+            write_json(base / name, payload)
+        write_text(base / "GO_NO_GO.md", goal_go_no_go["status"])
+        write_text(
+            base / f"{TRUSTED_REPLAY_GOAL_ID}_REPORT.md",
+            "\n".join(
+                [
+                    f"# {TRUSTED_REPLAY_GOAL_ID}",
+                    "",
+                    f"Status: `{goal_go_no_go['status']}`",
+                    "",
+                    "Replay learning is active and weight mutation is proven. The full goal remains blocked only by the remaining follow-up lanes below.",
+                    "",
+                    f"- Trusted replay rows: `{trusted_replay_dataset.get('trusted_replay_rows')}`",
+                    f"- Trusted replay symbols: `{trusted_replay_dataset.get('symbol_count')}`",
+                    f"- Trusted rows loaded: `{merged_runtime.get('trusted_rows_loaded')}`",
+                    f"- Optimizer steps last hour: `{merged_runtime.get('optimizer_steps_last_hour')}`",
+                    f"- Parameter hash changed: `{merged_runtime.get('parameter_hash_before') != merged_runtime.get('parameter_hash_after')}`",
+                    f"- Checkpoint reload verified: `{merged_runtime.get('checkpoint_reload_verified')}`",
+                    f"- Online paper learning: `{merged_runtime.get('online_paper_learning_status')}`",
+                    f"- Remaining blockers: `{', '.join(goal_go_no_go['blockers']) or 'none'}`",
+                ]
+            ),
+        )
     write_json(paths.operator_dir / "native_trainer_gpu_status.json", dict(resource))
     write_json(paths.operator_dir / "native_trainer_checkpoint_status.json", dict(checkpoint))
     return payloads
@@ -1468,12 +2992,18 @@ def run_one_persistent_cycle(
         max_rows=max_rows,
         run_training=run_training,
     )
+    trainer_result = None
     try:
-        trainer_result = run_native_training_cycle(
-            paths=paths,
-            max_rows=max_rows,
-            risk_caps_configured=risk_caps_configured,
-        ) if run_training else None
+        if run_training:
+            with resident_native_cycle_timeout(RESIDENT_NATIVE_CYCLE_TIMEOUT_SECONDS):
+                trainer_result = run_native_training_cycle(
+                    paths=paths,
+                    max_rows=max_rows,
+                    risk_caps_configured=risk_caps_configured,
+                )
+    except NativeCycleTimeout:
+        trainer_result = None
+        training_blocker_reason = f"NATIVE_CYCLE_TIMEOUT_{RESIDENT_NATIVE_CYCLE_TIMEOUT_SECONDS}s"
     except (RuntimeError, ValueError) as exc:
         msg = str(exc).lower()
         if not ("no trusted examples built" in msg or "min() arg is an empty sequence" in msg):
@@ -1481,6 +3011,20 @@ def run_one_persistent_cycle(
         trainer_result = None
         training_blocker_reason = "NO_TRUSTED_EXAMPLES_BUILT"
     training_metrics = as_dict(as_dict(getattr(trainer_result, "metrics", {})).get("training")) if trainer_result is not None else {}
+    nested_training_metrics = as_dict(training_metrics.get("metrics"))
+    trusted_rows_loaded = int(
+        finite_float(nested_training_metrics.get("trusted_rows_loaded"))
+        or finite_float(training_metrics.get("trusted_rows_loaded"))
+        or 0
+    )
+    optimizer_steps_this_cycle = int(
+        finite_float(nested_training_metrics.get("optimizer_steps_this_cycle"))
+        or finite_float(training_metrics.get("optimizer_steps_this_cycle"))
+        or finite_float(training_metrics.get("training_steps"))
+        or 0
+    )
+    if trainer_result is not None and trusted_rows_loaded <= 0 and optimizer_steps_this_cycle <= 0:
+        training_blocker_reason = "NO_TRUSTED_FEEDBACK_ROWS"
     prediction_public = as_dict(read_json(paths.public_root / PREDICTION_REL))
     prediction_rows = len(getattr(trainer_result, "predictions", []) if trainer_result is not None else [])
     if trainer_result is None:
@@ -1489,10 +3033,7 @@ def run_one_persistent_cycle(
             or len(as_list(prediction_public.get("prediction_rows")))
             or 0
         )
-    training_steps_this_cycle = int(
-        finite_float(training_metrics.get("training_steps"))
-        or (1 if trainer_result is not None else 0)
-    )
+    training_steps_this_cycle = int(optimizer_steps_this_cycle)
     state = record_cycle_state(
         paths=paths,
         training_steps=training_steps_this_cycle,

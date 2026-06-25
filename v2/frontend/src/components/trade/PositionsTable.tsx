@@ -9,8 +9,11 @@ interface PaperPos {
   side: string;
   notional_usd: number | null;
   leverage: number;
+  entry_price?: number | null;
   avg_entry_price: number | null;
+  mark_price?: number | null;
   last_mark_price: number | null;
+  current_price?: number | null;
   unrealized_pnl: number | null;
   unrealized_pnl_bps: number | null;
   mark_price_age_seconds?: number | null;
@@ -37,6 +40,13 @@ function markAgeStr(sec: number | null | undefined): string {
   if (sec < 1) return 'live mark <1s';
   if (sec < 60) return `live mark ${Math.round(sec)}s`;
   return `live mark ${Math.floor(sec / 60)}m`;
+}
+
+function positiveNumber(...values: Array<number | null | undefined>): number | null {
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value;
+  }
+  return null;
 }
 
 export function PositionsTable({ state }: { state: TradeTerminalState }): JSX.Element {
@@ -113,6 +123,8 @@ export function PositionsTable({ state }: { state: TradeTerminalState }): JSX.El
           </div>
           {paperPositions.map((pos, i) => {
             const isLong = pos.side.toUpperCase().includes('BUY') || pos.side === 'LONG';
+            const entryPrice = positiveNumber(pos.entry_price, pos.avg_entry_price);
+            const markPrice = positiveNumber(pos.mark_price, pos.last_mark_price, pos.current_price);
             return (
               <div
                 className="trade-table__row trade-table__row--paper-positions"
@@ -126,8 +138,8 @@ export function PositionsTable({ state }: { state: TradeTerminalState }): JSX.El
                 <span data-label="Trade Size">{formatMoney(pos.notional_usd)}</span>
                 <span data-label="Lev.">{pos.leverage}x</span>
                 <span data-label="TF">{pos.timeframe ?? '—'}</span>
-                <span data-label="Entry">{formatPrice(pos.avg_entry_price)}</span>
-                <span data-label="Mark" title={String(pos.mark_price_source ?? '')}>{formatPrice(pos.last_mark_price)}</span>
+                <span data-label="Entry">{formatPrice(entryPrice)}</span>
+                <span data-label="Mark" title={String(pos.mark_price_source ?? '')}>{formatPrice(markPrice)}</span>
                 <span data-label="Net PnL" className={signedClass(pos.unrealized_pnl)}>
                   {formatMoney(pos.unrealized_pnl)}
                 </span>

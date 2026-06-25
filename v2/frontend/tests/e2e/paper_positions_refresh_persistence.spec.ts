@@ -19,6 +19,7 @@
  * momentary empty responses.
  */
 import { expect, test } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 import { paperActivityStreamTestHooks } from '../../src/hooks/usePaperActivityStream';
 
 const SYNTH_POSITION = {
@@ -103,5 +104,40 @@ test.describe('paperActivityStreamTestHooks — pure logic', () => {
 
     expect(merged.positions).toHaveLength(1);
     expect(merged.positions[0]).toMatchObject({ symbol: 'ETHUSDT' });
+  });
+});
+
+test.describe('position pricing presentation contract', () => {
+  test('web position surfaces do not display non-positive prices as real values', () => {
+    const paperTrading = readFileSync(new URL('../../src/pages/paper-trading/index.tsx', import.meta.url), 'utf8');
+    const portfolioPositions = readFileSync(new URL('../../src/pages/positions/index.tsx', import.meta.url), 'utf8');
+    const tradeTerminal = readFileSync(new URL('../../src/hooks/useTradeTerminal.ts', import.meta.url), 'utf8');
+
+    expect(paperTrading).toContain("v <= 0) return '—'");
+    expect(paperTrading).toContain('MARKET DATA LIVE');
+    expect(paperTrading).toContain('EXECUTION RESTRICTED');
+    expect(portfolioPositions).toContain('return n !== null && n > 0 ? n : null');
+    expect(tradeTerminal).toContain('function positiveFinite(value: unknown): number | null');
+  });
+
+  test('web open closed and historical positions expose AI decision basis', () => {
+    const paperTrading = readFileSync(new URL('../../src/pages/paper-trading/index.tsx', import.meta.url), 'utf8');
+    const portfolioPositions = readFileSync(new URL('../../src/pages/positions/index.tsx', import.meta.url), 'utf8');
+
+    expect(portfolioPositions).toContain("type PositionTab = 'open' | 'closed' | 'historical'");
+    expect(portfolioPositions).toContain("const historicalPositions = closedPositions");
+    expect(portfolioPositions).toContain('<PositionEvidenceCard');
+    expect(portfolioPositions).toContain('<h3 style={{ margin: 0, fontSize: 12');
+    expect(portfolioPositions).toContain('AI Reasoning');
+    expect(portfolioPositions).toContain('reasoning?.signal_id ?? row.signal_id');
+    expect(portfolioPositions).toContain('reasoning?.prediction_id ?? row.prediction_id');
+    expect(portfolioPositions).toContain('firstPositivePrice(row.exit_price, row.paper_exit_price, row.close_price, row.closing_price, row.filled_exit_price)');
+    expect(portfolioPositions).toContain('firstPositivePrice(row.mark_price, row.last_mark_price, row.current_price)');
+
+    expect(paperTrading).toContain('function DecisionBasisPanel');
+    expect(paperTrading).toContain('<DecisionBasisPanel row={pos} />');
+    expect(paperTrading).toContain('<DecisionBasisPanel row={t} />');
+    expect(paperTrading).toContain('reasoning?.signal_id ?? row.signal_id');
+    expect(paperTrading).toContain('reasoning?.prediction_id ?? row.prediction_id');
   });
 });

@@ -1,7 +1,7 @@
 {
   "name": "NERVYX ONE",
   "short_name": "NERVYX ONE",
-  "description": "Adaptive Market Intelligence for live trading execution.",
+  "description": "Adaptive Market Intelligence with operator-gated execution controls.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

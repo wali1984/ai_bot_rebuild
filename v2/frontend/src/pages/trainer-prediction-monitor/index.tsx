@@ -267,7 +267,7 @@ export default function AIPredictionsPage(): JSX.Element {
           <div>
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>AI Predictions</h1>
             <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
-              Prediction matrix · Forecast bands · Calibration · Model performance · Trainer status · Live execution
+              Prediction matrix · Forecast bands · Calibration · Model performance · Trainer status · Execution restricted
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -369,7 +369,7 @@ export default function AIPredictionsPage(): JSX.Element {
       {/* Footer */}
       <div style={{ padding: '12px 24px', borderTop: '1px solid var(--border)', marginTop: 8 }}>
         <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>
-          Forecast source evidence for live execution workflows.
+          Forecast source evidence for operator-gated execution workflows.
         </p>
       </div>
     </div>

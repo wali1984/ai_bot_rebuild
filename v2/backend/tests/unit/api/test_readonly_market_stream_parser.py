@@ -236,6 +236,50 @@ async def test_readonly_resource_direct_payload_routes_adaptive_capital_dashboar
     assert payload["endpoint"] == "/api/v2/adaptive-capital/dashboard"
 
 
+@pytest.mark.asyncio
+async def test_readonly_resource_direct_payload_routes_paper_status_and_activity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_paper_status(actor=None) -> dict:
+        return {
+            "data": {"positions": [{"symbol": "BTCUSDT", "entry_price": 100.0}]},
+            "source": "v2:paper:* Redis",
+            "source_type": "redis_live",
+            "endpoint": "/api/v2/paper/status",
+            "missing_fields": [],
+            "warnings": [],
+            "mode": "paper",
+        }
+
+    async def fake_paper_activity(actor=None) -> dict:
+        return {
+            "data": {"positions": [{"symbol": "ETHUSDT", "mark_price": 200.0}]},
+            "source": "v2:paper:* Redis",
+            "source_type": "redis_live",
+            "endpoint": "/api/v2/paper/activity",
+            "missing_fields": [],
+            "warnings": [],
+            "mode": "paper",
+        }
+
+    monkeypatch.setattr(market_contracts, "get_paper_status", fake_paper_status)
+    monkeypatch.setattr(market_contracts, "get_paper_activity", fake_paper_activity)
+
+    status_handled, status_payload = await market_contracts._readonly_resource_direct_payload(
+        "/api/v2/paper/status"
+    )
+    activity_handled, activity_payload = await market_contracts._readonly_resource_direct_payload(
+        "/api/v2/paper/activity"
+    )
+
+    assert status_handled is True
+    assert status_payload["endpoint"] == "/api/v2/paper/status"
+    assert status_payload["data"]["positions"][0]["entry_price"] == 100.0
+    assert activity_handled is True
+    assert activity_payload["endpoint"] == "/api/v2/paper/activity"
+    assert activity_payload["data"]["positions"][0]["mark_price"] == 200.0
+
+
 def test_adaptive_capital_compact_payload_keeps_rendered_fields_and_drops_samples(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,

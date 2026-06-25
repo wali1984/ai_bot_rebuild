@@ -47,8 +47,13 @@ LABEL_HELD = "HELD_OUTCOME_ONLY"
 
 DEFAULT_ROUND_TRIP_FEE_BPS = 10.0  # 5 bps in, 5 bps out (paper-accurate)
 DEFAULT_DIRECTION_CONSISTENCY_THRESHOLD_BPS = 5.0
+DEFAULT_MIN_CLASSIFICATION_AGE_SECONDS = 300.0
 DEFAULT_SHADOW_OUTCOME_TTL_SECONDS = 600
 DEFAULT_HEARTBEAT_TTL_SECONDS = 600
+IMMATURE_SHADOW_OUTCOME_FLAG = "SHADOW_OUTCOME_HORIZON_NOT_MATURE"
+CURRENT_PRICE_BEFORE_HORIZON_FLAG = "CURRENT_PRICE_SOURCE_BEFORE_SHADOW_OUTCOME_HORIZON"
+CURRENT_PRICE_AFTER_EVALUATION_FLAG = "CURRENT_PRICE_SOURCE_AFTER_SHADOW_EVALUATION_TIME"
+MISSING_CURRENT_PRICE_SOURCE_UTC_FLAG = "MISSING_CURRENT_PRICE_SOURCE_UTC_FOR_SHADOW_OUTCOME_HORIZON"
 
 
 def _utc_iso() -> str:
@@ -186,6 +191,9 @@ class ShadowOutcome:
     direction_consistent_with_prediction: bool | None
     no_trade_correct: bool | None
     false_block_candidate: bool | None
+    minimum_classification_age_seconds: float
+    classification_horizon_ready: bool
+    classification_blockers: list[str]
     missing_flags: list[str]
     stale_flags: list[str]
     generated_utc: str
@@ -210,6 +218,9 @@ class ShadowOutcome:
             "direction_consistent_with_prediction": self.direction_consistent_with_prediction,
             "no_trade_correct": self.no_trade_correct,
             "false_block_candidate": self.false_block_candidate,
+            "minimum_classification_age_seconds": self.minimum_classification_age_seconds,
+            "classification_horizon_ready": self.classification_horizon_ready,
+            "classification_blockers": list(self.classification_blockers),
             "missing_flags": list(self.missing_flags),
             "stale_flags": list(self.stale_flags),
             "generated_utc": self.generated_utc,
@@ -273,6 +284,7 @@ def build_shadow_outcome(
     now: datetime | None = None,
     fee_round_trip_bps: float = DEFAULT_ROUND_TRIP_FEE_BPS,
     direction_consistency_threshold_bps: float = DEFAULT_DIRECTION_CONSISTENCY_THRESHOLD_BPS,
+    min_classification_age_seconds: float = DEFAULT_MIN_CLASSIFICATION_AGE_SECONDS,
 ) -> ShadowOutcome:
     """Compute one shadow / held outcome row.
 
@@ -306,6 +318,33 @@ def build_shadow_outcome(
     else:
         missing.append("MISSING_SHADOW_ENTRY_UTC")
 
+    min_age_seconds = max(0.0, float(min_classification_age_seconds))
+    current_source_dt = _parse_utc(current_price_source_utc)
+    classification_blockers: list[str] = []
+    if shadow_utc_dt is None:
+        classification_blockers.append("MISSING_SHADOW_ENTRY_UTC")
+    elif time_since_seconds is not None and time_since_seconds < min_age_seconds:
+        classification_blockers.append(IMMATURE_SHADOW_OUTCOME_FLAG)
+        stale.append(IMMATURE_SHADOW_OUTCOME_FLAG)
+    if current_price is not None and shadow_utc_dt is not None:
+        if current_source_dt is None:
+            classification_blockers.append(MISSING_CURRENT_PRICE_SOURCE_UTC_FLAG)
+            missing.append(MISSING_CURRENT_PRICE_SOURCE_UTC_FLAG)
+        else:
+            horizon_dt = shadow_utc_dt.timestamp() + min_age_seconds
+            if current_source_dt.timestamp() < horizon_dt:
+                classification_blockers.append(CURRENT_PRICE_BEFORE_HORIZON_FLAG)
+                stale.append(CURRENT_PRICE_BEFORE_HORIZON_FLAG)
+            if current_source_dt > now:
+                classification_blockers.append(CURRENT_PRICE_AFTER_EVALUATION_FLAG)
+                stale.append(CURRENT_PRICE_AFTER_EVALUATION_FLAG)
+    if current_price is None:
+        classification_blockers.append(MISSING_CURRENT_PRICE_BLOCKER)
+    if shadow_entry_price is None:
+        classification_blockers.append("MISSING_SHADOW_ENTRY_PRICE")
+
+    classification_horizon_ready = not classification_blockers
+
     pred_side: str | None = None
     if isinstance(prediction, Mapping):
         sa = prediction.get("selected_action")
@@ -316,7 +355,7 @@ def build_shadow_outcome(
             elif sa_low in ("short", "sell"):
                 pred_side = "short"
     direction_consistent: bool | None = None
-    if missed_move_bps is not None:
+    if classification_horizon_ready and missed_move_bps is not None:
         # The shadow row carries its own side. If we have a prediction
         # whose selected_action also gives a side, both must agree
         # AND the realised move must support that direction.
@@ -327,11 +366,14 @@ def build_shadow_outcome(
             )
             direction_consistent = bool(moved_in_favour)
 
-    no_trade_correct, false_block_candidate = _classify(
-        direction_consistent=direction_consistent,
-        missed_move_after_cost_bps=missed_move_after_cost_bps,
-        consistency_threshold_bps=direction_consistency_threshold_bps,
-    )
+    if classification_horizon_ready:
+        no_trade_correct, false_block_candidate = _classify(
+            direction_consistent=direction_consistent,
+            missed_move_after_cost_bps=missed_move_after_cost_bps,
+            consistency_threshold_bps=direction_consistency_threshold_bps,
+        )
+    else:
+        no_trade_correct, false_block_candidate = None, None
 
     return ShadowOutcome(
         symbol=symbol.upper(),
@@ -351,6 +393,9 @@ def build_shadow_outcome(
         direction_consistent_with_prediction=direction_consistent,
         no_trade_correct=no_trade_correct,
         false_block_candidate=false_block_candidate,
+        minimum_classification_age_seconds=min_age_seconds,
+        classification_horizon_ready=classification_horizon_ready,
+        classification_blockers=sorted(set(classification_blockers)),
         missing_flags=missing,
         stale_flags=stale,
         generated_utc=_utc_iso(),
@@ -376,12 +421,24 @@ def build_heartbeat_payload(
     label_counts: dict[str, int] = {}
     for o in rows:
         label_counts[o.decision_label] = label_counts.get(o.decision_label, 0) + 1
+    summary = build_shadow_outcome_summary(rows)
     missing_by_symbol = {o.symbol: list(o.missing_flags) for o in rows}
     return {
         "schema_version": "v2_paper_shadow_outcome_heartbeat_v1",
         "generated_utc": generated_utc or _utc_iso(),
         "outcome_count": len(rows),
         "label_counts": label_counts,
+        "classification_summary": {
+            "horizon_ready_count": summary["horizon_ready_count"],
+            "horizon_pending_count": summary["horizon_pending_count"],
+            "classified_outcome_count": summary["classified_outcome_count"],
+            "no_trade_correct_count": summary["no_trade_correct_count"],
+            "false_block_candidate_count": summary["false_block_candidate_count"],
+            "neutral_or_inside_threshold_count": summary["neutral_or_inside_threshold_count"],
+            "unclassified_outcome_count": summary["unclassified_outcome_count"],
+            "no_trade_correct_rate": summary["no_trade_correct_rate"],
+            "false_block_candidate_rate": summary["false_block_candidate_rate"],
+        },
         "missing_flags_by_symbol": missing_by_symbol,
         "symbols": sorted({o.symbol for o in rows}),
         "allowed_redis_writes": [
@@ -412,3 +469,61 @@ def write_heartbeat_to_redis(redis_client: Any, payload: dict[str, Any]) -> bool
         json.dumps(payload, sort_keys=True),
         ex=DEFAULT_HEARTBEAT_TTL_SECONDS,
     )
+
+
+def build_shadow_outcome_summary(outcomes: Iterable[ShadowOutcome]) -> dict[str, Any]:
+    rows = list(outcomes)
+    label_counts: dict[str, int] = {}
+    classified = 0
+    horizon_ready = 0
+    no_trade_correct = 0
+    false_block_candidate = 0
+    neutral_or_inside_threshold = 0
+    unclassified = 0
+    for outcome in rows:
+        label_counts[outcome.decision_label] = label_counts.get(outcome.decision_label, 0) + 1
+        if outcome.classification_horizon_ready:
+            horizon_ready += 1
+        if outcome.no_trade_correct is None or outcome.false_block_candidate is None:
+            unclassified += 1
+            continue
+        classified += 1
+        if outcome.no_trade_correct is True:
+            no_trade_correct += 1
+        if outcome.false_block_candidate is True:
+            false_block_candidate += 1
+        if outcome.no_trade_correct is False and outcome.false_block_candidate is False:
+            neutral_or_inside_threshold += 1
+
+    return {
+        "schema_version": "v2_paper_shadow_outcome_summary_v1",
+        "outcome_count": len(rows),
+        "horizon_ready_count": horizon_ready,
+        "horizon_pending_count": max(0, len(rows) - horizon_ready),
+        "classified_outcome_count": classified,
+        "no_trade_correct_count": no_trade_correct,
+        "false_block_candidate_count": false_block_candidate,
+        "neutral_or_inside_threshold_count": neutral_or_inside_threshold,
+        "unclassified_outcome_count": unclassified,
+        "shadow_only_count": label_counts.get(LABEL_SHADOW, 0),
+        "held_only_count": label_counts.get(LABEL_HELD, 0),
+        "label_counts": label_counts,
+        "no_trade_correct_rate": no_trade_correct / classified if classified else None,
+        "false_block_candidate_rate": false_block_candidate / classified if classified else None,
+        "opportunity_recall_denominator_hint": (
+            "executed_profitable_b_grade_outcomes_plus_shadow_false_block_candidates"
+        ),
+        "counted_as_accepted_position": False,
+        "counted_as_fill": False,
+        "affects_pnl_ledger": False,
+        "opens_paper_fill_gate": False,
+        "counts_as_a_grade_evidence": False,
+        "a_grade_promotion_allowed": False,
+        "live_ready_implication": False,
+        "writes_legacy_redis": False,
+        "writes_exchange_orders": False,
+        "approves_live": False,
+        "approves_canary": False,
+        "approves_legacy_shutdown": False,
+        "approves_redis_trim": False,
+    }

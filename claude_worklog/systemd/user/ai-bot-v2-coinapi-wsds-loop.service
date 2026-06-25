@@ -1,4 +1,6 @@
 [Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
 Description=AI BOT V2 CoinAPI WSDS stream (read-only; V2 namespace only)
 After=network-online.target ai-bot-v2-native-ingestors-live-loop.service
 

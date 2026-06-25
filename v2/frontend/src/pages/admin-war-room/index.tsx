@@ -156,7 +156,7 @@ export default function AdminWarRoomPage(): JSX.Element {
         <PanelHeader title="Raw blocker matrix" source={PAYLOAD_PATHS.full_observation_builder} rightExtras={<FreshnessBadge generatedAt={(fullObs.payload as any)?.generated_at as any} maxAgeSeconds={1800} />} />
         <section className="status-rail">
           <div className="wrap">
-            <MetricCard label="Live trading" value="blocked" tone="bad" />
+            <MetricCard label="Live order routing" value="blocked" tone="bad" />
             <MetricCard label="Shutdown" value="blocked" tone="bad" />
             <MetricCard label="checkpoint_compatibility_claimed" value={String(extra.checkpoint_compatibility_claimed)} tone={extra.checkpoint_compatibility_claimed ? 'warn' : 'ok'} />
             <MetricCard label="policy_architecture_parity_claimed" value={String(extra.policy_architecture_parity_claimed)} tone={extra.policy_architecture_parity_claimed ? 'warn' : 'ok'} />
@@ -252,7 +252,7 @@ export default function AdminWarRoomPage(): JSX.Element {
                 />
                 <MetricCard label="Execution symbols" value={liveGateRuntime?.execution_live_symbols?.length ?? 0} tone="ok" />
                 <MetricCard label="Dry-run mode" value={(canaryDash.payload?.dry_run ?? true) ? 'enabled' : 'disabled'} tone="ok" />
-                <MetricCard label="Live trading enabled" value={(canaryDash.payload?.live_enabled ?? false) ? 'enabled' : 'blocked'} tone="ok" />
+                <MetricCard label="Live order routing enabled" value={(canaryDash.payload?.live_enabled ?? false) ? 'enabled' : 'blocked'} tone="ok" />
                 <MetricCard label="Real order attempt" value={(canaryDash.payload?.real_order_attempted ?? false) ? 'attempted' : 'none'} tone="ok" />
                 <MetricCard label="Leverage changes" value={(canaryDash.payload?.leverage_changed ?? false) ? 'changed' : 'unchanged'} tone="ok" />
                 <MetricCard label="Margin mode changes" value={(canaryDash.payload?.margin_mode_changed ?? false) ? 'changed' : 'unchanged'} tone="ok" />

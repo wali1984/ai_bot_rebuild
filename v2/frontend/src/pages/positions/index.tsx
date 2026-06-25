@@ -1,12 +1,20 @@
+import { useState, type ReactNode } from 'react';
 import { useTradeTerminal } from '../../hooks/useTradeTerminal';
+import { useRealtimeResource } from '../../hooks/useRealtimeResource';
+import { useTraderSnapshot } from '../../hooks/useTraderSnapshot';
 import { AdaptiveCapitalTelemetryPanel } from '../../components/trading/AdaptiveCapitalTelemetryPanel';
+import { CanonicalMetricCard, CanonicalMetricValue } from '../../components/data/CanonicalMetric';
 import {
   adaptiveStatusColor,
   formatAdaptiveMoney,
   pnlWindow,
   useAdaptiveCapitalDashboard,
 } from '../../data/adaptiveCapitalProductivity';
-import { formatMoney, formatPercent, formatPrice } from '../../lib/tradeFormatters';
+import { formatMoney, formatPrice } from '../../lib/tradeFormatters';
+import { selectAccountMetric, selectSectionMetric } from '../../selectors/accountSelectors';
+import { selectPositionMetric, selectPositions } from '../../selectors/positionSelectors';
+import { selectRiskStatus } from '../../selectors/riskSelectors';
+import type { TraderRealtimeState } from '../../stores/traderRealtimeStore';
 import meta from './meta';
 import rbac from './rbac';
 import route from './route';
@@ -17,18 +25,29 @@ export { default as route } from './route';
 
 const SOURCE_URL_LABELS: Record<string, string> = {
   '/api/v2/portfolio': 'Trader account source',
-  'unavailable': 'Connecting stream',
+  'unavailable': 'Data source unavailable',
 };
+
+type PositionTab = 'open' | 'closed' | 'historical';
+
+interface RuntimePositionEvidence {
+  positions?: Array<Record<string, unknown>>;
+  closed_trades?: Array<Record<string, unknown>>;
+  summary?: {
+    open_position_count?: number | null;
+    closed_trade_count?: number | null;
+  };
+}
 
 export function sourceText(input: string): string {
   return SOURCE_URL_LABELS[input] ?? input;
 }
 
-function KV({ label, value, color }: { label: string; value: string; color?: string }): JSX.Element {
+function KV({ label, value, color }: { label: string; value: ReactNode; color?: string }): JSX.Element {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
-      <span style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-mono)', color: color ?? 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
+      <span style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-mono)', color: color ?? 'var(--text-primary)', lineHeight: 1.2, overflowWrap: 'anywhere', whiteSpace: 'normal', wordBreak: 'break-word' }}>{value}</span>
     </div>
   );
 }
@@ -46,16 +65,148 @@ function capitalStatusText(status: string | null | undefined): string {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function publicPositionText(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) return '—';
+  return value
+    .replace(/paper fill/gi, 'execution decision')
+    .replace(/paper/gi, 'runtime')
+    .replace(/_/g, ' ')
+    .trim();
+}
+
+function formatAgeSeconds(value: unknown): string {
+  const n = typeof value === 'number' && Number.isFinite(value) ? value : null;
+  if (n === null) return 'Freshness unavailable';
+  if (n < 60) return `${Math.round(n)}s ago`;
+  if (n < 3600) return `${Math.floor(n / 60)}m ago`;
+  return `${Math.floor(n / 3600)}h ago`;
+}
+
+function finiteNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function positivePrice(value: unknown): number | null {
+  const n = finiteNumber(value);
+  return n !== null && n > 0 ? n : null;
+}
+
+function firstPositivePrice(...values: unknown[]): number | null {
+  for (const value of values) {
+    const price = positivePrice(value);
+    if (price !== null) return price;
+  }
+  return null;
+}
+
+function PositionEvidenceCard({
+  row,
+  mode,
+  traderState,
+  canonical,
+}: {
+  row: Record<string, unknown>;
+  mode: PositionTab;
+  traderState: TraderRealtimeState;
+  canonical: boolean;
+}): JSX.Element {
+  const reasoning = row.decision_reasoning && typeof row.decision_reasoning === 'object'
+    ? row.decision_reasoning as Record<string, unknown>
+    : null;
+  const metric = (fieldId: string) => selectPositionMetric(traderState, row, fieldId);
+  const side = String(row.side ?? '—').toUpperCase();
+  const isLong = side.includes('LONG') || side === 'BUY';
+  const isClosed = mode !== 'open' || String(row.status ?? '').toLowerCase().includes('closed') || row.exit_price != null;
+  const entry = firstPositivePrice(row.entry_price, row.avg_entry_price, row.paper_entry_price, row.entry_fill_price, row.open_price);
+  const terminal = isClosed
+    ? firstPositivePrice(row.exit_price, row.paper_exit_price, row.close_price, row.closing_price, row.filled_exit_price)
+    : firstPositivePrice(row.mark_price, row.last_mark_price, row.current_price);
+  const terminalLabel = isClosed ? 'Exit' : 'Mark';
+  const pnl = isClosed
+    ? finiteNumber(row.realized_pnl_usd ?? row.realized_pnl)
+    : finiteNumber(row.unrealized_pnl);
+  const pnlColor = pnl == null ? 'var(--text-muted)' : pnl >= 0 ? 'var(--buy)' : 'var(--sell)';
+  const markStale = row.mark_price_stale === true;
+
+  return (
+    <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px 18px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 12 }}>
+        <span style={{ minWidth: 0, fontWeight: 700, fontSize: 14, fontFamily: 'var(--font-mono)', overflowWrap: 'anywhere', whiteSpace: 'normal', wordBreak: 'break-word' }}>
+          {canonical ? <CanonicalMetricValue metric={metric('position.symbol')} /> : String(row.symbol ?? 'Unknown')}
+        </span>
+        <span style={{ fontWeight: 700, fontSize: 12, color: isLong ? 'var(--buy)' : 'var(--sell)', whiteSpace: 'nowrap' }}>
+          {canonical ? <CanonicalMetricValue metric={metric('position.side')} /> : side}
+        </span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+        <KV label="Qty" value={canonical ? <CanonicalMetricValue metric={metric('position.quantity')} /> : String(row.quantity ?? row.net_quantity ?? row.size ?? '—')} />
+        <KV label="Entry" value={canonical ? <CanonicalMetricValue metric={metric('position.entry_price')} /> : formatPrice(entry)} />
+        <KV label={terminalLabel} value={canonical ? <CanonicalMetricValue metric={metric(isClosed ? 'position.exit_price' : 'position.mark_price')} /> : formatPrice(terminal)} color={!isClosed && markStale ? 'var(--warn)' : undefined} />
+        <KV label={isClosed ? 'Realized PnL' : 'Unrealized PnL'} value={canonical ? <CanonicalMetricValue metric={metric(isClosed ? 'position.realized_pnl' : 'position.unrealized_pnl')} /> : formatMoney(pnl)} color={pnlColor} />
+        <KV label="Entry Source" value={canonical ? <CanonicalMetricValue metric={metric('position.entry_price_source')} /> : publicPositionText(row.entry_price_source)} />
+        {isClosed ? (
+          <KV label="Exit Source" value={canonical ? <CanonicalMetricValue metric={metric('position.exit_price_source')} /> : publicPositionText(row.exit_price_source)} />
+        ) : (
+          <KV label="Mark Age" value={canonical ? <CanonicalMetricValue metric={metric('position.mark_age_ms')} /> : formatAgeSeconds(row.mark_price_age_seconds)} color={markStale ? 'var(--warn)' : undefined} />
+        )}
+        <KV label="Risk" value={canonical ? <CanonicalMetricValue metric={metric('position.risk_status')} /> : publicPositionText(row.risk_status)} />
+        <KV label="Mark Source" value={canonical ? <CanonicalMetricValue metric={metric('position.mark_price_source')} /> : publicPositionText(row.mark_price_source)} />
+        <KV label="Stop" value={canonical ? <CanonicalMetricValue metric={metric('position.stop')} /> : publicPositionText(row.stop)} />
+        <KV label="Targets" value={canonical ? <CanonicalMetricValue metric={metric('position.targets')} /> : publicPositionText(row.targets)} />
+        <KV label="Signal" value={canonical ? <CanonicalMetricValue metric={metric('position.signal_id')} /> : publicPositionText(reasoning?.signal_id ?? row.signal_id)} />
+        <KV label="Prediction" value={canonical ? <CanonicalMetricValue metric={metric('position.prediction_id')} /> : publicPositionText(reasoning?.prediction_id ?? row.prediction_id)} />
+      </div>
+      {reasoning ? (
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)', display: 'grid', gap: 8 }}>
+          <h3 style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>AI Reasoning</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+            <KV label="Action" value={publicPositionText(reasoning.action)} />
+            <KV label="Confidence" value={typeof reasoning.confidence === 'number' ? `${Math.round(reasoning.confidence * 100)}%` : '—'} />
+            <KV label="Reason" value={publicPositionText(reasoning.reason ?? row.close_reason)} />
+            <KV label="Risk" value={publicPositionText(reasoning.risk_state)} />
+            <KV label="Regime" value={publicPositionText(reasoning.market_regime ?? row.market_regime_at_entry)} />
+            <KV label="Source" value={publicPositionText(reasoning.source)} />
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function PortfolioPage(): JSX.Element {
+  const [positionTab, setPositionTab] = useState<PositionTab>('open');
   const state = useTradeTerminal();
+  const traderSnapshot = useTraderSnapshot();
   const adaptiveCapital = useAdaptiveCapitalDashboard(30_000);
-  const openPositions = state.portfolio.openPositions;
-  const { equity, realizedPnl, unrealizedPnl, source } = state.account;
+  const canonicalOpenPositions = selectPositions(traderSnapshot);
+  const canonicalOpenAvailable = Boolean(traderSnapshot.snapshot) && traderSnapshot.snapshot?.positions.meta.quality !== 'missing';
+  const openPositions = (canonicalOpenAvailable ? canonicalOpenPositions : state.portfolio.openPositions) as Array<Record<string, unknown>>;
+  const accountMetric = (fieldId: string) => selectAccountMetric(traderSnapshot, fieldId);
+  const riskMetric = selectSectionMetric(traderSnapshot, 'risk', 'position.risk_status', selectRiskStatus(traderSnapshot));
+  const { envelope: runtimePositions } = useRealtimeResource<RuntimePositionEvidence>({
+    url: '/api/v2/paper/status',
+    source: '/api/v2/paper/status',
+    pollIntervalMs: 8_000,
+    staleThresholdMs: 20_000,
+    mode: 'paper',
+  });
+  const runtimeData = runtimePositions.data ?? null;
+  const closedPositions = runtimeData?.closed_trades ?? [];
+  const historicalPositions = closedPositions;
+  const selectedPositions = positionTab === 'open'
+    ? openPositions as Array<Record<string, unknown>>
+    : positionTab === 'closed'
+      ? closedPositions
+      : historicalPositions;
+  const positionTabs: Array<{ key: PositionTab; label: string; count: number }> = [
+    { key: 'open', label: 'Open', count: openPositions.length },
+    { key: 'closed', label: 'Closed', count: runtimeData?.summary?.closed_trade_count ?? closedPositions.length },
+    { key: 'historical', label: 'Historical', count: historicalPositions.length },
+  ];
+  const { source } = state.account;
   const capitalStatus = adaptiveCapital.data?.capital_productivity_runtime_status;
   const pnlHistory = adaptiveCapital.data?.pnl_history_status ?? capitalStatus?.pnl_history ?? null;
   const oneDay = pnlWindow(pnlHistory, '1d');
-  const sevenDay = pnlWindow(pnlHistory, '7d');
-  const thirtyDay = pnlWindow(pnlHistory, '30d');
 
   return (
     <div
@@ -75,29 +226,33 @@ export default function PortfolioPage(): JSX.Element {
             </p>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
-            <span style={{ padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600, background: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>Live platform</span>
-            <span style={{ padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600, background: 'var(--buy-bg)', color: 'var(--buy)', border: '1px solid var(--buy-border)' }}>Execution telemetry</span>
+            <span style={{ padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600, background: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>Market data live</span>
+            <span style={{ padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600, background: 'color-mix(in oklch, var(--warn) 10%, transparent)', color: 'var(--warn)', border: '1px solid color-mix(in oklch, var(--warn) 42%, var(--border))' }}>Execution restricted</span>
           </div>
         </div>
       </div>
 
       {/* KPI row */}
-      <div style={{ padding: '16px 24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
-        {[
-          { label: 'Equity', value: formatMoney(equity), color: 'var(--text-primary)' },
-          { label: 'Realized PnL', value: formatMoney(realizedPnl), color: (realizedPnl ?? 0) >= 0 ? 'var(--buy)' : 'var(--sell)' },
-          { label: 'Unrealized PnL', value: formatMoney(unrealizedPnl), color: (unrealizedPnl ?? 0) >= 0 ? 'var(--buy)' : 'var(--sell)' },
-          { label: '1D PnL', value: formatAdaptiveMoney(oneDay?.realized_pnl_usd), color: (oneDay?.realized_pnl_usd ?? 0) >= 0 ? 'var(--buy)' : 'var(--sell)' },
-          { label: '1W PnL', value: formatAdaptiveMoney(sevenDay?.realized_pnl_usd), color: (sevenDay?.realized_pnl_usd ?? 0) >= 0 ? 'var(--buy)' : 'var(--sell)' },
-          { label: '30D PnL', value: formatAdaptiveMoney(thirtyDay?.realized_pnl_usd), color: (thirtyDay?.realized_pnl_usd ?? 0) >= 0 ? 'var(--buy)' : 'var(--sell)' },
-          { label: 'Capital Productivity', value: capitalStatusText(capitalStatus?.status), color: adaptiveStatusColor(capitalStatus?.status) },
-          { label: 'Open Positions', value: String(openPositions.length) },
-        ].map((item) => (
-          <div key={item.label} style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '14px 16px' }}>
-            <span style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{item.label}</span>
-            <span style={{ display: 'block', fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)', color: item.color, overflowWrap: 'anywhere', lineHeight: 1.15 }}>{item.value}</span>
+      <div style={{ padding: '16px 24px' }}>
+        <div className="trader-metric-grid">
+          <CanonicalMetricCard label="Equity" metric={accountMetric('account.equity')} />
+          <CanonicalMetricCard label="Available Balance" metric={accountMetric('account.available_balance')} />
+          <CanonicalMetricCard label="Realized PnL" metric={accountMetric('account.realized_pnl')} />
+          <CanonicalMetricCard label="Unrealized PnL" metric={accountMetric('account.unrealized_pnl')} />
+          <CanonicalMetricCard label="Daily PnL" metric={accountMetric('account.daily_pnl')} />
+          <CanonicalMetricCard label="Drawdown" metric={accountMetric('account.drawdown')} />
+          <CanonicalMetricCard label="Exposure" metric={accountMetric('account.exposure')} />
+          <CanonicalMetricCard label="Open Positions" metric={accountMetric('account.open_position_count')} />
+          <CanonicalMetricCard label="Risk Status" metric={riskMetric} />
+          <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '14px 16px' }}>
+            <span style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>1D PnL Window</span>
+            <span style={{ display: 'block', fontSize: 18, fontWeight: 700, fontFamily: 'var(--font-mono)', color: (oneDay?.realized_pnl_usd ?? 0) >= 0 ? 'var(--buy)' : 'var(--sell)', overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: 1.15 }}>{formatAdaptiveMoney(oneDay?.realized_pnl_usd)}</span>
           </div>
-        ))}
+          <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '14px 16px' }}>
+            <span style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Capital Productivity</span>
+            <span style={{ display: 'block', fontSize: 18, fontWeight: 700, fontFamily: 'var(--font-mono)', color: adaptiveStatusColor(capitalStatus?.status), overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: 1.15 }}>{capitalStatusText(capitalStatus?.status)}</span>
+          </div>
+        </div>
       </div>
 
       <div style={{ padding: '0 24px 16px' }}>
@@ -125,38 +280,52 @@ export default function PortfolioPage(): JSX.Element {
         </div>
       </div>
 
-      {/* Open positions */}
+      {/* Position evidence */}
       <div style={{ padding: '0 24px 24px' }}>
-        <h2 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
-          Open Positions ({openPositions.length})
-        </h2>
-        {openPositions.length === 0 ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+            Position Evidence
+          </h2>
+          <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', background: 'var(--bg-panel)' }}>
+            {positionTabs.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setPositionTab(tab.key)}
+                style={{
+                  border: 'none',
+                  borderRight: tab.key === 'historical' ? 'none' : '1px solid var(--border)',
+                  background: positionTab === tab.key ? 'color-mix(in oklch, var(--accent) 16%, transparent)' : 'transparent',
+                  color: positionTab === tab.key ? 'var(--text-primary)' : 'var(--text-muted)',
+                  fontSize: 12,
+                  fontWeight: positionTab === tab.key ? 700 : 500,
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {tab.label} <span style={{ fontFamily: 'var(--font-mono)', opacity: 0.75 }}>{tab.count}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        {selectedPositions.length === 0 ? (
           <div style={{ padding: '28px', textAlign: 'center', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>No open positions available for the current account.</p>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>
+              No {positionTab} position evidence available for the current account.
+            </p>
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-            {openPositions.map((pos, i) => {
-              const p = pos as Record<string, unknown>;
-              const upnlPct = p.unrealized_pnl_pct as number | null;
-              const pnlColor = upnlPct == null ? 'var(--text-muted)' : upnlPct >= 0 ? 'var(--buy)' : 'var(--sell)';
-              return (
-                <div key={`pos-${i}`} style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px 18px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                    <span style={{ fontWeight: 700, fontSize: 14, fontFamily: 'var(--font-mono)' }}>{String(p.symbol ?? 'Unknown')}</span>
-                    <span style={{ fontWeight: 700, fontSize: 12, color: String(p.side ?? '').toLowerCase() === 'long' ? 'var(--buy)' : 'var(--sell)' }}>
-                      {String(p.side ?? '—').toUpperCase()}
-                    </span>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                    <KV label="Qty" value={String(p.quantity ?? p.size ?? '—')} />
-                    <KV label="Entry" value={formatPrice(p.entry_price as number | null)} />
-                    <KV label="Mark" value={formatPrice(p.mark_price as number | null)} />
-                    <KV label="Unrealized PnL" value={formatPercent(upnlPct)} color={pnlColor} />
-                  </div>
-                </div>
-              );
-            })}
+            {selectedPositions.map((row, i) => (
+              <PositionEvidenceCard
+                key={`${positionTab}-${String(row.position_id ?? row.close_id ?? row.id ?? i)}`}
+                row={row}
+                mode={positionTab}
+                traderState={traderSnapshot}
+                canonical={positionTab === 'open' && canonicalOpenAvailable}
+              />
+            ))}
           </div>
         )}
       </div>

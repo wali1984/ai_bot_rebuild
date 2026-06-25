@@ -48,6 +48,36 @@ test('public and trader chrome expose NERVYX module mapping and Polar Signal the
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 });
 
+test('public theme persists and rejects Ops Terminal local storage escalation', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (window.sessionStorage.getItem('nervyx_theme_seeded') === 'true') return;
+    window.localStorage.setItem('nervyx_theme', 'ops-terminal');
+    window.localStorage.setItem('alphaforge_theme', 'light');
+    window.localStorage.setItem('ai_bot_v2_theme', 'light');
+    window.sessionStorage.setItem('nervyx_theme_seeded', 'true');
+  });
+
+  await page.goto('/markets');
+
+  await expect(page.locator('html')).toHaveAttribute('data-nervyx-theme', 'midnight-neural');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.getByRole('button', { name: /Ops Terminal|Ops/i })).toHaveCount(0);
+
+  const sanitized = await page.evaluate(() => ({
+    current: window.localStorage.getItem('nervyx_theme'),
+    old: window.localStorage.getItem('alphaforge_theme'),
+    legacy: window.localStorage.getItem('ai_bot_v2_theme'),
+  }));
+  expect(sanitized).toEqual({ current: 'midnight-neural', old: null, legacy: null });
+
+  await page.getByRole('button', { name: 'Polar' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-nervyx-theme', 'polar-signal');
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-nervyx-theme', 'polar-signal');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await expect(page.evaluate(() => window.localStorage.getItem('nervyx_theme'))).resolves.toBe('polar-signal');
+});
+
 test('admin shell uses NERVYX OBSERVE branding without changing auth semantics', async ({ page }) => {
   await page.route('/api/auth/me', (route) => route.fulfill({
     status: 200,

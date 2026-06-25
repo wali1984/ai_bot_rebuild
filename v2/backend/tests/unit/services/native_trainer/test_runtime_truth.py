@@ -60,6 +60,66 @@ def test_signals_status_uses_readable_block_reasons() -> None:
     assert "confidence below current paper threshold" in row["readable_block_reasons"]
 
 
+def test_online_learning_runtime_fields_publish_training_update_evidence() -> None:
+    fields = rt.online_learning_runtime_fields(
+        training={
+            "status": "TRAINED",
+            "metrics": {
+                "trusted_rows_loaded": 3,
+                "trusted_replay_rows_loaded": 3,
+                "optimizer_steps_this_cycle": 2,
+                "optimizer_steps_last_hour": 2,
+                "optimizer_steps_total": 7,
+                "rows_rejected_by_reason": {"future_available_at": 1},
+                "parameter_hash_before": "before",
+                "parameter_hash_after": "after",
+                "weight_delta_norm": 0.25,
+                "loss_before": 1.5,
+                "loss_after": 0.7,
+                "checkpoint_weight_blob_written": True,
+                "checkpoint_path": "/tmp/unit-checkpoint.pt",
+                "checkpoint_hash": "checkpoint-sha256",
+                "checkpoint_reload_verified": True,
+                "last_successful_weight_update_at": "2026-06-22T04:00:00Z",
+            },
+        },
+        prediction_rows=10,
+    )
+
+    assert fields["online_learning_status"] == "WEIGHTS_UPDATING"
+    assert fields["effective_trainer_mode"] == "TRUSTED_REPLAY_TRAINING"
+    assert fields["trainer_learning_ready"] is True
+    assert fields["optimizer_steps_total"] == 7
+    assert fields["rows_rejected_by_reason"] == {"future_available_at": 1}
+    assert fields["loss_before"] == 1.5
+    assert fields["loss_after"] == 0.7
+    assert fields["checkpoint_path"] == "/tmp/unit-checkpoint.pt"
+    assert fields["checkpoint_hash"] == "checkpoint-sha256"
+
+
+def test_online_learning_runtime_fields_keep_checkpoint_evidence_from_persistent_runtime() -> None:
+    fields = rt.online_learning_runtime_fields(
+        training={
+            "status": "TRAINING_NOT_RUN",
+            "metrics": {
+                "trusted_rows_loaded": 0,
+                "optimizer_steps_this_cycle": 0,
+                "checkpoint_weight_blob_written": False,
+                "checkpoint_reload_verified": False,
+            },
+        },
+        persistent_runtime={
+            "checkpoint_path": "/tmp/persistent-checkpoint.pt",
+            "checkpoint_hash": "persistent-sha256",
+        },
+        prediction_rows=10,
+    )
+
+    assert fields["online_learning_status"] == "BLOCKED_NO_TRUSTED_FEEDBACK"
+    assert fields["checkpoint_path"] == "/tmp/persistent-checkpoint.pt"
+    assert fields["checkpoint_hash"] == "persistent-sha256"
+
+
 def _write_json(root: Path, rel: Path, payload: object) -> None:
     path = root / rel
     path.parent.mkdir(parents=True, exist_ok=True)

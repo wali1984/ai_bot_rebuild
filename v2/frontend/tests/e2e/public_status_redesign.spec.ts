@@ -10,6 +10,18 @@ const STATUS_RESPONSE = {
   runtime_state: 'CURRENT',
   public_route_failed_count: 0,
   supervisor_health: 'CURRENT',
+  status_dimensions: {
+    market_data: 'LIVE',
+    automation: 'ACTIVE',
+    execution: 'RESTRICTED',
+    account: 'UNAUTHORIZED',
+    live_trading_enabled: false,
+    order_submission_enabled: false,
+    places_real_order: false,
+    exchange_mutation_enabled: false,
+    source: 'backend_truth_status_model',
+    updated_at: '2026-06-13T00:00:01Z',
+  },
 };
 
 const MARKET_RESPONSE = {
@@ -58,19 +70,24 @@ test.describe('Public status redesign', () => {
     await expect(page.locator('body')).toContainText(/NERVYX ONE Status/i);
     await expect(page.locator('body')).toContainText(/Platform/i);
     await expect(page.locator('body')).toContainText(/Market Data/i);
-    await expect(page.locator('body')).toContainText(/Signal Feed/i);
-    await expect(page.locator('body')).toContainText(/Order Routing/i);
+    await expect(page.locator('body')).toContainText(/Automation/i);
+    await expect(page.locator('body')).toContainText(/Execution/i);
+    await expect(page.locator('body')).toContainText(/Account/i);
     await expect(page.locator('body')).toContainText(/628 symbols in universe/i);
     await expect(page.locator('body')).toContainText(/Status updates from live resource streams/i);
   });
 
-  test('shows guarded public posture without paper or disabled-live wording', async ({ page }) => {
+  test('shows separate backend-truth statuses without public paper wording', async ({ page }) => {
     await gotoAs(page, '/status');
 
     const body = page.locator('body');
-    await expect(body).toContainText(/Risk-gated/i);
-    await expect(body).toContainText(/Guarded/i);
+    await expect(body).toContainText(/Live/i);
+    await expect(body).toContainText(/Active/i);
+    await expect(body).toContainText(/Restricted/i);
+    await expect(body).toContainText(/Order submission disabled/i);
+    await expect(body).toContainText(/Unauthorized/i);
     await expect(body).not.toContainText(/paper only|paper mode|read-only|read only|live trading disabled|simulated/i);
+    await expect(body).not.toContainText(/live execution|trading live|live trading platform/i);
   });
 
   test('shows freshness, maintenance, and capability context', async ({ page }) => {

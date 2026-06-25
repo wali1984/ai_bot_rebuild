@@ -33,6 +33,19 @@ def test_risk_gateway_live_loop_stamps_v2_risk_decisions(monkeypatch, tmp_path):
             "symbol": "BTCUSDT",
             "side": "long",
             "winner_proposal_id": "pred_1",
+            "signal_id": "sig_pred_1",
+            "decision_id": "decision_pred_1",
+            "orchestrator_decision_id": "dec_pred_1",
+            "feature_snapshot_id": "fs_pred_1",
+            "mtf_snapshot_id": "mtf_pred_1",
+            "feature_cutoff": "2026-06-02T23:59:00Z",
+            "decision_time": "2026-06-03T00:00:00Z",
+            "available_at": "2026-06-02T23:59:30Z",
+            "timeframe": "1m",
+            "selected_action": "long",
+            "model_version": "model_v1",
+            "checkpoint_id": "ckpt_v1",
+            "source_hashes": {"feature_vector_hash": "hash_feat"},
             "winner_confidence_calibrated": 0.81,
             "winner_freshness_seconds": 5.0,
         }],
@@ -51,6 +64,21 @@ def test_risk_gateway_live_loop_stamps_v2_risk_decisions(monkeypatch, tmp_path):
     assert payload["exchange_action_taken"] is False
     assert payload["writes_legacy_redis"] is False
     assert "v2:risk:gateway:heartbeat" in client.writes
+    risk_row = client.writes["v2:risk:gateway:decisions"][0][0]
+    assert risk_row["prediction_id"] == "pred_1"
+    assert risk_row["signal_id"] == "sig_pred_1"
+    assert risk_row["decision_id"] == "decision_pred_1"
+    assert risk_row["orchestrator_decision_id"] == "dec_pred_1"
+    assert risk_row["feature_snapshot_id"] == "fs_pred_1"
+    assert risk_row["mtf_snapshot_id"] == "mtf_pred_1"
+    assert risk_row["feature_cutoff"] == "2026-06-02T23:59:00Z"
+    assert risk_row["decision_time"] == "2026-06-03T00:00:00Z"
+    assert risk_row["available_at"] == "2026-06-02T23:59:30Z"
+    assert risk_row["timeframe"] == "1m"
+    assert risk_row["selected_action"] == "long"
+    assert risk_row["model_version"] == "model_v1"
+    assert risk_row["checkpoint_id"] == "ckpt_v1"
+    assert risk_row["source_hashes"] == {"feature_vector_hash": "hash_feat"}
     assert json.loads((tmp_path / "public.json").read_text())["worker_id"] == "v2_risk_gateway_runtime_worker"
     replay = get_decision_replay("dec_pred_1")
     assert replay is not None

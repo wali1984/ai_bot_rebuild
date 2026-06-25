@@ -35,16 +35,20 @@ ROLE_RANK: dict[str, int] = {
 }
 
 
+_LOCAL_REDIS_DEFAULT = "redis://127.0.0.1:6379/0"
+
+
 def _redis_url_from_env() -> str:
     """Resolve a Redis URL from env (V2_REDIS_URL, REDIS_URL, LEGACY_REDIS_URL).
 
-    Returns an empty string if none are set; callers treat that as "no redis".
+    Falls back to local Redis when no env var is configured — all V2 CLI
+    workers use 127.0.0.1:6379/0 as their default so the API should too.
     """
     for key in ("V2_REDIS_URL", "REDIS_URL", "LEGACY_REDIS_URL"):
         v = os.environ.get(key, "").strip()
         if v:
             return v
-    return ""
+    return _LOCAL_REDIS_DEFAULT
 
 
 def get_redis() -> Any:  # pragma: no cover - exercised in integration only

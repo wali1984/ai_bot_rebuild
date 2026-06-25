@@ -56,5 +56,5 @@ export function MissingDataState({
 }
 
 export function ModeBadge(): JSX.Element {
-  return <span className="trade-mode-badge" data-testid="live-platform-badge">Live Platform</span>;
+  return <span className="trade-mode-badge" data-testid="live-platform-badge">Execution Restricted</span>;
 }

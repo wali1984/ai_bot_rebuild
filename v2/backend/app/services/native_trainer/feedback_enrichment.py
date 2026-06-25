@@ -86,6 +86,24 @@ AUDIT_QUALITY_FEEDBACK_FIELDS: tuple[str, ...] = (
     "expected_slippage_usd",
     "expected_slippage_source",
     "expected_slippage_modeled",
+    "bid_depth_usd",
+    "ask_depth_usd",
+    "orderbook_depth_usd",
+    "entry_orderbook_depth_usd",
+    "entry_orderbook_depth_side",
+    "top_of_book_depth_usd",
+    "market_depth_usd",
+    "orderbook_depth_source",
+    "depth_utilization_pct",
+    "depth_price_impact_bps",
+    "depth_price_impact_source",
+    "depth_price_impact_model",
+    "depth_price_impact_side",
+    "depth_price_impact_quantity",
+    "depth_price_impact_filled_quantity",
+    "depth_price_impact_fill_complete",
+    "depth_price_impact_vwap",
+    "depth_price_impact_touch_price",
     "realized_slippage_bps",
     "realized_slippage_usd",
     "implementation_shortfall_usd",
@@ -102,6 +120,44 @@ AUDIT_QUALITY_FEEDBACK_FIELDS: tuple[str, ...] = (
     "trailing_activation_time",
     "trailing_stop_price",
     "trailing_stop_history",
+)
+
+PAPER_EXECUTION_EVIDENCE_FIELDS: tuple[str, ...] = (
+    "maker_probability",
+    "taker_probability",
+    "maker_taker_probability",
+    "maker_taker_probabilities",
+    "maker_taker_probability_source",
+    "decision_latency_ms",
+    "latency_ms",
+    "latency_source",
+    "paper_fill_latency_ms",
+    "fill_latency_ms",
+    "execution_latency_ms",
+    "simulated_latency_ms",
+    "selector_policy_fingerprint",
+    "frozen_selector_fingerprint",
+    "candidate_selected_before_outcome",
+    "candidate_selected_after_outcome",
+    "post_outcome_candidate_selection",
+    "future_labels_used_as_features",
+    "paper_opportunity_tier",
+    "paper_opportunity_tier_reason",
+    "explicit_paper_opportunity_tier",
+    "paper_fill_allowed_source",
+    "strict_paper_fill_allowed_upstream",
+    "calibration_label_purpose",
+    "partial_fill_count",
+    "partial_fills",
+    "fill_count",
+    "all_partial_fills",
+    "partial_fill_plan",
+    "mark_index_divergence_bps",
+    "mark_index_divergence",
+    "mark_index_source",
+    "mark_index_available_at",
+    "mark_price",
+    "index_price",
 )
 
 STATIC_SPREAD_PLACEHOLDER_SOURCES: frozenset[str] = frozenset(
@@ -148,12 +204,39 @@ def _first_number(*values: Any) -> float | None:
 
 
 def _parse_utc(value: Any) -> datetime | None:
-    if not isinstance(value, str) or not value.strip():
+    if value in (None, "") or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        try:
+            parsed_epoch = float(value)
+        except (TypeError, ValueError):
+            return None
+        if parsed_epoch <= 0 or parsed_epoch != parsed_epoch:
+            return None
+        if parsed_epoch > 10_000_000_000:
+            parsed_epoch /= 1000.0
+        try:
+            return datetime.fromtimestamp(parsed_epoch, tz=timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            return None
+    text = str(value).strip()
+    if not text:
         return None
     try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError:
-        return None
+        try:
+            parsed_epoch = float(text)
+        except (TypeError, ValueError):
+            return None
+        if parsed_epoch <= 0 or parsed_epoch != parsed_epoch:
+            return None
+        if parsed_epoch > 10_000_000_000:
+            parsed_epoch /= 1000.0
+        try:
+            return datetime.fromtimestamp(parsed_epoch, tz=timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            return None
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
@@ -251,10 +334,48 @@ def _spread_source_is_observed(source: str | None) -> bool:
     return any(marker in normalized for marker in ("ORDERBOOK", "OBSERVED", "TOP_OF_BOOK"))
 
 
+def _lifecycle_or_no_trade_strategy_reasons(row: dict[str, Any]) -> list[str]:
+    reasons: list[str] = []
+    for field in (
+        "strategy",
+        "strategy_id",
+        "strategy_family",
+        "strategy_subtype",
+        "strategy_selected_mode",
+        "strategy_router_selected_mode",
+        "entry_reason",
+    ):
+        normalized = str(row.get(field) or "").strip().lower()
+        if normalized in {"no_trade", "no_trade_mode", "no_trade_expert"}:
+            reasons.append(f"{field}=NO_TRADE")
+        elif any(token in normalized for token in ("reduce", "close", "exit")):
+            reasons.append(f"{field}=LIFECYCLE_ACTION")
+
+    label_values: list[Any] = []
+    for field in (
+        "strategy_regime_labels",
+        "market_regime_at_entry",
+        "market_regime",
+        "market_regime_at_exit",
+    ):
+        raw = row.get(field)
+        if isinstance(raw, str):
+            label_values.extend(item.strip() for item in raw.split(",") if item.strip())
+        elif isinstance(raw, (list, tuple, set)):
+            label_values.extend(raw)
+    tokens = {str(value).strip().upper() for value in label_values if str(value).strip()}
+    if "NO_TRADE" in tokens:
+        reasons.append("strategy_regime_labels_include_NO_TRADE")
+    return sorted(set(reasons))
+
+
 def audit_quality_rejection_reasons(row: dict[str, Any]) -> list[str]:
     """Return reasons a closed-trade feedback row must stay out of training."""
 
     reasons: list[str] = []
+    if _lifecycle_or_no_trade_strategy_reasons(row):
+        reasons.append("LIFECYCLE_OR_NO_TRADE_STRATEGY_NOT_ENTRY_EVIDENCE")
+
     squeeze_score = _coerce_float(row.get("squeeze_evidence_score"))
     if squeeze_score is None or not _first_present(row.get("squeeze_evidence_source")):
         reasons.append("MISSING_SOURCED_SQUEEZE_EVIDENCE")
@@ -413,6 +534,20 @@ def build_strategy_hedge_exit_feedback(
             outcome_label.get("entry_feature_snapshot_id"),
             close_event.get("feature_snapshot_id"),
             outcome_label.get("feature_snapshot_id"),
+        ),
+        "entry_feature_snapshot": _first_present(
+            close_event.get("entry_feature_snapshot")
+            if isinstance(close_event.get("entry_feature_snapshot"), dict)
+            else None,
+            outcome_label.get("entry_feature_snapshot")
+            if isinstance(outcome_label.get("entry_feature_snapshot"), dict)
+            else None,
+            close_event.get("feature_snapshot")
+            if isinstance(close_event.get("feature_snapshot"), dict)
+            else None,
+            outcome_label.get("feature_snapshot")
+            if isinstance(outcome_label.get("feature_snapshot"), dict)
+            else None,
         ),
         "market_state_id": _first_present(
             close_event.get("market_state_id"),
@@ -603,6 +738,46 @@ def build_strategy_hedge_exit_feedback(
                 if value not in (None, "")
             },
         ),
+        "confidence_raw": _first_present(
+            close_event.get("confidence_raw"),
+            outcome_label.get("confidence_raw"),
+        ),
+        "confidence_calibrated": _first_present(
+            close_event.get("confidence_calibrated"),
+            outcome_label.get("confidence_calibrated"),
+        ),
+        "selected_action_probability": _first_present(
+            close_event.get("selected_action_probability"),
+            outcome_label.get("selected_action_probability"),
+        ),
+        "expected_move_bps": _first_present(
+            close_event.get("expected_move_bps"),
+            outcome_label.get("expected_move_bps"),
+        ),
+        "expected_move_after_cost_bps": _first_present(
+            close_event.get("expected_move_after_cost_bps"),
+            outcome_label.get("expected_move_after_cost_bps"),
+        ),
+        "action_probabilities": _first_present(
+            close_event.get("action_probabilities"),
+            outcome_label.get("action_probabilities"),
+        ),
+        "policy_value": _first_present(
+            close_event.get("policy_value"),
+            outcome_label.get("policy_value"),
+        ),
+        "value_baseline": _first_present(
+            close_event.get("value_baseline"),
+            outcome_label.get("value_baseline"),
+        ),
+        "prediction_score_source": _first_present(
+            close_event.get("prediction_score_source"),
+            outcome_label.get("prediction_score_source"),
+        ),
+        "prediction_score_missing_reason": _first_present(
+            close_event.get("prediction_score_missing_reason"),
+            outcome_label.get("prediction_score_missing_reason"),
+        ),
         "trust_reconstructed": _first_present(close_event.get("trust_reconstructed"), outcome_label.get("trust_reconstructed"), False),
         "trust_source_ids": _first_present(close_event.get("trust_source_ids"), outcome_label.get("trust_source_ids")),
         "trust_reconstruction_rejection_reasons": _first_present(
@@ -619,6 +794,24 @@ def build_strategy_hedge_exit_feedback(
     }
     for field in AUDIT_QUALITY_FEEDBACK_FIELDS:
         row[field] = _first_present(close_event.get(field), outcome_label.get(field))
+    for field in PAPER_EXECUTION_EVIDENCE_FIELDS:
+        row[field] = _first_present(close_event.get(field), outcome_label.get(field))
+    if row.get("latency_ms") in (None, ""):
+        row["latency_ms"] = _first_present(
+            row.get("decision_latency_ms"),
+            close_event.get("decision_latency_ms"),
+            outcome_label.get("decision_latency_ms"),
+        )
+    latency_value = _first_present(row.get("latency_ms"), row.get("decision_latency_ms"))
+    if latency_value not in (None, ""):
+        for latency_field in (
+            "paper_fill_latency_ms",
+            "fill_latency_ms",
+            "execution_latency_ms",
+            "simulated_latency_ms",
+        ):
+            if row.get(latency_field) in (None, ""):
+                row[latency_field] = latency_value
     row["major_move_context"] = _first_present(
         close_event.get("major_move_context"),
         outcome_label.get("major_move_context"),

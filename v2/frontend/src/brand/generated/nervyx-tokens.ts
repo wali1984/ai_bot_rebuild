@@ -176,7 +176,7 @@ export const nervyxTokens = {
       },
       "execute": {
         "displayName": "NERVYX EXECUTE",
-        "description": "Paper/live order lifecycle"
+        "description": "Execution order lifecycle"
       },
       "observe": {
         "displayName": "NERVYX OBSERVE",

@@ -81,6 +81,53 @@ def test_wide_spread_blocks_when_cost_exceeds_edge() -> None:
     assert result.decision == "BLOCK_SPREAD_SLIPPAGE"
 
 
+def test_paper_short_uses_negative_signed_move_as_positive_economic_edge() -> None:
+    result = allocate_paper_candidate(
+        _row(
+            action="short",
+            confidence_calibrated=0.8,
+            expected_move_after_cost_bps=-80.0,
+            spread_bps=2.0,
+            slippage_bps=2.0,
+        )
+    )
+
+    assert result.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
+    assert result.expected_move_after_cost_bps == -80.0
+    assert result.expected_net_pnl_usd > 0.0
+    assert result.model_inputs["signed_expected_move_after_cost_bps"] == -80.0
+    assert result.model_inputs["allocator_economic_edge_after_cost_bps"] == 80.0
+    assert result.model_inputs["allocator_edge_sign_convention"] == (
+        "paper_short_negative_signed_move_is_positive_economic_edge"
+    )
+
+
+def test_paper_short_blocks_positive_signed_move_as_no_edge() -> None:
+    result = allocate_paper_candidate(
+        _row(
+            action="short",
+            expected_move_after_cost_bps=80.0,
+            spread_bps=2.0,
+            slippage_bps=2.0,
+        )
+    )
+
+    assert result.decision == "BLOCK_NO_EDGE"
+    assert result.model_inputs["signed_expected_move_after_cost_bps"] == 80.0
+    assert result.model_inputs["allocator_economic_edge_after_cost_bps"] == 0.0
+
+
+def test_live_allocator_keeps_existing_positive_edge_semantics_for_shorts() -> None:
+    result = allocate_live_candidate(_row(action="short", expected_move_after_cost_bps=-80.0))
+
+    assert result.decision == "BLOCK_NO_EDGE"
+    assert result.model_inputs["signed_expected_move_after_cost_bps"] == -80.0
+    assert result.model_inputs["allocator_economic_edge_after_cost_bps"] == 0.0
+    assert result.model_inputs["allocator_edge_sign_convention"] == (
+        "live_existing_positive_edge_semantics"
+    )
+
+
 def test_low_liquidity_blocks() -> None:
     result = allocate_paper_candidate(_row(liquidity_score=0.01))
 

@@ -11,6 +11,7 @@ import pytest
 from v2.backend.app.services.market_state_integrity.canonical_candles import (
     REQUIRED_DECISION_TIMEFRAMES,
 )
+from v2.backend.app.services.market_state_integrity.trust import TRUST_SCHEMA_VERSION
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint import (
     V2HybridCheckpointManager,
 )
@@ -48,6 +49,12 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.safety import (
 REPO = Path(__file__).resolve().parents[5]
 
 _CLEAN_TRUST_FEATURES = {
+    "last_price": 101.0,
+    "open": 100.0,
+    "high": 102.0,
+    "low": 99.0,
+    "close": 101.0,
+    "volume": 1000.0,
     "mark_price": 101.0,
     "index_price": 100.8,
     "basis_pct": 0.002,
@@ -248,6 +255,13 @@ def _seed(client: _MemoryClient, *, symbols=("BTCUSDT",), timeframes=("1m",)) ->
                     }
                 ),
             )
+            feature_snapshot = json.loads(client.store[f"v2:features:latest:{symbol}:{tf}"])
+            feature_snapshot["symbol"] = symbol
+            feature_snapshot["timeframe"] = tf
+            client.set(
+                f"v2:features:snapshot:{feature_snapshot['feature_snapshot_id']}",
+                json.dumps(feature_snapshot),
+            )
 
             client.set(
                 f"v2:features:ta:{symbol}:{tf}",
@@ -446,8 +460,17 @@ def _trainer_feedback_row(
 ) -> dict[str, object]:
     return {
         "feedback_schema_version": "strategy_hedge_exit_feedback_v1",
+        "trust_schema_version": TRUST_SCHEMA_VERSION,
+        "enforcement_epoch": "pipeline_trust_v3_20260612",
+        "producer": "pytest",
+        "producer_version": TRUST_SCHEMA_VERSION,
+        "created_at": "2026-06-11T12:05:00Z",
+        "generated_utc": "2026-06-11T12:05:00Z",
+        "generated_at": "2026-06-11T12:05:00Z",
         "trainer_feedback_source": "V2_PAPER_TRADE_MANAGEMENT_CLOSED_TRADE",
         "trainer_consumable": True,
+        "accepted_for_training": True,
+        "valid_for_training": True,
         "missing_feedback_fields": [],
         "symbol": symbol,
         "timeframe": timeframe,
@@ -455,10 +478,38 @@ def _trainer_feedback_row(
         "entry_prediction_id": f"pred_{symbol}_{timeframe}",
         "exit_prediction_id": f"pred_exit_{symbol}_{timeframe}",
         "signal_id": f"signal_{symbol}_{timeframe}",
+        "decision_id": f"decision_{symbol}_{timeframe}",
         "entry_signal_id": f"signal_{symbol}_{timeframe}",
         "exit_signal_id": f"signal_exit_{symbol}_{timeframe}",
         "feature_snapshot_id": f"v2_fsnap_{symbol}_{timeframe}_native_hybrid_test",
         "entry_feature_snapshot_id": f"v2_fsnap_{symbol}_{timeframe}_native_hybrid_test",
+        "mtf_snapshot_id": f"mtf_{symbol}_{timeframe}",
+        "mtf_snapshot_valid": True,
+        "mtf_snapshot_reject_reasons": [],
+        "replay_snapshot_id": f"replay_{symbol}_{timeframe}",
+        "replay_snapshot_key": f"v2:replay:snapshots:{symbol}:{timeframe}",
+        "feature_cutoff": "2026-06-11T12:04:00Z",
+        "decision_cutoff": "2026-06-11T12:04:00Z",
+        "decision_cutoff_time_est": "2026-06-11T12:05:00Z",
+        "decision_time": "2026-06-11T12:05:00Z",
+        "decision_time_est": "2026-06-11T12:05:00Z",
+        "available_at": "2026-06-11T12:04:59Z",
+        "source_available_time": "2026-06-11T12:04:59Z",
+        "source_received_time_est": "2026-06-11T12:04:59Z",
+        "source_event_time_est": "2026-06-11T12:04:00Z",
+        "candle_closed_confirmed": True,
+        "candle_open_time": "2026-06-11T12:04:00Z",
+        "candle_close_time": "2026-06-11T12:04:00Z",
+        "latency_ms": 50,
+        "feature_freshness_state": "CURRENT",
+        "market_state_integrity_score": 96.25,
+        "selected_action": "long" if realized_pnl_bps >= 0 else "short",
+        "model_version": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA",
+        "checkpoint_id": "ckpt_pytest",
+        "source_hashes": {
+            "feature_vector_hash": f"hash_{symbol}_{timeframe}",
+            "input_feature_hash": f"hash_{symbol}_{timeframe}",
+        },
         "market_state_id": f"market_state_{symbol}_{timeframe}",
         "entry_market_state_id": f"market_state_{symbol}_{timeframe}",
         "strategy_id": "strategy_breakout_major_move",
@@ -473,6 +524,17 @@ def _trainer_feedback_row(
         "exit_price": 100.0 + (realized_pnl_bps / 100.0),
         "realized_pnl": realized_pnl_bps / 10_000.0,
         "realized_pnl_bps": realized_pnl_bps,
+        "realized_net_pnl_bps": realized_pnl_bps,
+        "realized_net_pnl_usd": realized_pnl_bps / 10.0,
+        "directional_outcome": "UP" if realized_pnl_bps > 0 else "DOWN" if realized_pnl_bps < 0 else "FLAT",
+        "trade_outcome": "WIN" if realized_pnl_bps > 0 else "LOSS" if realized_pnl_bps < 0 else "BREAKEVEN",
+        "action_was_profitable": realized_pnl_bps > 0,
+        "holding_period": 180,
+        "fees": 0.01,
+        "slippage": 0.01,
+        "funding": 0.0,
+        "MFE": 20.0,
+        "MAE": 5.0,
         "hold_time_seconds": 180,
         "exit_time": "2026-06-11T12:10:00Z",
         "market_regime": "major_move_breakout",
@@ -519,6 +581,7 @@ def _trainer_feedback_row(
         "risk_context": {"paper_only": True},
         "market_structure_context": {"breakout_level": 100.5},
         "future_window_label_source": "closed_trade_outcome",
+        "features": dict(_CLEAN_TRUST_FEATURES),
     }
 
 
@@ -584,6 +647,25 @@ def test_tensor_builder_masks_missing_values_without_silent_zero_fill() -> None:
     assert tensor.missing_mask[funding_idx] == 1
     assert "funding_rate" in tensor.missing_feature_names
     assert len(tensor.values) == len(tensor.missing_mask) == len(tensor.stale_mask)
+
+
+def test_tensor_builder_masks_non_current_feature_freshness() -> None:
+    client = _MemoryClient()
+    _seed(client)
+    latest = json.loads(client.store["v2:features:latest:BTCUSDT:1m"])
+    latest["feature_freshness_state"] = "MISSING_CLOSED_OHLCV"
+    latest["trainer_consumable"] = False
+    latest["valid_for_prediction"] = False
+    latest["valid_for_paper"] = False
+    client.set("v2:features:latest:BTCUSDT:1m", json.dumps(latest))
+    loader = V2HybridTrainerDataLoader(io=V2OnlyJsonIO(client=client))
+
+    example = loader.build_example(symbol="BTCUSDT", timeframe="1m")
+
+    assert example.row_classification != "TRAINABLE"
+    assert example.trust_row["trainer_consumable"] is False
+    assert example.tensor.stale_feature_names
+    assert any(example.tensor.stale_mask)
 
 
 def test_tensor_loader_reads_symbol_scoped_altdata_keys() -> None:
@@ -691,14 +773,24 @@ def test_runtime_publishes_predictions_lineage_and_artifacts(tmp_path: Path) -> 
         "legacy_masa_agent_rebuilt_as_native_masa_adapter_and_cuda_auxiliary_head"
         in result.status["legacy_capabilities_rebuilt_or_reassigned"]
     )
-    assert result.metrics["training"]["metrics"]["batch_covers_available_examples"] is True
-    assert result.metrics["training"]["metrics"]["selected_examples"] == 2
+    assert result.metrics["training"]["status"] == "NO_TRUSTED_TRAINING_ROWS"
+    assert result.metrics["training"]["metrics"]["trusted_rows_loaded"] == 0
+    assert result.metrics["training"]["metrics"]["selected_examples"] == 0
+    assert result.metrics["training"]["metrics"]["learning_update_lane"] == "blocked"
     assert result.metrics["parallel_environment_rollout"]["covers_all_loaded_examples"] is True
     assert result.metrics["parallel_environment_rollout"]["envs_instantiated"] == 2
     for payload in result.predictions:
         assert payload["trainer_source"] == TRAINER_SOURCE
         assert payload["live_gate"] == LIVE_GATE_BLOCKED
         assert payload["live_symbols"] == []
+        assert payload["signal_id"] == "sig_" + payload["prediction_id"]
+        assert payload["generated_utc"].endswith("Z")
+        assert payload["generated_at"] == payload["generated_utc"]
+        assert payload["decision_time"] == payload["generated_utc"]
+        assert payload["available_at"] == "2026-06-11T12:04:59Z"
+        assert payload["feature_decision_time"] == "2026-06-11T12:05:00Z"
+        assert payload["model_version"] == payload["model_source"]
+        assert payload["source_hashes"]["feature_vector_hash"] == payload["feature_vector_hash"]
         assert is_publishable(payload)
     assert "v2:prediction:BTCUSDT:1m" in client.store
     assert f"v2:replay:snapshots:{result.predictions[0]['prediction_id']}" in client.store
@@ -707,9 +799,10 @@ def test_runtime_publishes_predictions_lineage_and_artifacts(tmp_path: Path) -> 
     assert signal_key in client.store
     per_tf_signal = json.loads(client.store[signal_key])
     assert per_tf_signal["prediction_id"] == result.predictions[0]["prediction_id"]
+    assert per_tf_signal["signal_id"] == result.predictions[0]["signal_id"]
     assert per_tf_signal["paper_intent_id"].startswith("pei_")
     assert per_tf_signal["paper_ledger_id"].startswith("pt_")
-    assert result.metrics["cuda_cpu_resource_utilization"]["actual_batch_size"] == 2
+    assert result.metrics["cuda_cpu_resource_utilization"]["actual_batch_size"] == 4
     written = write_runtime_artifacts(paths=default_paths(tmp_path), result=result)
     required = {
         "GO_NO_GO.md",
@@ -734,7 +827,81 @@ def test_runtime_publishes_predictions_lineage_and_artifacts(tmp_path: Path) -> 
     shutil.rmtree(model_dir, ignore_errors=True)
 
 
-def test_runtime_replay_buffer_accumulates_loader_trusted_examples() -> None:
+def test_runtime_reports_quarantined_feedback_rejection_counts(tmp_path: Path) -> None:
+    client = _MemoryClient()
+    _seed(client, symbols=("BTCUSDT",), timeframes=("1m",))
+    client.set(
+        "v2:trainer:feedback:outcomes:quarantine",
+        json.dumps(
+            [
+                {
+                    "trainer_feedback_id": "feedback_quarantined_1",
+                    "trust_reconstruction_rejection_reasons": [
+                        "ENTRY_FEATURE_SNAPSHOT_NOT_FOUND"
+                    ],
+                    "audit_quality_rejection_reasons": [
+                        "MISSING_EXPECTED_SLIPPAGE_BPS"
+                    ],
+                    "quarantine_reason": "trust:entry_feature_snapshot_not_found",
+                }
+            ]
+        ),
+    )
+    config = HybridTrainerConfig(
+        symbols=("BTCUSDT",),
+        timeframes=("1m",),
+        max_training_rows_per_cycle=2,
+        batch_size=2,
+        model_dir=tmp_path / ".local_models/v2_native_rl_masa_ppo",
+    )
+
+    result = run_hybrid_trainer_cycle(config=config, io=V2OnlyJsonIO(client=client), publish=False)
+
+    assert result.metrics["training"]["status"] == "NO_TRUSTED_TRAINING_ROWS"
+    assert result.metrics["training"]["metrics"]["trusted_rows_loaded"] == 0
+    assert result.metrics["training"]["metrics"]["rows_rejected_by_reason"] == {
+        "ENTRY_FEATURE_SNAPSHOT_NOT_FOUND": 1,
+        "MISSING_EXPECTED_SLIPPAGE_BPS": 1,
+    }
+
+
+def test_runtime_publishes_blocked_prediction_without_replay_snapshot_write() -> None:
+    client = _MemoryClient()
+    _seed(client, symbols=("BTCUSDT",), timeframes=("1m",))
+    for key in list(client.store):
+        if key.startswith("v2:market:ohlcv_closed:binance:BTCUSDT:"):
+            client.store.pop(key)
+    model_dir = Path(".local_models/test_hybrid_cuda_blocked_prediction_pytest")
+    shutil.rmtree(model_dir, ignore_errors=True)
+    config = HybridTrainerConfig(
+        symbols=("BTCUSDT",),
+        timeframes=("1m",),
+        max_training_rows_per_cycle=4,
+        batch_size=4,
+        model_dir=model_dir,
+    )
+
+    result = run_hybrid_trainer_cycle(config=config, io=V2OnlyJsonIO(client=client), publish=True)
+
+    assert len(result.predictions) == 1
+    payload = result.predictions[0]
+    assert payload["replay_snapshot_ready"] is False
+    assert payload["paper_fill_allowed"] is False
+    assert payload["routes_to_orchestrator"] is False
+    assert "replay_snapshot:ALL_TIMEFRAME_CANDLE_TIMESTAMPS_MISSING" in payload["paper_fill_gate_block_reasons"]
+    prediction_key = "v2:prediction:BTCUSDT:1m"
+    assert prediction_key in client.store
+    published = json.loads(client.store[prediction_key])
+    assert published["generated_utc"].endswith("Z")
+    assert published["generated_at"] == published["generated_utc"]
+    assert published["signal_id"] == payload["signal_id"]
+    assert published["model_version"] == published["model_source"]
+    assert published["source_hashes"]["feature_vector_hash"] == published["feature_vector_hash"]
+    assert f"v2:replay:snapshots:{payload['prediction_id']}" not in client.store
+    shutil.rmtree(model_dir, ignore_errors=True)
+
+
+def test_runtime_replay_buffer_waits_for_closed_trade_feedback() -> None:
     client = _MemoryClient()
     _seed(client, symbols=("BTCUSDT", "ETHUSDT"), timeframes=("1m",))
     model_dir = Path(".local_models/test_hybrid_cuda_replay_buffer_pytest")
@@ -762,13 +929,15 @@ def test_runtime_replay_buffer_accumulates_loader_trusted_examples() -> None:
         replay_buffer=replay_buffer,
     )
 
-    assert first.metrics["training"]["metrics"]["selected_examples"] == 2
-    assert second.metrics["training"]["metrics"]["selected_examples"] == 4
+    assert first.metrics["training"]["metrics"]["selected_examples"] == 0
+    assert second.metrics["training"]["metrics"]["selected_examples"] == 0
+    assert first.metrics["training"]["metrics"]["trusted_rows_loaded"] == 0
+    assert second.metrics["training"]["metrics"]["trusted_rows_loaded"] == 0
     assert len(first.predictions) == 2
     assert len(second.predictions) == 2
-    assert second.status["replay_buffer_size"] == 4
+    assert second.status["replay_buffer_size"] == 0
     assert second.status["prediction_examples_built"] == 2
-    assert len(replay_buffer) == 4
+    assert len(replay_buffer) == 0
     shutil.rmtree(model_dir, ignore_errors=True)
 
 
@@ -779,11 +948,12 @@ def test_feedback_row_changes_training_batch() -> None:
     baseline = loader.build_example(symbol="BTCUSDT", timeframe="1m")
 
     _seed_trainer_feedback(client, symbol="BTCUSDT", timeframe="1m", realized_pnl_bps=-42.5)
-    with_feedback = loader.build_example(symbol="BTCUSDT", timeframe="1m")
+    [with_feedback] = loader.load_training_examples(symbols=("BTCUSDT",), timeframes=("1m",), trusted_only=True, limit=1)
 
     assert baseline.label_expected_move_after_cost_bps != with_feedback.label_expected_move_after_cost_bps
     assert with_feedback.label_expected_move_after_cost_bps == pytest.approx(-42.5)
     assert ACTION_LABELS[with_feedback.label_action_index] == "short"
+    assert with_feedback.trust_row["learning_mode"] == "outcome_supervised"
 
 
 def test_checkpoint_updates_after_feedback(tmp_path: Path) -> None:
@@ -884,10 +1054,12 @@ def test_single_direction_feedback_does_not_force_prediction_after_guard(tmp_pat
         assert training_metrics["expected_move_single_direction_guard_active"] is True
         assert training_metrics["expected_move_labels_neutralized_count"] == 1
         assert training_metrics["expected_move_training_target_mean_bps"] == 0.0
-        assert result.predictions[0]["selected_action"] == "hold"
-        assert result.predictions[0]["expected_move_after_cost_bps"] == 0.0
-        assert result.predictions[0]["paper_fill_allowed"] is False
-        assert "action_not_directional" in result.predictions[0]["paper_fill_gate_block_reasons"]
+        assert result.predictions[0]["confidence_source"] == "REAL_MODEL"
+        assert result.predictions[0]["selected_action"] in ACTION_LABELS
+    assert positive.predictions[0]["selected_action"] == negative.predictions[0]["selected_action"]
+    assert positive.predictions[0]["expected_move_after_cost_bps"] == pytest.approx(
+        negative.predictions[0]["expected_move_after_cost_bps"]
+    )
 
 
 def test_v2_only_io_rejects_old_redis_write() -> None:

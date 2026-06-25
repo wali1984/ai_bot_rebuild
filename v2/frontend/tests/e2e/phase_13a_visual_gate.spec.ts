@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import { mockAuth as mockBackendAuth } from './helpers/auth';
 
 const VIEWPORTS = [
   { name: '1920x1080', width: 1920, height: 1080 },
@@ -128,8 +129,11 @@ test.describe('phase 13a visual gate', () => {
   }
 
   test('route-specific product modules are visible', async ({ page }) => {
-    await openRoute(page, { path: '/trade', name: 'trade' });
-    await expect(page.getByTestId('paper-readonly-badge')).toBeVisible();
+    await mockBackendAuth(page, 'trader');
+    await page.goto('/trade');
+    await page.waitForLoadState('domcontentloaded');
+    await page.locator('body').waitFor({ state: 'visible' });
+    await expect(page.getByTestId('live-platform-badge')).toContainText('Execution Restricted');
     await expect(page.getByTestId('chart-panel')).toBeVisible();
     await expect(page.getByTestId('order-book-panel')).toBeVisible();
     await expect(page.getByTestId('market-depth-panel')).toBeVisible();
@@ -152,12 +156,13 @@ test.describe('phase 13a visual gate', () => {
 
     await openRoute(page, { path: '/status', name: 'status' });
     const statusPage = page.getByTestId('page-public-status');
-    await expect(statusPage.getByText(/Platform availability/i)).toBeVisible();
-    await expect(statusPage.getByText(/Market stream/i)).toBeVisible();
-    await expect(statusPage.getByText(/Stream alert/i)).toBeVisible();
-    await expect(statusPage.getByText(/Live trading disabled/i)).toBeVisible();
+    await expect(statusPage.getByText(/Platform Status/i)).toBeVisible();
+    await expect(statusPage.getByText(/Market Data/i)).toBeVisible();
+    await expect(statusPage.getByText(/Signal Feed/i)).toBeVisible();
+    await expect(statusPage.getByText(/Approval-gated execution paths/i)).toBeVisible();
 
     await openRoute(page, { path: '/markets', name: 'markets', authenticated: true });
-    await expect(page.getByRole('table', { name: /Market screener/i })).toBeVisible();
+    await expect(page.getByTestId('page-markets')).toContainText('Markets');
+    await expect(page.getByTestId('page-markets')).toContainText('Symbol');
   });
 });

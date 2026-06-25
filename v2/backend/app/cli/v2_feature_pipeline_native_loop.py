@@ -31,7 +31,7 @@ V2_REDIS_PREFIX = "v2:"
 DEFAULT_TF = "1m"
 DEFAULT_TIMEFRAMES = ("1m", "5m", "15m", "1h", "4h")
 FEATURE_LATEST_TTL_SECONDS = 600
-FEATURE_SNAPSHOT_ARCHIVE_TTL_SECONDS = 30 * 24 * 60 * 60
+FEATURE_SNAPSHOT_ARCHIVE_TTL_SECONDS = 24 * 60 * 60  # 24h; 30d caused Redis OOM at 370K keys
 REPO_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_PAYLOAD_PATH = (
     REPO_ROOT
@@ -41,13 +41,59 @@ SNAPSHOT_PATH = REPO_ROOT / "v2/runtime/v2_feature_pipeline_native/latest/latest
 
 
 def _utc_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def _ms_to_utc_iso(value: int | float) -> str:
     return datetime.fromtimestamp(float(value) / 1000.0, tz=timezone.utc).isoformat(
-        timespec="seconds"
+        timespec="milliseconds"
     ).replace("+00:00", "Z")
+
+
+def _parse_time_ms(value) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        numeric = int(value)
+        return numeric * 1000 if abs(numeric) < 10_000_000_000 else numeric
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            numeric = int(float(text))
+            return numeric * 1000 if abs(numeric) < 10_000_000_000 else numeric
+        except ValueError:
+            try:
+                return int(datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp() * 1000)
+            except ValueError:
+                return None
+    return None
+
+
+def _timeframe_ms(value: str) -> int:
+    text = str(value or "").strip().lower()
+    if not text:
+        return 60_000
+    unit = text[-1]
+    try:
+        amount = int(text[:-1])
+    except ValueError:
+        return 60_000
+    if unit == "m":
+        return amount * 60_000
+    if unit == "h":
+        return amount * 3_600_000
+    if unit == "d":
+        return amount * 86_400_000
+    return 60_000
+
+
+def _closed_candle_is_stale(*, close_ms: int | None, decision_ms: int, timeframe: str) -> bool:
+    if close_ms is None:
+        return True
+    max_age_ms = _timeframe_ms(timeframe) + 120_000
+    return int(decision_ms) - int(close_ms) > max_age_ms
 
 
 def _connect_redis():
@@ -126,10 +172,8 @@ def _market_from_closed_klines(klines: list | None) -> dict | None:
     }
 
 
-def _read_klines(r, symbol: str, interval: str = "1m") -> list | None:
-    if r is None:
-        return None
-    raw = r.get(f"{V2_REDIS_PREFIX}market:ohlcv_closed:binance:{symbol}:{interval}")
+def _load_json_list_key(r, key: str) -> list | None:
+    raw = r.get(key)
     if not raw:
         return None
     try:
@@ -137,6 +181,38 @@ def _read_klines(r, symbol: str, interval: str = "1m") -> list | None:
         return data if isinstance(data, list) else None
     except (ValueError, TypeError):
         return None
+
+
+def _latest_closed_close_ms(klines: list | None, *, decision_ms: int) -> int | None:
+    latest: int | None = None
+    closed, _ = _closed_klines(klines, decision_ms=decision_ms)
+    for row in closed:
+        try:
+            if isinstance(row, dict):
+                close_ms = int(float(row.get("candle_close_time") or row.get("close_time")))
+            elif isinstance(row, (list, tuple)) and len(row) >= 7:
+                close_ms = int(float(row[6]))
+            else:
+                continue
+        except (TypeError, ValueError):
+            continue
+        latest = close_ms if latest is None else max(latest, close_ms)
+    return latest
+
+
+def _read_klines(r, symbol: str, interval: str = "1m", *, decision_ms: int | None = None) -> list | None:
+    if r is None:
+        return None
+    current_decision_ms = int(decision_ms if decision_ms is not None else time.time() * 1000)
+    closed_key = f"{V2_REDIS_PREFIX}market:ohlcv_closed:binance:{symbol}:{interval}"
+    raw_key = f"{V2_REDIS_PREFIX}market:ohlcv:binance:{symbol}:{interval}"
+    closed_rows = _load_json_list_key(r, closed_key)
+    raw_rows = _load_json_list_key(r, raw_key)
+    closed_latest = _latest_closed_close_ms(closed_rows, decision_ms=current_decision_ms)
+    raw_latest = _latest_closed_close_ms(raw_rows, decision_ms=current_decision_ms)
+    if raw_latest is not None and (closed_latest is None or raw_latest > closed_latest):
+        return raw_rows
+    return closed_rows
 
 
 def _closed_klines(klines: list | None, *, decision_ms: int) -> tuple[list, list | None]:
@@ -150,6 +226,10 @@ def _closed_klines(klines: list | None, *, decision_ms: int) -> tuple[list, list
             try:
                 close_ms = int(float(row.get("candle_close_time") or row.get("close_time")))
             except (TypeError, ValueError):
+                continue
+            available_raw = row.get("available_at") or row.get("source_available_time") or row.get("ingested_at")
+            available_ms = _parse_time_ms(available_raw) if available_raw not in (None, "") else None
+            if available_ms is not None and available_ms > decision_ms:
                 continue
         elif isinstance(row, (list, tuple)) and len(row) >= 7:
             try:
@@ -705,7 +785,7 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
     for sym in symbols:
         # Attach klines + orderbook + OI history + liquidation notional so the
         # feature builder can compute real TA (no silent zeros).
-        raw_klines = _read_klines(r, sym, timeframe)
+        raw_klines = _read_klines(r, sym, timeframe, decision_ms=decision_ms)
         closed_klines, latest_closed_kline = _closed_klines(raw_klines, decision_ms=decision_ms)
         m = _read_market(r, sym) or _market_from_closed_klines(closed_klines)
         if not m:
@@ -721,13 +801,43 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
         missing_feature_flags = sorted(k for k, v in feats.items() if v is None)
         candle_open_time = None
         candle_close_time = None
+        candle_close_ms = None
+        closed_candle_available = latest_closed_kline is not None
         if isinstance(latest_closed_kline, dict):
-            candle_open_time = _ms_to_utc_iso(int(float(latest_closed_kline.get("candle_open_time") or latest_closed_kline.get("open_time"))))
-            candle_close_time = _ms_to_utc_iso(int(float(latest_closed_kline.get("candle_close_time") or latest_closed_kline.get("close_time"))))
+            candle_open_ms = int(float(latest_closed_kline.get("candle_open_time") or latest_closed_kline.get("open_time")))
+            candle_close_ms = int(float(latest_closed_kline.get("candle_close_time") or latest_closed_kline.get("close_time")))
+            candle_open_time = _ms_to_utc_iso(candle_open_ms)
+            candle_close_time = _ms_to_utc_iso(candle_close_ms)
         elif isinstance(latest_closed_kline, (list, tuple)) and len(latest_closed_kline) >= 7:
             candle_open_time = _ms_to_utc_iso(int(float(latest_closed_kline[0])))
-            candle_close_time = _ms_to_utc_iso(int(float(latest_closed_kline[6])))
+            candle_close_ms = int(float(latest_closed_kline[6]))
+            candle_close_time = _ms_to_utc_iso(candle_close_ms)
+        closed_candle_stale = (
+            closed_candle_available
+            and _closed_candle_is_stale(
+                close_ms=candle_close_ms,
+                decision_ms=decision_ms,
+                timeframe=timeframe,
+            )
+        )
+        if not closed_candle_available:
+            missing_feature_flags = sorted(set(missing_feature_flags) | {
+                "ohlcv_closed_window",
+                "candle_closed_confirmed",
+                "feature_cutoff",
+            })
+        if closed_candle_stale:
+            missing_feature_flags = sorted(set(missing_feature_flags) | {
+                "ohlcv_closed_window_stale",
+            })
         generated_at = _utc_iso()
+        trainer_consumable = closed_candle_available and not closed_candle_stale
+        if not closed_candle_available:
+            feature_freshness_state = "MISSING_CLOSED_OHLCV"
+        elif closed_candle_stale:
+            feature_freshness_state = "STALE_CLOSED_OHLCV"
+        else:
+            feature_freshness_state = "CURRENT"
         snap = {
             "schema_version": "v2_native_feature_snapshot_v1",
             "worker_id": "v2_feature_pipeline_native_loop",
@@ -743,10 +853,12 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
                 "microstructure", "funding_oi_liquidation", "portfolio_aware", "freshness",
             ],
             "missing_feature_flags": missing_feature_flags,
-            "stale_feature_flags": [],
-            "feature_freshness_state": "CURRENT",
-            "trainer_consumable": True,
-            "candle_closed_confirmed": bool(latest_closed_kline is not None),
+            "stale_feature_flags": ["ohlcv_closed_window"] if closed_candle_stale else [],
+            "feature_freshness_state": feature_freshness_state,
+            "trainer_consumable": trainer_consumable,
+            "valid_for_prediction": trainer_consumable,
+            "valid_for_paper": trainer_consumable,
+            "candle_closed_confirmed": closed_candle_available,
             "candle_open_time": candle_open_time,
             "candle_close_time": candle_close_time,
             "source_event_time_est": candle_close_time,
@@ -764,6 +876,9 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
             "ohlcv_history_present": bool(closed_klines),
             "ohlcv_raw_row_count": len(raw_klines or []),
             "ohlcv_closed_row_count": len(closed_klines),
+            "ohlcv_closed_age_seconds": (
+                None if candle_close_ms is None else max(0, int((decision_ms - candle_close_ms) / 1000))
+            ),
             "latest_unclosed_kline_excluded": bool(raw_klines and closed_klines and len(raw_klines) != len(closed_klines)),
             "orderbook_present": bool(m.get("_orderbook")),
             "long_short_present": bool(m.get("_long_short")),

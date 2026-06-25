@@ -215,7 +215,7 @@ export default function OrchestratorAdminPage(): JSX.Element {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
               <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Orchestrator</h1>
-              <Chip label="LIVE PLATFORM" tone="ok" />
+              <Chip label="REALTIME DATA" tone="ok" />
               {hb && <Chip label={classOk ? 'LIVE' : 'DEGRADED'} tone={classOk ? 'ok' : 'warn'} />}
             </div>
             <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>

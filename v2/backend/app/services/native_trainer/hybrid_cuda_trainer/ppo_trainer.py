@@ -70,8 +70,22 @@ class V2HybridPPOTrainer:
             learnable_rows = outcome_rows
         rejection_metrics.update(
             {
+                "accepted_training_rows": len(trusted_rows),
+                "trusted_rows_loaded": len(learnable_rows),
                 "ppo_on_policy_rows": len(ppo_rows),
                 "outcome_supervised_rows": len(outcome_rows),
+                "trusted_replay_rows_loaded": sum(
+                    1
+                    for row in learnable_rows
+                    if str(self._trust_row(row).get("update_lane") or "").upper()
+                    == "OUTCOME_SUPERVISED_TRUSTED_REPLAY"
+                ),
+                "feedback_rows_entered_batch": sum(
+                    1
+                    for row in learnable_rows
+                    if str(self._trust_row(row).get("update_lane") or "").upper()
+                    == "OUTCOME_SUPERVISED_CLOSED_TRADE"
+                ),
                 "ppo_rows_rejected_missing_on_policy_fields": max(0, len(trusted_rows) - len(ppo_rows)),
                 "learning_update_lane": learning_mode if learnable_rows else "blocked",
                 "closed_trade_feedback_requires_outcome_supervised_lane": bool(outcome_rows and not ppo_rows),
@@ -882,9 +896,15 @@ class V2HybridPPOTrainer:
             vram_reserved = float(torch.cuda.memory_reserved(0) / (1024 * 1024))
             try:
                 props = torch.cuda.get_device_properties(0)
+                target_mb = min(
+                    float(props.total_memory / (1024 * 1024) * 0.75),
+                    float(12 * 1024),
+                )
                 vram_target_mb = {
                     "low": round(float(props.total_memory / (1024 * 1024) * 0.60), 3),
-                    "high": round(float(props.total_memory / (1024 * 1024) * 0.80), 3),
+                    "high": round(target_mb, 3),
+                    "cap": round(float(12 * 1024), 3),
+                    "gpu_utilization_limit_percent": 75.0,
                 }
             except Exception:
                 vram_target_mb = None

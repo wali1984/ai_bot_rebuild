@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { TradingViewWidget } from '../components/charts/TradingViewWidget';
+import { publicRuntimeCopy } from '../lib/tradeCopy';
 import type { AutonomousGovernorPayload, Candle, CockpitPayload, DecisionRow, ExchangeConnector, Freshness, MonitorRow, Phase3cRuntimeMonitorPayload, QuarantinePayload, RedisExportCapacityPayload, RedisFullExportPayload, RedisHumanApprovalPayload, RedisMemoryPressurePayload, RedisSafeTrimPacketPayload, SettingRow, SystemAtlasGapRemediationPayload, SystemAtlasPayload } from './cockpitData';
 import { statusClass, valueText } from './cockpitData';
 
@@ -11,7 +12,7 @@ export function CockpitLoading({ error }: { error: string | null }): JSX.Element
 export function SafetyTopBar({ payload }: { payload: CockpitPayload }): JSX.Element {
   return (
     <section className="cockpit-topbar" data-testid="cockpit-topbar">
-      <Metric label="Live trading" value={payload.live_gate_status} />
+      <Metric label="Execution routing" value={payload.live_gate_status} />
       <Metric label="Account mode" value={payload.account_mode} />
       <Metric label="Selected symbol" value={payload.selected_symbol} />
       <Metric label="Generated" value={payload.generated_at} />
@@ -20,11 +21,15 @@ export function SafetyTopBar({ payload }: { payload: CockpitPayload }): JSX.Elem
 }
 
 export function publicRuntimeText(value: unknown): string {
-  return valueText(value)
+  return publicRuntimeCopy(valueText(value), 'Evidence pending')
     .replace(/paper/gi, 'runtime')
     .replace(/read[_\s-]*only/gi, 'account access')
+    .replace(/\btrading[_\s-]*live\b/gi, 'order routing approval')
+    .replace(/\blive[_\s-]*execution\b/gi, 'exchange execution approval')
+    .replace(/\blive[_\s-]*trading\b/gi, 'order routing approval')
+    .replace(/control[_\s-]*plane/gi, 'system status')
     .replace(/blocked[_\s-]*human[_\s-]*only/gi, 'operator gated')
-    .replace(/live blocked/gi, 'operator gated')
+    .replace(/live[_\s-]*blocked/gi, 'operator gated')
     .replace(/no data/gi, 'Connecting stream');
 }
 

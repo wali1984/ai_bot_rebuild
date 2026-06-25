@@ -1,0 +1,19 @@
+[Unit]
+Description=AI Bot V2 out-of-sample evidence producer (paper/replay only)
+After=network-online.target redis.service ai-bot-v2-trade-management-paper-loop.service ai-bot-v2-continuous-edge-guardian.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment=LIVE_GATE=blocked_human_only
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+ExecStart=/usr/bin/env bash -lc 'mkdir -p "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane"; OUT="/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest"; SRC="$OUT/out_of_sample_forward_holdout_source_rows.jsonl"; LOG="/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-out-of-sample-evidence-producer.log"; ERR="/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-out-of-sample-evidence-producer.err"; while true; do SRC_TAIL="$(mktemp /tmp/holdout_tail_XXXXX.jsonl)"; tail -n 10000 "$SRC" > "$SRC_TAIL"; "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python" -m v2.backend.app.cli.v2_out_of_sample_reverify_evidence_producer forward-holdout-source --forward-holdout-source-jsonl "$SRC_TAIL" --max-rows 5000 --summary-only >> "$LOG" 2>> "$ERR"; "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python" -m v2.backend.app.cli.v2_out_of_sample_reverify_evidence_producer holdout --holdout-source-jsonl "$SRC_TAIL" --max-rows 5000 --tail-source-rows --summary-only >> "$LOG" 2>> "$ERR"; "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python" -m v2.backend.app.cli.v2_out_of_sample_reverify_evidence_producer realtime --read-redis --realtime-skip-jsonl-sources --redis-scan-limit 5000 --summary-only >> "$LOG" 2>> "$ERR"; rm -f "$SRC_TAIL"; sleep 60; done'
+Restart=always
+RestartSec=60
+StartLimitBurst=3
+StartLimitIntervalSec=600
+CPUQuota=50%
+MemoryMax=4G
+
+[Install]
+WantedBy=default.target

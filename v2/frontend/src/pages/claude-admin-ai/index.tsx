@@ -12,7 +12,7 @@ export default function ClaudeAdminAiPage(): JSX.Element {
   const { payload: truthPayload, error: truthError } = useOperatorTruthPayload();
   const { payload: paperRuntime } = usePaperOnlineRuntimePayload();
   return (
-    <DesignPageShell meta={meta} rbac={rbac} route={route} eyebrow="Claude Admin AI" source="AUTONOMOUS_GOVERNOR_PAYLOAD / non-live only" status="CANNOT ENABLE LIVE TRADING">
+    <DesignPageShell meta={meta} rbac={rbac} route={route} eyebrow="Claude Admin AI" source="AUTONOMOUS_GOVERNOR_PAYLOAD / non-live only" status="CANNOT ENABLE EXCHANGE EXECUTION">
       <SourceRibbon labels={['Claude primary builder', 'Codex parallel auditor', 'Ollama draft-only helper', 'final live gate human-only']} />
       {truthPayload ? <RouteTruthSummary payload={truthPayload} title="Claude Admin AI" /> : <OperatorTruthLoading error={truthError} />}
       <PaperOnlineRuntimeStatusPanel payload={paperRuntime} />
@@ -51,7 +51,7 @@ export default function ClaudeAdminAiPage(): JSX.Element {
       <Panel id="claude-admin-ai-safety-contract" title="Admin AI Safety Contract" right={<span className="chip solid-block">No capital action</span>}>
         <div className="cockpit-card-grid">
           {[
-            'Admin AI cannot enable live trading.',
+            'Admin AI cannot enable live order routing.',
             'Admin AI cannot create or activate live API keys.',
             'Admin AI cannot place, cancel, or close exchange orders.',
             'Admin AI cannot change leverage, margin mode, or position mode.',

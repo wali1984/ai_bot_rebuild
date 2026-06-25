@@ -163,7 +163,7 @@ export const ControlConfirmationDialog: React.FC<ControlConfirmationDialogProps>
           {description}
         </div>
 
-        {/* Live trading notice */}
+        {/* Live order routing notice */}
         <div
           style={{
             padding: '8px 12px',

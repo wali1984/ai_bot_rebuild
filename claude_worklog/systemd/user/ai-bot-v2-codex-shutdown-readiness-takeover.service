@@ -1,4 +1,6 @@
 [Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
 Description=AI Bot V2 Codex shutdown-readiness takeover
 After=network-online.target ai-bot-v2-agent-supervisor.service
 

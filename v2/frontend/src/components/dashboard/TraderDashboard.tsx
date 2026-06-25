@@ -260,7 +260,7 @@ export function TraderDashboard(): JSX.Element {
           </p>
         </div>
         <div className="trader-dashboard-hero__actions">
-          <StatusPill tone="ok">Live platform</StatusPill>
+          <StatusPill tone="ok">Realtime data</StatusPill>
           <StatusPill tone="warn">Risk governed</StatusPill>
           <DataFreshnessBadge generatedAt={freshnessTimestamp(overview)} source={sourceName(overview, 'Market overview')} staleAfterSeconds={120} />
         </div>

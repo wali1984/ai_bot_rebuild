@@ -1,4 +1,6 @@
 [Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
 Description=AI BOT V2 liquidation WSS client (paper/shadow only; public Binance Futures forceOrder stream)
 After=ai-bot-v2-native-ingestors-live-loop.service
 

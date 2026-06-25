@@ -1,4 +1,6 @@
 [Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
 Description=AI BOT V2 pipeline control static status publisher (read-only; no job queue)
 After=ai-bot-v2-professional-market-chart-payload-publisher.service
 
@@ -9,7 +11,7 @@ Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD:/home/wali/Desktop/AI 
 Environment="LIVE_GATE=blocked_human_only"
 ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -m v2.backend.app.cli.v2_pipeline_control_status_publisher --loop --interval-seconds 15'
 Restart=always
-RestartSec=5
+RestartSec=30
 StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_pipeline_control_status_publisher.log
 StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_pipeline_control_status_publisher.err
 

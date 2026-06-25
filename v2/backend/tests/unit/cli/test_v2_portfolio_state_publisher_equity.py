@@ -253,6 +253,42 @@ def test_closed_trade_ledger_is_authoritative_when_reconstructed_close_fill_over
     assert state["closed_ledger_matches_portfolio_realized"] is True
 
 
+def test_closed_trade_source_ids_remove_accepted_fill_from_open_inventory() -> None:
+    state = build_accounting_state(
+        [
+            {
+                "intent_id": "intent-btc",
+                "signal_id": "signal-btc",
+                "prediction_id": "prediction-btc",
+                "risk_decision_id": "risk-btc",
+                "orchestrator_decision_id": "orch-btc",
+                "symbol": "BTCUSDT",
+                "side": "BUY",
+                "quantity": 1.0,
+                "fill_price": 10.0,
+            }
+        ],
+        [
+            {
+                "close_id": "close-btc",
+                "symbol": "BTCUSDT",
+                "source_fill_ids": ["intent-btc"],
+                "realized_pnl_usd": 1.0,
+            }
+        ],
+        {"BTCUSDT": (20.0, "TEST_MARK_PRICE", 1.0)},
+        initial_capital=10000.0,
+    )
+
+    assert state["accepted_fill_count"] == 1
+    assert state["active_accepted_fill_count"] == 0
+    assert state["accepted_closed_filter_count"] == 1
+    assert state["open_positions_count"] == 0
+    assert state["unrealized_pnl"] == 0.0
+    assert state["realized_pnl"] == 1.0
+    assert state["current_session_equity"] == 10001.0
+
+
 def test_portfolio_publisher_does_not_double_count_closed_trade_ledger(monkeypatch, tmp_path):
     fake = FakeRedis(
         {
@@ -308,6 +344,134 @@ def test_portfolio_publisher_does_not_double_count_closed_trade_ledger(monkeypat
     assert result["realized_pnl_usd"] == 1.0
     assert result["portfolio_realized_matches_closed_ledger"] is True
     assert result["equity"] == 10001.0
+
+
+def test_portfolio_publisher_resets_stale_high_water_after_closed_fill_suppression(monkeypatch, tmp_path):
+    fake = FakeRedis(
+        {
+            "v2:portfolio:state": {
+                "equity": 14000.0,
+                "equity_high_water_mark": 14000.0,
+                "open_positions_count": 1,
+            },
+            "v2:paper:ledger": {
+                "generated_utc": "2026-06-08T21:00:00Z",
+                "accepted": [
+                    {
+                        "intent_id": "intent-btc",
+                        "signal_id": "signal-btc",
+                        "prediction_id": "prediction-btc",
+                        "risk_decision_id": "risk-btc",
+                        "orchestrator_decision_id": "orch-btc",
+                        "symbol": "BTCUSDT",
+                        "side": "BUY",
+                        "quantity": 1.0,
+                        "fill_price": 10.0,
+                    }
+                ],
+                "closed_trades": [
+                    {
+                        "close_id": "close-btc",
+                        "symbol": "BTCUSDT",
+                        "source_fill_ids": ["intent-btc"],
+                        "realized_pnl_usd": 1.0,
+                    }
+                ],
+                "accepted_count": 1,
+                "held_by_paper_fill_gate_count": 0,
+                "shadow_observation_count": 0,
+            },
+            "v2:market:prices:BTCUSDT": {
+                "ticker_24hr": {"lastPrice": "20.0"},
+                "fetched_utc": "2026-06-08T21:00:05Z",
+            },
+        }
+    )
+    monkeypatch.setattr(publisher, "_connect_redis", lambda: fake)
+    monkeypatch.setattr(publisher, "PAYLOAD_PATH", tmp_path / "v2_portfolio_state.json")
+
+    result = publisher.run_once(write_redis=False)
+
+    assert result["classification"] == "PORTFOLIO_STATE_CURRENT_PAPER_LEDGER_CLOSED_ONLY"
+    assert result["active_accepted_fill_total"] == 0
+    assert result["accepted_fills_suppressed_by_closed_ledger_count"] == 1
+    assert result["open_positions_count"] == 0
+    assert result["unrealized_pnl_usd"] == 0.0
+    assert result["equity"] == 10001.0
+    assert result["equity_high_water_mark"] == 10001.0
+    assert result["current_drawdown_bps"] == 0.0
+    assert result["equity_high_water_mark_reset_reason"] == (
+        "RESET_STALE_HIGH_WATER_AFTER_CLOSED_LEDGER_SUPPRESSED_PHANTOM_OPEN_INVENTORY"
+    )
+
+
+def test_portfolio_publisher_resets_stale_high_water_with_remaining_active_fill(monkeypatch, tmp_path):
+    fake = FakeRedis(
+        {
+            "v2:portfolio:state": {
+                "equity": 14000.0,
+                "equity_high_water_mark": 14000.0,
+                "open_positions_count": 2,
+            },
+            "v2:paper:ledger": {
+                "generated_utc": "2026-06-08T21:00:00Z",
+                "accepted": [
+                    {
+                        "intent_id": "intent-closed",
+                        "signal_id": "signal-closed",
+                        "prediction_id": "prediction-closed",
+                        "risk_decision_id": "risk-closed",
+                        "orchestrator_decision_id": "orch-closed",
+                        "symbol": "BTCUSDT",
+                        "side": "BUY",
+                        "quantity": 1.0,
+                        "fill_price": 10.0,
+                    },
+                    {
+                        "intent_id": "intent-open",
+                        "signal_id": "signal-open",
+                        "prediction_id": "prediction-open",
+                        "risk_decision_id": "risk-open",
+                        "orchestrator_decision_id": "orch-open",
+                        "symbol": "ETHUSDT",
+                        "side": "BUY",
+                        "quantity": 1.0,
+                        "fill_price": 20.0,
+                    },
+                ],
+                "closed_trades": [
+                    {
+                        "close_id": "close-btc",
+                        "symbol": "BTCUSDT",
+                        "source_fill_ids": ["intent-closed"],
+                        "realized_pnl_usd": 1.0,
+                    }
+                ],
+                "accepted_count": 2,
+                "held_by_paper_fill_gate_count": 0,
+                "shadow_observation_count": 0,
+            },
+            "v2:market:prices:BTCUSDT": {
+                "ticker_24hr": {"lastPrice": "20.0"},
+                "fetched_utc": "2026-06-08T21:00:05Z",
+            },
+            "v2:market:prices:ETHUSDT": {
+                "ticker_24hr": {"lastPrice": "20.0"},
+                "fetched_utc": "2026-06-08T21:00:05Z",
+            },
+        }
+    )
+    monkeypatch.setattr(publisher, "_connect_redis", lambda: fake)
+    monkeypatch.setattr(publisher, "PAYLOAD_PATH", tmp_path / "v2_portfolio_state.json")
+
+    result = publisher.run_once(write_redis=False)
+
+    assert result["active_accepted_fill_total"] == 1
+    assert result["accepted_fills_suppressed_by_closed_ledger_count"] == 1
+    assert result["open_positions_count"] == 1
+    assert result["equity"] == 10001.0
+    assert result["equity_high_water_mark"] == 10001.0
+    assert result["current_drawdown_bps"] == 0.0
 
 
 def test_missing_quantity_and_lineage_are_non_economic_fill() -> None:

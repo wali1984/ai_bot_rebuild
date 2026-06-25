@@ -239,6 +239,136 @@ def append_closed_candle(existing: Any, candle: Mapping[str, Any], *, limit: int
     return rows[-limit:]
 
 
+def aggregate_closed_candles(
+    candles: Any,
+    *,
+    symbol: str,
+    source_timeframe: str,
+    target_timeframe: str,
+    now_ms_value: int | None = None,
+) -> list[dict[str, Any]]:
+    """Build higher-timeframe closed candles from complete lower-timeframe slots."""
+
+    source_seconds = TIMEFRAME_SECONDS.get(str(source_timeframe))
+    target_seconds = TIMEFRAME_SECONDS.get(str(target_timeframe))
+    if (
+        source_seconds is None
+        or target_seconds is None
+        or source_seconds <= 0
+        or target_seconds <= source_seconds
+        or target_seconds % source_seconds != 0
+    ):
+        return []
+    if not isinstance(candles, list):
+        return []
+
+    current_ms = int(now_ms_value if now_ms_value is not None else now_ms())
+    source_ms = source_seconds * 1000
+    target_ms = target_seconds * 1000
+    by_open: dict[int, dict[str, Any]] = {}
+    for raw in candles:
+        if not isinstance(raw, Mapping):
+            continue
+        if not (raw.get("is_closed") is True or raw.get("closed_candle") is True or raw.get("candle_closed_confirmed") is True):
+            continue
+        open_ms = parse_ms(raw.get("candle_open_time") or raw.get("open_time"))
+        close_ms = parse_ms(raw.get("candle_close_time") or raw.get("close_time"))
+        if open_ms is None or close_ms is None or close_ms > current_ms:
+            continue
+        by_open[open_ms] = dict(raw)
+
+    aggregates: list[dict[str, Any]] = []
+    target_opens = sorted({(open_ms // target_ms) * target_ms for open_ms in by_open})
+    for target_open in target_opens:
+        target_close = target_open + target_ms - 1
+        if target_close > current_ms:
+            continue
+        expected_opens = list(range(target_open, target_open + target_ms, source_ms))
+        source_rows = [by_open.get(open_ms) for open_ms in expected_opens]
+        if any(row is None for row in source_rows):
+            continue
+        complete_rows = [row for row in source_rows if row is not None]
+        first = complete_rows[0]
+        last = complete_rows[-1]
+        try:
+            open_price = _float(first.get("open") if first.get("open") is not None else _ohlcv_value(first, "open"))
+            close_price = _float(last.get("close") if last.get("close") is not None else _ohlcv_value(last, "close"))
+            high_price = max(_float(row.get("high") if row.get("high") is not None else _ohlcv_value(row, "high")) for row in complete_rows)
+            low_price = min(_float(row.get("low") if row.get("low") is not None else _ohlcv_value(row, "low")) for row in complete_rows)
+            volume = sum(_float(row.get("volume") if row.get("volume") is not None else _ohlcv_value(row, "volume")) for row in complete_rows)
+        except (TypeError, ValueError):
+            continue
+
+        optional_sums: dict[str, float | int] = {}
+        for field in ("quote_volume", "taker_buy_base_vol", "taker_buy_quote_vol"):
+            values = [_optional_float(row.get(field) if row.get(field) is not None else _ohlcv_value(row, field)) for row in complete_rows]
+            if all(value is not None for value in values):
+                optional_sums[field] = float(sum(value for value in values if value is not None))
+        trade_values = [_optional_int(row.get("num_trades") if row.get("num_trades") is not None else _ohlcv_value(row, "num_trades")) for row in complete_rows]
+        if all(value is not None for value in trade_values):
+            optional_sums["num_trades"] = int(sum(value for value in trade_values if value is not None))
+
+        event_time = max(
+            parse_ms(row.get("event_time")) or parse_ms(row.get("candle_close_time") or row.get("close_time")) or target_close
+            for row in complete_rows
+        )
+        available_at = max(
+            parse_ms(row.get("available_at")) or parse_ms(row.get("candle_close_time") or row.get("close_time")) or target_close
+            for row in complete_rows
+        )
+        source_hash_material = {
+            "source_timeframe": source_timeframe,
+            "target_timeframe": target_timeframe,
+            "target_open": target_open,
+            "target_close": target_close,
+            "source_candle_ids": [
+                row.get("candle_id") or canonical_candle_id(row)
+                for row in complete_rows
+            ],
+            "source_hashes": [
+                row.get("raw_payload_hash")
+                for row in complete_rows
+                if row.get("raw_payload_hash")
+            ],
+        }
+        candle = CanonicalCandle(
+            symbol=str(symbol).upper(),
+            exchange="binance",
+            timeframe=str(target_timeframe),
+            candle_open_time=target_open,
+            candle_close_time=target_close,
+            event_time=event_time,
+            ingested_at=max(available_at, event_time),
+            available_at=available_at,
+            is_closed=True,
+            source=f"v2_closed_candle_resampler:{source_timeframe}",
+            source_sequence_id=stable_hash(source_hash_material)[:24],
+            raw_payload_hash=stable_hash(source_hash_material),
+            ohlcv=_with_optional_ohlcv(
+                {
+                    "open": open_price,
+                    "high": high_price,
+                    "low": low_price,
+                    "close": close_price,
+                    "volume": volume,
+                },
+                **optional_sums,
+            ),
+            is_backfilled=False,
+            feature_eligible=True,
+        )
+        payload = candle.to_dict()
+        payload["resampled_from_timeframe"] = str(source_timeframe)
+        payload["resampled_source_candle_count"] = len(complete_rows)
+        aggregates.append(payload)
+    return aggregates
+
+
+def _ohlcv_value(row: Mapping[str, Any], field: str) -> Any:
+    ohlcv = row.get("ohlcv") if isinstance(row.get("ohlcv"), Mapping) else {}
+    return ohlcv.get(field)
+
+
 def latest_closed_candle_at_or_before(candles: Any, decision_time: Any) -> dict[str, Any] | None:
     decision_ms = parse_ms(decision_time)
     if decision_ms is None or not isinstance(candles, list):
@@ -256,6 +386,46 @@ def latest_closed_candle_at_or_before(candles: Any, decision_time: Any) -> dict[
     return selected
 
 
+def _latest_available_closed_candle_at_or_before(
+    candles: Any,
+    decision_time: Any,
+) -> tuple[dict[str, Any] | None, str | None]:
+    decision_ms = parse_ms(decision_time)
+    if decision_ms is None:
+        return None, "DECISION_TIME_MISSING"
+    if not isinstance(candles, list):
+        return None, "MISSING_CLOSED_CANDLE"
+    selected: dict[str, Any] | None = None
+    saw_closed_candidate = False
+    saw_future_available = False
+    saw_missing_available = False
+    for raw in candles:
+        if not isinstance(raw, Mapping):
+            continue
+        close_time = parse_ms(raw.get("candle_close_time") or raw.get("close_time"))
+        is_closed = raw.get("is_closed") is True or raw.get("closed_candle") is True or raw.get("candle_closed_confirmed") is True
+        if close_time is None or not is_closed or close_time > decision_ms:
+            continue
+        saw_closed_candidate = True
+        available_at = parse_ms(raw.get("available_at"))
+        if available_at is None:
+            saw_missing_available = True
+            continue
+        if available_at <= decision_ms:
+            selected = dict(raw)
+        else:
+            saw_future_available = True
+    if selected is not None:
+        return selected, None
+    if saw_future_available:
+        return None, "AVAILABLE_AT_AFTER_DECISION"
+    if saw_missing_available:
+        return None, "AVAILABLE_AT_MISSING"
+    if saw_closed_candidate:
+        return None, "AVAILABLE_AT_MISSING"
+    return None, "MISSING_CLOSED_CANDLE"
+
+
 def build_multi_timeframe_decision_snapshot(
     *,
     symbol: str,
@@ -271,10 +441,18 @@ def build_multi_timeframe_decision_snapshot(
     if parsed_decision_ms is None:
         reject_reasons.append("DECISION_TIME_MISSING")
     for timeframe in required_timeframes:
-        candle = latest_closed_candle_at_or_before(candles_by_timeframe.get(timeframe), decision_ms)
+        candle, unavailable_reason = _latest_available_closed_candle_at_or_before(
+            candles_by_timeframe.get(timeframe),
+            decision_ms,
+        )
         if candle is None:
             missing.append(timeframe)
-            reject_reasons.append(f"MISSING_CLOSED_CANDLE_{timeframe}")
+            if unavailable_reason == "AVAILABLE_AT_AFTER_DECISION":
+                reject_reasons.append(f"AVAILABLE_AT_AFTER_DECISION_{timeframe}")
+            elif unavailable_reason == "AVAILABLE_AT_MISSING":
+                reject_reasons.append(f"AVAILABLE_AT_MISSING_{timeframe}")
+            else:
+                reject_reasons.append(f"MISSING_CLOSED_CANDLE_{timeframe}")
             continue
         available_at = parse_ms(candle.get("available_at"))
         close_time = parse_ms(candle.get("candle_close_time") or candle.get("close_time"))

@@ -1,4 +1,6 @@
 [Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
 Description=AI Bot V2 alt-data candidate publisher loop (paper-shadow, V2 namespace only)
 After=network-online.target ai-bot-v2-alt-data-symbol-scoring-loop.service
 

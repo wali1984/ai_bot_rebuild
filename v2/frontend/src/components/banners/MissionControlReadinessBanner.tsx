@@ -47,8 +47,11 @@ function normalizePayload(raw: Partial<OnlineReadinessBannerPayload> | null | un
   };
 }
 
+function transformOnlineReadinessPayload(raw: unknown): OnlineReadinessBannerPayload {
+  return normalizePayload(raw as Partial<OnlineReadinessBannerPayload>);
+}
+
 export function MissionControlReadinessBanner(): JSX.Element {
-  const apiEnabled = import.meta.env.VITE_ENABLE_ONLINE_READINESS_BANNER_API === 'true';
   const { envelope, loading, error } = useRealtimeResource<OnlineReadinessBannerPayload>({
     url: BANNER_ENDPOINT,
     source: BANNER_ENDPOINT,
@@ -57,13 +60,13 @@ export function MissionControlReadinessBanner(): JSX.Element {
     staleThresholdMs: 90_000,
     initialFetch: true,
     httpFallback: true,
-    enabled: apiEnabled,
+    enabled: true,
     mode: 'read_only',
-    transform: (raw) => normalizePayload(raw as Partial<OnlineReadinessBannerPayload>),
+    transform: transformOnlineReadinessPayload,
   });
-  const payload = apiEnabled ? envelope.data ?? DEFAULT_ONLINE_READINESS_BANNER : DEFAULT_ONLINE_READINESS_BANNER;
-  const loadError = apiEnabled ? error ?? envelope.errors[0] ?? null : null;
-  const loaded = !apiEnabled || !loading || envelope.data !== null || Boolean(loadError);
+  const payload = envelope.data ?? DEFAULT_ONLINE_READINESS_BANNER;
+  const loadError = error ?? envelope.errors[0] ?? null;
+  const loaded = !loading || envelope.data !== null || Boolean(loadError);
 
   const ready = payload.all_required_matched;
   const chipLabel = ready ? 'READY' : 'BLOCKED';

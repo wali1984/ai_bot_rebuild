@@ -119,6 +119,8 @@ def test_build_shadow_outcome_long_with_favourable_move_flags_false_block(monkey
     assert outcome.no_trade_correct is False
     assert outcome.false_block_candidate is True
     assert outcome.time_since_shadow_seconds == 30 * 60
+    assert outcome.classification_horizon_ready is True
+    assert outcome.classification_blockers == []
     payload = outcome.as_payload()
     # Invariants on every payload row.
     assert payload["counted_as_accepted_position"] is False
@@ -136,7 +138,11 @@ def test_build_shadow_outcome_long_with_favourable_move_flags_false_block(monkey
 def test_build_shadow_outcome_long_with_adverse_move_flags_no_trade_correct(monkeypatch) -> None:
     svc = _svc()
     r = FakeRedis()
-    r.store["v2:market:prices:BTCUSDT"] = json.dumps({"ticker_24hr": {"lastPrice": "59000.0"}})
+    r.store["v2:market:prices:BTCUSDT"] = json.dumps({
+        "ticker_24hr": {"lastPrice": "59000.0"},
+        "fetched_utc": "2026-05-18T19:30:00Z",
+    })
+    now = dt.datetime(2026, 5, 18, 19, 30, 0, tzinfo=dt.timezone.utc)
     outcome = svc.build_shadow_outcome(
         redis_client=r,
         symbol="BTCUSDT",
@@ -147,12 +153,47 @@ def test_build_shadow_outcome_long_with_adverse_move_flags_no_trade_correct(monk
         shadow_entry_price_source="V2_MARKET_PRICES_TICKER_24HR_LAST_PRICE",
         shadow_entry_price_utc="2026-05-18T19:00:00Z",
         prediction={"selected_action": "long"},
+        now=now,
     )
     # Long shadow but price dropped 1000/60000 ~ -166.67 bps in favour-of-long terms.
     assert outcome.missed_move_bps is not None and outcome.missed_move_bps < -100
     assert outcome.direction_consistent_with_prediction is False
     assert outcome.no_trade_correct is True
     assert outcome.false_block_candidate is False
+    assert outcome.classification_horizon_ready is True
+
+
+def test_build_shadow_outcome_before_counterfactual_horizon_stays_unclassified() -> None:
+    svc = _svc()
+    r = FakeRedis()
+    r.store["v2:market:prices:BTCUSDT"] = json.dumps({
+        "ticker_24hr": {"lastPrice": "61000.0"},
+        "fetched_utc": "2026-05-18T19:04:00Z",
+    })
+    now = dt.datetime(2026, 5, 18, 19, 4, 0, tzinfo=dt.timezone.utc)
+    outcome = svc.build_shadow_outcome(
+        redis_client=r,
+        symbol="BTCUSDT",
+        side="long",
+        decision_label=svc.LABEL_SHADOW,
+        block_reason="BLOCK_NO_EDGE",
+        shadow_entry_price=60000.0,
+        shadow_entry_price_source="V2_MARKET_PRICES_TICKER_24HR_LAST_PRICE",
+        shadow_entry_price_utc="2026-05-18T19:00:00Z",
+        prediction={"selected_action": "long"},
+        now=now,
+        fee_round_trip_bps=10.0,
+        direction_consistency_threshold_bps=5.0,
+    )
+
+    assert outcome.missed_move_after_cost_bps is not None and outcome.missed_move_after_cost_bps > 100
+    assert outcome.direction_consistent_with_prediction is None
+    assert outcome.no_trade_correct is None
+    assert outcome.false_block_candidate is None
+    assert outcome.classification_horizon_ready is False
+    assert svc.IMMATURE_SHADOW_OUTCOME_FLAG in outcome.classification_blockers
+    assert svc.CURRENT_PRICE_BEFORE_HORIZON_FLAG in outcome.classification_blockers
+    assert svc.IMMATURE_SHADOW_OUTCOME_FLAG in outcome.stale_flags
 
 
 def test_build_shadow_outcome_missing_current_price_emits_blocker() -> None:
@@ -324,6 +365,66 @@ def test_status_payload_pins_all_safety_invariants() -> None:
     assert payload["approves_redis_trim"] is False
     assert payload["live_gate"] == "blocked_human_only"
     assert payload["live_symbols"] == []
+
+
+def test_status_payload_summarizes_shadow_false_blocks_without_trade_implication() -> None:
+    cli = _cli()
+    r = FakeRedis()
+    r.store["v2:paper:shadow_observations"] = json.dumps(
+        [
+            {
+                "symbol": "BTCUSDT",
+                "side": "long",
+                "decision": "SHADOW_OBSERVATION_ONLY",
+                "shadow_observation_reason": "BLOCK_NO_EDGE",
+                "entry_price": 60000.0,
+                "entry_price_source": "V2_MARKET_PRICES_TICKER_24HR_LAST_PRICE",
+                "entry_price_utc": "2026-05-18T19:00:00Z",
+            },
+            {
+                "symbol": "ETHUSDT",
+                "side": "long",
+                "decision": "SHADOW_OBSERVATION_ONLY",
+                "entry_price": 3000.0,
+                "entry_price_source": "V2_MARKET_PRICES_TICKER_24HR_LAST_PRICE",
+                "entry_price_utc": "2026-05-18T19:00:00Z",
+            },
+            {
+                "symbol": "XRPUSDT",
+                "side": "short",
+                "decision": "SHADOW_OBSERVATION_ONLY",
+                "entry_price": 2.50,
+                "entry_price_source": "V2_MARKET_PRICES_TICKER_24HR_LAST_PRICE",
+                "entry_price_utc": "2026-05-18T19:00:00Z",
+            },
+        ]
+    )
+    r.store["v2:market:prices:BTCUSDT"] = json.dumps(
+        {"ticker_24hr": {"lastPrice": "61000.0"}, "fetched_utc": "2026-05-18T19:30:00Z"}
+    )
+    r.store["v2:market:prices:ETHUSDT"] = json.dumps(
+        {"ticker_24hr": {"lastPrice": "2900.0"}, "fetched_utc": "2026-05-18T19:30:00Z"}
+    )
+
+    payload = cli.run_once(redis_client=r)
+
+    assert payload["outcome_count"] == 3
+    assert payload["shadow_horizon_ready_count"] == 2
+    assert payload["shadow_horizon_pending_count"] == 1
+    assert payload["classified_shadow_outcome_count"] == 2
+    assert payload["shadow_false_block_candidate_count"] == 1
+    assert payload["shadow_no_trade_correct_count"] == 1
+    assert payload["shadow_unclassified_outcome_count"] == 1
+    assert payload["shadow_false_block_candidate_rate"] == 0.5
+    assert payload["outcomes"][0]["block_reason"] == "BLOCK_NO_EDGE"
+    summary = payload["shadow_outcome_summary"]
+    assert summary["counts_as_a_grade_evidence"] is False
+    assert summary["a_grade_promotion_allowed"] is False
+    assert summary["live_ready_implication"] is False
+    assert summary["counted_as_fill"] is False
+    assert summary["affects_pnl_ledger"] is False
+    assert payload["counted_as_fill"] is False
+    assert payload["affects_pnl_ledger"] is False
 
 
 def test_no_exchange_mutation_surface_in_modules() -> None:

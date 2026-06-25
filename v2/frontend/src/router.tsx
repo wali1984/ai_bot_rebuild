@@ -14,32 +14,20 @@ const publicChildren = PUBLIC_PAGES.map((p) => ({
   path: p.route.path,
   element: <p.Component />,
 }));
-
 const appChildren = APP_PAGES.map((p) => ({
   path: p.route.path,
   element: <p.Component />,
 }));
 
-// Paths already handled by hardcoded routes above — skip them in the generated set
-const HARDCODED_REDIRECT_PATHS = new Set([
-  '/admin/risk-control',
-  '/admin/orchestrator-admin',
-  '/admin/system-health',
-  '/market',
-  '/trader',
-]);
-
-const legacyRedirectRoutes = Object.entries(MERGED_LEGACY_PATHS)
-  .filter(([from]) => !HARDCODED_REDIRECT_PATHS.has(from))
-  .map(([from, to]) => ({ path: from, element: <Navigate to={to} replace /> }));
+// All legacy → canonical redirects are driven by MERGED_LEGACY_PATHS in productNavigation.ts.
+// Do not add one-off hardcoded redirects here — add them to MERGED_LEGACY_PATHS instead.
+const legacyRedirectRoutes = Object.entries(MERGED_LEGACY_PATHS).map(([from, to]) => ({
+  path: from,
+  element: <Navigate to={to} replace />,
+}));
 
 export const router = createBrowserRouter([
   { path: '/', element: <PublicShell />, children: [{ index: true, element: <PublicLandingPage /> }] },
-  { path: '/admin/risk-control', element: <Navigate to="/admin/risk" replace /> },
-  { path: '/admin/orchestrator-admin', element: <Navigate to="/admin/orchestrator" replace /> },
-  { path: '/admin/system-health', element: <Navigate to="/admin/system" replace /> },
-  { path: '/market', element: <Navigate to="/markets" replace /> },
-  { path: '/trader', element: <Navigate to="/trade" replace /> },
   ...legacyRedirectRoutes,
   { element: <PublicShell />, children: publicChildren },
   { element: <TraderShell />, children: appChildren },

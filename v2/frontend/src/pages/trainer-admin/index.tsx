@@ -51,7 +51,7 @@ function KV({ label, value, color }: { label: string; value: string; color?: str
   return (
     <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
       <span style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{label}</span>
-      <span style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-mono)', color: color ?? 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{value}</span>
+      <span style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-mono)', color: color ?? 'var(--text-primary)', lineHeight: 1.25, overflowWrap: 'anywhere', whiteSpace: 'normal', wordBreak: 'break-word', display: 'block' }}>{value}</span>
     </div>
   );
 }

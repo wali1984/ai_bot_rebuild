@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
 import time
@@ -55,6 +56,11 @@ CHECKPOINT_DIR = Path(".local_models/v2_native_rl_masa_ppo")
 TRADE_MANAGEMENT_PUBLIC_DIR = Path(
     "v2/frontend/public/operator_runtime/v2_paper_trade_management/latest"
 )
+PAPER_ACCEPTED_FILLS_STATE_PATH = TRADE_MANAGEMENT_PUBLIC_DIR / "paper_accepted_fills_state.json"
+PAPER_LIFECYCLE_STATE_PATH = TRADE_MANAGEMENT_PUBLIC_DIR / "paper_lifecycle_state.json"
+PAPER_B_GRADE_BUCKET_PROMOTION_READINESS_STATUS_PATH = (
+    TRADE_MANAGEMENT_PUBLIC_DIR / "paper_b_grade_bucket_promotion_readiness_status.json"
+)
 PREDICTION_STALE_SECONDS = 900
 PAPER_SIGNAL_STALE_SECONDS = PREDICTION_STALE_SECONDS
 CURRENT_PREDICTION_STATUSES = {
@@ -76,8 +82,15 @@ PAPER_DRAWDOWN_RECOVERY_REASON = "PAPER_DRAWDOWN_RECOVERY_MINORITY_SIDE_REDUCE_S
 PAPER_DRAWDOWN_RECOVERY_MIN_CONFIDENCE = 0.65
 PAPER_DRAWDOWN_RECOVERY_SIZE_MULTIPLIER = 0.25
 PAPER_RUNTIME_EVIDENCE_BLOCK_REASON = "PAPER_RUNTIME_EVIDENCE_BLOCKED"
+PAPER_CONFIGURED_FEE_SCHEDULE_SOURCE = (
+    "CONFIGURED_PAPER_FEE_SCHEDULE:"
+    "adaptive_capital_allocator.AllocationInput.fee_bps"
+)
 PAPER_RUNTIME_TRANSIENT_TTL_SECONDS = 10 * 60
+SHADOW_OBSERVATION_HISTORY_TTL_SECONDS = 2 * 60 * 60
+SHADOW_OBSERVATION_HISTORY_MAX_ROWS = 1500
 PAPER_TRAINING_EVIDENCE_TTL_SECONDS = 30 * 24 * 60 * 60
+PAPER_REDIS_LEDGER_ROW_SAMPLE_LIMIT = 50
 PAPER_AUDIT_ENTRY_GATE_NAME = "PAPER_ONLY_2026_06_19_AUDIT_ENTRY_GATE"
 PAPER_AUDIT_BLOCKED_ENTRY_TIMEFRAMES = frozenset({"5m", "4h"})
 PAPER_AUDIT_ALLOWED_ENTRY_TIMEFRAMES = frozenset({"1m", "15m", "1h"})
@@ -123,6 +136,14 @@ PAPER_TIER_A_GRADE_EXECUTION = "A_GRADE_EXECUTION_PAPER"
 PAPER_TIER_B_GRADE_EXPLORATION = "B_GRADE_EXPLORATION_PAPER"
 PAPER_TIER_SHADOW_ONLY = "SHADOW_ONLY"
 PAPER_TIER_NO_TRADE = "NO_TRADE"
+NON_EXECUTABLE_PAPER_TIERS = {
+    PAPER_TIER_SHADOW_ONLY,
+    PAPER_TIER_NO_TRADE,
+}
+CONTINUOUS_EDGE_GUARDIAN_GATE_REDIS_KEY = "v2:continuous_edge_guardian:a_grade_execution_gate"
+CONTINUOUS_EDGE_GUARDIAN_GATE_PATH = Path(
+    "v2/frontend/public/operator_runtime/v2_continuous_edge_guardian/latest/a_grade_execution_gate.json"
+)
 OUT_OF_SAMPLE_REVERIFY_SELECTOR_POLICY_FINGERPRINT = (
     "c4b8fb1ed12aabcb87224723f1758563eefff10de90288be09866d2bf3fa74b5"
 )
@@ -136,6 +157,22 @@ PAPER_STRICT_A_CONFIDENCE_THRESHOLD = 0.75
 B_GRADE_EXPLORATION_MIN_CONFIDENCE = 0.50
 B_GRADE_EXPLORATION_MAX_RISK_FRACTION_OF_NORMAL = 0.25
 B_GRADE_EXPLORATION_DRAWDOWN_STOP_BPS = 500.0
+B_GRADE_MODEL_QUALITY_BUCKET_LIMIT = 250
+B_GRADE_BUCKET_PROMOTION_MIN_SAMPLE_COUNT = 30
+B_GRADE_BUCKET_PROMOTION_MIN_WIN_RATE = 0.90
+B_GRADE_BUCKET_PROMOTION_MIN_WIN_RATE_LCB = 0.90
+B_GRADE_BUCKET_PROMOTION_MIN_EXPECTANCY_LCB_BPS = 0.0
+B_GRADE_BUCKET_PROMOTION_MIN_PROFIT_FACTOR = 2.0
+PAPER_ONLY_LABEL_COLLECTION_PRIORITY_FIELDS = (
+    "paper_only_label_collection_priority",
+    "paper_only_label_collection_priority_reason",
+    "paper_only_label_collection_priority_rank",
+    "paper_only_label_collection_priority_bucket_key",
+    "paper_only_label_collection_priority_bucket",
+    "paper_only_label_collection_priority_sample_count_deficit_to_minimum",
+    "paper_only_label_collection_priority_closed_economic_outcome_count",
+    "paper_only_label_collection_priority_source_generated_utc",
+)
 B_GRADE_EXPLORATION_SCALABLE_ALLOCATION_FIELDS = (
     "target_notional_usdt",
     "target_quantity",
@@ -151,6 +188,23 @@ B_GRADE_EXPLORATION_SCALABLE_ALLOCATION_FIELDS = (
     "risk_budget_pct",
     "risk_budget_pct_of_equity",
     "risk_budget_pct_of_available_margin",
+)
+RARE_EVENT_STRESS_SCENARIOS = (
+    "gap_shock",
+    "spread_explosion",
+    "depth_collapse",
+    "funding_spike",
+    "correlated_portfolio_shock",
+    "long_squeeze",
+    "short_squeeze",
+    "double_sided_liquidation_cascade",
+    "mark_index_divergence",
+    "exchange_api_delay",
+)
+RARE_EVENT_BUFFER_COMPONENT_FIELDS = (
+    "execution_uncertainty_bps",
+    "correlation_stress_bps",
+    "maintenance_margin_uncertainty_bps",
 )
 
 
@@ -175,6 +229,12 @@ def _connect_redis():
         return r
     except Exception:
         return None
+
+
+def _configured_paper_fee_bps() -> float:
+    from v2.backend.app.services.adaptive_capital_allocator import AllocationInput
+
+    return float(AllocationInput.__dataclass_fields__["fee_bps"].default)
 
 
 def _build_trainer_feedback_rows(
@@ -322,6 +382,27 @@ _FEEDBACK_ENTRY_CONTEXT_FIELDS: tuple[str, ...] = (
     "paper_fill_persistence_status",
     "paper_opportunity_tier",
     "paper_opportunity_tier_reason",
+    "pre_guardian_paper_opportunity_tier",
+    "pre_guardian_paper_opportunity_tier_reason",
+    "pre_guardian_paper_fill_allowed_source",
+    "continuous_edge_guardian_forced_shadow_only",
+    "counts_as_a_grade_evidence",
+    "a_grade_promotion_allowed",
+    "live_ready_implication",
+    "paper_only_label_collection_priority",
+    "paper_only_label_collection_priority_reason",
+    "paper_only_label_collection_priority_rank",
+    "paper_only_label_collection_priority_bucket_key",
+    "paper_only_label_collection_priority_bucket",
+    "paper_only_label_collection_priority_sample_count_deficit_to_minimum",
+    "paper_only_label_collection_priority_closed_economic_outcome_count",
+    "paper_only_label_collection_priority_source_generated_utc",
+    "selector_policy_fingerprint",
+    "frozen_selector_fingerprint",
+    "candidate_selected_before_outcome",
+    "candidate_selected_after_outcome",
+    "post_outcome_candidate_selection",
+    "future_labels_used_as_features",
     "paper_fill_allowed_source",
     "strict_paper_fill_allowed_upstream",
     "b_grade_exploration_budget_cap_applied",
@@ -664,6 +745,24 @@ def _read_json_key(r, key: str) -> dict:
     return payload if isinstance(payload, dict) else {}
 
 
+def _read_json_list_key(r, key: str) -> list[dict[str, Any]]:
+    if r is None or not key.startswith(V2_REDIS_PREFIX):
+        return []
+    try:
+        raw = r.get(key)
+    except Exception:
+        return []
+    if not raw:
+        return []
+    try:
+        payload = json.loads(raw)
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(payload, list):
+        return []
+    return [dict(row) for row in payload if isinstance(row, dict)]
+
+
 def _paper_confidence_trial_guard(r) -> dict:
     guard = _read_json_key(r, TRIAL_DRAWDOWN_GUARD_REDIS_KEY)
     status = _read_json_key(r, TRIAL_STATUS_REDIS_KEY)
@@ -819,6 +918,8 @@ ENTRY_PRICE_BLOCKER_MISSING_FILL = "MISSING_V2_MARKET_PRICE_FOR_FILL"
 EXIT_PRICE_BLOCKER_MISSING_EXIT = "MISSING_V2_MARKET_PRICE_FOR_EXIT"
 REALIZED_EXIT_NOT_RECORDED = "REALIZED_EXIT_NOT_RECORDED_IN_V2_INPUTS"
 ENTRY_SPREAD_SOURCE_V2_ORDERBOOK = "V2_MARKET_ORDERBOOK_TOP_OF_BOOK"
+MARK_INDEX_SOURCE_V2_FUNDING = "V2_MARKET_FUNDING_PREMIUM_INDEX"
+PAPER_IMMEDIATE_FILL_TAKER_SOURCE = "PAPER_MARKETABLE_SINGLE_FILL_FROM_OBSERVED_SPREAD_AND_V2_PRICE"
 
 
 def _coerce_float(value) -> float | None:
@@ -863,17 +964,36 @@ def _best_level_price(levels: Any) -> float | None:
     return _coerce_float(first)
 
 
+def _level_price_quantity(row: Any) -> tuple[float | None, float | None]:
+    if isinstance(row, (list, tuple)) and len(row) > 1:
+        return _coerce_float(row[0]), _coerce_float(row[1])
+    if isinstance(row, dict):
+        return (
+            _coerce_float(row.get("price") or row.get("p")),
+            _coerce_float(row.get("quantity") or row.get("qty") or row.get("q")),
+        )
+    return None, None
+
+
+def _top_depth_levels(levels: Any, *, depth: int = 5) -> list[dict[str, float]]:
+    if not isinstance(levels, list) or not levels:
+        return []
+    normalized: list[dict[str, float]] = []
+    for row in levels[:depth]:
+        price, quantity = _level_price_quantity(row)
+        if price is None or quantity is None or price <= 0.0 or quantity <= 0.0:
+            continue
+        normalized.append({"price": float(price), "quantity": float(quantity)})
+    return normalized
+
+
 def _top_depth_quantity(levels: Any, *, depth: int = 5) -> float | None:
     if not isinstance(levels, list) or not levels:
         return None
     total = 0.0
     seen = 0
     for row in levels[:depth]:
-        qty = None
-        if isinstance(row, (list, tuple)) and len(row) > 1:
-            qty = _coerce_float(row[1])
-        elif isinstance(row, dict):
-            qty = _coerce_float(row.get("quantity") or row.get("qty") or row.get("q"))
+        _price, qty = _level_price_quantity(row)
         if qty is None:
             continue
         total += max(0.0, qty)
@@ -887,14 +1007,7 @@ def _top_depth_notional_usd(levels: Any, *, depth: int = 5) -> float | None:
     total = 0.0
     seen = 0
     for row in levels[:depth]:
-        price = None
-        qty = None
-        if isinstance(row, (list, tuple)) and len(row) > 1:
-            price = _coerce_float(row[0])
-            qty = _coerce_float(row[1])
-        elif isinstance(row, dict):
-            price = _coerce_float(row.get("price") or row.get("p"))
-            qty = _coerce_float(row.get("quantity") or row.get("qty") or row.get("q"))
+        price, qty = _level_price_quantity(row)
         if price is None or qty is None or price <= 0 or qty <= 0:
             continue
         total += price * qty
@@ -943,6 +1056,8 @@ def _read_v2_orderbook_microstructure(r, symbol: str) -> dict[str, Any]:
             continue
         bids = payload.get("bids") or payload.get("b")
         asks = payload.get("asks") or payload.get("a")
+        bid_levels_top5 = _top_depth_levels(bids)
+        ask_levels_top5 = _top_depth_levels(asks)
         bid_qty = _top_depth_quantity(bids)
         ask_qty = _top_depth_quantity(asks)
         bid_depth_usd = _top_depth_notional_usd(bids)
@@ -968,6 +1083,8 @@ def _read_v2_orderbook_microstructure(r, symbol: str) -> dict[str, Any]:
             "best_bid": bid,
             "best_ask": ask,
             "mid_price": mid,
+            "bid_levels_top5": bid_levels_top5,
+            "ask_levels_top5": ask_levels_top5,
             "orderbook_imbalance": imbalance,
             "bid_depth_usd": round(float(bid_depth_usd), 8) if bid_depth_usd is not None else None,
             "ask_depth_usd": round(float(ask_depth_usd), 8) if ask_depth_usd is not None else None,
@@ -1028,6 +1145,63 @@ def _read_v2_market_price(r, symbol: str) -> tuple[float | None, str, str | None
                 if px is not None and px > 0:
                     return px, ENTRY_PRICE_SOURCE_V2_FEATURES, payload.get("generated_at")
     return None, ENTRY_PRICE_BLOCKER_MISSING_FILL, None
+
+
+def _timestamp_to_utc_iso(value: Any) -> str | None:
+    if value in (None, ""):
+        return None
+    parsed_epoch = _iso_from_epoch_ms(value)
+    if parsed_epoch is not None:
+        return parsed_epoch
+    parsed = _parse_strategy_time(value)
+    if parsed is None:
+        return None
+    return parsed.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _read_v2_mark_index_evidence(r, symbol: str) -> dict[str, Any]:
+    """Read Binance premium-index mark/index evidence from V2-owned keys."""
+    if r is None or not symbol:
+        return {}
+    normalized = str(symbol).upper()
+    for key in (
+        f"{V2_REDIS_PREFIX}market:funding:{normalized}",
+        f"{V2_REDIS_PREFIX}market:prices:{normalized}",
+    ):
+        payload = _read_json_key(r, key)
+        if not payload:
+            continue
+        source_payload = (
+            payload.get("funding")
+            if isinstance(payload.get("funding"), dict)
+            else payload
+        )
+        if not isinstance(source_payload, dict):
+            continue
+        mark = _coerce_float(_first_present(source_payload.get("markPrice"), source_payload.get("mark_price")))
+        index = _coerce_float(_first_present(source_payload.get("indexPrice"), source_payload.get("index_price")))
+        if mark is None or index is None or mark <= 0.0 or index <= 0.0:
+            continue
+        divergence = (mark - index) / index
+        available_at = _timestamp_to_utc_iso(
+            _first_present(
+                source_payload.get("time"),
+                source_payload.get("timestamp"),
+                source_payload.get("E"),
+                source_payload.get("event_time"),
+                payload.get("fetched_utc"),
+                payload.get("generated_at"),
+            )
+        )
+        return {
+            "mark_price": mark,
+            "index_price": index,
+            "mark_index_divergence": round(divergence, 12),
+            "mark_index_divergence_bps": round(divergence * 10_000.0, 8),
+            "mark_index_source": f"{MARK_INDEX_SOURCE_V2_FUNDING}:{key}",
+            "mark_index_available_at": available_at,
+        }
+    return {}
 
 
 def _validated_v2_feature_snapshot_payload(
@@ -1264,6 +1438,251 @@ def _attach_entry_price_provenance(intent: dict, price: float | None, source: st
         intent["entry_price_blocker"] = ENTRY_PRICE_BLOCKER_MISSING_FILL
 
 
+def _attach_paper_execution_evidence(
+    intent: dict[str, Any],
+    mark_index: dict[str, Any] | None = None,
+) -> None:
+    """Attach paper-only execution evidence known before any outcome label."""
+    fill_time = _first_present(intent.get("fill_price_utc"), intent.get("entry_price_utc"), intent.get("generated_utc"))
+    fill_dt = _parse_strategy_time(fill_time)
+    decision_time = None
+    decision_dt = None
+    for candidate_time in (
+        intent.get("entry_spread_decision_time"),
+        intent.get("decision_time"),
+        intent.get("generated_at"),
+        intent.get("generated_utc"),
+    ):
+        parsed = _parse_strategy_time(candidate_time)
+        if parsed is None:
+            continue
+        if fill_dt is not None and parsed > fill_dt:
+            continue
+        decision_time = candidate_time
+        decision_dt = parsed
+        break
+    if (
+        intent.get("latency_ms") in (None, "")
+        and fill_dt is not None
+        and decision_dt is not None
+        and fill_dt >= decision_dt
+    ):
+        latency_ms = round((fill_dt - decision_dt).total_seconds() * 1000.0, 3)
+        intent["latency_ms"] = latency_ms
+        intent["decision_latency_ms"] = latency_ms
+        intent["paper_fill_latency_ms"] = latency_ms
+        intent["fill_latency_ms"] = latency_ms
+        intent["execution_latency_ms"] = latency_ms
+        intent["simulated_latency_ms"] = latency_ms
+        intent["latency_source"] = "PAPER_DECISION_TO_FILL_RUNTIME_TIMESTAMPS"
+
+    spread = _coerce_float(intent.get("actual_observed_spread_entry_bps"))
+    fill_price = _coerce_float(_first_present(intent.get("fill_price"), intent.get("entry_price")))
+    if (
+        intent.get("maker_probability") in (None, "")
+        and intent.get("taker_probability") in (None, "")
+        and intent.get("entry_price_provenance_present") is True
+        and spread is not None
+        and fill_price is not None
+        and fill_price > 0.0
+    ):
+        intent["maker_probability"] = 0.0
+        intent["taker_probability"] = 1.0
+        intent["maker_taker_probability"] = 1.0
+        intent["maker_taker_probabilities"] = {"maker": 0.0, "taker": 1.0}
+        intent["maker_taker_probability_source"] = PAPER_IMMEDIATE_FILL_TAKER_SOURCE
+
+    quantity = _coerce_float(_first_present(intent.get("quantity"), intent.get("target_quantity")))
+    notional = _coerce_float(
+        _first_present(
+            intent.get("notional"),
+            intent.get("notional_usdt"),
+            intent.get("gross_notional_usd"),
+            intent.get("target_notional_usdt"),
+        )
+    )
+    if notional is None and quantity is not None and fill_price is not None:
+        notional = quantity * fill_price
+    partial_rows = intent.get("partial_fills") if isinstance(intent.get("partial_fills"), list) else []
+    existing_partial = partial_rows[0] if partial_rows and isinstance(partial_rows[0], dict) else {}
+    existing_partial_quantity = _coerce_float(existing_partial.get("quantity"))
+    existing_partial_price = _coerce_float(existing_partial.get("price"))
+    existing_partial_notional = _coerce_float(existing_partial.get("notional_usd"))
+    quantity_changed = (
+        quantity is not None
+        and (
+            existing_partial_quantity is None
+            or abs(existing_partial_quantity - quantity) > max(1e-12, abs(quantity) * 1e-9)
+        )
+    )
+    price_changed = (
+        fill_price is not None
+        and (
+            existing_partial_price is None
+            or abs(existing_partial_price - fill_price) > max(1e-12, abs(fill_price) * 1e-9)
+        )
+    )
+    notional_changed = (
+        notional is not None
+        and (
+            existing_partial_notional is None
+            or abs(existing_partial_notional - notional) > max(1e-8, abs(notional) * 1e-9)
+        )
+    )
+    if (
+        quantity is not None
+        and quantity > 0.0
+        and fill_price is not None
+        and fill_price > 0.0
+        and (
+            intent.get("partial_fill_count") in (None, "")
+            or not partial_rows
+            or quantity_changed
+            or price_changed
+            or notional_changed
+        )
+    ):
+        partial = {
+            "fill_sequence": 1,
+            "quantity": quantity,
+            "price": fill_price,
+            "notional_usd": round(float(notional), 8) if notional is not None else None,
+            "fill_time": fill_time,
+            "source": "PAPER_SINGLE_FILL_LEDGER_RECORD",
+            "paper_only": True,
+            "places_real_order": False,
+        }
+        intent["partial_fill_count"] = 1
+        intent["fill_count"] = 1
+        intent["partial_fills"] = [partial]
+        intent["all_partial_fills"] = [partial]
+        intent["partial_fill_plan"] = {
+            "model": "PAPER_SINGLE_IMMEDIATE_FILL",
+            "expected_fill_count": 1,
+            "source": "PAPER_LEDGER_ACCEPTED_FILL",
+        }
+
+    mark_index = mark_index if isinstance(mark_index, dict) else {}
+    mark = _coerce_float(mark_index.get("mark_price"))
+    index = _coerce_float(mark_index.get("index_price"))
+    if mark is not None and index is not None and mark > 0.0 and index > 0.0:
+        intent["mark_price"] = mark
+        intent["index_price"] = index
+        intent["mark_index_divergence"] = mark_index.get("mark_index_divergence")
+        intent["mark_index_divergence_bps"] = mark_index.get("mark_index_divergence_bps")
+        intent["mark_index_source"] = mark_index.get("mark_index_source")
+        intent["mark_index_available_at"] = mark_index.get("mark_index_available_at")
+
+
+def _depth_vwap_for_quantity(
+    levels: list[dict[str, float]],
+    quantity: float,
+) -> tuple[float | None, float, bool]:
+    if quantity <= 0.0:
+        return None, 0.0, False
+    remaining = float(quantity)
+    filled = 0.0
+    notional = 0.0
+    for level in levels:
+        price = _coerce_float(level.get("price"))
+        available = _coerce_float(level.get("quantity"))
+        if price is None or available is None or price <= 0.0 or available <= 0.0:
+            continue
+        take = min(remaining, available)
+        filled += take
+        notional += take * price
+        remaining -= take
+        if remaining <= 1e-12:
+            break
+    if filled <= 0.0:
+        return None, 0.0, False
+    return notional / filled, filled, remaining <= 1e-12
+
+
+def _attach_depth_price_impact_evidence(
+    intent: dict[str, Any],
+    market_microstructure: dict[str, Any] | None,
+) -> None:
+    if intent.get("depth_price_impact_bps") not in (None, ""):
+        return
+    market_microstructure = market_microstructure if isinstance(market_microstructure, dict) else {}
+    side = str(_first_present(intent.get("side"), intent.get("selected_action")) or "").lower()
+    if side not in {"long", "short"}:
+        return
+    quantity = _coerce_float(_first_present(intent.get("quantity"), intent.get("target_quantity")))
+    fill_price = _coerce_float(_first_present(intent.get("fill_price"), intent.get("entry_price")))
+    notional = _coerce_float(
+        _first_present(
+            intent.get("notional"),
+            intent.get("notional_usdt"),
+            intent.get("gross_notional_usd"),
+            intent.get("target_notional_usdt"),
+        )
+    )
+    if quantity is None and notional is not None and fill_price is not None and fill_price > 0.0:
+        quantity = abs(notional / fill_price)
+    if notional is None and quantity is not None and fill_price is not None and fill_price > 0.0:
+        notional = abs(quantity * fill_price)
+    if quantity is None or quantity <= 0.0:
+        return
+
+    levels_key = "ask_levels_top5" if side == "long" else "bid_levels_top5"
+    levels = market_microstructure.get(levels_key)
+    if not isinstance(levels, list):
+        levels = []
+    levels = [
+        {"price": float(level["price"]), "quantity": float(level["quantity"])}
+        for level in levels
+        if isinstance(level, dict)
+        and _coerce_float(level.get("price")) is not None
+        and _coerce_float(level.get("quantity")) is not None
+        and float(level["price"]) > 0.0
+        and float(level["quantity"]) > 0.0
+    ]
+    if not levels:
+        return
+    vwap, filled_quantity, fill_complete = _depth_vwap_for_quantity(levels, quantity)
+    if vwap is None or filled_quantity <= 0.0:
+        return
+    touch = _coerce_float(
+        market_microstructure.get("best_ask" if side == "long" else "best_bid")
+    )
+    if touch is None:
+        touch = levels[0]["price"]
+    mid = _coerce_float(market_microstructure.get("mid_price"))
+    if mid is None or mid <= 0.0:
+        best_bid = _coerce_float(market_microstructure.get("best_bid"))
+        best_ask = _coerce_float(market_microstructure.get("best_ask"))
+        if best_bid is not None and best_ask is not None and best_bid > 0.0 and best_ask > 0.0:
+            mid = (best_bid + best_ask) / 2.0
+    if mid is None or mid <= 0.0 or touch <= 0.0:
+        return
+
+    if side == "long":
+        impact_bps = max(0.0, ((vwap - touch) / mid) * 10_000.0)
+    else:
+        impact_bps = max(0.0, ((touch - vwap) / mid) * 10_000.0)
+    side_depth_field = "ask_depth_usd" if side == "long" else "bid_depth_usd"
+    side_depth = _coerce_float(market_microstructure.get(side_depth_field))
+    if side_depth is not None and side_depth > 0.0:
+        intent.setdefault("entry_orderbook_depth_usd", round(float(side_depth), 8))
+        intent.setdefault("entry_orderbook_depth_side", "ask" if side == "long" else "bid")
+    if notional is not None and side_depth is not None and side_depth > 0.0:
+        intent["depth_utilization_pct"] = round(float(notional) / float(side_depth), 10)
+    intent["depth_price_impact_bps"] = round(float(impact_bps), 8)
+    intent["depth_price_impact_source"] = (
+        f"{market_microstructure.get('source') or ENTRY_SPREAD_SOURCE_V2_ORDERBOOK}:"
+        f"{levels_key}:top5_vwap_vs_touch"
+    )
+    intent["depth_price_impact_model"] = "ORDERBOOK_TOP5_VWAP_VS_TOUCH"
+    intent["depth_price_impact_side"] = "ask" if side == "long" else "bid"
+    intent["depth_price_impact_quantity"] = round(float(quantity), 12)
+    intent["depth_price_impact_filled_quantity"] = round(float(filled_quantity), 12)
+    intent["depth_price_impact_fill_complete"] = bool(fill_complete)
+    intent["depth_price_impact_vwap"] = round(float(vwap), 12)
+    intent["depth_price_impact_touch_price"] = round(float(touch), 12)
+
+
 def _read_held_by_paper_fill_gate(r) -> list[dict]:
     """Read symbols the orchestrator held back due to the strict P0.2F
     paper-fill gate. These rows carry the gate block reasons and are NOT
@@ -1304,6 +1723,24 @@ PERSISTENT_ACCEPTED_FILL_METADATA_FIELDS = (
     "policy_activated_at",
     "paper_opportunity_tier",
     "paper_opportunity_tier_reason",
+    "pre_guardian_paper_opportunity_tier",
+    "pre_guardian_paper_opportunity_tier_reason",
+    "pre_guardian_paper_fill_allowed_source",
+    "continuous_edge_guardian_forced_shadow_only",
+    "counts_as_a_grade_evidence",
+    "a_grade_promotion_allowed",
+    "live_ready_implication",
+    "paper_only_label_collection_priority",
+    "paper_only_label_collection_priority_reason",
+    "paper_only_label_collection_priority_rank",
+    "paper_only_label_collection_priority_bucket_key",
+    "paper_only_label_collection_priority_bucket",
+    "paper_only_label_collection_priority_sample_count_deficit_to_minimum",
+    "paper_only_label_collection_priority_closed_economic_outcome_count",
+    "paper_only_label_collection_priority_source_generated_utc",
+    "pre_non_executable_paper_tier",
+    "pre_non_executable_paper_tier_reason",
+    "non_executable_paper_tier_block_reason",
     "paper_fill_allowed_source",
     "strict_paper_fill_allowed_upstream",
     "b_grade_exploration_budget_cap_applied",
@@ -1324,6 +1761,15 @@ PERSISTENT_ACCEPTED_FILL_METADATA_FIELDS = (
     "stop_distance_bps",
     "liquidation_price_estimate",
     "liquidation_buffer_bps",
+    "pre_entry_stress_tests",
+    "rare_event_stress_suite",
+    "rare_event_stress_status",
+    "rare_event_stress_missing_inputs",
+    "rare_event_required_liquidation_buffer_bps",
+    "modeled_999_adverse_move_bps",
+    "execution_uncertainty_bps",
+    "correlation_stress_bps",
+    "maintenance_margin_uncertainty_bps",
     "expected_fees_usd",
     "expected_slippage_usd",
     "expected_funding_usd",
@@ -1351,6 +1797,34 @@ PERSISTENT_ACCEPTED_FILL_METADATA_FIELDS = (
     "value_baseline",
     "prediction_score_source",
     "prediction_score_missing_reason",
+    "selector_policy_fingerprint",
+    "frozen_selector_fingerprint",
+    "candidate_selected_before_outcome",
+    "candidate_selected_after_outcome",
+    "post_outcome_candidate_selection",
+    "future_labels_used_as_features",
+    "maker_probability",
+    "taker_probability",
+    "maker_taker_probability",
+    "maker_taker_probabilities",
+    "maker_taker_probability_source",
+    "latency_ms",
+    "latency_source",
+    "paper_fill_latency_ms",
+    "fill_latency_ms",
+    "execution_latency_ms",
+    "simulated_latency_ms",
+    "partial_fill_count",
+    "partial_fills",
+    "fill_count",
+    "all_partial_fills",
+    "partial_fill_plan",
+    "mark_index_divergence_bps",
+    "mark_index_divergence",
+    "mark_index_source",
+    "mark_index_available_at",
+    "mark_price",
+    "index_price",
 )
 PERSISTENT_ACCEPTED_FILL_MODEL_INPUT_FIELDS = (
     "confidence_raw",
@@ -1370,6 +1844,471 @@ PERSISTENT_ACCEPTED_FILL_MODEL_INPUT_FIELDS = (
     "normal_adaptive_risk_budget_usd",
     "normal_adaptive_gross_notional_usd",
 )
+CANDIDATE_ALLOCATION_PUBLICATION_INTENT_FIELDS = tuple(
+    dict.fromkeys(
+        PERSISTENT_ACCEPTED_FILL_METADATA_FIELDS
+        + (
+            "intent_id",
+            "source_intent_id",
+            "symbol",
+            "timeframe",
+            "side",
+            "action",
+            "selected_action",
+            "decision",
+            "prediction_id",
+            "signal_id",
+            "risk_decision_id",
+            "orchestrator_decision_id",
+            "decision_id",
+            "feature_snapshot_id",
+            "entry_feature_snapshot_id",
+            "mtf_snapshot_id",
+            "model_version",
+            "checkpoint_id",
+            "source_hashes",
+            "feature_cutoff",
+            "decision_time",
+            "available_at",
+            "generated_at",
+            "generated_utc",
+            "entry_feature_available_at",
+            "entry_feature_generated_at",
+            "entry_feature_cutoff",
+            "entry_feature_decision_time",
+            "entry_feature_candle_closed_confirmed",
+            "entry_price_provenance_present",
+            "entry_price_blocker",
+            "entry_price",
+            "entry_price_source",
+            "entry_price_utc",
+            "fill_price",
+            "fill_price_source",
+            "fill_price_utc",
+            "quantity",
+            "notional",
+            "notional_usdt",
+            "paper_fill_allowed",
+            "paper_tier_local_fill_allowed",
+            "paper_tier_local_fill_source",
+            "paper_fill_block_reason",
+            "paper_fill_gate_block_reasons",
+            "local_block_reasons",
+            "lifecycle_or_no_trade_strategy_reasons",
+            "no_trade_strategy_reasons",
+            "paper_runtime_market_evidence_rejection_reasons",
+            "paper_signal_temporal_rejection_reasons",
+            "paper_sizing_complete",
+            "paper_sizing_source",
+            "paper_allocation_block_reason",
+            "market_cost_evidence_status",
+            "market_cost_evidence_missing_fields",
+            "market_cost_evidence_source_fields",
+            "market_cost_evidence_pit_reject_reasons",
+            "market_cost_evidence_source_lineage",
+            "observed_bid_ask_spread_bps",
+            "actual_observed_spread_entry_bps",
+            "bid_ask_spread_bps",
+            "bid_ask_spread_bps_fallback",
+            "bid_ask_spread_bps_unavailable_reason",
+            "entry_spread_source",
+            "entry_spread_available_at",
+            "entry_spread_decision_time",
+            "expected_slippage_bps",
+            "expected_slippage_source",
+            "expected_slippage_bps_fallback",
+            "expected_slippage_modeled",
+            "expected_slippage_unavailable_reason",
+            "fee_bps",
+            "fee_bps_source",
+            "fee_bps_fallback",
+            "fee_bps_configured_schedule",
+            "fee_bps_unavailable_reason",
+            "expected_funding_bps",
+            "expected_funding_bps_source",
+            "expected_funding_bps_fallback",
+            "expected_funding_bps_unavailable_reason",
+            "orderbook_depth_usd",
+            "entry_orderbook_depth_usd",
+            "entry_orderbook_depth_side",
+            "orderbook_depth_source",
+            "depth_utilization_pct",
+            "depth_price_impact_bps",
+            "depth_price_impact_source",
+            "depth_price_impact_model",
+            "depth_price_impact_fill_complete",
+            "squeeze_evidence_score",
+            "squeeze_evidence_source",
+            "squeeze_evidence_unavailable_reason",
+            "candidate_selected_before_outcome",
+            "candidate_selected_after_outcome",
+            "post_outcome_candidate_selection",
+            "future_labels_used_as_features",
+            "paper_only",
+            "places_real_order",
+            "live_order",
+            "test_order",
+            "leverage_mutation",
+            "margin_mode_mutation",
+        )
+    )
+)
+
+COMPACT_ACCEPTED_FILL_FIELDS = tuple(
+    dict.fromkeys(
+        (
+            "fill_id",
+            "ledger_row_id",
+            "intent_id",
+            "source_intent_id",
+            "symbol",
+            "timeframe",
+            "side",
+            "action",
+            "selected_action",
+            "decision",
+            "paper_only",
+            "places_real_order",
+            "paper_fill_allowed",
+            "paper_fill_allowed_source",
+            "strict_paper_fill_allowed_upstream",
+            "paper_tier_local_fill_allowed",
+            "paper_tier_local_fill_source",
+            "signal_id",
+            "source_signal_id",
+            "entry_signal_id",
+            "prediction_id",
+            "source_prediction_id",
+            "entry_prediction_id",
+            "risk_decision_id",
+            "orchestrator_decision_id",
+            "decision_id",
+            "feature_snapshot_id",
+            "entry_feature_snapshot_id",
+            "mtf_snapshot_id",
+            "feature_cutoff",
+            "decision_time",
+            "available_at",
+            "entry_feature_available_at",
+            "entry_feature_generated_at",
+            "entry_feature_cutoff",
+            "entry_feature_decision_time",
+            "entry_feature_source",
+            "entry_feature_candle_closed_confirmed",
+            "model_version",
+            "checkpoint_id",
+            "source_hashes",
+            "feature_vector_hash",
+            "input_feature_hash",
+            "prediction_hash",
+            "source_lineage_hash",
+            "generated_utc",
+            "accepted_at",
+            "opened_at",
+            "original_fill_utc",
+            "latest_price",
+            "latest_price_source",
+            "latest_price_utc",
+            "entry_price_provenance_present",
+            "entry_price_provenance_observed",
+            "entry_price_blocker",
+            "entry_spread_source",
+            "entry_spread_available_at",
+            "entry_spread_decision_time",
+            "actual_observed_spread_entry_bps",
+            "observed_bid_ask_spread_bps",
+            "bid_ask_spread_bps",
+            "expected_slippage_bps",
+            "expected_slippage_source",
+            "fee_bps",
+            "fee_bps_source",
+            "fee_bps_configured_schedule",
+            "bid_depth_usd",
+            "ask_depth_usd",
+            "orderbook_depth_usd",
+            "entry_orderbook_depth_usd",
+            "entry_orderbook_depth_side",
+            "top_of_book_depth_usd",
+            "market_depth_usd",
+            "orderbook_depth_source",
+            "orderbook_imbalance",
+            "depth_price_impact_bps",
+            "depth_price_impact_source",
+            "depth_price_impact_model",
+            "depth_price_impact_side",
+            "depth_price_impact_quantity",
+            "depth_price_impact_filled_quantity",
+            "depth_price_impact_fill_complete",
+            "depth_price_impact_vwap",
+            "depth_price_impact_touch_price",
+            "depth_utilization_pct",
+            "market_state_id",
+            "market_state_integrity_score",
+            "valid_for_paper",
+            "market_state_reject_reasons",
+            "strategy_id",
+            "strategy_family",
+            "strategy_subtype",
+            "strategy_selected_mode",
+            "strategy_router_selected_mode",
+            "strategy_size_adjustment_mode",
+            "strategy_regime_labels",
+            "entry_reason",
+            "hedge_state",
+            "hedge_reason",
+            "drawdown_at_entry",
+            "drawdown_bps",
+            "market_regime_at_entry",
+            "liquidity_zone_context",
+            "liquidity_context",
+            "liquidation_distance_context",
+            "liquidation_context",
+            "microstructure_context",
+            "oi_funding_context",
+            "public_intel_context",
+            "major_move_signal_id",
+            "major_move_evidence_score",
+            "squeeze_evidence_score",
+            "squeeze_evidence_source",
+            "squeeze_evidence_components",
+            "liquidation_pressure",
+            "liquidation_strength",
+            "liquidation_cascade_risk",
+            "last_liq_bps_24h",
+            "oi_change_pct",
+            "funding_rate",
+            "ob_imbalance",
+            "confidence_raw",
+            "confidence_calibrated",
+            "selected_action_probability",
+            "expected_move_bps",
+            "expected_move_after_cost_bps",
+            "action_probabilities",
+            "policy_value",
+            "value_baseline",
+            "prediction_score_source",
+            "prediction_score_missing_reason",
+            "selector_policy_fingerprint",
+            "frozen_selector_fingerprint",
+            "candidate_selected_before_outcome",
+            "candidate_selected_after_outcome",
+            "post_outcome_candidate_selection",
+            "future_labels_used_as_features",
+            "paper_sizing_complete",
+            "paper_sizing_source",
+            "paper_accounting_blocker",
+            "paper_allocation_block_reason",
+            "paper_runtime_market_evidence_rejection_reasons",
+            "paper_signal_temporal_rejection_reasons",
+            "lifecycle_or_no_trade_strategy_reasons",
+            "no_trade_strategy_reasons",
+            "paper_fill_gate_status",
+            "paper_fill_gate_block_reasons",
+            "paper_fill_block_reason",
+            "local_block_reasons",
+            "fill_price_immutable",
+            "paper_fill_persistence_status",
+            "lineage_backfilled_from_prediction_id",
+            *IMMUTABLE_ACCEPTED_FILL_FIELDS,
+            *PERSISTENT_ACCEPTED_FILL_METADATA_FIELDS,
+            *AUDIT_QUALITY_FEEDBACK_FIELDS,
+        )
+    )
+)
+COMPACT_ACCEPTED_FILL_ALLOCATION_FIELDS = tuple(
+    dict.fromkeys(
+        (
+            "allocation_id",
+            "allocator_decision",
+            "allocator_reason",
+            "adaptive_capital_policy_version",
+            "policy_activated_at",
+            "paper_only",
+            "places_real_order",
+            "live_order",
+            "test_order",
+            "leverage_mutation",
+            "margin_mode_mutation",
+            "selector_policy_fingerprint",
+            "frozen_selector_fingerprint",
+            "candidate_selected_before_outcome",
+            "candidate_selected_after_outcome",
+            "post_outcome_candidate_selection",
+            "future_labels_used_as_features",
+            "symbol",
+            "timeframe",
+            "side",
+            "selected_action",
+            "prediction_id",
+            "signal_id",
+            "decision_id",
+            "risk_decision_id",
+            "orchestrator_decision_id",
+            "feature_snapshot_id",
+            "entry_feature_snapshot_id",
+            "feature_cutoff",
+            "decision_time",
+            "available_at",
+            "entry_feature_available_at",
+            "entry_feature_cutoff",
+            "entry_feature_decision_time",
+            "model_version",
+            "checkpoint_id",
+            "source_hashes",
+            "confidence_raw",
+            "confidence_calibrated",
+            "selected_action_probability",
+            "expected_move_bps",
+            "expected_move_after_cost_bps",
+            "policy_value",
+            "value_baseline",
+            "action_probabilities",
+            "risk_budget_usd",
+            "gross_notional_usd",
+            "target_notional_usdt",
+            "normal_adaptive_gross_notional_usd",
+            "allocated_margin_usd",
+            "normal_adaptive_allocated_margin_usd",
+            "recommended_leverage",
+            "effective_leverage",
+            "recommended_margin_mode",
+            "margin_mode",
+            "stop_distance_bps",
+            "liquidation_price_estimate",
+            "liquidation_buffer_bps",
+            "pre_entry_stress_tests",
+            "rare_event_stress_suite",
+            "rare_event_stress_status",
+            "rare_event_stress_missing_inputs",
+            "rare_event_required_liquidation_buffer_bps",
+            "modeled_999_adverse_move_bps",
+            "execution_uncertainty_bps",
+            "correlation_stress_bps",
+            "maintenance_margin_uncertainty_bps",
+            "expected_fees_usd",
+            "expected_slippage_usd",
+            "expected_funding_usd",
+            "expected_funding_bps",
+            "funding_rate",
+            "funding_interval_seconds",
+            "expected_net_pnl_usd",
+            "normal_adaptive_expected_net_pnl_usd",
+            "expected_shortfall_usd",
+            "hedge_budget_usd",
+            "hedge_enabled",
+            "hedge_parent_id",
+            "hedge_child_id",
+            "hedge_intent",
+            "hedge_ratio",
+            "hedge_expected_shortfall_reduction_usd",
+            "expected_shortfall_before",
+            "expected_shortfall_after",
+            "maximum_duration",
+            "unwind_plan",
+            "hedge_cost_usd",
+            "take_profit_structure",
+            "take_profit_price",
+            "take_profit_reference",
+            "capital_allocation_reason",
+            "paper_opportunity_tier",
+            "risk_budget_fraction_of_normal_adaptive",
+            "observed_spread_bps",
+            "entry_spread_bps",
+            "actual_observed_spread_entry_bps",
+            "depth_impact_bps",
+            "expected_slippage_bps",
+            "depth_price_impact_bps",
+            "depth_price_impact_source",
+            "depth_price_impact_model",
+            "depth_price_impact_side",
+            "depth_price_impact_fill_complete",
+            "depth_utilization_pct",
+            "maker_probability",
+            "taker_probability",
+            "maker_taker_probability",
+            "maker_taker_probabilities",
+            "maker_taker_probability_source",
+            "latency_ms",
+            "latency_source",
+            "partial_fill_count",
+            "partial_fills",
+            "fill_count",
+            "all_partial_fills",
+            "partial_fill_plan",
+            "mark_price",
+            "index_price",
+            "mark_index_source",
+            "mark_index_available_at",
+            "mark_index_divergence",
+            "mark_index_divergence_bps",
+        )
+    )
+)
+
+
+COMPACT_ACCEPTED_FILL_OMITTED_FIELDS = frozenset({"entry_feature_snapshot"})
+
+
+def _copy_present_fields(source: dict[str, Any], fields: tuple[str, ...]) -> dict[str, Any]:
+    return {
+        field: source[field]
+        for field in fields
+        if field not in COMPACT_ACCEPTED_FILL_OMITTED_FIELDS and source.get(field) not in (None, "")
+    }
+
+
+def _compact_adaptive_allocation_for_state(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+    compact = _copy_present_fields(value, COMPACT_ACCEPTED_FILL_ALLOCATION_FIELDS)
+    model_inputs = value.get("model_inputs") if isinstance(value.get("model_inputs"), dict) else {}
+    compact_model_inputs = _copy_present_fields(
+        model_inputs,
+        tuple(
+            dict.fromkeys(
+                (
+                    *PERSISTENT_ACCEPTED_FILL_MODEL_INPUT_FIELDS,
+                    "selected_leverage",
+                    "leverage_target",
+                    "raw_leverage_target",
+                    "leverage_selection_reason",
+                    "selected_margin_mode",
+                    "margin_mode_selection_reason",
+                    "selected_hedge_budget_pct_of_risk",
+                    "hedge_budget_selection_reason",
+                    "paper_opportunity_tier",
+                    "expected_slippage_bps",
+                    "observed_spread_bps",
+                    "depth_price_impact_bps",
+                )
+            )
+        ),
+    )
+    if compact_model_inputs:
+        compact["model_inputs"] = compact_model_inputs
+    return compact
+
+
+def _compact_accepted_fill_for_state(row: dict[str, Any]) -> dict[str, Any]:
+    compact = _copy_present_fields(row, COMPACT_ACCEPTED_FILL_FIELDS)
+    allocation = _compact_adaptive_allocation_for_state(row.get("adaptive_allocation"))
+    if allocation:
+        compact["adaptive_allocation"] = allocation
+    compact["accepted_fill_state_compacted"] = True
+    compact["entry_feature_snapshot_omitted_from_state"] = bool(row.get("entry_feature_snapshot"))
+    return compact
+
+
+def _compact_rows_for_state(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [_compact_accepted_fill_for_state(row) for row in rows if isinstance(row, dict)]
+
+
+def _sample_rows(rows: list[dict[str, Any]], limit: int = PAPER_REDIS_LEDGER_ROW_SAMPLE_LIMIT) -> list[dict[str, Any]]:
+    if limit <= 0:
+        return []
+    if len(rows) <= limit:
+        return rows
+    return rows[-limit:]
 
 
 def _accepted_fill_identity(row: dict[str, Any]) -> str:
@@ -1387,7 +2326,58 @@ def _accepted_fill_identity(row: dict[str, Any]) -> str:
     )
 
 
+def _index_accepted_fill_rows(rows: list[Any]) -> dict[str, dict]:
+    out: dict[str, dict] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        identity = _accepted_fill_identity(row)
+        if identity:
+            out[identity] = row
+    return out
+
+
+def _read_accepted_fill_state_file(path: Path | None = None) -> dict[str, dict]:
+    path = path or PAPER_ACCEPTED_FILLS_STATE_PATH
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError:
+        return {}
+    try:
+        payload = json.loads(raw)
+    except (TypeError, ValueError):
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    rows = (
+        payload.get("accepted_fills")
+        or payload.get("accepted_open_fills")
+        or payload.get("accepted")
+        or payload.get("accepted_intents")
+        or []
+    )
+    if not isinstance(rows, list):
+        return {}
+    return _index_accepted_fill_rows(rows)
+
+
+def _read_lifecycle_state_file(path: Path | None = None) -> dict[str, Any]:
+    path = path or PAPER_LIFECYCLE_STATE_PATH
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError:
+        return {}
+    try:
+        payload = json.loads(raw)
+    except (TypeError, ValueError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
 def _read_existing_accepted_fills(r) -> dict[str, dict]:
+    file_rows = _read_accepted_fill_state_file()
+    if file_rows:
+        return file_rows
     if r is None:
         return {}
     try:
@@ -1403,14 +2393,8 @@ def _read_existing_accepted_fills(r) -> dict[str, dict]:
     if not isinstance(payload, dict):
         return {}
     rows = payload.get("accepted") or payload.get("accepted_intents") or []
-    out: dict[str, dict] = {}
-    for row in rows:
-        if not isinstance(row, dict):
-            continue
-        identity = _accepted_fill_identity(row)
-        if identity:
-            out[identity] = row
-    return out
+    return _index_accepted_fill_rows(rows)
+
 
 
 def _row_has_economic_fill_fields(row: dict[str, Any]) -> bool:
@@ -1859,37 +2843,1680 @@ def _count_values(rows: list[dict[str, Any]], key: str) -> dict[str, int]:
     return counts
 
 
+def _paper_quality_selected_direction(row: dict[str, Any]) -> str | None:
+    raw = str(
+        _first_present(
+            row.get("selected_action"),
+            row.get("side"),
+            row.get("action"),
+        )
+        or ""
+    ).strip().lower()
+    if raw in {"long", "buy", "open_long", "proceed_long"} or raw.endswith("_long"):
+        return "UP"
+    if raw in {"short", "sell", "open_short", "proceed_short"} or raw.endswith("_short"):
+        return "DOWN"
+    if raw in {"hold", "no_trade", "none", "flat"}:
+        return "FLAT"
+    return None
+
+
+def _paper_quality_actual_direction(row: dict[str, Any]) -> str | None:
+    directional = str(row.get("directional_outcome") or "").strip().upper()
+    if directional in {"UP", "DOWN", "FLAT"}:
+        return directional
+    realized = _coerce_float(_first_present(row.get("realized_net_pnl_bps"), row.get("realized_pnl_bps")))
+    if realized is None:
+        return None
+    if abs(realized) < 1e-9:
+        return "FLAT"
+    selected = _paper_quality_selected_direction(row)
+    if selected == "DOWN":
+        return "DOWN" if realized > 0.0 else "UP"
+    if selected == "UP":
+        return "UP" if realized > 0.0 else "DOWN"
+    return None
+
+
+def _paper_quality_confidence_bucket(value: Any) -> str:
+    confidence = _coerce_float(value)
+    if confidence is None:
+        return "MISSING"
+    bounded = _clamp_float(confidence, 0.0, 1.0)
+    low_index = min(9, max(0, int(bounded * 10.0)))
+    low = low_index / 10.0
+    high = 1.0 if low_index == 9 else (low_index + 1) / 10.0
+    return f"{low:.1f}-{high:.1f}"
+
+
+PAPER_QUALITY_CONTEXT_BUCKET_FIELDS = (
+    "symbol",
+    "timeframe",
+    "side",
+    "strategy",
+    "regime",
+    "confidence_bucket",
+)
+
+
+def _paper_quality_regime_from_labels(value: Any) -> str | None:
+    if isinstance(value, str):
+        labels = [item.strip() for item in value.split(",") if item.strip()]
+    elif isinstance(value, (list, tuple, set)):
+        labels = [str(item).strip() for item in value if str(item).strip()]
+    else:
+        labels = []
+    normalized = [label.upper() for label in labels if label]
+    if not normalized:
+        return None
+    non_no_trade = [label for label in normalized if label != "NO_TRADE"]
+    return ",".join(non_no_trade or normalized)
+
+
+def _paper_quality_regime_value(row: dict[str, Any]) -> str:
+    raw_regime = _first_present(
+        row.get("market_regime_at_entry"),
+        row.get("market_regime"),
+        row.get("market_regime_at_exit"),
+    )
+    if raw_regime not in (None, ""):
+        if isinstance(raw_regime, (list, tuple, set)):
+            derived = _paper_quality_regime_from_labels(raw_regime)
+            if derived:
+                return derived
+        return str(raw_regime)
+    derived = _paper_quality_regime_from_labels(row.get("strategy_regime_labels"))
+    return derived or "UNKNOWN"
+
+
+def _paper_quality_context_bucket(row: dict[str, Any]) -> dict[str, str]:
+    return {
+        "symbol": str(row.get("symbol") or "UNKNOWN"),
+        "timeframe": str(row.get("timeframe") or "UNKNOWN"),
+        "side": str(
+            _first_present(row.get("side"), row.get("selected_action"), row.get("action"))
+            or "UNKNOWN"
+        ).lower(),
+        "strategy": str(
+            _first_present(
+                row.get("strategy_id"),
+                row.get("strategy_family"),
+                row.get("strategy_subtype"),
+                row.get("strategy_selected_mode"),
+                row.get("strategy_router_selected_mode"),
+            )
+            or "UNKNOWN"
+        ),
+        "regime": _paper_quality_regime_value(row),
+        "confidence_bucket": _paper_quality_confidence_bucket(
+            _first_present(
+                row.get("confidence_calibrated"),
+                row.get("selected_action_probability"),
+                row.get("confidence_raw"),
+            )
+        ),
+    }
+
+
+def _paper_quality_context_bucket_key(bucket: dict[str, Any]) -> tuple[str, ...]:
+    return tuple(str(bucket.get(field) or "") for field in PAPER_QUALITY_CONTEXT_BUCKET_FIELDS)
+
+
+def _paper_quality_context_key(row: dict[str, Any]) -> tuple[str, ...]:
+    return _paper_quality_context_bucket_key(_paper_quality_context_bucket(row))
+
+
+def _paper_quality_context_key_public(key: tuple[str, ...]) -> str:
+    return "|".join(key)
+
+
+def _new_paper_quality_accumulator() -> dict[str, Any]:
+    return {
+        "sample_count": 0,
+        "wins": 0,
+        "losses": 0,
+        "breakeven": 0,
+        "realized_sum_bps": 0.0,
+        "realized_values_bps": [],
+        "profit_bps": 0.0,
+        "loss_bps_abs": 0.0,
+        "direction_total": 0,
+        "direction_correct": 0,
+        "expected_move_error_sum": 0.0,
+        "expected_move_sample_count": 0,
+        "calibration_rows": [],
+        "up_tp": 0,
+        "up_fp": 0,
+        "up_fn": 0,
+        "up_tn": 0,
+    }
+
+
+def _paper_quality_add_row(acc: dict[str, Any], row: dict[str, Any]) -> None:
+    realized = _coerce_float(_first_present(row.get("realized_net_pnl_bps"), row.get("realized_pnl_bps")))
+    if realized is None:
+        return
+    acc["sample_count"] += 1
+    acc["realized_sum_bps"] += realized
+    acc["realized_values_bps"].append(realized)
+    if realized > 0.0:
+        acc["wins"] += 1
+        acc["profit_bps"] += realized
+    elif realized < 0.0:
+        acc["losses"] += 1
+        acc["loss_bps_abs"] += abs(realized)
+    else:
+        acc["breakeven"] += 1
+
+    predicted_direction = _paper_quality_selected_direction(row)
+    actual_direction = _paper_quality_actual_direction(row)
+    if predicted_direction in {"UP", "DOWN", "FLAT"} and actual_direction in {"UP", "DOWN", "FLAT"}:
+        acc["direction_total"] += 1
+        if predicted_direction == actual_direction:
+            acc["direction_correct"] += 1
+        if predicted_direction == "UP" and actual_direction == "UP":
+            acc["up_tp"] += 1
+        elif predicted_direction == "UP" and actual_direction != "UP":
+            acc["up_fp"] += 1
+        elif predicted_direction != "UP" and actual_direction == "UP":
+            acc["up_fn"] += 1
+        else:
+            acc["up_tn"] += 1
+
+    expected = _coerce_float(row.get("expected_move_after_cost_bps"))
+    if expected is not None:
+        acc["expected_move_error_sum"] += abs(expected - realized)
+        acc["expected_move_sample_count"] += 1
+
+    confidence = _coerce_float(
+        _first_present(
+            row.get("confidence_calibrated"),
+            row.get("selected_action_probability"),
+            row.get("confidence_raw"),
+        )
+    )
+    profitable = row.get("action_was_profitable")
+    if profitable is None:
+        profitable = realized > 0.0
+    if confidence is not None and isinstance(profitable, bool):
+        acc["calibration_rows"].append(
+            {
+                "confidence": _clamp_float(confidence, 0.0, 1.0),
+                "outcome": 1.0 if profitable else 0.0,
+            }
+        )
+
+
+def _paper_quality_brier(rows: list[dict[str, float]]) -> float | None:
+    if not rows:
+        return None
+    return sum((row["confidence"] - row["outcome"]) ** 2 for row in rows) / len(rows)
+
+
+def _paper_quality_wilson_lower_bound(
+    successes: int,
+    total: int,
+    *,
+    z: float = 1.959963984540054,
+) -> float | None:
+    if total <= 0:
+        return None
+    p = successes / total
+    denom = 1.0 + (z * z / total)
+    centre = p + (z * z / (2.0 * total))
+    margin = z * math.sqrt((p * (1.0 - p) + (z * z / (4.0 * total))) / total)
+    return (centre - margin) / denom
+
+
+def _paper_quality_mean_lower_confidence_bound(
+    values: list[float],
+    *,
+    z: float = 1.959963984540054,
+) -> float | None:
+    if not values:
+        return None
+    mean = sum(values) / len(values)
+    if len(values) == 1:
+        return mean
+    variance = sum((value - mean) ** 2 for value in values) / len(values)
+    return mean - z * (math.sqrt(variance) / math.sqrt(len(values)))
+
+
+def _paper_quality_profit_factor_payload(
+    profit_bps: float,
+    loss_bps_abs: float,
+) -> tuple[float | str | None, float | None, bool]:
+    if loss_bps_abs > 0.0:
+        numeric = profit_bps / loss_bps_abs
+        return numeric, numeric, False
+    if profit_bps > 0.0:
+        return "inf", math.inf, True
+    return None, None, False
+
+
+def _paper_quality_ece(
+    rows: list[dict[str, float]],
+    *,
+    bucket_count: int = 10,
+) -> tuple[float | None, list[dict[str, Any]]]:
+    if not rows:
+        return None, []
+    total = len(rows)
+    weighted_error = 0.0
+    buckets: list[dict[str, Any]] = []
+    for index in range(bucket_count):
+        low = index / bucket_count
+        high = (index + 1) / bucket_count
+        if index == bucket_count - 1:
+            bucket_rows = [row for row in rows if low <= row["confidence"] <= high]
+        else:
+            bucket_rows = [row for row in rows if low <= row["confidence"] < high]
+        if not bucket_rows:
+            continue
+        avg_confidence = sum(row["confidence"] for row in bucket_rows) / len(bucket_rows)
+        empirical = sum(row["outcome"] for row in bucket_rows) / len(bucket_rows)
+        error = abs(avg_confidence - empirical)
+        weighted_error += (len(bucket_rows) / total) * error
+        buckets.append(
+            {
+                "bucket_min": low,
+                "bucket_max": high,
+                "sample_count": len(bucket_rows),
+                "avg_confidence": avg_confidence,
+                "empirical_success_rate": empirical,
+                "absolute_calibration_error": error,
+                "brier_score": _paper_quality_brier(bucket_rows),
+            }
+        )
+    return weighted_error, buckets
+
+
+def _paper_quality_finalize_accumulator(acc: dict[str, Any]) -> dict[str, Any]:
+    sample_count = int(acc["sample_count"])
+    calibration_rows = list(acc["calibration_rows"])
+    ece, calibration_buckets = _paper_quality_ece(calibration_rows)
+    direction_total = int(acc["direction_total"])
+    trade_classified = int(acc["wins"]) + int(acc["losses"])
+    realized_values = list(acc["realized_values_bps"])
+    win_rate_after_cost = acc["wins"] / sample_count if sample_count else None
+    win_rate_lcb = _paper_quality_wilson_lower_bound(int(acc["wins"]), sample_count)
+    expectancy_lcb = _paper_quality_mean_lower_confidence_bound(realized_values)
+    profit_factor, profit_factor_numeric, profit_factor_is_infinite = (
+        _paper_quality_profit_factor_payload(float(acc["profit_bps"]), float(acc["loss_bps_abs"]))
+    )
+    up_precision_denominator = int(acc["up_tp"]) + int(acc["up_fp"])
+    up_recall_denominator = int(acc["up_tp"]) + int(acc["up_fn"])
+    up_fpr_denominator = int(acc["up_fp"]) + int(acc["up_tn"])
+    up_fnr_denominator = int(acc["up_fn"]) + int(acc["up_tp"])
+    return {
+        "sample_count": sample_count,
+        "directional_accuracy": (
+            acc["direction_correct"] / direction_total if direction_total else None
+        ),
+        "directional_sample_count": direction_total,
+        "expected_move_mae": (
+            acc["expected_move_error_sum"] / acc["expected_move_sample_count"]
+            if acc["expected_move_sample_count"]
+            else None
+        ),
+        "expected_move_mae_sample_count": int(acc["expected_move_sample_count"]),
+        "brier_score": _paper_quality_brier(calibration_rows),
+        "ece": ece,
+        "calibration_sample_count": len(calibration_rows),
+        "confidence_reliability_buckets": calibration_buckets,
+        "precision": acc["wins"] / trade_classified if trade_classified else None,
+        "recall": None,
+        "recall_unavailable_reason": (
+            "closed executed paper outcomes do not include unexecuted profitable opportunities"
+        ),
+        "false_positive_rate": acc["losses"] / trade_classified if trade_classified else None,
+        "false_negative_rate": None,
+        "false_negative_rate_unavailable_reason": (
+            "closed executed paper outcomes do not include abstained positive opportunities"
+        ),
+        "directional_up_precision": (
+            acc["up_tp"] / up_precision_denominator if up_precision_denominator else None
+        ),
+        "directional_up_recall": (
+            acc["up_tp"] / up_recall_denominator if up_recall_denominator else None
+        ),
+        "directional_up_false_positive_rate": (
+            acc["up_fp"] / up_fpr_denominator if up_fpr_denominator else None
+        ),
+        "directional_up_false_negative_rate": (
+            acc["up_fn"] / up_fnr_denominator if up_fnr_denominator else None
+        ),
+        "after_cost_expectancy_bps": (
+            acc["realized_sum_bps"] / sample_count if sample_count else None
+        ),
+        "expectancy_95pct_lower_confidence_bound_bps": expectancy_lcb,
+        "win_rate_after_cost": win_rate_after_cost,
+        "win_rate_95pct_lower_confidence_bound": win_rate_lcb,
+        "profit_factor": profit_factor,
+        "profit_factor_numeric": (
+            profit_factor_numeric
+            if profit_factor_numeric is not None and math.isfinite(profit_factor_numeric)
+            else None
+        ),
+        "profit_factor_is_infinite": profit_factor_is_infinite,
+        "trade_outcome_counts": {
+            "WIN": int(acc["wins"]),
+            "LOSS": int(acc["losses"]),
+            "BREAKEVEN": int(acc["breakeven"]),
+        },
+    }
+
+
+def _paper_b_grade_model_quality_status(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    source_rows: list[dict[str, Any]] = []
+    rejected: dict[str, int] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            rejected["NON_OBJECT_ROW"] = rejected.get("NON_OBJECT_ROW", 0) + 1
+            continue
+        if not (
+            row.get("paper_opportunity_tier") == PAPER_TIER_B_GRADE_EXPLORATION
+            or row.get("calibration_label_purpose") == "B_GRADE_EXPLORATION_OUTCOME_LABEL"
+        ):
+            rejected["NOT_B_GRADE_EXPLORATION_OUTCOME"] = rejected.get(
+                "NOT_B_GRADE_EXPLORATION_OUTCOME", 0
+            ) + 1
+            continue
+        if row.get("paper_only") is not True:
+            rejected["NOT_PAPER_ONLY"] = rejected.get("NOT_PAPER_ONLY", 0) + 1
+            continue
+        if _coerce_float(_first_present(row.get("realized_net_pnl_bps"), row.get("realized_pnl_bps"))) is None:
+            rejected["MISSING_REALIZED_AFTER_COST_PNL_BPS"] = rejected.get(
+                "MISSING_REALIZED_AFTER_COST_PNL_BPS", 0
+            ) + 1
+            continue
+        source_rows.append(row)
+
+    overall_acc = _new_paper_quality_accumulator()
+    buckets: dict[str, dict[str, Any]] = {}
+    bucket_dims: dict[str, dict[str, str]] = {}
+    for row in source_rows:
+        _paper_quality_add_row(overall_acc, row)
+        dims = _paper_quality_context_bucket(row)
+        key = "|".join(dims[field] for field in (
+            "symbol",
+            "timeframe",
+            "side",
+            "strategy",
+            "regime",
+            "confidence_bucket",
+        ))
+        bucket_dims.setdefault(key, dims)
+        _paper_quality_add_row(buckets.setdefault(key, _new_paper_quality_accumulator()), row)
+
+    by_bucket: list[dict[str, Any]] = []
+    for key, acc in buckets.items():
+        finalized = _paper_quality_finalize_accumulator(acc)
+        finalized.update(bucket_dims[key])
+        by_bucket.append(finalized)
+    by_bucket.sort(
+        key=lambda item: (
+            -int(item.get("sample_count") or 0),
+            str(item.get("symbol") or ""),
+            str(item.get("timeframe") or ""),
+            str(item.get("side") or ""),
+            str(item.get("strategy") or ""),
+            str(item.get("regime") or ""),
+            str(item.get("confidence_bucket") or ""),
+        )
+    )
+
+    overall = _paper_quality_finalize_accumulator(overall_acc)
+    sample_count = int(overall["sample_count"])
+    published_buckets = by_bucket[:B_GRADE_MODEL_QUALITY_BUCKET_LIMIT]
+    return {
+        "schema_version": "paper_b_grade_model_quality_status_v1",
+        "generated_utc": _utc_iso(),
+        "status": (
+            "ACTIVE_B_GRADE_REALIZED_QUALITY_METRICS"
+            if sample_count
+            else "BLOCKED_NO_B_GRADE_REALIZED_OUTCOMES"
+        ),
+        "paper_only": True,
+        "places_real_order": False,
+        "scope": "B_GRADE_EXPLORATION_PAPER_CLOSED_OUTCOMES_ONLY",
+        "counts_as_a_grade_evidence": False,
+        "a_grade_promotion_allowed": False,
+        "live_ready_implication": False,
+        "source_feedback_row_count": len(rows),
+        "b_grade_closed_outcome_count": len(source_rows),
+        "rows_rejected_by_reason": rejected,
+        **overall,
+        "metric_summary": {
+            "sample_count": sample_count,
+            "bucket_count": len(by_bucket),
+            "published_bucket_count": len(published_buckets),
+            "directional_accuracy": overall.get("directional_accuracy"),
+            "expected_move_mae": overall.get("expected_move_mae"),
+            "brier_score": overall.get("brier_score"),
+            "ece": overall.get("ece"),
+            "precision": overall.get("precision"),
+            "recall": overall.get("recall"),
+            "false_positive_rate": overall.get("false_positive_rate"),
+            "false_negative_rate": overall.get("false_negative_rate"),
+            "after_cost_expectancy_bps": overall.get("after_cost_expectancy_bps"),
+            "win_rate_after_cost": overall.get("win_rate_after_cost"),
+            "profit_factor": overall.get("profit_factor"),
+        },
+        "bucket_count": len(by_bucket),
+        "published_bucket_count": len(published_buckets),
+        "metrics_by_bucket": published_buckets,
+        "metrics_by_symbol_timeframe_side_strategy_regime_confidence_bucket": (
+            published_buckets
+        ),
+        "bucket_limit": B_GRADE_MODEL_QUALITY_BUCKET_LIMIT,
+    }
+
+
+def _paper_quality_profit_factor_numeric(value: Any) -> float | None:
+    if isinstance(value, str) and value.strip().lower() == "inf":
+        return math.inf
+    return _coerce_float(value)
+
+
+def _paper_b_grade_bucket_promotion_readiness_status(
+    model_quality_status: dict[str, Any],
+) -> dict[str, Any]:
+    bucket_rows = model_quality_status.get(
+        "metrics_by_symbol_timeframe_side_strategy_regime_confidence_bucket"
+    )
+    if not isinstance(bucket_rows, list):
+        bucket_rows = []
+
+    evaluated: list[dict[str, Any]] = []
+    blocker_counts: dict[str, int] = {}
+    metric_ready_count = 0
+    for bucket in bucket_rows:
+        if not isinstance(bucket, dict):
+            blocker_counts["NON_OBJECT_BUCKET"] = blocker_counts.get("NON_OBJECT_BUCKET", 0) + 1
+            continue
+        sample_count = int(_coerce_float(bucket.get("sample_count")) or 0)
+        outcome_counts = bucket.get("trade_outcome_counts")
+        outcome_counts = outcome_counts if isinstance(outcome_counts, dict) else {}
+        win_count = int(_coerce_float(outcome_counts.get("WIN")) or 0)
+        loss_count = int(_coerce_float(outcome_counts.get("LOSS")) or 0)
+        breakeven_count = int(_coerce_float(outcome_counts.get("BREAKEVEN")) or 0)
+        point_win_rate = win_count / sample_count if sample_count else None
+        win_rate_lcb = _paper_quality_wilson_lower_bound(win_count, sample_count)
+        expectancy = _coerce_float(bucket.get("after_cost_expectancy_bps"))
+        expectancy_lcb = _coerce_float(bucket.get("expectancy_95pct_lower_confidence_bound_bps"))
+        profit_factor_numeric = _paper_quality_profit_factor_numeric(bucket.get("profit_factor"))
+
+        sample_count_passes = sample_count >= B_GRADE_BUCKET_PROMOTION_MIN_SAMPLE_COUNT
+        point_win_rate_passes = (
+            point_win_rate is not None
+            and point_win_rate >= B_GRADE_BUCKET_PROMOTION_MIN_WIN_RATE
+        )
+        win_rate_lcb_passes = (
+            win_rate_lcb is not None
+            and win_rate_lcb >= B_GRADE_BUCKET_PROMOTION_MIN_WIN_RATE_LCB
+        )
+        expectancy_passes = expectancy is not None and expectancy > 0.0
+        expectancy_lcb_passes = (
+            expectancy_lcb is not None
+            and expectancy_lcb > B_GRADE_BUCKET_PROMOTION_MIN_EXPECTANCY_LCB_BPS
+        )
+        profit_factor_passes = (
+            profit_factor_numeric is not None
+            and profit_factor_numeric >= B_GRADE_BUCKET_PROMOTION_MIN_PROFIT_FACTOR
+        )
+
+        metric_blockers: list[str] = []
+        if not sample_count_passes:
+            metric_blockers.append("INSUFFICIENT_BUCKET_SAMPLE_COUNT")
+        if not point_win_rate_passes:
+            metric_blockers.append("POINT_WIN_RATE_BELOW_90P")
+        if not win_rate_lcb_passes:
+            metric_blockers.append("WIN_RATE_95PCT_LCB_BELOW_90P")
+        if not expectancy_passes:
+            metric_blockers.append("NON_POSITIVE_AFTER_COST_EXPECTANCY")
+        if not expectancy_lcb_passes:
+            metric_blockers.append("NON_POSITIVE_EXPECTANCY_LOWER_CONFIDENCE_BOUND")
+        if not profit_factor_passes:
+            metric_blockers.append("PROFIT_FACTOR_BELOW_2")
+
+        metric_conditions_pass = not metric_blockers
+        if metric_conditions_pass:
+            metric_ready_count += 1
+
+        promotion_blockers = [
+            *metric_blockers,
+            "B_GRADE_OUTCOMES_ARE_LEARNING_ONLY_NOT_A_GRADE_EVIDENCE",
+            "UNTOUCHED_HOLDOUT_AND_FROZEN_POLICY_NOT_VERIFIED_FOR_BUCKET",
+            "REALTIME_A_GRADE_ECONOMIC_OUTCOME_CONTRACT_NOT_SATISFIED",
+        ]
+        for reason in promotion_blockers:
+            blocker_counts[reason] = blocker_counts.get(reason, 0) + 1
+
+        evaluated.append(
+            {
+                "symbol": bucket.get("symbol"),
+                "timeframe": bucket.get("timeframe"),
+                "side": bucket.get("side"),
+                "strategy": bucket.get("strategy"),
+                "regime": bucket.get("regime"),
+                "confidence_bucket": bucket.get("confidence_bucket"),
+                "closed_economic_outcome_count": sample_count,
+                "win_count": win_count,
+                "loss_count": loss_count,
+                "breakeven_count": breakeven_count,
+                "point_win_rate_after_cost": point_win_rate,
+                "win_rate_95pct_lower_confidence_bound": win_rate_lcb,
+                "after_cost_expectancy_bps": expectancy,
+                "expectancy_95pct_lower_confidence_bound_bps": expectancy_lcb,
+                "profit_factor": bucket.get("profit_factor"),
+                "profit_factor_numeric": (
+                    profit_factor_numeric
+                    if profit_factor_numeric is not None and math.isfinite(profit_factor_numeric)
+                    else None
+                ),
+                "profit_factor_is_infinite": profit_factor_numeric == math.inf,
+                "sample_count_passes": sample_count_passes,
+                "point_win_rate_passes": point_win_rate_passes,
+                "win_rate_lcb_passes": win_rate_lcb_passes,
+                "expectancy_after_cost_passes": expectancy_passes,
+                "expectancy_lcb_passes": expectancy_lcb_passes,
+                "profit_factor_passes": profit_factor_passes,
+                "bucket_metric_conditions_pass": metric_conditions_pass,
+                "metric_blocker_reasons": metric_blockers,
+                "promotion_blocker_reasons": promotion_blockers,
+                "counts_as_a_grade_evidence": False,
+                "a_grade_promotion_allowed": False,
+                "a_grade_execution_tier_if_candidate_now": PAPER_TIER_SHADOW_ONLY,
+                "allowed_learning_tier": PAPER_TIER_B_GRADE_EXPLORATION,
+            }
+        )
+
+    evaluated.sort(
+        key=lambda item: (
+            len(item.get("promotion_blocker_reasons") or []),
+            -int(item.get("closed_economic_outcome_count") or 0),
+            str(item.get("symbol") or ""),
+            str(item.get("timeframe") or ""),
+            str(item.get("side") or ""),
+            str(item.get("strategy") or ""),
+            str(item.get("regime") or ""),
+            str(item.get("confidence_bucket") or ""),
+        )
+    )
+
+    bucket_count = len(evaluated)
+    insufficient_sample_bucket_count = 0
+    buckets_at_or_above_minimum_count = 0
+    sample_count_deficit_total = 0
+    sample_count_distribution = {
+        "0": 0,
+        "1": 0,
+        "2_to_4": 0,
+        "5_to_9": 0,
+        "10_to_19": 0,
+        "20_to_29": 0,
+        "30_or_more": 0,
+    }
+    label_collection_priority: list[dict[str, Any]] = []
+    for bucket in evaluated:
+        sample_count = int(bucket.get("closed_economic_outcome_count") or 0)
+        if sample_count <= 0:
+            sample_count_distribution["0"] += 1
+        elif sample_count == 1:
+            sample_count_distribution["1"] += 1
+        elif sample_count <= 4:
+            sample_count_distribution["2_to_4"] += 1
+        elif sample_count <= 9:
+            sample_count_distribution["5_to_9"] += 1
+        elif sample_count <= 19:
+            sample_count_distribution["10_to_19"] += 1
+        elif sample_count < B_GRADE_BUCKET_PROMOTION_MIN_SAMPLE_COUNT:
+            sample_count_distribution["20_to_29"] += 1
+        else:
+            sample_count_distribution["30_or_more"] += 1
+
+        deficit = max(0, B_GRADE_BUCKET_PROMOTION_MIN_SAMPLE_COUNT - sample_count)
+        if deficit:
+            insufficient_sample_bucket_count += 1
+            sample_count_deficit_total += deficit
+        else:
+            buckets_at_or_above_minimum_count += 1
+
+        metric_blockers = set(bucket.get("metric_blocker_reasons") or [])
+        only_sample_depth_blocked = metric_blockers.issubset({
+            "INSUFFICIENT_BUCKET_SAMPLE_COUNT",
+            "WIN_RATE_95PCT_LCB_BELOW_90P",
+        })
+        if (
+            deficit
+            and only_sample_depth_blocked
+            and bucket.get("point_win_rate_passes") is True
+            and bucket.get("expectancy_after_cost_passes") is True
+            and bucket.get("expectancy_lcb_passes") is True
+            and bucket.get("profit_factor_passes") is True
+        ):
+            priority_bucket = {
+                "symbol": bucket.get("symbol"),
+                "timeframe": bucket.get("timeframe"),
+                "side": bucket.get("side"),
+                "strategy": bucket.get("strategy"),
+                "regime": bucket.get("regime"),
+                "confidence_bucket": bucket.get("confidence_bucket"),
+                "closed_economic_outcome_count": sample_count,
+                "sample_count_deficit_to_minimum": deficit,
+                "point_win_rate_after_cost": bucket.get("point_win_rate_after_cost"),
+                "win_rate_95pct_lower_confidence_bound": (
+                    bucket.get("win_rate_95pct_lower_confidence_bound")
+                ),
+                "after_cost_expectancy_bps": bucket.get("after_cost_expectancy_bps"),
+                "expectancy_95pct_lower_confidence_bound_bps": (
+                    bucket.get("expectancy_95pct_lower_confidence_bound_bps")
+                ),
+                "profit_factor": bucket.get("profit_factor"),
+                "priority_reason": (
+                    "PAPER_ONLY_COLLECT_MORE_B_GRADE_LABELS_FOR_PROMISING_UNDERPOWERED_BUCKET"
+                ),
+                "paper_only": True,
+                "places_real_order": False,
+                "counts_as_a_grade_evidence": False,
+                "a_grade_promotion_allowed": False,
+                "live_ready_implication": False,
+            }
+            label_collection_priority.append(priority_bucket)
+
+    label_collection_priority.sort(
+        key=lambda item: (
+            int(item.get("sample_count_deficit_to_minimum") or 0),
+            -float(item.get("closed_economic_outcome_count") or 0),
+            -float(item.get("win_rate_95pct_lower_confidence_bound") or 0.0),
+            -float(item.get("expectancy_95pct_lower_confidence_bound_bps") or 0.0),
+            str(item.get("symbol") or ""),
+            str(item.get("timeframe") or ""),
+            str(item.get("side") or ""),
+        )
+    )
+    if not bucket_count:
+        fragmentation_status = "BLOCKED_NO_B_GRADE_REALIZED_BUCKETS"
+    elif insufficient_sample_bucket_count:
+        fragmentation_status = "BLOCKED_FRAGMENTED_B_GRADE_EVIDENCE"
+    else:
+        fragmentation_status = "READY_B_GRADE_BUCKET_SAMPLE_COVERAGE"
+    evidence_fragmentation = {
+        "schema_version": "paper_b_grade_evidence_fragmentation_status_v1",
+        "status": fragmentation_status,
+        "paper_only": True,
+        "places_real_order": False,
+        "counts_as_a_grade_evidence": False,
+        "a_grade_promotion_allowed": False,
+        "live_ready_implication": False,
+        "bucket_count": bucket_count,
+        "minimum_bucket_sample_count": B_GRADE_BUCKET_PROMOTION_MIN_SAMPLE_COUNT,
+        "insufficient_sample_bucket_count": insufficient_sample_bucket_count,
+        "buckets_at_or_above_minimum_count": buckets_at_or_above_minimum_count,
+        "sample_count_deficit_to_minimum_total": sample_count_deficit_total,
+        "sample_count_distribution": sample_count_distribution,
+        "paper_only_label_collection_priority_bucket_count": len(label_collection_priority),
+        "diagnostic_policy": (
+            "Ranks underpowered B-grade buckets for paper-only label collection. "
+            "It never promotes B-grade outcomes, opens live routing, or counts "
+            "NO_TRADE as an economic win."
+        ),
+    }
+    return {
+        "schema_version": "paper_b_grade_bucket_promotion_readiness_status_v1",
+        "generated_utc": _utc_iso(),
+        "status": (
+            "BLOCKED_B_GRADE_BUCKETS_NOT_A_GRADE_READY"
+            if bucket_count
+            else "BLOCKED_NO_B_GRADE_REALIZED_BUCKETS"
+        ),
+        "scope": "B_GRADE_EXPLORATION_PAPER_BUCKETS_ONLY",
+        "paper_only": True,
+        "places_real_order": False,
+        "counts_as_a_grade_evidence": False,
+        "a_grade_promotion_allowed": False,
+        "live_ready_implication": False,
+        "source_schema_version": model_quality_status.get("schema_version"),
+        "source_b_grade_closed_outcome_count": model_quality_status.get(
+            "b_grade_closed_outcome_count"
+        ),
+        "source_bucket_count": bucket_count,
+        "metric_ready_bucket_count": metric_ready_count,
+        "a_grade_promotable_bucket_count": 0,
+        "thresholds": {
+            "minimum_bucket_sample_count": B_GRADE_BUCKET_PROMOTION_MIN_SAMPLE_COUNT,
+            "point_win_rate_min": B_GRADE_BUCKET_PROMOTION_MIN_WIN_RATE,
+            "win_rate_95pct_lcb_min": B_GRADE_BUCKET_PROMOTION_MIN_WIN_RATE_LCB,
+            "expectancy_95pct_lcb_bps_min_exclusive": (
+                B_GRADE_BUCKET_PROMOTION_MIN_EXPECTANCY_LCB_BPS
+            ),
+            "profit_factor_min": B_GRADE_BUCKET_PROMOTION_MIN_PROFIT_FACTOR,
+        },
+        "non_promotion_contract": {
+            "b_grade_outcomes_are_learning_only": True,
+            "requires_frozen_policy_untouched_holdout": True,
+            "requires_new_realtime_a_grade_economic_outcomes": True,
+            "failing_bucket_execution_tier": PAPER_TIER_SHADOW_ONLY,
+            "does_not_change_live_execution": True,
+        },
+        "blocker_counts": dict(sorted(blocker_counts.items())),
+        "evidence_fragmentation_status": evidence_fragmentation,
+        "paper_only_label_collection_priority_buckets": (
+            label_collection_priority[:B_GRADE_MODEL_QUALITY_BUCKET_LIMIT]
+        ),
+        "buckets": evaluated[:B_GRADE_MODEL_QUALITY_BUCKET_LIMIT],
+        "bucket_limit": B_GRADE_MODEL_QUALITY_BUCKET_LIMIT,
+    }
+
+
+def _paper_only_label_collection_priority_index(
+    readiness_status: dict[str, Any],
+) -> dict[tuple[str, ...], dict[str, Any]]:
+    rows = readiness_status.get("paper_only_label_collection_priority_buckets")
+    if not isinstance(rows, list):
+        return {}
+    source_generated_utc = readiness_status.get("generated_utc")
+    index: dict[tuple[str, ...], dict[str, Any]] = {}
+    for rank, row in enumerate(rows, start=1):
+        if not isinstance(row, dict):
+            continue
+        key = _paper_quality_context_bucket_key(row)
+        if not all(key):
+            continue
+        bucket = dict(row)
+        bucket["paper_only_label_collection_priority_rank"] = rank
+        bucket["paper_only_label_collection_priority_bucket_key"] = (
+            _paper_quality_context_key_public(key)
+        )
+        bucket["paper_only_label_collection_priority_source_generated_utc"] = (
+            source_generated_utc
+        )
+        bucket["paper_only"] = True
+        bucket["places_real_order"] = False
+        bucket["counts_as_a_grade_evidence"] = False
+        bucket["a_grade_promotion_allowed"] = False
+        bucket["live_ready_implication"] = False
+        index.setdefault(key, bucket)
+    return index
+
+
+def _read_paper_only_label_collection_priority_index() -> dict[tuple[str, ...], dict[str, Any]]:
+    try:
+        decoded = json.loads(
+            PAPER_B_GRADE_BUCKET_PROMOTION_READINESS_STATUS_PATH.read_text(
+                encoding="utf-8"
+            )
+        )
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(decoded, dict):
+        return {}
+    return _paper_only_label_collection_priority_index(decoded)
+
+
+def _paper_only_label_collection_priority_payload(
+    row: dict[str, Any],
+    priority_index: dict[tuple[str, ...], dict[str, Any]],
+) -> dict[str, Any] | None:
+    if not priority_index:
+        return None
+    key = _paper_quality_context_key(row)
+    bucket = priority_index.get(key)
+    if bucket is None:
+        return None
+    return {
+        "paper_only_label_collection_priority": True,
+        "paper_only_label_collection_priority_reason": str(
+            bucket.get("priority_reason")
+            or "PAPER_ONLY_COLLECT_MORE_B_GRADE_LABELS_FOR_PROMISING_UNDERPOWERED_BUCKET"
+        ),
+        "paper_only_label_collection_priority_rank": bucket.get(
+            "paper_only_label_collection_priority_rank"
+        ),
+        "paper_only_label_collection_priority_bucket_key": bucket.get(
+            "paper_only_label_collection_priority_bucket_key"
+        ),
+        "paper_only_label_collection_priority_bucket": {
+            field: bucket.get(field) for field in PAPER_QUALITY_CONTEXT_BUCKET_FIELDS
+        },
+        "paper_only_label_collection_priority_sample_count_deficit_to_minimum": (
+            bucket.get("sample_count_deficit_to_minimum")
+        ),
+        "paper_only_label_collection_priority_closed_economic_outcome_count": (
+            bucket.get("closed_economic_outcome_count")
+        ),
+        "paper_only_label_collection_priority_source_generated_utc": bucket.get(
+            "paper_only_label_collection_priority_source_generated_utc"
+        ),
+        "counts_as_a_grade_evidence": False,
+        "a_grade_promotion_allowed": False,
+        "live_ready_implication": False,
+    }
+
+
+def _attach_paper_only_label_collection_priority(
+    *,
+    intent: dict[str, Any],
+    allocation: dict[str, Any],
+    priority_index: dict[tuple[str, ...], dict[str, Any]],
+) -> dict[str, Any] | None:
+    payload = _paper_only_label_collection_priority_payload(intent, priority_index)
+    if payload is None:
+        return None
+    for target in (intent, allocation):
+        target.update(payload)
+    model_inputs = allocation.get("model_inputs")
+    if not isinstance(model_inputs, dict):
+        model_inputs = {}
+        allocation["model_inputs"] = model_inputs
+    for field in PAPER_ONLY_LABEL_COLLECTION_PRIORITY_FIELDS:
+        if field in payload:
+            model_inputs[field] = payload[field]
+    return payload
+
+
+def _paper_candidate_allocation_publication_row(row: dict[str, Any]) -> dict[str, Any]:
+    published = dict(row)
+    _normalize_paper_candidate_accounting_publication(published)
+    published.setdefault("paper_only", True)
+    published.setdefault("places_real_order", False)
+    published.setdefault("live_order", False)
+    published.setdefault("test_order", False)
+    published.setdefault("leverage_mutation", False)
+    published.setdefault("margin_mode_mutation", False)
+    tier = _explicit_paper_opportunity_tier(published)
+    if tier in {PAPER_TIER_A_GRADE_EXECUTION, PAPER_TIER_B_GRADE_EXPLORATION}:
+        return published
+
+    raw_tier = _first_present(
+        published.get("paper_opportunity_tier"),
+        published.get("paper_execution_tier"),
+        published.get("opportunity_tier"),
+        published.get("calibrated_opportunity_tier"),
+        published.get("candidate_selection_tier"),
+        published.get("explicit_paper_opportunity_tier"),
+        published.get("admission_tier"),
+        published.get("candidate_tier"),
+    )
+    normalized_raw_tier = str(raw_tier or "").strip().upper()
+    original_tier_reason = published.get("paper_opportunity_tier_reason")
+    if normalized_raw_tier in NON_EXECUTABLE_PAPER_TIERS:
+        publication_tier = normalized_raw_tier
+        block_reason = f"NON_EXECUTABLE_PAPER_TIER:{publication_tier}"
+    else:
+        publication_tier = PAPER_TIER_SHADOW_ONLY
+        block_reason = "MISSING_OR_INVALID_EXPLICIT_PAPER_OPPORTUNITY_TIER"
+        published["original_paper_opportunity_tier_before_publication_block"] = raw_tier
+    if original_tier_reason not in {None, ""} and original_tier_reason != block_reason:
+        published.setdefault("pre_non_executable_paper_tier", raw_tier)
+        published.setdefault("pre_non_executable_paper_tier_reason", original_tier_reason)
+    published["non_executable_paper_tier_block_reason"] = block_reason
+
+    original_decision = published.get("allocator_decision")
+    if original_decision not in {None, ""}:
+        published.setdefault(
+            "original_allocator_decision_before_paper_tier_block",
+            original_decision,
+        )
+    for field in (
+        "risk_budget_usd",
+        "gross_notional_usd",
+        "allocated_margin_usd",
+        "target_notional_usdt",
+        "target_quantity",
+        "expected_net_pnl_usd",
+        "expected_shortfall_usd",
+        "hedge_budget_usd",
+        "hedge_expected_shortfall_reduction_usd",
+        "expected_shortfall_before",
+        "expected_shortfall_after",
+        "hedge_cost_usd",
+    ):
+        value = published.get(field)
+        if value not in {None, ""}:
+            published.setdefault(f"pre_paper_tier_block_{field}", value)
+        published[field] = 0.0
+
+    published["paper_opportunity_tier"] = publication_tier
+    published["paper_opportunity_tier_reason"] = block_reason
+    published["allocator_decision"] = "BLOCK_NON_EXECUTABLE_PAPER_TIER"
+    published["final_size_reason"] = block_reason
+    published["capital_allocation_reason"] = block_reason
+    published["paper_allocation_block_reason"] = block_reason
+    published["non_executable_paper_tier_blocked"] = True
+    published["candidate_allocation_publication_blocked"] = True
+    published["paper_only"] = True
+    published["places_real_order"] = False
+    published["live_order"] = False
+    return published
+
+
+def _record_paper_accounting_normalization(
+    row: dict[str, Any],
+    *,
+    target_field: str,
+    source_field: str,
+    normalization: str,
+) -> None:
+    records = row.setdefault("paper_accounting_normalized_fields", [])
+    if not isinstance(records, list):
+        return
+    records.append({
+        "target_field": target_field,
+        "source_field": source_field,
+        "normalization": normalization,
+    })
+
+
+def _set_paper_accounting_field_if_missing(
+    row: dict[str, Any],
+    target_field: str,
+    value: Any,
+    *,
+    source_field: str,
+    normalization: str,
+) -> bool:
+    if row.get(target_field) not in (None, "") or value in (None, ""):
+        return False
+    row[target_field] = value
+    _record_paper_accounting_normalization(
+        row,
+        target_field=target_field,
+        source_field=source_field,
+        normalization=normalization,
+    )
+    return True
+
+
+def _paper_take_profit_price_from_expected_move(row: dict[str, Any]) -> tuple[float | None, str | None]:
+    entry_price = _coerce_float(_first_present(
+        row.get("fill_price"),
+        row.get("entry_price"),
+        row.get("price"),
+        row.get("mark_price"),
+    ))
+    move_bps = _coerce_float(_first_present(
+        row.get("expected_move_after_cost_bps"),
+        row.get("expected_net_edge_bps"),
+        row.get("expected_move_bps"),
+    ))
+    side = _normalized_directional_side(_first_present(
+        row.get("side"),
+        row.get("selected_action"),
+        row.get("action"),
+    ))
+    if entry_price is None or entry_price <= 0.0 or move_bps is None or move_bps == 0.0 or side is None:
+        return None, None
+    distance = abs(move_bps) / 10_000.0
+    if side == "long":
+        target = entry_price * (1.0 + distance)
+    else:
+        target = entry_price * max(0.0, 1.0 - distance)
+    if target <= 0.0:
+        return None, None
+    return round(target, 12), "expected_move_after_cost_bps"
+
+
+def _paper_timeframe_seconds(timeframe: Any) -> int:
+    value = str(timeframe or "").strip().lower()
+    mapping = {
+        "1m": 300,
+        "5m": 900,
+        "15m": 1800,
+        "1h": 7200,
+        "4h": 21600,
+    }
+    return mapping.get(value, 3600)
+
+
+def _paper_hedge_cost_usd(row: dict[str, Any], hedge_ratio: float | None) -> float:
+    explicit_cost = _coerce_float(row.get("hedge_cost_usd"))
+    if explicit_cost is not None:
+        return round(abs(explicit_cost), 8)
+    parent_cost = 0.0
+    for field in ("expected_fees_usd", "expected_slippage_usd", "expected_funding_usd"):
+        value = _coerce_float(row.get(field))
+        if value is not None:
+            parent_cost += abs(value)
+    ratio = hedge_ratio if hedge_ratio is not None and hedge_ratio > 0.0 else 1.0
+    return round(parent_cost * min(ratio, 1.0), 8)
+
+
+def _block_paper_hedge_admission(
+    row: dict[str, Any],
+    *,
+    reason: str,
+    hedge_budget: float,
+    hedge_cost: float,
+    shortfall_reduction: float,
+    expected_shortfall_before: float | None,
+) -> None:
+    row.setdefault("pre_hedge_admission_block_hedge_budget_usd", round(hedge_budget, 8))
+    row.setdefault(
+        "pre_hedge_admission_block_hedge_expected_shortfall_reduction_usd",
+        round(shortfall_reduction, 8),
+    )
+    row["hedge_admission_status"] = "NO_HEDGE"
+    row["hedge_admission_block_reason"] = reason
+    row["hedge_enabled"] = False
+    row["hedge_budget_usd"] = 0.0
+    row["hedge_expected_shortfall_reduction_usd"] = 0.0
+    row["hedge_cost_usd"] = round(hedge_cost, 8)
+    if expected_shortfall_before is not None:
+        row["expected_shortfall_before"] = round(expected_shortfall_before, 8)
+        row["expected_shortfall_after"] = round(expected_shortfall_before, 8)
+    for field in (
+        "hedge_parent_id",
+        "hedge_child_id",
+        "hedge_intent",
+        "hedge_ratio",
+        "maximum_duration",
+        "unwind_plan",
+    ):
+        row.pop(field, None)
+    _record_paper_accounting_normalization(
+        row,
+        target_field="hedge_enabled",
+        source_field="hedge_expected_shortfall_reduction_usd:hedge_cost_usd",
+        normalization=reason,
+    )
+
+
+def _paper_stress_abs(value: Any) -> float | None:
+    parsed = _coerce_float(value)
+    if parsed is None:
+        return None
+    return abs(float(parsed))
+
+
+def _paper_stress_source(
+    row: dict[str, Any],
+    model_inputs: dict[str, Any],
+    *fields: str,
+) -> tuple[float | None, str | None]:
+    for field in fields:
+        value = _paper_stress_abs(row.get(field))
+        if value is not None:
+            return value, field
+        value = _paper_stress_abs(model_inputs.get(field))
+        if value is not None:
+            return value, f"model_inputs.{field}"
+    return None, None
+
+
+def _paper_depth_collapse_bps(
+    *,
+    depth_impact_bps: float | None,
+    depth_utilization_pct: float | None,
+    liquidity_score: float | None,
+) -> tuple[float | None, str | None]:
+    values: list[float] = []
+    sources: list[str] = []
+    if depth_impact_bps is not None:
+        values.append(depth_impact_bps * 3.0)
+        sources.append("depth_price_impact_bps")
+    if depth_utilization_pct is not None:
+        utilization = depth_utilization_pct
+        if utilization <= 1.0:
+            utilization *= 100.0
+        values.append(max(0.0, utilization) * 2.0)
+        sources.append("depth_utilization_pct")
+    if liquidity_score is not None:
+        values.append(max(0.0, 1.0 - max(0.0, min(1.0, liquidity_score))) * 250.0)
+        sources.append("allocator_liquidity_score")
+    if not values:
+        return None, None
+    return round(max(values), 8), "+".join(sources)
+
+
+def _derive_paper_rare_event_stress_suite(row: dict[str, Any]) -> dict[str, Any]:
+    model_inputs = row.get("model_inputs") if isinstance(row.get("model_inputs"), dict) else {}
+    missing_inputs: list[str] = []
+    scenario_sources: dict[str, str] = {}
+    scenarios: dict[str, dict[str, Any]] = {}
+
+    atr_bps, atr_source = _paper_stress_source(row, model_inputs, "entry_atr_bps", "atr_bps", "volatility_bps")
+    expected_move_bps, expected_move_source = _paper_stress_source(
+        row,
+        model_inputs,
+        "expected_move_after_cost_bps",
+        "expected_move_bps",
+    )
+    spread_bps, spread_source = _paper_stress_source(
+        row,
+        model_inputs,
+        "actual_observed_spread_entry_bps",
+        "observed_bid_ask_spread_bps",
+        "bid_ask_spread_bps",
+        "entry_spread_bps",
+    )
+    if row.get("bid_ask_spread_bps_fallback") is True:
+        spread_bps = None
+        spread_source = None
+        missing_inputs.append("observed_non_fallback_spread_bps")
+    depth_impact_bps, depth_impact_source = _paper_stress_source(
+        row,
+        model_inputs,
+        "depth_price_impact_bps",
+        "depth_impact_bps",
+    )
+    depth_utilization_pct, depth_utilization_source = _paper_stress_source(row, model_inputs, "depth_utilization_pct")
+    liquidity_score, liquidity_source = _paper_stress_source(
+        row,
+        model_inputs,
+        "allocator_liquidity_score",
+        "liquidity_score",
+    )
+    funding_bps, funding_source = _paper_stress_source(
+        row,
+        model_inputs,
+        "expected_funding_bps",
+        "funding_bps",
+        "funding_rate_bps",
+    )
+    funding_rate, funding_rate_source = _paper_stress_source(row, model_inputs, "funding_rate")
+    if funding_bps is None and funding_rate is not None:
+        funding_bps = funding_rate * 10000.0
+        funding_source = funding_rate_source or "funding_rate"
+    correlation_pct, correlation_source = _paper_stress_source(
+        row,
+        model_inputs,
+        "correlation_exposure_pct",
+        "portfolio_correlation_pct",
+    )
+    liquidation_pressure, liquidation_source = _paper_stress_source(
+        row,
+        model_inputs,
+        "liquidation_pressure",
+        "liquidation_strength",
+        "liquidation_cascade_risk",
+        "squeeze_evidence_score",
+    )
+    mark_index_bps, mark_index_source = _paper_stress_source(
+        row,
+        model_inputs,
+        "mark_index_divergence_bps",
+        "mark_index_divergence",
+    )
+    latency_ms, latency_source = _paper_stress_source(
+        row,
+        model_inputs,
+        "latency_ms",
+        "paper_fill_latency_ms",
+        "fill_latency_ms",
+        "execution_latency_ms",
+        "simulated_latency_ms",
+    )
+    leverage, leverage_source = _paper_stress_source(
+        row,
+        model_inputs,
+        "recommended_leverage",
+        "effective_leverage",
+        "selected_leverage",
+    )
+
+    def set_scenario(name: str, value: float | None, source: str | None) -> None:
+        if value is None:
+            missing_inputs.append(name)
+            return
+        scenarios[name] = {
+            "adverse_move_bps": round(max(0.0, value), 8),
+            "source": source or "derived_from_candidate_context",
+        }
+        scenario_sources[name] = source or "derived_from_candidate_context"
+
+    gap_value = None
+    gap_sources: list[str] = []
+    if atr_bps is not None:
+        gap_value = max(gap_value or 0.0, atr_bps * 2.5)
+        gap_sources.append(atr_source or "atr_bps")
+    if expected_move_bps is not None:
+        gap_value = max(gap_value or 0.0, expected_move_bps * 2.0)
+        gap_sources.append(expected_move_source or "expected_move_bps")
+    set_scenario("gap_shock", gap_value, "+".join(gap_sources) or None)
+
+    set_scenario(
+        "spread_explosion",
+        spread_bps * 5.0 if spread_bps is not None else None,
+        spread_source,
+    )
+    depth_collapse, depth_source = _paper_depth_collapse_bps(
+        depth_impact_bps=depth_impact_bps,
+        depth_utilization_pct=depth_utilization_pct,
+        liquidity_score=liquidity_score,
+    )
+    if depth_source is None:
+        depth_source = "+".join(
+            source
+            for source in (depth_impact_source, depth_utilization_source, liquidity_source)
+            if source
+        ) or None
+    set_scenario("depth_collapse", depth_collapse, depth_source)
+    set_scenario(
+        "funding_spike",
+        funding_bps * 10.0 if funding_bps is not None else None,
+        funding_source,
+    )
+    set_scenario(
+        "correlated_portfolio_shock",
+        correlation_pct * 100.0 if correlation_pct is not None else None,
+        correlation_source,
+    )
+    squeeze_value = None
+    if liquidation_pressure is not None:
+        pressure = liquidation_pressure if liquidation_pressure <= 1.0 else liquidation_pressure / 100.0
+        squeeze_value = max(0.0, min(1.0, pressure)) * 500.0
+    set_scenario("long_squeeze", squeeze_value, liquidation_source)
+    set_scenario("short_squeeze", squeeze_value, liquidation_source)
+    cascade_value = None
+    cascade_sources: list[str] = []
+    if squeeze_value is not None:
+        cascade_value = max(cascade_value or 0.0, squeeze_value * 1.25)
+        cascade_sources.append(liquidation_source or "liquidation_pressure")
+    if correlation_pct is not None:
+        cascade_value = max(cascade_value or 0.0, correlation_pct * 125.0)
+        cascade_sources.append(correlation_source or "correlation_exposure_pct")
+    set_scenario("double_sided_liquidation_cascade", cascade_value, "+".join(cascade_sources) or None)
+    set_scenario("mark_index_divergence", mark_index_bps, mark_index_source)
+    set_scenario(
+        "exchange_api_delay",
+        (latency_ms / 1000.0) * max(atr_bps or 0.0, 1.0) if latency_ms is not None else None,
+        latency_source,
+    )
+
+    execution_uncertainty = None
+    execution_sources: list[str] = []
+    if spread_bps is not None:
+        execution_uncertainty = max(execution_uncertainty or 0.0, spread_bps)
+        execution_sources.append(spread_source or "spread_bps")
+    if depth_impact_bps is not None:
+        execution_uncertainty = max(execution_uncertainty or 0.0, depth_impact_bps)
+        execution_sources.append(depth_impact_source or "depth_price_impact_bps")
+    if latency_ms is not None and atr_bps is not None:
+        execution_uncertainty = max(execution_uncertainty or 0.0, (latency_ms / 1000.0) * atr_bps)
+        execution_sources.append(latency_source or "latency_ms")
+    correlation_stress = correlation_pct * 100.0 if correlation_pct is not None else None
+    maintenance_margin_uncertainty = None
+    if leverage is not None and leverage > 0.0:
+        maintenance_margin_uncertainty = 100.0 / leverage
+
+    components: dict[str, float] = {}
+    component_sources: dict[str, str] = {}
+    if execution_uncertainty is None:
+        missing_inputs.append("execution_uncertainty_bps")
+    else:
+        components["execution_uncertainty_bps"] = round(execution_uncertainty, 8)
+        component_sources["execution_uncertainty_bps"] = "+".join(execution_sources) or "execution_context"
+    if correlation_stress is None:
+        missing_inputs.append("correlation_stress_bps")
+    else:
+        components["correlation_stress_bps"] = round(correlation_stress, 8)
+        component_sources["correlation_stress_bps"] = correlation_source or "correlation_exposure_pct"
+    if maintenance_margin_uncertainty is None:
+        missing_inputs.append("maintenance_margin_uncertainty_bps")
+    else:
+        components["maintenance_margin_uncertainty_bps"] = round(maintenance_margin_uncertainty, 8)
+        component_sources["maintenance_margin_uncertainty_bps"] = leverage_source or "recommended_leverage"
+
+    modeled_adverse = max(
+        (scenario["adverse_move_bps"] for scenario in scenarios.values()),
+        default=None,
+    )
+    required_buffer = None
+    if modeled_adverse is not None and len(components) == len(RARE_EVENT_BUFFER_COMPONENT_FIELDS):
+        required_buffer = modeled_adverse + sum(components.values())
+    liquidation_buffer = _coerce_float(row.get("liquidation_buffer_bps"))
+    buffer_passed = (
+        liquidation_buffer is not None
+        and required_buffer is not None
+        and liquidation_buffer >= required_buffer
+    )
+    if liquidation_buffer is None:
+        missing_inputs.append("liquidation_buffer_bps")
+
+    status = (
+        "COMPLETE_RARE_EVENT_STRESS_SUITE"
+        if len(scenarios) == len(RARE_EVENT_STRESS_SCENARIOS)
+        and len(components) == len(RARE_EVENT_BUFFER_COMPONENT_FIELDS)
+        else "PARTIAL_RARE_EVENT_STRESS_SUITE"
+    )
+    return {
+        "status": status,
+        "scenarios": scenarios,
+        "components": components,
+        "scenario_sources": scenario_sources,
+        "component_sources": component_sources,
+        "missing_inputs": sorted(set(missing_inputs)),
+        "modeled_999_adverse_move_bps": modeled_adverse,
+        "required_liquidation_buffer_bps": round(required_buffer, 8) if required_buffer is not None else None,
+        "liquidation_buffer_bps": liquidation_buffer,
+        "liquidation_buffer_covers_required": buffer_passed,
+    }
+
+
+def _ensure_paper_rare_event_stress_fields(row: dict[str, Any]) -> None:
+    existing = row.get("pre_entry_stress_tests")
+    if isinstance(existing, dict) and row.get("rare_event_stress_status") not in (None, ""):
+        return
+    stress = _derive_paper_rare_event_stress_suite(row)
+    row["pre_entry_stress_tests"] = {
+        **stress["scenarios"],
+        **stress["components"],
+        "status": stress["status"],
+        "missing_inputs": stress["missing_inputs"],
+        "modeled_999_adverse_move_bps": stress["modeled_999_adverse_move_bps"],
+        "required_liquidation_buffer_bps": stress["required_liquidation_buffer_bps"],
+        "liquidation_buffer_bps": stress["liquidation_buffer_bps"],
+        "liquidation_buffer_covers_required": stress["liquidation_buffer_covers_required"],
+        "scenario_sources": stress["scenario_sources"],
+        "component_sources": stress["component_sources"],
+    }
+    row["rare_event_stress_suite"] = row["pre_entry_stress_tests"]
+    row["rare_event_stress_status"] = stress["status"]
+    row["rare_event_stress_missing_inputs"] = stress["missing_inputs"]
+    if stress["required_liquidation_buffer_bps"] is not None:
+        row["rare_event_required_liquidation_buffer_bps"] = stress["required_liquidation_buffer_bps"]
+    if stress["modeled_999_adverse_move_bps"] is not None:
+        row["modeled_999_adverse_move_bps"] = stress["modeled_999_adverse_move_bps"]
+    for field in RARE_EVENT_BUFFER_COMPONENT_FIELDS:
+        value = stress["components"].get(field)
+        if value is not None:
+            row[field] = value
+    _record_paper_accounting_normalization(
+        row,
+        target_field="pre_entry_stress_tests",
+        source_field="decision_time_candidate_market_risk_context",
+        normalization="paper_zero_liquidation_rare_event_stress_suite",
+    )
+
+
+def _ensure_paper_hedge_contract_fields(row: dict[str, Any]) -> None:
+    hedge_budget = _coerce_float(row.get("hedge_budget_usd"))
+    if hedge_budget is None or hedge_budget <= 0.0:
+        return
+    model_inputs = row.get("model_inputs") if isinstance(row.get("model_inputs"), dict) else {}
+    risk_budget = _coerce_float(_first_present(row.get("risk_budget_usd"), model_inputs.get("risk_budget_usd")))
+    selected_ratio = _coerce_float(_first_present(
+        row.get("hedge_ratio"),
+        model_inputs.get("hedge_ratio"),
+        model_inputs.get("selected_hedge_budget_pct_of_risk"),
+    ))
+    if selected_ratio is None and risk_budget is not None and risk_budget > 0.0:
+        selected_ratio = hedge_budget / risk_budget
+    if selected_ratio is not None and selected_ratio > 0.0:
+        selected_ratio = max(0.0, min(float(selected_ratio), 1.0))
+    hedge_cost = _paper_hedge_cost_usd(row, selected_ratio)
+
+    expected_shortfall_before = _coerce_float(_first_present(
+        row.get("expected_shortfall_before"),
+        row.get("expected_shortfall_usd"),
+        row.get("pre_paper_tier_block_expected_shortfall_usd"),
+        model_inputs.get("expected_shortfall_usd"),
+        risk_budget,
+    ))
+    reduction = None
+    if expected_shortfall_before is not None and expected_shortfall_before > 0.0:
+        reduction = _coerce_float(row.get("hedge_expected_shortfall_reduction_usd"))
+        if reduction is None or reduction <= 0.0:
+            reduction = min(hedge_budget, expected_shortfall_before)
+        if reduction <= hedge_cost:
+            _block_paper_hedge_admission(
+                row,
+                reason="paper_bounded_hedge_expected_shortfall_reduction_not_greater_than_costs",
+                hedge_budget=hedge_budget,
+                hedge_cost=hedge_cost,
+                shortfall_reduction=reduction,
+                expected_shortfall_before=expected_shortfall_before,
+            )
+            return
+
+    parent_id = _first_present(
+        row.get("hedge_parent_id"),
+        row.get("source_intent_id"),
+        row.get("intent_id"),
+        row.get("allocation_id"),
+        row.get("prediction_id"),
+        row.get("signal_id"),
+    )
+    if parent_id not in (None, ""):
+        _set_paper_accounting_field_if_missing(
+            row,
+            "hedge_parent_id",
+            str(parent_id),
+            source_field="allocation_or_prediction_id",
+            normalization="paper_bounded_hedge_parent_id",
+        )
+        _set_paper_accounting_field_if_missing(
+            row,
+            "hedge_child_id",
+            f"{parent_id}:paper_hedge",
+            source_field="hedge_parent_id",
+            normalization="paper_bounded_hedge_child_id",
+        )
+    _set_paper_accounting_field_if_missing(
+        row,
+        "hedge_intent",
+        "expected_shortfall_reduction",
+        source_field="hedge_budget_usd",
+        normalization="paper_bounded_hedge_intent",
+    )
+    if selected_ratio is not None and selected_ratio > 0.0:
+        _set_paper_accounting_field_if_missing(
+            row,
+            "hedge_ratio",
+            round(selected_ratio, 8),
+            source_field="selected_hedge_budget_pct_of_risk_or_budget_over_risk",
+            normalization="paper_bounded_hedge_ratio",
+        )
+
+    if expected_shortfall_before is not None and expected_shortfall_before > 0.0:
+        _set_paper_accounting_field_if_missing(
+            row,
+            "expected_shortfall_before",
+            round(expected_shortfall_before, 8),
+            source_field="expected_shortfall_usd",
+            normalization="paper_bounded_hedge_expected_shortfall_before",
+        )
+        _set_paper_accounting_field_if_missing(
+            row,
+            "hedge_expected_shortfall_reduction_usd",
+            round(reduction, 8),
+            source_field="hedge_budget_usd",
+            normalization="paper_bounded_hedge_shortfall_reduction",
+        )
+        _set_paper_accounting_field_if_missing(
+            row,
+            "expected_shortfall_after",
+            round(max(0.0, expected_shortfall_before - reduction), 8),
+            source_field="expected_shortfall_before:hedge_expected_shortfall_reduction_usd",
+            normalization="paper_bounded_hedge_expected_shortfall_after",
+        )
+
+    duration = _coerce_float(_first_present(
+        row.get("maximum_duration"),
+        row.get("maximum_duration_seconds"),
+        row.get("hedge_maximum_duration_seconds"),
+    ))
+    if duration is None or duration <= 0.0:
+        duration = _paper_timeframe_seconds(row.get("timeframe"))
+    _set_paper_accounting_field_if_missing(
+        row,
+        "maximum_duration",
+        int(duration),
+        source_field="timeframe",
+        normalization="paper_bounded_hedge_maximum_duration",
+    )
+    _set_paper_accounting_field_if_missing(
+        row,
+        "unwind_plan",
+        "close_with_parent_or_timeout",
+        source_field="maximum_duration",
+        normalization="paper_bounded_hedge_unwind_plan",
+    )
+    _set_paper_accounting_field_if_missing(
+        row,
+        "hedge_cost_usd",
+        hedge_cost,
+        source_field="expected_costs_scaled_by_hedge_ratio",
+        normalization="paper_bounded_hedge_cost",
+    )
+
+
+def _normalize_paper_candidate_accounting_publication(row: dict[str, Any]) -> None:
+    model_inputs = row.get("model_inputs") if isinstance(row.get("model_inputs"), dict) else {}
+    _ensure_paper_rare_event_stress_fields(row)
+    for source_field, value in (
+        ("depth_price_impact_bps", row.get("depth_price_impact_bps")),
+        ("model_inputs.depth_price_impact_bps", model_inputs.get("depth_price_impact_bps")),
+    ):
+        if _set_paper_accounting_field_if_missing(
+            row,
+            "depth_impact_bps",
+            value,
+            source_field=source_field,
+            normalization="paper_depth_price_impact_alias",
+        ):
+            break
+
+    for source_field, value in (
+        ("take_profit_reference", row.get("take_profit_reference")),
+        ("price_target_after_cost", row.get("price_target_after_cost")),
+        ("price_target", row.get("price_target")),
+        ("price_target_high", row.get("price_target_high")),
+        ("price_target_low", row.get("price_target_low")),
+    ):
+        if _set_paper_accounting_field_if_missing(
+            row,
+            "take_profit_price",
+            value,
+            source_field=source_field,
+            normalization="paper_decision_time_take_profit_price_alias",
+        ):
+            break
+    derived_take_profit_price, derived_source = _paper_take_profit_price_from_expected_move(row)
+    if derived_source is not None:
+        _set_paper_accounting_field_if_missing(
+            row,
+            "take_profit_price",
+            derived_take_profit_price,
+            source_field=derived_source,
+            normalization="paper_expected_move_take_profit_price",
+        )
+
+    if row.get("take_profit_structure") in (None, "") and row.get("take_profit_price") not in (None, ""):
+        source = (
+            "take_profit_price"
+            if derived_source is None
+            else f"take_profit_price:{derived_source}"
+        )
+        _set_paper_accounting_field_if_missing(
+            row,
+            "take_profit_structure",
+            "decision_time_expected_move_or_price_target",
+            source_field=source,
+            normalization="paper_take_profit_structure_from_decision_time_target",
+        )
+
+    hedge_budget = _coerce_float(row.get("hedge_budget_usd"))
+    if hedge_budget is not None:
+        _set_paper_accounting_field_if_missing(
+            row,
+            "hedge_enabled",
+            hedge_budget > 0.0,
+            source_field="hedge_budget_usd",
+            normalization="paper_hedge_enabled_from_reserved_budget",
+        )
+    _ensure_paper_hedge_contract_fields(row)
+
+
+def _current_cycle_candidate_allocation_rows(
+    *,
+    intents: list[dict[str, Any]],
+    historical_accepted_rows: list[dict[str, Any]] | None = None,
+    lifecycle_blocked_rows: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    _ = historical_accepted_rows, lifecycle_blocked_rows
+    rows: list[dict[str, Any]] = []
+    for intent in intents:
+        allocation = intent.get("adaptive_allocation")
+        if not isinstance(allocation, dict):
+            continue
+        published = dict(allocation)
+        for field in CANDIDATE_ALLOCATION_PUBLICATION_INTENT_FIELDS:
+            if field not in intent:
+                continue
+            value = intent.get(field)
+            if value is not None:
+                published[field] = value
+            elif field not in published:
+                published[field] = None
+        rows.append(published)
+    return rows
+
+
 def _paper_adaptive_sizing_runtime_status(
     allocation_rows: list[dict[str, Any]],
 ) -> dict[str, Any]:
+    published_rows = [
+        _paper_candidate_allocation_publication_row(row)
+        for row in allocation_rows
+        if isinstance(row, dict)
+    ]
     accepted_count = sum(
         1
-        for row in allocation_rows
+        for row in published_rows
         if row.get("allocator_decision") in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
     )
     blocked_count = sum(
         1
-        for row in allocation_rows
+        for row in published_rows
         if str(row.get("allocator_decision") or "").startswith("BLOCK_")
     )
     return {
         "allocator": "V2_ADAPTIVE_AI_CAPITAL_ALLOCATOR",
         "fixed_runtime_notional_removed": True,
-        "paper_candidates_with_allocation": len(allocation_rows),
-        "candidate_allocation_count": len(allocation_rows),
-        "candidate_allocations": allocation_rows,
+        "paper_candidates_with_allocation": len(published_rows),
+        "candidate_allocation_count": len(published_rows),
+        "candidate_allocations": published_rows,
         "candidate_allocations_complete": True,
         "candidate_allocations_source": (
             "paper_loop_allocation_rows_before_sample_truncation"
         ),
         "candidate_allocations_selected_before_outcome": True,
         "candidate_allocations_future_labels_used_as_features": False,
-        "allocator_decision_counts": _count_values(allocation_rows, "allocator_decision"),
+        "allocator_decision_counts": _count_values(published_rows, "allocator_decision"),
         "accepted_allocation_count": accepted_count,
         "blocked_allocation_count": blocked_count,
-        "sample_allocations": allocation_rows[:25],
+        "unclassified_allocation_publication_block_count": sum(
+            1
+            for row in published_rows
+            if row.get("paper_opportunity_tier_reason")
+            == "MISSING_OR_INVALID_EXPLICIT_PAPER_OPPORTUNITY_TIER"
+        ),
+        "non_executable_tier_publication_block_count": sum(
+            1
+            for row in published_rows
+            if row.get("non_executable_paper_tier_blocked") is True
+        ),
+        "rare_event_stress_complete_candidate_count": sum(
+            1
+            for row in published_rows
+            if row.get("rare_event_stress_status") == "COMPLETE_RARE_EVENT_STRESS_SUITE"
+        ),
+        "rare_event_stress_partial_candidate_count": sum(
+            1
+            for row in published_rows
+            if row.get("rare_event_stress_status") == "PARTIAL_RARE_EVENT_STRESS_SUITE"
+        ),
+        "sample_allocations": published_rows[:25],
         "generated_utc": _utc_iso(),
         "paper_only": True,
+        "places_real_order": False,
+        "test_orders": False,
+        "leverage_mutation": False,
+        "margin_mode_mutation": False,
+        "old_redis_writes": False,
     }
 
 
@@ -1903,6 +4530,20 @@ def _count_list_values(rows: list[dict[str, Any]], key: str) -> dict[str, int]:
             label = str(value or "missing")
             counts[label] = counts.get(label, 0) + 1
     return counts
+
+
+def _count_first_present_values(
+    rows: list[dict[str, Any]],
+    fields: tuple[str, ...],
+) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        value = _first_present(*(row.get(field) for field in fields))
+        label = str(value or "missing")
+        counts[label] = counts.get(label, 0) + 1
+    return dict(sorted(counts.items()))
 
 
 def _clamp_float(value: float, lower: float, upper: float) -> float:
@@ -1922,6 +4563,58 @@ def _explicit_paper_opportunity_tier(row: dict[str, Any]) -> str | None:
     if tier in PAPER_OPPORTUNITY_TIERS:
         return tier
     return None
+
+
+def _read_continuous_edge_guardian_gate(r) -> dict[str, Any]:
+    payload = None
+    if r is not None:
+        try:
+            payload = r.get(CONTINUOUS_EDGE_GUARDIAN_GATE_REDIS_KEY)
+        except Exception:
+            payload = None
+    if payload:
+        try:
+            decoded = json.loads(payload)
+        except (TypeError, json.JSONDecodeError):
+            decoded = None
+        if isinstance(decoded, dict):
+            return decoded
+    try:
+        decoded = json.loads(CONTINUOUS_EDGE_GUARDIAN_GATE_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return decoded if isinstance(decoded, dict) else {}
+
+
+def _apply_continuous_edge_guardian_gate(
+    classification: dict[str, Any],
+    gate: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if classification.get("paper_opportunity_tier") != PAPER_TIER_A_GRADE_EXECUTION:
+        return classification
+    if not isinstance(gate, dict) or not gate:
+        return classification
+    if gate.get("a_grade_new_entries_allowed") is not False:
+        return classification
+    blocked = dict(classification)
+    blocked["pre_guardian_paper_opportunity_tier"] = PAPER_TIER_A_GRADE_EXECUTION
+    blocked["pre_guardian_paper_opportunity_tier_reason"] = classification.get(
+        "paper_opportunity_tier_reason"
+    )
+    blocked["pre_guardian_paper_fill_allowed_source"] = classification.get(
+        "paper_fill_allowed_source"
+    )
+    blocked["continuous_edge_guardian_forced_shadow_only"] = True
+    blocked["counts_as_a_grade_evidence"] = False
+    blocked["paper_opportunity_tier"] = PAPER_TIER_SHADOW_ONLY
+    blocked["paper_opportunity_tier_reason"] = "CONTINUOUS_EDGE_GUARDIAN_A_GRADE_HALTED"
+    blocked["paper_fill_allowed_source"] = "CONTINUOUS_EDGE_GUARDIAN_BLOCKED_NEW_A_GRADE_ENTRIES"
+    blocked["continuous_edge_guardian_status"] = gate.get("status")
+    blocked["continuous_edge_guardian_block_reasons"] = gate.get("failure_reasons") or []
+    blocked["continuous_edge_guardian_allowed_runtime_actions"] = gate.get("allowed_runtime_actions") or ["reduce", "close"]
+    blocked["paper_only"] = True
+    blocked["places_real_order"] = False
+    return blocked
 
 
 def _count_paper_opportunity_tiers(rows: list[dict[str, Any]]) -> dict[str, int]:
@@ -1995,6 +4688,102 @@ def _allocation_allows_economic_paper_fill(allocation: dict[str, Any]) -> bool:
     return allocation.get("allocator_decision") in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
 
 
+def _is_paper_size_adjusted_entry_context(
+    *,
+    signal: dict[str, Any],
+    intent: dict[str, Any],
+) -> bool:
+    size_adjustment_mode = str(
+        _first_present(
+            intent.get("strategy_size_adjustment_mode"),
+            signal.get("strategy_size_adjustment_mode"),
+        )
+        or ""
+    ).strip().lower()
+    if size_adjustment_mode != "reduce_size_mode":
+        return False
+    side = str(
+        _first_present(
+            intent.get("side"),
+            signal.get("side"),
+            intent.get("action"),
+            signal.get("selected_action"),
+            signal.get("action"),
+        )
+        or ""
+    ).strip().lower()
+    if side not in {"long", "short"}:
+        return False
+    entry_mode = str(
+        _first_present(
+            intent.get("strategy_selected_mode"),
+            signal.get("strategy_selected_mode"),
+            intent.get("strategy_id"),
+            signal.get("strategy_id"),
+            intent.get("strategy_family"),
+            signal.get("strategy_family"),
+            intent.get("strategy_subtype"),
+            signal.get("strategy_subtype"),
+        )
+        or ""
+    ).strip().lower()
+    if not entry_mode or entry_mode in {"no_trade", "no_trade_mode", "no_trade_expert"}:
+        return False
+    return not any(token in entry_mode for token in ("reduce", "close", "exit"))
+
+
+def _paper_lifecycle_or_no_trade_strategy_reasons(
+    *,
+    signal: dict[str, Any],
+    intent: dict[str, Any],
+) -> list[str]:
+    reasons: list[str] = []
+    size_adjusted_entry_context = _is_paper_size_adjusted_entry_context(
+        signal=signal,
+        intent=intent,
+    )
+    mode_fields = (
+        "strategy_selected_mode",
+        "strategy_router_selected_mode",
+        "strategy_id",
+        "strategy_family",
+        "strategy_subtype",
+        "entry_reason",
+    )
+    for field in mode_fields:
+        for source_name, source in (("intent", intent), ("signal", signal)):
+            raw = source.get(field)
+            normalized = str(raw or "").strip().lower()
+            if normalized in {"no_trade", "no_trade_mode", "no_trade_expert"}:
+                reasons.append(f"{source_name}.{field}=NO_TRADE")
+            elif any(token in normalized for token in ("reduce", "close", "exit")):
+                if (
+                    size_adjusted_entry_context
+                    and field in {"strategy_router_selected_mode", "entry_reason"}
+                    and normalized == "reduce_size_mode"
+                ):
+                    continue
+                reasons.append(f"{source_name}.{field}=LIFECYCLE_ACTION")
+
+    label_values: list[Any] = []
+    for field in (
+        "strategy_regime_labels",
+        "market_regime_at_entry",
+        "market_regime",
+        "market_regime_at_exit",
+    ):
+        for source in (intent, signal):
+            raw = source.get(field)
+            if isinstance(raw, str):
+                label_values.extend(item.strip() for item in raw.split(",") if item.strip())
+            elif isinstance(raw, (list, tuple, set)):
+                label_values.extend(raw)
+    tokens = {str(value).strip().upper() for value in label_values if str(value).strip()}
+    if "NO_TRADE" in tokens:
+        reasons.append("strategy_regime_labels_include_NO_TRADE")
+    return sorted(set(reasons))
+
+
 def _classify_paper_opportunity_tier(
     *,
     signal: dict[str, Any],
@@ -2005,6 +4794,7 @@ def _classify_paper_opportunity_tier(
     exploration_trade_gates_pass: bool | None = None,
     paper_fill_allowed_upstream: bool,
     portfolio_drawdown_bps: Any,
+    continuous_edge_guardian_gate: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     confidence = _first_present(
         intent.get("confidence_calibrated"),
@@ -2047,6 +4837,19 @@ def _classify_paper_opportunity_tier(
         "strict_paper_fill_allowed_upstream": bool(paper_fill_allowed_upstream),
         "explicit_paper_opportunity_tier": explicit_tier,
     }
+    b_grade_learning_contract = {
+        "counts_as_a_grade_evidence": False,
+        "a_grade_promotion_allowed": False,
+        "live_ready_implication": False,
+    }
+    priority_label_collection_fields = {
+        field: intent[field]
+        for field in PAPER_ONLY_LABEL_COLLECTION_PRIORITY_FIELDS
+        if field in intent
+    }
+    lifecycle_or_no_trade_strategy_reasons = (
+        _paper_lifecycle_or_no_trade_strategy_reasons(signal=signal, intent=intent)
+    )
     if integrity_gate.get("allowed") is not True:
         return {
             **base,
@@ -2068,22 +4871,37 @@ def _classify_paper_opportunity_tier(
                 allocation.get("allocator_decision") or "ADAPTIVE_ALLOCATOR_NOT_ALLOWING_SIZE"
             ),
         }
-    if paper_fill_allowed_upstream and local_trade_gates_pass:
+    if lifecycle_or_no_trade_strategy_reasons:
         return {
+            **base,
+            "paper_opportunity_tier": PAPER_TIER_NO_TRADE,
+            "paper_opportunity_tier_reason": (
+                "LIFECYCLE_OR_NO_TRADE_STRATEGY_NOT_ENTRY_EVIDENCE"
+            ),
+            "lifecycle_or_no_trade_strategy_reasons": lifecycle_or_no_trade_strategy_reasons,
+            "no_trade_strategy_reasons": lifecycle_or_no_trade_strategy_reasons,
+        }
+    if paper_fill_allowed_upstream and local_trade_gates_pass:
+        return _apply_continuous_edge_guardian_gate({
             **base,
             "paper_opportunity_tier": PAPER_TIER_A_GRADE_EXECUTION,
             "paper_opportunity_tier_reason": "STRICT_UPSTREAM_PAPER_FILL_GATE_ALLOWED",
             "paper_fill_allowed_source": "STRICT_UPSTREAM_PAPER_FILL_GATE",
-        }
+        }, continuous_edge_guardian_gate)
     if explicit_tier == PAPER_TIER_A_GRADE_EXECUTION and local_trade_gates_pass:
-        return {
+        return _apply_continuous_edge_guardian_gate({
             **base,
             "paper_opportunity_tier": PAPER_TIER_A_GRADE_EXECUTION,
             "paper_opportunity_tier_reason": "DYNAMIC_A_GRADE_SIGNAL_TAG_ALLOWED_PAPER_ONLY",
             "paper_fill_allowed_source": "DYNAMIC_A_GRADE_PAPER_TAG",
-        }
+        }, continuous_edge_guardian_gate)
     b_grade_source = None
-    if explicit_tier == PAPER_TIER_B_GRADE_EXPLORATION:
+    if (
+        intent.get("paper_only_label_collection_priority") is True
+        and exploration_trade_gates_allowed
+    ):
+        b_grade_source = "PAPER_ONLY_PRIORITY_BUCKET_LABEL_COLLECTION"
+    elif explicit_tier == PAPER_TIER_B_GRADE_EXPLORATION:
         b_grade_source = "EXPLICIT_B_GRADE_PAPER_TAG"
     elif _is_paper_confidence_trial_row(signal):
         b_grade_source = "PAPER_CONFIDENCE_THRESHOLD_TRIAL"
@@ -2097,6 +4915,8 @@ def _classify_paper_opportunity_tier(
         if budget["risk_budget_fraction_of_normal_adaptive"] > 0.0:
             return {
                 **base,
+                **b_grade_learning_contract,
+                **priority_label_collection_fields,
                 **budget,
                 "paper_opportunity_tier": PAPER_TIER_B_GRADE_EXPLORATION,
                 "paper_opportunity_tier_reason": b_grade_source,
@@ -2105,6 +4925,8 @@ def _classify_paper_opportunity_tier(
             }
         return {
             **base,
+            **b_grade_learning_contract,
+            **priority_label_collection_fields,
             **budget,
             "paper_opportunity_tier": PAPER_TIER_SHADOW_ONLY,
             "paper_opportunity_tier_reason": "B_GRADE_EXPLORATION_BUDGET_FRACTION_ZERO",
@@ -2134,11 +4956,25 @@ def _apply_paper_tier_classification(
         "paper_fill_allowed_source",
         "strict_paper_fill_allowed_upstream",
         "explicit_paper_opportunity_tier",
+        "pre_guardian_paper_opportunity_tier",
+        "pre_guardian_paper_opportunity_tier_reason",
+        "pre_guardian_paper_fill_allowed_source",
+        "continuous_edge_guardian_forced_shadow_only",
+        "counts_as_a_grade_evidence",
+        "a_grade_promotion_allowed",
+        "live_ready_implication",
+        *PAPER_ONLY_LABEL_COLLECTION_PRIORITY_FIELDS,
         "risk_budget_fraction_of_normal_adaptive",
         "b_grade_exploration_uncertainty_factor",
         "b_grade_exploration_drawdown_factor",
         "b_grade_exploration_budget_formula",
         "calibration_label_purpose",
+        "expected_move_side",
+        "lifecycle_or_no_trade_strategy_reasons",
+        "no_trade_strategy_reasons",
+        "continuous_edge_guardian_status",
+        "continuous_edge_guardian_block_reasons",
+        "continuous_edge_guardian_allowed_runtime_actions",
     ):
         if field in classification:
             intent[field] = classification[field]
@@ -2148,6 +4984,12 @@ def _apply_paper_tier_classification(
         allocation["model_inputs"] = model_inputs
     for field in (
         "paper_opportunity_tier",
+        "pre_guardian_paper_opportunity_tier",
+        "continuous_edge_guardian_forced_shadow_only",
+        "counts_as_a_grade_evidence",
+        "a_grade_promotion_allowed",
+        "live_ready_implication",
+        *PAPER_ONLY_LABEL_COLLECTION_PRIORITY_FIELDS,
         "risk_budget_fraction_of_normal_adaptive",
         "b_grade_exploration_uncertainty_factor",
         "b_grade_exploration_drawdown_factor",
@@ -2155,6 +4997,326 @@ def _apply_paper_tier_classification(
     ):
         if field in classification:
             model_inputs[field] = classification[field]
+
+
+def _block_non_executable_paper_tier(
+    *,
+    intent: dict[str, Any],
+    allocation: dict[str, Any],
+) -> bool:
+    tier = str(intent.get("paper_opportunity_tier") or "").strip().upper()
+    if tier not in NON_EXECUTABLE_PAPER_TIERS:
+        return False
+
+    original_tier_reason = _first_present(
+        intent.get("paper_opportunity_tier_reason"),
+        allocation.get("paper_opportunity_tier_reason"),
+    )
+    block_reason = f"NON_EXECUTABLE_PAPER_TIER:{tier}"
+    for target in (allocation, intent):
+        target["non_executable_paper_tier_block_reason"] = block_reason
+    if original_tier_reason not in {None, ""} and original_tier_reason != block_reason:
+        for target in (allocation, intent):
+            target.setdefault("pre_non_executable_paper_tier", tier)
+            target.setdefault("pre_non_executable_paper_tier_reason", original_tier_reason)
+
+    original_decision = allocation.get("allocator_decision")
+    if original_decision not in {None, ""}:
+        allocation.setdefault(
+            "original_allocator_decision_before_paper_tier_block",
+            original_decision,
+        )
+        intent.setdefault(
+            "original_allocator_decision_before_paper_tier_block",
+            original_decision,
+        )
+
+    for field in (
+        "risk_budget_usd",
+        "gross_notional_usd",
+        "allocated_margin_usd",
+        "target_notional_usdt",
+        "target_quantity",
+        "expected_net_pnl_usd",
+        "expected_shortfall_usd",
+        "hedge_budget_usd",
+    ):
+        value = allocation.get(field)
+        if value not in {None, ""}:
+            allocation.setdefault(f"pre_paper_tier_block_{field}", value)
+            intent.setdefault(f"pre_paper_tier_block_{field}", value)
+        allocation[field] = 0.0
+        if field in intent:
+            intent[field] = 0.0
+
+    allocation["allocator_decision"] = "BLOCK_NON_EXECUTABLE_PAPER_TIER"
+    allocation["final_size_reason"] = block_reason
+    allocation["capital_allocation_reason"] = block_reason
+    allocation["non_executable_paper_tier_blocked"] = True
+    allocation["paper_only"] = True
+    allocation["places_real_order"] = False
+    allocation["live_order"] = False
+    intent["allocator_decision"] = "BLOCK_NON_EXECUTABLE_PAPER_TIER"
+    intent["allocator_reason"] = block_reason
+    intent["capital_allocation_reason"] = block_reason
+    intent["paper_allocation_block_reason"] = block_reason
+    intent["paper_fill_block_reason"] = block_reason
+    intent["paper_sizing_source"] = "NON_EXECUTABLE_PAPER_TIER_BLOCK"
+    intent["paper_sizing_complete"] = False
+    intent["paper_fill_allowed"] = False
+    intent["paper_tier_local_fill_allowed"] = False
+    intent["strict_paper_fill_allowed_upstream"] = False
+    intent["places_real_order"] = False
+    intent["live_order"] = False
+    intent["paper_only"] = True
+    intent["local_block_reasons"] = sorted(set(
+        list(intent.get("local_block_reasons") or []) + [f"paper_tier:{block_reason}"]
+    ))
+    intent["paper_fill_gate_block_reasons"] = sorted(set(
+        list(intent.get("paper_fill_gate_block_reasons") or []) + [block_reason]
+    ))
+    return True
+
+
+def _shadow_observation_from_blocked_directional_candidate(
+    *,
+    intent: dict[str, Any],
+    signal: dict[str, Any] | None = None,
+    integrity_gate: dict[str, Any] | None = None,
+    observation_source: str,
+    observation_reason: Any,
+) -> dict[str, Any] | None:
+    """Build a non-fill shadow observation for a valid blocked candidate.
+
+    This is only for counterfactual no-trade outcome analysis. It must not
+    change paper admission, accepted fills, PnL, A-grade evidence, or live
+    routing.
+    """
+    signal = signal if isinstance(signal, dict) else {}
+    side = _normalized_directional_side(
+        _first_present(
+            intent.get("side"),
+            intent.get("selected_action"),
+            intent.get("action"),
+            signal.get("side"),
+            signal.get("selected_action"),
+            signal.get("action"),
+        )
+    )
+    if side not in {"long", "short"}:
+        return None
+    if intent.get("paper_only") is not True:
+        return None
+    if intent.get("places_real_order") is True or intent.get("live_order") is True:
+        return None
+    if intent.get("entry_price_provenance_present") is not True:
+        return None
+    entry_price = _coerce_float(intent.get("entry_price"))
+    if entry_price is None or entry_price <= 0.0:
+        return None
+    if integrity_gate is not None and integrity_gate.get("allowed") is not True:
+        return None
+    if intent.get("valid_for_paper") is False:
+        return None
+    if intent.get("market_state_reject_reasons"):
+        return None
+    if intent.get("paper_signal_temporal_rejection_reasons"):
+        return None
+    if intent.get("paper_pre_fill_market_evidence_rejection_reasons"):
+        return None
+    if _paper_lifecycle_or_no_trade_strategy_reasons(signal=signal, intent=intent):
+        return None
+
+    shadow_intent = dict(intent)
+    shadow_intent["decision"] = "SHADOW_OBSERVATION_ONLY"
+    shadow_intent["side"] = side
+    shadow_intent["shadow_observation_source"] = observation_source
+    shadow_intent["shadow_observation_reason"] = str(
+        observation_reason or intent.get("paper_fill_block_reason") or "BLOCKED_DIRECTIONAL_CANDIDATE"
+    )
+    shadow_intent["shadow_observation_selected_before_outcome"] = True
+    shadow_intent["shadow_outcome_observation_only"] = True
+    shadow_intent["paper_fill_allowed"] = False
+    shadow_intent["paper_tier_local_fill_allowed"] = False
+    shadow_intent["strict_paper_fill_allowed_upstream"] = False
+    shadow_intent["places_real_order"] = False
+    shadow_intent["live_order"] = False
+    shadow_intent["counted_as_accepted_position"] = False
+    shadow_intent["counted_as_fill"] = False
+    shadow_intent["counted_as_open_position"] = False
+    shadow_intent["affects_pnl_ledger"] = False
+    shadow_intent["counts_as_a_grade_evidence"] = False
+    shadow_intent["a_grade_promotion_allowed"] = False
+    shadow_intent["live_ready_implication"] = False
+    shadow_intent["entry_price_provenance_observed"] = True
+    shadow_intent["candidate_selected_after_outcome"] = False
+    shadow_intent["future_labels_used_as_features"] = False
+    return shadow_intent
+
+
+SHADOW_OBSERVATION_ENTRY_FIELDS = (
+    "entry_price",
+    "entry_price_source",
+    "entry_price_utc",
+    "entry_price_source_generated_utc",
+    "fill_price",
+    "fill_price_source",
+    "fill_price_utc",
+    "latest_price",
+    "latest_price_source",
+    "latest_price_utc",
+)
+
+
+def _shadow_observation_history_key(row: dict[str, Any]) -> str:
+    stable_id = _first_present(
+        row.get("prediction_id"),
+        row.get("source_prediction_id"),
+        row.get("signal_id"),
+        row.get("intent_id"),
+        row.get("source_intent_id"),
+    )
+    symbol = str(row.get("symbol") or "").upper()
+    side = str(row.get("side") or row.get("selected_action") or "").lower()
+    timeframe = str(row.get("timeframe") or "")
+    source = str(row.get("shadow_observation_source") or "")
+    reason = str(
+        _first_present(
+            row.get("shadow_observation_reason"),
+            row.get("paper_fill_block_reason"),
+            row.get("paper_opportunity_tier_reason"),
+        )
+        or ""
+    )
+    if stable_id not in (None, ""):
+        return "|".join(("id", str(stable_id), symbol, side, timeframe, source, reason))
+    return "|".join(
+        (
+            "fallback",
+            symbol,
+            side,
+            timeframe,
+            source,
+            reason,
+            str(row.get("entry_price_utc") or row.get("generated_utc") or ""),
+        )
+    )
+
+
+def _shadow_observation_entry_time(row: dict[str, Any]) -> datetime | None:
+    return _parse_strategy_time(
+        _first_present(
+            row.get("entry_price_utc"),
+            row.get("shadow_observation_first_seen_utc"),
+            row.get("generated_utc"),
+        )
+    )
+
+
+def _normalize_shadow_observation_history_row(
+    row: dict[str, Any],
+    *,
+    now_utc: str,
+) -> dict[str, Any] | None:
+    if not isinstance(row, dict):
+        return None
+    if row.get("decision") != "SHADOW_OBSERVATION_ONLY":
+        return None
+    normalized = dict(row)
+    normalized["decision"] = "SHADOW_OBSERVATION_ONLY"
+    normalized["paper_fill_allowed"] = False
+    normalized["paper_tier_local_fill_allowed"] = False
+    normalized["strict_paper_fill_allowed_upstream"] = False
+    normalized["places_real_order"] = False
+    normalized["live_order"] = False
+    normalized["counted_as_accepted_position"] = False
+    normalized["counted_as_fill"] = False
+    normalized["counted_as_open_position"] = False
+    normalized["affects_pnl_ledger"] = False
+    normalized["counts_as_a_grade_evidence"] = False
+    normalized["a_grade_promotion_allowed"] = False
+    normalized["live_ready_implication"] = False
+    normalized["shadow_observation_history_persisted"] = True
+    normalized["shadow_observation_first_seen_utc"] = _first_present(
+        normalized.get("shadow_observation_first_seen_utc"),
+        normalized.get("entry_price_utc"),
+        now_utc,
+    )
+    normalized["shadow_observation_last_seen_utc"] = _first_present(
+        normalized.get("shadow_observation_last_seen_utc"),
+        normalized.get("generated_utc"),
+        now_utc,
+    )
+    seen_count = int(_coerce_float(normalized.get("shadow_observation_seen_count")) or 1)
+    normalized["shadow_observation_seen_count"] = max(1, seen_count)
+    return normalized
+
+
+def _merge_shadow_observation_history(
+    existing_rows: list[dict[str, Any]],
+    current_rows: list[dict[str, Any]],
+    *,
+    now_utc: str | None = None,
+    max_rows: int = SHADOW_OBSERVATION_HISTORY_MAX_ROWS,
+) -> list[dict[str, Any]]:
+    """Merge current-cycle shadow rows with prior V2 shadow history.
+
+    The current paper loop rebuilds intents every cycle. Without this bounded
+    merge, each non-fill shadow entry receives a new timestamp and can never
+    mature to the counterfactual outcome horizon.
+    """
+    now_utc = now_utc or _utc_iso()
+    now_dt = _parse_strategy_time(now_utc) or datetime.now(timezone.utc)
+    by_key: dict[str, dict[str, Any]] = {}
+
+    for raw in existing_rows:
+        row = _normalize_shadow_observation_history_row(raw, now_utc=now_utc)
+        if row is None:
+            continue
+        entry_dt = _shadow_observation_entry_time(row)
+        if (
+            entry_dt is not None
+            and (now_dt - entry_dt).total_seconds() > SHADOW_OBSERVATION_HISTORY_TTL_SECONDS
+        ):
+            continue
+        by_key[_shadow_observation_history_key(row)] = row
+
+    for raw in current_rows:
+        row = _normalize_shadow_observation_history_row(raw, now_utc=now_utc)
+        if row is None:
+            continue
+        key = _shadow_observation_history_key(row)
+        existing = by_key.get(key)
+        if existing is not None:
+            merged = dict(row)
+            for field in SHADOW_OBSERVATION_ENTRY_FIELDS:
+                if existing.get(field) not in (None, ""):
+                    merged[field] = existing[field]
+            merged["shadow_observation_first_seen_utc"] = _first_present(
+                existing.get("shadow_observation_first_seen_utc"),
+                existing.get("entry_price_utc"),
+                row.get("entry_price_utc"),
+                now_utc,
+            )
+            merged["shadow_observation_seen_count"] = int(
+                _coerce_float(existing.get("shadow_observation_seen_count")) or 1
+            ) + 1
+        else:
+            merged = row
+        merged["shadow_observation_last_seen_utc"] = now_utc
+        merged["shadow_observation_history_persisted"] = True
+        by_key[key] = merged
+
+    rows = list(by_key.values())
+    rows.sort(
+        key=lambda row: (
+            _shadow_observation_entry_time(row) or datetime.min.replace(tzinfo=timezone.utc),
+            _shadow_observation_history_key(row),
+        )
+    )
+    if max_rows > 0 and len(rows) > max_rows:
+        rows = rows[-max_rows:]
+    return rows
 
 
 def _scale_allocation_field(value: Any, fraction: float, *, field: str) -> float | None:
@@ -2226,15 +5388,36 @@ def _apply_b_grade_exploration_budget_cap(
 def _paper_exploration_tier_status(
     *,
     accepted_rows: list[dict[str, Any]],
+    current_accepted_rows: list[dict[str, Any]] | None = None,
     blocked_rows: list[dict[str, Any]],
     shadow_rows: list[dict[str, Any]],
     held_rows: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    rows = accepted_rows + blocked_rows + shadow_rows + held_rows
+    persistent_accepted_rows = accepted_rows
+    current_accepted_rows = current_accepted_rows if current_accepted_rows is not None else accepted_rows
+    rows = current_accepted_rows + blocked_rows + shadow_rows + held_rows
     b_grade_accepted = [
         row
-        for row in accepted_rows
+        for row in current_accepted_rows
         if row.get("paper_opportunity_tier") == PAPER_TIER_B_GRADE_EXPLORATION
+    ]
+    persistent_b_grade_accepted = [
+        row
+        for row in persistent_accepted_rows
+        if row.get("paper_opportunity_tier") == PAPER_TIER_B_GRADE_EXPLORATION
+    ]
+    priority_rows = [
+        row for row in rows if row.get("paper_only_label_collection_priority") is True
+    ]
+    priority_b_grade_accepted = [
+        row
+        for row in b_grade_accepted
+        if row.get("paper_only_label_collection_priority") is True
+    ]
+    persistent_priority_b_grade_accepted = [
+        row
+        for row in persistent_b_grade_accepted
+        if row.get("paper_only_label_collection_priority") is True
     ]
     fractions = [
         value
@@ -2250,16 +5433,59 @@ def _paper_exploration_tier_status(
         "live_path_changed": False,
         "tiers": list(PAPER_OPPORTUNITY_TIERS),
         "tier_counts": _count_paper_opportunity_tiers(rows),
-        "accepted_tier_counts": _count_paper_opportunity_tiers(accepted_rows),
+        "accepted_tier_counts": _count_paper_opportunity_tiers(current_accepted_rows),
+        "accepted_tier_counts_scope": "current_cycle_accepted_fills_only",
+        "persistent_accepted_fill_count": len(persistent_accepted_rows),
+        "persistent_accepted_tier_counts": _count_paper_opportunity_tiers(persistent_accepted_rows),
         "blocked_tier_counts": _count_paper_opportunity_tiers(blocked_rows),
+        "blocked_final_reason_counts": _count_first_present_values(
+            blocked_rows,
+            (
+                "non_executable_paper_tier_block_reason",
+                "paper_fill_block_reason",
+                "paper_allocation_block_reason",
+                "allocator_reason",
+                "paper_opportunity_tier_reason",
+            ),
+        ),
+        "blocked_upstream_tier_reason_counts": _count_first_present_values(
+            blocked_rows,
+            (
+                "pre_non_executable_paper_tier_reason",
+                "original_paper_opportunity_tier_reason_before_publication_block",
+            ),
+        ),
+        "blocked_local_block_reason_counts": _count_list_values(blocked_rows, "local_block_reasons"),
+        "blocked_fill_gate_reason_counts": _count_list_values(blocked_rows, "paper_fill_gate_block_reasons"),
+        "blocked_runtime_market_evidence_rejection_counts": _count_list_values(
+            blocked_rows,
+            "paper_runtime_market_evidence_rejection_reasons",
+        ),
+        "blocked_pre_fill_market_evidence_rejection_counts": _count_list_values(
+            blocked_rows,
+            "paper_pre_fill_market_evidence_rejection_reasons",
+        ),
+        "blocked_post_fill_market_evidence_rejection_counts": _count_list_values(
+            blocked_rows,
+            "paper_post_fill_market_evidence_rejection_reasons",
+        ),
+        "blocked_lifecycle_or_no_trade_strategy_reason_counts": _count_list_values(
+            blocked_rows,
+            "lifecycle_or_no_trade_strategy_reasons",
+        ),
         "shadow_tier_counts": _count_paper_opportunity_tiers(shadow_rows),
         "held_tier_counts": _count_paper_opportunity_tiers(held_rows),
         "legacy_unclassified_tier_count": _missing_paper_opportunity_tier_count(rows),
-        "legacy_accepted_without_tier_count": _missing_paper_opportunity_tier_count(accepted_rows),
+        "legacy_accepted_without_tier_count": _missing_paper_opportunity_tier_count(current_accepted_rows),
+        "persistent_legacy_accepted_without_tier_count": _missing_paper_opportunity_tier_count(
+            persistent_accepted_rows
+        ),
         "blocked_without_tier_count": _missing_paper_opportunity_tier_count(blocked_rows),
         "shadow_without_tier_count": _missing_paper_opportunity_tier_count(shadow_rows),
         "held_without_tier_count": _missing_paper_opportunity_tier_count(held_rows),
         "b_grade_exploration_accepted_count": len(b_grade_accepted),
+        "b_grade_exploration_accepted_count_scope": "current_cycle_accepted_fills_only",
+        "persistent_b_grade_exploration_accepted_count": len(persistent_b_grade_accepted),
         "b_grade_exploration_max_risk_fraction_of_normal_adaptive": (
             B_GRADE_EXPLORATION_MAX_RISK_FRACTION_OF_NORMAL
         ),
@@ -2269,12 +5495,36 @@ def _paper_exploration_tier_status(
         "b_grade_exploration_budget_cap_applied_count": sum(
             1 for row in b_grade_accepted if row.get("b_grade_exploration_budget_cap_applied") is True
         ),
+        "paper_only_label_collection_priority_candidate_count": len(priority_rows),
+        "paper_only_label_collection_priority_b_grade_accepted_count": (
+            len(priority_b_grade_accepted)
+        ),
+        "persistent_paper_only_label_collection_priority_b_grade_accepted_count": (
+            len(persistent_priority_b_grade_accepted)
+        ),
+        "paper_only_label_collection_priority_reason_counts": _count_first_present_values(
+            priority_rows,
+            (
+                "paper_opportunity_tier_reason",
+                "paper_only_label_collection_priority_reason",
+            ),
+        ),
+        "paper_only_label_collection_priority_live_routing_blocked": all(
+            row.get("paper_only") is True
+            and row.get("places_real_order") is False
+            and row.get("counts_as_a_grade_evidence") is False
+            for row in priority_rows
+        ),
         "b_grade_exploration_live_routing_blocked": all(
             row.get("paper_only") is True and row.get("places_real_order") is False
             for row in b_grade_accepted
         ),
         "calibration_label_purpose": "B_GRADE_EXPLORATION_OUTCOME_LABEL",
         "sample_b_grade_exploration_fills": b_grade_accepted[:25],
+        "sample_paper_only_label_collection_priority_fills": (
+            priority_b_grade_accepted[:25]
+        ),
+        "sample_blocked_fills": _compact_rows_for_state(_sample_rows(blocked_rows, 25)),
         "generated_utc": _utc_iso(),
     }
 
@@ -2591,19 +5841,54 @@ def _paper_drawdown_recovery_router_result(
 
 
 def _read_existing_ledger_payload(r) -> dict[str, Any]:
+    lifecycle_state = _read_lifecycle_state_file()
     if r is None:
-        return {}
+        return lifecycle_state
     try:
         raw = r.get(f"{V2_REDIS_PREFIX}paper:ledger")
     except Exception:
         raw = None
-    if not raw:
-        return {}
-    try:
-        payload = json.loads(raw)
-    except (TypeError, ValueError):
-        return {}
-    return payload if isinstance(payload, dict) else {}
+    payload: dict[str, Any] = {}
+    if raw:
+        try:
+            decoded = json.loads(raw)
+        except (TypeError, ValueError):
+            decoded = {}
+        if isinstance(decoded, dict):
+            payload = decoded
+    if not lifecycle_state:
+        return payload
+    merged = dict(payload)
+    accepted_fills = lifecycle_state.get("accepted_fills")
+    if isinstance(accepted_fills, list):
+        merged["accepted"] = accepted_fills
+        merged["accepted_intents"] = accepted_fills
+        merged["accepted_count"] = len(accepted_fills)
+        merged["accepted_fill_state_row_count"] = len(accepted_fills)
+    for key in (
+        "open_positions",
+        "positions_by_symbol",
+        "closed_trades",
+        "closes",
+        "outcome_labels",
+        "trainer_feedback_outcomes",
+        "trainer_feedback_outcomes_quarantine",
+    ):
+        value = lifecycle_state.get(key)
+        if value not in (None, ""):
+            merged[key] = value
+    for source_key, count_key in (
+        ("open_positions", "open_position_count"),
+        ("closed_trades", "closed_trade_count"),
+        ("outcome_labels", "outcome_label_count"),
+        ("trainer_feedback_outcomes", "trainer_feedback_row_count"),
+        ("trainer_feedback_outcomes_quarantine", "trainer_feedback_quarantined_row_count"),
+    ):
+        value = merged.get(source_key)
+        if isinstance(value, list):
+            merged[count_key] = len(value)
+    merged["lifecycle_state_source"] = str(PAPER_LIFECYCLE_STATE_PATH)
+    return merged
 
 
 def _read_portfolio_state(r) -> dict[str, Any]:
@@ -3313,7 +6598,11 @@ def _paper_signal_temporal_rejection_reasons(
     return sorted(set(reasons))
 
 
-def _paper_runtime_market_evidence_rejection_reasons(intent: dict[str, Any]) -> list[str]:
+def _paper_runtime_market_evidence_rejection_reasons(
+    intent: dict[str, Any],
+    *,
+    require_fill_ledger: bool = True,
+) -> list[str]:
     reasons: list[str] = []
     if intent.get("entry_price_provenance_present") is not True:
         reasons.append(str(intent.get("entry_price_blocker") or ENTRY_PRICE_BLOCKER_MISSING_FILL))
@@ -3334,7 +6623,10 @@ def _paper_runtime_market_evidence_rejection_reasons(intent: dict[str, Any]) -> 
             reasons.append(f"{field.upper()}_AFTER_DECISION_TIME")
     if intent.get("entry_feature_candle_closed_confirmed") is not True:
         reasons.append("ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED")
-    if _coerce_float(intent.get("actual_observed_spread_entry_bps")) is None:
+    if (
+        _coerce_float(intent.get("actual_observed_spread_entry_bps")) is None
+        or intent.get("bid_ask_spread_bps_fallback") is True
+    ):
         reasons.append(
             str(
                 intent.get("bid_ask_spread_bps_unavailable_reason")
@@ -3344,6 +6636,7 @@ def _paper_runtime_market_evidence_rejection_reasons(intent: dict[str, Any]) -> 
     expected_slippage_source = str(intent.get("expected_slippage_source") or "")
     if (
         _coerce_float(intent.get("expected_slippage_bps")) is None
+        or intent.get("expected_slippage_bps_fallback") is True
         or expected_slippage_source == "CONSERVATIVE_MISSING_SLIPPAGE_BLOCKING_ESTIMATE"
     ):
         reasons.append(
@@ -3352,6 +6645,31 @@ def _paper_runtime_market_evidence_rejection_reasons(intent: dict[str, Any]) -> 
                 or "MISSING_OBSERVED_OR_MODELED_SLIPPAGE_AT_DECISION_TIME"
             )
         )
+    if (
+        _coerce_float(intent.get("fee_bps")) is None
+        or intent.get("fee_bps_fallback") is True
+        or not intent.get("fee_bps_source")
+    ):
+        reasons.append(
+            str(
+                intent.get("fee_bps_unavailable_reason")
+                or "MISSING_EXPLICIT_FEE_BPS_AT_DECISION_TIME"
+            )
+        )
+    if (
+        _coerce_float(intent.get("expected_funding_bps")) is None
+        or intent.get("expected_funding_bps_fallback") is True
+        or not intent.get("expected_funding_bps_source")
+    ):
+        reasons.append(
+            str(
+                intent.get("expected_funding_bps_unavailable_reason")
+                or "MISSING_EXPLICIT_FUNDING_BPS_AT_DECISION_TIME"
+            )
+        )
+    orderbook_depth = _coerce_float(intent.get("orderbook_depth_usd"))
+    if orderbook_depth is None or orderbook_depth <= 0.0 or not intent.get("orderbook_depth_source"):
+        reasons.append("MISSING_MARKET_DEPTH_EVIDENCE")
     if _coerce_float(intent.get("squeeze_evidence_score")) is None or not intent.get("squeeze_evidence_source"):
         reasons.append(
             str(
@@ -3359,6 +6677,22 @@ def _paper_runtime_market_evidence_rejection_reasons(intent: dict[str, Any]) -> 
                 or "MISSING_SOURCED_SQUEEZE_EVIDENCE"
             )
         )
+    if _coerce_float(intent.get("latency_ms")) is None:
+        reasons.append("MISSING_PAPER_FILL_LATENCY_EVIDENCE")
+    maker = _coerce_float(intent.get("maker_probability"))
+    taker = _coerce_float(intent.get("taker_probability"))
+    if maker is None or taker is None or not intent.get("maker_taker_probability_source"):
+        reasons.append("MISSING_MAKER_TAKER_PROBABILITY_EVIDENCE")
+    partial_count = _coerce_float(intent.get("partial_fill_count"))
+    if (
+        require_fill_ledger
+        and (partial_count is None or partial_count <= 0 or not isinstance(intent.get("partial_fills"), list))
+    ):
+        reasons.append("MISSING_PARTIAL_FILL_LEDGER_EVIDENCE")
+    mark = _coerce_float(intent.get("mark_price"))
+    index = _coerce_float(intent.get("index_price"))
+    if mark is None or index is None or mark <= 0.0 or index <= 0.0:
+        reasons.append("MISSING_MARK_INDEX_DIVERGENCE_EVIDENCE")
     return sorted(set(reason for reason in reasons if reason))
 
 
@@ -3828,11 +7162,21 @@ def _attach_trainer_feedback_entry_context(
         strategy_router.get("selected_mode") or "UNKNOWN_REGIME"
     )
     selected_mode = str(strategy_router.get("selected_mode") or "UNKNOWN_STRATEGY")
+    audited_entry_mode = str(
+        _first_present(
+            intent.get("strategy_selected_mode"),
+            intent.get("strategy_id"),
+            intent.get("strategy_family"),
+            intent.get("strategy_subtype"),
+            selected_mode,
+        )
+        or selected_mode
+    )
     intent.setdefault("strategy_id", selected_mode)
     intent.setdefault("strategy_family", selected_mode)
     intent.setdefault("strategy_subtype", selected_mode)
     intent.setdefault("strategy_selected_mode", selected_mode)
-    intent.setdefault("entry_reason", selected_mode)
+    intent.setdefault("entry_reason", audited_entry_mode)
     intent.setdefault("hedge_state", "NO_HEDGE")
     intent.setdefault("hedge_reason", "NO_HEDGE_CONTEXT")
     intent.setdefault("drawdown_at_entry", portfolio_context["drawdown_bps"])
@@ -4007,6 +7351,10 @@ def _rescale_adaptive_accounting_to_actual_notional(intent: dict[str, Any]) -> N
             "expected_net_pnl_usd",
             "expected_shortfall_usd",
             "hedge_budget_usd",
+            "hedge_expected_shortfall_reduction_usd",
+            "expected_shortfall_before",
+            "expected_shortfall_after",
+            "hedge_cost_usd",
             "risk_budget_pct",
             "risk_budget_pct_of_equity",
             "risk_budget_pct_of_available_margin",
@@ -4127,14 +7475,33 @@ def _set_allocation_default_from_intent(
             return
 
 
+PRE_OUTCOME_CANDIDATE_PROVENANCE_DEFAULTS: dict[str, Any] = {
+    "selector_policy_fingerprint": OUT_OF_SAMPLE_REVERIFY_SELECTOR_POLICY_FINGERPRINT,
+    "frozen_selector_fingerprint": OUT_OF_SAMPLE_REVERIFY_SELECTOR_POLICY_FINGERPRINT,
+    "candidate_selected_before_outcome": True,
+    "candidate_selected_after_outcome": False,
+    "post_outcome_candidate_selection": False,
+    "future_labels_used_as_features": False,
+}
+
+
+def _attach_pre_outcome_candidate_provenance(
+    *,
+    intent: dict[str, Any],
+    allocation: dict[str, Any],
+) -> None:
+    for field, default in PRE_OUTCOME_CANDIDATE_PROVENANCE_DEFAULTS.items():
+        if allocation.get(field) in (None, ""):
+            allocation[field] = default
+        if intent.get(field) in (None, ""):
+            intent[field] = allocation[field]
+
+
 def _attach_paper_allocation_decision_context(
     intent: dict[str, Any],
     allocation: dict[str, Any],
 ) -> None:
-    allocation.setdefault("selector_policy_fingerprint", OUT_OF_SAMPLE_REVERIFY_SELECTOR_POLICY_FINGERPRINT)
-    allocation.setdefault("frozen_selector_fingerprint", OUT_OF_SAMPLE_REVERIFY_SELECTOR_POLICY_FINGERPRINT)
-    allocation.setdefault("candidate_selected_before_outcome", True)
-    allocation.setdefault("future_labels_used_as_features", False)
+    _attach_pre_outcome_candidate_provenance(intent=intent, allocation=allocation)
     allocation.setdefault("paper_only", True)
     allocation.setdefault("places_real_order", False)
     allocation.setdefault("live_order", False)
@@ -4236,7 +7603,39 @@ def _attach_paper_allocation_decision_context(
         "top_of_book_depth_usd",
         "market_depth_usd",
         "orderbook_depth_source",
+        "depth_utilization_pct",
+        "depth_price_impact_bps",
+        "depth_price_impact_source",
+        "depth_price_impact_model",
+        "depth_price_impact_side",
+        "depth_price_impact_quantity",
+        "depth_price_impact_filled_quantity",
+        "depth_price_impact_fill_complete",
+        "depth_price_impact_vwap",
+        "depth_price_impact_touch_price",
         "orderbook_imbalance",
+        "maker_probability",
+        "taker_probability",
+        "maker_taker_probability",
+        "maker_taker_probabilities",
+        "maker_taker_probability_source",
+        "latency_ms",
+        "latency_source",
+        "paper_fill_latency_ms",
+        "fill_latency_ms",
+        "execution_latency_ms",
+        "simulated_latency_ms",
+        "partial_fill_count",
+        "partial_fills",
+        "fill_count",
+        "all_partial_fills",
+        "partial_fill_plan",
+        "mark_index_divergence_bps",
+        "mark_index_divergence",
+        "mark_index_source",
+        "mark_index_available_at",
+        "mark_price",
+        "index_price",
         "price_target",
         "price_target_after_cost",
         "price_target_high",
@@ -4281,6 +7680,7 @@ def _attach_paper_sizing(intent: dict[str, Any], allocation: dict[str, Any]) -> 
     quantity = _coerce_float(allocation.get("target_quantity"))
     _ensure_margin_mode_selection_model_input(allocation)
     _attach_paper_allocation_decision_context(intent, allocation)
+    _ensure_paper_rare_event_stress_fields(allocation)
     intent["adaptive_allocation"] = allocation
     intent["adaptive_capital_policy_version"] = allocation.get("adaptive_capital_policy_version")
     if intent["adaptive_capital_policy_version"]:
@@ -4349,6 +7749,8 @@ def _attach_paper_sizing(intent: dict[str, Any], allocation: dict[str, Any]) -> 
     for field in (
         "risk_budget_usd",
         "gross_notional_usd",
+        "target_notional_usdt",
+        "target_quantity",
         "allocated_margin_usd",
         "recommended_leverage",
         "effective_leverage",
@@ -4356,12 +7758,31 @@ def _attach_paper_sizing(intent: dict[str, Any], allocation: dict[str, Any]) -> 
         "stop_distance_bps",
         "liquidation_price_estimate",
         "liquidation_buffer_bps",
+        "pre_entry_stress_tests",
+        "rare_event_stress_suite",
+        "rare_event_stress_status",
+        "rare_event_stress_missing_inputs",
+        "rare_event_required_liquidation_buffer_bps",
+        "modeled_999_adverse_move_bps",
+        "execution_uncertainty_bps",
+        "correlation_stress_bps",
+        "maintenance_margin_uncertainty_bps",
         "expected_fees_usd",
         "expected_slippage_usd",
         "expected_funding_usd",
         "expected_net_pnl_usd",
         "expected_shortfall_usd",
         "hedge_budget_usd",
+        "hedge_parent_id",
+        "hedge_child_id",
+        "hedge_intent",
+        "hedge_ratio",
+        "hedge_expected_shortfall_reduction_usd",
+        "expected_shortfall_before",
+        "expected_shortfall_after",
+        "maximum_duration",
+        "unwind_plan",
+        "hedge_cost_usd",
     ):
         if field in allocation:
             intent[field] = allocation.get(field)
@@ -4372,6 +7793,15 @@ def _attach_paper_sizing(intent: dict[str, Any], allocation: dict[str, Any]) -> 
         intent["paper_sizing_complete"] = False
         intent["paper_allocation_block_reason"] = decision or "ALLOCATOR_DECISION_MISSING"
         return
+    if quantity is None and notional is not None and price is not None and price > 0:
+        quantity = abs(notional / price)
+    elif notional is None and quantity is not None and price is not None and price > 0:
+        notional = abs(quantity * price)
+    if quantity is not None:
+        intent["quantity"] = abs(float(quantity))
+    if notional is not None:
+        intent["notional"] = abs(float(notional))
+        intent["notional_usdt"] = abs(float(notional))
     missing_fields = _missing_adaptive_allocation_fields(allocation)
     if missing_fields:
         intent["paper_sizing_source"] = "V2_ADAPTIVE_ALLOCATOR_INCOMPLETE_ATTRIBUTION"
@@ -4379,16 +7809,7 @@ def _attach_paper_sizing(intent: dict[str, Any], allocation: dict[str, Any]) -> 
         intent["paper_allocation_block_reason"] = ADAPTIVE_ALLOCATION_ATTRIBUTION_BLOCK_REASON
         intent["paper_allocation_missing_fields"] = missing_fields
         return
-    if quantity is None and notional is not None and price is not None and price > 0:
-        quantity = abs(notional / price)
-    elif notional is None and quantity is not None and price is not None and price > 0:
-        notional = abs(quantity * price)
     intent["paper_sizing_source"] = PAPER_SIZING_SOURCE_ADAPTIVE
-    if quantity is not None:
-        intent["quantity"] = abs(float(quantity))
-    if notional is not None:
-        intent["notional"] = abs(float(notional))
-        intent["notional_usdt"] = abs(float(notional))
     intent["paper_sizing_complete"] = (
         _coerce_float(intent.get("quantity")) is not None
         and _coerce_float(intent.get("notional")) is not None
@@ -4574,13 +7995,19 @@ def _build_allocation_input(
         keys=("actual_fee_bps", "fee_bps", "taker_fee_bps", "expected_fee_bps"),
     )
     if fee_bps is None:
-        intent["fee_bps_fallback"] = True
-        intent["fee_bps_for_allocator"] = None
-        intent["fee_bps_unavailable_reason"] = "MISSING_EXPLICIT_FEE_BPS_AT_DECISION_TIME"
+        fee_bps = _configured_paper_fee_bps()
+        fee_source = PAPER_CONFIGURED_FEE_SCHEDULE_SOURCE
+        intent["fee_bps"] = fee_bps
+        intent["fee_bps_source"] = fee_source
+        intent["fee_bps_fallback"] = False
+        intent["fee_bps_configured_schedule"] = True
+        intent["fee_bps_for_allocator"] = fee_bps
+        intent["fee_bps_unavailable_reason"] = None
     else:
         intent["fee_bps"] = fee_bps
         intent["fee_bps_source"] = fee_source
         intent["fee_bps_fallback"] = False
+        intent["fee_bps_configured_schedule"] = False
         intent["fee_bps_for_allocator"] = fee_bps
         intent["fee_bps_unavailable_reason"] = None
     expected_funding_bps, expected_funding_source = _first_numeric_field_from(
@@ -4618,12 +8045,10 @@ def _build_allocation_input(
             intent["expected_funding_bps_conversion"] = "funding_rate_to_bps"
     _attach_counterfactual_market_cost_evidence(intent)
     allocator_edge = float(expected_move or 0.0)
-    if action == "short" and allocator_edge < 0.0:
-        allocator_edge = abs(allocator_edge)
     if action == "long" and allocator_edge < 0.0:
         intent["paper_allocation_signed_edge_mismatch"] = True
     if action == "short" and expected_move is not None and expected_move < 0.0:
-        intent["paper_allocation_signed_edge_normalized"] = True
+        intent["paper_allocation_signed_edge_preserved"] = True
         intent["paper_allocation_signed_expected_move_after_cost_bps"] = expected_move
     signal_correlation = _coerce_float(signal.get("correlation_exposure_pct"))
     derived_correlation_context = (correlation_contexts_by_symbol or {}).get(symbol, {})
@@ -4739,6 +8164,10 @@ def run_once() -> dict:
     started = _utc_iso()
     runtime_now = datetime.now(timezone.utc)
     r = _connect_redis()
+    continuous_edge_guardian_gate = _read_continuous_edge_guardian_gate(r)
+    paper_only_label_collection_priority_index = (
+        _read_paper_only_label_collection_priority_index()
+    )
     live_context = _live_context(r)
     signals = _read_paper_signals(r)
     held_by_gate = _read_held_by_paper_fill_gate(r)
@@ -5145,6 +8574,13 @@ def run_once() -> dict:
         allocation = allocate_paper_candidate(allocation_input)
         allocation_payload = allocation.to_payload()
         _attach_paper_sizing(intent, allocation_payload)
+        mark_index_evidence = _read_v2_mark_index_evidence(r, symbol)
+        _attach_depth_price_impact_evidence(intent, market_microstructure)
+        _attach_paper_execution_evidence(
+            intent,
+            mark_index_evidence,
+        )
+        _attach_paper_allocation_decision_context(intent, allocation_payload)
         _attach_trainer_feedback_entry_context(
             intent=intent,
             prediction=prediction_for_entry,
@@ -5152,8 +8588,18 @@ def run_once() -> dict:
             allocation=allocation_payload,
             portfolio_context=portfolio_context,
         )
-        runtime_market_evidence_rejection_reasons = _paper_runtime_market_evidence_rejection_reasons(intent)
+        _attach_paper_only_label_collection_priority(
+            intent=intent,
+            allocation=allocation_payload,
+            priority_index=paper_only_label_collection_priority_index,
+        )
+        runtime_market_evidence_rejection_reasons = _paper_runtime_market_evidence_rejection_reasons(
+            intent,
+            require_fill_ledger=False,
+        )
+        intent["paper_pre_fill_market_evidence_rejection_reasons"] = runtime_market_evidence_rejection_reasons
         intent["paper_runtime_market_evidence_rejection_reasons"] = runtime_market_evidence_rejection_reasons
+        intent["paper_fill_ledger_evidence_required_at"] = "POST_PAPER_FILL_SIZING"
         _apply_strategy_size_multiplier(intent, _coerce_float(strategy_router["size_multiplier"]))
         directional_guard = _paper_directional_collapse_guard(existing_ledger, side)
         intent["paper_directional_collapse_guard"] = directional_guard
@@ -5261,12 +8707,28 @@ def run_once() -> dict:
             exploration_trade_gates_pass=exploration_trade_gates_pass,
             paper_fill_allowed_upstream=paper_fill_allowed_upstream,
             portfolio_drawdown_bps=portfolio_context["drawdown_bps"],
+            continuous_edge_guardian_gate=continuous_edge_guardian_gate,
         )
         _apply_paper_tier_classification(
             intent=intent,
             allocation=allocation_payload,
             classification=tier_classification,
         )
+        non_executable_shadow = _shadow_observation_from_blocked_directional_candidate(
+            intent=intent,
+            signal=s,
+            integrity_gate=integrity_gate,
+            observation_source="NON_EXECUTABLE_PAPER_TIER_PRE_BLOCK",
+            observation_reason=intent.get("paper_opportunity_tier_reason"),
+        )
+        if non_executable_shadow is not None:
+            shadow_observations.append(non_executable_shadow)
+        if _block_non_executable_paper_tier(
+            intent=intent,
+            allocation=allocation_payload,
+        ):
+            blocked.append(intent)
+            continue
         if intent.get("paper_opportunity_tier") == PAPER_TIER_B_GRADE_EXPLORATION:
             _apply_b_grade_exploration_budget_cap(
                 intent=intent,
@@ -5276,6 +8738,31 @@ def run_once() -> dict:
                 ),
             )
             _attach_paper_sizing(intent, allocation_payload)
+            _attach_depth_price_impact_evidence(intent, market_microstructure)
+            _attach_paper_execution_evidence(intent, mark_index_evidence)
+        post_fill_market_evidence_rejection_reasons = _paper_runtime_market_evidence_rejection_reasons(
+            intent,
+            require_fill_ledger=True,
+        )
+        intent["paper_post_fill_market_evidence_rejection_reasons"] = post_fill_market_evidence_rejection_reasons
+        intent["paper_runtime_market_evidence_rejection_reasons"] = post_fill_market_evidence_rejection_reasons
+        if post_fill_market_evidence_rejection_reasons:
+            intent["paper_fill_block_reason"] = (
+                intent.get("paper_fill_block_reason") or PAPER_RUNTIME_EVIDENCE_BLOCK_REASON
+            )
+            intent["paper_fill_gate_block_reasons"] = sorted(set(
+                list(intent.get("paper_fill_gate_block_reasons") or [])
+                + post_fill_market_evidence_rejection_reasons
+            ))
+            intent["local_block_reasons"] = sorted(set(
+                list(intent.get("local_block_reasons") or [])
+                + [
+                    f"post_fill_market_evidence:{reason}"
+                    for reason in post_fill_market_evidence_rejection_reasons
+                ]
+            ))
+            blocked.append(intent)
+            continue
         paper_tier_local_fill_allowed = (
             intent.get("paper_opportunity_tier") == PAPER_TIER_B_GRADE_EXPLORATION
             or (
@@ -5298,7 +8785,18 @@ def run_once() -> dict:
                 intent["paper_fill_block_reason"] = None
         if not local_trade_gates_pass and not b_grade_relaxed_strict_local_gate:
             # Failed local pre-trade / fee / churn gates — not a fill,
-            # not a shadow observation; tracked in blocked[] only.
+            # not a fill. Clean directional candidates are also mirrored
+            # to shadow_observations for no-trade outcome analysis.
+            local_gate_shadow = _shadow_observation_from_blocked_directional_candidate(
+                intent=intent,
+                signal=s,
+                integrity_gate=integrity_gate,
+                observation_source="LOCAL_PAPER_TRADE_GATES_FAILED",
+                observation_reason=";".join(str(r) for r in intent.get("local_block_reasons") or [])
+                or "LOCAL_PAPER_TRADE_GATES_FAILED",
+            )
+            if local_gate_shadow is not None:
+                shadow_observations.append(local_gate_shadow)
             blocked.append(intent)
             continue
         if paper_tier_local_fill_allowed:
@@ -5486,18 +8984,23 @@ def run_once() -> dict:
         for row in accepted_for_ledger
         if _accepted_fill_identity(row) in current_accepted_ids
     ]
+    current_cycle_shadow_observations = list(shadow_observations)
+    persisted_shadow_observations = _merge_shadow_observation_history(
+        _read_json_list_key(r, f"{V2_REDIS_PREFIX}paper:shadow_observations"),
+        current_cycle_shadow_observations,
+        now_utc=_utc_iso(),
+    )
     strategy_router_report = summarize_strategy_router_performance(
         accepted_rows=accepted_for_ledger,
         blocked_rows=blocked,
-        shadow_rows=shadow_observations,
+        shadow_rows=current_cycle_shadow_observations,
         held_rows=held_by_gate_intents,
     )
-    allocation_rows = [
-        row.get("adaptive_allocation")
-        for row in intents + blocked + accepted_for_ledger + shadow_observations
-        if isinstance(row.get("adaptive_allocation"), dict)
-    ]
-    allocation_rows = [row for row in allocation_rows if isinstance(row, dict)]
+    allocation_rows = _current_cycle_candidate_allocation_rows(
+        intents=intents,
+        historical_accepted_rows=accepted_for_ledger,
+        lifecycle_blocked_rows=lifecycle_blocked,
+    )
     directional_collapse_guard_status = {
         "guard": DIRECTIONAL_COLLAPSE_GUARD_NAME,
         "enabled": True,
@@ -5627,7 +9130,7 @@ def run_once() -> dict:
         "sample_evaluations": drawdown_recovery_guard_evaluations[:25],
         "generated_utc": _utc_iso(),
     }
-    runtime_admission_rows = blocked + shadow_observations
+    runtime_admission_rows = blocked + current_cycle_shadow_observations
     paper_runtime_admission_status = {
         "status": "ACTIVE",
         "paper_only": True,
@@ -5635,7 +9138,10 @@ def run_once() -> dict:
         "accepted_count": len(accepted),
         "persistent_accepted_fill_count": len(accepted_for_ledger),
         "blocked_count": len(blocked),
-        "shadow_observation_count": len(shadow_observations),
+        "shadow_observation_count": len(current_cycle_shadow_observations),
+        "persistent_shadow_observation_count": len(persisted_shadow_observations),
+        "shadow_observation_history_max_rows": SHADOW_OBSERVATION_HISTORY_MAX_ROWS,
+        "shadow_observation_history_ttl_seconds": SHADOW_OBSERVATION_HISTORY_TTL_SECONDS,
         "paper_fill_block_reason_counts": _count_values(blocked, "paper_fill_block_reason"),
         "paper_signal_temporal_rejection_counts": _count_list_values(
             runtime_admission_rows,
@@ -5644,6 +9150,14 @@ def run_once() -> dict:
         "paper_runtime_market_evidence_rejection_counts": _count_list_values(
             runtime_admission_rows,
             "paper_runtime_market_evidence_rejection_reasons",
+        ),
+        "paper_pre_fill_market_evidence_rejection_counts": _count_list_values(
+            runtime_admission_rows,
+            "paper_pre_fill_market_evidence_rejection_reasons",
+        ),
+        "paper_post_fill_market_evidence_rejection_counts": _count_list_values(
+            runtime_admission_rows,
+            "paper_post_fill_market_evidence_rejection_reasons",
         ),
         "runtime_market_evidence_block_count": sum(
             1
@@ -5694,8 +9208,9 @@ def run_once() -> dict:
     }
     paper_exploration_tier_status = _paper_exploration_tier_status(
         accepted_rows=accepted_for_ledger,
+        current_accepted_rows=accepted,
         blocked_rows=blocked,
-        shadow_rows=shadow_observations,
+        shadow_rows=current_cycle_shadow_observations,
         held_rows=held_by_gate_intents,
     )
     paper_audit_entry_gate_status = {
@@ -5816,6 +9331,14 @@ def run_once() -> dict:
     trainer_strategy_hedge_feedback_status["trainer_feedback_quarantined_rows"] = len(
         trainer_feedback_quarantine_rows
     )
+    paper_b_grade_model_quality_status = _paper_b_grade_model_quality_status(
+        trainer_feedback_consumable_rows
+    )
+    paper_b_grade_bucket_promotion_readiness_status = (
+        _paper_b_grade_bucket_promotion_readiness_status(
+            paper_b_grade_model_quality_status
+        )
+    )
     paper_closed_trade_outcome_label_status = dict(
         lifecycle_result["paper_closed_trade_outcome_label_status"]
     )
@@ -5826,6 +9349,20 @@ def run_once() -> dict:
             "trainer_feedback_consumable_rows": len(trainer_feedback_consumable_rows),
             "trainer_feedback_quarantined_rows": len(trainer_feedback_quarantine_rows),
         }
+    )
+    accepted_state_rows = _compact_rows_for_state(accepted_for_ledger)
+    current_accepted_state_rows = _compact_rows_for_state(accepted)
+    blocked_state_sample = _sample_rows(_compact_rows_for_state(blocked))
+    shadow_state_sample = _sample_rows(_compact_rows_for_state(current_cycle_shadow_observations))
+    persistent_shadow_state_sample = _sample_rows(
+        _compact_rows_for_state(persisted_shadow_observations)
+    )
+    held_state_sample = _sample_rows(_compact_rows_for_state(held_by_gate_intents))
+    close_state_sample = _sample_rows(_compact_rows_for_state(closes))
+    outcome_state_sample = _sample_rows(_compact_rows_for_state(outcome_labels))
+    feedback_state_sample = _sample_rows(_compact_rows_for_state(trainer_feedback_consumable_rows))
+    feedback_quarantine_state_sample = _sample_rows(
+        _compact_rows_for_state(trainer_feedback_quarantine_rows)
     )
     if r is not None:
         if _safe_write(
@@ -5863,7 +9400,10 @@ def run_once() -> dict:
             "current_cycle_accepted_count": len(accepted),
             "blocked_count": len(blocked),
             "held_by_paper_fill_gate_count": len(held_by_gate_intents),
-            "shadow_observation_count": len(shadow_observations),
+            "shadow_observation_count": len(current_cycle_shadow_observations),
+            "persistent_shadow_observation_count": len(persisted_shadow_observations),
+            "shadow_observation_history_max_rows": SHADOW_OBSERVATION_HISTORY_MAX_ROWS,
+            "shadow_observation_history_ttl_seconds": SHADOW_OBSERVATION_HISTORY_TTL_SECONDS,
             "accepted_position_count": len(open_positions),
             "open_position_count": len(open_positions),
             "closed_trade_count": len(closes),
@@ -5876,17 +9416,26 @@ def run_once() -> dict:
             ],
             "trainer_strategy_hedge_feedback_status": trainer_strategy_hedge_feedback_status,
             "held_position_count": len(held_by_gate_intents),
-            "accepted_intents": accepted_for_ledger,
-            "accepted": accepted_for_ledger,
-            "current_cycle_accepted": accepted,
-            "blocked": blocked,
-            "held_by_paper_fill_gate": held_by_gate_intents,
-            "shadow_observations": shadow_observations,
-            "closes": closes,
-            "closed_trades": closes,
-            "outcome_labels": outcome_labels,
-            "trainer_feedback_outcomes": trainer_feedback_consumable_rows,
-            "trainer_feedback_outcomes_quarantine": trainer_feedback_quarantine_rows,
+            "redis_ledger_compacted": True,
+            "redis_ledger_sample_limit": PAPER_REDIS_LEDGER_ROW_SAMPLE_LIMIT,
+            "accepted_fill_state_source": str(PAPER_ACCEPTED_FILLS_STATE_PATH),
+            "accepted_fill_state_row_count": len(accepted_state_rows),
+            "accepted_intents": _sample_rows(accepted_state_rows),
+            "accepted": _sample_rows(accepted_state_rows),
+            "current_cycle_accepted": current_accepted_state_rows,
+            "blocked": blocked_state_sample,
+            "held_by_paper_fill_gate": held_state_sample,
+            "shadow_observations": shadow_state_sample,
+            "persistent_shadow_observations": persistent_shadow_state_sample,
+            "closes": close_state_sample,
+            "closed_trades": close_state_sample,
+            "outcome_labels": outcome_state_sample,
+            "trainer_feedback_outcomes": feedback_state_sample,
+            "trainer_feedback_outcomes_quarantine": feedback_quarantine_state_sample,
+            "paper_b_grade_model_quality_status": paper_b_grade_model_quality_status,
+            "paper_b_grade_bucket_promotion_readiness_status": (
+                paper_b_grade_bucket_promotion_readiness_status
+            ),
             "open_positions": open_positions,
             "positions_by_symbol": lifecycle_result["positions_by_symbol"],
             "close_event_count": len(closes),
@@ -5939,13 +9488,17 @@ def run_once() -> dict:
             "places_real_order": False,
             "generated_utc": _utc_iso(),
         }
+        # Write closed_trades before ledger so that the portfolio state publisher
+        # always sees the full standalone list before the ledger sample — this
+        # eliminates the G08 race where ledger sample has a new close but the
+        # standalone list hasn't been updated yet, causing a transient sum gap.
         if _safe_write(
             r,
-            f"{V2_REDIS_PREFIX}paper:ledger",
-            json.dumps(ledger_payload),
+            f"{V2_REDIS_PREFIX}paper:closed_trades",
+            json.dumps(closes),
             ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
         ):
-            keys_written.append(f"{V2_REDIS_PREFIX}paper:ledger")
+            keys_written.append(f"{V2_REDIS_PREFIX}paper:closed_trades")
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}paper:positions",
@@ -5955,11 +9508,11 @@ def run_once() -> dict:
             keys_written.append(f"{V2_REDIS_PREFIX}paper:positions")
         if _safe_write(
             r,
-            f"{V2_REDIS_PREFIX}paper:closed_trades",
-            json.dumps(closes),
+            f"{V2_REDIS_PREFIX}paper:ledger",
+            json.dumps(ledger_payload),
             ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
         ):
-            keys_written.append(f"{V2_REDIS_PREFIX}paper:closed_trades")
+            keys_written.append(f"{V2_REDIS_PREFIX}paper:ledger")
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}paper:outcome_labels",
@@ -5996,6 +9549,9 @@ def run_once() -> dict:
                 "paper_drawdown_recovery_guard_status": paper_drawdown_recovery_guard_status,
                 "paper_runtime_admission_status": paper_runtime_admission_status,
                 "paper_exploration_tier_status": paper_exploration_tier_status,
+                "paper_b_grade_bucket_promotion_readiness_status": (
+                    paper_b_grade_bucket_promotion_readiness_status
+                ),
                 "paper_audit_entry_gate_status": paper_audit_entry_gate_status,
                 "paper_adaptive_sizing_runtime_status": paper_adaptive_sizing_runtime_status,
                 "risk_envelope_dynamic_budget_status": risk_envelope_dynamic_budget_status,
@@ -6012,8 +9568,8 @@ def run_once() -> dict:
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}paper:shadow_observations",
-            json.dumps(shadow_observations),
-            ex=PAPER_RUNTIME_TRANSIENT_TTL_SECONDS,
+            json.dumps(persisted_shadow_observations),
+            ex=SHADOW_OBSERVATION_HISTORY_TTL_SECONDS,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}paper:shadow_observations")
         if _safe_write(
@@ -6033,9 +9589,17 @@ def run_once() -> dict:
         "intents_built": len(intents),
         "intents_accepted": len(accepted),
         "persistent_accepted_fill_count": len(accepted_for_ledger),
+        "accepted_fill_state_row_count": len(accepted_state_rows),
+        "accepted_fill_state_path": str(PAPER_ACCEPTED_FILLS_STATE_PATH),
+        "lifecycle_state_path": str(PAPER_LIFECYCLE_STATE_PATH),
+        "redis_ledger_compacted": True,
+        "redis_ledger_sample_limit": PAPER_REDIS_LEDGER_ROW_SAMPLE_LIMIT,
         "intents_blocked": len(blocked),
         "intents_held_by_paper_fill_gate": len(held_by_gate_intents),
-        "shadow_observation_count": len(shadow_observations),
+        "shadow_observation_count": len(current_cycle_shadow_observations),
+        "persistent_shadow_observation_count": len(persisted_shadow_observations),
+        "shadow_observation_history_max_rows": SHADOW_OBSERVATION_HISTORY_MAX_ROWS,
+        "shadow_observation_history_ttl_seconds": SHADOW_OBSERVATION_HISTORY_TTL_SECONDS,
         "accepted_position_count": len(lifecycle_result["open_positions"]),
         "open_position_count": len(lifecycle_result["open_positions"]),
         "closed_trade_count": len(lifecycle_result["closed_trades"]),
@@ -6052,6 +9616,12 @@ def run_once() -> dict:
         ),
         "trainer_strategy_hedge_feedback_status": (
             trainer_strategy_hedge_feedback_status if r is not None else {}
+        ),
+        "paper_b_grade_model_quality_status": (
+            paper_b_grade_model_quality_status if r is not None else {}
+        ),
+        "paper_b_grade_bucket_promotion_readiness_status": (
+            paper_b_grade_bucket_promotion_readiness_status if r is not None else {}
         ),
         "realized_pnl_usd": lifecycle_result["realized_pnl_usd"],
         "unrealized_pnl_usd": lifecycle_result["unrealized_pnl_usd"],
@@ -6084,7 +9654,8 @@ def run_once() -> dict:
         "strategy_router_data_quality_block_count": strategy_router_report["data_quality_block_count"],
         "strategy_router_masa_ppo_disagreement_count": strategy_router_report["masa_ppo_disagreement_count"],
         "held_by_paper_fill_gate": held_by_gate_intents,
-        "shadow_observations": shadow_observations,
+        "shadow_observations": current_cycle_shadow_observations,
+        "persistent_shadow_observations": persisted_shadow_observations,
         "v2_paper_keys_written": keys_written,
         "v2_paper_keys_written_count": len(keys_written),
         "classification": (
@@ -6138,6 +9709,47 @@ def run_once() -> dict:
         )
         write_payload(
             {
+                "accepted_fill_state_schema_version": "v2_compact_accepted_fill_state_v1",
+                "accepted_fill_state_compacted": True,
+                "accepted_fill_state_row_count": len(accepted_state_rows),
+                "accepted_fills": accepted_state_rows,
+                "current_cycle_accepted": current_accepted_state_rows,
+                "omitted_fields": sorted(COMPACT_ACCEPTED_FILL_OMITTED_FIELDS),
+                "generated_utc": _utc_iso(),
+                "paper_only": True,
+                "places_real_order": False,
+                "writes_legacy_redis": False,
+            },
+            PAPER_ACCEPTED_FILLS_STATE_PATH,
+        )
+        write_payload(
+            {
+                "paper_lifecycle_state_schema_version": "v2_paper_lifecycle_state_v1",
+                "accepted_fills": accepted_state_rows,
+                "current_cycle_accepted": current_accepted_state_rows,
+                "open_positions": open_positions,
+                "positions_by_symbol": lifecycle_result["positions_by_symbol"],
+                "closed_trades": closes,
+                "closes": closes,
+                "outcome_labels": outcome_labels,
+                "trainer_feedback_outcomes": trainer_feedback_consumable_rows,
+                "trainer_feedback_outcomes_quarantine": trainer_feedback_quarantine_rows,
+                "accepted_count": len(accepted_state_rows),
+                "current_cycle_accepted_count": len(current_accepted_state_rows),
+                "open_position_count": len(open_positions),
+                "closed_trade_count": len(closes),
+                "outcome_label_count": len(outcome_labels),
+                "trainer_feedback_row_count": len(trainer_feedback_consumable_rows),
+                "trainer_feedback_quarantined_row_count": len(trainer_feedback_quarantine_rows),
+                "generated_utc": _utc_iso(),
+                "paper_only": True,
+                "places_real_order": False,
+                "writes_legacy_redis": False,
+            },
+            PAPER_LIFECYCLE_STATE_PATH,
+        )
+        write_payload(
+            {
                 "outcome_labels": lifecycle_result["outcome_labels"],
                 "new_outcome_labels": lifecycle_result["new_outcome_labels"],
                 "generated_utc": _utc_iso(),
@@ -6150,11 +9762,23 @@ def run_once() -> dict:
                 "trainer_feedback_outcomes": trainer_feedback_consumable_rows,
                 "trainer_feedback_outcomes_quarantine": trainer_feedback_quarantine_rows,
                 "trainer_strategy_hedge_feedback_status": trainer_strategy_hedge_feedback_status,
+                "paper_b_grade_model_quality_status": paper_b_grade_model_quality_status,
+                "paper_b_grade_bucket_promotion_readiness_status": (
+                    paper_b_grade_bucket_promotion_readiness_status
+                ),
                 "generated_utc": _utc_iso(),
                 "paper_only": True,
                 "places_real_order": False,
             },
             TRADE_MANAGEMENT_PUBLIC_DIR / "trainer_feedback_outcomes.json",
+        )
+        write_payload(
+            paper_b_grade_model_quality_status,
+            TRADE_MANAGEMENT_PUBLIC_DIR / "paper_b_grade_model_quality_status.json",
+        )
+        write_payload(
+            paper_b_grade_bucket_promotion_readiness_status,
+            TRADE_MANAGEMENT_PUBLIC_DIR / "paper_b_grade_bucket_promotion_readiness_status.json",
         )
         write_payload(
             {
@@ -6192,7 +9816,9 @@ def run_once() -> dict:
 
 def write_payload(payload: dict, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    tmp.replace(path)
 
 
 def _try_acquire_loop_lock(path: Path = PAPER_LOOP_LOCK_PATH) -> TextIO | None:

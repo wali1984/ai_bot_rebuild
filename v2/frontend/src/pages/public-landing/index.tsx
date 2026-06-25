@@ -6,6 +6,7 @@
 
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { NERVYX_BRAND } from '../../brand/nervyxBrand';
 import { RealtimeDataAtlasPanel } from '../../components/realtimeWebsite/RealtimeDataAtlasPanel';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import meta from './meta';
@@ -304,7 +305,7 @@ export default function PublicLandingPage(): JSX.Element {
             { k: 'BTC price', v: heroTickers[0] ? fmtPrice(heroTickers[0].last_price) : '...', ok: !!heroTickers[0] },
             { k: 'ETH price', v: heroTickers[1] ? fmtPrice(heroTickers[1].last_price) : '...', ok: !!heroTickers[1] },
             { k: 'Data source', v: hasData ? 'WebSocket' : 'Connecting...', ok: hasData },
-            { k: 'Execution', v: 'Platform', warn: true },
+            { k: 'Execution', v: 'Restricted', warn: true },
             { k: 'Trading gate', v: 'Operator gated', bad: true },
           ].map(({ k, v, ok, warn, bad }) => (
             <div
@@ -335,6 +336,19 @@ export default function PublicLandingPage(): JSX.Element {
       {/* ── HERO SECTION ─────────────────────────────────────────────────── */}
       <section style={{ padding: '64px 0 48px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <div style={S.wrap}>
+          <img
+            src={NERVYX_BRAND.assets.logoOnMidnight}
+            alt="NERVYX ONE"
+            style={{
+              display: 'block',
+              width: 'min(260px, 68vw)',
+              height: 62,
+              objectFit: 'contain',
+              objectPosition: 'left center',
+              marginBottom: 18,
+            }}
+          />
+
           {/* Eyebrow */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
             <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4fd1ff' }} />
@@ -347,7 +361,7 @@ export default function PublicLandingPage(): JSX.Element {
           <h1 style={{
             fontSize: 'clamp(32px, 5vw, 56px)',
             fontWeight: 700,
-            letterSpacing: '-0.03em',
+            letterSpacing: 0,
             lineHeight: 1.08,
             margin: '0 0 16px',
             color: '#e8f4ff',
@@ -360,7 +374,7 @@ export default function PublicLandingPage(): JSX.Element {
 
           <p style={{ fontSize: 16, color: 'rgba(190,210,230,0.65)', lineHeight: 1.6, maxWidth: 580, margin: '0 0 32px' }}>
             AI-powered signals, real-time derivatives analytics, and risk-governed execution intelligence.
-            Professional-grade trading infrastructure for live market execution workflows.
+            Professional-grade trading infrastructure for operator-gated execution workflows.
           </p>
 
           {/* CTA buttons */}

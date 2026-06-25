@@ -56,9 +56,6 @@ V2_ROOT = REPO_ROOT / "v2"
 PUBLIC_RUNTIME_DIR = V2_ROOT / "frontend" / "public" / "operator_runtime" / "paper_online" / "latest"
 LOCAL_RUNTIME_DIR = V2_ROOT / "runtime" / "paper_online" / "latest"
 FINAL_DIR = REPO_ROOT / "claude_worklog" / "final_readiness" / "v2_paper_online_recovery" / "latest"
-SYMBOL_UNIVERSE_PUBLIC_PATH = (
-    V2_ROOT / "frontend" / "public" / "operator_runtime" / "symbol_universe" / "latest" / "symbol_universe_status.json"
-)
 TRAINER_BRIDGE_STATUS_FILE = (
     V2_ROOT
     / "frontend"

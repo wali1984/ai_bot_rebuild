@@ -69,6 +69,18 @@ def _closed_event(symbol="BTCUSDT", timeframe="15m", pnl=10.0, return_bps=20.0, 
         "paper_action": "paper_long",
         "exit_reason": "TP_HIT",
         "side": "long",
+        "prediction_id": "prediction-1",
+        "signal_id": "signal-1",
+        "decision_id": "decision-1",
+        "feature_snapshot_id": "feature-snapshot-1",
+        "mtf_snapshot_id": "mtf-snapshot-1",
+        "feature_cutoff": "2026-06-08T20:59:00Z",
+        "decision_time": "2026-06-08T21:00:00Z",
+        "available_at": "2026-06-08T20:59:59Z",
+        "selected_action": "long",
+        "model_version": "model-v1",
+        "checkpoint_id": "checkpoint-v1",
+        "source_hashes": {"feature": "abc"},
     }
 
 

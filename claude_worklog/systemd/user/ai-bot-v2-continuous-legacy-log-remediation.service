@@ -1,4 +1,6 @@
 [Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
 Description=AI BOT V2 continuous legacy-log -> rebuild remediation loop (read-only)
 After=ai-bot-v2-legacy-log-intelligence-observer.service
 

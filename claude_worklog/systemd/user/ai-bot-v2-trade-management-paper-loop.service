@@ -1,4 +1,6 @@
 [Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
 Description=AI BOT V2 trade management paper loop (paper-only, no exchange mutation)
 After=ai-bot-v2-orchestrator-arbitration-loop.service
 

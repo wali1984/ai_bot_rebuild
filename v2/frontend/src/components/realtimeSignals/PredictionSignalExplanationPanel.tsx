@@ -469,9 +469,9 @@ export function PredictionSignalExplanationPanel({
           <Metric label="Prediction rows" value={data?.summary?.prediction_rows ?? 'Connecting stream'} />
           <Metric label="Symbols explained" value={uniqueSymbolCount ?? 'Connecting stream'} />
           <Metric label="Timeframes explained" value={uniqueTimeframes.length ? uniqueTimeframes.join(', ') : 'Connecting stream'} />
-          <Metric label="Live trading" value={data?.summary?.live_gate ? 'Operator gated' : 'Connecting stream'} />
+          <Metric label="Execution routing" value={data?.summary?.live_gate ? 'Operator gated' : 'Connecting stream'} />
           <Metric label="Trader mode" value={prettyValue(data?.summary?.trader_state)} />
-          <Metric label="Live trading guard" value={prettyValue(data?.summary?.live_submit_blocker, 64)} />
+          <Metric label="Execution guard" value={prettyValue(data?.summary?.live_submit_blocker, 64)} />
           <Metric label="Execution accepted/blocked" value={`${data?.summary?.paper_accepted_count ?? 0}/${data?.summary?.paper_blocked_count ?? 0}`} />
           <Metric label="Execution-eligible predictions" value={data?.summary?.prediction_paper_fill_allowed_count ?? 'Connecting stream'} />
           <Metric label="Routed signal candidates" value={data?.summary?.prediction_routes_to_orchestrator_count ?? 'Connecting stream'} />

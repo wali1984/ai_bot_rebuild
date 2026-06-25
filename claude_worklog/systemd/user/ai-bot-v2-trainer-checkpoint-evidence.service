@@ -1,4 +1,6 @@
 [Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
 Description=AI BOT V2 trainer checkpoint evidence publisher (metadata-only, V2 namespace)
 After=network-online.target redis-server.service
 

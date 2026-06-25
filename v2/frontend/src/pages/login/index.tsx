@@ -305,7 +305,7 @@ export default function LoginPage(): JSX.Element {
               textAlign: 'center',
             }}
           >
-            Backend-authenticated access only. Browser role overrides do not grant elevated access.
+            Backend-authenticated access only. Session permissions are verified server-side.
           </p>
         </div>
 

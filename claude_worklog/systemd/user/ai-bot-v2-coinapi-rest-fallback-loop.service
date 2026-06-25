@@ -1,4 +1,6 @@
 [Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
 Description=AI BOT V2 CoinAPI REST fallback loop (paper-only, V2 namespace only)
 After=network-online.target redis.service
 Wants=network-online.target

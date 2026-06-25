@@ -53,16 +53,17 @@ function pill(tone: 'ok' | 'warn' | 'block' | 'neutral', label: string, value: s
         borderRadius: 8,
         minWidth: 120,
         flex: '1 1 120px',
+        minInlineSize: 0,
       }}
     >
       <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: colors[tone], textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>
         {label}
       </span>
-      <strong style={{ fontSize: 13, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+      <strong style={{ fontSize: 13, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'normal', overflow: 'visible', textOverflow: 'clip', overflowWrap: 'anywhere', lineHeight: 1.2 }}>
         {value}
       </strong>
       {detail ? (
-        <span style={{ fontSize: 10, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span style={{ fontSize: 10, color: 'var(--text-muted)', overflow: 'visible', textOverflow: 'clip', whiteSpace: 'normal', overflowWrap: 'anywhere', lineHeight: 1.25 }}>
           {detail}
         </span>
       ) : null}

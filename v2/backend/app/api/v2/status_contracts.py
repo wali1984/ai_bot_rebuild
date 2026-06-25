@@ -9,6 +9,7 @@ from fastapi import APIRouter
 
 from app.api.v2._common import get_redis
 from app.api.v2.market_contracts import _derivatives_realtime_source_evidence, _market_stream_telemetry
+from app.api.v2.truthful_status import build_truthful_status_dimensions
 from app.services.market_stream_alert_history import market_stream_alert_history_summary
 from app.services.market_stream_alert_notifier import market_stream_alert_notifier_status
 
@@ -100,6 +101,7 @@ async def get_v2_status() -> dict[str, Any]:
     data_status = "source pending"
     paper_mode = True
     live_trading_enabled = False
+    live_gate_status = "blocked_human_only"
     incidents: list[dict[str, str]] = []
     market_stream = _safe_market_stream_status("BTCUSDT")
     market_stream_alert = _safe_market_stream_alert(market_stream)
@@ -134,12 +136,26 @@ async def get_v2_status() -> dict[str, Any]:
     if derivatives_data["stale"]:
         warnings.append("Derivatives source evidence is pending.")
 
+    status_dimensions = build_truthful_status_dimensions(
+        market_stream=market_stream,
+        runtime_state=data_status,
+        data_status=data_status,
+        redis_available=r is not None,
+        live_gate_status=live_gate_status,
+        live_trading_enabled=live_trading_enabled,
+        order_submission_enabled=False,
+        places_real_order=False,
+        account_authenticated=False,
+        account_connected=False,
+    )
+
     return {
         "platform_status": platform_status,
         "api_status": api_status,
         "data_status": data_status,
         "paper_mode": paper_mode,
         "live_trading_enabled": live_trading_enabled,
+        "status_dimensions": status_dimensions,
         "market_stream": market_stream,
         "market_stream_alert": market_stream_alert,
         "market_stream_alert_history": market_stream_alert_history,

@@ -65,6 +65,34 @@ Ongoing readiness monitoring is recorded in `docs/product-readiness-monitor.md`.
 - Paper execution policy status is IN PROGRESS: paper preview/stage/cancel/fill contracts expose explicit partial local policy metadata, disabled live transport, disabled exchange mutation, disabled live order cancel, disabled leverage/margin/live-gate mutation, production validation pending, production paper actions fail closed, and missing production paper/audit fields.
 - Local paper fill writer is IN PROGRESS: authenticated manual fills can write scoped local paper execution/position rows and hash-chained local paper audit events without exchange mutation, but production validation, audit hardening, durable persistence, screenshots, and full suite rerun remain pending.
 
+## 2026-06-23 NERVYX continuation queue
+
+- [x] Add backend-truth status dimensions for Market Data, Automation, Execution, and Account.
+- [x] Rebuild and restart localhost `5173` so public status no longer serves stale status copy.
+- [x] Validate public `/status` on localhost `5173` with focused Chromium coverage.
+- [x] Add repeatable position realtime probe for HTTP and WebSocket price/reasoning checks across `/api/v2/paper/status`, `/api/v2/paper/activity`, `/api/v2/account/positions`, and `/api/v2/mobile/positions`.
+- [x] Route generic resource WebSocket frames for `/api/v2/paper/status` and `/api/v2/paper/activity` through existing read-only backend builders so those streams do not self-fetch over localhost HTTP.
+- [ ] Reverify paper position entry, close/exit, and mark price fields on website and app so missing, null, stale, or decode-failed prices never render as `0`; valid zero requires explicit backend contract proof, timestamp, source, and unit.
+- [ ] Ensure open position mark price is continuously updated from realtime market/mark-price data with API fallback and visible freshness/age state, not page refresh.
+- [ ] Ensure closed and historical position rows show real recorded entry and close prices from fills/executions/ledger sources; unavailable values must remain unavailable with a precise reason.
+- [ ] Complete authenticated rendered-field capture for bot active/open/closed/historical position reasoning on website.
+- [ ] When a user opens bot active, open, closed, or historical positions on website, render AI decision reasoning from the actual matching prediction/signal/trainer lineage, including basis fields and source timestamps.
+- [ ] When a user opens bot active, open, closed, or historical positions in the iPhone app, render the same matching AI decision reasoning without placeholder copy or manual refresh.
+- [ ] Complete native iPhone rendered-field capture for position reasoning and realtime mark/entry/exit price behavior.
+- [ ] Expand Swift app pages with all available backend cards, panels, charts, and evidence sections in structured, non-cluttered realtime layouts using modern Swift `async`/`await` and no placeholder comments.
+- [ ] Keep all Swift app page data live through streams/resource streams with API fallback; no page should require a manual refresh for initial or updated data.
+- [ ] Validate Swift realtime streams under disconnect/reconnect/stale/out-of-order/duplicate frame cases.
+- [ ] Keep real live execution blocked until a separately approved live-readiness gate is complete.
+
+Latest 2026-06-23 operator addendum:
+
+- Paper position entry, close/exit, and mark price must be real values, never fabricated zero display. Open marks must remain realtime, and closed/historical rows must preserve recorded entry and close prices from fills, executions, or ledger sources.
+- Bot active, open, closed, and historical position detail views on both website and iPhone app must show matching AI decision reasoning from actual prediction, signal, and trainer lineage already wired in backend evidence.
+- Native app pages must expand available backend cards, panels, charts, and evidence sections in structured realtime layouts without clutter, placeholder comments, placeholder values, or manual refresh dependencies.
+- These items stay open until authenticated website route capture, native iPhone/watchOS validation, field-level data parity, and semantic missing/null/stale/zero tests pass.
+
+Latest focused evidence: `artifacts/nervyx-position-realtime-probe.json` passed with 0 issues on 2026-06-23 after the read-only resource adapter fix. Additional focused source/static/backend coverage now pins web open/closed/historical AI reasoning, Swift open/closed/historical detail AI reasoning, positive-only position pricing, and backend mobile/paper summary mark enrichment. This closes only focused transport/source-value guardrails; it does not close full authenticated rendered-field capture, native iOS/watchOS simulator validation, field parity, or TestFlight gates.
+
 ## 2026-06-14 ProChart follow-up
 
 - [x] Add read-only typed indicator derivation for EMA/Bollinger from public closed klines.

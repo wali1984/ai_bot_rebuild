@@ -157,7 +157,7 @@ function publicMarketEnvelope<T>(
     stale: false,
     missing_fields: options.missingFields ?? [],
     warnings: [
-      'Local V2 market service unavailable; using Binance USD-M public market fallback.',
+      'Local V2 market service unavailable; using read-only Binance USD-M public market fallback.',
       ...(options.warnings ?? []),
     ],
     symbol: options.symbol ?? null,

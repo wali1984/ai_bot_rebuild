@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { AdaptiveCapitalTelemetryPanel } from '../../components/trading/AdaptiveCapitalTelemetryPanel';
 import { useAdaptiveCapitalDashboard, type AdaptiveCapitalDashboardPayload } from '../../data/adaptiveCapitalProductivity';
 import { usePayloadFile } from '../../hooks/usePayloadFile';
+import { publicRuntimeCopy } from '../../lib/tradeCopy';
 import meta from './meta';
 import rbac from './rbac';
 import route from './route';
@@ -317,6 +318,12 @@ function valueText(value: unknown): string {
   return String(value);
 }
 
+function displayText(value: unknown): string {
+  return publicRuntimeCopy(valueText(value), 'Evidence pending')
+    .replace(/blocked[_\s-]*human[_\s-]*only/gi, 'operator gated')
+    .replace(/live[_\s-]*blocked/gi, 'operator gated');
+}
+
 function TopStatusBar({ payload }: { payload: CockpitPayload }): JSX.Element {
   return (
     <section className="operator-topbar" data-testid="operator-top-status-bar">
@@ -404,16 +411,11 @@ function CapitalProductivityEvidenceBlock({
 }
 
 function Metric({ label, value, detail }: { label: string; value: Primitive; detail?: string }): JSX.Element {
-  const display = (item: Primitive | string) => valueText(item)
-    .replace(/paper/gi, 'runtime')
-    .replace(/read[_\s-]*only/gi, 'account access')
-    .replace(/blocked[_\s-]*human[_\s-]*only/gi, 'operator gated')
-    .replace(/live blocked/gi, 'operator gated');
   return (
     <div className="operator-proof-metric">
-      <span>{display(label)}</span>
-      <strong>{display(value)}</strong>
-      {detail ? <small>{display(detail)}</small> : null}
+      <span>{displayText(label)}</span>
+      <strong>{displayText(value)}</strong>
+      {detail ? <small>{displayText(detail)}</small> : null}
     </div>
   );
 }
@@ -453,8 +455,8 @@ function DataList({
             <dl key={`${title}-${index}`}>
               {Object.entries(row as Record<string, unknown>).map(([key, value]) => (
                 <div key={key}>
-                  <dt>{key}</dt>
-                  <dd>{valueText(value)}</dd>
+                  <dt>{displayText(key)}</dt>
+                  <dd>{displayText(value)}</dd>
                 </div>
               ))}
             </dl>
@@ -488,9 +490,9 @@ function LineageCards({ rows }: { rows: LineageRow[] }): JSX.Element {
         {filtered.map((row) => (
           <details className="operator-drawer" key={row.id} open={row.symbol === 'LABUSDT'}>
             <summary>
-              <span>{row.symbol}</span>
-              <span>{row.id}</span>
-              <span className={statusClass(row.risk_gateway_decision)}>{row.risk_gateway_decision}</span>
+              <span>{displayText(row.symbol)}</span>
+              <span>{displayText(row.id)}</span>
+              <span className={statusClass(row.risk_gateway_decision)}>{displayText(row.risk_gateway_decision)}</span>
             </summary>
             <div className="operator-lineage-chain">
               {[
@@ -508,8 +510,8 @@ function LineageCards({ rows }: { rows: LineageRow[] }): JSX.Element {
                 ['result/PnL attribution', row.result_pnl_attribution],
               ].map(([label, value]) => (
                 <div key={label}>
-                  <span>{label}</span>
-                  <strong>{value}</strong>
+                  <span>{displayText(label)}</span>
+                  <strong>{displayText(value)}</strong>
                 </div>
               ))}
             </div>
@@ -531,8 +533,8 @@ function LineageCards({ rows }: { rows: LineageRow[] }): JSX.Element {
 function MiniList({ title, items }: { title: string; items: string[] }): JSX.Element {
   return (
     <div className="operator-mini-list">
-      <h4>{title}</h4>
-      {items.length ? items.map((item) => <span key={item}>{item}</span>) : <span>none</span>}
+      <h4>{displayText(title)}</h4>
+      {items.length ? items.map((item) => <span key={item}>{displayText(item)}</span>) : <span>none</span>}
     </div>
   );
 }
@@ -546,11 +548,11 @@ function FeatureAttribution({ rows }: { rows: FeatureRow[] }): JSX.Element {
         </div>
         {rows.map((row) => (
           <div role="row" key={row.id}>
-            <span>{row.symbol}</span>
-            <span>{row.feature_snapshot_id}</span>
-            <span className={statusClass(row.freshness)}>{row.freshness}</span>
-            <span>{valueText(row.positive)}</span>
-            <span>{valueText([...row.negative, ...row.missing])}</span>
+            <span>{displayText(row.symbol)}</span>
+            <span>{displayText(row.feature_snapshot_id)}</span>
+            <span className={statusClass(row.freshness)}>{displayText(row.freshness)}</span>
+            <span>{displayText(row.positive)}</span>
+            <span>{displayText([...row.negative, ...row.missing])}</span>
           </div>
         ))}
       </div>
@@ -567,12 +569,12 @@ function SymbolUniverse({ rows }: { rows: SymbolRow[] }): JSX.Element {
         </div>
         {rows.map((row) => (
           <div role="row" key={row.symbol}>
-            <span>{row.symbol}</span>
-            <span>{row.discovery_source}</span>
-            <span>{row.liquidity_score}</span>
-            <span>{row.volume_score} / {row.open_interest_score}</span>
-            <span>{row.universe_state}</span>
-            <span>{row.why_state}</span>
+            <span>{displayText(row.symbol)}</span>
+            <span>{displayText(row.discovery_source)}</span>
+            <span>{displayText(row.liquidity_score)}</span>
+            <span>{displayText(row.volume_score)} / {displayText(row.open_interest_score)}</span>
+            <span>{displayText(row.universe_state)}</span>
+            <span>{displayText(row.why_state)}</span>
           </div>
         ))}
       </div>
@@ -589,12 +591,12 @@ function RiskGateway({ rows }: { rows: RiskRow[] }): JSX.Element {
         </div>
         {rows.map((row) => (
           <div role="row" key={row.id}>
-            <span>{row.symbol}</span>
-            <span className={statusClass(row.final_decision)}>{row.final_decision}</span>
-            <span>{row.stale_signal_check}</span>
-            <span>{row.duplicate_signal_check}</span>
-            <span>{row.exposure_check}</span>
-            <span>{row.final_reason}</span>
+            <span>{displayText(row.symbol)}</span>
+            <span className={statusClass(row.final_decision)}>{displayText(row.final_decision)}</span>
+            <span>{displayText(row.stale_signal_check)}</span>
+            <span>{displayText(row.duplicate_signal_check)}</span>
+            <span>{displayText(row.exposure_check)}</span>
+            <span>{displayText(row.final_reason)}</span>
           </div>
         ))}
       </div>
@@ -620,12 +622,12 @@ function ExternalManualQuarantine({ payload }: { payload?: ExternalManualPositio
         </div>
         {rows.map((row) => (
           <div role="row" key={row.evidence_id}>
-            <span>{row.symbol ?? 'evidence_missing'}</span>
-            <span className={statusClass(row.ownership_classification)}>{row.ownership_classification}</span>
-            <span>{row.quarantine_reason ?? 'not_quarantined'}</span>
-            <span>{valueText(row.missing_attribution_fields)}</span>
-            <span>{valueText(row.allowed_actions)}</span>
-            <span>{valueText(row.blocked_actions)}</span>
+            <span>{displayText(row.symbol ?? 'evidence_missing')}</span>
+            <span className={statusClass(row.ownership_classification)}>{displayText(row.ownership_classification)}</span>
+            <span>{displayText(row.quarantine_reason ?? 'not_quarantined')}</span>
+            <span>{displayText(row.missing_attribution_fields)}</span>
+            <span>{displayText(row.allowed_actions)}</span>
+            <span>{displayText(row.blocked_actions)}</span>
           </div>
         ))}
       </div>
@@ -644,11 +646,11 @@ function MonitorCenter({ rows }: { rows: MonitorRow[] }): JSX.Element {
         </div>
         {rows.map((row) => (
           <div role="row" key={row.id}>
-            <span>{row.script_path}</span>
-            <span className={statusClass(row.status)}>{row.classification} / {row.status}</span>
-            <span>{row.last_run}</span>
-            <span>{valueText(row.processes_watched)}</span>
-            <span>{valueText(row.alerts)}</span>
+            <span>{displayText(row.script_path)}</span>
+            <span className={statusClass(row.status)}>{displayText(row.classification)} / {displayText(row.status)}</span>
+            <span>{displayText(row.last_run)}</span>
+            <span>{displayText(row.processes_watched)}</span>
+            <span>{displayText(row.alerts)}</span>
           </div>
         ))}
       </div>
@@ -665,9 +667,9 @@ function ConfigAdmin({ rows }: { rows: SettingRow[] }): JSX.Element {
         </div>
         {rows.map((row) => (
           <div role="row" key={row.name}>
-            <span>{row.name}</span>
-            <span>{row.value}</span>
-            <span className={statusClass(row.classification)}>{row.classification}</span>
+            <span>{displayText(row.name)}</span>
+            <span>{displayText(row.value)}</span>
+            <span className={statusClass(row.classification)}>{displayText(row.classification)}</span>
           </div>
         ))}
       </div>

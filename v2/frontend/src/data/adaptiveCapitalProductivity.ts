@@ -6,6 +6,8 @@ export const ADAPTIVE_CAPITAL_DASHBOARD_PATH =
 export const ADAPTIVE_CAPITAL_DASHBOARD_STREAM_PATH =
   '/api/v2/adaptive-capital/dashboard';
 const ADAPTIVE_CAPITAL_BASE_PATH = '/operator_runtime/v2_adaptive_capital_productivity/latest';
+const CONTINUOUS_EDGE_GUARDIAN_PATH =
+  '/operator_runtime/v2_continuous_edge_guardian/latest/continuous_edge_guardian_status.json';
 
 export interface PnlHistoryWindow {
   window: '1d' | '7d' | '30d' | string;
@@ -412,6 +414,7 @@ export interface AdaptiveCapitalDashboardPayload {
   generated_utc?: string;
   overall_status?: string;
   remaining_blockers?: string[];
+  continuous_edge_guardian_status?: ContinuousEdgeGuardianStatus;
   operator_go_readiness?: AdaptiveCapitalOperatorGoReadiness;
   capital_productivity_runtime_status?: CapitalProductivityRuntimeStatus;
   counterfactual_capital_sweep_status?: AdaptiveCapitalCounterfactualStatus;
@@ -420,6 +423,63 @@ export interface AdaptiveCapitalDashboardPayload {
   pnl_history_status?: PnlHistoryStatus;
   signal_prediction_accuracy_status?: SignalPredictionAccuracyStatus;
   dashboard_web_status?: AdaptiveCapitalDashboardWebStatus;
+}
+
+export interface ContinuousEdgeGuardianStatus {
+  generated_utc?: string;
+  overall_status?: string;
+  guardian_status?: string;
+  go_no_go?: string;
+  current_truth?: {
+    trainer_learning_can_be_active_without_execution_readiness?: boolean;
+    website_must_show?: string;
+    a_grade_execution_ready?: boolean;
+    live_ready?: boolean;
+  };
+  readiness_truth?: {
+    PROCESS_ACTIVE?: boolean;
+    INFERENCE_ACTIVE?: boolean;
+    WEIGHTS_UPDATING?: boolean;
+    CALIBRATION_ACTIVE?: boolean;
+    EDGE_PROVEN?: boolean;
+    A_GRADE_EXECUTION_READY?: boolean;
+    ZERO_LIQUIDATION_READY?: boolean;
+    '1000X_TRAJECTORY_READY'?: boolean;
+    LIVE_READY?: boolean;
+    online_learning_status?: string;
+    effective_trainer_mode?: string;
+    last_successful_weight_update_at?: string | null;
+    trainer_quality_snapshot?: {
+      directional_accuracy?: number | null;
+      brier_score?: number | null;
+      ece?: number | null;
+    };
+  };
+  realtime_a_grade_metrics?: {
+    closed_economic_trade_count?: number;
+    rolling_100_trade_win_rate?: number | null;
+    rolling_300_trade_win_rate?: number | null;
+    rolling_1000_trade_win_rate?: number | null;
+    after_cost_expectancy_bps?: number | null;
+    profit_factor?: number | null;
+    maximum_drawdown?: number | null;
+    worst_1_percent_loss_bps?: number | null;
+    liquidation_event_count?: number;
+    symbol_count?: number;
+    side_counts?: Record<string, number>;
+  };
+  a_grade_execution_gate?: {
+    status?: string;
+    a_grade_new_entries_allowed?: boolean;
+    new_candidate_tier_override?: string | null;
+    block_all_new_a_grade_entries?: boolean;
+    failure_reasons?: Array<{ reason?: string; observed?: unknown; required?: unknown }>;
+  };
+  trajectory_status?: {
+    status?: string;
+    required_daily_geometric_return?: number | null;
+    required_monthly_geometric_return?: number | null;
+  };
 }
 
 export function shouldEnableAdaptiveCapitalFallback(
@@ -456,16 +516,25 @@ export function useAdaptiveCapitalDashboard(pollMs = 2_000) {
     Math.max(pollMs, 10_000),
     { enabled: fallbackEnabled },
   );
+  const guardian = usePayloadFile<ContinuousEdgeGuardianStatus>(
+    CONTINUOUS_EDGE_GUARDIAN_PATH,
+    Math.max(pollMs, 10_000),
+  );
 
   const fallbackData = useMemo<AdaptiveCapitalDashboardPayload | null>(() => {
-    if (!capital.data && !policy.data && !counterfactual.data) return null;
+    if (!capital.data && !policy.data && !counterfactual.data && !guardian.data) return null;
     const generatedUtc = (capital.data as { generated_utc?: string } | null)?.generated_utc
       ?? (policy.data as { generated_utc?: string } | null)?.generated_utc
-      ?? (counterfactual.data as { generated_utc?: string } | null)?.generated_utc;
-    const overallStatus = policy.data?.status ?? capital.data?.status ?? counterfactual.data?.status;
+      ?? (counterfactual.data as { generated_utc?: string } | null)?.generated_utc
+      ?? guardian.data?.generated_utc;
+    const overallStatus = policy.data?.status
+      ?? capital.data?.status
+      ?? counterfactual.data?.status
+      ?? guardian.data?.overall_status;
     return {
       generated_utc: generatedUtc,
       overall_status: overallStatus,
+      continuous_edge_guardian_status: guardian.data ?? undefined,
       capital_productivity_runtime_status: capital.data ?? undefined,
       adaptive_capital_policy_status: policy.data ?? undefined,
       counterfactual_capital_sweep_status: counterfactual.data ?? undefined,
@@ -482,19 +551,25 @@ export function useAdaptiveCapitalDashboard(pollMs = 2_000) {
         capital_productivity_progress: capital.data?.capital_productivity_progress,
       },
     };
-  }, [capital.data, counterfactual.data, policy.data]);
+  }, [capital.data, counterfactual.data, guardian.data, policy.data]);
   const data = useMemo(
-    () => dashboard.data ?? fallbackData,
-    [dashboard.data, fallbackData],
+    () => {
+      if (!dashboard.data) return fallbackData;
+      return {
+        ...dashboard.data,
+        continuous_edge_guardian_status: guardian.data ?? dashboard.data.continuous_edge_guardian_status,
+      };
+    },
+    [dashboard.data, fallbackData, guardian.data],
   );
 
   return {
     data,
-    error: dashboard.error ?? capital.error ?? policy.error ?? counterfactual.error,
-    ageSeconds: [dashboard.ageSeconds, capital.ageSeconds, policy.ageSeconds, counterfactual.ageSeconds]
+    error: dashboard.error ?? capital.error ?? policy.error ?? counterfactual.error ?? guardian.error,
+    ageSeconds: [dashboard.ageSeconds, capital.ageSeconds, policy.ageSeconds, counterfactual.ageSeconds, guardian.ageSeconds]
       .filter((age): age is number => typeof age === 'number')
       .sort((a, b) => b - a)[0] ?? null,
-    loading: !data && (dashboard.loading || capital.loading || policy.loading || counterfactual.loading),
+    loading: !data && (dashboard.loading || capital.loading || policy.loading || counterfactual.loading || guardian.loading),
   };
 }
 

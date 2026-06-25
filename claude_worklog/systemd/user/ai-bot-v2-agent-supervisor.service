@@ -1,4 +1,6 @@
 [Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
 Description=AI Bot V2 agent supervisor
 After=network-online.target ai-bot-v2-worker-porting-orchestrator.service
 

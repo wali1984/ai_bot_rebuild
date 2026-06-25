@@ -62,6 +62,10 @@ class OutcomeMemoryBucket:
     degraded: bool = False
     degraded_since: str | None = None
     data_source: str = "REDIS"
+    trust_evidence_status: str = "TRUSTED_OUTCOME_MEMORY"
+    outcome_memory_can_block_entries: bool = True
+    trusted_trade_count: int = 0
+    untrusted_trade_count: int = 0
     baseline_advisory_reasons: list[str] = field(default_factory=list)
     baseline_evidence_date: str | None = None
     baseline_trade_count: int = 0
@@ -71,6 +75,12 @@ class OutcomeMemoryBucket:
         trade_count = d.get("trade_count")
         if trade_count is None:
             trade_count = d.get("total_trades")
+        legacy_without_trust_metadata = (
+            "trust_evidence_status" not in d
+            and "outcome_memory_can_block_entries" not in d
+            and "trusted_trade_count" not in d
+            and "untrusted_trade_count" not in d
+        )
         return cls(
             symbol=str(d.get("symbol") or ""),
             timeframe=str(d.get("timeframe") or ""),
@@ -86,6 +96,18 @@ class OutcomeMemoryBucket:
             degraded=bool(d.get("degraded")),
             degraded_since=d.get("degraded_since"),
             data_source=str(d.get("data_source") or "REDIS"),
+            trust_evidence_status=(
+                "LEGACY_UNVERIFIED_OUTCOME_MEMORY"
+                if legacy_without_trust_metadata
+                else str(d.get("trust_evidence_status") or "UNVERIFIED_OUTCOME_MEMORY")
+            ),
+            outcome_memory_can_block_entries=(
+                False
+                if legacy_without_trust_metadata
+                else bool(d.get("outcome_memory_can_block_entries"))
+            ),
+            trusted_trade_count=int(d.get("trusted_trade_count") or 0),
+            untrusted_trade_count=int(d.get("untrusted_trade_count") or 0),
             baseline_advisory_reasons=list(d.get("baseline_advisory_reasons") or []),
             baseline_evidence_date=d.get("baseline_evidence_date"),
             baseline_trade_count=int(d.get("baseline_trade_count") or 0),
@@ -107,6 +129,10 @@ class OutcomeMemoryBucket:
             "degraded": self.degraded,
             "degraded_since": self.degraded_since,
             "data_source": self.data_source,
+            "trust_evidence_status": self.trust_evidence_status,
+            "outcome_memory_can_block_entries": self.outcome_memory_can_block_entries,
+            "trusted_trade_count": self.trusted_trade_count,
+            "untrusted_trade_count": self.untrusted_trade_count,
             "baseline_advisory_reasons": list(self.baseline_advisory_reasons),
             "baseline_evidence_date": self.baseline_evidence_date,
             "baseline_trade_count": self.baseline_trade_count,
@@ -154,6 +180,30 @@ def evaluate_outcome_memory_bucket(
     cfg = thresholds or OutcomeMemoryThresholds()
     reasons: list[str] = []
 
+    if bucket.outcome_memory_can_block_entries is not True:
+        # CG-F022 fix: advisory buckets normally don't block, but when degraded
+        # AND block_reason is explicitly set (from the updater's rolling-window
+        # evaluation), honour the block even without trusted trade evidence.
+        # The trust field is only populated when closed-trade records carry full
+        # model-lineage metadata (mtf_snapshot_id, source_hashes, etc.), which
+        # the current paper loop doesn't emit.  Without this guard, aggregate
+        # outcome memory with WR=17-27% and large drawdowns never blocks entries.
+        if not (bucket.degraded and bucket.block_reason):
+            return {
+                "allowed": True,
+                "blocked": False,
+                "reasons": [],
+                "source": f"{bucket.data_source}_ADVISORY_UNTRUSTED_OUTCOME_MEMORY",
+                "trade_count": bucket.trade_count,
+                "rolling_win_rate": bucket.rolling_win_rate,
+                "rolling_ev_bps": bucket.rolling_ev_bps,
+                "drawdown_contribution_usd": bucket.drawdown_contribution_usd,
+                "trust_evidence_status": bucket.trust_evidence_status,
+                "trusted_trade_count": bucket.trusted_trade_count,
+                "untrusted_trade_count": bucket.untrusted_trade_count,
+            }
+        # fall through to the degraded+block_reason check below
+
     # Honour pre-set degraded flag from current Redis evidence or previous evaluation.
     if bucket.degraded and bucket.block_reason:
         return {
@@ -165,6 +215,9 @@ def evaluate_outcome_memory_bucket(
             "rolling_win_rate": bucket.rolling_win_rate,
             "rolling_ev_bps": bucket.rolling_ev_bps,
             "drawdown_contribution_usd": bucket.drawdown_contribution_usd,
+            "trust_evidence_status": bucket.trust_evidence_status,
+            "trusted_trade_count": bucket.trusted_trade_count,
+            "untrusted_trade_count": bucket.untrusted_trade_count,
         }
 
     if bucket.trade_count < cfg.min_trade_count_for_dynamic:
@@ -180,6 +233,9 @@ def evaluate_outcome_memory_bucket(
             "baseline_advisory_reasons": list(bucket.baseline_advisory_reasons),
             "baseline_evidence_date": bucket.baseline_evidence_date,
             "baseline_trade_count": bucket.baseline_trade_count,
+            "trust_evidence_status": bucket.trust_evidence_status,
+            "trusted_trade_count": bucket.trusted_trade_count,
+            "untrusted_trade_count": bucket.untrusted_trade_count,
         }
 
     if bucket.rolling_win_rate is not None and bucket.rolling_win_rate < cfg.min_win_rate:
@@ -225,6 +281,9 @@ def evaluate_outcome_memory_bucket(
         "rolling_win_rate": bucket.rolling_win_rate,
         "rolling_ev_bps": bucket.rolling_ev_bps,
         "drawdown_contribution_usd": bucket.drawdown_contribution_usd,
+        "trust_evidence_status": bucket.trust_evidence_status,
+        "trusted_trade_count": bucket.trusted_trade_count,
+        "untrusted_trade_count": bucket.untrusted_trade_count,
     }
 
 
@@ -304,6 +363,8 @@ def load_outcome_memory_bucket(
         data_source="NO_CURRENT_OUTCOME_MEMORY_ADVISORY_BASELINE",
         degraded=False,
         block_reason=None,
+        trust_evidence_status="NO_CURRENT_OUTCOME_MEMORY",
+        outcome_memory_can_block_entries=False,
         baseline_advisory_reasons=advisory_reasons,
         baseline_evidence_date=_SOAK_EVIDENCE_DATE,
         baseline_trade_count=_SOAK_TRADE_COUNT,

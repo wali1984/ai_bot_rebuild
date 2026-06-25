@@ -19,7 +19,9 @@ const TRADER_NAV_LINKS: Array<{ label: string; to: string; module: NervyxModuleI
   { label: 'AI', to: '/ai-predictions', module: 'core' },
   { label: 'Portfolio', to: '/portfolio', module: 'execute', minRole: 'trader' },
   { label: 'Backtests', to: '/backtests', module: 'replay', minRole: 'trader' },
+  { label: 'Replay', to: '/replay', module: 'replay', minRole: 'trader' },
   { label: 'Research', to: '/research', module: 'sense' },
+  { label: 'Technical Analysis', to: '/technical-analysis', module: 'sense' },
   { label: 'Alerts', to: '/alerts', module: 'observe', minRole: 'trader' },
 ];
 
@@ -124,7 +126,7 @@ function UserMenu(): JSX.Element {
   }
 
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
+    <div ref={ref} style={{ position: 'relative', zIndex: 2_100 }}>
       <button
         onClick={() => setOpen((v) => !v)}
         style={{
@@ -177,7 +179,7 @@ function UserMenu(): JSX.Element {
             border: '1px solid var(--border)',
             background: 'var(--bg-elevated)',
             boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-            zIndex: 400,
+            zIndex: 2_200,
             overflow: 'hidden',
           }}
           role="menu"
@@ -190,6 +192,24 @@ function UserMenu(): JSX.Element {
               {role}
             </div>
           </div>
+          <Link
+            to="/account-settings"
+            onClick={() => setOpen(false)}
+            style={{
+              display: 'block',
+              width: '100%',
+              padding: '9px 14px',
+              borderBottom: '1px solid var(--border)',
+              fontSize: 13,
+              color: 'var(--text-primary)',
+              textDecoration: 'none',
+              fontFamily: 'var(--font-sans)',
+            }}
+            role="menuitem"
+            data-testid="usermenu-account-settings"
+          >
+            Account Settings
+          </Link>
           <button
             onClick={() => { void logout(); setOpen(false); }}
             style={{
@@ -232,6 +252,7 @@ export function TopBar({ surface, showSymbolSearch = true }: TopBarProps): JSX.E
     <header
       data-testid="topbar"
       className="topbar-shell"
+      style={{ overflow: 'visible', zIndex: 2_000 }}
     >
       <Link
         to={surface === 'app' ? '/dashboard' : '/'}
@@ -267,6 +288,7 @@ export function TopBar({ surface, showSymbolSearch = true }: TopBarProps): JSX.E
               isActive ? 'topbar-primary-nav__link topbar-primary-nav__link--active' : 'topbar-primary-nav__link'
             )}
             data-nervyx-module={link.module}
+            data-testid={`nav-link-${link.to.replace(/\//g, '-').replace(/^-/, '')}`}
           >
             <span className="topbar-primary-nav__link-inner">
               <span className="topbar-primary-nav__label">{link.label}</span>

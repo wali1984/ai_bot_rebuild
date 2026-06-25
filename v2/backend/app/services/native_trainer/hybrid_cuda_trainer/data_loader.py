@@ -10,6 +10,9 @@ from typing import Any, Iterable, Mapping
 from v2.backend.app.services.market_state_integrity.canonical_candles import (
     REQUIRED_DECISION_TIMEFRAMES,
     build_multi_timeframe_decision_snapshot,
+    canonical_from_binance_rest,
+    now_ms,
+    parse_ms,
 )
 from v2.backend.app.services.market_state_integrity.scoring import OPTIONAL_OR_EVENT_FEATURE_TOKENS
 from v2.backend.app.services.market_state_integrity.sample_rejection import classify_training_sample
@@ -22,6 +25,16 @@ from v2.backend.app.services.native_trainer.feedback_enrichment import (
     REQUIRED_FEEDBACK_FIELDS,
     REQUIRED_TRUST_ENVELOPE_FIELDS,
     audit_quality_rejection_reasons,
+)
+from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
+    SnapshotArchiveError,
+    default_archive_root,
+    iter_snapshots,
+    load_snapshot as load_durable_feature_snapshot,
+)
+from v2.backend.app.services.native_trainer.trusted_replay.dataset import (
+    build_trusted_replay_row,
+    snapshot_to_final_candle,
 )
 
 from .safety import V2OnlyJsonIO, assert_v2_key
@@ -72,12 +85,39 @@ def _has_explicit_training_trust_evidence(row: Mapping[str, Any]) -> bool:
 
 
 def _parse_trust_time(value: Any) -> datetime | None:
-    if not isinstance(value, str) or not value.strip():
+    if value in (None, "") or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        try:
+            parsed_epoch = float(value)
+        except (TypeError, ValueError):
+            return None
+        if parsed_epoch <= 0 or parsed_epoch != parsed_epoch:
+            return None
+        if parsed_epoch > 10_000_000_000:
+            parsed_epoch /= 1000.0
+        try:
+            return datetime.fromtimestamp(parsed_epoch, tz=timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            return None
+    text = str(value).strip()
+    if not text:
         return None
     try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError:
-        return None
+        try:
+            parsed_epoch = float(text)
+        except (TypeError, ValueError):
+            return None
+        if parsed_epoch <= 0 or parsed_epoch != parsed_epoch:
+            return None
+        if parsed_epoch > 10_000_000_000:
+            parsed_epoch /= 1000.0
+        try:
+            return datetime.fromtimestamp(parsed_epoch, tz=timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            return None
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
@@ -194,10 +234,12 @@ class V2HybridTrainerDataLoader:
         io: V2OnlyJsonIO | None = None,
         tensor_builder: V2UnifiedFeatureTensorBuilder | None = None,
         replay_bundle_paths: Iterable[Path] = (),
+        trusted_replay_archive_root: Path | None = None,
     ) -> None:
         self.io = io or V2OnlyJsonIO(client=None)
         self.tensor_builder = tensor_builder or V2UnifiedFeatureTensorBuilder()
         self.replay_bundle_paths = tuple(Path(p) for p in replay_bundle_paths)
+        self.trusted_replay_archive_root = trusted_replay_archive_root or default_archive_root()
 
     def _get(self, key: str) -> Any:
         assert_v2_key(key)
@@ -261,6 +303,65 @@ class V2HybridTrainerDataLoader:
             return merged, ",".join(used)
         return None, keys[0]
 
+    @staticmethod
+    def _closed_candle_series_from_raw(raw: Any, *, symbol: str, timeframe: str) -> list[dict[str, Any]]:
+        current_ms = now_ms()
+        rows = raw if isinstance(raw, list) else [raw]
+        closed_rows: list[dict[str, Any]] = []
+        for row in rows:
+            if isinstance(row, Mapping):
+                close_ms = parse_ms(row.get("candle_close_time") or row.get("close_time"))
+                is_closed = (
+                    row.get("is_closed") is True
+                    or row.get("closed_candle") is True
+                    or row.get("candle_closed_confirmed") is True
+                )
+                if close_ms is None or close_ms > current_ms or not is_closed:
+                    continue
+                closed_rows.append(dict(row))
+                continue
+            if not isinstance(row, (list, tuple)) or len(row) < 7:
+                continue
+            close_ms = parse_ms(row[6])
+            if close_ms is None or close_ms > current_ms:
+                continue
+            try:
+                closed_rows.append(
+                    canonical_from_binance_rest(
+                        row,
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        ingested_at=close_ms,
+                    ).to_dict()
+                )
+            except (TypeError, ValueError):
+                continue
+        closed_rows.sort(key=lambda item: int(parse_ms(item.get("candle_open_time") or item.get("open_time")) or 0))
+        return closed_rows
+
+    def _read_closed_candle_series(self, *, symbol: str, timeframe: str) -> tuple[Any, str]:
+        closed_key = f"v2:market:ohlcv_closed:binance:{symbol}:{timeframe}"
+        closed_payload = self._get(closed_key)
+        raw_key = f"v2:market:ohlcv:binance:{symbol}:{timeframe}"
+        raw_payload = self._get(raw_key)
+        closed_from_raw = self._closed_candle_series_from_raw(raw_payload, symbol=symbol, timeframe=timeframe)
+        if isinstance(closed_payload, list) and closed_payload:
+            merged: dict[int, dict[str, Any]] = {}
+            for row in self._closed_candle_series_from_raw(closed_payload, symbol=symbol, timeframe=timeframe):
+                close_ms = parse_ms(row.get("candle_close_time") or row.get("close_time"))
+                if close_ms is not None:
+                    merged[int(close_ms)] = dict(row)
+            for row in closed_from_raw:
+                close_ms = parse_ms(row.get("candle_close_time") or row.get("close_time"))
+                if close_ms is not None:
+                    merged[int(close_ms)] = dict(row)
+            if merged:
+                return [merged[key] for key in sorted(merged)], f"{closed_key},{raw_key}"
+            return closed_payload, closed_key
+        if closed_from_raw:
+            return closed_from_raw, raw_key
+        return closed_payload, closed_key
+
     def load_payloads(self, *, symbol: str, timeframe: str) -> dict[str, Any]:
         keys = {
             "prices": f"v2:market:prices:{symbol}",
@@ -294,9 +395,12 @@ class V2HybridTrainerDataLoader:
             "trainer_feedback_outcomes": "v2:trainer:feedback:outcomes",
         }
         payloads = {name: self._get(key) for name, key in keys.items()}
+        payloads["ohlcv"], keys["ohlcv"] = self._read_closed_candle_series(symbol=symbol, timeframe=timeframe)
         for snapshot_timeframe in REQUIRED_DECISION_TIMEFRAMES:
-            key = f"v2:market:ohlcv_closed:binance:{symbol}:{snapshot_timeframe}"
-            payloads[f"ohlcv_closed_{snapshot_timeframe}"] = self._get(key)
+            payloads[f"ohlcv_closed_{snapshot_timeframe}"], key = self._read_closed_candle_series(
+                symbol=symbol,
+                timeframe=snapshot_timeframe,
+            )
             keys[f"ohlcv_closed_{snapshot_timeframe}"] = key
         microstructure, microstructure_key = self._get_merged(
             f"v2:market:microstructure:{symbol}",
@@ -365,8 +469,74 @@ class V2HybridTrainerDataLoader:
         payloads["_keys"] = keys
         return payloads
 
-    def build_example(self, *, symbol: str, timeframe: str) -> TrainingExample:
-        payloads = self.load_payloads(symbol=symbol, timeframe=timeframe)
+    def load_snapshot_payloads(self, *, symbol: str, timeframe: str) -> dict[str, Any] | None:
+        latest_key = f"v2:features:latest:{symbol}:{timeframe}"
+        latest = self._get(latest_key)
+        if not isinstance(latest, Mapping):
+            return None
+        features = latest.get("features") if isinstance(latest.get("features"), Mapping) else None
+        if not isinstance(features, Mapping) or not features:
+            return None
+        if str(latest.get("symbol") or "").upper() not in {"", symbol.upper()}:
+            return None
+        if str(latest.get("timeframe") or "") not in {"", timeframe}:
+            return None
+        payloads = self._payloads_from_feature_snapshot(snapshot=latest, features=features, feedback_row={})
+        keys: dict[str, str] = {"features_latest": latest_key}
+        supplemental_keys = {
+            "funding": f"v2:market:funding:{symbol}",
+            "open_interest": f"v2:market:open_interest:{symbol}",
+            "open_interest_hist": f"v2:market:open_interest_hist:{symbol}:5m",
+            "long_short": f"v2:market:long_short:{symbol}",
+            "orderbook": f"v2:market:orderbook:{symbol}",
+            "liquidations_agg": f"v2:market:liquidations:aggregate:{symbol}",
+            "liquidation_levels": f"v2:market:liquidation_levels:{symbol}",
+            "liquidity_zones": f"v2:market:liquidity_zones:{symbol}",
+            "symbol_score": f"v2:altdata:symbol_score:{symbol}",
+            "public_intel": f"v2:altdata:public_intel:symbol:{symbol}",
+            "aicoin": f"v2:altdata:aicoin:symbol:{symbol}",
+            "whale_walls": f"v2:altdata:whale_walls:symbol:{symbol}",
+            "lunarcrush": f"v2:altdata:lunarcrush:symbol:{symbol}",
+            "nansen": f"v2:altdata:nansen:symbol:{symbol}",
+            "paper_positions": "v2:paper:positions",
+            "risk_decisions": "v2:risk:decisions",
+            "orchestrator_decisions": "v2:orchestrator:decisions",
+        }
+        for name, key in supplemental_keys.items():
+            value = self._get(key)
+            if value is not None:
+                payloads[name] = value
+            keys[name] = key
+        microstructure, microstructure_key = self._get_merged(
+            f"v2:market:microstructure:{symbol}",
+            f"v2:market:coinapi:wsds:{symbol}",
+            f"v2:features:microfeat:{symbol}:{timeframe}",
+        )
+        if microstructure is not None:
+            payloads["microstructure"] = microstructure
+        keys["microstructure"] = microstructure_key
+        for snapshot_timeframe in REQUIRED_DECISION_TIMEFRAMES:
+            payloads[f"ohlcv_closed_{snapshot_timeframe}"], key = self._read_closed_candle_series(
+                symbol=symbol,
+                timeframe=snapshot_timeframe,
+            )
+            keys[f"ohlcv_closed_{snapshot_timeframe}"] = key
+        payloads["_keys"] = keys
+        return payloads
+
+    def build_example(self, *, symbol: str, timeframe: str, snapshot_fast_path: bool = False) -> TrainingExample:
+        payloads = self.load_snapshot_payloads(symbol=symbol, timeframe=timeframe) if snapshot_fast_path else None
+        if payloads is None:
+            payloads = self.load_payloads(symbol=symbol, timeframe=timeframe)
+        return self._build_example_from_payloads(symbol=symbol, timeframe=timeframe, payloads=payloads)
+
+    def _build_example_from_payloads(
+        self,
+        *,
+        symbol: str,
+        timeframe: str,
+        payloads: Mapping[str, Any],
+    ) -> TrainingExample:
         tensor = self.tensor_builder.build(
             symbol=symbol,
             timeframe=timeframe,
@@ -532,9 +702,12 @@ class V2HybridTrainerDataLoader:
             or latest.get("ppo_feature_cutoff")
             or latest.get("feature_cutoff")
             or snapshot_feature_cutoff,
-            "all_tf_candle_timestamps": latest.get("all_tf_candle_timestamps")
-            or snapshot_all_tf_candle_timestamps,
-            "all_source_event_times": latest.get("all_source_event_times") or snapshot_all_source_event_times,
+            "all_tf_candle_timestamps": snapshot_all_tf_candle_timestamps
+            or latest.get("all_tf_candle_timestamps")
+            or [],
+            "all_source_event_times": snapshot_all_source_event_times
+            or latest.get("all_source_event_times")
+            or [],
             "source_lineage": latest.get("source_lineage") or {},
             "price_disagreement_bps": latest.get("price_disagreement_bps") or prediction.get("price_disagreement_bps"),
             "duplicate_event_count": latest.get("duplicate_event_count"),
@@ -553,17 +726,319 @@ class V2HybridTrainerDataLoader:
         timeframes: Iterable[str],
         limit: int | None = None,
         trusted_only: bool = False,
+        closed_trade_only: bool = False,
+        snapshot_fast_path: bool = False,
     ) -> list[TrainingExample]:
         examples: list[TrainingExample] = []
+        if trusted_only:
+            for example in self._closed_trade_snapshot_training_examples():
+                examples.append(example)
+                if limit is not None and len(examples) >= int(limit):
+                    return examples
+            if closed_trade_only:
+                return examples
         for symbol in symbols:
             for timeframe in timeframes:
-                example = self.build_example(symbol=symbol, timeframe=timeframe)
+                example = self.build_example(
+                    symbol=symbol,
+                    timeframe=timeframe,
+                    snapshot_fast_path=snapshot_fast_path,
+                )
                 if trusted_only and not _example_trusted_for_training(example):
                     continue
                 examples.append(example)
                 if limit is not None and len(examples) >= int(limit):
                     return examples
         return examples
+
+    def load_trusted_replay_examples(self, *, limit: int | None = None) -> list[TrainingExample]:
+        examples: list[TrainingExample] = []
+        scan_limit = None if limit is None else max(int(limit) * 20, int(limit))
+        scan_limit = min(scan_limit, 100_000) if scan_limit is not None else 100_000
+        archive_snapshots = list(iter_snapshots(self.trusted_replay_archive_root, limit=scan_limit))
+        archive_candles: dict[tuple[str, str], list[dict[str, Any]]] = {}
+        for archived_snapshot in archive_snapshots:
+            candle, _reasons = snapshot_to_final_candle(archived_snapshot)
+            if candle is None:
+                continue
+            pair = (str(candle.get("symbol") or "").upper(), str(candle.get("timeframe") or ""))
+            archive_candles.setdefault(pair, []).append(candle)
+        for rows in archive_candles.values():
+            rows.sort(key=lambda row: str(row.get("candle_close_time") or ""))
+        candle_cache: dict[tuple[str, str], tuple[Any, str]] = {}
+        for snapshot in archive_snapshots:
+            if limit is not None and len(examples) >= int(limit):
+                break
+            symbol = str(snapshot.get("symbol") or "").upper()
+            timeframe = str(snapshot.get("timeframe") or "")
+            if not symbol or not timeframe:
+                continue
+            cache_key = (symbol, timeframe)
+            if cache_key not in candle_cache:
+                candle_cache[cache_key] = self._read_closed_candle_series(symbol=symbol, timeframe=timeframe)
+            candles, candle_key = candle_cache[cache_key]
+            candle_rows = list(archive_candles.get(cache_key) or [])
+            if isinstance(candles, list):
+                candle_rows.extend(candles)
+            replay_row, reasons = build_trusted_replay_row(snapshot, candles=candle_rows)
+            if replay_row is None:
+                continue
+            features = snapshot.get("features") if isinstance(snapshot.get("features"), Mapping) else {}
+            if not features:
+                continue
+            payloads = self._payloads_from_feature_snapshot(
+                snapshot=snapshot,
+                features=features,
+                feedback_row=replay_row,
+            )
+            payloads["_keys"] = {
+                "features_latest": f"durable_feature_snapshot_archive:{snapshot.get('snapshot_id')}",
+                "trainer_feedback_outcomes": replay_row["sample_id"],
+                "ohlcv": candle_key,
+            }
+            tensor = self.tensor_builder.build(symbol=symbol, timeframe=timeframe, payloads=payloads)
+            if tensor.data_coverage_percent < 20.0:
+                continue
+            classification = (
+                "STALE_MASKED"
+                if tensor.stale_feature_names
+                else "MISSING_MASKED"
+                if tensor.missing_feature_names
+                else "TRAINABLE"
+            )
+            trust_row = dict(replay_row)
+            trust_row.update(
+                {
+                    "row_classification": classification,
+                    "missing_feature_names": list(tensor.missing_feature_names),
+                    "missing_feature_count": len(tensor.missing_feature_names),
+                    "stale_feature_names": list(tensor.stale_feature_names),
+                    "stale_feature_count": len(tensor.stale_feature_names),
+                    "feature_vector_hash": tensor.tensor_id,
+                    "market_state_integrity_score": replay_row.get("market_state_integrity_score"),
+                    "reject_reasons": list(reasons),
+                    "source_lineage": {
+                        "durable_feature_snapshot_archive": True,
+                        "feature_snapshot_id": snapshot.get("snapshot_id"),
+                        "content_sha256": snapshot.get("content_sha256"),
+                        "candle_source_key": candle_key,
+                    },
+                }
+            )
+            examples.append(
+                TrainingExample(
+                    symbol=symbol,
+                    timeframe=timeframe,
+                    tensor=tensor,
+                    label_action_index=self._label_action(float(replay_row["future_return_after_cost_bps"])),
+                    label_expected_move_after_cost_bps=float(replay_row["future_return_after_cost_bps"]),
+                    payload_keys=tuple((payloads.get("_keys") or {}).values()),
+                    row_classification=classification,
+                    trust_row=trust_row,
+                )
+            )
+        return examples
+
+    def _closed_trade_snapshot_training_examples(self) -> list[TrainingExample]:
+        payload = self._get("v2:trainer:feedback:outcomes")
+        if not isinstance(payload, list):
+            return []
+        examples: list[TrainingExample] = []
+        for row in payload:
+            if not isinstance(row, Mapping) or not _trainer_feedback_row_usable(row):
+                continue
+            example = self._closed_trade_snapshot_training_example(row)
+            if example is not None:
+                examples.append(example)
+        return examples
+
+    def _closed_trade_feature_snapshot(
+        self,
+        *,
+        row: Mapping[str, Any],
+        feature_snapshot_id: Any,
+    ) -> tuple[Mapping[str, Any] | None, str | None]:
+        snapshot_key = f"v2:features:snapshot:{feature_snapshot_id}"
+        snapshot = self._get(snapshot_key)
+        if isinstance(snapshot, Mapping):
+            return snapshot, snapshot_key
+        for field in ("entry_feature_snapshot", "feature_snapshot"):
+            embedded = row.get(field)
+            if not isinstance(embedded, Mapping):
+                continue
+            embedded_id = embedded.get("feature_snapshot_id") or embedded.get("snapshot_id")
+            if embedded_id in (None, "") or str(embedded_id) != str(feature_snapshot_id):
+                continue
+            features = embedded.get("features") if isinstance(embedded.get("features"), Mapping) else {}
+            if not features:
+                continue
+            return embedded, f"trainer_feedback.{field}"
+        try:
+            archived = load_durable_feature_snapshot(
+                feature_snapshot_id,
+                root=self.trusted_replay_archive_root,
+            )
+        except SnapshotArchiveError:
+            archived = None
+        if isinstance(archived, Mapping):
+            features = archived.get("features") if isinstance(archived.get("features"), Mapping) else {}
+            archived_id = archived.get("feature_snapshot_id") or archived.get("snapshot_id")
+            if features and str(archived_id or feature_snapshot_id) == str(feature_snapshot_id):
+                return archived, f"durable_feature_snapshot_archive:{feature_snapshot_id}"
+        return None, None
+
+    def _closed_trade_snapshot_training_example(self, row: Mapping[str, Any]) -> TrainingExample | None:
+        feature_snapshot_id = row.get("entry_feature_snapshot_id") or row.get("feature_snapshot_id")
+        if feature_snapshot_id in (None, ""):
+            return None
+        snapshot, snapshot_source = self._closed_trade_feature_snapshot(
+            row=row,
+            feature_snapshot_id=feature_snapshot_id,
+        )
+        if not isinstance(snapshot, Mapping):
+            return None
+        symbol = str(row.get("symbol") or "").upper()
+        timeframe = str(row.get("timeframe") or "")
+        if not symbol or not timeframe:
+            return None
+        snapshot_payload_id = snapshot.get("feature_snapshot_id") or snapshot.get("snapshot_id")
+        if snapshot_payload_id and str(snapshot_payload_id) != str(feature_snapshot_id):
+            return None
+        if str(snapshot.get("symbol") or "").upper() not in {"", symbol}:
+            return None
+        if str(snapshot.get("timeframe") or "") not in {"", timeframe}:
+            return None
+        decision_time = _parse_trust_time(row.get("decision_time"))
+        snapshot_available_at = _parse_trust_time(snapshot.get("available_at") or snapshot.get("generated_utc") or snapshot.get("generated_at"))
+        snapshot_feature_cutoff = _parse_trust_time(snapshot.get("feature_cutoff") or snapshot.get("source_available_time"))
+        if decision_time is None:
+            return None
+        if snapshot_available_at is not None and snapshot_available_at > decision_time:
+            return None
+        if snapshot_feature_cutoff is not None and snapshot_feature_cutoff > decision_time:
+            return None
+        features = snapshot.get("features") if isinstance(snapshot.get("features"), Mapping) else {}
+        if not features:
+            return None
+        payloads = self._payloads_from_feature_snapshot(snapshot=snapshot, features=features, feedback_row=row)
+        tensor = self.tensor_builder.build(symbol=symbol, timeframe=timeframe, payloads=payloads)
+        if tensor.data_coverage_percent < 20.0:
+            return None
+        targets = self._outcome_targets_from_row(row)
+        directional_value = self._directional_label_bps_from_outcome(row)
+        action = self._label_action(directional_value)
+        classification = "STALE_MASKED" if tensor.stale_feature_names else "MISSING_MASKED" if tensor.missing_feature_names else "TRAINABLE"
+        trust_row = dict(row)
+        trust_row.update(
+            {
+                "learning_mode": "outcome_supervised",
+                "update_lane": "OUTCOME_SUPERVISED_CLOSED_TRADE",
+                "outcome_targets": targets,
+                "realized_after_cost_reward": targets["realized_after_cost_reward"],
+                "value_baseline": targets["value_baseline"],
+                "advantage": targets["advantage"],
+                "advantage_source": "realized_after_cost_reward_minus_value_baseline",
+                "realized_reward_source": "realized_net_pnl_bps_after_cost",
+                "uses_expected_move_as_realized_reward": False,
+                "selected_action": targets["selected_action"],
+                "directional_outcome": targets["directional_outcome"],
+                "trade_outcome": targets["trade_outcome"],
+                "action_was_profitable": targets["action_was_profitable"],
+                "accepted_for_training": True,
+                "valid_for_training": True,
+                "market_state_integrity_score": row.get("market_state_integrity_score"),
+                "reject_reasons": [],
+                "source_lineage": {
+                    "trainer_feedback_id": row.get("trainer_feedback_id"),
+                    "entry_prediction_id": row.get("entry_prediction_id") or row.get("prediction_id"),
+                    "entry_feature_snapshot_id": feature_snapshot_id,
+                    "feature_snapshot_key": snapshot_source or f"v2:features:snapshot:{feature_snapshot_id}",
+                    "snapshot_backed_closed_trade_feedback": True,
+                },
+                "snapshot_backed_closed_trade_feedback": True,
+            }
+        )
+        return TrainingExample(
+            symbol=symbol,
+            timeframe=timeframe,
+            tensor=tensor,
+            label_action_index=action,
+            label_expected_move_after_cost_bps=directional_value,
+            payload_keys=(
+                f"v2:trainer:feedback:outcomes:{row.get('trainer_feedback_id')}",
+                f"v2:features:snapshot:{feature_snapshot_id}",
+            ),
+            row_classification=classification,
+            trust_row=trust_row,
+        )
+
+    @staticmethod
+    def _payloads_from_feature_snapshot(
+        *,
+        snapshot: Mapping[str, Any],
+        features: Mapping[str, Any],
+        feedback_row: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        price = next(
+            (
+                value
+                for value in (
+                    features.get("last_price"),
+                    features.get("price_last"),
+                    features.get("close"),
+                    features.get("ohlcv_close"),
+                )
+                if value not in (None, "")
+            ),
+            None,
+        )
+        ohlcv_payload = {
+            **dict(features),
+            "closed_candle": snapshot.get("closed_candle") if "closed_candle" in snapshot else snapshot.get("candle_closed_confirmed"),
+            "is_closed": snapshot.get("is_closed") if "is_closed" in snapshot else snapshot.get("candle_closed_confirmed"),
+            "candle_closed_confirmed": snapshot.get("candle_closed_confirmed"),
+        }
+        return {
+            "features_latest": snapshot,
+            "ohlcv": ohlcv_payload,
+            "features_ta": {"indicators": dict(features)},
+            "features_ta_full": {"features": dict(features)},
+            "technical_analysis": {"indicators": dict(features)},
+            "prices": {
+                "price": price,
+                "last": price,
+                "last_price": price,
+                "ticker_24hr": {
+                    "lastPrice": price,
+                    "quoteVolume": features.get("quote_volume"),
+                },
+                "funding": {
+                    "markPrice": features.get("mark_price"),
+                    "indexPrice": features.get("index_price"),
+                },
+                "basis_pct": features.get("basis_pct"),
+            },
+            "funding": dict(features),
+            "open_interest": dict(features),
+            "open_interest_hist": dict(features),
+            "long_short": dict(features),
+            "orderbook": dict(features),
+            "microstructure": dict(features),
+            "liquidation_levels": dict(features),
+            "liquidity_zones": dict(features),
+            "liquidations": {},
+            "liquidations_agg": dict(features),
+            "symbol_score": dict(features),
+            "public_intel": dict(features),
+            "aicoin": dict(features),
+            "whale_walls": dict(features),
+            "paper_positions": {},
+            "risk_decisions": {},
+            "orchestrator_decisions": {},
+            "prediction": dict(feedback_row),
+            "trainer_feedback_outcomes": [dict(feedback_row)],
+            "paper_outcome_labels": [],
+        }
 
     def _label_expected_move_after_cost(
         self,

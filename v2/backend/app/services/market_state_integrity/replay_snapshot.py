@@ -26,14 +26,28 @@ def build_replay_snapshot(
         "trust_schema_version": TRUST_SCHEMA_VERSION,
         "decision_id": decision_id,
         "prediction_id": prediction.get("prediction_id") or (paper_candidate or {}).get("prediction_id"),
+        "signal_id": prediction.get("signal_id") or (paper_candidate or {}).get("signal_id"),
         "decision_time_est": prediction.get("generated_est") or prediction.get("generated_utc"),
         "decision_time": prediction.get("decision_time") or prediction.get("generated_est") or prediction.get("generated_utc"),
         "generated_at": prediction.get("generated_at") or prediction.get("generated_est") or prediction.get("generated_utc"),
+        "available_at": prediction.get("available_at") or prediction.get("source_available_time"),
         "symbol": prediction.get("symbol") or (paper_candidate or {}).get("symbol"),
         "timeframe": prediction.get("timeframe") or (paper_candidate or {}).get("timeframe"),
+        "selected_action": (
+            prediction.get("selected_action")
+            or prediction.get("ppo_selected_action")
+            or prediction.get("action")
+        ),
+        "model_version": prediction.get("model_version") or prediction.get("model_source") or prediction.get("model_id"),
+        "model_id": prediction.get("model_id"),
+        "checkpoint_id": prediction.get("checkpoint_id"),
         "replay_snapshot_id": prediction.get("replay_snapshot_id") or decision_id,
         "mtf_snapshot_id": prediction.get("mtf_snapshot_id"),
         "mtf_snapshot_valid": prediction.get("mtf_snapshot_valid"),
+        "feature_snapshot_id": prediction.get("feature_snapshot_id"),
+        "feature_cutoff": prediction.get("feature_cutoff"),
+        "source_hashes": dict(prediction.get("source_hashes") or {}),
+        "feature_snapshot": prediction.get("feature_snapshot") or {},
         "masa_generated_at": prediction.get("masa_generated_at")
         or prediction.get("masa_prediction_timestamp")
         or prediction.get("generated_at")

@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .checkpoint import V2HybridCheckpointManager
+from .checkpoint import CheckpointManifest, V2HybridCheckpointManager
 from .config import (
     ACTION_LABELS,
     CHECKPOINT_SOURCE,
@@ -33,6 +33,13 @@ from .publisher import (
 )
 from .rewards import reward_stack_status
 from .safety import V2OnlyJsonIO, safety_scoreboard
+from v2.backend.app.services.native_trainer.learning_readiness import build_learning_readiness
+
+
+def _utc_iso() -> str:
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 @dataclass(frozen=True)
@@ -78,6 +85,18 @@ def _select_training_examples_for_cycle(
     return rows
 
 
+def _trusted_replay_load_limit_for_cycle(
+    *,
+    max_training_rows_per_cycle: int,
+    replay_buffer: Any | None,
+) -> int:
+    limit = max(0, int(max_training_rows_per_cycle or 0))
+    buffer_maxlen = getattr(replay_buffer, "maxlen", None) if replay_buffer is not None else None
+    if buffer_maxlen:
+        return min(limit or int(buffer_maxlen), int(buffer_maxlen))
+    return limit
+
+
 def _sha256_file(path: str | None) -> str | None:
     if not path:
         return None
@@ -91,6 +110,46 @@ def _sha256_file(path: str | None) -> str | None:
     return digest.hexdigest()
 
 
+def _increment_rejection_reason(counts: dict[str, int], reason: Any) -> None:
+    text = str(reason or "").strip()
+    if not text or text.upper() == "NONE":
+        return
+    counts[text] = counts.get(text, 0) + 1
+
+
+def _feedback_quarantine_rejection_counts(io: V2OnlyJsonIO) -> dict[str, int]:
+    rows = io.get_json("v2:trainer:feedback:outcomes:quarantine")
+    if rows is None:
+        return {}
+    if not isinstance(rows, list):
+        return {"quarantine_not_list": 1}
+    counts: dict[str, int] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            _increment_rejection_reason(counts, "invalid_quarantine_row")
+            continue
+        emitted = False
+        for field in (
+            "trust_envelope_rejection_reasons",
+            "trust_reconstruction_rejection_reasons",
+            "audit_quality_rejection_reasons",
+            "missing_feedback_classifications",
+            "missing_feedback_fields",
+        ):
+            values = row.get(field)
+            if isinstance(values, list):
+                for value in values:
+                    _increment_rejection_reason(counts, value)
+                    emitted = True
+            elif values not in (None, "", [], {}):
+                _increment_rejection_reason(counts, values)
+                emitted = True
+        if not emitted:
+            for reason in str(row.get("quarantine_reason") or "quarantined_without_reason").split(","):
+                _increment_rejection_reason(counts, reason)
+    return counts
+
+
 def run_hybrid_trainer_cycle(
     *,
     config: HybridTrainerConfig,
@@ -101,49 +160,91 @@ def run_hybrid_trainer_cycle(
     config.validate_safety()
     safe_io = io or V2OnlyJsonIO(client=None)
     loader = V2HybridTrainerDataLoader(io=safe_io)
+    prediction_examples = loader.load_training_examples(
+        symbols=config.symbols,
+        timeframes=config.timeframes,
+        limit=config.max_training_rows_per_cycle,
+        trusted_only=False,
+        snapshot_fast_path=True,
+    )
     fresh_examples = loader.load_training_examples(
         symbols=config.symbols,
         timeframes=config.timeframes,
         limit=config.max_training_rows_per_cycle,
         trusted_only=True,
+        closed_trade_only=True,
+    )
+    trusted_replay_examples = loader.load_trusted_replay_examples(
+        limit=_trusted_replay_load_limit_for_cycle(
+            max_training_rows_per_cycle=config.max_training_rows_per_cycle,
+            replay_buffer=replay_buffer,
+        ),
     )
     # Feed loader-approved trusted rows into the replay buffer, but keep each
     # resident cycle bounded so current prediction publication stays fresh.
     # Prediction publication stays on the fresh current grid, not replayed rows.
     training_examples = _select_training_examples_for_cycle(
-        fresh_examples=fresh_examples,
+        fresh_examples=[*trusted_replay_examples, *fresh_examples],
         replay_buffer=replay_buffer,
         max_training_rows_per_cycle=config.max_training_rows_per_cycle,
     )
-    prediction_examples = fresh_examples
-    if not training_examples:
-        raise RuntimeError("no trusted examples built")
-    input_dim = len(training_examples[0].tensor.model_vector)
+    if not prediction_examples:
+        raise RuntimeError("no prediction examples built")
+    input_dim_source = training_examples[0] if training_examples else prediction_examples[0]
+    input_dim = len(input_dim_source.tensor.model_vector)
     model = V2HybridPolicyModel(input_dim=input_dim)
     checkpoint_manager = V2HybridCheckpointManager(config.model_dir)
     checkpoint_load = checkpoint_manager.load_latest_weights(model)
     trainer = V2HybridPPOTrainer(model=model, clip_epsilon=config.ppo_clip_epsilon)
-    training = trainer.train(
-        training_examples,
-        steps=config.train_steps,
-        batch_size=config.batch_size,
-        validation_fraction=config.validation_fraction,
-    )
-    checkpoint = checkpoint_manager.write_checkpoint(
-        model=model,
-        input_dim=input_dim,
-        device=model.device,
-        cuda_active=model.cuda_active,
-        write_weight_blob=config.allow_weight_artifact_write,
-    )
-    checkpoint_hash = _sha256_file(checkpoint.weight_file_path)
-    reload_probe = V2HybridPolicyModel(input_dim=input_dim)
-    checkpoint_reload = checkpoint_manager.load_latest_weights(reload_probe)
-    checkpoint_reload_verified = bool(
-        checkpoint_reload.get("latest_checkpoint_loadable")
-        and checkpoint_reload.get("model_state_restored")
-    )
-    env = V2PaperShadowHybridEnv(training_examples[: min(8, len(training_examples))])
+    if training_examples:
+        training = trainer.train(
+            training_examples,
+            steps=config.train_steps,
+            batch_size=config.batch_size,
+            validation_fraction=config.validation_fraction,
+        )
+        checkpoint = checkpoint_manager.write_checkpoint(
+            model=model,
+            input_dim=input_dim,
+            device=model.device,
+            cuda_active=model.cuda_active,
+            write_weight_blob=config.allow_weight_artifact_write,
+        )
+        checkpoint_hash = _sha256_file(checkpoint.weight_file_path)
+        reload_probe = V2HybridPolicyModel(input_dim=input_dim)
+        checkpoint_reload = checkpoint_manager.load_latest_weights(reload_probe)
+        checkpoint_reload_verified = bool(
+            checkpoint_reload.get("latest_checkpoint_loadable")
+            and checkpoint_reload.get("model_state_restored")
+        )
+        checkpoint_weight_blob_written_this_cycle = bool(checkpoint.weight_blob_written)
+    else:
+        training = trainer.train(
+            [],
+            steps=0,
+            batch_size=config.batch_size,
+            validation_fraction=config.validation_fraction,
+        )
+        checkpoint = checkpoint_manager.latest_manifest(input_dim=input_dim) or CheckpointManifest(
+            checkpoint_id=f"v2_hybrid_inference_only_{model.model_id[-24:]}",
+            checkpoint_source=CHECKPOINT_SOURCE,
+            path="",
+            generated_utc=_utc_iso(),
+            model_id=model.model_id,
+            input_dim=input_dim,
+            device=model.device,
+            cuda_active=model.cuda_active,
+            weight_blob_written=False,
+            weight_file_path=None,
+            weight_file_format=None,
+            weight_file_size_bytes=None,
+        )
+        checkpoint_hash = _sha256_file(checkpoint.weight_file_path)
+        checkpoint_reload = checkpoint_load
+        checkpoint_reload_verified = False
+        checkpoint_weight_blob_written_this_cycle = False
+    env_examples = training_examples if training_examples else prediction_examples
+    env = V2PaperShadowHybridEnv(env_examples[: min(8, len(env_examples))])
     env_obs, env_info = env.reset()
     step_obs, step_reward, terminated, truncated, step_info = env.step(0)
     del env_obs, step_obs
@@ -152,7 +253,7 @@ def run_hybrid_trainer_cycle(
         max(1, len(config.symbols) * len(config.timeframes)),
     )
     parallel_rollout = run_parallel_env_rollout_proof(
-        training_examples,
+        env_examples,
         configured_n_envs=configured_n_envs,
         rollout_n_steps=config.rollout_n_steps,
         max_workers=config.parallel_env_workers,
@@ -229,18 +330,48 @@ def run_hybrid_trainer_cycle(
         if weight_mutated and checkpoint.weight_blob_written and checkpoint_reload_verified
         else None
     )
+    rows_rejected_by_reason = dict(training_metrics.get("training_rejection_reason_counts") or {})
+    if not rows_rejected_by_reason and int(training_metrics.get("trusted_rows_loaded") or 0) <= 0:
+        rows_rejected_by_reason.update(_feedback_quarantine_rejection_counts(safe_io))
     training_metrics.update(
         {
-            "trusted_rows_loaded": int(training_metrics.get("training_trusted_rows") or 0),
-            "rows_rejected_by_reason": dict(training_metrics.get("training_rejection_reason_counts") or {}),
+            "trusted_rows_loaded": int(
+                training_metrics.get("trusted_rows_loaded")
+                if training_metrics.get("trusted_rows_loaded") is not None
+                else training_metrics.get("training_trusted_rows") or 0
+            ),
+            "trusted_replay_rows_loaded": int(
+                training_metrics.get("trusted_replay_rows_loaded") or len(trusted_replay_examples)
+            ),
+            "feedback_rows_entered_batch": int(
+                training_metrics.get("feedback_rows_entered_batch") or len(fresh_examples)
+            ),
+            "rows_rejected_by_reason": rows_rejected_by_reason,
             "optimizer_steps_total": optimizer_steps_this_cycle,
-            "checkpoint_weight_blob_written": bool(checkpoint.weight_blob_written),
+            "optimizer_steps_last_hour": optimizer_steps_this_cycle,
+            "checkpoint_weight_blob_written": checkpoint_weight_blob_written_this_cycle,
             "checkpoint_path": checkpoint.weight_file_path,
             "checkpoint_hash": checkpoint_hash,
             "checkpoint_reload_verified": checkpoint_reload_verified,
             "last_successful_weight_update_at": generated_weight_update_at,
-            "online_learning_status": "WEIGHTS_UPDATING" if generated_weight_update_at else "BLOCKED_NO_TRUSTED_FEEDBACK",
-            "effective_trainer_mode": "WEIGHTS_UPDATING" if generated_weight_update_at else "INFERENCE_ONLY",
+        }
+    )
+    readiness = build_learning_readiness(
+        training={"metrics": training_metrics},
+        prediction_rows=len(predictions),
+    )
+    training_metrics.update(
+        {
+            key: readiness.get(key)
+            for key in (
+                "trainer_learning_ready",
+                "offline_replay_learning_status",
+                "online_paper_learning_status",
+                "online_learning_status",
+                "effective_trainer_mode",
+                "readiness_blocking_reasons",
+                "requirement_checks",
+            )
         }
     )
     training_metrics["available_examples"] = int(training_metrics.get("available_examples", len(training_examples)))
@@ -284,6 +415,7 @@ def run_hybrid_trainer_cycle(
         "timeframes": list(config.timeframes),
         "examples_built": len(training_examples),
         "fresh_examples_built": len(fresh_examples),
+        "trusted_replay_examples_built": len(trusted_replay_examples),
         "prediction_examples_built": len(prediction_examples),
         "prediction_failure_count": len(prediction_failure_rows),
         "prediction_failure_rows_sample": prediction_failure_rows[:10],

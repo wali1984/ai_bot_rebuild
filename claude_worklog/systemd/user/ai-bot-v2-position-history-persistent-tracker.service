@@ -1,4 +1,6 @@
 [Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
 Description=AI BOT V2 paper position-history persistent tracker (paper/shadow only; V2-only Redis writes)
 After=ai-bot-v2-native-ingestors-live-loop.service
 

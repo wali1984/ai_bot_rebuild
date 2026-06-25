@@ -33,6 +33,7 @@ from v2.backend.app.services.paper_shadow_outcome_metrics.service import (
     ShadowOutcome,
     build_heartbeat_payload,
     build_shadow_outcome,
+    build_shadow_outcome_summary,
     write_heartbeat_to_redis,
     write_outcome_to_redis,
 )
@@ -126,12 +127,18 @@ def _collect_held_rows(r) -> list[dict]:
 
 
 def _outcome_from_shadow_row(r, row: dict) -> ShadowOutcome:
+    block_reason = (
+        row.get("shadow_observation_reason")
+        or row.get("paper_fill_block_reason")
+        or row.get("paper_opportunity_tier_reason")
+        or "UPSTREAM_PAPER_FILL_GATE_DENIED"
+    )
     return build_shadow_outcome(
         redis_client=r,
         symbol=str(row.get("symbol") or ""),
         side=row.get("side"),
         decision_label=LABEL_SHADOW,
-        block_reason="UPSTREAM_PAPER_FILL_GATE_DENIED",
+        block_reason=str(block_reason),
         shadow_entry_price=row.get("entry_price"),
         shadow_entry_price_source=row.get("entry_price_source"),
         shadow_entry_price_utc=row.get("entry_price_utc"),
@@ -158,11 +165,24 @@ def _outcome_from_held_row(r, row: dict) -> ShadowOutcome:
 
 
 def _build_status_payload(outcomes: list[ShadowOutcome]) -> dict:
+    summary = build_shadow_outcome_summary(outcomes)
     return {
         "schema_version": "v2_shadow_observation_outcome_metrics_status_v1",
         "generated_utc": _utc_iso(),
         "go_no_go": GO_READY,
         "outcome_count": len(outcomes),
+        "shadow_horizon_ready_count": summary["horizon_ready_count"],
+        "shadow_horizon_pending_count": summary["horizon_pending_count"],
+        "classified_shadow_outcome_count": summary["classified_outcome_count"],
+        "shadow_no_trade_correct_count": summary["no_trade_correct_count"],
+        "shadow_false_block_candidate_count": summary["false_block_candidate_count"],
+        "shadow_neutral_or_inside_threshold_count": summary[
+            "neutral_or_inside_threshold_count"
+        ],
+        "shadow_unclassified_outcome_count": summary["unclassified_outcome_count"],
+        "shadow_no_trade_correct_rate": summary["no_trade_correct_rate"],
+        "shadow_false_block_candidate_rate": summary["false_block_candidate_rate"],
+        "shadow_outcome_summary": summary,
         "outcomes": [o.as_payload() for o in outcomes],
         "allowed_redis_writes": [
             "v2:paper:shadow_outcome:{symbol}",

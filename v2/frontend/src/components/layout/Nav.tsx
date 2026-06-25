@@ -6,10 +6,20 @@ import { NervyxModuleBadge } from './NervyxModuleBadge';
 
 const CATEGORY_LABELS: Record<string, string> = {
   overview: 'Overview',
+  data: 'Data',
+  intelligence: 'Intelligence',
+  orchestration: 'Orchestration',
+  risk: 'Risk & Readiness',
+  execution: 'Execution',
+  exchanges: 'Exchanges',
+  config: 'Configuration',
+  users: 'Users',
+  reports: 'Reports',
+  logs: 'Logs',
+  tools: 'Developer Tools',
+  // Legacy / trader-surface categories (not shown in admin nav but kept for safety)
   observability: 'Monitoring',
   trainer: 'Models',
-  risk: 'Risk',
-  execution: 'Execution',
   market: 'Markets',
   trading: 'Trading',
   admin: 'Admin',
@@ -24,7 +34,12 @@ const CATEGORY_LABELS: Record<string, string> = {
 const CATEGORY_ORDER = [
   'overview', 'market', 'trading', 'signals', 'trainer', 'execution',
   'risk', 'observability', 'analytics', 'ai', 'admin', 'mobile', 'audit', 'account',
+  'data', 'intelligence', 'orchestration', 'exchanges', 'config', 'users', 'reports',
+  'logs', 'tools',
 ];
+
+// Utility groups start collapsed — only superadmin roles can see them
+const UTILITY_CATEGORIES = new Set(['logs', 'audit', 'tools']);
 
 export function Nav({ role: confirmedRole }: { role?: RoleLike } = {}): JSX.Element {
   const sessionRole = useRoles();
@@ -59,7 +74,7 @@ export function Nav({ role: confirmedRole }: { role?: RoleLike } = {}): JSX.Elem
       {categories.map((cat) => {
         const pages = byCategory.get(cat) ?? [];
         return (
-          <details className="nav__group" key={cat} open>
+          <details className="nav__group" key={cat} open={!UTILITY_CATEGORIES.has(cat)}>
             <summary className="nav__group-head">
               <span>{CATEGORY_LABELS[cat] ?? cat}</span>
               <NervyxModuleBadge moduleId={moduleForCategory(cat)} compact />

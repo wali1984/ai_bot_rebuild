@@ -833,7 +833,7 @@ export function RealtimeSignalVisibilityPanel({
         }
       >
         <div className="cockpit-analytics-grid">
-          <Metric label="Live trading" value={liveGateRuntime?.live_order_submit_allowed === true && liveGateRuntime?.live_blocked !== true ? 'Live trading active' : 'Live platform guarded'} />
+          <Metric label="Execution routing" value={liveGateRuntime?.live_order_submit_allowed === true && liveGateRuntime?.live_blocked !== true ? 'Order routing approved' : 'Execution restricted'} />
           {showDiagnostics ? <Metric label="Live symbols" value={currentLiveSymbols.length ? currentLiveSymbols.join(', ') : 'none'} /> : null}
           {showDiagnostics ? <Metric label="Execution symbols" value={currentExecutionSymbols.length ? currentExecutionSymbols.join(', ') : 'none'} /> : null}
           <Metric label="Symbols" value={data?.summary?.symbols_count ?? 'unpublished'} />
@@ -896,7 +896,7 @@ export function RealtimeSignalVisibilityPanel({
         right={
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span className={liveGateRuntime?.live_order_submit_allowed === true && liveGateRuntime?.live_blocked !== true ? 'chip solid-live' : 'chip solid-paper'}>
-              {showDiagnostics ? (liveGateRuntime?.live_blocked === true ? (liveGateRuntime?.live_blocker ?? 'GUARDED') : valueText(currentLiveGate)) : 'Live platform guarded'}
+              {showDiagnostics ? (liveGateRuntime?.live_blocked === true ? (liveGateRuntime?.live_blocker ?? 'GUARDED') : valueText(currentLiveGate)) : 'Execution restricted'}
             </span>
             {showDiagnostics ? (
               <button
@@ -1210,10 +1210,10 @@ export function RealtimeSignalVisibilityPanel({
       ) : null}
 
       {showDiagnostics ? (
-      <Panel id={`realtime-disabled-controls-${safeId}`} title="Disabled Live / Order Controls" right={<span className="chip solid-block">NO LIVE MUTATION</span>}>
+      <Panel id={`realtime-disabled-controls-${safeId}`} title="Disabled Order Controls" right={<span className="chip solid-block">NO ACCOUNT MUTATION</span>}>
         <div className="cockpit-lineage-grid">
           {[
-            ['Live trading enablement', `held by current guard: ${currentLiveGateLabel}; submit requires accepted symbols, lineage, risk, filters, kill switch, and available margin`],
+            ['Order routing enablement', `held by current guard: ${currentLiveGateLabel}; submit requires accepted symbols, lineage, risk, filters, kill switch, and available margin`],
             ['Canary approval', 'disabled: canary approval requires separate human gate and audit contract'],
             ['Exchange order submit/cancel/modify', 'disabled: missing typed backend request/response and audit-ledger authorization'],
             ['Leverage or margin mutation', 'disabled: missing authorization/audit contract'],

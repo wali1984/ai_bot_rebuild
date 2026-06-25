@@ -600,7 +600,7 @@ export function CandidatePublisherPanel({
     { text: 'Does not change execution universe', tone: 'info' },
     { text: 'Does not change live_symbols', tone: 'info' },
     { text: 'Cannot override strict execution-fill gate', tone: 'info' },
-    { text: 'Live trading remains blocked', tone: 'warn' },
+    { text: 'Live order routing remains blocked', tone: 'warn' },
   ];
 
   const { data: liveGateRuntime } = usePayloadFile<LiveGateRuntimePayload>(LIVE_GATE_RUNTIME_PATH, 8_000);

@@ -49,7 +49,7 @@ export default function HistoryPage(): JSX.Element {
             </p>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
-            <span style={{ padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600, background: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>Live platform</span>
+            <span style={{ padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600, background: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>Execution restricted</span>
             <span style={{ padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 600, background: 'var(--buy-bg)', color: 'var(--buy)', border: '1px solid var(--buy-border)' }}>Execution history</span>
           </div>
         </div>
@@ -73,7 +73,7 @@ export default function HistoryPage(): JSX.Element {
           ].map((item) => (
             <div key={item.label} style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
               <span style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{item.label}</span>
-              <span style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-mono)', color: item.color ?? 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{item.value}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-mono)', color: item.color ?? 'var(--text-primary)', lineHeight: 1.2, overflowWrap: 'anywhere', whiteSpace: 'normal', wordBreak: 'break-word', display: 'block' }}>{item.value}</span>
             </div>
           ))}
         </div>
@@ -89,7 +89,7 @@ export default function HistoryPage(): JSX.Element {
         </div>
 
         <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', marginBottom: 20, fontSize: 12, color: 'var(--text-muted)' }}>
-          Mode: <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{tradeCopy(state.mode.traderState, 'Live platform')}</span>
+          Mode: <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{tradeCopy(state.mode.traderState, 'Realtime trading workspace')}</span>
           {' · '}Signal source: <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{state.activity.sources.signals}</span>
         </div>
       </div>

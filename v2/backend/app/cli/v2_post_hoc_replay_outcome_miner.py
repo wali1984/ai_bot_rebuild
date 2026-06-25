@@ -53,6 +53,7 @@ from v2.backend.app.services.edge_proof.replay_miner import (  # noqa: E402
     STATE_DIR,
     WORKLOG_DIR,
     load_filled_bundles,
+    load_eval_bundles_or_fallback,
     backfill_all_replay_bundle_stores,
     mine_once,
 )
@@ -144,7 +145,7 @@ def run(*, symbols: tuple[str, ...]) -> dict[str, Any]:
     # carries the legacy cost-model marker (Codex re-review remediation).
     # This is idempotent on already-tagged rows.
     backfill_status = backfill_all_replay_bundle_stores()
-    bundle_dicts = load_filled_bundles()
+    bundle_dicts = load_eval_bundles_or_fallback()
     bundles = [_dict_to_bundle(b) for b in bundle_dicts]
     summary = evaluate(bundles, outcome_window=PRIMARY_OUTCOME_WINDOW_ID)
     summary_dict = summary_to_dict(summary)

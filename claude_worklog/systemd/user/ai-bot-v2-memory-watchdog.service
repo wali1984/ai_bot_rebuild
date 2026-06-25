@@ -1,0 +1,21 @@
+[Unit]
+Description=AI Bot V2 memory pressure watchdog (alerts only, never kills)
+StartLimitBurst=5
+StartLimitIntervalSec=600
+After=default.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment=PYTHONUNBUFFERED=1
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools/v2_memory_pressure_watchdog.py"'
+Restart=always
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+MemoryMax=256M
+
+[Install]
+WantedBy=default.target

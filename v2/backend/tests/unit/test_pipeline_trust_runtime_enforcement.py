@@ -678,7 +678,20 @@ class FakeModel:
 def test_ppo_trainer_excludes_dirty_rows_before_training() -> None:
     trainer = V2HybridPPOTrainer(model=FakeModel())
 
-    result = trainer.train([example(), example(accepted_for_training=False)], batch_size=4)
+    result = trainer.train(
+        [
+            example(
+                old_log_prob=-0.1,
+                old_value=0.0,
+                reward=0.2,
+                done=False,
+                rollout_id="rollout-1",
+                trajectory_index=0,
+            ),
+            example(accepted_for_training=False),
+        ],
+        batch_size=4,
+    )
 
     assert result.train_rows == 1
     assert result.metrics["training_rejection_count"] == 1
@@ -727,14 +740,20 @@ def test_ppo_trainer_accepts_optional_masked_feature_gaps() -> None:
 
     result = trainer.train(
         [
-            example(
-                row_classification="MISSING_MASKED",
-                missing_feature_names=["funding_rate", "liquidation_distance_pct", "aicoin_score"],
-                missing_feature_count=3,
-                features={"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "ret_pct": 0.1},
-            )
-        ],
-        batch_size=4,
+                example(
+                    row_classification="MISSING_MASKED",
+                    missing_feature_names=["funding_rate", "liquidation_distance_pct", "aicoin_score"],
+                    missing_feature_count=3,
+                    features={"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "ret_pct": 0.1},
+                    old_log_prob=-0.1,
+                    old_value=0.0,
+                    reward=0.2,
+                    done=False,
+                    rollout_id="rollout-1",
+                    trajectory_index=0,
+                )
+            ],
+            batch_size=4,
     )
 
     assert result.status != "NO_TRUSTED_TRAINING_ROWS"
@@ -760,6 +779,42 @@ def model_output(**overrides: Any) -> SimpleNamespace:
     }
     payload.update(overrides)
     return SimpleNamespace(**payload)
+
+
+def test_prediction_payload_publishes_top_level_trust_metadata() -> None:
+    payload = build_prediction_payload(
+        example=example(),
+        model_output=model_output(),
+        checkpoint=None,
+        round_trip_cost_bps=0.0,
+        min_data_coverage_percent=1.0,
+        min_confidence_calibrated=0.1,
+        min_edge_after_cost_bps=1.0,
+    )
+
+    assert payload["generated_utc"].endswith("Z")
+    assert payload["generated_at"] == payload["generated_utc"]
+    assert payload["decision_time"] == payload["generated_utc"]
+    assert payload["available_at"] == ISO_CLOSE
+    assert payload["feature_decision_time"] == ISO_DECISION
+    assert payload["model_version"] == payload["model_source"]
+    assert payload["checkpoint_id"] == "v2_hybrid_checkpoint_manifest_pending"
+    assert payload["source_hashes"]["feature_vector_hash"] == payload["feature_vector_hash"]
+    assert payload["source_hashes"]["input_feature_hash"] == payload["feature_vector_hash"]
+    assert payload["source_hashes"]["feature_tensor_id"] == "tensor-1"
+    assert payload["source_hashes"]["feature_names_hash"]
+    assert payload["source_hashes"]["source_timestamp_hash"]
+    replay = payload["replay_snapshot"]
+    assert replay["prediction_id"] == payload["prediction_id"]
+    assert replay["signal_id"] == payload["signal_id"]
+    assert replay["decision_id"] == payload["decision_id"]
+    assert replay["feature_snapshot_id"] == payload["feature_snapshot_id"]
+    assert replay["feature_snapshot"]["feature_snapshot_id"] == payload["feature_snapshot_id"]
+    assert replay["feature_snapshot"]["features"] == {"ret_pct": 0.1}
+    assert replay["selected_action"] == payload["selected_action"]
+    assert replay["model_version"] == payload["model_version"]
+    assert replay["checkpoint_id"] == payload["checkpoint_id"]
+    assert replay["source_hashes"] == payload["source_hashes"]
 
 
 def test_prediction_payload_neutralizes_non_directional_after_cost_edge() -> None:

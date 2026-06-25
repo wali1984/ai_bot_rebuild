@@ -450,6 +450,10 @@ async def _readonly_resource_direct_payload(
         return True, await get_orchestrator_status()
     if path == "/api/v2/risk/status":
         return True, await get_risk_status()
+    if path == "/api/v2/paper/status":
+        return True, await get_paper_status(actor=None)
+    if path == "/api/v2/paper/activity":
+        return True, await get_paper_activity(actor=None)
     if path.startswith("/api/v2/mobile/"):
         from app.api.v2 import mobile as mobile_api  # noqa: PLC0415
 
@@ -522,6 +526,13 @@ async def _readonly_resource_direct_payload(
     return False, None
 
 
+def _readonly_resource_direct_payload_sync(
+    path_with_query: str,
+    headers: dict[str, str] | None = None,
+) -> tuple[bool, Any]:
+    return asyncio.run(_readonly_resource_direct_payload(path_with_query, headers))
+
+
 def _readonly_resource_ws_payload(target: str, payload: Any, started: float) -> dict[str, Any]:
     elapsed_ms = round((time.monotonic() - started) * 1000)
     if isinstance(payload, dict) and isinstance(payload.get("source"), str) and isinstance(payload.get("source_type"), str):
@@ -562,6 +573,11 @@ def _float(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return number if number == number and abs(number) != float("inf") else None
+
+
+def _integer(value: Any) -> int | None:
+    number = _float(value)
+    return int(number) if number is not None else None
 
 
 def _iso_from_ms(value: Any) -> str | None:
@@ -2082,6 +2098,126 @@ def _compact_operator_go_readiness(payload: Any) -> dict[str, Any] | None:
     return compact
 
 
+def _redis_pnl_windows() -> dict[str, Any] | None:
+    """Build real PnL windows from v2:paper:closed_trades when static files show zeros."""
+    r = get_redis()
+    if r is None:
+        return None
+    try:
+        raw = r.get("v2:paper:closed_trades")
+        if not raw:
+            return None
+        trades = json.loads(raw)
+        if not isinstance(trades, list) or not trades:
+            return None
+    except Exception:
+        return None
+
+    from datetime import UTC, datetime, timedelta  # noqa: PLC0415
+    now = datetime.now(UTC)
+    WINDOWS = [("1d", 86400), ("7d", 604800), ("30d", 2592000)]
+    windows_out: list[dict[str, Any]] = []
+    for wname, secs in WINDOWS:
+        cutoff = now - timedelta(seconds=secs)
+        bucket: list[dict[str, Any]] = []
+        for t in trades:
+            if t.get("realized_pnl_usd") is None:
+                continue
+            exit_time_raw = t.get("exit_price_utc") or t.get("close_time") or t.get("exit_time")
+            if not exit_time_raw:
+                continue
+            try:
+                ts = datetime.fromisoformat(str(exit_time_raw).replace("Z", "+00:00"))
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=UTC)
+                if ts > cutoff:
+                    bucket.append(t)
+            except Exception:
+                continue
+        pnl = sum(float(t.get("realized_pnl_usd") or 0) for t in bucket)
+        wins = [t for t in bucket if t.get("winner") is True]
+        losses = [t for t in bucket if t.get("winner") is False]
+        win_rate = len(wins) / len(bucket) if bucket else None
+        gross_profit = sum(float(t.get("realized_pnl_usd") or 0) for t in wins)
+        gross_loss = abs(sum(float(t.get("realized_pnl_usd") or 0) for t in losses))
+        profit_factor = round(gross_profit / gross_loss, 3) if gross_loss > 0 else None
+        windows_out.append({
+            "window": wname,
+            "realized_pnl_usd": round(pnl, 4),
+            "closed_trade_count": len(bucket),
+            "winning_trade_count": len(wins),
+            "losing_trade_count": len(losses),
+            "win_rate": round(win_rate, 4) if win_rate is not None else None,
+            "profit_factor": profit_factor,
+        })
+
+    if not windows_out:
+        return None
+    total = len([t for t in trades if t.get("realized_pnl_usd") is not None])
+    return {
+        "status": "READY_REDIS_LIVE",
+        "source": "v2:paper:closed_trades",
+        "closed_trade_count": total,
+        "windows": windows_out,
+    }
+
+
+def _redis_accuracy_status() -> dict[str, Any] | None:
+    """Build signal prediction accuracy from v2:paper:closed_trades."""
+    r = get_redis()
+    if r is None:
+        return None
+    try:
+        raw = r.get("v2:paper:closed_trades")
+        if not raw:
+            return None
+        trades = json.loads(raw)
+        if not isinstance(trades, list) or not trades:
+            return None
+    except Exception:
+        return None
+
+    evaluated = [t for t in trades if t.get("winner") is not None and t.get("confidence_calibrated") is not None]
+    if not evaluated:
+        return None
+    wins = [t for t in evaluated if t.get("winner")]
+    losses = [t for t in evaluated if not t.get("winner")]
+    win_rate = len(wins) / len(evaluated)
+    total_pnl = sum(float(t.get("realized_pnl_usd") or 0) for t in evaluated)
+    gross_profit = sum(float(t.get("realized_pnl_usd") or 0) for t in wins if t.get("realized_pnl_usd"))
+    gross_loss = abs(sum(float(t.get("realized_pnl_usd") or 0) for t in losses if t.get("realized_pnl_usd")))
+
+    # Build by-timeframe breakdown from trades
+    by_tf: dict[str, dict[str, Any]] = {}
+    for t in evaluated:
+        tf = t.get("timeframe") or "unknown"
+        if tf not in by_tf:
+            by_tf[tf] = {"evaluated_count": 0, "correct_count": 0, "incorrect_count": 0, "realized_pnl_usd": 0.0}
+        by_tf[tf]["evaluated_count"] += 1
+        if t.get("winner"):
+            by_tf[tf]["correct_count"] += 1
+        else:
+            by_tf[tf]["incorrect_count"] += 1
+        by_tf[tf]["realized_pnl_usd"] += float(t.get("realized_pnl_usd") or 0)
+    for tf, row in by_tf.items():
+        c = row["evaluated_count"]
+        row["accuracy"] = round(row["correct_count"] / c, 4) if c > 0 else None
+        row["timeframe"] = tf
+
+    return {
+        "status": "EVALUATED_REDIS_LIVE",
+        "source": "v2:paper:closed_trades",
+        "accuracy_definition": "winner_rate",
+        "evaluated_row_count": len(evaluated),
+        "correct_count": len(wins),
+        "incorrect_count": len(losses),
+        "overall_accuracy": round(win_rate, 4),
+        "evaluated_realized_pnl_usd": round(total_pnl, 4),
+        "by_timeframe": list(by_tf.values()),
+        "profit_factor": round(gross_profit / gross_loss, 3) if gross_loss > 0 else None,
+    }
+
+
 def _adaptive_capital_file_signature() -> tuple[tuple[str, int, int], ...]:
     root = _public_root()
     relatives = (
@@ -2135,8 +2271,35 @@ def _adaptive_capital_compact_payload() -> tuple[dict[str, Any] | None, str, str
     prediction_accuracy_fallback = _signal_runtime_prediction_accuracy_fallback()
     if _accuracy_source_row_count(accuracy_source) == 0 and _accuracy_source_row_count(prediction_accuracy_fallback) > 0:
         accuracy_source = prediction_accuracy_fallback
+    # Redis fallback: use real evaluated outcome data when static file has 0 evaluated rows
+    def _acc_evaluated_count(src: Any) -> int:
+        if not isinstance(src, dict):
+            return 0
+        v = src.get("evaluated_row_count") or src.get("correct_count", 0) or 0
+        return int(v) if isinstance(v, (int, float)) else 0
+    if _acc_evaluated_count(accuracy_source) == 0:
+        _redis_acc = _redis_accuracy_status()
+        if _redis_acc and _redis_acc.get("evaluated_row_count", 0) > 0:
+            accuracy_source = _redis_acc
+            # Also inject into capital_source so capital_productivity_runtime_status uses live data
+            if isinstance(capital_source, dict):
+                capital_source = {**capital_source, "signal_prediction_accuracy_status": _redis_acc}
     using_prediction_accuracy_fallback = accuracy_source is prediction_accuracy_fallback
     pnl_source = dashboard.get("pnl_history_status") or (capital_source or {}).get("pnl_history")
+    # Redis PnL fallback: use real trade data when static files show zero PnL
+    _file_pnl_total = sum(
+        float((w.get("realized_pnl_usd") or 0))
+        for w in ((pnl_source or {}).get("windows") or [])
+        if isinstance(w, dict)
+    )
+    if _file_pnl_total == 0.0:
+        _redis_pnl = _redis_pnl_windows()
+        if _redis_pnl and _redis_pnl.get("closed_trade_count", 0) > 0:
+            pnl_source = _redis_pnl
+            # Also inject Redis PnL into capital_source so _compact_capital_status
+            # uses the live data for capital_productivity_runtime_status.pnl_history
+            if isinstance(capital_source, dict):
+                capital_source = {**capital_source, "pnl_history": _redis_pnl}
 
     compact: dict[str, Any] = {
         "generated_utc": dashboard.get("generated_utc")
@@ -2257,6 +2420,289 @@ def _repository_scoped_rows(
     if len(scoped) != len(rows):
         return scoped, [f"{field}_scope"], [f"Some stored {field.replace('_', ' ')} were withheld because row scope did not match the authenticated trader"]
     return scoped, [], []
+
+
+def _runtime_portfolio_state() -> tuple[dict[str, Any], str, SourceType, list[str]]:
+    warnings: list[str] = []
+    try:
+        client = get_redis()
+        raw = client.get("v2:portfolio:state") if client is not None else None
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8", errors="replace")
+        payload = json.loads(raw) if raw else None
+        if isinstance(payload, dict):
+            return payload, "redis:v2:portfolio:state", "redis_live", warnings
+    except Exception as exc:
+        warnings.append(f"Redis portfolio state unavailable: {exc}")
+
+    payload, _source = _portfolio_payload()
+    if isinstance(payload, dict):
+        return (
+            payload,
+            "operator_runtime/v2_portfolio_state/latest/v2_portfolio_state.json",
+            "static_payload",
+            warnings,
+        )
+    return {}, "", "unavailable", warnings
+
+
+def _payload_has_scope(payload: dict[str, Any] | None) -> bool:
+    trader_id, paper_account_id = _payload_scope_values(payload)
+    return bool(trader_id or paper_account_id)
+
+
+def _row_has_scope(row: dict[str, Any]) -> bool:
+    return bool(_scope_token(row.get("trader_id")) or _scope_token(row.get("paper_account_id")))
+
+
+def _runtime_payload_available_to_actor(payload: dict[str, Any], actor: UserRecord | None) -> bool:
+    if actor is None:
+        return True
+    return not _payload_has_scope(payload) or _payload_matches_actor(payload, actor)
+
+
+def _runtime_row_available_to_actor(
+    row: dict[str, Any],
+    *,
+    payload_has_scope: bool,
+    payload_matches_actor: bool,
+    actor: UserRecord | None,
+) -> bool:
+    if actor is None:
+        return True
+    if _row_has_scope(row):
+        return _row_matches_actor(row, actor)
+    if payload_has_scope:
+        return False
+    return payload_matches_actor or not payload_has_scope
+
+
+def _with_actor_scope(row: dict[str, Any], actor: UserRecord | None) -> dict[str, Any]:
+    if actor is None:
+        return dict(row)
+    scoped = dict(row)
+    scoped["trader_id"] = actor.get("trader_id")
+    scoped["paper_account_id"] = actor.get("paper_account_id")
+    return scoped
+
+
+def _runtime_portfolio_positions(
+    portfolio_state: dict[str, Any],
+    actor: UserRecord | None,
+) -> tuple[list[dict[str, Any]], list[str], list[str]]:
+    raw_rows = portfolio_state.get("open_positions")
+    if not isinstance(raw_rows, list):
+        raw_rows = portfolio_state.get("positions") if isinstance(portfolio_state.get("positions"), list) else []
+    payload_has_scope = _payload_has_scope(portfolio_state)
+    payload_matches_actor = _payload_matches_actor(portfolio_state, actor) if actor is not None else True
+    rows: list[dict[str, Any]] = []
+    withheld = 0
+    for raw in raw_rows:
+        if not isinstance(raw, dict):
+            continue
+        if not _runtime_row_available_to_actor(
+            raw,
+            payload_has_scope=payload_has_scope,
+            payload_matches_actor=payload_matches_actor,
+            actor=actor,
+        ):
+            withheld += 1
+            continue
+        row = _with_actor_scope(raw, actor)
+        row["position_id"] = (
+            row.get("position_id")
+            or row.get("id")
+            or (row.get("source_fill_ids") or [None])[0]
+            or f"paper-runtime-{row.get('symbol') or len(rows)}"
+        )
+        if row.get("quantity") is None:
+            row["quantity"] = row.get("net_quantity")
+        if row.get("net_quantity") is None:
+            row["net_quantity"] = row.get("quantity")
+        row["entry_price"] = row.get("entry_price") or row.get("avg_entry_price") or row.get("fill_price")
+        row["last_mark_price"] = row.get("last_mark_price") or row.get("mark_price") or row.get("latest_price")
+        row["current_price"] = row.get("current_price") or row.get("mark_price") or row.get("latest_price")
+        row["mark_price_source"] = row.get("mark_price_source") or row.get("latest_price_source")
+        row["unrealized_pnl"] = row.get("unrealized_pnl") if row.get("unrealized_pnl") is not None else row.get("unrealized_pnl_usd")
+        row["realized_pnl"] = row.get("realized_pnl") if row.get("realized_pnl") is not None else row.get("realized_pnl_usd")
+        rows.append(row)
+    missing = [] if rows or not raw_rows else ["positions"]
+    warnings = []
+    if rows:
+        warnings.append("Projected paper runtime portfolio positions into authenticated paper account view")
+    if withheld:
+        missing.append("positions_scope")
+        warnings.append("Some paper runtime positions were withheld because row scope did not match the authenticated trader")
+    return rows, missing, warnings
+
+
+def _runtime_signal_rows() -> tuple[list[dict[str, Any]], str, str | None]:
+    for relative in (
+        "operator_runtime/v2_signals/latest/signals_payload.json",
+        "operator_runtime/v2_signals/latest/all_symbol_all_timeframe_cuda_prediction_status.json",
+    ):
+        payload, _source = _read_json(relative)
+        if not isinstance(payload, dict):
+            continue
+        containers = [
+            payload,
+            payload.get("cuda_prediction_contract") if isinstance(payload.get("cuda_prediction_contract"), dict) else {},
+            payload.get("prediction_contract") if isinstance(payload.get("prediction_contract"), dict) else {},
+            payload.get("signal_publisher") if isinstance(payload.get("signal_publisher"), dict) else {},
+        ]
+        for container in containers:
+            if not isinstance(container, dict):
+                continue
+            for key in ("prediction_rows", "published_signals", "signals", "active_signals"):
+                rows = container.get(key)
+                if isinstance(rows, list) and rows:
+                    return [row for row in rows if isinstance(row, dict)], relative, _timestamp_from_payload(payload)
+    return [], "", None
+
+
+def _runtime_signal_response(
+    *,
+    symbol: str,
+    timeframe: str,
+    endpoint: str,
+    actor: UserRecord | None,
+    strict_symbol: bool = False,
+) -> dict[str, Any] | None:
+    rows, source, timestamp = _runtime_signal_rows()
+    if not rows:
+        return None
+    symbol_upper = symbol.upper()
+    exact = [
+        row for row in rows
+        if str(row.get("symbol") or "").upper() == symbol_upper
+        and str(row.get("timeframe") or "").lower() == timeframe.lower()
+    ]
+    symbol_rows = [row for row in rows if str(row.get("symbol") or "").upper() == symbol_upper]
+    if strict_symbol and not exact and not symbol_rows:
+        return None
+    candidates = exact or symbol_rows or rows
+    candidates.sort(
+        key=lambda row: str(row.get("available_at") or row.get("decision_time") or row.get("generated_utc") or row.get("generated_at") or ""),
+        reverse=True,
+    )
+    row = candidates[0]
+    action = _prediction_action(row)
+    generated_at = (
+        row.get("available_at")
+        or row.get("decision_time")
+        or row.get("generated_utc")
+        or row.get("generated_at")
+        or row.get("generated_est")
+    )
+    generated_at = generated_at if isinstance(generated_at, str) else timestamp
+    confidence = _float(row.get("confidence_calibrated") or row.get("confidence") or row.get("confidence_raw"))
+    target_after_cost = _float(row.get("price_target_after_cost"))
+    target = target_after_cost if target_after_cost is not None else _float(row.get("price_target"))
+    active_signal = {
+        "id": row.get("signal_id") or row.get("prediction_id"),
+        "signal_id": row.get("signal_id"),
+        "prediction_id": row.get("prediction_id"),
+        "symbol": str(row.get("symbol") or symbol_upper).upper(),
+        "timeframe": row.get("timeframe") or timeframe,
+        "direction": action.upper() if action else None,
+        "side": action.title() if action else None,
+        "entry": _float(row.get("entry") or row.get("entry_price") or row.get("last_price")),
+        "target_1": target,
+        "price_target": _float(row.get("price_target")),
+        "price_target_after_cost": target_after_cost,
+        "stop": _float(row.get("stop") or row.get("stop_reference")),
+        "confidence": confidence,
+        "confidence_calibrated": confidence,
+        "expected_move": _float(row.get("expected_move_bps")),
+        "expected_move_after_cost_bps": _float(row.get("expected_move_after_cost_bps")),
+        "risk_reward": None,
+        "status": row.get("paper_fill_gate_status") or row.get("status"),
+        "strategy": "All-timeframe paper signal",
+        "model_version": row.get("model_version") or row.get("checkpoint_id"),
+        "risk_decision": row.get("paper_fill_gate_status") or row.get("market_cost_evidence_status"),
+        "created_at": generated_at,
+        "evidence": [
+            item for item in (
+                row.get("feature_snapshot_id"),
+                row.get("market_state_id"),
+                row.get("prediction_redis_key"),
+            )
+            if item
+        ],
+        "paper_fill_allowed": row.get("paper_fill_allowed"),
+        "exchange_action_taken": False,
+        "exchange_call_invariant": "LIVE_TRADING_BLOCKED",
+    }
+    missing_fields = [
+        field
+        for field in ("symbol", "timeframe", "direction", "confidence")
+        if active_signal.get(field) is None
+    ]
+    if target is None:
+        missing_fields.append("target_1")
+    return _base_response(
+        endpoint=endpoint,
+        data={
+            "active_signal": active_signal,
+            "trader_id": actor.get("trader_id") if actor else None,
+            "paper_account_id": actor.get("paper_account_id") if actor else None,
+            "account_scope": "authenticated_trader" if actor else "public_read_only",
+            "account_specific": bool(actor),
+            "paper_runtime_projection": True,
+        },
+        source=source,
+        source_type="static_payload",
+        symbol=str(active_signal.get("symbol") or symbol_upper),
+        timestamp=generated_at,
+        missing_fields=missing_fields,
+        warnings=[
+            "Paper-runtime signal projection; no exchange state was read or mutated",
+            "Live trading remains disabled",
+        ],
+        mode="paper",
+        trader_context=_trader_context(actor),
+    )
+
+
+def _redis_risk_max_leverage(client: Any) -> float:
+    try:
+        raw = client.get("v2:risk:active_profile")
+        payload = json.loads(raw) if raw else {}
+        fields = payload.get("fields") if isinstance(payload, dict) else {}
+        return float((fields or {}).get("max_leverage") or 1.0)
+    except Exception:
+        return 1.0
+
+
+def _enrich_position_rows_for_read_response(
+    positions: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[str, Any] | None, list[str], list[str], str]:
+    if not positions:
+        return positions, None, [], [], ""
+    client: Any | None = None
+    redis_warning: str | None = None
+    try:
+        client = get_redis()
+    except Exception as exc:
+        redis_warning = f"Realtime mark-price Redis unavailable: {exc}; using stored paper marks only"
+    if client is None and redis_warning is None:
+        redis_warning = "Realtime mark-price Redis is not configured; using stored paper marks only"
+
+    enriched, metrics = _enrich_paper_positions(
+        client,
+        positions,
+        max_leverage=_redis_risk_max_leverage(client),
+    )
+    missing: list[str] = []
+    warnings: list[str] = ["Trader-scoped positions enriched with read-only realtime mark-price projection"]
+    if redis_warning:
+        warnings.append(redis_warning)
+    if metrics.get("missing_mark_price_count"):
+        missing.append("mark_price_realtime")
+        warnings.append("One or more positions are missing realtime mark price; UI must show unavailable state")
+    if metrics.get("stale_mark_price_count"):
+        warnings.append("One or more position mark prices are stale and must show stale age")
+    return enriched, metrics, missing, warnings, " + read-only realtime mark projection"
 
 
 def _account_scope_warning(actor: UserRecord | None) -> str:
@@ -2382,6 +2828,7 @@ def _redis_paper_signal_response(
         "symbol": symbol,
         "timeframe": timeframe,
         # Canonical frontend field names
+        "action": action.lower() if action else None,
         "side": action.title() if action else None,
         "proposed_action": action or None,
         "actionable": is_actionable,
@@ -2707,39 +3154,54 @@ async def get_ai_predictions(
     endpoint = "/api/v2/ai/predictions"
     try:
         trainer_data = await get_trainer_summary()
-        trainer_state = trainer_data.get("data") or {}
+        # Trainer returns a flat shape (no "data" wrapper), fall back to it directly
+        trainer_state = trainer_data.get("data") or trainer_data or {}
         prediction = trainer_state.get("prediction") or trainer_state.get("latest_prediction")
         action = None
         confidence = None
         model_version = None
+        checkpoint_id = trainer_state.get("checkpoint_id")
         if isinstance(prediction, dict):
             action = prediction.get("action") or prediction.get("direction") or prediction.get("selected_action")
             confidence = prediction.get("confidence")
             model_version = prediction.get("model_version")
+        # Fall back to reading latest prediction from Redis when trainer is in stub mode
+        if not action and not confidence:
+            safe_sym = _strict_market_symbol(symbol or "BTCUSDT") or "BTCUSDT"
+            _pred_raw = _read_v2_redis_json(f"v2:prediction:{safe_sym}:1h")
+            if isinstance(_pred_raw, dict):
+                action = _pred_raw.get("action") or _pred_raw.get("selected_action")
+                confidence = _pred_raw.get("confidence") or _pred_raw.get("confidence_calibrated")
+                model_version = _pred_raw.get("model_version")
+                checkpoint_id = checkpoint_id or _pred_raw.get("checkpoint_id")
         predictions = []
         if action or confidence:
             predictions = [{
                 "action": action,
                 "confidence": confidence,
                 "model_version": model_version or trainer_state.get("model_version"),
+                "checkpoint_id": checkpoint_id,
                 "strategy": trainer_state.get("strategy"),
                 "horizon": trainer_state.get("horizon") or "1h",
                 "symbol": symbol or "BTCUSDT",
                 "timestamp": _utc_now(),
-                "source": "trainer_service",
+                "source": "trainer_redis_evidence",
             }]
         return _base_response(
             endpoint=endpoint,
             data={
                 "predictions": predictions,
                 "count": len(predictions),
-                "trainer_status": trainer_state.get("status") or trainer_data.get("source_type"),
+                "trainer_status": trainer_state.get("state") or trainer_state.get("status"),
                 "model_version": model_version or trainer_state.get("model_version"),
+                "checkpoint_id": checkpoint_id,
+                "cuda_active": trainer_state.get("cuda_active"),
+                "data_coverage": trainer_state.get("data_coverage"),
                 "calibration_available": False,
                 "feature_importance_available": False,
             },
-            source=trainer_data.get("source", "trainer_service"),
-            source_type=trainer_data.get("source_type", "api"),
+            source=trainer_data.get("source", "trainer_redis_evidence"),
+            source_type=trainer_data.get("source_type", "redis"),
             timestamp=trainer_data.get("timestamp") or _utc_now(),
             missing_fields=["calibration", "feature_importance", "realized_vs_predicted"] if not predictions else ["calibration", "feature_importance"],
             warnings=[*(trainer_data.get("warnings") or []), "Prediction matrix and calibration data require a connected training pipeline"],
@@ -3839,6 +4301,19 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
     repository_account = _repository_account(actor)
     if actor and repository_account is not None:
         positions, position_missing, position_warnings = _repository_scoped_rows(repository_account, actor, "positions")
+        position_metrics: dict[str, Any] | None = None
+        enrich_source = ""
+        # Primary paper source: Redis portfolio state, with static runtime JSON as read-only fallback.
+        portfolio_state, portfolio_state_source, portfolio_state_source_type, portfolio_state_warnings = _runtime_portfolio_state()
+        if portfolio_state and not _runtime_payload_available_to_actor(portfolio_state, actor):
+            portfolio_state = {}
+            portfolio_state_source = ""
+            portfolio_state_source_type = "unavailable"
+            position_missing.append("portfolio_state_scope")
+            position_warnings.append(
+                "Paper runtime portfolio state was withheld because payload scope did not match the authenticated trader"
+            )
+        position_warnings.extend(portfolio_state_warnings)
         # Supplement with Redis paper heartbeat when repo equity is missing
         redis_hb: dict[str, Any] = {}
         try:
@@ -3847,14 +4322,91 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
                 redis_hb = json.loads(hb_raw)
         except Exception:
             pass
+        # Fall back to v2:paper:positions Redis when repo has no positions
+        if not positions and portfolio_state:
+            try:
+                _pp_raw = get_redis().get("v2:paper:positions")
+                if _pp_raw:
+                    _pp_list = json.loads(_pp_raw)
+                    if isinstance(_pp_list, list):
+                        positions = [
+                            _with_actor_scope({
+                                **p,
+                                "quantity": p.get("net_quantity"),
+                                "entry_price": p.get("avg_entry_price") or p.get("entry_price"),
+                                "mark_price": p.get("last_mark_price") or p.get("mark_price"),
+                                "mark_price_source": p.get("latest_price_source") or "v2:paper:positions",
+                                "unrealized_pnl": p.get("unrealized_pnl"),
+                                "realized_pnl": p.get("realized_pnl"),
+                            }, actor)
+                            for p in _pp_list
+                        ]
+            except Exception:
+                pass
+        if not positions and portfolio_state:
+            runtime_positions, runtime_missing, runtime_warnings = _runtime_portfolio_positions(portfolio_state, actor)
+            if runtime_positions:
+                positions = runtime_positions
+            position_missing.extend(runtime_missing)
+            position_warnings.extend(runtime_warnings)
+        positions, position_metrics, enrich_missing, enrich_warnings, enrich_source = _enrich_position_rows_for_read_response(positions)
+        position_missing.extend(enrich_missing)
+        position_warnings.extend(enrich_warnings)
         equity = repository_account.get("equity")
+        repository_equity = _float(equity)
         realized_pnl = repository_account.get("realized_pnl")
         unrealized_pnl = repository_account.get("unrealized_pnl")
         _clamp_pnl = lambda v: round(v, 4) if v is not None and abs(v) >= 0.001 else (0.0 if v is not None else None)
-        if equity is None and redis_hb:
+        # Use portfolio_state as primary source when repo has no real PnL activity
+        _repo_realized_pnl = _float(realized_pnl)
+        _repo_has_pnl = _repo_realized_pnl is not None and abs(_repo_realized_pnl) > 0.01
+        if not _repo_has_pnl and portfolio_state:
+            _ps_equity = _float(portfolio_state.get("equity"))
+            _ps_rpnl = _float(portfolio_state.get("realized_pnl_usd"))
+            _ps_upnl = _float(portfolio_state.get("unrealized_pnl_usd")) or _float(portfolio_state.get("net_unrealized_pnl"))
+            if _ps_equity is not None:
+                equity = _ps_equity
+                realized_pnl = _ps_rpnl
+                unrealized_pnl = _ps_upnl
+        elif equity is None and redis_hb:
             realized_pnl = realized_pnl if realized_pnl is not None else _float(redis_hb.get("realized_pnl_usd"))
             unrealized_pnl = unrealized_pnl if unrealized_pnl is not None else _float(redis_hb.get("unrealized_pnl_usd"))
             equity = round(PAPER_INITIAL_CAPITAL + (realized_pnl or 0) + (unrealized_pnl or 0), 4)
+        if position_metrics is not None:
+            unrealized_pnl = position_metrics.get("unrealized_pnl_usd")
+            should_synthesize_equity = (
+                equity is None
+                or (
+                    _float(portfolio_state.get("equity")) is None
+                    and repository_equity == PAPER_INITIAL_CAPITAL
+                    and not _repo_has_pnl
+                )
+            )
+            if should_synthesize_equity:
+                base_realized_for_equity = realized_pnl if realized_pnl is not None else _float(redis_hb.get("realized_pnl_usd")) or 0.0
+                equity = round(PAPER_INITIAL_CAPITAL + base_realized_for_equity + (unrealized_pnl or 0.0), 4)
+        def _first_not_none(*values: Any) -> Any:
+            for value in values:
+                if value is not None:
+                    return value
+            return None
+        _open_count = (
+            _first_not_none(
+                _integer(portfolio_state.get("open_positions_count")),
+                _integer(redis_hb.get("open_position_count")),
+                len([p for p in positions if not str(p.get("status", "")).lower().startswith("closed")]),
+            )
+        )
+        _closed_count = (
+            _first_not_none(
+                _integer(portfolio_state.get("closed_positions_count")),
+                _integer(redis_hb.get("closed_trade_count")),
+            )
+        )
+        _notional = _first_not_none(
+            _float(portfolio_state.get("open_position_notional")),
+            _float(redis_hb.get("total_open_notional")),
+        )
         data = {
             "equity": equity,
             "paper_equity": equity,
@@ -3862,9 +4414,10 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
             "paper_initial_capital": PAPER_INITIAL_CAPITAL,
             "realized_pnl": _clamp_pnl(realized_pnl),
             "unrealized_pnl": _clamp_pnl(unrealized_pnl),
-            "open_position_count": redis_hb.get("open_position_count"),
-            "closed_trade_count": redis_hb.get("closed_trade_count"),
-            "total_open_notional": _float(redis_hb.get("total_open_notional")),
+            "open_position_count": _open_count,
+            "closed_trade_count": _closed_count,
+            "total_open_notional": _notional,
+            "position_pricing": position_metrics,
             "positions": positions,
             "mode": "paper",
             "trader_id": repository_account.get("trader_id"),
@@ -3878,21 +4431,55 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
             if data.get(key) is None
         ]
         missing.extend(position_missing)
+        response_source_parts = [TRADER_ACCOUNT_REPOSITORY_SOURCE]
+        if portfolio_state_source:
+            response_source_parts.append(portfolio_state_source)
+        response_source_parts.append("redis:v2:paper:positions")
+        if enrich_source:
+            response_source_parts.append(enrich_source.lstrip(" + "))
         return _base_response(
             endpoint=endpoint,
             data=data,
-            source=f"{TRADER_ACCOUNT_REPOSITORY_SOURCE} + v2:paper:heartbeat",
-            source_type="repository",
-            timestamp=_utc_now(),
+            source=" + ".join(response_source_parts),
+            source_type=portfolio_state_source_type if portfolio_state else "repository",
+            timestamp=_timestamp_from_payload(portfolio_state) or repository_account.get("updated_at") or _utc_now(),
             missing_fields=missing,
             warnings=[
-                "Trader-scoped paper account repository supplemented with Redis heartbeat",
+                "Trader-scoped paper account: canonical paper source v2:portfolio:state + v2:paper:positions",
                 *position_warnings,
             ],
             mode="paper",
             trader_context=_trader_context(actor),
         )
-    # Supplement static payload with Redis heartbeat
+    # Canonical source: v2:portfolio:state Redis (always available, no scoping)
+    pub_portfolio_state: dict[str, Any] = {}
+    pub_positions: list[dict[str, Any]] = []
+    try:
+        _pub_ps_raw = get_redis().get("v2:portfolio:state")
+        if _pub_ps_raw:
+            pub_portfolio_state = json.loads(_pub_ps_raw)
+    except Exception:
+        pass
+    try:
+        _pub_pp_raw = get_redis().get("v2:paper:positions")
+        if _pub_pp_raw:
+            _pub_pp_list = json.loads(_pub_pp_raw)
+            if isinstance(_pub_pp_list, list):
+                pub_positions = [
+                    {
+                        **p,
+                        "quantity": p.get("net_quantity"),
+                        "entry_price": p.get("avg_entry_price") or p.get("entry_price"),
+                        "mark_price": p.get("last_mark_price") or p.get("mark_price"),
+                        "mark_price_source": p.get("latest_price_source") or "v2:paper:positions",
+                        "unrealized_pnl": p.get("unrealized_pnl"),
+                        "realized_pnl": p.get("realized_pnl"),
+                    }
+                    for p in _pub_pp_list
+                ]
+    except Exception:
+        pass
+    # Supplement with Redis paper heartbeat
     try:
         hb_raw_public = get_redis().get("v2:paper:heartbeat")
         redis_hb_public: dict[str, Any] = json.loads(hb_raw_public) if hb_raw_public else {}
@@ -3900,7 +4487,7 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
         redis_hb_public = {}
     paper, paper_source = _paper_payload()
     portfolio, portfolio_source = _portfolio_payload()
-    if not paper and not portfolio and not redis_hb_public:
+    if not paper and not portfolio and not redis_hb_public and not pub_portfolio_state:
         return _unavailable(
             endpoint=endpoint,
             missing_fields=["equity", "positions", "pnl"],
@@ -3911,30 +4498,30 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
     scoped_portfolio = _payload_matches_actor(portfolio, actor)
     account = paper.get("paper_account") if scoped_paper and isinstance(paper, dict) else {}
     portfolio_data = portfolio if isinstance(portfolio, dict) else {}
-    raw_positions = portfolio_data.get("positions") if scoped_portfolio else []
-    positions = _scoped_rows(raw_positions, actor)
-    position_scope_missing = scoped_portfolio and isinstance(raw_positions, list) and len(positions) != len(raw_positions)
-    _pnl_from_account = account.get("realized_pnl") if scoped_paper and isinstance(account, dict) else None
-    _pnl_from_portfolio = portfolio_data.get("realized_pnl_usd") if scoped_portfolio else None
+    # Use Redis paper positions (no scoping required — paper trading system)
+    positions = pub_positions if pub_positions else _scoped_rows(portfolio_data.get("positions") if scoped_portfolio else [], actor)
+    position_scope_missing = False
+    # Prefer canonical Redis portfolio state for PnL and equity
     base_realized = (
-        _pnl_from_account if _pnl_from_account is not None
-        else _pnl_from_portfolio if _pnl_from_portfolio is not None
-        else _float(redis_hb_public.get("realized_pnl_usd"))
+        _float(pub_portfolio_state.get("realized_pnl_usd"))
+        or _float(account.get("realized_pnl") if scoped_paper and isinstance(account, dict) else None)
+        or _float(portfolio_data.get("realized_pnl_usd") if scoped_portfolio else None)
+        or _float(redis_hb_public.get("realized_pnl_usd"))
     )
-    _upnl_from_account = account.get("unrealized_pnl") if scoped_paper and isinstance(account, dict) else None
-    _upnl_from_portfolio = portfolio_data.get("net_unrealized_pnl") if scoped_portfolio else None
     base_unrealized = (
-        _upnl_from_account if _upnl_from_account is not None
-        else _upnl_from_portfolio if _upnl_from_portfolio is not None
-        else _float(redis_hb_public.get("unrealized_pnl_usd"))
+        _float(pub_portfolio_state.get("unrealized_pnl_usd"))
+        or _float(account.get("unrealized_pnl") if scoped_paper and isinstance(account, dict) else None)
+        or _float(portfolio_data.get("net_unrealized_pnl") if scoped_portfolio else None)
+        or _float(redis_hb_public.get("unrealized_pnl_usd"))
     )
-    _equity_from_account = account.get("equity") if scoped_paper and isinstance(account, dict) else None
-    _equity_from_portfolio = portfolio_data.get("equity") if scoped_portfolio else None
     base_equity = (
-        _equity_from_account if _equity_from_account is not None
-        else _equity_from_portfolio if _equity_from_portfolio is not None
-        else round(PAPER_INITIAL_CAPITAL + (base_realized or 0) + (base_unrealized or 0), 4)
+        _float(pub_portfolio_state.get("equity"))
+        or _float(account.get("equity") if scoped_paper and isinstance(account, dict) else None)
+        or _float(portfolio_data.get("equity") if scoped_portfolio else None)
+        or round(PAPER_INITIAL_CAPITAL + (base_realized or 0) + (base_unrealized or 0), 4)
     )
+    _ps_open_count = pub_portfolio_state.get("open_positions_count")
+    _ps_closed_count = pub_portfolio_state.get("closed_positions_count")
     _clamp = lambda v: round(v, 4) if v is not None and abs(v) >= 0.001 else (0.0 if v is not None else None)
     data = {
         "equity": base_equity,
@@ -3943,9 +4530,9 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
         "realized_pnl": _clamp(base_realized),
         "unrealized_pnl": _clamp(base_unrealized),
         "paper_initial_capital": PAPER_INITIAL_CAPITAL,
-        "open_position_count": redis_hb_public.get("open_position_count"),
-        "closed_trade_count": redis_hb_public.get("closed_trade_count"),
-        "total_open_notional": _float(redis_hb_public.get("total_open_notional")),
+        "open_position_count": _ps_open_count or redis_hb_public.get("open_position_count") or len(positions),
+        "closed_trade_count": _ps_closed_count or redis_hb_public.get("closed_trade_count"),
+        "total_open_notional": _float(pub_portfolio_state.get("open_position_notional")) or _float(redis_hb_public.get("total_open_notional")),
         "positions": positions,
         "mode": "paper",
         "trader_id": actor.get("trader_id") if actor else None,
@@ -3954,10 +4541,8 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
         "account_specific": bool(scoped_paper or scoped_portfolio),
     }
     missing = [key for key in ("equity", "realized_pnl", "unrealized_pnl") if data.get(key) is None]
-    if not scoped_portfolio:
+    if not positions:
         missing.append("positions")
-    if position_scope_missing:
-        missing.append("positions_scope")
     if not data["account_specific"]:
         missing.append("trader_specific_repository")
     warnings = ["Paper/static payload fallback; not a brokerage account API"]
@@ -4193,20 +4778,78 @@ async def get_account_positions(actor: UserRecord | None = Depends(optional_auth
     repository_account = _repository_account(actor)
     if actor and repository_account is not None:
         positions, missing, warnings = _repository_scoped_rows(repository_account, actor, "positions")
+        metrics: dict[str, Any] | None
+        enrich_source: str
+        position_source_parts = [TRADER_ACCOUNT_REPOSITORY_SOURCE]
+        position_source_type: SourceType = "repository"
+        position_timestamp = repository_account.get("updated_at")
+        # Fall back to v2:paper:positions Redis when repo has no positions
+        if not positions:
+            try:
+                _pp_raw = get_redis().get("v2:paper:positions")
+                if _pp_raw:
+                    _pp_list = json.loads(_pp_raw)
+                    if isinstance(_pp_list, list):
+                        positions = [
+                            _with_actor_scope({
+                                **p,
+                                "quantity": p.get("net_quantity"),
+                                "entry_price": p.get("avg_entry_price") or p.get("entry_price"),
+                                "mark_price": p.get("last_mark_price") or p.get("mark_price"),
+                                "mark_price_source": p.get("latest_price_source") or "v2:paper:positions",
+                                "unrealized_pnl": p.get("unrealized_pnl"),
+                                "realized_pnl": p.get("realized_pnl"),
+                            }, actor)
+                            for p in _pp_list
+                        ]
+                        if missing == ["positions"]:
+                            missing = []
+                        position_source_parts.append("redis:v2:paper:positions")
+                        position_source_type = "redis_live"
+                        position_timestamp = _utc_now()
+            except Exception:
+                pass
+        if not positions:
+            portfolio_state, portfolio_state_source, portfolio_state_source_type, portfolio_state_warnings = _runtime_portfolio_state()
+            if portfolio_state and not _runtime_payload_available_to_actor(portfolio_state, actor):
+                portfolio_state = {}
+                missing.append("portfolio_state_scope")
+                warnings.append(
+                    "Paper runtime portfolio state was withheld because payload scope did not match the authenticated trader"
+                )
+            warnings.extend(portfolio_state_warnings)
+            if portfolio_state:
+                runtime_positions, runtime_missing, runtime_warnings = _runtime_portfolio_positions(portfolio_state, actor)
+                if runtime_positions:
+                    positions = runtime_positions
+                    if missing == ["positions"]:
+                        missing = []
+                    if portfolio_state_source:
+                        position_source_parts.append(portfolio_state_source)
+                    position_source_type = portfolio_state_source_type
+                    position_timestamp = _timestamp_from_payload(portfolio_state) or position_timestamp
+                missing.extend(runtime_missing)
+                warnings.extend(runtime_warnings)
+        positions, metrics, enrich_missing, enrich_warnings, enrich_source = _enrich_position_rows_for_read_response(positions)
+        missing.extend(enrich_missing)
+        warnings.extend(enrich_warnings)
+        if enrich_source:
+            position_source_parts.append(enrich_source.lstrip(" + "))
         return _base_response(
             endpoint=endpoint,
             data={
                 "positions": positions,
+                "position_pricing": metrics,
                 "trader_id": repository_account.get("trader_id"),
                 "paper_account_id": repository_account.get("paper_account_id"),
                 "account_scope": "authenticated_trader",
                 "account_specific": True,
             },
-            source=TRADER_ACCOUNT_REPOSITORY_SOURCE,
-            source_type="repository",
-            timestamp=repository_account.get("updated_at"),
+            source=" + ".join(position_source_parts),
+            source_type=position_source_type,
+            timestamp=position_timestamp,
             missing_fields=missing,
-            warnings=["Trader-scoped paper positions repository", *warnings],
+            warnings=["Trader-scoped paper positions: repository, Redis, and paper runtime read-only sources", *warnings],
             mode="paper",
             trader_context=_trader_context(actor),
         )
@@ -4521,6 +5164,33 @@ async def get_signals(
                     *symbol_warnings,
                 ]
                 return redis_signal
+            runtime_signal = _runtime_signal_response(
+                symbol=requested_symbol or "BTCUSDT",
+                timeframe=safe_timeframe,
+                endpoint=endpoint,
+                actor=actor,
+                strict_symbol=bool(requested_symbol),
+            )
+            if runtime_signal is not None:
+                runtime_signal["missing_fields"] = sorted(
+                    set(
+                        [
+                            *runtime_signal.get("missing_fields", []),
+                            *[
+                                field
+                                for field in missing
+                                if field not in {"active_signal", "active_signal_symbol_match", "signals", "signals_scope"}
+                            ],
+                        ]
+                    )
+                )
+                runtime_signal["warnings"] = [
+                    *runtime_signal.get("warnings", []),
+                    "No trader-account-specific active signal is stored in the local repository",
+                    *scope_warnings,
+                    *symbol_warnings,
+                ]
+                return runtime_signal
         return _base_response(
             endpoint=endpoint,
             data={
@@ -4551,6 +5221,15 @@ async def get_signals(
     )
     if redis_signal is not None:
         return redis_signal
+    runtime_signal = _runtime_signal_response(
+        symbol=requested_symbol or "BTCUSDT",
+        timeframe=safe_timeframe,
+        endpoint=endpoint,
+        actor=actor,
+        strict_symbol=bool(requested_symbol),
+    )
+    if runtime_signal is not None:
+        return runtime_signal
     paper, source = _paper_payload()
     signal = _active_signal()
     if not paper or not signal:
@@ -7297,7 +7976,12 @@ async def get_risk_status() -> dict[str, Any]:
     gateway_latest_raw = _read_v2_redis_json_or_list("v2:risk:gateway:latest")
     active_profile_raw = _read_v2_redis_json_or_list("v2:risk:active_profile")
     heartbeat_raw = _read_v2_redis_json_or_list("v2:risk:gateway:heartbeat")
-    decisions_raw = _read_v2_redis_json_or_list("v2:risk:decisions")
+    # Prefer paper_online_decisions (has risk_action, symbol, risk_reason_code, live_blocked)
+    decisions_raw = (
+        _read_v2_redis_json_or_list("v2:risk:paper_online_decisions")
+        or _read_v2_redis_json_or_list("v2:risk:gateway:decisions")
+        or _read_v2_redis_json_or_list("v2:risk:decisions")
+    )
 
     gateway_latest: dict[str, Any] | None = (
         gateway_latest_raw if isinstance(gateway_latest_raw, dict) else None
@@ -7315,7 +7999,9 @@ async def get_risk_status() -> dict[str, Any]:
         missing.append("risk_active_profile")
     if heartbeat is None:
         missing.append("risk_gateway_heartbeat")
-    if missing:
+    # Only fall back to artifact files when the heartbeat is ALSO missing —
+    # if we have the heartbeat we have enough live data to serve the page.
+    if heartbeat is None and missing:
         artifact_response = _risk_status_from_runtime_artifacts(endpoint)
         if artifact_response is not None:
             return artifact_response
@@ -7351,7 +8037,23 @@ async def get_risk_status() -> dict[str, Any]:
 
     denials_breakdown: dict[str, Any] = (heartbeat.get("denials_breakdown") or {}) if heartbeat else {}
 
-    return _base_response(
+    _live_gate = (heartbeat.get("current_gate_state") or heartbeat.get("live_gate") if heartbeat else None) or "blocked_human_only"
+    _live_blocked = not bool(heartbeat.get("approves_live", False)) if heartbeat else True
+    _fail_closed = bool(heartbeat.get("fail_closed", True)) if heartbeat else True
+
+    # Normalize decisions for the admin-risk decisions table
+    _normalized_decisions: list[dict[str, Any]] = []
+    for _d in recent_decisions[:50]:
+        _normalized_decisions.append({
+            "risk_decision_id": _d.get("risk_decision_id") or _d.get("decision_id"),
+            "symbol": _d.get("symbol"),
+            "risk_action": _d.get("risk_action") or _d.get("action"),
+            "risk_reason_code": _d.get("risk_reason_code") or _d.get("denial_reason") or _d.get("reason_code"),
+            "live_blocked": not bool(_d.get("approves_live", False)),
+            "generated_at": _d.get("generated_at") or _d.get("decision_time"),
+        })
+
+    _resp = _base_response(
         endpoint=endpoint,
         data={
             "active_profile": profile_summary,
@@ -7361,14 +8063,14 @@ async def get_risk_status() -> dict[str, Any]:
                 "started_at": heartbeat.get("started_at") if heartbeat else None,
                 "finished_at": heartbeat.get("finished_at") if heartbeat else None,
                 "decisions_processed_total": heartbeat.get("decisions_processed_total") if heartbeat else None,
-                "live_gate": heartbeat.get("live_gate") if heartbeat else None,
-                "live_blocked": heartbeat.get("live_blocked") if heartbeat else None,
+                "live_gate": _live_gate,
+                "live_blocked": _live_blocked,
                 "classification": heartbeat.get("classification") if heartbeat else None,
-                "fail_closed": heartbeat.get("fail_closed") if heartbeat else None,
+                "fail_closed": _fail_closed,
                 "approves_live": heartbeat.get("approves_live") if heartbeat else None,
                 "places_real_order": heartbeat.get("places_real_order") if heartbeat else None,
             } if heartbeat else None,
-            "recent_decisions": recent_decisions[:10],
+            "recent_decisions": _normalized_decisions,
             "denials_breakdown": denials_breakdown,
         },
         source="redis:v2:risk",
@@ -7378,6 +8080,13 @@ async def get_risk_status() -> dict[str, Any]:
         warnings=["Live trading is BLOCKED -- risk gateway status is read-only"],
         mode="paper",
     )
+    # Hoist convenience fields to outer envelope so admin-risk frontend can read them directly
+    _resp["live_gate"] = _live_gate
+    _resp["live_blocked"] = _live_blocked
+    _resp["fail_closed"] = _fail_closed
+    _resp["recent_decisions"] = _normalized_decisions
+    _resp["active_profile"] = profile_summary
+    return _resp
 
 
 # ---------------------------------------------------------------------------
@@ -7981,22 +8690,248 @@ def _paper_position_side_multiplier(side: str) -> int:
 
 
 def _paper_position_stored_mark_candidate(row: dict[str, Any]) -> dict[str, Any] | None:
-    mark_price = _float(row.get("last_mark_price") or row.get("current_price"))
+    mark_price = _float(row.get("last_mark_price") or row.get("mark_price") or row.get("current_price") or row.get("latest_price"))
     if mark_price is None or mark_price <= 0:
         return None
-    generated_at = row.get("last_mark_est") or row.get("last_mark_utc")
+    generated_at = (
+        row.get("last_mark_est")
+        or row.get("last_mark_utc")
+        or row.get("mark_price_generated_at")
+        or row.get("latest_price_generated_at")
+        or row.get("last_equity_update_utc")
+        or row.get("generated_utc")
+        or row.get("generated_at")
+    )
     generated_at_str = str(generated_at) if generated_at else None
     generated_epoch = _epoch_seconds_from_iso(generated_at_str)
     age_seconds = None
     if generated_epoch is not None:
         age_seconds = max(0.0, datetime.now(UTC).timestamp() - generated_epoch)
+    source = row.get("mark_price_source") or row.get("latest_price_source") or "v2:paper:positions.last_mark_price"
     return {
         "price": mark_price,
-        "source": "v2:paper:positions.last_mark_price",
-        "source_key": "v2:paper:positions",
+        "source": str(source),
+        "source_key": str(row.get("mark_price_source_key") or row.get("source") or "v2:paper:positions"),
         "generated_at": generated_at_str,
         "age_seconds": round(age_seconds, 3) if age_seconds is not None else None,
         "priority": 4,
+    }
+
+
+def _first_positive_price_with_source(
+    row: dict[str, Any],
+    candidates: list[tuple[str, str]],
+) -> tuple[float | None, str | None]:
+    for field, source in candidates:
+        value = _float(row.get(field))
+        if value is not None and value > 0:
+            return value, source
+    return None, None
+
+
+def _signal_basis_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    active = payload.get("active_signal")
+    if isinstance(active, dict):
+        basis = {**payload, **active}
+        lineage = active.get("lineage_summary")
+        if isinstance(lineage, dict):
+            basis["lineage_summary"] = lineage
+        return basis
+    allocation = payload.get("adaptive_allocation")
+    if isinstance(allocation, dict):
+        basis = {**payload, **allocation}
+        if "decision_reasoning" not in basis and isinstance(payload.get("decision_reasoning"), dict):
+            basis["decision_reasoning"] = payload["decision_reasoning"]
+        return basis
+    return payload
+
+
+def _nested_lineage_text(row: dict[str, Any], key: str) -> Any:
+    lineage = row.get("lineage_summary")
+    if isinstance(lineage, dict):
+        return lineage.get(key)
+    return None
+
+
+def _position_reason_text(row: dict[str, Any], fallback: dict[str, Any] | None = None) -> Any:
+    other = fallback or {}
+    nested_reasoning = row.get("decision_reasoning") if isinstance(row.get("decision_reasoning"), dict) else {}
+    return (
+        row.get("reason")
+        or row.get("explanation")
+        or row.get("blocked_reason")
+        or row.get("entry_reason")
+        or row.get("close_reason")
+        or row.get("exit_reason")
+        or row.get("risk_reason")
+        or row.get("risk_reason_code")
+        or row.get("risk_result")
+        or row.get("capital_allocation_reason")
+        or row.get("allocator_decision")
+        or row.get("decision")
+        or row.get("paper_fill_gate_status")
+        or row.get("actionable_reason_code")
+        or row.get("paper_fill_status")
+        or row.get("signal_reason")
+        or _nested_lineage_text(row, "orchestrator_decision")
+        or nested_reasoning.get("reason")
+        or nested_reasoning.get("summary")
+        or other.get("reason")
+        or other.get("entry_reason")
+        or other.get("close_reason")
+        or other.get("exit_reason")
+        or other.get("risk_result")
+        or other.get("paper_fill_gate_status")
+    )
+
+
+def _row_position_reasoning(row: dict[str, Any], *, source: str) -> dict[str, Any] | None:
+    basis = _signal_basis_payload(row)
+    reason = _position_reason_text(basis)
+    if not any((
+        basis.get("signal_id"),
+        basis.get("prediction_id"),
+        _nested_lineage_text(basis, "signal_id"),
+        _nested_lineage_text(basis, "prediction_id"),
+        basis.get("action"),
+        basis.get("proposed_action"),
+        basis.get("selected_action"),
+        basis.get("side"),
+        reason,
+    )):
+        return None
+    return {
+        "source": source,
+        "signal_id": basis.get("signal_id") or _nested_lineage_text(basis, "signal_id"),
+        "prediction_id": basis.get("prediction_id") or _nested_lineage_text(basis, "prediction_id"),
+        "timeframe": basis.get("timeframe"),
+        "action": basis.get("action") or basis.get("proposed_action") or basis.get("selected_action") or basis.get("side") or basis.get("direction"),
+        "confidence": _float(basis.get("confidence") or basis.get("confidence_calibrated") or basis.get("model_confidence")),
+        "risk_state": basis.get("risk_state") or basis.get("risk_status") or basis.get("risk_decision") or _nested_lineage_text(basis, "risk_state"),
+        "paper_fill_status": basis.get("paper_fill_status") or basis.get("actionable_reason_code") or _nested_lineage_text(basis, "paper_state") or basis.get("paper_fill_allowed"),
+        "market_regime": basis.get("market_regime") or basis.get("market_regime_at_entry"),
+        "expected_move_bps": _float(basis.get("expected_move_bps") or basis.get("expected_move_after_cost_bps")),
+        "data_coverage": _float(basis.get("data_coverage_percent") or basis.get("data_coverage")),
+        "reason": reason,
+        "available_at": basis.get("available_at"),
+        "decision_time": basis.get("decision_time"),
+        "generated_at": basis.get("generated_at") or basis.get("generated_utc") or basis.get("published_at"),
+        "model_version": basis.get("model_version") or basis.get("model_id"),
+    }
+
+
+def _position_reasoning_has_decision_basis(reasoning: dict[str, Any] | None) -> bool:
+    if not isinstance(reasoning, dict):
+        return False
+    return any((
+        reasoning.get("signal_id"),
+        reasoning.get("prediction_id"),
+        reasoning.get("reason"),
+        reasoning.get("confidence") is not None,
+        reasoning.get("risk_state"),
+        reasoning.get("paper_fill_status"),
+        reasoning.get("market_regime"),
+        reasoning.get("expected_move_bps") is not None,
+        reasoning.get("data_coverage") is not None,
+        reasoning.get("model_version"),
+    ))
+
+
+def _latest_position_signal_reasoning(
+    client: Any,
+    symbol: str,
+    row: dict[str, Any],
+    *,
+    row_source: str = "v2:paper:positions",
+) -> dict[str, Any] | None:
+    sym = symbol.upper()
+    row_basis = _signal_basis_payload(row)
+    row_reasoning = _row_position_reasoning(row, source=row_source)
+    row_signal_id = str(row_basis.get("signal_id") or _nested_lineage_text(row_basis, "signal_id") or "")
+    row_prediction_id = str(row_basis.get("prediction_id") or _nested_lineage_text(row_basis, "prediction_id") or "")
+    if row_source == "v2:paper:closed_trades" and not row_signal_id and not row_prediction_id:
+        return row_reasoning
+
+    candidates: list[dict[str, Any]] = []
+    key_candidates = [f"v2:signals:latest:{sym}", f"v2:signals:paper:{sym}"]
+    row_timeframe = str(row_basis.get("timeframe") or "").lower()
+    if row_timeframe:
+        key_candidates.extend((
+            f"v2:signals:latest:{sym}:{row_timeframe}",
+            f"v2:signals:paper:{sym}:{row_timeframe}",
+        ))
+    seen_keys: set[str] = set()
+    for key in key_candidates:
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        payload = _client_redis_json(client, key)
+        if payload:
+            payload["_source_key"] = key
+            candidates.append(payload)
+    if not candidates:
+        return row_reasoning
+    if row_signal_id or row_prediction_id:
+        matching = [
+            candidate for candidate in candidates
+            for basis in [_signal_basis_payload(candidate)]
+            if (
+                row_signal_id
+                and str(basis.get("signal_id") or _nested_lineage_text(basis, "signal_id") or "") == row_signal_id
+            ) or (
+                row_prediction_id
+                and str(basis.get("prediction_id") or _nested_lineage_text(basis, "prediction_id") or "") == row_prediction_id
+            )
+        ]
+        if matching:
+            candidates = matching
+        else:
+            return row_reasoning
+    else:
+        if row_timeframe:
+            matching_timeframe = [
+                candidate for candidate in candidates
+                if str(_signal_basis_payload(candidate).get("timeframe") or "").lower() == row_timeframe
+            ]
+            if matching_timeframe:
+                candidates = matching_timeframe
+            elif _position_reasoning_has_decision_basis(row_reasoning):
+                return row_reasoning
+        elif (
+            row_source in {"v2:paper:positions", "v2:paper:closed_trades"}
+            and _position_reasoning_has_decision_basis(row_reasoning)
+        ):
+            return row_reasoning
+
+    def _candidate_time(candidate: dict[str, Any]) -> float:
+        basis = _signal_basis_payload(candidate)
+        for key in ("available_at", "decision_time", "generated_at", "published_at", "generated_utc"):
+            parsed = _epoch_seconds_from_iso(str(basis.get(key))) if basis.get(key) else None
+            if parsed is not None:
+                return parsed
+        return 0.0
+
+    candidates.sort(key=_candidate_time, reverse=True)
+    signal = candidates[0]
+    basis = _signal_basis_payload(signal)
+    reason = _position_reason_text(basis, row)
+    return {
+        "source": signal.get("_source_key"),
+        "signal_id": basis.get("signal_id") or _nested_lineage_text(basis, "signal_id") or row.get("signal_id"),
+        "prediction_id": basis.get("prediction_id") or _nested_lineage_text(basis, "prediction_id") or row.get("prediction_id"),
+        "timeframe": basis.get("timeframe") or row.get("timeframe"),
+        "action": basis.get("action") or basis.get("proposed_action") or basis.get("selected_action") or basis.get("side") or basis.get("direction") or row.get("side"),
+        "confidence": _float(basis.get("confidence") or basis.get("confidence_calibrated") or basis.get("model_confidence")),
+        "risk_state": basis.get("risk_state") or basis.get("risk_status") or basis.get("risk_decision") or _nested_lineage_text(basis, "risk_state"),
+        "paper_fill_status": basis.get("paper_fill_status") or basis.get("actionable_reason_code") or _nested_lineage_text(basis, "paper_state") or row.get("paper_fill_allowed"),
+        "market_regime": basis.get("market_regime") or basis.get("market_regime_at_entry") or row.get("market_regime_at_entry"),
+        "expected_move_bps": _float(basis.get("expected_move_bps") or basis.get("expected_move_after_cost_bps")),
+        "data_coverage": _float(basis.get("data_coverage_percent") or basis.get("data_coverage")),
+        "reason": reason,
+        "available_at": basis.get("available_at"),
+        "decision_time": basis.get("decision_time"),
+        "generated_at": basis.get("generated_at") or basis.get("generated_utc") or basis.get("published_at"),
+        "model_version": basis.get("model_version") or basis.get("model_id") or row.get("model_id"),
     }
 
 
@@ -8025,6 +8960,22 @@ def _select_freshest_paper_mark(candidates: list[dict[str, Any]]) -> dict[str, A
     return valid[0]
 
 
+def _recent_closed_trade_rows(rows: list[Any], limit: int = 200) -> list[dict[str, Any]]:
+    projected = [row for row in rows if isinstance(row, dict)]
+    projected.sort(
+        key=lambda row: str(
+            row.get("closed_at")
+            or row.get("exit_price_utc")
+            or row.get("closed_utc")
+            or row.get("generated_at")
+            or row.get("generated_utc")
+            or ""
+        ),
+        reverse=True,
+    )
+    return projected[:limit]
+
+
 def _enrich_paper_positions(
     client: Any,
     positions_raw: list[Any],
@@ -8044,7 +8995,22 @@ def _enrich_paper_positions(
         sym = str(row.get("symbol") or "").upper()
         side_raw = str(row.get("side") or "")
         side = side_raw.upper()
-        entry_price = _float(row.get("avg_entry_price") or row.get("entry_price"))
+        side_display = side_raw or side
+        entry_price, entry_price_source = _first_positive_price_with_source(
+            row,
+            [
+                ("avg_entry_price", "avg_entry_price"),
+                ("entry_price", "entry_price"),
+                ("paper_entry_price", "paper_entry_price"),
+                ("entry_fill_price", "entry_fill_price"),
+                ("filled_entry_price", "filled_entry_price"),
+                ("entry_avg_price", "entry_avg_price"),
+                ("avg_fill_price", "avg_fill_price"),
+                ("price_at_entry", "price_at_entry"),
+                ("open_price", "open_price"),
+                ("fill_price", "fill_price"),
+            ],
+        )
         qty = _float(row.get("net_quantity") or row.get("quantity"))
         qty_abs = abs(qty) if qty is not None else None
         live_mark = _paper_live_market_price(client, sym) if sym else {}
@@ -8055,7 +9021,7 @@ def _enrich_paper_positions(
         if stored_mark is not None:
             mark_candidates.append(stored_mark)
         selected_mark = _select_freshest_paper_mark(mark_candidates)
-        mark_price = _float(selected_mark.get("price")) or entry_price
+        mark_price = _float(selected_mark.get("price"))
         mark_source = str(selected_mark.get("source") or "MISSING_PAPER_MARK_PRICE")
         mark_age_seconds = _float(selected_mark.get("age_seconds"))
 
@@ -8070,8 +9036,8 @@ def _enrich_paper_positions(
 
         fallback_pnl = _float(row.get("unrealized_pnl"))
         fallback_bps = _float(row.get("unrealized_pnl_bps"))
-        pnl = fallback_pnl if fallback_pnl is not None else 0.0
-        pnl_bps = fallback_bps if fallback_bps is not None else 0.0
+        pnl = fallback_pnl
+        pnl_bps = fallback_bps
         side_multiplier = _paper_position_side_multiplier(side_raw)
         if entry_price is not None and entry_price > 0 and qty_abs is not None and mark_price is not None:
             move = mark_price - entry_price
@@ -8081,18 +9047,25 @@ def _enrich_paper_positions(
         notional_from_mark = qty_abs * mark_price if qty_abs is not None and mark_price is not None else None
         stored_notional = _float(row.get("notional") or row.get("gross_notional") or row.get("notional_usd"))
         notional = notional_from_mark if notional_from_mark is not None else stored_notional
-        total_unrealized_pnl += pnl
+        if pnl is not None:
+            total_unrealized_pnl += pnl
         if notional is not None:
             total_open_notional += notional
+        reasoning = _latest_position_signal_reasoning(client, sym, row) if sym else None
 
         positions.append({
-            "position_id": row.get("position_id"),
+            "id": row.get("id") or row.get("position_id"),
+            "position_id": row.get("position_id") or row.get("id"),
+            "trader_id": row.get("trader_id"),
+            "paper_account_id": row.get("paper_account_id"),
             "symbol": sym,
-            "side": side,
+            "side": side_display,
             "net_quantity": qty,
             "quantity": qty,
             "avg_entry_price": entry_price,
             "entry_price": entry_price,
+            "entry_price_source": entry_price_source,
+            "mark_price": mark_price,
             "last_mark_price": mark_price,
             "current_price": mark_price,
             "mark_price_source": mark_source,
@@ -8103,9 +9076,9 @@ def _enrich_paper_positions(
             "entry_notional_usd": stored_notional,
             "notional_usd": notional,
             "leverage": max_leverage,
-            "unrealized_pnl": round(pnl, 4),
-            "unrealized_pnl_bps": round(pnl_bps, 2),
-            "unrealized_pnl_pct": round(pnl_bps / 10000.0, 6),
+            "unrealized_pnl": round(pnl, 4) if pnl is not None else None,
+            "unrealized_pnl_bps": round(pnl_bps, 2) if pnl_bps is not None else None,
+            "unrealized_pnl_pct": round(pnl_bps / 10000.0, 6) if pnl_bps is not None else None,
             "timeframe": row.get("timeframe"),
             "strategy_id": row.get("strategy_id"),
             "market_regime_at_entry": row.get("market_regime_at_entry"),
@@ -8115,6 +9088,9 @@ def _enrich_paper_positions(
             "paper_fill_allowed": row.get("paper_fill_allowed"),
             "places_real_order": row.get("places_real_order"),
             "hedge_state": row.get("hedge_state"),
+            "signal_id": row.get("signal_id") or (reasoning or {}).get("signal_id"),
+            "prediction_id": row.get("prediction_id") or (reasoning or {}).get("prediction_id"),
+            "decision_reasoning": reasoning,
             "last_known_position": row.get("last_known_position") is True,
             "last_known_position_updated_at": row.get("last_known_position_updated_at"),
             "last_known_position_age_seconds": row.get("last_known_position_age_seconds"),
@@ -8284,16 +9260,57 @@ async def get_paper_status(actor: UserRecord | None = Depends(optional_auth)) ->
             )
 
             trades = []
-            for t in closed_raw:
-                if not isinstance(t, dict):
-                    continue
+            for t in _recent_closed_trade_rows(closed_raw, 200):
+                entry_price, entry_price_source = _first_positive_price_with_source(
+                    t,
+                    [
+                        ("entry_price", "entry_price"),
+                        ("avg_entry_price", "avg_entry_price"),
+                        ("paper_entry_price", "paper_entry_price"),
+                        ("entry_fill_price", "entry_fill_price"),
+                        ("filled_entry_price", "filled_entry_price"),
+                        ("entry_avg_price", "entry_avg_price"),
+                        ("avg_fill_price", "avg_fill_price"),
+                        ("price_at_entry", "price_at_entry"),
+                        ("open_price", "open_price"),
+                        ("fill_price", "fill_price"),
+                    ],
+                )
+                exit_price, exit_price_source = _first_positive_price_with_source(
+                    t,
+                    [
+                        ("exit_price", "exit_price"),
+                        ("paper_exit_price", "paper_exit_price"),
+                        ("close_price", "close_price"),
+                        ("closing_price", "closing_price"),
+                        ("closed_price", "closed_price"),
+                        ("close_fill_price", "close_fill_price"),
+                        ("closing_fill_price", "closing_fill_price"),
+                        ("filled_exit_price", "filled_exit_price"),
+                        ("exit_fill_price", "exit_fill_price"),
+                        ("avg_exit_price", "avg_exit_price"),
+                        ("exit_mark_price", "exit_mark_price"),
+                    ],
+                )
+                sym = str(t.get("symbol") or "").upper()
+                reasoning = _latest_position_signal_reasoning(
+                    client,
+                    sym,
+                    t,
+                    row_source="v2:paper:closed_trades",
+                ) if sym else _row_position_reasoning(t, source="v2:paper:closed_trades")
                 trades.append({
                     "close_id": t.get("close_id"),
                     "position_id": t.get("position_id"),
-                    "symbol": t.get("symbol"),
+                    "symbol": sym or t.get("symbol"),
                     "side": str(t.get("side", "")).upper(),
-                    "entry_price": t.get("entry_price"),
-                    "exit_price": t.get("exit_price"),
+                    "entry_price": entry_price,
+                    "entry_price_source": entry_price_source,
+                    "exit_price": exit_price,
+                    "exit_price_source": exit_price_source,
+                    "signal_id": t.get("signal_id") or (reasoning or {}).get("signal_id"),
+                    "prediction_id": t.get("prediction_id") or (reasoning or {}).get("prediction_id"),
+                    "decision_reasoning": reasoning,
                     "realized_pnl_usd": t.get("realized_pnl_usd"),
                     "realized_pnl_bps": t.get("realized_pnl_bps"),
                     "close_reason": t.get("close_reason") or t.get("exit_reason"),
@@ -8544,7 +9561,11 @@ async def _readonly_resource_websocket(websocket: WebSocket) -> None:
         while True:
             started = time.monotonic()
             try:
-                handled, payload = await _readonly_resource_direct_payload(target, headers)
+                handled, payload = await run_in_threadpool(
+                    _readonly_resource_direct_payload_sync,
+                    target,
+                    headers,
+                )
                 if not handled:
                     payload = await run_in_threadpool(_fetch_same_origin_readonly_json, target, headers)
                 payload = _readonly_resource_ws_payload(target, payload, started)

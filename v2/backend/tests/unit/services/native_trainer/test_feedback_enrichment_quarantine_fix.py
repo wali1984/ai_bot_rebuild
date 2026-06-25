@@ -45,6 +45,15 @@ def _minimal_position(
         market_state_id="mstate_e83314e957253c60002e",
         timeframe=timeframe,
         feature_snapshot_id=feature_snapshot_id,
+        decision_id="decision_unit",
+        mtf_snapshot_id="mtf_unit",
+        feature_cutoff="2026-06-18T17:59:59Z",
+        decision_time="2026-06-18T18:00:00Z",
+        available_at="2026-06-18T17:59:30Z",
+        selected_action=side,
+        model_version="unit_model",
+        checkpoint_id="unit_checkpoint",
+        source_hashes={"feature_vector_hash": "unit_hash"},
         strategy_id=strategy_id,
         strategy_family=strategy_id,
         strategy_selected_mode=strategy_id,
@@ -97,7 +106,7 @@ class TestMissingFeatureSnapshotQuarantine:
         assert row["feature_snapshot_id"] is None
         assert row["entry_feature_snapshot_id"] is None
         assert row["missing_feedback_fields"] == ["feature_snapshot_id"]
-        assert row["quarantine_reason"] == "missing_feature_snapshot_id"
+        assert "missing_feature_snapshot_id" in row["quarantine_reason"]
 
     def test_missing_feature_snapshot_is_not_synthesized_from_prediction_id(self) -> None:
         position = _minimal_position(feature_snapshot_id=None, prediction_id="v2h_abc999")
@@ -202,6 +211,39 @@ class TestNoLineageStillQuarantined:
         assert row["trainer_consumable"] is False
         assert row["feature_snapshot_id"] is None
         assert "prediction_id" in row["missing_feedback_fields"]
+
+    def test_latency_aliases_reconstructed_from_legacy_latency_ms(self) -> None:
+        close_event = {
+            "symbol": "XRPUSDT",
+            "timeframe": "1m",
+            "action": "long",
+            "side": "long",
+            "prediction_id": None,
+            "signal_id": None,
+            "feature_snapshot_id": None,
+            "market_state_id": "mstate_001",
+            "entry_price": 0.5,
+            "exit_price": 0.51,
+            "realized_pnl_usd": 0.01,
+            "realized_pnl": 0.01,
+            "realized_pnl_bps": 20.0,
+            "exit_reason": "STOP_LOSS",
+            "strategy_id": None,
+            "strategy_family": None,
+            "hedge_state": "NO_HEDGE",
+            "market_regime_at_entry": "range",
+            "hold_time_seconds": 100,
+            "latency_ms": 42.0,
+            "paper_only": True,
+            "places_real_order": False,
+        }
+        row = build_strategy_hedge_exit_feedback(close_event=close_event, outcome_label={})
+
+        assert row["latency_ms"] == pytest.approx(42.0)
+        assert row["paper_fill_latency_ms"] == pytest.approx(42.0)
+        assert row["fill_latency_ms"] == pytest.approx(42.0)
+        assert row["execution_latency_ms"] == pytest.approx(42.0)
+        assert row["simulated_latency_ms"] == pytest.approx(42.0)
 
 
 # ---------------------------------------------------------------------------

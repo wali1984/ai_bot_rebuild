@@ -1,4 +1,6 @@
 [Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
 Description=AI BOT V2 native ingestors live loop (paper-only)
 After=network-online.target
 Wants=network-online.target

@@ -1,4 +1,6 @@
 [Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
 Description=AI BOT V2 RL core inference loop (paper-only)
 After=ai-bot-v2-feature-pipeline-native-loop.service
 

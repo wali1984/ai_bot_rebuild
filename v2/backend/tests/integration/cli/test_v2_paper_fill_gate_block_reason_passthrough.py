@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib
 import json
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 
@@ -85,6 +86,58 @@ def _make_blocked_prediction(symbol: str, block_reasons: list[str]) -> dict[str,
     }
 
 
+class _MarketStateOk:
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "market_state_id": "ms_routeable",
+            "market_state_integrity_score": 95.0,
+            "valid_for_prediction": True,
+            "valid_for_risk": True,
+            "valid_for_orchestrator": True,
+            "valid_for_paper": True,
+            "valid_for_live": False,
+            "reject_reasons": [],
+        }
+
+
+def _make_routeable_prediction(symbol: str) -> dict[str, Any]:
+    return {
+        "prediction_id": f"pred_{symbol}",
+        "decision_id": f"decision_{symbol}",
+        "feature_snapshot_id": f"fs_{symbol}",
+        "mtf_snapshot_id": f"mtf_{symbol}",
+        "feature_cutoff": "2026-05-17T04:59:00Z",
+        "decision_time": "2026-05-17T05:00:00Z",
+        "available_at": "2026-05-17T04:59:30Z",
+        "symbol": symbol,
+        "timeframe": "1m",
+        "selected_action": "long",
+        "model_version": "model_v1",
+        "trainer_source": "V2_NATIVE_RL_MASA_PPO_CUDA_TRAINER_PAPER_SHADOW",
+        "model_id": "model_v1",
+        "checkpoint_id": "ckpt_v1",
+        "source_hashes": {"feature_vector_hash": "hash_feat"},
+        "feature_vector_hash": "hash_feat",
+        "input_feature_hash": "hash_feat",
+        "all_tf_candle_timestamps": [1_780_000_000_000],
+        "all_source_event_times": [1_780_000_000_000],
+        "replay_snapshot_id": f"replay_{symbol}",
+        "replay_snapshot_key": f"v2:replay:snapshots:pred_{symbol}",
+        "replay_snapshot_write_success": True,
+        "expected_move_bps": 12.0,
+        "expected_move_after_cost_bps": 8.0,
+        "confidence_raw": 0.72,
+        "confidence_calibrated": 0.72,
+        "routes_to_orchestrator": True,
+        "paper_fill_allowed": True,
+        "paper_fill_gate_status": "PAPER_SHADOW_GATE_OPEN",
+        "paper_fill_gate_block_reasons": [],
+        "generated_utc": "2026-05-17T05:00:00Z",
+        "live_gate": "blocked_human_only",
+        "live_symbols": [],
+    }
+
+
 def test_orchestrator_emits_held_by_paper_fill_gate_with_reasons(monkeypatch) -> None:
     fake = FakeRedis()
     reasons = ["BLOCK_NEGATIVE_EXPECTED_MOVE_AFTER_COST"]
@@ -110,6 +163,34 @@ def test_orchestrator_emits_held_by_paper_fill_gate_with_reasons(monkeypatch) ->
     assert status["live_gate"] == "blocked_human_only"
     assert status["live_symbols"] == []
     assert status["writes_legacy_redis"] is False
+
+
+def test_orchestrator_preserves_trust_envelope_on_routeable_signal(monkeypatch) -> None:
+    fake = FakeRedis()
+    fake.store["v2:prediction:BTCUSDT:1m"] = json.dumps(_make_routeable_prediction("BTCUSDT"))
+    orch = importlib.import_module("v2.backend.app.cli.v2_orchestrator_arbitration_loop")
+    _patch_connect(monkeypatch, "v2.backend.app.cli.v2_orchestrator_arbitration_loop", fake)
+    monkeypatch.setattr(orch, "_prediction_age_seconds", lambda _prediction: 5.0)
+    monkeypatch.setattr(orch, "score_market_state", lambda _row: _MarketStateOk())
+
+    status = orch.run_once()
+
+    assert status["bucket_winners_count"] == 1
+    decisions = json.loads(fake.store["v2:orchestrator:decisions"])
+    winner = decisions["bucket_winners"][0]
+    signal = json.loads(fake.store["v2:signals:paper"])[0]
+    for row in (winner, signal):
+        assert row["prediction_id"] == "pred_BTCUSDT"
+        assert row["decision_id"] == "decision_BTCUSDT"
+        assert row["feature_snapshot_id"] == "fs_BTCUSDT"
+        assert row["mtf_snapshot_id"] == "mtf_BTCUSDT"
+        assert row["feature_cutoff"] == "2026-05-17T04:59:00Z"
+        assert row["decision_time"] == "2026-05-17T05:00:00Z"
+        assert row["available_at"] == "2026-05-17T04:59:30Z"
+        assert row["selected_action"] == "long"
+        assert row["model_version"] == "model_v1"
+        assert row["checkpoint_id"] == "ckpt_v1"
+        assert row["source_hashes"] == {"feature_vector_hash": "hash_feat"}
 
 
 def test_orchestrator_ignores_rl_core_sidecar_predictions_for_primary_paper_signals(monkeypatch) -> None:
@@ -196,22 +277,42 @@ def test_paper_loop_emits_held_intent_without_fill(monkeypatch) -> None:
 
 def test_paper_loop_reads_per_symbol_paper_signal_keys(monkeypatch) -> None:
     fake = FakeRedis()
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    generated_utc = now.isoformat().replace("+00:00", "Z")
+    available_at = (now - timedelta(seconds=30)).isoformat().replace("+00:00", "Z")
+    feature_cutoff = (now - timedelta(minutes=1)).isoformat().replace("+00:00", "Z")
     fake.store["v2:signals:paper"] = json.dumps([])
     fake.store["v2:signals:paper:BTCUSDT:1m"] = json.dumps(
         {
-                "signal_id": "signal-btc-1m",
-                "prediction_id": "prediction-btc-1m",
-                "feature_snapshot_id": "fs-btc-1m",
-                "risk_decision_id": "risk-btc-1m",
-                "orchestrator_decision_id": "orch-btc-1m",
+            "signal_id": "signal-btc-1m",
+            "prediction_id": "prediction-btc-1m",
+            "feature_snapshot_id": "fs-btc-1m",
+            "risk_decision_id": "risk-btc-1m",
+            "orchestrator_decision_id": "orch-btc-1m",
+            "decision_id": "decision-btc-1m",
+            "mtf_snapshot_id": "mtf-btc-1m",
+            "feature_cutoff": feature_cutoff,
+            "decision_time": generated_utc,
+            "available_at": available_at,
+            "generated_utc": generated_utc,
+            "model_version": "model-v1",
+            "checkpoint_id": "ckpt-v1",
+            "source_hashes": {"feature_vector_hash": "hash-btc-1m"},
+            "feature_vector_hash": "hash-btc-1m",
+            "input_feature_hash": "hash-btc-1m",
+            "source_prediction_status": "CURRENT_RUNTIME_PAPER_SIGNAL",
             "symbol": "BTCUSDT",
             "timeframe": "15m",  # Phase 3 entry gate allows 15m/1h/4h; 1m blocked by default
             "side": "long",
-                "expected_move_after_cost_bps": 20.0,
-                "confidence_calibrated": 0.66,
-                "bid_ask_spread_bps": 1.2,
-                "slippage_bps": 0.8,
-                "market_state_id": "mstate_btc_1m",
+            "selected_action": "long",
+            "expected_move_after_cost_bps": 20.0,
+            "confidence_calibrated": 0.66,
+            "bid_ask_spread_bps": 1.2,
+            "slippage_bps": 0.8,
+            "expected_slippage_bps": 0.8,
+            "expected_slippage_source": "TEST_SIGNAL_FIXTURE",
+            "fee_bps": 5.0,
+            "market_state_id": "mstate_btc_1m",
             "market_state_integrity_score": 95.0,
             "valid_for_paper": True,
             "market_state_reject_reasons": [],
@@ -232,6 +333,19 @@ def test_paper_loop_reads_per_symbol_paper_signal_keys(monkeypatch) -> None:
             "wallet_balance": 10_000.0,
         }
     )
+    fake.store["v2:features:snapshot:fs-btc-1m"] = json.dumps(
+        {
+            "feature_snapshot_id": "fs-btc-1m",
+            "symbol": "BTCUSDT",
+            "timeframe": "15m",
+            "feature_freshness_state": "CURRENT",
+            "available_at": available_at,
+            "generated_at": available_at,
+            "feature_cutoff": feature_cutoff,
+            "candle_closed_confirmed": True,
+            "features": {"close_price": 100.0, "atr_bps": 50.0},
+        }
+    )
     _patch_connect(monkeypatch, "v2.backend.app.cli.v2_trade_management_paper_loop", fake)
     paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
 
@@ -249,6 +363,21 @@ def test_paper_loop_reads_per_symbol_paper_signal_keys(monkeypatch) -> None:
     assert ledger["accepted"][0]["risk_decision_id"] == "risk-btc-1m"
     assert ledger["accepted"][0]["orchestrator_decision_id"] == "orch-btc-1m"
     assert ledger["accepted"][0]["paper_fill_allowed"] is True
+    risk_decisions = json.loads(fake.store["v2:risk:decisions"])
+    assert risk_decisions[0]["prediction_id"] == "prediction-btc-1m"
+    assert risk_decisions[0]["expected_move_after_cost_bps"] == 20.0
+    assert risk_decisions[0]["expected_net_edge_bps"] == 20.0
+    assert risk_decisions[0]["confidence_calibrated"] == 0.66
+    latest_risk_decision = json.loads(fake.store["v2:risk:decisions:latest"])
+    assert latest_risk_decision == risk_decisions[0]
+    assert latest_risk_decision["decision_id"] == "decision-btc-1m"
+    assert latest_risk_decision["mtf_snapshot_id"] == "mtf-btc-1m"
+    assert latest_risk_decision["feature_cutoff"] == feature_cutoff
+    assert latest_risk_decision["decision_time"] == generated_utc
+    assert latest_risk_decision["available_at"] == available_at
+    assert latest_risk_decision["model_version"] == "model-v1"
+    assert latest_risk_decision["checkpoint_id"] == "ckpt-v1"
+    assert latest_risk_decision["source_hashes"] == {"feature_vector_hash": "hash-btc-1m"}
     assert ledger["accepted"][0]["places_real_order"] is False
     assert status["places_real_order"] is False
     assert status["writes_legacy_redis"] is False

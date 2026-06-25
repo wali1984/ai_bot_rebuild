@@ -34,6 +34,56 @@ def _safe_float(v: Any, default: float = 0.0) -> float:
         return default
 
 
+def _optional_positive_float(v: Any) -> float | None:
+    try:
+        parsed = float(v)
+    except (TypeError, ValueError):
+        return None
+    if parsed != parsed or abs(parsed) == float("inf"):
+        return None
+    return parsed if parsed > 0 else None
+
+
+def _optional_float(v: Any) -> float | None:
+    try:
+        parsed = float(v) if v is not None else None
+    except (TypeError, ValueError):
+        return None
+    if parsed is None or parsed != parsed or abs(parsed) == float("inf"):
+        return None
+    return parsed
+
+
+def _position_quantity(row: dict[str, Any]) -> float:
+    fallback = 0.0
+    for field in ("qty", "quantity", "net_quantity", "size", "position_size"):
+        value = _optional_float(row.get(field))
+        if value is None:
+            continue
+        if abs(value) > 0:
+            return value
+        fallback = value
+    return fallback
+
+
+def _first_present(*values: Any) -> Any:
+    for value in values:
+        if value is not None and value != "":
+            return value
+    return None
+
+
+def _first_positive_price_with_source(
+    row: dict[str, Any],
+    fields: list[tuple[str, str]],
+) -> tuple[float | None, str | None]:
+    for field, source in fields:
+        price = _optional_positive_float(row.get(field))
+        if price is not None:
+            return price, source
+    return None, None
+
+
 def _safe_int(v: Any, default: int = 0) -> int:
     try:
         return int(v) if v is not None else default
@@ -165,10 +215,41 @@ def _paper_positions_from_redis(r: Any) -> list[dict[str, Any]]:
         raw = r.get("v2:paper:positions")
         if raw:
             data = json.loads(raw)
-            return data if isinstance(data, list) else []
+            if isinstance(data, dict):
+                data = list(data.values())
+            return [row for row in data if isinstance(row, dict)] if isinstance(data, list) else []
     except Exception:
         pass
     return []
+
+
+def _paper_closed_trades_from_redis(r: Any) -> list[dict[str, Any]]:
+    try:
+        raw = r.get("v2:paper:closed_trades")
+        if raw:
+            data = json.loads(raw)
+            if isinstance(data, dict):
+                data = list(data.values())
+            return [row for row in data if isinstance(row, dict)] if isinstance(data, list) else []
+    except Exception:
+        pass
+    return []
+
+
+def _recent_closed_trade_rows(rows: list[dict[str, Any]], limit: int = 200) -> list[dict[str, Any]]:
+    projected = [row for row in rows if isinstance(row, dict)]
+    projected.sort(
+        key=lambda row: str(
+            row.get("closed_at")
+            or row.get("exit_price_utc")
+            or row.get("closed_utc")
+            or row.get("generated_at")
+            or row.get("generated_utc")
+            or ""
+        ),
+        reverse=True,
+    )
+    return projected[:limit]
 
 
 def _alerts_from_redis(r: Any, limit: int = 30) -> list[dict[str, Any]]:
@@ -202,18 +283,183 @@ def _live_gate_status() -> dict[str, Any]:
 # ── Compact model helpers ─────────────────────────────────────────────────────
 
 def _compact_position(pos: dict[str, Any]) -> dict[str, Any]:
+    entry_price, entry_price_source = _first_positive_price_with_source(
+        pos,
+        [
+            ("entry_price", str(pos.get("entry_price_source") or "entry_price")),
+            ("avg_entry_price", "avg_entry_price"),
+            ("paper_entry_price", "paper_entry_price"),
+            ("entry_fill_price", "entry_fill_price"),
+            ("filled_entry_price", "filled_entry_price"),
+            ("entry_avg_price", "entry_avg_price"),
+            ("avg_fill_price", "avg_fill_price"),
+            ("price_at_entry", "price_at_entry"),
+            ("open_price", "open_price"),
+            ("fill_price", "fill_price"),
+        ],
+    )
+    exit_price, exit_price_source = _first_positive_price_with_source(
+        pos,
+        [
+            ("exit_price", str(pos.get("exit_price_source") or "exit_price")),
+            ("paper_exit_price", "paper_exit_price"),
+            ("close_price", "close_price"),
+            ("closing_price", "closing_price"),
+            ("closed_price", "closed_price"),
+            ("close_fill_price", "close_fill_price"),
+            ("closing_fill_price", "closing_fill_price"),
+            ("filled_exit_price", "filled_exit_price"),
+            ("exit_fill_price", "exit_fill_price"),
+            ("avg_exit_price", "avg_exit_price"),
+            ("exit_mark_price", "exit_mark_price"),
+        ],
+    )
+    mark_price, mark_price_source = _first_positive_price_with_source(
+        pos,
+        [
+            ("mark_price", str(pos.get("mark_price_source") or "mark_price")),
+            ("last_mark_price", str(pos.get("last_mark_price_source") or "last_mark_price")),
+            ("latest_mark_price", str(pos.get("latest_mark_price_source") or "latest_mark_price")),
+            ("current_price", str(pos.get("current_price_source") or "current_price")),
+        ],
+    )
     return {
         "id": str(pos.get("position_id") or pos.get("id") or ""),
         "symbol": str(pos.get("symbol") or ""),
         "side": str(pos.get("side") or ""),
-        "qty": _safe_float(pos.get("qty") or pos.get("quantity")),
-        "entry_price": _safe_float(pos.get("entry_price")),
-        "mark_price": _safe_float(pos.get("mark_price")),
-        "unrealized_pnl": _safe_float(pos.get("unrealized_pnl")),
-        "realized_pnl": _safe_float(pos.get("realized_pnl")),
-        "opened_at": str(pos.get("opened_at") or pos.get("created_at") or ""),
+        "qty": _position_quantity(pos),
+        "entry_price": entry_price,
+        "entry_price_source": entry_price_source or pos.get("entry_price_source"),
+        "exit_price": exit_price,
+        "exit_price_source": exit_price_source or pos.get("exit_price_source"),
+        "mark_price": mark_price,
+        "mark_price_source": mark_price_source or pos.get("mark_price_source"),
+        "mark_price_generated_at": pos.get("mark_price_generated_at"),
+        "mark_price_age_seconds": _optional_float(pos.get("mark_price_age_seconds")),
+        "mark_price_stale": bool(pos.get("mark_price_stale")),
+        "unrealized_pnl": _optional_float(pos.get("unrealized_pnl")),
+        "realized_pnl": _safe_float(_first_present(pos.get("realized_pnl"), pos.get("realized_pnl_usd"))),
+        "opened_at": str(pos.get("opened_at") or pos.get("opened_utc") or pos.get("created_at") or ""),
+        "closed_at": str(pos.get("closed_at") or pos.get("exit_price_utc") or pos.get("closed_utc") or ""),
+        "close_reason": pos.get("close_reason") or pos.get("exit_reason"),
         "status": str(pos.get("status") or "open"),
+        "signal_id": pos.get("signal_id"),
+        "prediction_id": pos.get("prediction_id"),
+        "decision_reasoning": pos.get("decision_reasoning") if isinstance(pos.get("decision_reasoning"), dict) else None,
     }
+
+
+def _mobile_closed_positions(client: Any, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    try:
+        from app.api.v2.market_contracts import (  # noqa: PLC0415
+            _first_positive_price_with_source,
+            _latest_position_signal_reasoning,
+            _row_position_reasoning,
+        )
+    except Exception:
+        _first_positive_price_with_source = None
+        _latest_position_signal_reasoning = None
+        _row_position_reasoning = None
+
+    projected: list[dict[str, Any]] = []
+    for row in rows:
+        sym = str(row.get("symbol") or "").upper()
+        if _first_positive_price_with_source is not None:
+            entry_price, entry_price_source = _first_positive_price_with_source(
+                row,
+                [
+                    ("entry_price", "entry_price"),
+                    ("avg_entry_price", "avg_entry_price"),
+                    ("paper_entry_price", "paper_entry_price"),
+                    ("entry_fill_price", "entry_fill_price"),
+                    ("filled_entry_price", "filled_entry_price"),
+                    ("entry_avg_price", "entry_avg_price"),
+                    ("avg_fill_price", "avg_fill_price"),
+                    ("price_at_entry", "price_at_entry"),
+                    ("open_price", "open_price"),
+                    ("fill_price", "fill_price"),
+                ],
+            )
+            exit_price, exit_price_source = _first_positive_price_with_source(
+                row,
+                [
+                    ("exit_price", "exit_price"),
+                    ("paper_exit_price", "paper_exit_price"),
+                    ("close_price", "close_price"),
+                    ("closing_price", "closing_price"),
+                    ("closed_price", "closed_price"),
+                    ("close_fill_price", "close_fill_price"),
+                    ("closing_fill_price", "closing_fill_price"),
+                    ("filled_exit_price", "filled_exit_price"),
+                    ("exit_fill_price", "exit_fill_price"),
+                    ("avg_exit_price", "avg_exit_price"),
+                    ("exit_mark_price", "exit_mark_price"),
+                ],
+            )
+        else:
+            entry_price, entry_price_source = _optional_positive_float(row.get("entry_price")), row.get("entry_price_source")
+            exit_price, exit_price_source = _optional_positive_float(row.get("exit_price")), row.get("exit_price_source")
+
+        if _latest_position_signal_reasoning is not None and sym:
+            reasoning = _latest_position_signal_reasoning(
+                client,
+                sym,
+                row,
+                row_source="v2:paper:closed_trades",
+            )
+        elif _row_position_reasoning is not None:
+            reasoning = _row_position_reasoning(row, source="v2:paper:closed_trades")
+        else:
+            reasoning = row.get("decision_reasoning") if isinstance(row.get("decision_reasoning"), dict) else None
+
+        projected.append({
+            **row,
+            "position_id": row.get("position_id") or row.get("close_id") or row.get("id"),
+            "symbol": sym or row.get("symbol"),
+            "entry_price": entry_price,
+            "entry_price_source": entry_price_source,
+            "exit_price": exit_price,
+            "exit_price_source": exit_price_source,
+            "status": "closed",
+            "closed_at": row.get("closed_at") or row.get("exit_price_utc") or row.get("closed_utc"),
+            "signal_id": row.get("signal_id") or (reasoning or {}).get("signal_id"),
+            "prediction_id": row.get("prediction_id") or (reasoning or {}).get("prediction_id"),
+            "decision_reasoning": reasoning,
+        })
+
+    projected.sort(key=lambda item: str(item.get("closed_at") or item.get("exit_price_utc") or ""), reverse=True)
+    return [_compact_position(row) for row in projected]
+
+
+def _mobile_enriched_open_positions(client: Any, rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    default_metrics = {
+        "unrealized_pnl_usd": 0.0,
+        "total_open_notional": 0.0,
+        "mark_to_market_live": False,
+        "live_mark_price_count": 0,
+        "stale_mark_price_count": 0,
+        "missing_mark_price_count": len(rows),
+    }
+    if client is None:
+        return [_compact_position(row) for row in rows], default_metrics
+
+    try:
+        from app.api.v2.market_contracts import _enrich_paper_positions  # noqa: PLC0415
+    except Exception:
+        return [_compact_position(row) for row in rows], default_metrics
+
+    risk_profile = _redis_get_json(client, "v2:risk:active_profile") or {}
+    risk_fields = risk_profile.get("fields") if isinstance(risk_profile.get("fields"), dict) else {}
+    max_leverage = _safe_float(risk_fields.get("max_leverage"), 1.0)
+    if max_leverage <= 0:
+        max_leverage = 1.0
+
+    try:
+        enriched, metrics = _enrich_paper_positions(client, rows, max_leverage=max_leverage)
+    except Exception:
+        return [_compact_position(row) for row in rows], default_metrics
+
+    return [_compact_position(row) for row in enriched], {**default_metrics, **metrics}
 
 
 def _compact_signal(sig: dict[str, Any]) -> dict[str, Any]:
@@ -335,18 +581,49 @@ async def get_mobile_positions(
         r = None
 
     raw_positions = _paper_positions_from_redis(r) if r else []
+    raw_closed_trades = _paper_closed_trades_from_redis(r) if r else []
     hb = _paper_heartbeat(r) if r else {}
 
-    positions = [_compact_position(p) for p in raw_positions]
+    position_pricing: dict[str, Any] | None = None
+    position_warnings: list[str] = []
+    projected_positions = raw_positions
+    if r:
+        try:
+            from app.api.v2.market_contracts import (  # noqa: PLC0415
+                _enrich_paper_positions,
+                _paper_positions_with_last_known_fallback,
+                _redis_risk_max_leverage,
+            )
+
+            projected_positions, _source_status, position_warnings = _paper_positions_with_last_known_fallback(raw_positions)
+            projected_positions, position_pricing = _enrich_paper_positions(
+                r,
+                projected_positions,
+                max_leverage=_redis_risk_max_leverage(r),
+            )
+        except Exception as exc:
+            position_warnings = [f"Position mark projection unavailable: {exc}"]
+
+    positions = [_compact_position(p) for p in projected_positions]
+    closed_positions = _mobile_closed_positions(r, _recent_closed_trade_rows(raw_closed_trades, 200)) if r else []
     realized_pnl = _safe_float(hb.get("realized_pnl_usd"))
-    unrealized_pnl = _safe_float(hb.get("unrealized_pnl_usd"))
+    unrealized_pnl = (
+        _safe_float(position_pricing.get("unrealized_pnl_usd"))
+        if isinstance(position_pricing, dict)
+        else _safe_float(hb.get("unrealized_pnl_usd"))
+    )
     total_pnl = realized_pnl + unrealized_pnl
 
     return {
         "generated_utc": _utc_now(),
         "positions": positions,
+        "closed_positions": closed_positions[:50],
+        "historical_positions": closed_positions[:200],
+        "position_pricing": position_pricing,
+        "warnings": position_warnings,
         "summary": {
             "open_count": len(positions),
+            "closed_count": _safe_int(hb.get("closed_trade_count") or len(closed_positions)),
             "total_pnl_usd": total_pnl,
             "realized_pnl_usd": realized_pnl,
             "unrealized_pnl_usd": unrealized_pnl,
@@ -504,15 +781,17 @@ async def get_mobile_paper_summary(
 
     hb = _paper_heartbeat(r) if r else {}
     positions = _paper_positions_from_redis(r) if r else []
+    positions_enriched, position_pricing = _mobile_enriched_open_positions(r, positions)
 
     signals_seen = _safe_int(hb.get("paper_signals_seen"))
     intents_built = _safe_int(hb.get("intents_built"))
     intents_accepted = _safe_int(hb.get("intents_accepted"))
     intents_blocked = _safe_int(hb.get("intents_blocked"))
-    open_count = _safe_int(hb.get("open_position_count") or hb.get("accepted_position_count"))
+    open_count = _safe_int(hb.get("open_position_count") or hb.get("accepted_position_count") or len(positions_enriched))
     closed_count = _safe_int(hb.get("closed_trade_count"))
     realized_pnl = _safe_float(hb.get("realized_pnl_usd"))
-    unrealized_pnl = _safe_float(hb.get("unrealized_pnl_usd"))
+    enriched_unrealized = _optional_float(position_pricing.get("unrealized_pnl_usd"))
+    unrealized_pnl = enriched_unrealized if positions_enriched and enriched_unrealized is not None else _safe_float(hb.get("unrealized_pnl_usd"))
     outcome_labels = _safe_int(hb.get("outcome_label_count"))
     feedback_consumable = _safe_int(hb.get("trainer_feedback_consumable_row_count"))
     feedback_quarantined = _safe_int(hb.get("trainer_feedback_quarantined_row_count"))
@@ -538,7 +817,15 @@ async def get_mobile_paper_summary(
         "positions": {
             "open_count": open_count,
             "closed_count": closed_count,
-            "positions_preview": [_compact_position(p) for p in positions[:5]],
+            "positions_preview": positions_enriched[:5],
+        },
+        "position_pricing": {
+            "unrealized_pnl_usd": position_pricing.get("unrealized_pnl_usd"),
+            "total_open_notional": position_pricing.get("total_open_notional"),
+            "mark_to_market_live": position_pricing.get("mark_to_market_live"),
+            "live_mark_price_count": position_pricing.get("live_mark_price_count"),
+            "stale_mark_price_count": position_pricing.get("stale_mark_price_count"),
+            "missing_mark_price_count": position_pricing.get("missing_mark_price_count"),
         },
         "pnl": {
             "realized_usd": realized_pnl,

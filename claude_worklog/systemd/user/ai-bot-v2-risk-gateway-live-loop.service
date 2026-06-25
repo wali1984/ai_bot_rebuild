@@ -1,4 +1,6 @@
 [Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
 Description=AI BOT V2 risk gateway live loop (controller only, no trader/exchange mutation)
 After=network-online.target ai-bot-v2-orchestrator-arbitration-loop.service
 

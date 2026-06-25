@@ -53,6 +53,78 @@ def fill_identity(row: Mapping[str, Any]) -> str:
     return str(abs(hash(tuple(sorted((str(k), str(v)) for k, v in row.items())))))
 
 
+def identity_values(row: Mapping[str, Any], keys: tuple[str, ...]) -> set[str]:
+    values: set[str] = set()
+    for key in keys:
+        value = row.get(key)
+        if isinstance(value, list):
+            values.update(str(item) for item in value if item not in (None, ""))
+        elif value not in (None, ""):
+            values.add(str(value))
+    return values
+
+
+def closed_fill_identity_values(closed_rows: list[Mapping[str, Any]]) -> set[str]:
+    closed_ids: set[str] = set()
+    for row in closed_rows:
+        closed_ids.update(
+            identity_values(
+                row,
+                (
+                    "source_fill_ids",
+                    "entry_fill_id",
+                    "fill_id",
+                    "paper_fill_id",
+                    "ledger_row_id",
+                    "intent_id",
+                    "entry_signal_id",
+                    "signal_id",
+                    "entry_prediction_id",
+                    "prediction_id",
+                    "source_prediction_id",
+                ),
+            )
+        )
+    return closed_ids
+
+
+def suppress_accepted_rows_already_closed(
+    accepted_rows: list[Mapping[str, Any]],
+    closed_rows: list[Mapping[str, Any]],
+) -> tuple[list[Mapping[str, Any]], list[dict[str, Any]]]:
+    closed_ids = closed_fill_identity_values(closed_rows)
+    if not closed_ids:
+        return list(accepted_rows), []
+    active: list[Mapping[str, Any]] = []
+    suppressed: list[dict[str, Any]] = []
+    for row in accepted_rows:
+        accepted_ids = identity_values(
+            row,
+            (
+                "fill_id",
+                "paper_fill_id",
+                "ledger_row_id",
+                "intent_id",
+                "signal_id",
+                "prediction_id",
+                "source_prediction_id",
+                "trainer_prediction_id",
+            ),
+        )
+        matched = sorted(accepted_ids & closed_ids)
+        if matched:
+            suppressed.append(
+                {
+                    "fill_id": fill_identity(row),
+                    "symbol": str(row.get("symbol") or "").upper(),
+                    "matched_closed_source_ids": matched,
+                }
+            )
+            continue
+        active.append(row)
+    return active, suppressed
+
+
 def extract_lineage(row: Mapping[str, Any]) -> dict[str, Any]:
     prediction_id = first_present(row, ("prediction_id", "source_prediction_id", "trainer_prediction_id"))
     return {
@@ -294,7 +366,11 @@ def build_accounting_state(
     fees: float = 0.0,
     slippage: float = 0.0,
 ) -> dict[str, Any]:
-    inventory = classify_fills(accepted_rows, mark_prices)
+    active_accepted_rows, suppressed_closed_rows = suppress_accepted_rows_already_closed(
+        accepted_rows,
+        closed_rows,
+    )
+    inventory = classify_fills(active_accepted_rows, mark_prices)
     positions = reconstruct_positions(inventory)
     explicit_closed_realized = 0.0
     for row in closed_rows:
@@ -318,6 +394,9 @@ def build_accounting_state(
     reason = zero_pnl_reason(inventory, {**positions, "realized_pnl": realized, "unrealized_pnl": unrealized})
     return {
         "accepted_fill_count": len(accepted_rows),
+        "active_accepted_fill_count": len(active_accepted_rows),
+        "accepted_closed_filter_count": len(suppressed_closed_rows),
+        "accepted_closed_filter_sample": suppressed_closed_rows[:25],
         "economic_fill_count": len(economic),
         "non_economic_fill_count": len(non_economic),
         "inventory": inventory,

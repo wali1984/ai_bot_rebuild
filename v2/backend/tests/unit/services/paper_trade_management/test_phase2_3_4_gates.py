@@ -407,6 +407,10 @@ def test_entry_gate_blocks_degraded_timeframe_aggregate_when_exact_bucket_missin
                     "degraded": True,
                     "block_reason": "WIN_RATE_DEGRADED:20.00%<35.00%",
                     "data_source": "REDIS",
+                    "trust_evidence_status": "TRUSTED_OUTCOME_MEMORY",
+                    "outcome_memory_can_block_entries": True,
+                    "trusted_trade_count": 30,
+                    "untrusted_trade_count": 0,
                 })
             return None
 
@@ -421,6 +425,38 @@ def test_entry_gate_blocks_degraded_timeframe_aggregate_when_exact_bucket_missin
     assert result["allowed"] is False
     assert result["outcome_memory_source"] == "REDIS_TIMEFRAME_AGGREGATE"
     assert any("OUTCOME_MEMORY_BLOCK" in r for r in result["reasons"])
+
+
+def test_entry_gate_treats_legacy_degraded_timeframe_aggregate_as_advisory() -> None:
+    class RedisStub:
+        def get(self, key: str) -> str | None:
+            if key == "v2:paper:outcome_memory:__ALL__:5m":
+                return json.dumps({
+                    "symbol": "__ALL__",
+                    "timeframe": "5m",
+                    "trade_count": 30,
+                    "rolling_win_rate": 0.20,
+                    "rolling_ev_bps": -12.0,
+                    "drawdown_contribution_usd": -18.0,
+                    "degraded": True,
+                    "block_reason": "WIN_RATE_DEGRADED:20.00%<35.00%",
+                    "data_source": "REDIS",
+                })
+            return None
+
+    result = evaluate_entry_gate(
+        symbol="NEWCOINUSDT",
+        timeframe="5m",
+        strategy_mode=None,
+        confidence_calibrated=0.90,
+        expected_move_after_cost_bps=20.0,
+        redis_client=RedisStub(),
+    )
+
+    assert result["allowed"] is True
+    assert result["outcome_memory_source"] == "REDIS_TIMEFRAME_AGGREGATE"
+    assert result["outcome_memory_result"]["trust_evidence_status"] == "LEGACY_UNVERIFIED_OUTCOME_MEMORY"
+    assert not any("OUTCOME_MEMORY_BLOCK" in r for r in result["reasons"])
 
 
 def test_entry_gate_allows_healthy_bucket() -> None:

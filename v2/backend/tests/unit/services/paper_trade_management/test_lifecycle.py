@@ -89,6 +89,36 @@ def _audit_quality_fields() -> dict:
         "expected_slippage_usd": 0.01,
         "expected_slippage_source": "MODELED_FROM_OBSERVED_SPREAD_VOLATILITY_LIQUIDITY",
         "expected_slippage_modeled": True,
+        "selector_policy_fingerprint": "selector-fp-audit",
+        "frozen_selector_fingerprint": "selector-fp-audit",
+        "candidate_selected_before_outcome": True,
+        "candidate_selected_after_outcome": False,
+        "post_outcome_candidate_selection": False,
+        "future_labels_used_as_features": False,
+        "paper_opportunity_tier": "B_GRADE_EXPLORATION_PAPER",
+        "paper_opportunity_tier_reason": "UNIT_PRE_OUTCOME_EXPLORATION",
+        "explicit_paper_opportunity_tier": "B_GRADE_EXPLORATION_PAPER",
+        "paper_fill_allowed_source": "B_GRADE_EXPLORATION_PAPER_LOCAL_GATE",
+        "strict_paper_fill_allowed_upstream": False,
+        "calibration_label_purpose": "B_GRADE_EXPLORATION_FEEDBACK",
+        "bid_depth_usd": 125000.0,
+        "ask_depth_usd": 100000.0,
+        "orderbook_depth_usd": 100000.0,
+        "entry_orderbook_depth_usd": 100000.0,
+        "entry_orderbook_depth_side": "ask",
+        "top_of_book_depth_usd": 100000.0,
+        "market_depth_usd": 100000.0,
+        "orderbook_depth_source": "v2:market:orderbook:BTCUSDT:top5_notional_usd",
+        "depth_utilization_pct": 0.001,
+        "depth_price_impact_bps": 0.25,
+        "depth_price_impact_source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:test:ask_levels_top5:top5_vwap_vs_touch",
+        "depth_price_impact_model": "ORDERBOOK_TOP5_VWAP_VS_TOUCH",
+        "depth_price_impact_side": "ask",
+        "depth_price_impact_quantity": 1.0,
+        "depth_price_impact_filled_quantity": 1.0,
+        "depth_price_impact_fill_complete": True,
+        "depth_price_impact_vwap": 100.0025,
+        "depth_price_impact_touch_price": 100.0,
         "realized_slippage_bps": 1.0,
         "realized_slippage_usd": 0.01,
         "implementation_shortfall_usd": 0.0,
@@ -109,6 +139,22 @@ def _audit_quality_fields() -> dict:
     }
 
 
+def _entry_feature_snapshot(fill_id: str) -> dict:
+    return {
+        "feature_snapshot_id": f"feat_{fill_id}",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "available_at": "2026-06-11T09:59:30Z",
+        "generated_at": "2026-06-11T09:59:30Z",
+        "feature_cutoff": "2026-06-11T09:59:00Z",
+        "source_available_time": "2026-06-11T09:59:30Z",
+        "candle_closed_confirmed": True,
+        "latest_unclosed_kline_excluded": True,
+        "source_hashes": {"feature_vector_hash": f"hash_{fill_id}"},
+        "features": {"ret_pct": 1.0},
+    }
+
+
 def test_position_from_fill_derives_entry_atr_from_percent_feature() -> None:
     fill = _fill(fill_id="atr_pct", price=100.0)
     fill["features"] = {"true_range_pct": 0.75, "ta_ATR": 2.0}
@@ -125,6 +171,103 @@ def test_position_from_fill_derives_entry_atr_from_price_atr_feature() -> None:
     pos = position_from_fill(fill, fill_id="atr_price", side="long", quantity=1.0, price=100.0)
 
     assert pos.entry_atr_bps == pytest.approx(200.0)
+
+
+def test_closed_feedback_preserves_paper_execution_evidence() -> None:
+    fill = _fill(fill_id="exec_evidence", price=100.0)
+    fill.update(_audit_quality_fields())
+    fill.update(
+        {
+            "strategy_id": "trend_mode",
+            "strategy_family": "trend_mode",
+            "strategy_selected_mode": "trend_mode",
+            "market_regime_at_entry": "TREND",
+            "liquidity_zone_context": {"source": "unit"},
+            "liquidation_distance_context": {"source": "unit"},
+            "microstructure_context": {
+                "source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:test",
+                "bid_ask_spread_bps": 1.4,
+            },
+            "oi_funding_context": {"source": "unit"},
+            "public_intel_context": {"source": "unit"},
+            "major_move_signal_id": "major-1",
+            "maker_probability": 0.35,
+            "taker_probability": 0.65,
+            "maker_taker_probability_source": "PAPER_FILL_MODEL_FROM_OBSERVED_DEPTH",
+            "selector_policy_fingerprint": "selector-fp-exec",
+            "frozen_selector_fingerprint": "selector-fp-exec",
+            "candidate_selected_before_outcome": True,
+            "candidate_selected_after_outcome": False,
+            "post_outcome_candidate_selection": False,
+            "future_labels_used_as_features": False,
+            "latency_ms": 42.0,
+            "latency_source": "PAPER_DECISION_TO_FILL_RUNTIME_TIMESTAMPS",
+            "partial_fill_count": 2,
+            "partial_fills": [
+                {"quantity": 0.4, "price": 100.0},
+                {"quantity": 0.6, "price": 100.1},
+            ],
+            "mark_index_divergence_bps": 0.8,
+            "mark_index_source": "V2_MARKET_FUNDING_PREMIUM_INDEX:v2:market:funding:BTCUSDT",
+            "mark_index_available_at": "2026-06-11T10:00:00Z",
+            "mark_price": 100.08,
+            "index_price": 100.0,
+        }
+    )
+    position = position_from_fill(
+        fill,
+        fill_id="exec_evidence",
+        side="long",
+        quantity=1.0,
+        price=100.0,
+    )
+
+    close_event, outcome = build_close_event(
+        position=position,
+        close_quantity=1.0,
+        exit_price=101.0,
+        exit_time="2026-06-11T10:10:00Z",
+        close_reason="TIER_2_TAKE_PROFIT",
+        exit_spread_bps=1.6,
+        exit_spread_source="V2_MARKET_ORDERBOOK_TOP_OF_BOOK:test",
+    )
+    feedback = build_strategy_hedge_exit_feedback(
+        close_event=close_event,
+        outcome_label=outcome,
+    )
+
+    assert position.maker_probability == pytest.approx(0.35)
+    assert close_event["maker_probability"] == pytest.approx(0.35)
+    assert outcome["latency_ms"] == pytest.approx(42.0)
+    assert outcome["execution_latency_ms"] == pytest.approx(42.0)
+    assert feedback["maker_probability"] == pytest.approx(0.35)
+    assert feedback["taker_probability"] == pytest.approx(0.65)
+    assert feedback["maker_taker_probability_source"] == "PAPER_FILL_MODEL_FROM_OBSERVED_DEPTH"
+    assert feedback["selector_policy_fingerprint"] == "selector-fp-exec"
+    assert feedback["frozen_selector_fingerprint"] == "selector-fp-exec"
+    assert feedback["candidate_selected_before_outcome"] is True
+    assert feedback["candidate_selected_after_outcome"] is False
+    assert feedback["post_outcome_candidate_selection"] is False
+    assert feedback["future_labels_used_as_features"] is False
+    assert feedback["paper_opportunity_tier"] == "B_GRADE_EXPLORATION_PAPER"
+    assert feedback["paper_opportunity_tier_reason"] == "UNIT_PRE_OUTCOME_EXPLORATION"
+    assert feedback["explicit_paper_opportunity_tier"] == "B_GRADE_EXPLORATION_PAPER"
+    assert feedback["paper_fill_allowed_source"] == "B_GRADE_EXPLORATION_PAPER_LOCAL_GATE"
+    assert feedback["strict_paper_fill_allowed_upstream"] is False
+    assert feedback["calibration_label_purpose"] == "B_GRADE_EXPLORATION_FEEDBACK"
+    assert feedback["latency_ms"] == pytest.approx(42.0)
+    assert feedback["paper_fill_latency_ms"] == pytest.approx(42.0)
+    assert feedback["fill_latency_ms"] == pytest.approx(42.0)
+    assert feedback["execution_latency_ms"] == pytest.approx(42.0)
+    assert feedback["simulated_latency_ms"] == pytest.approx(42.0)
+    assert feedback["latency_source"] == "PAPER_DECISION_TO_FILL_RUNTIME_TIMESTAMPS"
+    assert feedback["partial_fill_count"] == 2
+    assert feedback["partial_fills"] == fill["partial_fills"]
+    assert feedback["mark_index_divergence_bps"] == pytest.approx(0.8)
+    assert feedback["mark_index_source"] == "V2_MARKET_FUNDING_PREMIUM_INDEX:v2:market:funding:BTCUSDT"
+    assert feedback["mark_index_available_at"] == "2026-06-11T10:00:00Z"
+    assert feedback["mark_price"] == pytest.approx(100.08)
+    assert feedback["index_price"] == pytest.approx(100.0)
 
 
 def test_same_symbol_repeated_long_nets_into_one_position() -> None:
@@ -2794,6 +2937,99 @@ def test_lifecycle_promotes_nested_adaptive_policy_version_to_open_and_closed_pa
     assert closed_result["outcome_labels"][0]["policy_activated_at"] == "2026-06-11T10:00:00Z"
     assert closed_result["closed_trades"][0]["adaptive_allocation"] == allocation
     assert closed_result["outcome_labels"][0]["adaptive_allocation"] == allocation
+
+
+def test_lifecycle_carries_trust_envelope_from_prior_position_into_close() -> None:
+    original_fill = _fill(fill_id="trust-carry", qty=1.0, price=100.0)
+    original_fill.update(_audit_quality_fields())
+    original_fill["entry_feature_snapshot"] = _entry_feature_snapshot("trust-carry")
+    open_result = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[original_fill],
+        mark_prices={"BTCUSDT": 100.0},
+        generated_utc="2026-06-11T10:01:00Z",
+        config=PaperLifecycleConfig(portfolio_equity_usdt=10000.0),
+    )
+    stale_carried_fill = _fill(fill_id="trust-carry", qty=1.0, price=100.0)
+    stale_carried_fill.update(_audit_quality_fields())
+    for field in (
+        "decision_id",
+        "market_state_id",
+        "feature_snapshot_id",
+        "mtf_snapshot_id",
+        "feature_cutoff",
+        "decision_time",
+        "available_at",
+        "selected_action",
+        "model_version",
+        "checkpoint_id",
+        "source_hashes",
+        "entry_feature_snapshot",
+    ):
+        stale_carried_fill.pop(field, None)
+
+    carried_result = reconcile_paper_lifecycle(
+        existing_ledger=open_result,
+        accepted_fills=[stale_carried_fill],
+        mark_prices={"BTCUSDT": 100.0},
+        generated_utc="2026-06-11T10:03:00Z",
+        config=PaperLifecycleConfig(portfolio_equity_usdt=10000.0),
+    )
+    carried_position = carried_result["open_positions"][0]
+    carried_fill = carried_result["accepted_open_fills"][0]
+    for row in (carried_position, carried_fill):
+        assert row["prediction_id"] == "pred_trust-carry"
+        assert row["signal_id"] == "sig_trust-carry"
+        assert row["feature_snapshot_id"] == "feat_trust-carry"
+        assert row["entry_feature_snapshot_id"] == "feat_trust-carry"
+        assert row["decision_id"] == "orch_trust-carry"
+        assert row["entry_feature_snapshot"] == _entry_feature_snapshot("trust-carry")
+        assert row["entry_orderbook_depth_usd"] == 100000.0
+        assert row["depth_price_impact_bps"] == 0.25
+        assert row["depth_price_impact_source"] == (
+            "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:test:ask_levels_top5:top5_vwap_vs_touch"
+        )
+
+    closed_result = reconcile_paper_lifecycle(
+        existing_ledger=carried_result,
+        accepted_fills=[stale_carried_fill],
+        mark_prices={
+            "BTCUSDT": {
+                "price": 102.0,
+                "actual_observed_spread_exit_bps": 1.6,
+                "exit_spread_source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:test",
+            }
+        },
+        generated_utc="2026-06-11T10:05:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exit_config=PaperExitConfig(take_profit_bps=100.0, stop_loss_bps=99999.0),
+        ),
+    )
+
+    close_event = closed_result["closed_trades"][0]
+    outcome = closed_result["outcome_labels"][0]
+    for row in (close_event, outcome):
+        assert row["entry_prediction_id"] == "pred_trust-carry"
+        assert row["prediction_id"] == "pred_trust-carry"
+        assert row["entry_feature_snapshot_id"] == "feat_trust-carry"
+        assert row["feature_snapshot_id"] == "feat_trust-carry"
+        assert row["decision_id"] == "orch_trust-carry"
+        assert row["mtf_snapshot_id"] == "mtf_trust-carry"
+        assert row["feature_cutoff"] == "2026-06-11T09:59:00Z"
+        assert row["decision_time"] == "2026-06-11T10:00:00Z"
+        assert row["available_at"] == "2026-06-11T09:59:30Z"
+        assert row["selected_action"] == "long"
+        assert row["model_version"] == "unit_model_v1"
+        assert row["checkpoint_id"] == "ckpt_trust-carry"
+        assert row["source_hashes"] == {"feature_vector_hash": "hash_trust-carry"}
+        assert row["entry_feature_snapshot"] == _entry_feature_snapshot("trust-carry")
+        assert row["candidate_selected_before_outcome"] is True
+        assert row["candidate_selected_after_outcome"] is False
+        assert row["future_labels_used_as_features"] is False
+        assert row["entry_orderbook_depth_usd"] == 100000.0
+        assert row["depth_price_impact_bps"] == 0.25
+        assert row["depth_price_impact_model"] == "ORDERBOOK_TOP5_VWAP_VS_TOUCH"
 
 
 def test_lifecycle_guard_kill_switch_blocks_paper_entry() -> None:

@@ -52,7 +52,7 @@ export default function LiveReadinessPage(): JSX.Element {
           <Metric label="Exchange actions" value={String(tonightPayload?.exchange_actions ?? false)} />
         </div>
         <p className="cockpit-evidence-gap">
-          Live trading and canary activation remain blocked_human_only. This page displays the preflight/risk profile only; it cannot approve or execute live orders.
+          Live order routing and canary activation remain blocked_human_only. This page displays the preflight/risk profile only; it cannot approve or execute live orders.
         </p>
         {tonightPayload?.remaining_blockers?.length ? (
           <div className="missing-evidence-board">

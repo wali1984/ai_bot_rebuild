@@ -301,7 +301,7 @@ function synthesizeTruthFromPaperRuntime(
     {
       id: 'LIVE_GATE_BLOCKED_HUMAN_ONLY',
       severity: 'expected_safety_gate',
-      detail: 'Live trading remains blocked_human_only.',
+      detail: 'Live order routing remains blocked_human_only.',
     },
     {
       id: 'REDIS_TRIM_DEFERRED_NON_BLOCKING',

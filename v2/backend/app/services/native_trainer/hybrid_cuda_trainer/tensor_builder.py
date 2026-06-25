@@ -910,6 +910,7 @@ class V2UnifiedFeatureTensorBuilder:
                 for flag in payload.get("stale_feature_flags") or payload.get("stale_flags") or ():
                     stale_input_flags.add(str(flag))
         latest_stale_state = str(_dig(latest, "feature_freshness_state", "freshness_state") or "").upper()
+        latest_not_current = bool(latest_stale_state and latest_stale_state != "CURRENT")
 
         values: list[float] = []
         missing_mask: list[int] = []
@@ -920,7 +921,7 @@ class V2UnifiedFeatureTensorBuilder:
         for name, source in FEATURE_SPEC:
             val = _finite_float(raw_by_name.get(name))
             missing = val is None
-            stale = name in stale_input_flags or latest_stale_state in {"STALE", "MISSING_OR_STALE"}
+            stale = name in stale_input_flags or latest_not_current
             values.append(0.0 if missing else float(val))
             missing_mask.append(1 if missing else 0)
             stale_mask.append(1 if stale else 0)

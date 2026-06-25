@@ -308,6 +308,9 @@ def build_close_event(
         "entry_feature_source": position.entry_feature_source,
         "entry_feature_candle_closed_confirmed": position.entry_feature_candle_closed_confirmed,
         "entry_feature_unavailable_reason": position.entry_feature_unavailable_reason,
+        "entry_feature_snapshot": position.entry_feature_snapshot
+        if isinstance(position.entry_feature_snapshot, dict)
+        else None,
         "mfe_bps": position.mfe_bps,
         "mfe_usd": position.mfe_usd,
         "mae_bps": position.mae_bps,
@@ -333,6 +336,58 @@ def build_close_event(
         "realized_slippage_usd": slippage,
         "implementation_shortfall_usd": implementation_shortfall_usd,
         "decision_latency_ms": position.decision_latency_ms,
+        "latency_ms": position.decision_latency_ms,
+        "paper_fill_latency_ms": position.decision_latency_ms,
+        "fill_latency_ms": position.decision_latency_ms,
+        "execution_latency_ms": position.decision_latency_ms,
+        "simulated_latency_ms": position.decision_latency_ms,
+        "latency_source": position.latency_source,
+        "selector_policy_fingerprint": position.selector_policy_fingerprint,
+        "frozen_selector_fingerprint": position.frozen_selector_fingerprint,
+        "candidate_selected_before_outcome": position.candidate_selected_before_outcome,
+        "candidate_selected_after_outcome": position.candidate_selected_after_outcome,
+        "post_outcome_candidate_selection": position.post_outcome_candidate_selection,
+        "future_labels_used_as_features": position.future_labels_used_as_features,
+        "paper_opportunity_tier": position.paper_opportunity_tier,
+        "paper_opportunity_tier_reason": position.paper_opportunity_tier_reason,
+        "explicit_paper_opportunity_tier": position.explicit_paper_opportunity_tier,
+        "paper_fill_allowed_source": position.paper_fill_allowed_source,
+        "strict_paper_fill_allowed_upstream": position.strict_paper_fill_allowed_upstream,
+        "calibration_label_purpose": position.calibration_label_purpose,
+        "bid_depth_usd": position.bid_depth_usd,
+        "ask_depth_usd": position.ask_depth_usd,
+        "orderbook_depth_usd": position.orderbook_depth_usd,
+        "entry_orderbook_depth_usd": position.entry_orderbook_depth_usd,
+        "entry_orderbook_depth_side": position.entry_orderbook_depth_side,
+        "top_of_book_depth_usd": position.top_of_book_depth_usd,
+        "market_depth_usd": position.market_depth_usd,
+        "orderbook_depth_source": position.orderbook_depth_source,
+        "depth_utilization_pct": position.depth_utilization_pct,
+        "depth_price_impact_bps": position.depth_price_impact_bps,
+        "depth_price_impact_source": position.depth_price_impact_source,
+        "depth_price_impact_model": position.depth_price_impact_model,
+        "depth_price_impact_side": position.depth_price_impact_side,
+        "depth_price_impact_quantity": position.depth_price_impact_quantity,
+        "depth_price_impact_filled_quantity": position.depth_price_impact_filled_quantity,
+        "depth_price_impact_fill_complete": position.depth_price_impact_fill_complete,
+        "depth_price_impact_vwap": position.depth_price_impact_vwap,
+        "depth_price_impact_touch_price": position.depth_price_impact_touch_price,
+        "maker_probability": position.maker_probability,
+        "taker_probability": position.taker_probability,
+        "maker_taker_probability": position.maker_taker_probability,
+        "maker_taker_probabilities": position.maker_taker_probabilities,
+        "maker_taker_probability_source": position.maker_taker_probability_source,
+        "partial_fill_count": position.partial_fill_count,
+        "partial_fills": position.partial_fills,
+        "fill_count": position.fill_count,
+        "all_partial_fills": position.all_partial_fills,
+        "partial_fill_plan": position.partial_fill_plan,
+        "mark_index_divergence_bps": position.mark_index_divergence_bps,
+        "mark_index_divergence": position.mark_index_divergence,
+        "mark_index_source": position.mark_index_source,
+        "mark_index_available_at": position.mark_index_available_at,
+        "mark_price": position.mark_price,
+        "index_price": position.index_price,
         "squeeze_evidence_source": squeeze_source,
         "squeeze_evidence_components": squeeze_components,
         "squeeze_evidence_unavailable_reason": squeeze_unavailable,
@@ -354,6 +409,10 @@ def build_close_event(
     trade_outcome = "WIN" if realized > 0.0 else "LOSS" if realized < 0.0 else "BREAKEVEN"
     action_was_profitable = realized > 0.0
     trust_envelope = {
+        "prediction_id": position.prediction_id,
+        "signal_id": position.source_signal_id,
+        "risk_decision_id": position.risk_decision_id,
+        "orchestrator_decision_id": position.orchestrator_decision_id,
         "decision_id": position.decision_id,
         "mtf_snapshot_id": position.mtf_snapshot_id,
         "feature_cutoff": position.feature_cutoff or position.entry_feature_cutoff,
@@ -363,6 +422,36 @@ def build_close_event(
         "model_version": position.model_version,
         "checkpoint_id": position.checkpoint_id,
         "source_hashes": position.source_hashes,
+    }
+    missing_score_fields = [
+        field
+        for field, value in (
+            ("confidence_calibrated", position.confidence_calibrated),
+            ("expected_move_after_cost_bps", position.expected_move_after_cost_bps),
+        )
+        if value is None
+    ]
+    prediction_score_envelope = {
+        "confidence_raw": position.confidence_raw,
+        "confidence_calibrated": position.confidence_calibrated,
+        "selected_action_probability": position.selected_action_probability,
+        "expected_move_bps": position.expected_move_bps,
+        "expected_move_after_cost_bps": position.expected_move_after_cost_bps,
+        "action_probabilities": position.action_probabilities,
+        "policy_value": position.policy_value,
+        "value_baseline": position.value_baseline,
+        "prediction_score_source": position.prediction_score_source
+        or (
+            "ENTRY_FILL_VERIFIED_PREDICTION_SCORE_FIELDS"
+            if not missing_score_fields
+            else None
+        ),
+        "prediction_score_missing_reason": position.prediction_score_missing_reason
+        or (
+            None
+            if not missing_score_fields
+            else "MISSING_ENTRY_PREDICTION_SCORE_FIELDS:" + ",".join(missing_score_fields)
+        ),
     }
     outcome_targets = {
         "realized_net_pnl_bps": realized_net_pnl_bps,
@@ -405,11 +494,18 @@ def build_close_event(
         "slippage": slippage,
         "slippage_bps": slippage_bps,
         "hold_time_seconds": hold_time,
+        "signal_id": position.source_signal_id,
         "entry_signal_id": position.source_signal_id,
         "exit_signal_id": exit_signal_id,
+        "prediction_id": position.prediction_id,
         "entry_prediction_id": position.prediction_id,
         "exit_prediction_id": exit_prediction_id,
+        "risk_decision_id": position.risk_decision_id,
+        "orchestrator_decision_id": position.orchestrator_decision_id,
         "entry_feature_snapshot_id": position.feature_snapshot_id,
+        "entry_feature_snapshot": position.entry_feature_snapshot
+        if isinstance(position.entry_feature_snapshot, dict)
+        else None,
         "entry_market_state_id": position.entry_market_state_id or position.market_state_id,
         "market_state_id": position.entry_market_state_id or position.market_state_id,
         "feature_snapshot_id": position.feature_snapshot_id,
@@ -451,6 +547,7 @@ def build_close_event(
         "paper_only": True,
         "places_real_order": False,
         **trust_envelope,
+        **prediction_score_envelope,
         **outcome_targets,
         "outcome_targets": outcome_targets,
         **telemetry,
@@ -463,6 +560,9 @@ def build_close_event(
         "timeframe": position.timeframe,
         "side": position.side,
         "entry_feature_snapshot_id": position.feature_snapshot_id,
+        "entry_feature_snapshot": position.entry_feature_snapshot
+        if isinstance(position.entry_feature_snapshot, dict)
+        else None,
         "entry_market_state_id": position.entry_market_state_id or position.market_state_id,
         "market_state_id": position.entry_market_state_id or position.market_state_id,
         "feature_snapshot_id": position.feature_snapshot_id,
@@ -522,6 +622,7 @@ def build_close_event(
         "paper_only": True,
         "places_real_order": False,
         **trust_envelope,
+        **prediction_score_envelope,
         **outcome_targets,
         "outcome_targets": outcome_targets,
         **telemetry,

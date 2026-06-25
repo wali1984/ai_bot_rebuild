@@ -612,6 +612,7 @@ PUBLIC_STATUS_KEYS = {
     "runtime_state",
     "public_route_failed_count",
     "supervisor_health",
+    "status_dimensions",
 }
 
 
@@ -626,6 +627,11 @@ def test_c2_public_status_missing_redis_returns_safe_defaults(
     assert body["runtime_state"] == "MISSING_EVIDENCE"
     assert body["public_route_failed_count"] is None
     assert body["supervisor_health"] == "MISSING_EVIDENCE"
+    assert body["status_dimensions"]["market_data"] in {"LIVE", "DELAYED", "STALE", "OFFLINE"}
+    assert body["status_dimensions"]["automation"] in {"ACTIVE", "PAUSED", "DEGRADED", "UNKNOWN"}
+    assert body["status_dimensions"]["execution"] == "RESTRICTED"
+    assert body["status_dimensions"]["account"] == "UNAUTHORIZED"
+    assert body["status_dimensions"]["places_real_order"] is False
 
 
 def test_c2_public_status_reads_redis_payload(
@@ -642,6 +648,9 @@ def test_c2_public_status_reads_redis_payload(
     assert body["runtime_state"] == "PAPER_LOOP_RUNNING"
     assert body["public_route_failed_count"] == 0
     assert body["supervisor_health"] == "current"
+    assert body["status_dimensions"]["automation"] == "ACTIVE"
+    assert body["status_dimensions"]["execution"] == "RESTRICTED"
+    assert body["status_dimensions"]["order_submission_enabled"] is False
 
 
 def test_c2_public_status_never_leaks_internal_ids(

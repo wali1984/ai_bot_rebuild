@@ -105,7 +105,7 @@ export default function UserStatusPage(): ReactElement {
             data-testid="user-status-blockers"
             style={{ marginBottom: 16 }}
           >
-            <h2 style={{ marginBottom: 4 }}>Why the bot is not trading live yet</h2>
+            <h2 style={{ marginBottom: 4 }}>Why order routing remains gated</h2>
             {payload.blockers_simple.length === 0 ? (
               <p>No blockers in plain English are reported right now.</p>
             ) : (

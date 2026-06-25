@@ -38,6 +38,22 @@ SCHEMA_VERSION = "v2_outcome_memory_updater_v1"
 LIVE_GATE = "blocked_human_only"
 ROLLING_WINDOW = 30
 OUTCOME_MEMORY_PREFIX = "v2:paper:outcome_memory:"
+TRUST_REQUIRED_FIELDS = (
+    "prediction_id",
+    "signal_id",
+    "decision_id",
+    "feature_snapshot_id",
+    "mtf_snapshot_id",
+    "feature_cutoff",
+    "decision_time",
+    "available_at",
+    "symbol",
+    "timeframe",
+    "selected_action",
+    "model_version",
+    "checkpoint_id",
+    "source_hashes",
+)
 
 
 def _coerce(v: Any, default: float = 0.0) -> float:
@@ -74,6 +90,32 @@ def _first_present(*values: Any) -> Any:
         if value is not None and value != "":
             return value
     return None
+
+
+def _event_has_trust_evidence(event: dict[str, Any]) -> bool:
+    source_hashes = event.get("source_hashes")
+    if isinstance(source_hashes, str):
+        try:
+            source_hashes = json.loads(source_hashes)
+        except (TypeError, ValueError):
+            source_hashes = None
+    values = {
+        "prediction_id": _first_present(event.get("prediction_id"), event.get("entry_prediction_id")),
+        "signal_id": _first_present(event.get("signal_id"), event.get("entry_signal_id")),
+        "decision_id": _first_present(event.get("decision_id"), event.get("orchestrator_decision_id")),
+        "feature_snapshot_id": _first_present(event.get("feature_snapshot_id"), event.get("entry_feature_snapshot_id")),
+        "mtf_snapshot_id": event.get("mtf_snapshot_id"),
+        "feature_cutoff": event.get("feature_cutoff"),
+        "decision_time": event.get("decision_time"),
+        "available_at": event.get("available_at"),
+        "symbol": event.get("symbol"),
+        "timeframe": event.get("timeframe"),
+        "selected_action": _first_present(event.get("selected_action"), event.get("action"), event.get("side")),
+        "model_version": event.get("model_version"),
+        "checkpoint_id": event.get("checkpoint_id"),
+        "source_hashes": source_hashes,
+    }
+    return all(values[field] not in (None, "", [], {}) for field in TRUST_REQUIRED_FIELDS) and isinstance(source_hashes, dict)
 
 
 def _event_pnl_usd(event: dict[str, Any]) -> float | None:
@@ -197,6 +239,10 @@ def _empty_bucket() -> dict[str, Any]:
         "degraded": False,
         "degraded_since": None,
         "data_source": "REDIS",
+        "trust_evidence_status": "NO_OUTCOME_ROWS",
+        "outcome_memory_can_block_entries": False,
+        "trusted_trade_count": 0,
+        "untrusted_trade_count": 0,
         "baseline_advisory_reasons": [],
         "baseline_evidence_date": None,
         "baseline_trade_count": 0,
@@ -253,6 +299,7 @@ def _update_bucket(bucket: dict, event: dict) -> dict:
     return_bps_value = 0.0 if return_bps is None else return_bps
     ts = _event_ts(event)
     generated_at = _now_iso()
+    trusted_event = _event_has_trust_evidence(event)
 
     bucket["trade_count"] = int(bucket.get("trade_count") or bucket.get("total_trades") or 0) + 1
     bucket["total_trades"] = bucket["trade_count"]
@@ -260,6 +307,21 @@ def _update_bucket(bucket: dict, event: dict) -> dict:
     bucket["last_trade_ts"] = ts
     bucket["last_updated"] = generated_at
     bucket["data_source"] = "REDIS"
+    if trusted_event:
+        bucket["trusted_trade_count"] = int(bucket.get("trusted_trade_count") or 0) + 1
+    else:
+        bucket["untrusted_trade_count"] = int(bucket.get("untrusted_trade_count") or 0) + 1
+    trusted_count = int(bucket.get("trusted_trade_count") or 0)
+    untrusted_count = int(bucket.get("untrusted_trade_count") or 0)
+    if trusted_count > 0 and untrusted_count == 0:
+        bucket["trust_evidence_status"] = "TRUSTED_OUTCOME_MEMORY"
+        bucket["outcome_memory_can_block_entries"] = True
+    elif trusted_count > 0:
+        bucket["trust_evidence_status"] = "MIXED_TRUST_OUTCOME_MEMORY_ADVISORY"
+        bucket["outcome_memory_can_block_entries"] = False
+    else:
+        bucket["trust_evidence_status"] = "UNVERIFIED_CLOSED_TRADE_OUTCOMES_ADVISORY"
+        bucket["outcome_memory_can_block_entries"] = False
 
     is_win = pnl_value > 0
     if is_win:

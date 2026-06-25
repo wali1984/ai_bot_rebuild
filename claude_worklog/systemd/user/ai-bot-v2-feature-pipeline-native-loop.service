@@ -1,4 +1,6 @@
 [Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
 Description=AI BOT V2 feature pipeline native loop (paper-only)
 After=network-online.target ai-bot-v2-native-ingestors-live-loop.service
 Wants=network-online.target

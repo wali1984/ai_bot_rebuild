@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import json
 from datetime import datetime, timezone
+from pathlib import Path
 
 
 class FakeRedis:
@@ -10,6 +11,7 @@ class FakeRedis:
         self.store: dict[str, str] = {
             "v2:live_gate:state": json.dumps({"live_gate": "blocked_human_only"}),
         }
+        self.expiries: dict[str, int | None] = {}
 
     def ping(self) -> bool:
         return True
@@ -17,8 +19,9 @@ class FakeRedis:
     def get(self, key: str) -> str | None:
         return self.store.get(key)
 
-    def set(self, key: str, value: str, ex: int | None = None) -> bool:  # noqa: ARG002
+    def set(self, key: str, value: str, ex: int | None = None) -> bool:
         self.store[key] = value
+        self.expiries[key] = ex
         return True
 
     def scan_iter(self, match: str | None = None, count: int = 500):  # noqa: ARG002
@@ -475,6 +478,149 @@ def test_paper_loop_builds_enriched_trainer_feedback_rows() -> None:
     assert rows[0]["trainer_consumable"] is True
     assert rows[0]["strategy_id"] == "trend_following_v1"
     assert rows[0]["missing_feedback_fields"] == []
+
+
+def test_accepted_fill_backfill_requires_dereferenceable_feature_snapshot() -> None:
+    paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
+    row = {
+        "fill_id": "fill_1",
+        "prediction_id": "pred_1",
+        "entry_prediction_id": "pred_1",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "side": "long",
+        "entry_feature_snapshot_id": "feat_1",
+    }
+    prediction = {
+        "prediction_id": "pred_1",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "selected_action": "long",
+        "feature_snapshot_id": "feat_1",
+        "mtf_snapshot_id": "mtf_1",
+        "decision_id": "decision_1",
+        "feature_cutoff": "2026-06-11T10:00:00Z",
+        "available_at": "2026-06-11T10:00:01Z",
+        "decision_time": "2026-06-11T10:00:02Z",
+        "model_version": "native_cuda_v1",
+        "checkpoint_id": "ckpt_1",
+        "source_hashes": {"feature_vector_hash": "hash_feat_1"},
+    }
+
+    rows = paper._backfill_fill_lineage_from_predictions(  # noqa: SLF001
+        [row],
+        {"pred_1": prediction},
+        feature_snapshots_by_id={},
+        require_feature_snapshot_deref=True,
+    )
+
+    assert rows[0]["trust_reconstructed"] is False
+    assert "ENTRY_FEATURE_SNAPSHOT_NOT_FOUND" in rows[0]["trust_reconstruction_rejection_reasons"]
+
+
+def test_accepted_fill_backfill_reconstructs_with_exact_feature_snapshot() -> None:
+    paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
+    row = {
+        "fill_id": "fill_1",
+        "prediction_id": "pred_1",
+        "entry_prediction_id": "pred_1",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "side": "long",
+        "entry_feature_snapshot_id": "feat_1",
+    }
+    prediction = {
+        "prediction_id": "pred_1",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "selected_action": "long",
+        "feature_snapshot_id": "feat_1",
+        "mtf_snapshot_id": "mtf_1",
+        "decision_id": "decision_1",
+        "feature_cutoff": "2026-06-11T10:00:00Z",
+        "available_at": "2026-06-11T10:00:01Z",
+        "decision_time": "2026-06-11T10:00:02Z",
+        "model_version": "native_cuda_v1",
+        "checkpoint_id": "ckpt_1",
+        "source_hashes": {"feature_vector_hash": "hash_feat_1"},
+    }
+    snapshot = {
+        "feature_snapshot_id": "feat_1",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "available_at": "2026-06-11T10:00:01Z",
+        "feature_cutoff": "2026-06-11T10:00:00Z",
+        "features": {"close_price": 100.0},
+    }
+
+    rows = paper._backfill_fill_lineage_from_predictions(  # noqa: SLF001
+        [row],
+        {"pred_1": prediction},
+        feature_snapshots_by_id={"feat_1": snapshot},
+        require_feature_snapshot_deref=True,
+    )
+
+    assert rows[0]["trust_reconstructed"] is True
+    assert rows[0]["decision_id"] == "decision_1"
+    assert rows[0]["trust_source_ids"]["entry_feature_snapshot_id"] == "feat_1"
+
+
+def test_exact_entry_feature_snapshot_rejects_unfinished_candle() -> None:
+    paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
+    fake = FakeRedis()
+    fake.store["v2:features:snapshot:feat_1"] = json.dumps(
+        {
+            "feature_snapshot_id": "feat_1",
+            "symbol": "BTCUSDT",
+            "timeframe": "1m",
+            "feature_freshness_state": "CURRENT",
+            "available_at": "2026-06-11T10:00:01Z",
+            "generated_at": "2026-06-11T10:00:01Z",
+            "feature_cutoff": "2026-06-11T10:00:00Z",
+            "candle_closed_confirmed": False,
+            "features": {"close_price": 100.0},
+        }
+    )
+
+    snapshot = paper._read_v2_feature_snapshot_by_id(  # noqa: SLF001
+        fake,
+        "feat_1",
+        decision_time="2026-06-11T10:00:02Z",
+        symbol="BTCUSDT",
+        timeframe="1m",
+    )
+
+    assert snapshot["features"] == {}
+    assert snapshot["unavailable_reason"] == "UNFINISHED_CANDLE_FEATURE_SNAPSHOT_REJECTED"
+
+
+def test_exact_entry_feature_snapshot_accepts_same_second_millisecond_decision() -> None:
+    paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
+    fake = FakeRedis()
+    fake.store["v2:features:snapshot:feat_1"] = json.dumps(
+        {
+            "feature_snapshot_id": "feat_1",
+            "symbol": "BTCUSDT",
+            "timeframe": "1m",
+            "feature_freshness_state": "CURRENT",
+            "available_at": "2026-06-11T10:00:01.250Z",
+            "generated_at": "2026-06-11T10:00:01.250Z",
+            "feature_cutoff": "2026-06-11T10:00:00.999Z",
+            "candle_closed_confirmed": True,
+            "features": {"close_price": 100.0},
+        }
+    )
+
+    snapshot = paper._read_v2_feature_snapshot_by_id(  # noqa: SLF001
+        fake,
+        "feat_1",
+        decision_time="2026-06-11T10:00:01.500Z",
+        symbol="BTCUSDT",
+        timeframe="1m",
+    )
+
+    assert snapshot["features"] == {"close_price": 100.0}
+    assert snapshot["available_at"] == "2026-06-11T10:00:01.250Z"
 
 
 def test_stale_predictions_excluded_from_paper_candidates() -> None:
@@ -1315,6 +1461,7 @@ def test_paper_drawdown_recovery_blocks_same_side_open_position() -> None:
 
 def test_run_once_strategy_mode_collapse_blocks_majority_mode_fill(monkeypatch) -> None:
     fake = FakeRedis()
+    generated_utc = _utc_now_for_test()
     fake.store["v2:signals:paper"] = json.dumps(
         [
             {
@@ -1328,6 +1475,10 @@ def test_run_once_strategy_mode_collapse_blocks_majority_mode_fill(monkeypatch) 
                 "side": "long",
                 "expected_move_after_cost_bps": 35.0,
                 "confidence_calibrated": 0.82,
+                "feature_cutoff": "2026-06-19T03:15:00Z",
+                "decision_time": generated_utc,
+                "available_at": generated_utc,
+                "generated_utc": generated_utc,
                 "market_state_id": "mstate_eth_15m",
                 "market_state_integrity_score": 96.0,
                 "valid_for_paper": True,
@@ -1345,6 +1496,10 @@ def test_run_once_strategy_mode_collapse_blocks_majority_mode_fill(monkeypatch) 
             "selected_action": "long",
             "confidence_calibrated": 0.82,
             "expected_move_after_cost_bps": 35.0,
+            "feature_cutoff": "2026-06-19T03:15:00Z",
+            "decision_time": generated_utc,
+            "available_at": generated_utc,
+            "generated_utc": generated_utc,
             "market_state_integrity_score": 96.0,
         }
     )
@@ -1525,6 +1680,198 @@ def test_paper_loop_recovers_feedback_context_from_source_entry_fill() -> None:
     assert rows[0]["market_regime_at_exit"] == "TREND"
     assert rows[0]["liquidity_zone_context"] == {"source": "entry_liquidity"}
     assert rows[0]["missing_feedback_fields"] == []
+
+
+def test_replay_snapshot_lineage_reconstructs_existing_feedback_with_checkpoint_metadata(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
+    monkeypatch.setattr(paper, "CHECKPOINT_DIR", tmp_path)
+    checkpoint_id = "v2_hybrid_ckpt_legacy"
+    (tmp_path / f"{checkpoint_id}.json").write_text(
+        json.dumps(
+            {
+                "checkpoint_id": checkpoint_id,
+                "model_id": "v2_hybrid_policy_legacy",
+                "weight_blob_written": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    fake = FakeRedis()
+    fake.store["v2:replay:snapshots:pred_legacy"] = json.dumps(
+        {
+            "prediction_id": "pred_legacy",
+            "symbol": "DOGEUSDT",
+            "timeframe": "5m",
+            "ppo_action": "short",
+            "decision_id": "decision_legacy",
+            "mtf_snapshot_id": "mtf_legacy",
+            "ppo_feature_cutoff": "2026-06-11T10:00:00Z",
+            "decision_time": "2026-06-11T10:00:02Z",
+            "generated_at": "2026-06-11T10:00:02Z",
+            "feature_vector_hash": "tensor_hash_legacy",
+            "missing_mask_hash": "missing_hash_legacy",
+            "stale_mask_hash": "stale_hash_legacy",
+            "replay_snapshot_id": "replay_legacy",
+        }
+    )
+    close_event = {
+        "trainer_feedback_id": "fb_legacy",
+        "outcome_label_id": "out_legacy",
+        "position_id": "pos_legacy",
+        "symbol": "DOGEUSDT",
+        "prediction_id": "pred_legacy",
+        "entry_prediction_id": "pred_legacy",
+        "signal_id": "sig_legacy",
+        "entry_signal_id": "sig_legacy",
+        "feature_snapshot_id": "feat_legacy",
+        "entry_feature_snapshot_id": "feat_legacy",
+        "market_state_id": "ms_legacy",
+        "entry_market_state_id": "ms_legacy",
+        "timeframe": "5m",
+        "action": "short",
+        "selected_action": "short",
+        "entry_price": 0.20,
+        "exit_price": 0.19,
+        "realized_pnl": 0.21,
+        "realized_pnl_bps": 53.8,
+        "strategy_id": "trend_following_v1",
+        "strategy_family": "trend_following",
+        "strategy_subtype": "trend_following_v1",
+        "entry_reason": "trend_following",
+        "hedge_state": "NO_HEDGE",
+        "hedge_reason": "NO_HEDGE_CONTEXT",
+        "exit_reason": "TIER_2_TAKE_PROFIT",
+        "hold_time_seconds": 300,
+        "exit_time": "2026-06-11T10:05:00Z",
+        "market_regime": "TREND",
+        "market_regime_at_entry": "TREND",
+        "market_regime_at_exit": "TREND",
+        "liquidity_zone_context": {"source": "entry_liquidity"},
+        "liquidity_context": {"source": "entry_liquidity"},
+        "liquidation_distance_context": {"source": "entry_liquidation"},
+        "microstructure_context": {"source": "entry_microstructure"},
+        "oi_funding_context": {"source": "entry_oi_funding"},
+        "public_intel_context": {"source": "entry_public_intel"},
+        "major_move_context": {"source": "test", "status": "not_major_move_trade"},
+        "future_window_label_source": "closed_trade_outcome",
+        "drawdown_at_entry": 0.0,
+        "checkpoint_id": checkpoint_id,
+        **_audit_quality_fields(),
+    }
+    outcome_label = {
+        "trainer_feedback_id": "fb_legacy",
+        "outcome_label_id": "out_legacy",
+        "position_id": "pos_legacy",
+        "symbol": "DOGEUSDT",
+        "timeframe": "5m",
+        "realized_pnl_bps": 53.8,
+    }
+    contexts = paper._lineage_context_by_prediction_id([close_event], [outcome_label])  # noqa: SLF001
+    replay_predictions = paper._read_replay_snapshot_predictions(fake, contexts)  # noqa: SLF001
+
+    rows = paper._build_trainer_feedback_rows(  # noqa: SLF001
+        close_events=[close_event],
+        outcome_labels=[outcome_label],
+        predictions_by_id=replay_predictions,
+        feature_snapshots_by_id={
+            "feat_legacy": {
+                "feature_snapshot_id": "feat_legacy",
+                "symbol": "DOGEUSDT",
+                "timeframe": "5m",
+                "available_at": "2026-06-11T10:00:01Z",
+                "feature_cutoff": "2026-06-11T10:00:00Z",
+                "features": {"ret_pct": -0.01},
+            }
+        },
+    )
+
+    assert rows[0]["trainer_consumable"] is True
+    assert rows[0]["trust_reconstructed"] is True
+    assert rows[0]["decision_id"] == "decision_legacy"
+    assert rows[0]["mtf_snapshot_id"] == "mtf_legacy"
+    assert rows[0]["feature_cutoff"] == "2026-06-11T10:00:00Z"
+    assert rows[0]["available_at"] == "2026-06-11T10:00:02Z"
+    assert rows[0]["model_version"] == "v2_hybrid_policy_legacy"
+    assert rows[0]["checkpoint_id"] == checkpoint_id
+    assert rows[0]["source_hashes"]["feature_vector_hash"] == "tensor_hash_legacy"
+
+
+def test_embedded_replay_feature_snapshot_reconstructs_fill_lineage() -> None:
+    paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
+    fill = {
+        "fill_id": "fill_1",
+        "prediction_id": "pred_1",
+        "entry_prediction_id": "pred_1",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "side": "long",
+        "entry_feature_snapshot_id": "feat_1",
+    }
+    replay_snapshot = {
+        "prediction_id": "pred_1",
+        "signal_id": "sig_pred_1",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "selected_action": "long",
+        "feature_snapshot_id": "feat_1",
+        "feature_snapshot": {
+            "feature_snapshot_id": "feat_1",
+            "symbol": "BTCUSDT",
+            "timeframe": "1m",
+            "available_at": "2026-06-11T10:00:01Z",
+            "feature_cutoff": "2026-06-11T10:00:00Z",
+            "features": {"ret_pct": 0.01},
+        },
+        "decision_id": "decision_1",
+        "mtf_snapshot_id": "mtf_1",
+        "feature_cutoff": "2026-06-11T10:00:00Z",
+        "available_at": "2026-06-11T10:00:01Z",
+        "decision_time": "2026-06-11T10:00:02Z",
+        "model_version": "native_cuda_v1",
+        "checkpoint_id": "ckpt_1",
+        "source_hashes": {"feature_vector_hash": "hash_feat_1"},
+    }
+    context = paper._lineage_context_by_prediction_id([fill])  # noqa: SLF001
+    prediction = paper._prediction_from_replay_snapshot(  # noqa: SLF001
+        replay_snapshot,
+        context["pred_1"],
+    )
+    feature_snapshots = paper._feature_snapshots_from_replay_predictions(  # noqa: SLF001
+        {"pred_1": prediction}
+    )
+
+    rows = paper._backfill_fill_lineage_from_predictions(  # noqa: SLF001
+        [fill],
+        {"pred_1": prediction},
+        feature_snapshots_by_id=feature_snapshots,
+        require_feature_snapshot_deref=True,
+    )
+
+    assert rows[0]["trust_reconstructed"] is True
+    assert rows[0]["decision_id"] == "decision_1"
+    assert rows[0]["entry_feature_snapshot_id"] == "feat_1"
+    assert rows[0]["trust_source_ids"]["entry_feature_snapshot_id"] == "feat_1"
+
+
+def test_mismatched_embedded_replay_feature_snapshot_is_not_trust_evidence() -> None:
+    paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
+    replay_prediction = {
+        "prediction_id": "pred_1",
+        "feature_snapshot_id": "feat_expected",
+        "feature_snapshot": {
+            "feature_snapshot_id": "feat_other",
+            "symbol": "BTCUSDT",
+            "timeframe": "1m",
+            "features": {"ret_pct": 0.01},
+        },
+    }
+
+    assert paper._feature_snapshots_from_replay_predictions(  # noqa: SLF001
+        {"pred_1": replay_prediction}
+    ) == {}
 
 
 def test_pre_remediation_fill_missing_feature_snapshot_is_noncritical_stale_lineage() -> None:
@@ -1760,6 +2107,17 @@ def test_paper_loop_quarantines_incomplete_trainer_feedback_rows(monkeypatch) ->
     assert outcome_status["trainer_feedback_consumable_rows"] == 0
     assert outcome_status["trainer_feedback_quarantined_rows"] == 1
 
+    evidence_ttl = paper.PAPER_TRAINING_EVIDENCE_TTL_SECONDS
+    transient_ttl = paper.PAPER_RUNTIME_TRANSIENT_TTL_SECONDS
+    assert fake.expiries["v2:paper:ledger"] == evidence_ttl
+    assert fake.expiries["v2:paper:positions"] == evidence_ttl
+    assert fake.expiries["v2:paper:closed_trades"] == evidence_ttl
+    assert fake.expiries["v2:paper:outcome_labels"] == evidence_ttl
+    assert fake.expiries["v2:trainer:feedback:outcomes"] == evidence_ttl
+    assert fake.expiries["v2:trainer:feedback:outcomes:quarantine"] == evidence_ttl
+    assert fake.expiries["v2:paper:intents"] == transient_ttl
+    assert fake.expiries["v2:paper:trade_management:status"] == transient_ttl
+
 
 def test_paper_loop_attaches_trainer_feedback_entry_context() -> None:
     paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
@@ -1905,5 +2263,80 @@ def test_future_cutoff_offenders_report_timeframe_rows_after_decision_time() -> 
             "feature_cutoff": "2026-06-14T09:03:59Z",
             "decision_time": "2026-06-14T09:02:40Z",
             "row_decision_time": "2026-06-14T09:04:01Z",
+        }
+    ]
+
+
+def test_point_in_time_timeframe_rows_excludes_later_sibling_predictions() -> None:
+    paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
+
+    envelope = {"decision_time": "2026-06-14T09:02:40Z"}
+    rows = [
+        {
+            "symbol": "ARUSDT",
+            "timeframe": "1m",
+            "prediction_id": "future_pred",
+            "feature_cutoff": "2026-06-14T09:03:59Z",
+            "decision_time": "2026-06-14T09:04:01Z",
+        },
+        {
+            "symbol": "ARUSDT",
+            "timeframe": "15m",
+            "prediction_id": "pit_pred",
+            "feature_cutoff": "2026-06-14T08:59:59Z",
+            "decision_time": "2026-06-14T09:02:00Z",
+        },
+        {
+            "symbol": "ARUSDT",
+            "timeframe": "5m",
+            "prediction_id": "missing_time_pred",
+            "feature_cutoff": "2026-06-14T08:59:59Z",
+        },
+    ]
+
+    filtered = paper._point_in_time_timeframe_rows(  # noqa: SLF001
+        market_state_envelope=envelope,
+        timeframe_rows=rows,
+    )
+    offenders = paper._future_cutoff_offenders(  # noqa: SLF001
+        market_state_envelope=envelope,
+        timeframe_rows=filtered,
+    )
+
+    assert [row["prediction_id"] for row in filtered] == ["pit_pred"]
+    assert offenders == []
+
+
+def test_point_in_time_timeframe_rows_preserves_true_future_cutoff_offenders() -> None:
+    paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
+
+    envelope = {"decision_time": "2026-06-14T09:02:40Z"}
+    filtered = paper._point_in_time_timeframe_rows(  # noqa: SLF001
+        market_state_envelope=envelope,
+        timeframe_rows=[
+            {
+                "symbol": "ARUSDT",
+                "timeframe": "1m",
+                "prediction_id": "dirty_pred",
+                "feature_cutoff": "2026-06-14T09:03:59Z",
+                "available_at": "2026-06-14T09:02:00Z",
+                "decision_time": "2026-06-14T09:02:00Z",
+            },
+        ],
+    )
+    offenders = paper._future_cutoff_offenders(  # noqa: SLF001
+        market_state_envelope=envelope,
+        timeframe_rows=filtered,
+    )
+
+    assert [row["prediction_id"] for row in filtered] == ["dirty_pred"]
+    assert offenders == [
+        {
+            "symbol": "ARUSDT",
+            "timeframe": "1m",
+            "prediction_id": "dirty_pred",
+            "feature_cutoff": "2026-06-14T09:03:59Z",
+            "decision_time": "2026-06-14T09:02:40Z",
+            "row_decision_time": "2026-06-14T09:02:00Z",
         }
     ]

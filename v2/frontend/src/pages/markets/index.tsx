@@ -2,6 +2,9 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useOptionalAuth } from '../../hooks/useAuth';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
+import { useTraderSnapshot } from '../../hooks/useTraderSnapshot';
+import { CanonicalMetricCard } from '../../components/data/CanonicalMetric';
+import { selectMarketBySymbol, selectMarketMetric } from '../../selectors/marketSelectors';
 
 const DEFAULT_FAVORITES = new Set(['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT']);
 
@@ -97,6 +100,7 @@ function ColHeader({
 export default function MarketsPage(): JSX.Element {
   const navigate = useNavigate();
   const { user } = useOptionalAuth();
+  const traderSnapshot = useTraderSnapshot();
   const marketOverview = useRealtimeResource<MarketOverviewData>({
     url: '/api/v2/market/overview',
     source: '/api/v2/market/overview',
@@ -176,6 +180,8 @@ export default function MarketsPage(): JSX.Element {
   const losers = useMemo(() => allTickers.filter((r) => (r.change_24h ?? 0) < 0).length, [allTickers]);
   const totalTurnover = useMemo(() => allTickers.reduce((s, r) => s + (r.turnover_24h ?? 0), 0), [allTickers]);
   const hasPriceData = allTickers.some((r) => r.last_price != null);
+  const canonicalBtcMarket = selectMarketBySymbol(traderSnapshot, 'BTCUSDT') ?? {};
+  const canonicalMarketMetric = (fieldId: string) => selectMarketMetric(traderSnapshot, canonicalBtcMarket, fieldId);
 
   const TABS: Array<{ id: TabId; label: string; count?: number }> = [
     { id: 'overview', label: 'Overview', count: allTickers.length },
@@ -294,6 +300,12 @@ export default function MarketsPage(): JSX.Element {
               </span>
             </div>
           ))}
+        </div>
+
+        <div className="trader-metric-grid" style={{ marginTop: 14 }}>
+          <CanonicalMetricCard label="BTCUSDT Last Price" metric={canonicalMarketMetric('market.last_price')} />
+          <CanonicalMetricCard label="BTCUSDT Mark Price" metric={canonicalMarketMetric('market.mark_price')} />
+          <CanonicalMetricCard label="BTCUSDT Index Price" metric={canonicalMarketMetric('market.index_price')} />
         </div>
       </div>
 

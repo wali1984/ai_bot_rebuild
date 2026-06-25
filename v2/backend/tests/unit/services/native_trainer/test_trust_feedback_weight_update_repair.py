@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,7 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint impor
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
     TrainingExample,
+    V2HybridTrainerDataLoader,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.model import (
     V2HybridPolicyModel,
@@ -22,8 +24,10 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.ppo_trainer impo
     V2HybridPPOTrainer,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (
+    FEATURE_SPEC,
     FeatureTensorRecord,
 )
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.safety import V2OnlyJsonIO
 from v2.backend.app.services.paper_trade_management.outcomes import build_close_event
 from v2.backend.app.services.paper_trade_management.position_state import position_from_fill
 
@@ -33,11 +37,37 @@ AVAILABLE_AT = "2026-06-21T10:00:30Z"
 FEATURE_CUTOFF = "2026-06-21T10:00:00Z"
 
 
+def _epoch_ms(iso_value: str) -> int:
+    parsed = datetime.fromisoformat(iso_value.replace("Z", "+00:00"))
+    return int(parsed.timestamp() * 1000)
+
+
 def _source_hashes(feature_snapshot_id: str = "feat_1") -> dict[str, str]:
     return {
         "feature_vector_hash": f"hash_{feature_snapshot_id}",
         "input_feature_hash": f"input_{feature_snapshot_id}",
         "prediction_hash": f"prediction_{feature_snapshot_id}",
+    }
+
+
+def _feature_snapshot(
+    feature_snapshot_id: str = "feat_1",
+    *,
+    symbol: str = "BTCUSDT",
+    timeframe: str = "1m",
+) -> dict[str, object]:
+    return {
+        "feature_snapshot_id": feature_snapshot_id,
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "available_at": AVAILABLE_AT,
+        "generated_at": AVAILABLE_AT,
+        "feature_cutoff": FEATURE_CUTOFF,
+        "source_available_time": AVAILABLE_AT,
+        "candle_closed_confirmed": True,
+        "latest_unclosed_kline_excluded": True,
+        "source_hashes": _source_hashes(feature_snapshot_id),
+        "features": {name: 1.0 for name, _source in FEATURE_SPEC},
     }
 
 
@@ -247,6 +277,19 @@ def _training_example(index: int = 1, *, trust_overrides: dict[str, object] | No
     )
 
 
+class _FakeRedis:
+    def __init__(self, store: dict[str, object]) -> None:
+        self.store = store
+
+    def get(self, key: str) -> str | None:
+        value = self.store.get(key)
+        if value is None:
+            return None
+        import json
+
+        return json.dumps(value)
+
+
 def _train_one() -> tuple[V2HybridPolicyModel, object]:
     example = _training_example()
     model = V2HybridPolicyModel(input_dim=len(example.tensor.model_vector), seed=7)
@@ -283,6 +326,7 @@ def test_trust_envelope_survives_full_paper_lifecycle() -> None:
         "model_version": "unit_model_v1",
         "checkpoint_id": "ckpt_1",
         "source_hashes": _source_hashes(),
+        "entry_feature_snapshot": _feature_snapshot(),
         "timeframe": "1m",
         "strategy_id": "trend_following_v1",
         "strategy_family": "trend_following",
@@ -294,6 +338,8 @@ def test_trust_envelope_survives_full_paper_lifecycle() -> None:
         **_audit_fields(),
     }
     position = position_from_fill(fill, fill_id="fill_1", side="long", quantity=1.0, price=100.0)
+    assert position.entry_feature_snapshot == _feature_snapshot()
+    assert position.to_payload(generated_utc=DECISION_TIME)["entry_feature_snapshot"] == _feature_snapshot()
     close_event, outcome = build_close_event(
         position=position,
         close_quantity=1.0,
@@ -305,6 +351,9 @@ def test_trust_envelope_survives_full_paper_lifecycle() -> None:
     )
     feedback = build_strategy_hedge_exit_feedback(close_event=close_event, outcome_label=outcome)
 
+    assert close_event["entry_feature_snapshot"] == _feature_snapshot()
+    assert outcome["entry_feature_snapshot"] == _feature_snapshot()
+    assert feedback["entry_feature_snapshot"] == _feature_snapshot()
     for field in (
         "prediction_id",
         "signal_id",
@@ -338,10 +387,20 @@ def test_prediction_id_alone_is_not_sufficient_trust() -> None:
 
 def test_verified_lineage_reconstructs_existing_feedback() -> None:
     close_event, outcome = _close_and_outcome()
+    prediction = _trust_prediction()
+    prediction.update(
+        {
+            "confidence_raw": 0.58,
+            "confidence_calibrated": 0.62,
+            "expected_move_bps": 34.0,
+            "expected_move_after_cost_bps": 27.5,
+            "selected_action_probability": 0.64,
+        }
+    )
     rows = paper_loop._build_trainer_feedback_rows(  # noqa: SLF001
         close_events=[close_event],
         outcome_labels=[outcome],
-        predictions_by_id={"pred_1": _trust_prediction()},
+        predictions_by_id={"pred_1": prediction},
     )
     row = rows[0]
     assert row["trainer_consumable"] is True
@@ -349,6 +408,26 @@ def test_verified_lineage_reconstructs_existing_feedback() -> None:
     assert row["trust_source_ids"]["entry_prediction_id"] == "pred_1"
     assert row["decision_id"] == "decision_1"
     assert row["source_hashes"]["feature_vector_hash"] == "hash_feat_1"
+    assert row["confidence_calibrated"] == pytest.approx(0.62)
+    assert row["expected_move_after_cost_bps"] == pytest.approx(27.5)
+    assert row["prediction_score_source"] == "VERIFIED_ENTRY_PREDICTION"
+
+
+def test_epoch_ms_feature_cutoff_reconstructs_existing_feedback() -> None:
+    close_event, outcome = _close_and_outcome()
+    prediction = _trust_prediction()
+    prediction["feature_cutoff"] = _epoch_ms(FEATURE_CUTOFF)
+
+    rows = paper_loop._build_trainer_feedback_rows(  # noqa: SLF001
+        close_events=[close_event],
+        outcome_labels=[outcome],
+        predictions_by_id={"pred_1": prediction},
+    )
+
+    row = rows[0]
+    assert row["trainer_consumable"] is True
+    assert row["trust_reconstructed"] is True
+    assert row["feature_cutoff"] == _epoch_ms(FEATURE_CUTOFF)
 
 
 def test_mismatched_lineage_remains_quarantined() -> None:
@@ -371,6 +450,21 @@ def test_future_available_at_is_rejected() -> None:
     )
     assert rows[0]["trainer_consumable"] is False
     assert "TRUST_RECONSTRUCTION:AVAILABLE_AT_AFTER_DECISION_TIME" in rows[0]["trust_envelope_rejection_reasons"]
+
+
+def test_future_epoch_ms_feature_cutoff_is_rejected() -> None:
+    close_event, outcome = _close_and_outcome()
+    prediction = _trust_prediction()
+    prediction["feature_cutoff"] = _epoch_ms("2026-06-21T10:02:00Z")
+
+    rows = paper_loop._build_trainer_feedback_rows(  # noqa: SLF001
+        close_events=[close_event],
+        outcome_labels=[outcome],
+        predictions_by_id={"pred_1": prediction},
+    )
+
+    assert rows[0]["trainer_consumable"] is False
+    assert "TRUST_RECONSTRUCTION:FEATURE_CUTOFF_AFTER_DECISION_TIME" in rows[0]["trust_envelope_rejection_reasons"]
 
 
 def test_realized_pnl_generates_outcome_targets() -> None:
@@ -417,10 +511,204 @@ def test_realized_pnl_generates_outcome_targets() -> None:
     assert targets["exit_reason"] == "TIER_2_TAKE_PROFIT"
 
 
+def test_entry_prediction_scores_survive_close_and_feedback() -> None:
+    fill = {
+        "fill_id": "fill_1",
+        "symbol": "BTCUSDT",
+        "side": "long",
+        "quantity": 1.0,
+        "entry_price": 100.0,
+        "fill_price": 100.0,
+        "fill_price_utc": DECISION_TIME,
+        "generated_utc": DECISION_TIME,
+        "prediction_id": "pred_1",
+        "signal_id": "sig_1",
+        "decision_id": "decision_1",
+        "feature_snapshot_id": "feat_1",
+        "mtf_snapshot_id": "mtf_1",
+        "feature_cutoff": FEATURE_CUTOFF,
+        "decision_time": DECISION_TIME,
+        "available_at": AVAILABLE_AT,
+        "selected_action": "long",
+        "model_version": "unit_model_v1",
+        "checkpoint_id": "ckpt_1",
+        "source_hashes": _source_hashes(),
+        "timeframe": "1m",
+        "confidence_raw": 0.57,
+        "confidence_calibrated": 0.63,
+        "expected_move_bps": 31.0,
+        "expected_move_after_cost_bps": 24.0,
+        "selected_action_probability": 0.66,
+        "policy_value": 0.12,
+        "value_baseline": 0.08,
+        **_audit_fields(),
+    }
+    position = position_from_fill(fill, fill_id="fill_1", side="long", quantity=1.0, price=100.0)
+    close_event, outcome = build_close_event(
+        position=position,
+        close_quantity=1.0,
+        exit_price=103.0,
+        exit_time="2026-06-21T10:06:00Z",
+        close_reason="TIER_2_TAKE_PROFIT",
+        exit_spread_bps=1.4,
+    )
+    feedback = build_strategy_hedge_exit_feedback(close_event=close_event, outcome_label=outcome)
+
+    for row in (position.to_payload(generated_utc=DECISION_TIME), close_event, outcome, feedback):
+        assert row["confidence_raw"] == pytest.approx(0.57)
+        assert row["confidence_calibrated"] == pytest.approx(0.63)
+        assert row["expected_move_bps"] == pytest.approx(31.0)
+        assert row["expected_move_after_cost_bps"] == pytest.approx(24.0)
+        assert row["selected_action_probability"] == pytest.approx(0.66)
+        assert row["prediction_score_missing_reason"] is None
+
+
+def test_missing_entry_prediction_scores_are_not_fabricated() -> None:
+    fill = {
+        "fill_id": "fill_1",
+        "symbol": "BTCUSDT",
+        "side": "long",
+        "quantity": 1.0,
+        "entry_price": 100.0,
+        "fill_price": 100.0,
+        "fill_price_utc": DECISION_TIME,
+        "generated_utc": DECISION_TIME,
+        "prediction_id": "pred_1",
+        "signal_id": "sig_1",
+        "decision_id": "decision_1",
+        "feature_snapshot_id": "feat_1",
+        "mtf_snapshot_id": "mtf_1",
+        "feature_cutoff": FEATURE_CUTOFF,
+        "decision_time": DECISION_TIME,
+        "available_at": AVAILABLE_AT,
+        "selected_action": "long",
+        "model_version": "unit_model_v1",
+        "checkpoint_id": "ckpt_1",
+        "source_hashes": _source_hashes(),
+        "timeframe": "1m",
+        **_audit_fields(),
+    }
+    position = position_from_fill(fill, fill_id="fill_1", side="long", quantity=1.0, price=100.0)
+    close_event, outcome = build_close_event(
+        position=position,
+        close_quantity=1.0,
+        exit_price=103.0,
+        exit_time="2026-06-21T10:06:00Z",
+        close_reason="TIER_2_TAKE_PROFIT",
+        exit_spread_bps=1.4,
+    )
+    feedback = build_strategy_hedge_exit_feedback(close_event=close_event, outcome_label=outcome)
+
+    assert feedback["confidence_calibrated"] is None
+    assert feedback["expected_move_after_cost_bps"] is None
+    assert feedback["prediction_score_missing_reason"] == (
+        "MISSING_ENTRY_PREDICTION_SCORE_FIELDS:"
+        "confidence_calibrated,expected_move_after_cost_bps"
+    )
+
+
 def test_feedback_batch_uses_realized_after_cost_reward() -> None:
     _, result = _train_one()
     assert result.metrics["realized_reward_source"] == "realized_after_cost_reward_minus_value_baseline"
     assert result.metrics["outcome_supervised_update_used"] is True
+
+
+def test_snapshot_backed_feedback_uses_entry_feature_snapshot() -> None:
+    close_event, outcome_label = _close_and_outcome(action="short")
+    prediction = _trust_prediction(selected_action="short")
+    row = paper_loop._build_trainer_feedback_rows(  # noqa: SLF001
+        close_events=[close_event],
+        outcome_labels=[outcome_label],
+        predictions_by_id={"pred_1": prediction},
+    )[0]
+    assert row["trainer_consumable"] is True
+    snapshot = _feature_snapshot()
+    loader = V2HybridTrainerDataLoader(
+        io=V2OnlyJsonIO(
+            client=_FakeRedis(
+                {
+                    "v2:trainer:feedback:outcomes": [row],
+                    "v2:features:snapshot:feat_1": snapshot,
+                }
+            )
+        )
+    )
+
+    examples = loader.load_training_examples(symbols=[], timeframes=[], limit=4, trusted_only=True)
+
+    assert len(examples) == 1
+    trust_row = examples[0].trust_row or {}
+    assert trust_row["learning_mode"] == "outcome_supervised"
+    assert trust_row["snapshot_backed_closed_trade_feedback"] is True
+    assert trust_row["realized_reward_source"] == "realized_net_pnl_bps_after_cost"
+    assert trust_row["uses_expected_move_as_realized_reward"] is False
+    assert examples[0].tensor.feature_snapshot_id == "feat_1"
+
+
+def test_embedded_entry_feature_snapshot_trains_when_archive_snapshot_missing() -> None:
+    close_event, outcome_label = _close_and_outcome(action="long")
+    prediction = _trust_prediction(selected_action="long")
+    row = paper_loop._build_trainer_feedback_rows(  # noqa: SLF001
+        close_events=[close_event],
+        outcome_labels=[outcome_label],
+        predictions_by_id={"pred_1": prediction},
+    )[0]
+    row["entry_feature_snapshot"] = _feature_snapshot()
+    loader = V2HybridTrainerDataLoader(
+        io=V2OnlyJsonIO(
+            client=_FakeRedis(
+                {
+                    "v2:trainer:feedback:outcomes": [row],
+                }
+            )
+        )
+    )
+
+    examples = loader.load_training_examples(symbols=[], timeframes=[], limit=4, trusted_only=True)
+
+    assert len(examples) == 1
+    trust_row = examples[0].trust_row or {}
+    assert trust_row["source_lineage"]["feature_snapshot_key"] == "trainer_feedback.entry_feature_snapshot"
+    assert examples[0].tensor.feature_snapshot_id == "feat_1"
+
+
+def test_mismatched_embedded_entry_feature_snapshot_is_not_trainable() -> None:
+    close_event, outcome_label = _close_and_outcome(action="long")
+    prediction = _trust_prediction(selected_action="long")
+    row = paper_loop._build_trainer_feedback_rows(  # noqa: SLF001
+        close_events=[close_event],
+        outcome_labels=[outcome_label],
+        predictions_by_id={"pred_1": prediction},
+    )[0]
+    row["entry_feature_snapshot"] = _feature_snapshot("other_feat")
+    loader = V2HybridTrainerDataLoader(
+        io=V2OnlyJsonIO(
+            client=_FakeRedis(
+                {
+                    "v2:trainer:feedback:outcomes": [row],
+                }
+            )
+        )
+    )
+
+    examples = loader.load_training_examples(symbols=[], timeframes=[], limit=4, trusted_only=True)
+
+    assert examples == []
+
+
+def test_verified_prediction_without_feature_snapshot_deref_is_rejected() -> None:
+    close_event, outcome_label = _close_and_outcome(action="long")
+    prediction = _trust_prediction(selected_action="long")
+
+    row = paper_loop._build_trainer_feedback_rows(  # noqa: SLF001
+        close_events=[close_event],
+        outcome_labels=[outcome_label],
+        predictions_by_id={"pred_1": prediction},
+        feature_snapshots_by_id={},
+    )[0]
+
+    assert row["trainer_consumable"] is False
+    assert "TRUST_RECONSTRUCTION:ENTRY_FEATURE_SNAPSHOT_NOT_FOUND" in row["trust_envelope_rejection_reasons"]
 
 
 def test_expected_move_is_not_used_as_realized_reward() -> None:
