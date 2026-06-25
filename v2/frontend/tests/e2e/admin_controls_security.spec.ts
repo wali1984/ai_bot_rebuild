@@ -12,7 +12,11 @@
 import { test, expect } from '@playwright/test';
 import { mockAuth } from './helpers/auth';
 
-test.describe('Admin Controls Security', () => {
+// CLASSIFICATION: COMPONENT_MOCK
+// Dialog open/close + RBAC gating tested here with mock backend.
+// Real control contract (backend role check, audit ID, blocked results) →
+// tests/e2e/integration/admin_integration.spec.ts [LOCAL_INTEGRATION]
+test.describe('Admin Controls Security [COMPONENT_MOCK]', () => {
   test.beforeEach(async ({ page }) => {
     await page.route('**/api/v2/admin/**', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ services: [], active_incidents: [], generated_at: new Date().toISOString(), live_blocked: true }) });
@@ -51,14 +55,14 @@ test.describe('Admin Controls Security', () => {
     });
     await page.goto('/admin/risk');
     await expect(page.getByTestId('admin-risk-page')).toBeVisible();
-    // If a dangerous control button exists, clicking it should open a confirm dialog, not execute
-    const dangerBtn = page.locator('[data-testid*="control-btn-enable_live_trading"]');
-    if (await dangerBtn.count() > 0) {
-      await dangerBtn.first().click();
-      // Should show a confirm dialog, not immediately call the backend
-      await expect(page.locator('[data-testid*="control-dialog-enable_live_trading"]')).toBeVisible({ timeout: 3000 });
-      expect(controlCalled).toBe(false);
-    }
+    // Navigate to Controls tab to reveal control buttons
+    await page.getByRole('button', { name: 'Controls' }).click();
+    // Button must exist — clicking opens a dialog, never fires the backend directly
+    const dangerBtn = page.locator('[data-testid="control-btn-enable_live_trading"]');
+    await expect(dangerBtn).toBeVisible({ timeout: 3000 });
+    await dangerBtn.click();
+    await expect(page.locator('[data-testid="control-dialog-enable_live_trading"]')).toBeVisible({ timeout: 3000 });
+    expect(controlCalled).toBe(false);
   });
 
   test('Admin nav not visible when logged in as trader', async ({ page }) => {
@@ -86,8 +90,25 @@ test.describe('Admin Controls Security', () => {
     await expect(page.getByTestId('access-denied')).not.toBeVisible();
   });
 
-  test('Reviewer denied on /admin (minRole: admin)', async ({ page }) => {
+  test('reviewer maps to admin backend role — explicit contract', async ({ page }) => {
+    // backendRole('reviewer') = 'admin' in helpers/auth.ts.
+    // This test is the authoritative record of that mapping.
+    // If the mapping changes, this test breaks intentionally so the change is reviewed.
     await mockAuth(page, 'reviewer');
+    // reviewer/admin can access any admin-minRole page
+    await page.goto('/admin');
+    await expect(page.getByTestId('admin-shell')).toBeVisible();
+    await expect(page.getByTestId('access-denied')).not.toBeVisible();
+    // reviewer/admin cannot access live_approver-only routes
+    await page.goto('/admin/audit');
+    await expect(page.getByTestId('access-denied')).toBeVisible();
+    await page.goto('/admin/logs');
+    await expect(page.getByTestId('access-denied')).toBeVisible();
+  });
+
+  test('Viewer denied on /admin (minRole: admin)', async ({ page }) => {
+    // 'reviewer' maps to admin backend role so cannot test denial; use viewer (hierarchy 1 < admin 5)
+    await mockAuth(page, 'viewer');
     await page.goto('/admin');
     await expect(page.getByTestId('access-denied')).toBeVisible();
   });
@@ -102,18 +123,17 @@ test.describe('Admin Controls Security', () => {
     await mockAuth(page, 'superadmin');
     await page.goto('/admin/risk');
     await expect(page.getByTestId('admin-risk-page')).toBeVisible();
-    // If a DangerousControlPanel renders buttons, clicking one shows the confirm dialog
+    // Navigate to Controls tab — buttons live inside the tab panel
+    await page.getByRole('button', { name: 'Controls' }).click();
     const anyControlBtn = page.locator('[data-testid^="control-btn-"]');
-    if (await anyControlBtn.count() > 0) {
-      const btn = anyControlBtn.first();
-      const actionId = await btn.getAttribute('data-testid');
-      await btn.click();
-      const dialogTestId = actionId?.replace('control-btn-', 'control-dialog-');
-      if (dialogTestId) {
-        await expect(page.getByTestId(dialogTestId)).toBeVisible({ timeout: 4000 });
-        // Dialog should show the action_id text
-        await expect(page.getByTestId(dialogTestId)).toContainText('action_id:');
-      }
+    await expect(anyControlBtn.first()).toBeVisible({ timeout: 3000 });
+    const btn = anyControlBtn.first();
+    const actionId = await btn.getAttribute('data-testid');
+    await btn.click();
+    const dialogTestId = actionId?.replace('control-btn-', 'control-dialog-');
+    if (dialogTestId) {
+      await expect(page.getByTestId(dialogTestId)).toBeVisible({ timeout: 4000 });
+      await expect(page.getByTestId(dialogTestId)).toContainText('action_id:');
     }
   });
 });

@@ -13,6 +13,17 @@ import { mockAuth } from './helpers/auth';
 const FORBIDDEN_STRINGS = ['Connecting…', 'Loading...', 'undefined', '[object Object]'];
 
 async function stubAdminApis(page: import('@playwright/test').Page, override?: Record<string, unknown>) {
+  // LIFO ordering: broad routes registered FIRST (lowest priority), specific routes LAST (highest priority)
+  await page.route('**/api/v2/**', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) });
+  });
+  await page.route('**/api/v2/risk/status', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ live_blocked: true, rules: [] }) });
+  });
+  await page.route('**/api/v2/admin/**', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) });
+  });
+  // Registered LAST so it takes precedence over the admin/** catch-all above
   await page.route('**/api/v2/admin/overview', async (route) => {
     await route.fulfill({
       status: 200,
@@ -21,27 +32,22 @@ async function stubAdminApis(page: import('@playwright/test').Page, override?: R
         generated_at: new Date().toISOString(),
         live_gate: 'blocked',
         services: [
-          { name: 'trainer', status: 'ok', message: 'Running', last_checked_at: new Date().toISOString() },
-          { name: 'orchestrator', status: 'warn', message: 'Slow', last_checked_at: new Date().toISOString() },
-          { name: 'redis', status: 'error', message: 'Connection refused', last_checked_at: new Date().toISOString() },
+          { id: 'trainer',       name: 'trainer',       status: 'ok',    message: 'Running',            last_checked_at: new Date().toISOString() },
+          { id: 'orchestrator',  name: 'orchestrator',  status: 'warn',  message: 'Slow',               last_checked_at: new Date().toISOString() },
+          { id: 'redis',         name: 'redis',         status: 'error', message: 'Connection refused',  last_checked_at: new Date().toISOString() },
         ],
         active_incidents: [],
         ...override,
       }),
     });
   });
-  await page.route('**/api/v2/admin/**', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) });
-  });
-  await page.route('**/api/v2/risk/status', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ live_blocked: true, rules: [] }) });
-  });
-  await page.route('**/api/v2/**', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) });
-  });
 }
 
-test.describe('Admin Data Consistency', () => {
+// CLASSIFICATION: COMPONENT_MOCK
+// Consistency proven by feeding the same stub to every page — not by real data.
+// Real cross-page data consistency (one canonical store) →
+// tests/e2e/integration/admin_integration.spec.ts [LOCAL_INTEGRATION]
+test.describe('Admin Data Consistency [COMPONENT_MOCK]', () => {
   test.beforeEach(async ({ page }) => {
     await mockAuth(page, 'admin');
   });
@@ -50,18 +56,23 @@ test.describe('Admin Data Consistency', () => {
     await stubAdminApis(page);
     await page.goto('/admin');
     await expect(page.getByTestId('admin-overview-page')).toBeVisible();
-    // ServiceHealthGrid should render
+    // ServiceHealthGrid must render with all 3 mocked services
     const grid = page.getByTestId('service-health-grid');
-    if (await grid.count() > 0) {
-      await expect(grid).toBeVisible();
-      await expect(grid.getByTestId('service-health-trainer')).toBeVisible();
-      await expect(grid.getByTestId('service-health-orchestrator')).toBeVisible();
-      await expect(grid.getByTestId('service-health-redis')).toBeVisible();
-    }
+    await expect(grid).toBeVisible({ timeout: 6000 });
+    await expect(grid.getByTestId('service-health-trainer')).toBeVisible();
+    await expect(grid.getByTestId('service-health-orchestrator')).toBeVisible();
+    await expect(grid.getByTestId('service-health-redis')).toBeVisible();
   });
 
   test('/admin shows incident count badge when incidents exist', async ({ page }) => {
-    await mockAuth(page, 'admin');
+    // Register general routes FIRST; last-registered wins in Playwright (LIFO),
+    // so the specific overview route must be registered LAST to take precedence.
+    await page.route('**/api/v2/**', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) });
+    });
+    await page.route('**/api/v2/admin/**', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) });
+    });
     await page.route('**/api/v2/admin/overview', async (route) => {
       await route.fulfill({
         status: 200,
@@ -87,13 +98,8 @@ test.describe('Admin Data Consistency', () => {
         }),
       });
     });
-    await page.route('**/api/v2/admin/**', async (route) => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) });
-    });
-    await page.route('**/api/v2/**', async (route) => {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) });
-    });
     await page.goto('/admin');
+    await expect(page.getByTestId('admin-shell')).toBeVisible({ timeout: 10000 });
     await expect(page.getByTestId('admin-incident-count')).toBeVisible();
     await expect(page.getByTestId('admin-incident-count')).toContainText('1 incident');
   });
@@ -150,12 +156,12 @@ test.describe('Admin Data Consistency', () => {
     await expect(page.getByTestId('admin-risk-page')).toContainText('BLOCKED');
   });
 
-  test('/admin/intelligence shows MissingSourceIncident tabs when backend returns empty', async ({ page }) => {
+  test('/admin/intelligence shows tab navigation when backend returns empty', async ({ page }) => {
     await stubAdminApis(page);
     await page.goto('/admin/intelligence');
     await expect(page.getByTestId('admin-intelligence-page')).toBeVisible();
-    // Tab buttons should be present
-    await expect(page.getByTestId('tab-trainer')).toBeVisible();
+    // Tabs: Model, Predictions, Signals, Risk Checks (data-testid = tab-{label.toLowerCase()})
+    await expect(page.getByTestId('tab-model')).toBeVisible();
     await expect(page.getByTestId('tab-predictions')).toBeVisible();
   });
 });

@@ -31,7 +31,11 @@ const CANONICAL_ROUTES: Array<{ path: string; testId: string; minRole: 'reviewer
   { path: '/admin/tools',        testId: 'admin-tools-page',          minRole: 'live_approver' },
 ];
 
-test.describe('Admin Information Architecture', () => {
+// CLASSIFICATION: COMPONENT_MOCK
+// Uses mockAuth + route interception. Does NOT run against a real backend.
+// Real backend coverage → tests/e2e/integration/admin_integration.spec.ts [LOCAL_INTEGRATION]
+// Production coverage   → tests/e2e/production/admin_production_audit.spec.ts [PRODUCTION_E2E]
+test.describe('Admin Information Architecture [COMPONENT_MOCK]', () => {
   test.beforeEach(async ({ page }) => {
     // Stub overview to avoid network errors in tests
     await page.route('**/api/v2/admin/overview', async (route) => {

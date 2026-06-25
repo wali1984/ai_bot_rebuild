@@ -16,7 +16,12 @@
     "crawl:tonight": "node scripts/crawl-tonight-routes.mjs",
     "sync:proof-artifacts": "node scripts/sync-proof-artifacts.mjs",
     "typecheck": "tsc -b --noEmit",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:mock": "playwright test --grep \"\\[COMPONENT_MOCK\\]\" --retries=0",
+    "test:integration": "PLAYWRIGHT_NO_WEBSERVER=1 playwright test --grep \"\\[LOCAL_INTEGRATION\\]\" --retries=0",
+    "test:production-e2e": "PLAYWRIGHT_NO_WEBSERVER=1 playwright test --grep \"\\[PRODUCTION_E2E\\]\" --retries=0",
+    "test:admin-gate": "npm run build && echo '=== CATEGORY: COMPONENT_MOCK ===' && npm run test:mock && echo '=== CATEGORY: LOCAL_INTEGRATION (requires backend on :8000) ===' && npm run test:integration && echo '=== GATE: PRODUCTION_E2E must be run post-deploy against real URL ==='",
+    "test:admin-release": "npm run build && playwright test tests/e2e/admin_information_architecture.spec.ts tests/e2e/admin_visual_final.spec.ts tests/e2e/admin_controls_security.spec.ts tests/e2e/admin_data_consistency.spec.ts tests/e2e/trader_menu_navigation_final.spec.ts tests/e2e/admin_viewport_visual.spec.ts --retries=0"
   },
   "dependencies": {
     "date-fns": "^4.4.0",

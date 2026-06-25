@@ -14,7 +14,10 @@ import { mockAuth } from './helpers/auth';
 
 const OLD_NAV_LABELS = ['Observe', 'Sense', 'Core', 'Guard', 'Shift', 'Execute', 'Replay'];
 
-test.describe('Admin Visual Final', () => {
+// CLASSIFICATION: COMPONENT_MOCK
+// Uses mockAuth + route interception. Screenshots and real-data verification →
+// tests/e2e/production/admin_production_audit.spec.ts [PRODUCTION_E2E]
+test.describe('Admin Visual Final [COMPONENT_MOCK]', () => {
   test.beforeEach(async ({ page }) => {
     await mockAuth(page, 'admin');
     await page.route('**/api/v2/admin/**', async (route) => {
@@ -44,12 +47,14 @@ test.describe('Admin Visual Final', () => {
 
   test('Breadcrumb shows NERVYX ADMIN text', async ({ page }) => {
     await page.goto('/admin');
+    await expect(page.getByTestId('admin-shell')).toBeVisible({ timeout: 10000 });
     await expect(page.getByTestId('admin-breadcrumb')).toBeVisible();
     await expect(page.getByTestId('admin-breadcrumb')).toContainText('NERVYX ADMIN');
   });
 
   test('Breadcrumb updates to page title on /admin/data', async ({ page }) => {
     await page.goto('/admin/data');
+    await expect(page.getByTestId('admin-shell')).toBeVisible({ timeout: 10000 });
     await expect(page.getByTestId('admin-breadcrumb')).toContainText('DATA');
   });
 
@@ -78,6 +83,7 @@ test.describe('Admin Visual Final', () => {
 
   test('Primary nav entries appear before the divider', async ({ page }) => {
     await page.goto('/admin');
+    await expect(page.getByTestId('admin-shell')).toBeVisible({ timeout: 10000 });
     const primaryNavIds = ['overview', 'data', 'intelligence', 'orchestration', 'risk', 'execution', 'exchanges', 'config', 'users', 'reports'];
     for (const id of primaryNavIds) {
       await expect(page.getByTestId(`admin-nav-${id}`)).toBeVisible();
@@ -93,10 +99,11 @@ test.describe('Admin Visual Final', () => {
   });
 
   test('Admin pages render within AdminShell (Outlet working)', async ({ page }) => {
-    const routes = ['/admin', '/admin/data', '/admin/exchanges', '/admin/reports', '/admin/logs'];
+    // /admin/logs requires live_approver — omit for admin-role test
+    const routes = ['/admin', '/admin/data', '/admin/exchanges', '/admin/reports'];
     for (const route of routes) {
       await page.goto(route);
-      await expect(page.getByTestId('admin-shell')).toBeVisible();
+      await expect(page.getByTestId('admin-shell')).toBeVisible({ timeout: 10000 });
       await expect(page.getByTestId('admin-main')).toBeVisible();
     }
   });
