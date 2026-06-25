@@ -26,7 +26,9 @@ interface Props {
 type Phase = 'confirm' | 'dry_run' | 'dry_run_result' | 'reason' | 'executing' | 'done' | 'error';
 
 export function ControlActionDialog({ spec, onClose, onComplete }: Props): JSX.Element {
-  const [phase, setPhase] = useState<Phase>(spec.dry_run_endpoint ? 'dry_run' : 'confirm');
+  const [phase, setPhase] = useState<Phase>(
+    spec.dry_run_endpoint ? 'dry_run' : spec.requires_reason ? 'reason' : 'confirm',
+  );
   const [reason, setReason] = useState('');
   const [dryResult, setDryResult] = useState<DryRunResult | null>(null);
   const [auditId, setAuditId] = useState<string | null>(null);

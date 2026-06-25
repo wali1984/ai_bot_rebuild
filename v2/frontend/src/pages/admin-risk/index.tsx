@@ -3,6 +3,7 @@ import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { FreshnessBadge } from '../../components/data/FreshnessBadge';
 import { relativeAge } from '../../data/adminFieldRegistry';
 import { DANGEROUS_CONTROLS } from '../../constants/dangerousControls';
+import { ControlActionDialog, type ControlSpec } from '../../components/admin';
 
 const RISK_ENDPOINT = '/api/v2/risk/status';
 const TABS = ['Decisions', 'Profile', 'Controls', 'Readiness'] as const;
@@ -29,21 +30,21 @@ const LOCK_ACTIONS = [
   { id: 'disable_mandatory_stop' as const, label: 'Disable Mandatory Stop', level: 'L4' },
 ];
 
-function ActionRow({ id, label, level }: { id: string; label: string; level: string }) {
-  const ctrl = DANGEROUS_CONTROLS[id as keyof typeof DANGEROUS_CONTROLS];
-  const displayLabel = ctrl?.label ?? label;
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', borderRadius: 6, background: `${SC.error}08`, border: `1px solid ${SC.error}22` }}>
-      <span style={{ width: 6, height: 6, borderRadius: '50%', background: SC.error, display: 'inline-block', flexShrink: 0 }} />
-      <span style={{ flex: 1, fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>{displayLabel}</span>
-      <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: `${SC.error}22`, border: `1px solid ${SC.error}44`, color: SC.error, fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{level}</span>
-      <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, background: '#1a1a2a', border: '1px solid #333', color: SC.unknown, fontFamily: 'var(--font-mono)' }}>BLOCKED — requires approval</span>
-    </div>
-  );
-}
+const CONTROL_SPECS: ControlSpec[] = LOCK_ACTIONS.map(a => {
+  const ctrl = DANGEROUS_CONTROLS[a.id as keyof typeof DANGEROUS_CONTROLS];
+  return {
+    action_id: a.id,
+    label: ctrl?.label ?? a.label,
+    description: ctrl?.rationale ?? `Requires ${a.level} approval. Cannot be automatically reversed.`,
+    danger: true,
+    requires_reason: true,
+    execute_endpoint: `/api/v2/admin/controls/${a.id}`,
+  };
+});
 
 export default function AdminRiskPage(): JSX.Element {
   const [tab, setTab] = useState<Tab>('Decisions');
+  const [openControlId, setOpenControlId] = useState<string | null>(null);
   const { envelope, loading } = useRealtimeResource<RiskPayload>({ url: RISK_ENDPOINT, source: 'admin-risk', pollIntervalMs: 10_000 });
   const raw = envelope.data;
   const data = raw?.data ?? raw;
@@ -173,11 +174,38 @@ export default function AdminRiskPage(): JSX.Element {
       {tab === 'Controls' && (
         <div>
           <div style={{ padding: '10px 14px', marginBottom: 12, borderRadius: 6, background: `${SC.error}10`, border: `1px solid ${SC.error}33`, fontSize: 12, color: SC.error, fontFamily: 'var(--font-mono)' }}>
-            DANGEROUS CONTROLS — All permanently disabled. Human approval + L4/L5 gate required.
+            DANGEROUS CONTROLS — Human approval + mandatory reason + audit chain required. All actions are logged.
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {LOCK_ACTIONS.map(a => <ActionRow key={a.id} {...a} />)}
+            {LOCK_ACTIONS.map(a => {
+              const spec = CONTROL_SPECS.find(s => s.action_id === a.id);
+              const displayLabel = spec?.label ?? a.label;
+              return (
+                <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', borderRadius: 6, background: `${SC.error}08`, border: `1px solid ${SC.error}22` }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: SC.error, display: 'inline-block', flexShrink: 0 }} />
+                  <span style={{ flex: 1, fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>{displayLabel}</span>
+                  <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: `${SC.error}22`, border: `1px solid ${SC.error}44`, color: SC.error, fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{a.level}</span>
+                  <button
+                    type="button"
+                    data-testid={`control-btn-${a.id}`}
+                    onClick={() => setOpenControlId(a.id)}
+                    style={{ fontSize: 10, padding: '3px 10px', borderRadius: 4, background: 'var(--bg-elevated)', border: `1px solid ${SC.error}55`, color: SC.error, cursor: 'pointer', fontFamily: 'var(--font-mono)', fontWeight: 600 }}
+                  >
+                    Request
+                  </button>
+                </div>
+              );
+            })}
           </div>
+          {openControlId && (() => {
+            const spec = CONTROL_SPECS.find(s => s.action_id === openControlId);
+            return spec ? (
+              <ControlActionDialog
+                spec={spec}
+                onClose={() => setOpenControlId(null)}
+              />
+            ) : null;
+          })()}
         </div>
       )}
 

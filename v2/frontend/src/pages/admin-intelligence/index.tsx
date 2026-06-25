@@ -95,11 +95,13 @@ export default function AdminIntelligencePage(): JSX.Element {
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--line-soft)' }}>
         {TABS.map(t2 => (
-          <button key={t2} type="button" onClick={() => setTab(t2)} style={{
-            padding: '7px 16px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, fontWeight: tab === t2 ? 700 : 400,
-            color: tab === t2 ? 'var(--text-primary)' : 'var(--text-muted)',
-            borderBottom: tab === t2 ? '2px solid var(--admin-accent)' : '2px solid transparent',
-          }}>{t2}</button>
+          <button key={t2} type="button" onClick={() => setTab(t2)}
+            data-testid={`tab-${t2.toLowerCase().replace(/\s+/g, '-')}`}
+            style={{
+              padding: '7px 16px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, fontWeight: tab === t2 ? 700 : 400,
+              color: tab === t2 ? 'var(--text-primary)' : 'var(--text-muted)',
+              borderBottom: tab === t2 ? '2px solid var(--admin-accent)' : '2px solid transparent',
+            }}>{t2}</button>
         ))}
       </div>
 

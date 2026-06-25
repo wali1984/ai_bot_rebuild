@@ -1,6 +1,10 @@
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { FreshnessBadge } from '../../components/data/FreshnessBadge';
 import { relativeAge } from '../../data/adminFieldRegistry';
+import { ServiceHealthGrid } from '../../components/admin';
+import type { AdminService, ServiceStatus } from '../../types/adminData';
+
+const VALID_STATUSES: ServiceStatus[] = ['ok', 'warn', 'error', 'unknown'];
 
 const OVERVIEW_ENDPOINT = '/api/v2/admin/overview';
 const STATUS_ENDPOINT = '/api/v2/status';
@@ -43,7 +47,28 @@ function KV({ label, value, accent, mono }: { label: string; value: string; acce
   );
 }
 
-interface ServiceRow { id: string; name: string; status: string; detail?: string; version?: string | null; decisions_total?: number; symbol_count?: number; data_coverage?: number | null; cuda_active?: boolean; allowed_run_types?: string[]; }
+interface ServiceRow {
+  id?: string; name: string; status: string; detail?: string; version?: string | null;
+  // AdminService compat fields from API
+  heartbeat_at?: string | null; last_checked_at?: string | null; owner?: string;
+  // Extra per-service fields (not in AdminService)
+  decisions_total?: number; symbol_count?: number; data_coverage?: number | null;
+  cuda_active?: boolean; allowed_run_types?: string[];
+}
+
+function toAdminService(svc: ServiceRow): AdminService {
+  return {
+    id: svc.id ?? svc.name,
+    name: svc.name,
+    status: VALID_STATUSES.includes(svc.status as ServiceStatus) ? svc.status as ServiceStatus : 'unknown',
+    heartbeat_at: svc.heartbeat_at ?? svc.last_checked_at ?? null,
+    lag_ms: null,
+    error_count: 0,
+    warning_count: 0,
+    owner: svc.owner ?? '—',
+    version: svc.version ?? null,
+  };
+}
 interface OverviewPayload {
   generated_at?: string; live_gate?: string; live_blocked?: boolean;
   services?: ServiceRow[]; active_incidents?: unknown[];
@@ -110,62 +135,25 @@ export default function AdminOverviewPage(): JSX.Element {
         </div>
       )}
 
-      {/* Service rows */}
+      {/* Service Health — renders ServiceHealthGrid with testIds service-health-{name} */}
       <div>
         <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Service Health</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-          {loading && !d ? (
-            <div style={{ padding: '12px 14px', color: 'var(--text-muted)', fontSize: 13 }}>Loading services…</div>
-          ) : (
-            <>
-              {services.length > 0 ? services.map(svc => (
-                <div key={svc.id} data-testid={`service-row-${svc.id}`} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', borderRadius: 6, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
-                  <Dot status={svc.status} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{svc.name}</span>
-                      {svc.detail && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{svc.detail}</span>}
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 3 }}>
-                      {svc.id === 'trainer' && svc.data_coverage != null && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>coverage {svc.data_coverage.toFixed(1)}%</span>}
-                      {svc.id === 'trainer' && <span style={{ fontSize: 10, color: svc.cuda_active ? SC.ok : SC.warn }}>CUDA {svc.cuda_active ? 'ON' : 'OFF'}</span>}
-                      {svc.id === 'risk-gateway' && svc.decisions_total != null && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{svc.decisions_total.toLocaleString()} decisions</span>}
-                      {svc.id === 'pipeline' && svc.symbol_count != null && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{svc.symbol_count} symbols</span>}
-                    </div>
-                  </div>
-                  {svc.version && <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>{svc.version}</span>}
-                  <Pill label={svc.status.toUpperCase()} color={sColor(svc.status)} />
-                </div>
-              )) : (
-                /* Fallback using /api/v2/status dimensions */
-                [
-                  { id: 'market', name: 'Market Stream', status: stream?.status === 'stale' ? 'warn' : stream?.status === 'current' ? 'ok' : 'unknown', detail: stream?.source || '—' },
-                  { id: 'auto', name: 'Automation', status: sd?.status_dimensions?.automation === 'DEGRADED' ? 'warn' : 'unknown', detail: sd?.status_dimensions?.automation || '—' },
-                  { id: 'execution', name: 'Execution', status: sd?.status_dimensions?.execution === 'RESTRICTED' ? 'warn' : 'unknown', detail: sd?.status_dimensions?.execution || '—' },
-                ].map(svc => (
-                  <div key={svc.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', borderRadius: 6, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
-                    <Dot status={svc.status} />
-                    <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{svc.name}</span>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{svc.detail}</span>
-                    <Pill label={svc.status.toUpperCase()} color={sColor(svc.status)} />
-                  </div>
-                ))
-              )}
-              {/* Market stream row from /status */}
-              {services.length > 0 && stream && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', borderRadius: 6, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
-                  <Dot status={stream.status === 'stale' ? 'warn' : stream.status || 'unknown'} />
-                  <div style={{ flex: 1 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Market Stream</span>
-                    <span style={{ marginLeft: 10, fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{stream.source}</span>
-                  </div>
-                  {stream.lag_ms != null && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{Math.round(stream.lag_ms / 1000)}s lag</span>}
-                  <Pill label={(stream.status || 'unknown').toUpperCase()} color={sColor(stream.status)} />
-                </div>
-              )}
-            </>
-          )}
-        </div>
+        <ServiceHealthGrid
+          services={services.map(toAdminService)}
+          loading={loading && !d}
+        />
+        {/* Market stream row from /api/v2/status — shown alongside service grid */}
+        {services.length > 0 && stream && (
+          <div style={{ marginTop: 5, display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', borderRadius: 6, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+            <Dot status={stream.status === 'stale' ? 'warn' : stream.status || 'unknown'} />
+            <div style={{ flex: 1 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Market Stream</span>
+              <span style={{ marginLeft: 10, fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{stream.source}</span>
+            </div>
+            {stream.lag_ms != null && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{Math.round(stream.lag_ms / 1000)}s lag</span>}
+            <Pill label={(stream.status || 'unknown').toUpperCase()} color={sColor(stream.status)} />
+          </div>
+        )}
       </div>
 
       {/* Detail panels */}
