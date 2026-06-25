@@ -1,9 +1,0 @@
-{
-  "alive": true,
-  "file_lock_group": "codex_recover_082_gamma_implementation_blocker",
-  "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/086_codex.log",
-  "pid": 252468,
-  "task_id": "086",
-  "task_type": "CODEX_REVIEW",
-  "updated_at": "2026-06-15T20:09:22Z"
-}

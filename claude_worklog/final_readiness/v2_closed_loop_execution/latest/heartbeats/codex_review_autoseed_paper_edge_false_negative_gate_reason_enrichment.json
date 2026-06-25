@@ -1,9 +1,0 @@
-{
-  "alive": true,
-  "file_lock_group": "v2_paper_edge_false_negative_gate_reason_enrichment",
-  "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment_codex.log",
-  "pid": 1662807,
-  "task_id": "codex_review_autoseed_paper_edge_false_negative_gate_reason_enrichment",
-  "task_type": "CODEX_REVIEW",
-  "updated_at": "2026-05-24T19:54:32Z"
-}

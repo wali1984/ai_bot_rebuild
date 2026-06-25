@@ -1,9 +1,0 @@
-{
-  "alive": true,
-  "file_lock_group": "fix_api_contract_architecture",
-  "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/closed_loop_takeover_004_fix_api_contract_architecture_codex.log",
-  "pid": 897587,
-  "task_id": "closed_loop_takeover_004_fix_api_contract_architecture",
-  "task_type": "CODEX_TAKEOVER",
-  "updated_at": "2026-05-24T04:49:10Z"
-}

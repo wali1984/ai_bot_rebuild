@@ -1,9 +1,0 @@
-{
-  "alive": true,
-  "file_lock_group": "v2_decision_match_runtime_replay_comparator",
-  "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/codex_review_autoseed_decision_match_runtime_replay_comparator_codex.log",
-  "pid": 1741120,
-  "task_id": "codex_review_autoseed_decision_match_runtime_replay_comparator",
-  "task_type": "CODEX_REVIEW",
-  "updated_at": "2026-05-24T21:04:45Z"
-}

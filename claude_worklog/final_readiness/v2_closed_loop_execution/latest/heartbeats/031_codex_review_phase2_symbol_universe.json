@@ -1,9 +1,0 @@
-{
-  "alive": true,
-  "file_lock_group": "phase2_symbol_universe",
-  "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/031_codex_review_phase2_symbol_universe_codex.log",
-  "pid": 221801,
-  "task_id": "031_codex_review_phase2_symbol_universe",
-  "task_type": "CODEX_REVIEW",
-  "updated_at": "2026-06-15T19:55:20Z"
-}

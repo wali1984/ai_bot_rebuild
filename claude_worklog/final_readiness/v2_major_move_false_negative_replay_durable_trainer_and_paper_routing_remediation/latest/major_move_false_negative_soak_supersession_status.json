@@ -1,7 +1,0 @@
-{
-  "generated_est": "2026-06-15T18:09:53-04:00",
-  "new_soak_required_after_remediation": true,
-  "previous_soak_status": "SUPERSEDED_BY_MAJOR_MOVE_FALSE_NEGATIVE_REMEDIATION",
-  "reason": "MATERIAL_TRAINER_AND_PAPER_ROUTING_REMEDIATION",
-  "superseded": true
-}

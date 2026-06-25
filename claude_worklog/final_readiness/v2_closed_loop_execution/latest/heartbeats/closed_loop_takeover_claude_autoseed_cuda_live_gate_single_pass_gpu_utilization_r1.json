@@ -1,9 +1,0 @@
-{
-  "alive": true,
-  "file_lock_group": "cuda_live_gate_single_pass_gpu_utilization",
-  "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/closed_loop_takeover_claude_autoseed_cuda_live_gate_single_pass_gpu_utilization_r1_codex.log",
-  "pid": 3638175,
-  "task_id": "closed_loop_takeover_claude_autoseed_cuda_live_gate_single_pass_gpu_utilization_r1",
-  "task_type": "CODEX_TAKEOVER",
-  "updated_at": "2026-06-12T19:21:43Z"
-}

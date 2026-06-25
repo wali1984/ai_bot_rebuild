@@ -1,9 +1,0 @@
-{
-  "alive": true,
-  "file_lock_group": "015f_agent_dashboard_integration",
-  "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/025_codex_review_015f_agent_dashboard_integration_codex.log",
-  "pid": 220380,
-  "task_id": "025_codex_review_015f_agent_dashboard_integration",
-  "task_type": "CODEX_REVIEW",
-  "updated_at": "2026-06-15T19:54:43Z"
-}

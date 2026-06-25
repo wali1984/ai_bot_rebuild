@@ -1,8 +1,0 @@
-{
-  "generated_est": "2026-06-15T18:09:53-04:00",
-  "load_checkpoint": true,
-  "save_checkpoint": true,
-  "status": "READY",
-  "train_cycle_a": "covered_by_focused_checkpoint_tests",
-  "train_cycle_b": "requires_next_runtime_cycle_after_code_patch"
-}

@@ -1,9 +1,0 @@
-{
-  "generated_utc": "2026-05-23T02:22:09Z",
-  "must_attribute_v2_source": true,
-  "must_not_claim_checkpoint_compatibility": true,
-  "must_not_silently_zero_fill": true,
-  "must_not_start_policy_architecture": true,
-  "schema_version": "v2_full_observation_next_10_feature_tasks_v1",
-  "tasks": []
-}

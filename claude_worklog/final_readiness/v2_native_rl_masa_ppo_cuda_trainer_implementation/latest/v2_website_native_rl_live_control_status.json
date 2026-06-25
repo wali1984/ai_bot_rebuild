@@ -1,7 +1,0 @@
-{
-  "disabled_reason": "LIVE_GATE=blocked_human_only; requires operator approval, risk caps, paper/canary edge acceptance, read-only permission probe, exchange mutation safety, live_symbols, and Codex final live PASS",
-  "live_switch_enabled": false,
-  "live_switch_visible": true,
-  "status": "READY",
-  "trainer_brain_payload_path": "operator_dashboard_payload.json"
-}

@@ -1,8 +1,0 @@
-{
-  "status": "done",
-  "safe_envelope_checks": ["claim", "heartbeat", "execution"],
-  "claims": "via_worker_pool_or_direct_query",
-  "child_command": "agent_supervisor.py --task <descriptor>",
-  "child_heartbeat": "store.heartbeat_worker/lease while _run_child loops",
-  "generated_utc": "2026-05-24T00:00:00Z"
-}

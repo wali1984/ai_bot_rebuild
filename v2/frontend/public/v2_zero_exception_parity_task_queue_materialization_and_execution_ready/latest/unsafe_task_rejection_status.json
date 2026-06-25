@@ -1,8 +1,0 @@
-{
-  "schema_version": "v2_zero_exception_task_queue_unsafe_rejection_status_v1",
-  "milestone": "v2_zero_exception_task_queue_materialization_and_execution_ready",
-  "unsafe_tasks_selected": 0,
-  "rejected_tasks": [],
-  "generated_est": "2026-06-01T17:48:11-0400",
-  "generated_utc": "2026-06-01T21:48:11Z"
-}

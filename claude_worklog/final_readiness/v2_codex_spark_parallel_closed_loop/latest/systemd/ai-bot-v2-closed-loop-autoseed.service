@@ -1,9 +1,0 @@
-[Unit]
-Description=AI BOT V2 Closed-Loop Spark Autoseed
-
-[Service]
-Type=oneshot
-Environment="PYTHONPATH=%h/Desktop/AI BOT REBUILD:%h/Desktop/AI BOT REBUILD/claude_worklog/tools"
-ExecStart="%h/Desktop/AI BOT REBUILD/.venv/bin/python3" -m v2.backend.app.closed_loop.cli.autoseed --max-new-tasks=3
-StandardOutput=journal
-StandardError=journal

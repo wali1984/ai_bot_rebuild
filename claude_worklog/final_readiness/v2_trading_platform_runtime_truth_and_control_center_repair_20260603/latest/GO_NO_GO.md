@@ -1,7 +1,0 @@
-V2_TRADING_PLATFORM_RUNTIME_TRUTH_AND_CONTROL_CENTER_REPAIR_CODEX_PASS
-
-LIVE_GATE=blocked_human_only
-live_symbols=[]
-no_exchange_mutation=true
-no_old_redis_writes=true
-raw_credentials_exposed=false

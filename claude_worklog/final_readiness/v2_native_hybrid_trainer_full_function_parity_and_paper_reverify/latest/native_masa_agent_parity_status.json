@@ -1,8 +1,0 @@
-{
-  "generated_est": "2026-06-09T21:56:25-04:00",
-  "legacy_masa_agent_class_imported": false,
-  "method_for_method_legacy_import": false,
-  "native_replacement": "masa.py V2MASAAdapter + model.py MASA auxiliary head",
-  "parity_policy": "do not import legacy MASA class; keep forecast/direction/confidence/regime agreement as native CUDA model outputs",
-  "status": "NATIVE_MASA_AGENT_PARITY_READY_AS_REBUILT_HEAD_AND_ADAPTER"
-}

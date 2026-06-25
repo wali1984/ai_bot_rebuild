@@ -1,8 +1,0 @@
-{
-  "as_of_utc": "2026-06-22T00:28:25Z",
-  "blocker_count": 10,
-  "final_approval_token": "absent",
-  "live_gate": "blocked_human_only",
-  "recommendation": "BLOCK_LEGACY_SHUTDOWN_PARITY_INCOMPLETE",
-  "redis_trim_approval": "absent"
-}
