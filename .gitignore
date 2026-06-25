@@ -210,5 +210,6 @@ v2/backend/claude_worklog/
 v2/backend/v2/
 v2/claude_worklog/
 
-# Log files — runtime output, not source
+# Log files and runtime locks — runtime output, not source
 *.log
+logs/
