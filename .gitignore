@@ -51,8 +51,8 @@ v2/node_modules/
 v2/frontend/node_modules/
 **/node_modules/
 
-# IDE and editor caches
-.vscode/
+# IDE and editor caches — exclude generated files but track settings
+.vscode/*.code-snippets
 
 # Python cache artifacts
 __pycache__/
@@ -82,7 +82,6 @@ claude_worklog/quota/CLAUDE_CODE_QUOTA_CHECK_ERROR.txt
 claude_worklog/quota/CLAUDE_CODE_QUOTA_STATUS.md
 claude_worklog/quota/CLAUDE_CODE_QUOTA_GUARD_STATUS.md
 claude_worklog/quota/CLAUDE_CODE_QUOTA_GUARD.log
-.vscode/
 .local_scratch/
 v2/.venv-control-plane
 v2/runtime/
