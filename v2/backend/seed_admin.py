@@ -6,7 +6,7 @@ Run once to create the initial admin account:
   python seed_admin.py
 
 Reads ALPHAFORGE_BOOTSTRAP_ADMIN_EMAIL and ALPHAFORGE_BOOTSTRAP_ADMIN_PASSWORD
-from environment, or uses defaults for local dev.
+from environment.
 
 Never logs or stores the plaintext password.
 """
@@ -22,9 +22,13 @@ sys.path.insert(0, os.path.dirname(__file__))
 from app.auth.users import UserStore
 
 EMAIL    = os.environ.get("ALPHAFORGE_BOOTSTRAP_ADMIN_EMAIL",    "admin@alphaforge.local")
-PASSWORD = os.environ.get("ALPHAFORGE_BOOTSTRAP_ADMIN_PASSWORD", "AlphaForge2026!")
+PASSWORD = os.environ.get("ALPHAFORGE_BOOTSTRAP_ADMIN_PASSWORD", "")
 
 def main() -> None:
+    if not PASSWORD:
+        print("[seed_admin] ALPHAFORGE_BOOTSTRAP_ADMIN_PASSWORD is required.", file=sys.stderr)
+        raise SystemExit(2)
+
     store = UserStore()
 
     # Check if admin already exists
@@ -46,7 +50,6 @@ def main() -> None:
     )
 
     print(f"[seed_admin] Created admin user: {user['email']} (id={user['id']})")
-    print(f"[seed_admin] Default password: {PASSWORD}")
     print("[seed_admin] Change this password before any production deployment.")
 
 if __name__ == "__main__":
