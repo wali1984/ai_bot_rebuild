@@ -1390,6 +1390,89 @@ def _read_v2_mark_index_evidence(r, symbol: str) -> dict[str, Any]:
     return {}
 
 
+def _read_v2_long_short_ratio_evidence(r, symbol: str) -> dict[str, Any]:
+    """Read V2-owned global long/short account-ratio telemetry."""
+    if r is None or not symbol:
+        return {}
+    normalized = str(symbol).upper()
+    key = f"{V2_REDIS_PREFIX}market:long_short:{normalized}"
+    payload = _read_json_key(r, key)
+    if not payload:
+        return {}
+    ratio = _coerce_float(_first_present(payload.get("long_short_ratio"), payload.get("longShortRatio")))
+    if ratio is None or ratio <= 0.0:
+        return {}
+    long_account = _coerce_float(_first_present(payload.get("long_account_ratio"), payload.get("longAccount")))
+    short_account = _coerce_float(_first_present(payload.get("short_account_ratio"), payload.get("shortAccount")))
+    source_event_time = _timestamp_to_utc_iso(
+        _first_present(
+            payload.get("timestamp"),
+            payload.get("time"),
+            payload.get("event_time"),
+            payload.get("E"),
+        )
+    )
+    available_at = _timestamp_to_utc_iso(
+        _first_present(
+            payload.get("fetched_utc"),
+            payload.get("available_at"),
+            payload.get("generated_at"),
+            source_event_time,
+        )
+    )
+    return {
+        "long_short_ratio": ratio,
+        "long_account_ratio": long_account,
+        "short_account_ratio": short_account,
+        "long_short_period": payload.get("period"),
+        "long_short_source": f"{payload.get('source') or 'v2_market_long_short'}:{key}",
+        "long_short_event_time": source_event_time,
+        "long_short_available_at": available_at,
+        "long_short_captured_at": _utc_iso(),
+    }
+
+
+def _attach_long_short_ratio_context(intent: dict[str, Any], evidence: dict[str, Any] | None) -> None:
+    """Attach long/short telemetry without changing paper admission behavior."""
+    if not isinstance(evidence, dict) or evidence.get("long_short_ratio") in (None, ""):
+        intent["long_short_ratio_status"] = "MISSING_V2_LONG_SHORT_RATIO"
+        return
+    decision_time = _first_present(
+        intent.get("paper_admission_decision_time"),
+        intent.get("runtime_cost_capture_decision_time"),
+        intent.get("entry_feature_decision_time"),
+        intent.get("decision_time"),
+        intent.get("model_decision_time"),
+    )
+    available_at = evidence.get("long_short_available_at")
+    decision_dt = _parse_strategy_time(decision_time)
+    available_dt = _parse_strategy_time(available_at)
+    if decision_dt is None:
+        intent["long_short_ratio_status"] = "REJECTED_LONG_SHORT_DECISION_TIME_UNPROVEN"
+        return
+    if available_dt is None:
+        intent["long_short_ratio_status"] = "REJECTED_LONG_SHORT_AVAILABLE_AT_UNPROVEN"
+        return
+    if available_dt > decision_dt:
+        intent["long_short_ratio_status"] = "REJECTED_LONG_SHORT_AVAILABLE_AFTER_DECISION"
+        return
+    for field in (
+        "long_short_ratio",
+        "long_account_ratio",
+        "short_account_ratio",
+        "long_short_period",
+        "long_short_source",
+        "long_short_event_time",
+        "long_short_available_at",
+        "long_short_captured_at",
+    ):
+        if evidence.get(field) not in (None, ""):
+            intent[field] = evidence.get(field)
+    intent["long_short_decision_time"] = decision_time
+    intent["long_short_ratio_status"] = "V2_LONG_SHORT_RATIO_ATTACHED"
+    intent["long_short_ratio_decision_effect"] = "TELEMETRY_ONLY_NO_ADMISSION_CHANGE"
+
+
 def _validated_v2_feature_snapshot_payload(
     payload: Any,
     *,
@@ -10151,6 +10234,8 @@ def run_once() -> dict:
             )
         _apply_paper_reentry_dedup_gate(intent, reentry_dedup_result)
         market_microstructure = _read_v2_orderbook_microstructure(r, symbol)
+        long_short_evidence = _read_v2_long_short_ratio_evidence(r, symbol)
+        _attach_long_short_ratio_context(intent, long_short_evidence)
         allocation_input = _build_allocation_input(
             intent=intent,
             signal=s,

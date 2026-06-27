@@ -1201,6 +1201,99 @@ def test_v2_mark_index_evidence_does_not_fabricate_zero_or_missing_values() -> N
     assert evidence == {}
 
 
+def test_v2_long_short_ratio_evidence_reads_v2_market_payload(monkeypatch) -> None:
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-22T13:00:30Z")
+    redis_client = _FakeRedis({
+        "v2:market:long_short:BANKUSDT": {
+            "symbol": "BANKUSDT",
+            "period": "5m",
+            "longShortRatio": "1.25",
+            "longAccount": "0.5556",
+            "shortAccount": "0.4444",
+            "timestamp": 1782175051004,
+            "source": "binance_global_long_short_account_ratio",
+            "fetched_utc": "2026-06-22T13:00:10Z",
+        }
+    })
+
+    evidence = paper_loop._read_v2_long_short_ratio_evidence(redis_client, "BANKUSDT")  # noqa: SLF001
+
+    assert evidence["long_short_ratio"] == 1.25
+    assert evidence["long_account_ratio"] == 0.5556
+    assert evidence["short_account_ratio"] == 0.4444
+    assert evidence["long_short_period"] == "5m"
+    assert evidence["long_short_source"] == (
+        "binance_global_long_short_account_ratio:v2:market:long_short:BANKUSDT"
+    )
+    assert evidence["long_short_available_at"] == "2026-06-22T13:00:10.000Z"
+    assert evidence["long_short_captured_at"] == "2026-06-22T13:00:30Z"
+
+
+def test_attach_long_short_ratio_context_is_telemetry_only() -> None:
+    intent = {
+        "symbol": "BANKUSDT",
+        "decision_time": "2026-06-22T13:00:20Z",
+        "paper_fill_allowed": False,
+    }
+    evidence = {
+        "long_short_ratio": 1.25,
+        "long_account_ratio": 0.5556,
+        "short_account_ratio": 0.4444,
+        "long_short_period": "5m",
+        "long_short_source": "binance_global_long_short_account_ratio:v2:market:long_short:BANKUSDT",
+        "long_short_available_at": "2026-06-22T13:00:10Z",
+        "long_short_captured_at": "2026-06-22T13:00:30Z",
+    }
+
+    paper_loop._attach_long_short_ratio_context(intent, evidence)  # noqa: SLF001
+
+    assert intent["long_short_ratio"] == 1.25
+    assert intent["long_account_ratio"] == 0.5556
+    assert intent["short_account_ratio"] == 0.4444
+    assert intent["long_short_ratio_status"] == "V2_LONG_SHORT_RATIO_ATTACHED"
+    assert intent["long_short_ratio_decision_effect"] == "TELEMETRY_ONLY_NO_ADMISSION_CHANGE"
+    assert intent["long_short_decision_time"] == "2026-06-22T13:00:20Z"
+    assert intent["paper_fill_allowed"] is False
+
+
+def test_attach_long_short_ratio_context_rejects_future_available_at() -> None:
+    intent = {
+        "symbol": "BANKUSDT",
+        "decision_time": "2026-06-22T13:00:20Z",
+        "paper_fill_allowed": False,
+    }
+    evidence = {
+        "long_short_ratio": 1.25,
+        "long_short_available_at": "2026-06-22T13:00:21Z",
+        "long_short_captured_at": "2026-06-22T13:00:30Z",
+    }
+
+    paper_loop._attach_long_short_ratio_context(intent, evidence)  # noqa: SLF001
+
+    assert intent["long_short_ratio_status"] == "REJECTED_LONG_SHORT_AVAILABLE_AFTER_DECISION"
+    assert "long_short_ratio" not in intent
+    assert "long_short_available_at" not in intent
+    assert intent["paper_fill_allowed"] is False
+
+
+def test_v2_long_short_ratio_evidence_does_not_fabricate_missing_values() -> None:
+    redis_client = _FakeRedis({
+        "v2:market:long_short:BANKUSDT": {
+            "symbol": "BANKUSDT",
+            "longShortRatio": "0",
+            "fetched_utc": "2026-06-22T13:00:10Z",
+        }
+    })
+    intent = {}
+
+    evidence = paper_loop._read_v2_long_short_ratio_evidence(redis_client, "BANKUSDT")  # noqa: SLF001
+    paper_loop._attach_long_short_ratio_context(intent, evidence)  # noqa: SLF001
+
+    assert evidence == {}
+    assert intent["long_short_ratio_status"] == "MISSING_V2_LONG_SHORT_RATIO"
+    assert "long_short_ratio" not in intent
+
+
 def test_attach_paper_execution_evidence_builds_pre_outcome_fill_metadata() -> None:
     intent = {
         "symbol": "BANKUSDT",
