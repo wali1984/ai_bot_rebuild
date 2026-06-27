@@ -2320,6 +2320,135 @@ def test_b_grade_exploration_budget_fraction_uses_uncertainty_and_drawdown() -> 
     )
 
 
+def test_b_grade_canary_supply_status_reports_paper_only_pending_supply(monkeypatch) -> None:
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-27T23:05:00Z")
+    row = {
+        "symbol": "HUSDT",
+        "timeframe": "4h",
+        "side": "long",
+        "strategy_id": "trend_mode",
+        "strategy_regime_labels": ["TREND"],
+        "confidence_calibrated": 0.64,
+        "expected_move_after_cost_bps": 8.0,
+        "production_grade_cost_flag": True,
+        "valid_for_paper": True,
+        "risk_decision_id": "rd-1",
+        "orchestrator_decision_id": "dec-1",
+        "gross_notional_usd": 1000.0,
+        "risk_budget_usd": 10.0,
+        "paper_opportunity_tier": "B_GRADE_EXPLORATION_PAPER",
+        "paper_fill_allowed": True,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "live_order": False,
+        "test_order": False,
+        "counts_as_a_grade_evidence": False,
+        "paper_canary_adaptive_sizing_required": True,
+        "paper_canary_fixed_notional_allowed": False,
+        "paper_canary_live_routing_allowed": False,
+        "long_short_ratio_status": "V2_LONG_SHORT_RATIO_ATTACHED",
+    }
+
+    status = paper_loop._paper_b_grade_canary_supply_status([row])  # noqa: SLF001
+
+    assert status["status"] == "B_GRADE_CANARY_PENDING_SUPPLY_PRESENT"
+    assert status["canary_candidates"] == 1
+    assert status["canary_intents"] == 1
+    assert status["canary_pending_rows"] == 1
+    assert status["routes_to_live"] is False
+    assert status["places_real_order"] is False
+    assert status["counts_as_a_grade_evidence"] is False
+    assert status["pass_conditions"] == {
+        "canary_candidates_gt_zero": True,
+        "canary_intents_gt_zero": True,
+        "canary_pending_rows_gt_zero": True,
+    }
+    assert status["predicate_counts"]["risk_gateway_decision_rows"] == 1
+    assert status["predicate_counts"]["risk_pass_rows"] == 1
+
+
+def test_b_grade_canary_supply_status_keeps_no_trade_strategy_blocked(monkeypatch) -> None:
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-27T23:06:00Z")
+    row = {
+        "symbol": "ALLOUSDT",
+        "timeframe": "1h",
+        "side": "long",
+        "strategy_id": "no_trade_mode",
+        "confidence_calibrated": 0.66,
+        "expected_move_after_cost_bps": 40.0,
+        "production_grade_cost_flag": True,
+        "valid_for_paper": True,
+        "risk_decision_id": "rd-2",
+        "orchestrator_decision_id": "dec-2",
+        "pre_paper_tier_block_gross_notional_usd": 187.0,
+        "pre_paper_tier_block_risk_budget_usd": 0.75,
+        "paper_opportunity_tier": "NO_TRADE",
+        "paper_opportunity_tier_reason": "LIFECYCLE_OR_NO_TRADE_STRATEGY_NOT_ENTRY_EVIDENCE",
+        "paper_fill_allowed": False,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "live_order": False,
+        "test_order": False,
+        "counts_as_a_grade_evidence": False,
+        "paper_canary_adaptive_sizing_required": True,
+        "paper_canary_fixed_notional_allowed": False,
+        "paper_canary_live_routing_allowed": False,
+    }
+
+    status = paper_loop._paper_b_grade_canary_supply_status([row])  # noqa: SLF001
+
+    assert status["status"] == "BLOCKED_ZERO_B_GRADE_CANARY_SUPPLY"
+    assert status["canary_candidates"] == 0
+    assert status["canary_intents"] == 0
+    assert status["canary_pending_rows"] == 0
+    assert status["near_miss_strategy_blocked_rows"] == 1
+    assert status["root_cause_counts"]["strategy_failed"] == 1
+    assert status["root_cause_counts"]["expected_edge_below_cost"] == 0
+    assert status["root_cause_counts"]["allocator_failed"] == 0
+    assert status["root_cause_counts"]["unsafe_live_route_flags"] == 0
+    assert status["predicate_counts"]["strategy_entry_evidence_rows"] == 0
+    assert status["predicate_counts"]["risk_gateway_decision_rows"] == 1
+    assert status["predicate_counts"]["risk_pass_rows"] == 1
+
+
+def test_b_grade_canary_supply_status_treats_short_negative_edge_as_favorable() -> None:
+    row = {
+        "symbol": "BANKUSDT",
+        "timeframe": "15m",
+        "side": "short",
+        "strategy_id": "trend_mode",
+        "confidence_calibrated": 0.67,
+        "expected_move_after_cost_bps": -12.0,
+        "production_grade_cost_flag": True,
+        "valid_for_paper": True,
+        "risk_decision_id": "rd-3",
+        "orchestrator_decision_id": "dec-3",
+        "gross_notional_usd": 200.0,
+        "risk_budget_usd": 1.0,
+        "paper_opportunity_tier": "NO_TRADE",
+        "paper_fill_allowed": False,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "live_order": False,
+        "test_order": False,
+        "counts_as_a_grade_evidence": False,
+        "paper_canary_adaptive_sizing_required": True,
+        "paper_canary_fixed_notional_allowed": False,
+        "paper_canary_live_routing_allowed": False,
+    }
+
+    status = paper_loop._paper_b_grade_canary_supply_status([row])  # noqa: SLF001
+
+    assert status["canary_candidates"] == 1
+    assert status["canary_intents"] == 0
+    assert status["canary_pending_rows"] == 0
+    assert status["predicate_counts"]["expected_edge_after_cost_favorable_rows"] == 1
+    assert status["root_cause_counts"]["expected_edge_below_cost"] == 0
+
+
 def test_confidence_trial_positive_edge_becomes_b_grade_paper_only_exploration() -> None:
     signal = {
         "paper_confidence_threshold_trial": True,

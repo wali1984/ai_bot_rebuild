@@ -7075,6 +7075,316 @@ def _paper_exploration_tier_status(
     }
 
 
+def _paper_canary_score(row: dict[str, Any]) -> float | None:
+    return _coerce_float(
+        _first_present(
+            row.get("confidence_calibrated"),
+            row.get("score"),
+            row.get("selected_action_probability"),
+            row.get("confidence_raw"),
+            row.get("strategy_router_confidence"),
+        )
+    )
+
+
+def _paper_canary_edge_favorable(row: dict[str, Any]) -> bool:
+    side = _normalized_directional_side(
+        _first_present(row.get("side"), row.get("selected_action"), row.get("action"))
+    )
+    edge = _coerce_float(
+        _first_present(
+            row.get("expected_move_after_cost_bps"),
+            row.get("expected_net_edge_bps"),
+            row.get("paper_allocation_signed_expected_move_after_cost_bps"),
+        )
+    )
+    if side not in {"long", "short"} or edge is None:
+        return False
+    return expected_move_after_cost_favorable_for_side(
+        side=side,
+        expected_move_after_cost_bps=edge,
+    )
+
+
+def _paper_canary_liquidity_pass(row: dict[str, Any]) -> bool:
+    reason_text = " ".join(
+        str(value or "")
+        for value in (
+            row.get("paper_opportunity_tier_reason"),
+            row.get("paper_fill_block_reason"),
+            row.get("paper_allocation_block_reason"),
+            row.get("allocator_reason"),
+        )
+    ).upper()
+    list_reasons = " ".join(
+        str(reason or "")
+        for field in (
+            "paper_fill_gate_block_reasons",
+            "local_block_reasons",
+            "paper_runtime_market_evidence_rejection_reasons",
+            "paper_pre_fill_market_evidence_rejection_reasons",
+            "paper_post_fill_market_evidence_rejection_reasons",
+        )
+        for reason in (row.get(field) or [])
+    ).upper()
+    return not any(
+        token in f"{reason_text} {list_reasons}"
+        for token in ("SPREAD", "SLIPPAGE", "LIQUIDITY", "LIQUIDATION")
+    )
+
+
+def _paper_canary_integrity_pass(row: dict[str, Any]) -> bool:
+    if row.get("valid_for_paper") is False:
+        return False
+    reason = str(row.get("paper_opportunity_tier_reason") or "").upper()
+    if "INTEGRITY" in reason:
+        return False
+    if row.get("market_state_reject_reasons"):
+        return False
+    return True
+
+
+def _paper_canary_risk_pass(row: dict[str, Any]) -> bool:
+    if not row.get("risk_decision_id"):
+        return False
+    joined = " ".join(
+        str(reason or "")
+        for field in ("paper_fill_gate_block_reasons", "local_block_reasons")
+        for reason in (row.get(field) or [])
+    ).upper()
+    return not any(
+        token in joined
+        for token in ("RISK", "DRAWDOWN", "EXPOSURE", "CAP", "LIQUIDATION")
+    )
+
+
+def _paper_canary_pre_tier_allocator_pass(row: dict[str, Any]) -> bool:
+    gross_notional = _coerce_float(
+        _first_present(
+            row.get("pre_paper_tier_block_gross_notional_usd"),
+            row.get("normal_adaptive_gross_notional_usd"),
+            row.get("gross_notional_usd"),
+            row.get("target_notional_usdt"),
+        )
+    )
+    risk_budget = _coerce_float(
+        _first_present(
+            row.get("pre_paper_tier_block_risk_budget_usd"),
+            row.get("normal_adaptive_risk_budget_usd"),
+            row.get("risk_budget_usd"),
+        )
+    )
+    return (
+        gross_notional is not None
+        and gross_notional > 0.0
+        and risk_budget is not None
+        and risk_budget > 0.0
+    )
+
+
+def _paper_b_grade_canary_supply_status(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Summarize current paper-only B-grade canary supply without admitting fills."""
+    canary_intent_rows = [
+        row
+        for row in rows
+        if row.get("paper_opportunity_tier") == PAPER_TIER_B_GRADE_EXPLORATION
+    ]
+    canary_pending_rows = [
+        row
+        for row in canary_intent_rows
+        if row.get("paper_fill_allowed") is True
+        and row.get("paper_only") is True
+        and row.get("places_real_order") is not True
+    ]
+
+    predicate_rows: list[dict[str, Any]] = []
+    near_miss_strategy_rows: list[dict[str, Any]] = []
+    root_causes = {
+        "score_below_threshold": 0,
+        "expected_edge_below_cost": 0,
+        "production_grade_cost_missing": 0,
+        "liquidity_failed": 0,
+        "integrity_failed": 0,
+        "risk_failed": 0,
+        "orchestrator_failed": 0,
+        "strategy_failed": 0,
+        "allocator_failed": 0,
+        "distribution_drift": 0,
+        "point_in_time_long_short_unavailable": 0,
+        "unsafe_live_route_flags": 0,
+    }
+    predicate_counts = {
+        "score_threshold_pass_rows": 0,
+        "expected_edge_after_cost_favorable_rows": 0,
+        "production_grade_cost_rows": 0,
+        "liquidity_pass_rows": 0,
+        "integrity_pass_rows": 0,
+        "risk_gateway_decision_rows": 0,
+        "risk_pass_rows": 0,
+        "orchestrator_rows": 0,
+        "strategy_entry_evidence_rows": 0,
+        "allocator_pre_tier_size_rows": 0,
+        "long_short_point_in_time_rows": 0,
+        "paper_only_safety_rows": 0,
+    }
+
+    for row in rows:
+        score = _paper_canary_score(row)
+        score_pass = score is not None and score >= B_GRADE_EXPLORATION_MIN_CONFIDENCE
+        edge_pass = _paper_canary_edge_favorable(row)
+        production_cost_pass = row.get("production_grade_cost_flag") is True
+        liquidity_pass = _paper_canary_liquidity_pass(row)
+        integrity_pass = _paper_canary_integrity_pass(row)
+        risk_gateway_decision = bool(row.get("risk_decision_id"))
+        risk_pass = _paper_canary_risk_pass(row)
+        orchestrator_pass = bool(row.get("orchestrator_decision_id"))
+        strategy_reasons = _paper_lifecycle_or_no_trade_strategy_reasons(
+            signal={},
+            intent=row,
+        )
+        strategy_pass = not strategy_reasons
+        allocator_pass = _paper_canary_pre_tier_allocator_pass(row)
+        long_short_status = str(row.get("long_short_ratio_status") or "")
+        long_short_pass = (
+            long_short_status == "V2_LONG_SHORT_RATIO_ATTACHED"
+            or row.get("long_short_ratio") not in (None, "")
+        )
+        paper_only_safety = (
+            row.get("paper_only") is True
+            and row.get("routes_to_live") is not True
+            and row.get("places_real_order") is not True
+            and row.get("live_order") is not True
+            and row.get("test_order") is not True
+            and row.get("counts_as_a_grade_evidence") is not True
+            and row.get("paper_canary_adaptive_sizing_required") is True
+            and row.get("paper_canary_fixed_notional_allowed") is False
+            and row.get("paper_canary_live_routing_allowed") is False
+        )
+
+        predicate_counts["score_threshold_pass_rows"] += int(score_pass)
+        predicate_counts["expected_edge_after_cost_favorable_rows"] += int(edge_pass)
+        predicate_counts["production_grade_cost_rows"] += int(production_cost_pass)
+        predicate_counts["liquidity_pass_rows"] += int(liquidity_pass)
+        predicate_counts["integrity_pass_rows"] += int(integrity_pass)
+        predicate_counts["risk_gateway_decision_rows"] += int(risk_gateway_decision)
+        predicate_counts["risk_pass_rows"] += int(risk_pass)
+        predicate_counts["orchestrator_rows"] += int(orchestrator_pass)
+        predicate_counts["strategy_entry_evidence_rows"] += int(strategy_pass)
+        predicate_counts["allocator_pre_tier_size_rows"] += int(allocator_pass)
+        predicate_counts["long_short_point_in_time_rows"] += int(long_short_pass)
+        predicate_counts["paper_only_safety_rows"] += int(paper_only_safety)
+
+        if not score_pass:
+            root_causes["score_below_threshold"] += 1
+        if not edge_pass:
+            root_causes["expected_edge_below_cost"] += 1
+        if not production_cost_pass:
+            root_causes["production_grade_cost_missing"] += 1
+        if not liquidity_pass:
+            root_causes["liquidity_failed"] += 1
+        if not integrity_pass:
+            root_causes["integrity_failed"] += 1
+        if not risk_pass:
+            root_causes["risk_failed"] += 1
+        if not orchestrator_pass:
+            root_causes["orchestrator_failed"] += 1
+        if not strategy_pass:
+            root_causes["strategy_failed"] += 1
+        if not allocator_pass:
+            root_causes["allocator_failed"] += 1
+        drift_reasons = row.get("paper_signal_temporal_rejection_reasons") or []
+        if row.get("distribution_drift") or any("DRIFT" in str(reason).upper() for reason in drift_reasons):
+            root_causes["distribution_drift"] += 1
+        if long_short_status.startswith("REJECTED_LONG_SHORT"):
+            root_causes["point_in_time_long_short_unavailable"] += 1
+        if not paper_only_safety:
+            root_causes["unsafe_live_route_flags"] += 1
+
+        candidate_predicates_pass = all(
+            (
+                score_pass,
+                edge_pass,
+                production_cost_pass,
+                liquidity_pass,
+                integrity_pass,
+                risk_pass,
+                orchestrator_pass,
+                strategy_pass,
+                allocator_pass,
+                paper_only_safety,
+            )
+        )
+        if candidate_predicates_pass:
+            predicate_rows.append(row)
+        elif all(
+            (
+                score_pass,
+                edge_pass,
+                production_cost_pass,
+                liquidity_pass,
+                integrity_pass,
+                risk_pass,
+                orchestrator_pass,
+                allocator_pass,
+                paper_only_safety,
+            )
+        ) and not strategy_pass:
+            near_miss_strategy_rows.append(row)
+
+    return {
+        "schema_version": "paper_b_grade_canary_supply_status_v1",
+        "status": (
+            "B_GRADE_CANARY_PENDING_SUPPLY_PRESENT"
+            if canary_pending_rows
+            else "BLOCKED_ZERO_B_GRADE_CANARY_SUPPLY"
+        ),
+        "canary_id": CHALLENGER_B_GRADE_PAPER_CANARY,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_a_grade_evidence": False,
+        "adaptive_sizing_required": True,
+        "production_grade_cost_required": True,
+        "risk_gateway_required": True,
+        "orchestrator_required": True,
+        "market_integrity_required": True,
+        "liquidity_pass_required": True,
+        "rows": len(rows),
+        "canary_candidates": len(predicate_rows),
+        "canary_intents": len(canary_intent_rows),
+        "canary_pending_rows": len(canary_pending_rows),
+        "near_miss_strategy_blocked_rows": len(near_miss_strategy_rows),
+        "predicate_counts": predicate_counts,
+        "root_cause_counts": root_causes,
+        "dominant_runtime_reasons": _count_first_present_values(
+            rows,
+            (
+                "pre_non_executable_paper_tier_reason",
+                "paper_opportunity_tier_reason",
+                "paper_fill_block_reason",
+                "paper_allocation_block_reason",
+                "allocator_reason",
+            ),
+        ),
+        "pass_conditions": {
+            "canary_candidates_gt_zero": len(predicate_rows) > 0,
+            "canary_intents_gt_zero": len(canary_intent_rows) > 0,
+            "canary_pending_rows_gt_zero": len(canary_pending_rows) > 0,
+        },
+        "sample_canary_candidates": _compact_rows_for_state(
+            _sample_rows(predicate_rows, 10)
+        ),
+        "sample_canary_pending_rows": _compact_rows_for_state(
+            _sample_rows(canary_pending_rows, 10)
+        ),
+        "sample_near_miss_strategy_blocked_rows": _compact_rows_for_state(
+            _sample_rows(near_miss_strategy_rows, 10)
+        ),
+        "live_path_changed": False,
+        "generated_utc": _utc_iso(),
+    }
+
+
 def _normalized_directional_side(value: Any) -> str | None:
     side = str(value or "").strip().lower()
     if side in {"long", "buy", "open_long", "proceed_long"} or side.endswith("_long"):
@@ -10944,6 +11254,7 @@ def run_once() -> dict:
         shadow_rows=current_cycle_shadow_observations,
         held_rows=held_by_gate_intents,
     )
+    paper_b_grade_canary_supply_status = _paper_b_grade_canary_supply_status(intents)
     paper_owner_attribution_status = _paper_owner_attribution_status(
         accepted_for_ledger,
         current_accepted_rows=accepted,
@@ -11201,6 +11512,7 @@ def run_once() -> dict:
             "paper_drawdown_recovery_guard_status": paper_drawdown_recovery_guard_status,
             "paper_runtime_admission_status": paper_runtime_admission_status,
             "paper_exploration_tier_status": paper_exploration_tier_status,
+            "paper_b_grade_canary_supply_status": paper_b_grade_canary_supply_status,
             "paper_audit_entry_gate_status": paper_audit_entry_gate_status,
             "paper_adaptive_sizing_runtime_status": paper_adaptive_sizing_runtime_status,
             "risk_envelope_dynamic_budget_status": risk_envelope_dynamic_budget_status,
@@ -11293,6 +11605,7 @@ def run_once() -> dict:
                 "paper_drawdown_recovery_guard_status": paper_drawdown_recovery_guard_status,
                 "paper_runtime_admission_status": paper_runtime_admission_status,
                 "paper_exploration_tier_status": paper_exploration_tier_status,
+                "paper_b_grade_canary_supply_status": paper_b_grade_canary_supply_status,
                 "paper_owner_attribution_status": paper_owner_attribution_status,
                 "paper_b_grade_bucket_promotion_readiness_status": (
                     paper_b_grade_bucket_promotion_readiness_status
@@ -11317,6 +11630,13 @@ def run_once() -> dict:
             ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}paper:trade_management:status")
+        if _safe_write(
+            r,
+            f"{V2_REDIS_PREFIX}paper:b_grade_canary_supply_status",
+            json.dumps(paper_b_grade_canary_supply_status),
+            ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
+        ):
+            keys_written.append(f"{V2_REDIS_PREFIX}paper:b_grade_canary_supply_status")
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}paper:shadow_observations",
@@ -11401,6 +11721,7 @@ def run_once() -> dict:
         "paper_drawdown_recovery_guard_status": paper_drawdown_recovery_guard_status,
         "paper_runtime_admission_status": paper_runtime_admission_status,
         "paper_exploration_tier_status": paper_exploration_tier_status,
+        "paper_b_grade_canary_supply_status": paper_b_grade_canary_supply_status,
         "paper_owner_attribution_status": paper_owner_attribution_status,
         "paper_audit_entry_gate_status": paper_audit_entry_gate_status,
         "paper_adaptive_sizing_runtime_status": paper_adaptive_sizing_runtime_status,
@@ -11574,6 +11895,10 @@ def run_once() -> dict:
         write_payload(
             paper_exploration_tier_status,
             TRADE_MANAGEMENT_PUBLIC_DIR / "paper_exploration_tier_status.json",
+        )
+        write_payload(
+            paper_b_grade_canary_supply_status,
+            TRADE_MANAGEMENT_PUBLIC_DIR / "paper_b_grade_canary_supply_status.json",
         )
         write_payload(
             paper_owner_attribution_status,
