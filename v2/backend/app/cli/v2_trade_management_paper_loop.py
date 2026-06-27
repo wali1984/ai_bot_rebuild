@@ -1279,7 +1279,7 @@ def _read_v2_orderbook_microstructure(r, symbol: str) -> dict[str, Any]:
             "market_depth_usd": round(float(top_depth_usd), 8) if top_depth_usd is not None else None,
             "orderbook_depth_source": f"{key}:top5_notional_usd" if top_depth_usd is not None else None,
             "entry_spread_available_at": available_at,
-            "entry_spread_decision_time": _utc_iso(),
+            "entry_spread_captured_at": _utc_iso(),
         }
     return {}
 
@@ -1646,8 +1646,9 @@ def _attach_paper_execution_evidence(
     decision_time = None
     decision_dt = None
     for candidate_time in (
-        intent.get("entry_spread_decision_time"),
+        intent.get("entry_feature_decision_time"),
         intent.get("decision_time"),
+        intent.get("entry_spread_decision_time"),
         intent.get("generated_at"),
         intent.get("generated_utc"),
     ):
@@ -1987,6 +1988,15 @@ def _attach_runtime_cost_capture_contract(
     intent.setdefault("selector_policy_fingerprint", OUT_OF_SAMPLE_REVERIFY_SELECTOR_POLICY_FINGERPRINT)
     intent.setdefault("frozen_selector_fingerprint", OUT_OF_SAMPLE_REVERIFY_SELECTOR_POLICY_FINGERPRINT)
     intent["model_source"] = model_source
+    model_decision_time = _first_present(
+        intent.get("model_decision_time"),
+        intent.get("entry_feature_decision_time"),
+        intent.get("decision_time"),
+        prediction.get("decision_time"),
+        signal.get("decision_time"),
+    )
+    if model_decision_time is not None:
+        intent["model_decision_time"] = model_decision_time
     intent["snapshot_id"] = _first_present(
         intent.get("snapshot_id"),
         intent.get("entry_feature_snapshot_id"),
@@ -2123,12 +2133,23 @@ def _attach_runtime_cost_capture_contract(
         intent.setdefault("orderbook_depth_usd", market_depth)
         intent.setdefault("top_of_book_depth_usd", market_depth)
 
+    no_order_reason = _runtime_cost_capture_no_order_reason(intent)
+    if no_order_reason is not None and order_size is None:
+        order_size = 0.0
+        intent["order_size"] = 0.0
+        intent["order_size_usd"] = 0.0
+        intent.setdefault("gross_notional_usd", 0.0)
+
     depth_impact = _coerce_float(
         _first_present(
             intent.get("depth_derived_price_impact_bps"),
             intent.get("depth_price_impact_bps"),
         )
     )
+    if depth_impact is None and no_order_reason is not None:
+        depth_impact = 0.0
+        intent["depth_price_impact_source"] = "NO_ORDER_ZERO_SIZE_NO_MARKET_IMPACT"
+        intent["depth_price_impact_model"] = "EXPLICIT_ZERO_SIZE_NO_ORDER"
     if depth_impact is not None:
         intent["depth_derived_price_impact_bps"] = depth_impact
         intent["depth_price_impact_bps"] = depth_impact
@@ -2223,7 +2244,6 @@ def _attach_runtime_cost_capture_contract(
         market_microstructure.get("entry_spread_available_at"),
     )
     decision_timestamp = _first_present(
-        intent.get("entry_spread_decision_time"),
         intent.get("entry_feature_decision_time"),
         intent.get("decision_time"),
         intent.get("generated_at"),
@@ -2237,7 +2257,12 @@ def _attach_runtime_cost_capture_contract(
 
     temporal_reject_reasons: list[str] = []
     source_dt = _parse_strategy_time(source_timestamp)
-    decision_dt = _parse_strategy_time(decision_timestamp)
+    runtime_decision_timestamp = _first_present(
+        intent.get("paper_admission_decision_time"),
+        intent.get("runtime_cost_capture_decision_time"),
+        decision_timestamp,
+    )
+    decision_dt = _parse_strategy_time(runtime_decision_timestamp)
     if source_timestamp is not None and source_dt is None:
         temporal_reject_reasons.append("UNPARSEABLE_COST_SOURCE_TIMESTAMP")
     if source_dt is not None and decision_dt is not None:
@@ -2245,6 +2270,10 @@ def _attach_runtime_cost_capture_contract(
         intent["cost_evidence_freshness_ms"] = freshness_ms
         if freshness_ms < 0:
             temporal_reject_reasons.append("COST_SOURCE_TIMESTAMP_AFTER_DECISION_TIME")
+    if decision_timestamp is not None:
+        intent["model_decision_time"] = decision_timestamp
+    if runtime_decision_timestamp is not None:
+        intent["runtime_cost_capture_decision_time"] = runtime_decision_timestamp
 
     expected_slippage_bps = _coerce_float(intent.get("expected_slippage_bps"))
     estimated_cost_components = [
@@ -2307,6 +2336,8 @@ def _attach_runtime_cost_capture_contract(
             continue
         numeric = _coerce_float(value)
         if field in positive_fields:
+            if field == "order_size" and no_order_reason is not None and numeric == 0.0:
+                continue
             if numeric is None or numeric <= 0.0:
                 missing.append(field)
         elif field in {
@@ -2326,7 +2357,6 @@ def _attach_runtime_cost_capture_contract(
         elif value in (None, ""):
             missing.append(field)
 
-    no_order_reason = _runtime_cost_capture_no_order_reason(intent)
     explained_missing_fields: list[str] = []
     if no_order_reason is not None:
         explained_missing_fields = [
@@ -2347,7 +2377,7 @@ def _attach_runtime_cost_capture_contract(
             "expected_funding_bps_fallback",
         )
     )
-    fallback = bool(missing or temporal_reject_reasons or component_fallback)
+    fallback = bool(unexplained_missing_fields or temporal_reject_reasons or component_fallback)
     intent["runtime_cost_capture_required_fields"] = list(required_fields)
     intent["runtime_cost_capture_missing_fields"] = sorted(set(missing))
     intent["runtime_cost_capture_explained_missing_fields"] = sorted(set(explained_missing_fields))
@@ -2365,7 +2395,7 @@ def _attach_runtime_cost_capture_contract(
     intent["fallback"] = fallback
     intent["production_grade_cost_flag"] = not fallback
     intent["production_grade_cost_evidence"] = not fallback
-    intent["counts_as_production_grade_training_evidence"] = not fallback
+    intent["counts_as_production_grade_training_evidence"] = bool(not fallback and no_order_reason is None)
     intent["cost_evidence_source_fields"] = {
         "spread": intent.get("entry_spread_source"),
         "depth": intent.get("orderbook_depth_source"),
@@ -8313,10 +8343,16 @@ def _attach_counterfactual_market_cost_evidence(intent: dict[str, Any]) -> None:
     intent["market_cost_evidence_source_lineage"] = {
         "source": "paper_loop_decision_time_market_cost_capture",
         "decision_time": _first_present(
-            intent.get("entry_spread_decision_time"),
+            intent.get("paper_admission_decision_time"),
+            intent.get("runtime_cost_capture_decision_time"),
             intent.get("entry_feature_decision_time"),
             intent.get("decision_time"),
             intent.get("generated_utc"),
+        ),
+        "model_decision_time": _first_present(
+            intent.get("model_decision_time"),
+            intent.get("entry_feature_decision_time"),
+            intent.get("decision_time"),
         ),
         "signal_id": intent.get("signal_id"),
         "prediction_id": intent.get("prediction_id"),
@@ -8326,6 +8362,7 @@ def _attach_counterfactual_market_cost_evidence(intent: dict[str, Any]) -> None:
         "feature_generated_at": intent.get("entry_feature_generated_at"),
         "feature_cutoff": intent.get("entry_feature_cutoff"),
         "entry_spread_available_at": intent.get("entry_spread_available_at"),
+        "entry_spread_captured_at": intent.get("entry_spread_captured_at"),
         "entry_spread_source": intent.get("entry_spread_source"),
         "orderbook_depth_source": intent.get("orderbook_depth_source"),
         "fee_bps_source": intent.get("fee_bps_source"),
@@ -9383,7 +9420,25 @@ def _build_allocation_input(
         intent["bid_ask_spread_bps"] = spread
         intent["entry_spread_source"] = spread_source
         intent["entry_spread_available_at"] = market_microstructure.get("entry_spread_available_at")
-        intent["entry_spread_decision_time"] = market_microstructure.get("entry_spread_decision_time") or _utc_iso()
+        spread_captured_at = market_microstructure.get("entry_spread_captured_at") or _utc_iso()
+        intent["entry_spread_captured_at"] = spread_captured_at
+        model_decision_time = _first_present(
+            intent.get("entry_feature_decision_time"),
+            intent.get("decision_time"),
+            intent.get("generated_at"),
+            intent.get("generated_utc"),
+        )
+        if model_decision_time is not None:
+            intent["entry_spread_decision_time"] = model_decision_time
+            intent.setdefault("model_decision_time", model_decision_time)
+        paper_admission_decision_time = _first_present(
+            intent.get("paper_admission_decision_time"),
+            intent.get("runtime_cost_capture_decision_time"),
+            spread_captured_at,
+        )
+        if paper_admission_decision_time is not None:
+            intent["paper_admission_decision_time"] = paper_admission_decision_time
+            intent["runtime_cost_capture_decision_time"] = paper_admission_decision_time
         if market_microstructure.get("orderbook_imbalance") is not None:
             intent["orderbook_imbalance"] = market_microstructure.get("orderbook_imbalance")
         for depth_field in (

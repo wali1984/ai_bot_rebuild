@@ -1261,6 +1261,28 @@ def test_attach_paper_execution_evidence_uses_non_future_latency_source() -> Non
     assert intent["partial_fills"][0]["quantity"] == 3762.351700169794
 
 
+def test_attach_paper_execution_evidence_prefers_feature_decision_over_spread_capture() -> None:
+    intent = {
+        "symbol": "AGTUSDT",
+        "entry_price_provenance_present": True,
+        "entry_feature_decision_time": "2026-06-22T13:00:00.000Z",
+        "decision_time": "2026-06-22T13:00:00.000Z",
+        "entry_spread_decision_time": "2026-06-22T13:00:00.100Z",
+        "entry_spread_captured_at": "2026-06-22T13:00:00.100Z",
+        "generated_utc": "2026-06-22T13:00:00.200Z",
+        "fill_price_utc": "2026-06-22T13:00:00.250Z",
+        "fill_price": 0.020898,
+        "quantity": 3762.351700169794,
+        "notional_usdt": 78.62562583,
+        "actual_observed_spread_entry_bps": 6.22,
+    }
+
+    paper_loop._attach_paper_execution_evidence(intent, {})  # noqa: SLF001
+
+    assert intent["latency_ms"] == 250.0
+    assert intent["latency_source"] == "PAPER_DECISION_TO_FILL_RUNTIME_TIMESTAMPS"
+
+
 def test_attach_paper_execution_evidence_refreshes_partial_fill_after_size_change() -> None:
     intent = {
         "symbol": "DEXEUSDT",
@@ -1482,6 +1504,155 @@ def test_runtime_cost_capture_contract_marks_complete_production_grade_cost() ->
     assert rows[0]["routes_to_live"] is False
 
 
+def test_runtime_cost_capture_rejects_orderbook_timestamp_after_feature_decision() -> None:
+    intent = {
+        "symbol": "BANKUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "decision_time": "2026-06-22T13:00:00.000Z",
+        "entry_feature_decision_time": "2026-06-22T13:00:00.000Z",
+        "entry_spread_decision_time": "2026-06-22T13:05:00.000Z",
+        "entry_price_provenance_present": True,
+        "entry_price": 100.0,
+        "actual_observed_spread_entry_bps": 2.0,
+        "expected_slippage_bps": 0.8,
+        "expected_slippage_source": "MODELED_FROM_OBSERVED_ORDERBOOK",
+        "fee_bps": 4.0,
+        "fee_bps_source": "CONFIGURED_PAPER_FEE_SCHEDULE",
+        "expected_funding_bps": 0.5,
+        "expected_funding_bps_source": "V2_MARKET_FUNDING_PREMIUM_INDEX",
+        "funding_rate": 0.00005,
+        "fill_price": 100.0,
+        "fill_price_utc": "2026-06-22T13:05:00.250Z",
+        "quantity": 2.5,
+        "notional_usdt": 250.0,
+        "gross_notional_usd": 250.0,
+        "allocated_margin_usd": 125.0,
+        "recommended_leverage": 2.0,
+        "recommended_margin_mode": "isolated_paper_simulated",
+        "adaptive_allocation": {},
+    }
+    market_microstructure = {
+        "source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:v2:market:orderbook:BANKUSDT",
+        "entry_spread_available_at": "2026-06-22T13:00:05.000Z",
+        "entry_spread_captured_at": "2026-06-22T13:05:00.000Z",
+        "best_bid": 99.99,
+        "best_ask": 100.01,
+        "mid_price": 100.0,
+        "bid_depth_usd": 10000.0,
+        "ask_depth_usd": 12000.0,
+        "orderbook_depth_usd": 10000.0,
+        "market_depth_usd": 10000.0,
+        "ask_levels_top5": [
+            {"price": 100.01, "quantity": 10.0},
+        ],
+        "bid_levels_top5": [
+            {"price": 99.99, "quantity": 10.0},
+        ],
+    }
+    mark_index = {
+        "mark_price": 100.03,
+        "index_price": 100.0,
+        "mark_index_divergence_bps": 3.0,
+        "mark_index_source": "V2_MARKET_FUNDING_PREMIUM_INDEX:v2:market:funding:BANKUSDT",
+        "mark_index_available_at": "2026-06-22T12:59:59.000Z",
+    }
+
+    paper_loop._attach_depth_price_impact_evidence(intent, market_microstructure)  # noqa: SLF001
+    paper_loop._attach_paper_execution_evidence(intent, mark_index)  # noqa: SLF001
+    paper_loop._attach_runtime_cost_capture_contract(  # noqa: SLF001
+        intent,
+        market_microstructure,
+        signal={"policy_fingerprint": "policy-fp-1"},
+        prediction={"model_source": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA"},
+    )
+    reasons = paper_loop._paper_policy_owner_open_rejection_reasons(intent)  # noqa: SLF001
+
+    assert intent["cost_source_timestamp"] == "2026-06-22T13:00:05.000Z"
+    assert intent["runtime_cost_capture_decision_time"] == "2026-06-22T13:00:00.000Z"
+    assert intent["cost_evidence_freshness_ms"] == -5000.0
+    assert intent["runtime_cost_capture_temporal_reject_reasons"] == [
+        "COST_SOURCE_TIMESTAMP_AFTER_DECISION_TIME"
+    ]
+    assert intent["production_grade_cost_flag"] is False
+    assert intent["fallback_cost_flag"] is True
+    assert "temporal:COST_SOURCE_TIMESTAMP_AFTER_DECISION_TIME" in reasons
+    assert intent["paper_policy_owner_open_allowed"] is False
+
+
+def test_runtime_cost_capture_uses_explicit_paper_admission_decision_time() -> None:
+    intent = {
+        "symbol": "BANKUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "decision_time": "2026-06-22T13:00:00.000Z",
+        "entry_feature_decision_time": "2026-06-22T13:00:00.000Z",
+        "paper_admission_decision_time": "2026-06-22T13:05:00.000Z",
+        "entry_price_provenance_present": True,
+        "entry_price": 100.0,
+        "actual_observed_spread_entry_bps": 2.0,
+        "expected_slippage_bps": 0.8,
+        "expected_slippage_source": "MODELED_FROM_OBSERVED_ORDERBOOK",
+        "fee_bps": 4.0,
+        "fee_bps_source": "CONFIGURED_PAPER_FEE_SCHEDULE",
+        "expected_funding_bps": 0.5,
+        "expected_funding_bps_source": "V2_MARKET_FUNDING_PREMIUM_INDEX",
+        "funding_rate": 0.00005,
+        "fill_price": 100.0,
+        "fill_price_utc": "2026-06-22T13:05:00.250Z",
+        "quantity": 2.5,
+        "notional_usdt": 250.0,
+        "gross_notional_usd": 250.0,
+        "allocated_margin_usd": 125.0,
+        "recommended_leverage": 2.0,
+        "recommended_margin_mode": "isolated_paper_simulated",
+        "adaptive_allocation": {},
+    }
+    market_microstructure = {
+        "source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:v2:market:orderbook:BANKUSDT",
+        "entry_spread_available_at": "2026-06-22T13:00:05.000Z",
+        "entry_spread_captured_at": "2026-06-22T13:05:00.000Z",
+        "best_bid": 99.99,
+        "best_ask": 100.01,
+        "mid_price": 100.0,
+        "bid_depth_usd": 10000.0,
+        "ask_depth_usd": 12000.0,
+        "orderbook_depth_usd": 10000.0,
+        "market_depth_usd": 10000.0,
+        "ask_levels_top5": [
+            {"price": 100.01, "quantity": 10.0},
+        ],
+        "bid_levels_top5": [
+            {"price": 99.99, "quantity": 10.0},
+        ],
+    }
+    mark_index = {
+        "mark_price": 100.03,
+        "index_price": 100.0,
+        "mark_index_divergence_bps": 3.0,
+        "mark_index_source": "V2_MARKET_FUNDING_PREMIUM_INDEX:v2:market:funding:BANKUSDT",
+        "mark_index_available_at": "2026-06-22T12:59:59.000Z",
+    }
+
+    paper_loop._attach_depth_price_impact_evidence(intent, market_microstructure)  # noqa: SLF001
+    paper_loop._attach_paper_execution_evidence(intent, mark_index)  # noqa: SLF001
+    paper_loop._attach_runtime_cost_capture_contract(  # noqa: SLF001
+        intent,
+        market_microstructure,
+        signal={"policy_fingerprint": "policy-fp-1"},
+        prediction={"model_source": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA"},
+    )
+
+    assert intent["model_decision_time"] == "2026-06-22T13:00:00.000Z"
+    assert intent["runtime_cost_capture_decision_time"] == "2026-06-22T13:05:00.000Z"
+    assert intent["cost_source_timestamp"] == "2026-06-22T13:00:05.000Z"
+    assert intent["cost_evidence_freshness_ms"] == 295000.0
+    assert intent["runtime_cost_capture_temporal_reject_reasons"] == []
+    assert intent["production_grade_cost_flag"] is True
+    assert intent["fallback_cost_flag"] is False
+    assert paper_loop._paper_policy_owner_open_rejection_reasons(intent) == []  # noqa: SLF001
+
+
 def test_runtime_cost_capture_prefers_final_paper_notional_for_order_size() -> None:
     intent = {
         "symbol": "BANKUSDT",
@@ -1534,7 +1705,7 @@ def test_runtime_cost_capture_contract_fallback_rows_do_not_pass_challenger_owne
     assert intent["paper_policy_owner_open_allowed"] is False
 
 
-def test_runtime_cost_capture_explains_zero_size_no_trade_rows_without_production_credit() -> None:
+def test_runtime_cost_capture_marks_zero_size_no_trade_rows_complete_without_training_credit() -> None:
     intent = {
         "symbol": "BANKUSDT",
         "timeframe": "15m",
@@ -1576,15 +1747,16 @@ def test_runtime_cost_capture_explains_zero_size_no_trade_rows_without_productio
         market_microstructure,
     )
 
-    assert intent["production_grade_cost_flag"] is False
-    assert intent["fallback_cost_flag"] is True
+    assert intent["production_grade_cost_flag"] is True
+    assert intent["fallback_cost_flag"] is False
+    assert intent["counts_as_production_grade_training_evidence"] is False
     assert intent["runtime_cost_capture_order_cost_applicable"] is False
     assert intent["runtime_cost_capture_no_order_reason"] == "NO_TRADE_ZERO_SIZE_PAPER_INTENT"
-    assert intent["runtime_cost_capture_explained_missing_fields"] == [
-        "depth_derived_price_impact_bps",
-        "order_size",
-    ]
+    assert intent["runtime_cost_capture_missing_fields"] == []
+    assert intent["runtime_cost_capture_explained_missing_fields"] == []
     assert intent["runtime_cost_capture_unexplained_missing_fields"] == []
+    assert intent["depth_derived_price_impact_bps"] == 0.0
+    assert intent["depth_price_impact_source"] == "NO_ORDER_ZERO_SIZE_NO_MARKET_IMPACT"
     assert intent["paper_canary_fixed_notional_allowed"] is False
     assert intent["routes_to_live"] is False
     assert intent["places_real_order"] is False
