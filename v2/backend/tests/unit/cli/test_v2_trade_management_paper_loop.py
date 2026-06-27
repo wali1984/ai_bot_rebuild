@@ -2477,6 +2477,48 @@ def _forward_canary_closed_row(symbol: str, side: str, **overrides) -> dict:
     return row
 
 
+def test_closed_outcome_entry_context_backfill_restores_cost_lineage(monkeypatch) -> None:
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-27T23:40:00Z")
+    accepted = _forward_canary_closed_row(
+        "ARXUSDT",
+        "short",
+        signal_id="sig-1",
+        prediction_id="pred-1",
+    )
+    closed = _forward_canary_closed_row(
+        "ARXUSDT",
+        "short",
+        entry_signal_id="sig-1",
+        entry_prediction_id="pred-1",
+        production_grade_cost_flag=None,
+        production_grade_cost_evidence=None,
+        runtime_cost_capture_status=None,
+    )
+
+    context = paper_loop._entry_feedback_context_by_fill_id([accepted])  # noqa: SLF001
+    repaired, status = paper_loop._paper_backfill_closed_outcome_entry_context_rows(  # noqa: SLF001
+        [closed],
+        entry_context_by_fill_id=context,
+        row_kind="closed_trades",
+    )
+    forward = paper_loop._paper_forward_canary_evidence_status(  # noqa: SLF001
+        closed_rows=repaired,
+        accepted_rows=[accepted],
+    )
+
+    assert repaired[0]["production_grade_cost_flag"] is True
+    assert repaired[0]["runtime_cost_capture_status"] == "PRODUCTION_GRADE_COST_CAPTURE"
+    assert repaired[0]["closed_outcome_entry_context_backfilled"] is True
+    assert status["production_grade_cost_repaired_rows"] == 1
+    assert status["matched_entry_context_rows"] == 1
+    assert status["unmatched_b_grade_challenger_missing_cost_rows"] == 0
+    assert status["paper_only"] is True
+    assert status["routes_to_live"] is False
+    assert status["places_real_order"] is False
+    assert forward["valid_forward_canary_economic_outcomes"] == 1
+    assert forward["production_grade_cost_coverage"] == 1.0
+
+
 def test_forward_canary_evidence_status_reports_incomplete_runtime_evidence(monkeypatch) -> None:
     monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-27T23:20:00Z")
     valid = _forward_canary_closed_row("ARXUSDT", "short")

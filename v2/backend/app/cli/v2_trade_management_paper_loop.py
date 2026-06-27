@@ -556,6 +556,7 @@ _FEEDBACK_ENTRY_CONTEXT_FIELDS: tuple[str, ...] = (
     "original_fill_utc",
     "fill_price_utc",
     "lineage_backfilled_from_prediction_id",
+    *RUNTIME_COST_CAPTURE_CONTRACT_FIELDS,
     *AUDIT_QUALITY_FEEDBACK_FIELDS,
 )
 
@@ -7568,6 +7569,73 @@ def _paper_forward_canary_compact_sample(rows: list[dict[str, Any]]) -> list[dic
     return compacted
 
 
+def _paper_backfill_closed_outcome_entry_context_rows(
+    rows: list[dict[str, Any]],
+    *,
+    entry_context_by_fill_id: dict[str, dict[str, Any]],
+    row_kind: str,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    repaired_rows: list[dict[str, Any]] = []
+    sample_repaired: list[dict[str, Any]] = []
+    matched_entry_context_rows = 0
+    production_grade_cost_repaired_rows = 0
+    policy_identity_repaired_rows = 0
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        before_cost = _paper_forward_canary_production_cost_pass(row)
+        before_identity = _paper_forward_canary_challenger_owned(row)
+        source_context = _source_entry_context_for_close(
+            close_event=row,
+            entry_context_by_fill_id=entry_context_by_fill_id,
+        )
+        if source_context:
+            matched_entry_context_rows += 1
+            enriched = _with_feedback_context_fallback(row, source_context)
+            after_cost = _paper_forward_canary_production_cost_pass(enriched)
+            after_identity = _paper_forward_canary_challenger_owned(enriched)
+            if after_cost and not before_cost:
+                production_grade_cost_repaired_rows += 1
+            if after_identity and not before_identity:
+                policy_identity_repaired_rows += 1
+            if (after_cost and not before_cost) or (after_identity and not before_identity):
+                enriched["closed_outcome_entry_context_backfilled"] = True
+                enriched["closed_outcome_entry_context_backfill_source"] = (
+                    "accepted_fill_entry_context"
+                )
+                if len(sample_repaired) < 10:
+                    sample_repaired.append(enriched)
+            repaired_rows.append(enriched)
+        else:
+            repaired_rows.append(dict(row))
+
+    unmatched_b_grade_challenger_rows = sum(
+        1
+        for row in repaired_rows
+        if row.get("paper_opportunity_tier") == PAPER_TIER_B_GRADE_EXPLORATION
+        and _paper_forward_canary_challenger_owned(row)
+        and not row.get("closed_outcome_entry_context_backfilled")
+        and not _paper_forward_canary_production_cost_pass(row)
+    )
+    status = {
+        "schema_version": "paper_closed_outcome_entry_context_backfill_status_v1",
+        "row_kind": row_kind,
+        "source_rows": len(rows),
+        "entry_context_index_rows": len(entry_context_by_fill_id),
+        "matched_entry_context_rows": matched_entry_context_rows,
+        "production_grade_cost_repaired_rows": production_grade_cost_repaired_rows,
+        "policy_identity_repaired_rows": policy_identity_repaired_rows,
+        "unmatched_b_grade_challenger_missing_cost_rows": unmatched_b_grade_challenger_rows,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "live_path_changed": False,
+        "sample_repaired_rows": _paper_forward_canary_compact_sample(sample_repaired),
+        "generated_utc": _utc_iso(),
+    }
+    return repaired_rows, status
+
+
 def _paper_forward_canary_evidence_status(
     *,
     closed_rows: list[dict[str, Any]],
@@ -11669,6 +11737,21 @@ def run_once() -> dict:
     closes: list[dict] = _deduped
     open_positions: list[dict] = list(lifecycle_result["open_positions"])
     outcome_labels: list[dict] = list(lifecycle_result["outcome_labels"])
+    entry_context_by_fill_id = _entry_feedback_context_by_fill_id(accepted_for_ledger)
+    closes, paper_closed_outcome_entry_context_backfill_status = (
+        _paper_backfill_closed_outcome_entry_context_rows(
+            closes,
+            entry_context_by_fill_id=entry_context_by_fill_id,
+            row_kind="closed_trades",
+        )
+    )
+    outcome_labels, paper_outcome_label_entry_context_backfill_status = (
+        _paper_backfill_closed_outcome_entry_context_rows(
+            outcome_labels,
+            entry_context_by_fill_id=entry_context_by_fill_id,
+            row_kind="outcome_labels",
+        )
+    )
     feedback_lineage_contexts = _lineage_context_by_prediction_id(
         closes,
         outcome_labels,
@@ -11819,6 +11902,12 @@ def run_once() -> dict:
                 paper_b_grade_bucket_promotion_readiness_status
             ),
             "paper_forward_canary_evidence_status": paper_forward_canary_evidence_status,
+            "paper_closed_outcome_entry_context_backfill_status": (
+                paper_closed_outcome_entry_context_backfill_status
+            ),
+            "paper_outcome_label_entry_context_backfill_status": (
+                paper_outcome_label_entry_context_backfill_status
+            ),
             "open_positions": open_positions,
             "positions_by_symbol": lifecycle_result["positions_by_symbol"],
             "close_event_count": len(closes),
@@ -11935,6 +12024,12 @@ def run_once() -> dict:
                 "paper_exploration_tier_status": paper_exploration_tier_status,
                 "paper_b_grade_canary_supply_status": paper_b_grade_canary_supply_status,
                 "paper_forward_canary_evidence_status": paper_forward_canary_evidence_status,
+                "paper_closed_outcome_entry_context_backfill_status": (
+                    paper_closed_outcome_entry_context_backfill_status
+                ),
+                "paper_outcome_label_entry_context_backfill_status": (
+                    paper_outcome_label_entry_context_backfill_status
+                ),
                 "paper_owner_attribution_status": paper_owner_attribution_status,
                 "paper_b_grade_bucket_promotion_readiness_status": (
                     paper_b_grade_bucket_promotion_readiness_status
@@ -12059,6 +12154,12 @@ def run_once() -> dict:
         "paper_exploration_tier_status": paper_exploration_tier_status,
         "paper_b_grade_canary_supply_status": paper_b_grade_canary_supply_status,
         "paper_forward_canary_evidence_status": paper_forward_canary_evidence_status,
+        "paper_closed_outcome_entry_context_backfill_status": (
+            paper_closed_outcome_entry_context_backfill_status
+        ),
+        "paper_outcome_label_entry_context_backfill_status": (
+            paper_outcome_label_entry_context_backfill_status
+        ),
         "paper_owner_attribution_status": paper_owner_attribution_status,
         "paper_audit_entry_gate_status": paper_audit_entry_gate_status,
         "paper_adaptive_sizing_runtime_status": paper_adaptive_sizing_runtime_status,
@@ -12173,6 +12274,12 @@ def run_once() -> dict:
                 "trainer_feedback_row_count": len(trainer_feedback_consumable_rows),
                 "trainer_feedback_quarantined_row_count": len(trainer_feedback_quarantine_rows),
                 "paper_owner_attribution_status": paper_owner_attribution_status,
+                "paper_closed_outcome_entry_context_backfill_status": (
+                    paper_closed_outcome_entry_context_backfill_status
+                ),
+                "paper_outcome_label_entry_context_backfill_status": (
+                    paper_outcome_label_entry_context_backfill_status
+                ),
                 "generated_utc": _utc_iso(),
                 "paper_only": True,
                 "places_real_order": False,
@@ -12240,6 +12347,14 @@ def run_once() -> dict:
         write_payload(
             paper_forward_canary_evidence_status,
             TRADE_MANAGEMENT_PUBLIC_DIR / "paper_forward_canary_evidence_status.json",
+        )
+        write_payload(
+            paper_closed_outcome_entry_context_backfill_status,
+            TRADE_MANAGEMENT_PUBLIC_DIR / "paper_closed_outcome_entry_context_backfill_status.json",
+        )
+        write_payload(
+            paper_outcome_label_entry_context_backfill_status,
+            TRADE_MANAGEMENT_PUBLIC_DIR / "paper_outcome_label_entry_context_backfill_status.json",
         )
         write_payload(
             paper_owner_attribution_status,
