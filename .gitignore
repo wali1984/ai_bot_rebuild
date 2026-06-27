@@ -195,6 +195,7 @@ v2/frontend/public/v2_report_center/
 # Workers write JSON/MD/screenshots here on every run — never source
 claude_worklog/final_readiness/*/latest/
 claude_worklog/final_readiness/**/latest/
+claude_worklog/final_readiness/**/codex_audits/
 
 # Final readiness state/ directories — replay/lease state, not source
 claude_worklog/final_readiness/*/state/
