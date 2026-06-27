@@ -1,18 +1,28 @@
 {
-  "task_id": "codex_audit_paper_shadow_6h_24h_truth",
   "agent": "codex",
-  "risk_level": "L1",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "lane": "non_drift_codex_audit",
-  "priority": 9799,
-  "emit_files": true,
   "allowed_output_prefixes": [
     "claude_worklog/final_readiness/go_live_tonight_primary_focus/codex_audits/codex_audit_paper_shadow_6h_24h_truth/"
   ],
+  "completed_at": "2026-06-27T22:38:31.980464+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "description": "Non-live Codex audit lane for codex_audit_paper_shadow_6h_24h_truth.",
+  "emit_files": true,
+  "lane": "non_drift_codex_audit",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "priority": 9799,
+  "prompt": "Run non-live Codex audit codex_audit_paper_shadow_6h_24h_truth. Work only in AI BOT REBUILD. Read legacy evidence read-only. Do not mutate legacy, write old Redis, touch exchange state, change leverage or margin, create a live approval token, or enable live. Fail on overstated live readiness, fake paper proof, or UI work superseding primary go-live blockers. Emit exactly two BEGIN_FILE blocks under claude_worklog/final_readiness/go_live_tonight_primary_focus/codex_audits/codex_audit_paper_shadow_6h_24h_truth/.",
+  "reconciled_from_source_truth_at": "2026-06-27T22:39:05Z",
   "required_output_files": [
     "claude_worklog/final_readiness/go_live_tonight_primary_focus/codex_audits/codex_audit_paper_shadow_6h_24h_truth/codex_audit_paper_shadow_6h_24h_truth_REPORT.md",
     "claude_worklog/final_readiness/go_live_tonight_primary_focus/codex_audits/codex_audit_paper_shadow_6h_24h_truth/codex_audit_paper_shadow_6h_24h_truth_GO_NO_GO.md"
   ],
-  "description": "Non-live Codex audit lane for codex_audit_paper_shadow_6h_24h_truth.",
-  "prompt": "Run non-live Codex audit codex_audit_paper_shadow_6h_24h_truth. Work only in AI BOT REBUILD. Read legacy evidence read-only. Do not mutate legacy, write old Redis, touch exchange state, change leverage or margin, create a live approval token, or enable live. Fail on overstated live readiness, fake paper proof, or UI work superseding primary go-live blockers. Emit exactly two BEGIN_FILE blocks under claude_worklog/final_readiness/go_live_tonight_primary_focus/codex_audits/codex_audit_paper_shadow_6h_24h_truth/."
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-06-27T22:38:31.980464+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/codex_audit_paper_shadow_6h_24h_truth.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "codex_audit_paper_shadow_6h_24h_truth",
+  "updated_at": "2026-06-27T22:39:05Z"
 }
