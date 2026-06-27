@@ -9510,7 +9510,61 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
             risk_hb_raw = client.get("v2:risk:gateway:heartbeat")
             risk_hb: dict[str, Any] = json.loads(risk_hb_raw) if risk_hb_raw else {}
 
+            b_grade_canary_supply_key = "v2:paper:b_grade_canary_supply_status"
+            try:
+                b_grade_canary_supply_raw = client.get(b_grade_canary_supply_key)
+            except Exception:
+                b_grade_canary_supply_raw = None
+            b_grade_canary_supply_status = _json_object_from_redis_raw(b_grade_canary_supply_raw)
+            if b_grade_canary_supply_status:
+                b_grade_canary_supply_status = dict(b_grade_canary_supply_status)
+                b_grade_canary_supply_status.setdefault("source", f"redis:{b_grade_canary_supply_key}")
+                b_grade_canary_supply_status.setdefault("available", True)
+            else:
+                b_grade_canary_supply_status = {
+                    "schema_version": "paper_b_grade_canary_supply_status_v1",
+                    "status": "B_GRADE_CANARY_SUPPLY_STATUS_UNAVAILABLE",
+                    "source": f"redis:{b_grade_canary_supply_key}",
+                    "available": False,
+                    "paper_only": True,
+                    "routes_to_live": False,
+                    "places_real_order": False,
+                    "counts_as_a_grade_evidence": False,
+                    "canary_candidates": 0,
+                    "canary_intents": 0,
+                    "canary_pending_rows": 0,
+                    "root_cause_counts": {},
+                    "generated_at": now,
+                }
+            b_grade_canary_status = str(b_grade_canary_supply_status.get("status") or "")
+
             runtime_state = "PAPER_RUNTIME_ONLINE_ACTIVE" if heartbeat_fresh else "PAPER_RUNTIME_HEARTBEAT_STALE"
+            blockers = [
+                {
+                    "id": "LIVE_GATE_BLOCKED_HUMAN_ONLY",
+                    "severity": "expected_safety_gate",
+                    "detail": "Live order routing remains blocked_human_only.",
+                },
+            ]
+            if b_grade_canary_status == "BLOCKED_ZERO_B_GRADE_CANARY_SUPPLY":
+                blockers.append(
+                    {
+                        "id": "B_GRADE_CANARY_SUPPLY_ZERO",
+                        "severity": "runtime_blocker",
+                        "detail": "Active paper runtime reports zero B-grade canary candidate, intent, and pending rows.",
+                        "source": f"redis:{b_grade_canary_supply_key}",
+                        "root_cause_counts": b_grade_canary_supply_status.get("root_cause_counts") or {},
+                    }
+                )
+            elif b_grade_canary_status == "B_GRADE_CANARY_SUPPLY_STATUS_UNAVAILABLE":
+                blockers.append(
+                    {
+                        "id": "B_GRADE_CANARY_SUPPLY_STATUS_UNAVAILABLE",
+                        "severity": "missing_runtime_contract",
+                        "detail": "Active paper runtime has not published the B-grade canary supply contract.",
+                        "source": f"redis:{b_grade_canary_supply_key}",
+                    }
+                )
 
             lineage_ids: dict[str, Any] = {}
             if latest_signal:
@@ -9596,6 +9650,7 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                     "paper_fill_allowed_rows": paper_fill_allowed_rows,
                     "routes_to_live_rows": routes_to_live_rows,
                     "places_real_order_rows": places_real_order_rows,
+                    "b_grade_canary_supply_status": b_grade_canary_supply_status,
                 },
                 "paper_account": {
                     "currency": "USDT",
@@ -9648,13 +9703,7 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                     "legacy_redis_writes_enabled": False,
                     "live_gate_status": "blocked_human_only",
                 },
-                "blockers": [
-                    {
-                        "id": "LIVE_GATE_BLOCKED_HUMAN_ONLY",
-                        "severity": "expected_safety_gate",
-                        "detail": "Live order routing remains blocked_human_only.",
-                    },
-                ],
+                "blockers": blockers,
                 "freshness": {
                     "status": "REALTIME_RUNTIME_EVIDENCE" if heartbeat_fresh else "STALE_HEARTBEAT",
                     "generated_at": now,

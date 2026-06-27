@@ -566,6 +566,30 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
                 "places_real_order": False,
             },
         ],
+        "v2:paper:b_grade_canary_supply_status": {
+            "schema_version": "paper_b_grade_canary_supply_status_v1",
+            "status": "BLOCKED_ZERO_B_GRADE_CANARY_SUPPLY",
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "counts_as_a_grade_evidence": False,
+            "canary_candidates": 0,
+            "canary_intents": 0,
+            "canary_pending_rows": 0,
+            "predicate_counts": {
+                "production_grade_cost_rows": 3,
+                "risk_gateway_decision_rows": 3,
+                "risk_pass_rows": 0,
+                "orchestrator_rows": 3,
+                "strategy_entry_evidence_rows": 0,
+                "paper_only_safety_rows": 3,
+            },
+            "root_cause_counts": {
+                "risk_failed": 3,
+                "strategy_failed": 3,
+                "unsafe_live_route_flags": 0,
+            },
+        },
         "v2:signals:latest:BTCUSDT:1m": {
             "signal_id": "sig-test",
             "prediction_id": "pred-test",
@@ -599,6 +623,20 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
     assert loop["paper_fill_allowed_rows"] == 1
     assert loop["routes_to_live_rows"] == 0
     assert loop["places_real_order_rows"] == 0
+    canary_supply = loop["b_grade_canary_supply_status"]
+    assert canary_supply["source"] == "redis:v2:paper:b_grade_canary_supply_status"
+    assert canary_supply["available"] is True
+    assert canary_supply["status"] == "BLOCKED_ZERO_B_GRADE_CANARY_SUPPLY"
+    assert canary_supply["canary_candidates"] == 0
+    assert canary_supply["canary_intents"] == 0
+    assert canary_supply["canary_pending_rows"] == 0
+    assert canary_supply["routes_to_live"] is False
+    assert canary_supply["places_real_order"] is False
+    assert canary_supply["counts_as_a_grade_evidence"] is False
+    assert canary_supply["predicate_counts"]["production_grade_cost_rows"] == 3
+    assert canary_supply["predicate_counts"]["risk_pass_rows"] == 0
+    assert canary_supply["root_cause_counts"]["risk_failed"] == 3
+    assert any(blocker["id"] == "B_GRADE_CANARY_SUPPLY_ZERO" for blocker in payload["blockers"])
 
 
 @pytest.mark.asyncio
