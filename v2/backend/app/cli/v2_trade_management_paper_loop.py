@@ -304,6 +304,8 @@ B_GRADE_BUCKET_PROMOTION_MIN_WIN_RATE = 0.90
 B_GRADE_BUCKET_PROMOTION_MIN_WIN_RATE_LCB = 0.90
 B_GRADE_BUCKET_PROMOTION_MIN_EXPECTANCY_LCB_BPS = 0.0
 B_GRADE_BUCKET_PROMOTION_MIN_PROFIT_FACTOR = 2.0
+FORWARD_CANARY_REQUIRED_ECONOMIC_OUTCOMES = 100
+FORWARD_CANARY_REQUIRED_SYMBOLS = 20
 PAPER_ONLY_LABEL_COLLECTION_PRIORITY_FIELDS = (
     "paper_only_label_collection_priority",
     "paper_only_label_collection_priority_reason",
@@ -7385,6 +7387,327 @@ def _paper_b_grade_canary_supply_status(rows: list[dict[str, Any]]) -> dict[str,
     }
 
 
+def _paper_forward_canary_production_cost_pass(row: dict[str, Any]) -> bool:
+    return (
+        row.get("production_grade_cost_flag") is True
+        or row.get("production_grade_cost_evidence") is True
+        or row.get("runtime_cost_capture_status") == "PRODUCTION_GRADE_COST_CAPTURE"
+    )
+
+
+def _paper_forward_canary_challenger_owned(row: dict[str, Any]) -> bool:
+    return (
+        row.get("paper_policy_owner") == PAPER_POLICY_OWNER_CHALLENGER_V2
+        or row.get("candidate_id") == CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID
+        or row.get("policy_id") == CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID
+        or row.get("policy_fingerprint") == CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT
+    )
+
+
+def _paper_forward_canary_has_realized_outcome(row: dict[str, Any]) -> bool:
+    return (
+        _coerce_float(
+            _first_present(
+                row.get("realized_net_pnl_bps"),
+                row.get("realized_pnl_bps"),
+                row.get("paper_exit_pnl_bps"),
+            )
+        )
+        is not None
+        or _coerce_float(
+            _first_present(
+                row.get("realized_net_pnl_usd"),
+                row.get("realized_pnl_usd"),
+                row.get("realized_pnl_usdt"),
+            )
+        )
+        is not None
+    )
+
+
+def _paper_forward_canary_live_route_unsafe(row: dict[str, Any]) -> bool:
+    return any(
+        row.get(field) is True
+        for field in (
+            "routes_to_live",
+            "places_real_order",
+            "live_order",
+            "test_order",
+            "leverage_mutation",
+            "margin_mode_mutation",
+        )
+    )
+
+
+def _paper_forward_canary_liquidation_reasons(row: dict[str, Any]) -> list[str]:
+    reasons: list[str] = []
+    if any(
+        row.get(field) is True
+        for field in (
+            "liquidation",
+            "liquidated",
+            "liquidation_event",
+            "paper_liquidation_event",
+        )
+    ):
+        reasons.append("LIQUIDATION_FLAG_TRUE")
+    close_reason = str(_first_present(row.get("close_reason"), row.get("exit_reason"), "")).upper()
+    if "LIQUIDATION" in close_reason:
+        reasons.append("LIQUIDATION_CLOSE_REASON")
+    return reasons
+
+
+def _paper_forward_canary_accounting_reasons(row: dict[str, Any]) -> list[str]:
+    reasons: list[str] = []
+    if any(
+        row.get(field) is True
+        for field in (
+            "accounting_mismatch",
+            "paper_accounting_mismatch",
+            "pnl_accounting_mismatch",
+            "cost_accounting_mismatch",
+            "position_accounting_mismatch",
+        )
+    ):
+        reasons.append("ACCOUNTING_MISMATCH_FLAG_TRUE")
+    for field in (
+        "accounting_status",
+        "pnl_accounting_status",
+        "funding_pnl_accounting_status",
+        "pnl_reconciliation_status",
+    ):
+        value = str(row.get(field) or "").upper()
+        if "MISMATCH" in value or value.startswith("INVALID"):
+            reasons.append(f"{field.upper()}_{value}")
+    return reasons
+
+
+def _paper_forward_canary_point_in_time_reasons(row: dict[str, Any]) -> list[str]:
+    reasons: list[str] = []
+    decision_raw = _first_present(row.get("decision_time"), row.get("entry_feature_decision_time"))
+    decision_time = _parse_strategy_time(decision_raw)
+    if decision_time is None:
+        reasons.append("MISSING_DECISION_TIME")
+    available_raw = _first_present(row.get("available_at"), row.get("entry_feature_available_at"))
+    available_at = _parse_strategy_time(available_raw)
+    if available_at is None:
+        reasons.append("MISSING_AVAILABLE_AT")
+    elif decision_time is not None and available_at > decision_time:
+        reasons.append("AVAILABLE_AT_AFTER_DECISION_TIME")
+    feature_cutoff_raw = _first_present(row.get("feature_cutoff"), row.get("entry_feature_cutoff"))
+    feature_cutoff = _parse_strategy_time(feature_cutoff_raw)
+    if feature_cutoff is None:
+        reasons.append("MISSING_FEATURE_CUTOFF")
+    elif decision_time is not None and feature_cutoff > decision_time:
+        reasons.append("FEATURE_CUTOFF_AFTER_DECISION_TIME")
+    if row.get("future_labels_used_as_features") is True:
+        reasons.append("FUTURE_LABELS_USED_AS_FEATURES")
+    return reasons
+
+
+def _paper_forward_canary_row_rejection_reasons(row: dict[str, Any]) -> list[str]:
+    reasons: list[str] = []
+    if row.get("paper_opportunity_tier") != PAPER_TIER_B_GRADE_EXPLORATION:
+        reasons.append("NOT_B_GRADE_EXPLORATION_PAPER")
+    if not _paper_forward_canary_challenger_owned(row):
+        reasons.append("NOT_CHALLENGER_V2_POLICY")
+    if row.get("paper_only") is not True:
+        reasons.append("NOT_PAPER_ONLY")
+    if _paper_forward_canary_live_route_unsafe(row):
+        reasons.append("UNSAFE_LIVE_ROUTE_FLAG")
+    if not _paper_forward_canary_has_realized_outcome(row):
+        reasons.append("MISSING_REALIZED_ECONOMIC_OUTCOME")
+    side = _normalized_directional_side(_first_present(row.get("side"), row.get("action")))
+    if side not in {"long", "short"}:
+        reasons.append("MISSING_OR_INVALID_SIDE")
+    if not _paper_forward_canary_production_cost_pass(row):
+        reasons.append("MISSING_PRODUCTION_GRADE_COST_EVIDENCE_ON_CLOSED_OUTCOME")
+    reasons.extend(_paper_forward_canary_point_in_time_reasons(row))
+    reasons.extend(_paper_forward_canary_accounting_reasons(row))
+    reasons.extend(_paper_forward_canary_liquidation_reasons(row))
+    return reasons
+
+
+FORWARD_CANARY_SAMPLE_FIELDS = (
+    "symbol",
+    "timeframe",
+    "side",
+    "paper_opportunity_tier",
+    "paper_policy_owner",
+    "candidate_id",
+    "policy_fingerprint",
+    "paper_only",
+    "routes_to_live",
+    "places_real_order",
+    "counts_as_a_grade_evidence",
+    "production_grade_cost_flag",
+    "production_grade_cost_evidence",
+    "runtime_cost_capture_status",
+    "realized_pnl_bps",
+    "realized_pnl_usd",
+    "realized_pnl_usdt",
+    "decision_time",
+    "feature_cutoff",
+    "available_at",
+    "close_reason",
+    "trainer_feedback_id",
+    "forward_canary_rejection_reasons",
+)
+
+
+def _paper_forward_canary_compact_sample(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    compacted: list[dict[str, Any]] = []
+    for row in rows:
+        compacted.append(
+            {
+                field: row.get(field)
+                for field in FORWARD_CANARY_SAMPLE_FIELDS
+                if row.get(field) not in (None, "", [], {})
+            }
+        )
+    return compacted
+
+
+def _paper_forward_canary_evidence_status(
+    *,
+    closed_rows: list[dict[str, Any]],
+    accepted_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Summarize Phase 11 forward canary evidence from actual paper lifecycle rows."""
+    source_closed_rows = [row for row in closed_rows if isinstance(row, dict)]
+    source_accepted_rows = [row for row in accepted_rows if isinstance(row, dict)]
+    b_grade_closed_rows = [
+        row
+        for row in source_closed_rows
+        if row.get("paper_opportunity_tier") == PAPER_TIER_B_GRADE_EXPLORATION
+        and _paper_forward_canary_challenger_owned(row)
+    ]
+    accepted_b_grade_rows = [
+        row
+        for row in source_accepted_rows
+        if row.get("paper_opportunity_tier") == PAPER_TIER_B_GRADE_EXPLORATION
+        and _paper_forward_canary_challenger_owned(row)
+    ]
+    production_cost_rows = [
+        row for row in b_grade_closed_rows if _paper_forward_canary_production_cost_pass(row)
+    ]
+    rows_rejected_by_reason: dict[str, int] = {}
+    valid_rows: list[dict[str, Any]] = []
+    rejected_rows: list[dict[str, Any]] = []
+    for row in b_grade_closed_rows:
+        reasons = _paper_forward_canary_row_rejection_reasons(row)
+        if reasons:
+            rejected = dict(row)
+            rejected["forward_canary_rejection_reasons"] = reasons
+            rejected_rows.append(rejected)
+            for reason in reasons:
+                rows_rejected_by_reason[reason] = rows_rejected_by_reason.get(reason, 0) + 1
+        else:
+            valid_rows.append(row)
+
+    valid_symbols = sorted({str(row.get("symbol") or "").upper() for row in valid_rows if row.get("symbol")})
+    source_symbols = sorted({str(row.get("symbol") or "").upper() for row in b_grade_closed_rows if row.get("symbol")})
+    valid_side_counts = {
+        "long": sum(
+            1
+            for row in valid_rows
+            if _normalized_directional_side(_first_present(row.get("side"), row.get("action"))) == "long"
+        ),
+        "short": sum(
+            1
+            for row in valid_rows
+            if _normalized_directional_side(_first_present(row.get("side"), row.get("action"))) == "short"
+        ),
+    }
+    source_side_counts = {
+        "long": sum(
+            1
+            for row in b_grade_closed_rows
+            if _normalized_directional_side(_first_present(row.get("side"), row.get("action"))) == "long"
+        ),
+        "short": sum(
+            1
+            for row in b_grade_closed_rows
+            if _normalized_directional_side(_first_present(row.get("side"), row.get("action"))) == "short"
+        ),
+    }
+    production_cost_coverage = (
+        len(production_cost_rows) / len(b_grade_closed_rows)
+        if b_grade_closed_rows
+        else 0.0
+    )
+    accounting_mismatch_rows = sum(
+        1 for row in b_grade_closed_rows if _paper_forward_canary_accounting_reasons(row)
+    )
+    liquidation_rows = sum(
+        1 for row in b_grade_closed_rows if _paper_forward_canary_liquidation_reasons(row)
+    )
+    point_in_time_invalid_rows = sum(
+        1 for row in b_grade_closed_rows if _paper_forward_canary_point_in_time_reasons(row)
+    )
+    unsafe_live_route_rows = sum(
+        1 for row in b_grade_closed_rows if _paper_forward_canary_live_route_unsafe(row)
+    )
+    accepted_production_cost_rows = sum(
+        1 for row in accepted_b_grade_rows if _paper_forward_canary_production_cost_pass(row)
+    )
+    pass_conditions = {
+        "valid_forward_canary_outcomes_gte_100": (
+            len(valid_rows) >= FORWARD_CANARY_REQUIRED_ECONOMIC_OUTCOMES
+        ),
+        "valid_symbol_count_gte_20": len(valid_symbols) >= FORWARD_CANARY_REQUIRED_SYMBOLS,
+        "long_outcomes_gt_zero": valid_side_counts["long"] > 0,
+        "short_outcomes_gt_zero": valid_side_counts["short"] > 0,
+        "production_grade_cost_coverage_gte_95pct": production_cost_coverage >= 0.95,
+        "no_accounting_mismatch": accounting_mismatch_rows == 0,
+        "no_liquidation": liquidation_rows == 0,
+        "no_point_in_time_violation": point_in_time_invalid_rows == 0,
+        "no_live_route_flags": unsafe_live_route_rows == 0,
+    }
+    if all(pass_conditions.values()):
+        status = "FORWARD_CANARY_EVIDENCE_REQUIREMENTS_MET"
+    elif valid_rows:
+        status = "BLOCKED_FORWARD_CANARY_EVIDENCE_INCOMPLETE"
+    else:
+        status = "BLOCKED_NO_VALID_FORWARD_CANARY_OUTCOMES"
+    return {
+        "schema_version": "paper_forward_canary_evidence_status_v1",
+        "status": status,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_a_grade_evidence": False,
+        "live_path_changed": False,
+        "required_forward_canary_economic_outcomes": FORWARD_CANARY_REQUIRED_ECONOMIC_OUTCOMES,
+        "required_initial_symbols": FORWARD_CANARY_REQUIRED_SYMBOLS,
+        "source_closed_trade_rows": len(source_closed_rows),
+        "source_accepted_rows": len(source_accepted_rows),
+        "b_grade_challenger_closed_outcome_rows": len(b_grade_closed_rows),
+        "valid_forward_canary_economic_outcomes": len(valid_rows),
+        "production_grade_cost_closed_outcome_rows": len(production_cost_rows),
+        "production_grade_cost_coverage": production_cost_coverage,
+        "accepted_b_grade_canary_rows": len(accepted_b_grade_rows),
+        "accepted_b_grade_production_grade_cost_rows": accepted_production_cost_rows,
+        "valid_symbol_count": len(valid_symbols),
+        "source_symbol_count": len(source_symbols),
+        "valid_side_counts": valid_side_counts,
+        "source_side_counts": source_side_counts,
+        "accounting_mismatch_rows": accounting_mismatch_rows,
+        "liquidation_rows": liquidation_rows,
+        "point_in_time_invalid_rows": point_in_time_invalid_rows,
+        "unsafe_live_route_rows": unsafe_live_route_rows,
+        "rows_rejected_by_reason": rows_rejected_by_reason,
+        "pass_conditions": pass_conditions,
+        "sample_valid_forward_canary_outcomes": _paper_forward_canary_compact_sample(
+            _sample_rows(valid_rows, 10)
+        ),
+        "sample_rejected_forward_canary_outcomes": _paper_forward_canary_compact_sample(
+            _sample_rows(rejected_rows, 10)
+        ),
+        "generated_utc": _utc_iso(),
+    }
+
+
 def _normalized_directional_side(value: Any) -> str | None:
     side = str(value or "").strip().lower()
     if side in {"long", "buy", "open_long", "proceed_long"} or side.endswith("_long"):
@@ -11385,6 +11708,10 @@ def run_once() -> dict:
             paper_b_grade_model_quality_status
         )
     )
+    paper_forward_canary_evidence_status = _paper_forward_canary_evidence_status(
+        closed_rows=closes,
+        accepted_rows=accepted_for_ledger,
+    )
     paper_closed_trade_outcome_label_status = dict(
         lifecycle_result["paper_closed_trade_outcome_label_status"]
     )
@@ -11491,6 +11818,7 @@ def run_once() -> dict:
             "paper_b_grade_bucket_promotion_readiness_status": (
                 paper_b_grade_bucket_promotion_readiness_status
             ),
+            "paper_forward_canary_evidence_status": paper_forward_canary_evidence_status,
             "open_positions": open_positions,
             "positions_by_symbol": lifecycle_result["positions_by_symbol"],
             "close_event_count": len(closes),
@@ -11606,6 +11934,7 @@ def run_once() -> dict:
                 "paper_runtime_admission_status": paper_runtime_admission_status,
                 "paper_exploration_tier_status": paper_exploration_tier_status,
                 "paper_b_grade_canary_supply_status": paper_b_grade_canary_supply_status,
+                "paper_forward_canary_evidence_status": paper_forward_canary_evidence_status,
                 "paper_owner_attribution_status": paper_owner_attribution_status,
                 "paper_b_grade_bucket_promotion_readiness_status": (
                     paper_b_grade_bucket_promotion_readiness_status
@@ -11637,6 +11966,13 @@ def run_once() -> dict:
             ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}paper:b_grade_canary_supply_status")
+        if _safe_write(
+            r,
+            f"{V2_REDIS_PREFIX}paper:forward_canary_evidence_status",
+            json.dumps(paper_forward_canary_evidence_status),
+            ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
+        ):
+            keys_written.append(f"{V2_REDIS_PREFIX}paper:forward_canary_evidence_status")
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}paper:shadow_observations",
@@ -11722,6 +12058,7 @@ def run_once() -> dict:
         "paper_runtime_admission_status": paper_runtime_admission_status,
         "paper_exploration_tier_status": paper_exploration_tier_status,
         "paper_b_grade_canary_supply_status": paper_b_grade_canary_supply_status,
+        "paper_forward_canary_evidence_status": paper_forward_canary_evidence_status,
         "paper_owner_attribution_status": paper_owner_attribution_status,
         "paper_audit_entry_gate_status": paper_audit_entry_gate_status,
         "paper_adaptive_sizing_runtime_status": paper_adaptive_sizing_runtime_status,
@@ -11899,6 +12236,10 @@ def run_once() -> dict:
         write_payload(
             paper_b_grade_canary_supply_status,
             TRADE_MANAGEMENT_PUBLIC_DIR / "paper_b_grade_canary_supply_status.json",
+        )
+        write_payload(
+            paper_forward_canary_evidence_status,
+            TRADE_MANAGEMENT_PUBLIC_DIR / "paper_forward_canary_evidence_status.json",
         )
         write_payload(
             paper_owner_attribution_status,

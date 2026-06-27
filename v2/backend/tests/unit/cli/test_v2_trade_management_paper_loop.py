@@ -2449,6 +2449,105 @@ def test_b_grade_canary_supply_status_treats_short_negative_edge_as_favorable() 
     assert status["root_cause_counts"]["expected_edge_below_cost"] == 0
 
 
+def _forward_canary_closed_row(symbol: str, side: str, **overrides) -> dict:
+    row = {
+        "symbol": symbol,
+        "timeframe": "15m",
+        "side": side,
+        "paper_opportunity_tier": "B_GRADE_EXPLORATION_PAPER",
+        "paper_policy_owner": "challenger_v2",
+        "candidate_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
+        "policy_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
+        "policy_fingerprint": (
+            "83d35e31eea385da1a283b8efab3102ac292be2904724d11777f2b7a32e68630"
+        ),
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_a_grade_evidence": False,
+        "production_grade_cost_flag": True,
+        "production_grade_cost_evidence": True,
+        "runtime_cost_capture_status": "PRODUCTION_GRADE_COST_CAPTURE",
+        "realized_pnl_bps": 12.5,
+        "decision_time": "2026-06-27T17:10:09.000Z",
+        "feature_cutoff": "2026-06-27T17:04:59.999Z",
+        "available_at": "2026-06-27T17:05:31.000Z",
+    }
+    row.update(overrides)
+    return row
+
+
+def test_forward_canary_evidence_status_reports_incomplete_runtime_evidence(monkeypatch) -> None:
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-27T23:20:00Z")
+    valid = _forward_canary_closed_row("ARXUSDT", "short")
+    missing_cost = _forward_canary_closed_row(
+        "BNBUSDT",
+        "long",
+        production_grade_cost_flag=None,
+        production_grade_cost_evidence=None,
+        runtime_cost_capture_status=None,
+    )
+    live_unsafe = _forward_canary_closed_row("ETHUSDT", "short", places_real_order=True)
+
+    status = paper_loop._paper_forward_canary_evidence_status(  # noqa: SLF001
+        closed_rows=[valid, missing_cost, live_unsafe],
+        accepted_rows=[
+            _forward_canary_closed_row("ARXUSDT", "short"),
+            _forward_canary_closed_row("BNBUSDT", "long"),
+        ],
+    )
+
+    assert status["status"] == "BLOCKED_FORWARD_CANARY_EVIDENCE_INCOMPLETE"
+    assert status["source_closed_trade_rows"] == 3
+    assert status["b_grade_challenger_closed_outcome_rows"] == 3
+    assert status["valid_forward_canary_economic_outcomes"] == 1
+    assert status["production_grade_cost_closed_outcome_rows"] == 2
+    assert status["production_grade_cost_coverage"] == pytest.approx(2 / 3)
+    assert status["accepted_b_grade_canary_rows"] == 2
+    assert status["accepted_b_grade_production_grade_cost_rows"] == 2
+    assert status["valid_side_counts"] == {"long": 0, "short": 1}
+    assert status["source_side_counts"] == {"long": 1, "short": 2}
+    assert status["unsafe_live_route_rows"] == 1
+    assert status["rows_rejected_by_reason"] == {
+        "MISSING_PRODUCTION_GRADE_COST_EVIDENCE_ON_CLOSED_OUTCOME": 1,
+        "UNSAFE_LIVE_ROUTE_FLAG": 1,
+    }
+    assert status["pass_conditions"]["valid_forward_canary_outcomes_gte_100"] is False
+    assert status["pass_conditions"]["production_grade_cost_coverage_gte_95pct"] is False
+    assert status["routes_to_live"] is False
+    assert status["places_real_order"] is False
+    assert status["counts_as_a_grade_evidence"] is False
+
+
+def test_forward_canary_evidence_status_passes_only_complete_paper_canary_set(monkeypatch) -> None:
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-27T23:21:00Z")
+    rows = [
+        _forward_canary_closed_row(
+            f"SYM{idx % 20:02d}USDT",
+            "long" if idx % 2 == 0 else "short",
+            realized_pnl_bps=float(idx % 7) - 2.0,
+        )
+        for idx in range(100)
+    ]
+
+    status = paper_loop._paper_forward_canary_evidence_status(  # noqa: SLF001
+        closed_rows=rows,
+        accepted_rows=rows,
+    )
+
+    assert status["status"] == "FORWARD_CANARY_EVIDENCE_REQUIREMENTS_MET"
+    assert status["valid_forward_canary_economic_outcomes"] == 100
+    assert status["valid_symbol_count"] == 20
+    assert status["valid_side_counts"] == {"long": 50, "short": 50}
+    assert status["production_grade_cost_coverage"] == 1.0
+    assert status["accounting_mismatch_rows"] == 0
+    assert status["liquidation_rows"] == 0
+    assert status["point_in_time_invalid_rows"] == 0
+    assert all(status["pass_conditions"].values())
+    assert status["paper_only"] is True
+    assert status["live_path_changed"] is False
+
+
 def test_confidence_trial_positive_edge_becomes_b_grade_paper_only_exploration() -> None:
     signal = {
         "paper_confidence_threshold_trial": True,
