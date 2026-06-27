@@ -2449,6 +2449,97 @@ def test_b_grade_canary_supply_status_treats_short_negative_edge_as_favorable() 
     assert status["root_cause_counts"]["expected_edge_below_cost"] == 0
 
 
+def test_b_grade_canary_supply_status_counts_lifecycle_supply_when_current_cycle_blocked(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-27T23:55:00Z")
+    current_blocked = {
+        "symbol": "AGTUSDT",
+        "timeframe": "4h",
+        "side": "short",
+        "strategy_id": "no_trade_mode",
+        "confidence_calibrated": 0.66,
+        "expected_move_after_cost_bps": -40.0,
+        "production_grade_cost_flag": True,
+        "valid_for_paper": True,
+        "risk_decision_id": "rd-current",
+        "orchestrator_decision_id": "dec-current",
+        "gross_notional_usd": 100.0,
+        "risk_budget_usd": 1.0,
+        "paper_opportunity_tier": "NO_TRADE",
+        "paper_opportunity_tier_reason": "LIFECYCLE_OR_NO_TRADE_STRATEGY_NOT_ENTRY_EVIDENCE",
+        "paper_fill_allowed": False,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "live_order": False,
+        "test_order": False,
+        "counts_as_a_grade_evidence": False,
+    }
+    accepted = {
+        "symbol": "AGTUSDT",
+        "timeframe": "4h",
+        "side": "short",
+        "strategy_id": "trend_mode",
+        "confidence_calibrated": 0.66,
+        "expected_move_after_cost_bps": -40.0,
+        "production_grade_cost_flag": True,
+        "runtime_cost_capture_status": "PRODUCTION_GRADE_COST_CAPTURE",
+        "valid_for_paper": True,
+        "risk_decision_id": "rd-accepted",
+        "orchestrator_decision_id": "dec-accepted",
+        "gross_notional_usd": 100.0,
+        "risk_budget_usd": 1.0,
+        "paper_opportunity_tier": "B_GRADE_EXPLORATION_PAPER",
+        "paper_policy_owner": "challenger_v2",
+        "candidate_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
+        "paper_fill_allowed": True,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "live_order": False,
+        "test_order": False,
+        "counts_as_a_grade_evidence": False,
+        "paper_canary_adaptive_sizing_required": True,
+        "paper_canary_fixed_notional_allowed": False,
+        "paper_canary_live_routing_allowed": False,
+    }
+    open_position = {
+        **accepted,
+        "position_id": "paper_pos_AGTUSDT",
+        "adaptive_capital_policy_version": "ADAPTIVE_CAPITAL_ALLOCATOR_V1",
+        "paper_canary_adaptive_sizing_required": None,
+        "paper_canary_fixed_notional_allowed": None,
+        "paper_canary_live_routing_allowed": None,
+    }
+
+    status = paper_loop._paper_b_grade_canary_supply_status(  # noqa: SLF001
+        [current_blocked],
+        accepted_rows=[accepted],
+        open_position_rows=[open_position],
+    )
+
+    assert status["status"] == "B_GRADE_CANARY_LIFECYCLE_SUPPLY_PRESENT_CURRENT_CYCLE_BLOCKED"
+    assert status["canary_candidates"] == 1
+    assert status["canary_intents"] == 1
+    assert status["canary_pending_rows"] == 1
+    assert status["current_cycle_canary_candidates"] == 0
+    assert status["current_cycle_canary_intents"] == 0
+    assert status["current_cycle_canary_pending_rows"] == 0
+    assert status["lifecycle_accepted_canary_rows"] == 1
+    assert status["lifecycle_open_canary_rows"] == 1
+    assert status["pass_conditions"] == {
+        "canary_candidates_gt_zero": True,
+        "canary_intents_gt_zero": True,
+        "canary_pending_rows_gt_zero": True,
+    }
+    assert status["current_cycle_pass_conditions"]["canary_pending_rows_gt_zero"] is False
+    assert status["root_cause_counts"]["strategy_failed"] == 1
+    assert status["routes_to_live"] is False
+    assert status["places_real_order"] is False
+    assert status["counts_as_a_grade_evidence"] is False
+
+
 def _forward_canary_closed_row(symbol: str, side: str, **overrides) -> dict:
     row = {
         "symbol": symbol,

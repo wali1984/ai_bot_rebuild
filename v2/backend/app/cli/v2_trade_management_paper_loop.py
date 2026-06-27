@@ -7185,8 +7185,51 @@ def _paper_canary_pre_tier_allocator_pass(row: dict[str, Any]) -> bool:
     )
 
 
-def _paper_b_grade_canary_supply_status(rows: list[dict[str, Any]]) -> dict[str, Any]:
+def _paper_canary_adaptive_sizing_pass(row: dict[str, Any]) -> bool:
+    if row.get("paper_canary_fixed_notional_allowed") is True:
+        return False
+    if row.get("paper_canary_live_routing_allowed") is True:
+        return False
+    allocation = row.get("adaptive_allocation")
+    adaptive_policy = str(row.get("adaptive_capital_policy_version") or "")
+    has_adaptive_allocator_evidence = (
+        adaptive_policy.startswith("ADAPTIVE_CAPITAL_ALLOCATOR")
+        or isinstance(allocation, dict)
+        or row.get("paper_canary_adaptive_sizing_required") is True
+    )
+    return has_adaptive_allocator_evidence and _paper_canary_pre_tier_allocator_pass(row)
+
+
+def _paper_b_grade_lifecycle_canary_row(row: dict[str, Any]) -> bool:
+    return (
+        row.get("paper_opportunity_tier") == PAPER_TIER_B_GRADE_EXPLORATION
+        and _paper_forward_canary_challenger_owned(row)
+        and row.get("paper_fill_allowed") is True
+        and row.get("paper_only") is True
+        and not _paper_forward_canary_live_route_unsafe(row)
+        and row.get("counts_as_a_grade_evidence") is not True
+        and _paper_forward_canary_production_cost_pass(row)
+        and _paper_canary_score(row) is not None
+        and _paper_canary_edge_favorable(row)
+        and _paper_canary_liquidity_pass(row)
+        and _paper_canary_integrity_pass(row)
+        and _paper_canary_risk_pass(row)
+        and bool(row.get("orchestrator_decision_id"))
+        and _paper_canary_adaptive_sizing_pass(row)
+    )
+
+
+def _paper_b_grade_canary_supply_status(
+    rows: list[dict[str, Any]],
+    *,
+    accepted_rows: list[dict[str, Any]] | None = None,
+    open_position_rows: list[dict[str, Any]] | None = None,
+    closed_rows: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Summarize current paper-only B-grade canary supply without admitting fills."""
+    accepted_rows = list(accepted_rows or [])
+    open_position_rows = list(open_position_rows or [])
+    closed_rows = list(closed_rows or [])
     canary_intent_rows = [
         row
         for row in rows
@@ -7334,13 +7377,31 @@ def _paper_b_grade_canary_supply_status(rows: list[dict[str, Any]]) -> dict[str,
         ) and not strategy_pass:
             near_miss_strategy_rows.append(row)
 
+    lifecycle_accepted_rows = [
+        row for row in accepted_rows if _paper_b_grade_lifecycle_canary_row(row)
+    ]
+    lifecycle_open_rows = [
+        row for row in open_position_rows if _paper_b_grade_lifecycle_canary_row(row)
+    ]
+    lifecycle_closed_outcome_rows = [
+        row
+        for row in closed_rows
+        if row.get("paper_opportunity_tier") == PAPER_TIER_B_GRADE_EXPLORATION
+        and not _paper_forward_canary_row_rejection_reasons(row)
+    ]
+    combined_canary_candidates = len(predicate_rows) or len(lifecycle_accepted_rows)
+    combined_canary_intents = len(canary_intent_rows) or len(lifecycle_accepted_rows)
+    combined_canary_pending_rows = len(canary_pending_rows) or len(lifecycle_open_rows)
+    if canary_pending_rows:
+        status = "B_GRADE_CANARY_PENDING_SUPPLY_PRESENT"
+    elif lifecycle_open_rows:
+        status = "B_GRADE_CANARY_LIFECYCLE_SUPPLY_PRESENT_CURRENT_CYCLE_BLOCKED"
+    else:
+        status = "BLOCKED_ZERO_B_GRADE_CANARY_SUPPLY"
+
     return {
         "schema_version": "paper_b_grade_canary_supply_status_v1",
-        "status": (
-            "B_GRADE_CANARY_PENDING_SUPPLY_PRESENT"
-            if canary_pending_rows
-            else "BLOCKED_ZERO_B_GRADE_CANARY_SUPPLY"
-        ),
+        "status": status,
         "canary_id": CHALLENGER_B_GRADE_PAPER_CANARY,
         "paper_only": True,
         "routes_to_live": False,
@@ -7353,9 +7414,15 @@ def _paper_b_grade_canary_supply_status(rows: list[dict[str, Any]]) -> dict[str,
         "market_integrity_required": True,
         "liquidity_pass_required": True,
         "rows": len(rows),
-        "canary_candidates": len(predicate_rows),
-        "canary_intents": len(canary_intent_rows),
-        "canary_pending_rows": len(canary_pending_rows),
+        "canary_candidates": combined_canary_candidates,
+        "canary_intents": combined_canary_intents,
+        "canary_pending_rows": combined_canary_pending_rows,
+        "current_cycle_canary_candidates": len(predicate_rows),
+        "current_cycle_canary_intents": len(canary_intent_rows),
+        "current_cycle_canary_pending_rows": len(canary_pending_rows),
+        "lifecycle_accepted_canary_rows": len(lifecycle_accepted_rows),
+        "lifecycle_open_canary_rows": len(lifecycle_open_rows),
+        "lifecycle_closed_canary_outcome_rows": len(lifecycle_closed_outcome_rows),
         "near_miss_strategy_blocked_rows": len(near_miss_strategy_rows),
         "predicate_counts": predicate_counts,
         "root_cause_counts": root_causes,
@@ -7370,15 +7437,23 @@ def _paper_b_grade_canary_supply_status(rows: list[dict[str, Any]]) -> dict[str,
             ),
         ),
         "pass_conditions": {
+            "canary_candidates_gt_zero": combined_canary_candidates > 0,
+            "canary_intents_gt_zero": combined_canary_intents > 0,
+            "canary_pending_rows_gt_zero": combined_canary_pending_rows > 0,
+        },
+        "current_cycle_pass_conditions": {
             "canary_candidates_gt_zero": len(predicate_rows) > 0,
             "canary_intents_gt_zero": len(canary_intent_rows) > 0,
             "canary_pending_rows_gt_zero": len(canary_pending_rows) > 0,
         },
         "sample_canary_candidates": _compact_rows_for_state(
-            _sample_rows(predicate_rows, 10)
+            _sample_rows(predicate_rows or lifecycle_accepted_rows, 10)
         ),
         "sample_canary_pending_rows": _compact_rows_for_state(
-            _sample_rows(canary_pending_rows, 10)
+            _sample_rows(canary_pending_rows or lifecycle_open_rows, 10)
+        ),
+        "sample_lifecycle_closed_canary_outcomes": _paper_forward_canary_compact_sample(
+            _sample_rows(lifecycle_closed_outcome_rows, 10)
         ),
         "sample_near_miss_strategy_blocked_rows": _compact_rows_for_state(
             _sample_rows(near_miss_strategy_rows, 10)
@@ -11645,7 +11720,6 @@ def run_once() -> dict:
         shadow_rows=current_cycle_shadow_observations,
         held_rows=held_by_gate_intents,
     )
-    paper_b_grade_canary_supply_status = _paper_b_grade_canary_supply_status(intents)
     paper_owner_attribution_status = _paper_owner_attribution_status(
         accepted_for_ledger,
         current_accepted_rows=accepted,
@@ -11751,6 +11825,12 @@ def run_once() -> dict:
             entry_context_by_fill_id=entry_context_by_fill_id,
             row_kind="outcome_labels",
         )
+    )
+    paper_b_grade_canary_supply_status = _paper_b_grade_canary_supply_status(
+        intents,
+        accepted_rows=accepted_for_ledger,
+        open_position_rows=open_positions,
+        closed_rows=closes,
     )
     feedback_lineage_contexts = _lineage_context_by_prediction_id(
         closes,
