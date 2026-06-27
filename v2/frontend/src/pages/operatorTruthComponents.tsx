@@ -130,7 +130,7 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
           label="Supervisor heartbeat"
           value={supervisorState}
           detail={`${plannerState}; ${governorState}; active workers ${supervisor.supervisor_processes.length}; snapshot ${supervisor.canonical_snapshot_fresh ? 'fresh' : 'status-file based'}`}
-          source={payload.canonical_truth_bridge ? 'PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE' : 'RUNTIME_MONITOR_PAYLOAD'}
+          source={payload.canonical_truth_bridge ? 'V2_TRADE_MANAGEMENT_PAPER_CANONICAL_TRUTH_BRIDGE' : 'RUNTIME_MONITOR_PAYLOAD'}
         />
         <TruthStateCard
           label="Current task"
@@ -291,7 +291,7 @@ export function LiveObserverShadowTwinPanel({ payload }: { payload: OperatorTrut
 }
 
 export function PaperOnlineRuntimeStatusPanel({ payload }: { payload: PaperOnlineRuntimePayload | null }): JSX.Element {
-  const state = payload?.runtime_state ?? 'PAPER_ONLINE_RUNTIME_MISSING';
+  const state = payload?.runtime_state ?? 'V2_TRADE_MANAGEMENT_PAPER_RUNTIME_MISSING';
   const market = payload?.market_feed;
   const lineage = payload?.current_signal_lineage as Record<string, unknown> | undefined;
   const lineageIds = lineage?.lineage_ids as Record<string, unknown> | undefined;
@@ -500,7 +500,7 @@ export function RouteTruthSummary({ payload, title }: { payload: OperatorTruthPa
         <h2>Current evidence state</h2>
       </div>
       <div className="route-truth-summary__grid">
-        <TruthStateCard label="System status" value={controlPlaneValue(payload)} detail="Dashboard must disclose missing system-status daemons and stale historical status files separately." source={payload.canonical_truth_bridge ? 'PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE' : 'RUNTIME_MONITOR_PAYLOAD'} />
+        <TruthStateCard label="System status" value={controlPlaneValue(payload)} detail="Dashboard must disclose missing system-status daemons and stale historical status files separately." source={payload.canonical_truth_bridge ? 'V2_TRADE_MANAGEMENT_PAPER_CANONICAL_TRUTH_BRIDGE' : 'RUNTIME_MONITOR_PAYLOAD'} />
         <TruthStateCard label="Trainer" value={payload.trainer_monitor_status.status} detail="No prediction can be explained unless runtime evidence exists." source="REALTIME_RUNTIME_EVIDENCE" />
         <TruthStateCard label="Signal lineage" value={payload.signal_lineage_status.status} detail="Static proof lineage is not current runtime truth." source={payload.signal_lineage_status.status} />
         <TruthStateCard label="Payloads" value={`${payload.dashboard_freshness_status.stale_payload_count} stale`} detail={`${payload.dashboard_freshness_status.static_fixture_count} static fixtures; ${payload.dashboard_freshness_status.missing_evidence_count} missing.`} source="PUBLIC_PAYLOAD_AUDIT" />

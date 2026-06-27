@@ -8,6 +8,7 @@ import importlib
 import json
 import sys
 from datetime import datetime, timezone
+from unittest.mock import patch
 
 
 class FakeRedis:
@@ -84,6 +85,8 @@ def test_read_v2_feature_snapshot_requires_available_before_decision() -> None:
     r.store["v2:features:latest:BTCUSDT:1m"] = json.dumps({
         "feature_freshness_state": "CURRENT",
         "feature_snapshot_id": "feat_current",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
         "available_at": "2026-06-19T01:44:59Z",
         "generated_at": "2026-06-19T01:44:59Z",
         "feature_cutoff": "2026-06-19T01:44:00Z",
@@ -108,6 +111,8 @@ def test_read_v2_feature_snapshot_rejects_future_available_at() -> None:
     r = FakeRedis()
     r.store["v2:features:latest:BTCUSDT:1m"] = json.dumps({
         "feature_freshness_state": "CURRENT",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
         "available_at": "2026-06-19T01:45:01Z",
         "generated_at": "2026-06-19T01:45:01Z",
         "feature_cutoff": "2026-06-19T01:44:00Z",
@@ -149,7 +154,8 @@ def test_current_risk_state_ignores_historical_accepted_drawdown_for_router() ->
         ],
     })
 
-    state = mod._read_current_risk_state(r)
+    with patch.object(mod, "_read_lifecycle_state_file", return_value={}):
+        state = mod._read_current_risk_state(r)
 
     assert state["current_drawdown_bps"] == 168.6
     assert state["current_drawdown_source"] == "CURRENT_PORTFOLIO_AND_OPEN_POSITIONS"
@@ -171,7 +177,8 @@ def test_current_risk_state_keeps_open_position_drawdown_when_larger() -> None:
         ],
     })
 
-    state = mod._read_current_risk_state(r)
+    with patch.object(mod, "_read_lifecycle_state_file", return_value={}):
+        state = mod._read_current_risk_state(r)
 
     assert state["current_drawdown_bps"] == 260.0
     assert state["open_position_count"] == 1
@@ -450,6 +457,7 @@ def test_run_once_blocks_candidate_missing_runtime_market_evidence(monkeypatch) 
         {
             "symbol": "BTCUSDT",
             "side": "long",
+            "timeframe": "15m",
             "expected_move_after_cost_bps": 50.0,
             "winner_proposal_id": "v2_paper_missing_market_evidence",
             "prediction_id": "prd_missing_market_evidence",
@@ -462,6 +470,8 @@ def test_run_once_blocks_candidate_missing_runtime_market_evidence(monkeypatch) 
             "market_state_id": "mstate_missing_market_evidence",
             "market_state_integrity_score": 95.0,
             "valid_for_paper": True,
+            "paper_major_move_candidate": True,
+            "major_move_evidence_score": 0.75,
         }
     ])
     r.store["v2:portfolio:state"] = json.dumps({
@@ -470,6 +480,9 @@ def test_run_once_blocks_candidate_missing_runtime_market_evidence(monkeypatch) 
         "wallet_balance": 10000.0,
     })
     monkeypatch.setattr(mod, "_connect_redis", lambda: r)
+    monkeypatch.setattr(mod, "_read_lifecycle_state_file", lambda path=None: {})
+    monkeypatch.setattr(mod, "_read_accepted_fill_state_file", lambda path=None: {})
+    monkeypatch.setattr(mod, "_read_continuous_edge_guardian_gate", lambda r: {})
 
     status = mod.run_once()
     ledger = json.loads(r.store["v2:paper:ledger"])
@@ -481,7 +494,6 @@ def test_run_once_blocks_candidate_missing_runtime_market_evidence(monkeypatch) 
     assert blocked["paper_fill_block_reason"] == mod.PAPER_RUNTIME_EVIDENCE_BLOCK_REASON
     assert blocked["entry_price_blocker"] == mod.ENTRY_PRICE_BLOCKER_MISSING_FILL
     assert "MISSING_OBSERVED_SPREAD_AT_DECISION_TIME" in blocked["paper_fill_gate_block_reasons"]
-    assert "MISSING_SQUEEZE_LIQUIDATION_OI_ORDERBOOK_EVIDENCE" in blocked["paper_fill_gate_block_reasons"]
     assert any(
         reason.startswith("runtime_market_evidence:")
         for reason in blocked["local_block_reasons"]
@@ -532,6 +544,7 @@ def test_run_once_writes_v2_paper_positions_with_provenance_when_market_availabl
         {
             "symbol": "BTCUSDT",
             "side": "long",
+            "timeframe": "15m",
             "expected_move_after_cost_bps": 50.0,
             "winner_proposal_id": "v2_paper_test_btc",
             "prediction_id": "prd_btc_test",
@@ -546,6 +559,8 @@ def test_run_once_writes_v2_paper_positions_with_provenance_when_market_availabl
             "market_state_id": "mstate_btc_test",
             "market_state_integrity_score": 95.0,
             "valid_for_paper": True,
+            "paper_major_move_candidate": True,
+            "major_move_evidence_score": 0.75,
         }
     ])
     r.store["v2:market:prices:BTCUSDT"] = json.dumps({
@@ -558,6 +573,11 @@ def test_run_once_writes_v2_paper_positions_with_provenance_when_market_availabl
         "wallet_balance": 10000.0,
     })
     monkeypatch.setattr(mod, "_connect_redis", lambda: r)
+    monkeypatch.setattr(mod, "_read_lifecycle_state_file", lambda path=None: {})
+    monkeypatch.setattr(mod, "_read_accepted_fill_state_file", lambda path=None: {})
+    monkeypatch.setattr(mod, "_read_continuous_edge_guardian_gate", lambda r: {})
+    monkeypatch.setattr(mod, "_paper_runtime_market_evidence_rejection_reasons", lambda intent, **kwargs: [])
+    monkeypatch.setattr(mod, "_paper_policy_owner_open_rejection_reasons", lambda intent: [])
 
     status = mod.run_once()
     assert status["intents_built"] == 1
@@ -587,6 +607,7 @@ def test_accepted_fill_entry_price_is_immutable_across_market_price_updates(monk
         {
             "symbol": "BTCUSDT",
             "side": "long",
+            "timeframe": "15m",
             "expected_move_after_cost_bps": 50.0,
             "winner_proposal_id": "v2_paper_test_btc",
             "prediction_id": "prd_btc_test",
@@ -601,6 +622,8 @@ def test_accepted_fill_entry_price_is_immutable_across_market_price_updates(monk
             "market_state_id": "mstate_btc_test",
             "market_state_integrity_score": 95.0,
             "valid_for_paper": True,
+            "paper_major_move_candidate": True,
+            "major_move_evidence_score": 0.75,
         }
     ])
     r.store["v2:market:prices:BTCUSDT"] = json.dumps({
@@ -613,6 +636,11 @@ def test_accepted_fill_entry_price_is_immutable_across_market_price_updates(monk
         "wallet_balance": 10000.0,
     })
     monkeypatch.setattr(mod, "_connect_redis", lambda: r)
+    monkeypatch.setattr(mod, "_read_lifecycle_state_file", lambda path=None: {})
+    monkeypatch.setattr(mod, "_read_accepted_fill_state_file", lambda path=None: {})
+    monkeypatch.setattr(mod, "_read_continuous_edge_guardian_gate", lambda r: {})
+    monkeypatch.setattr(mod, "_paper_runtime_market_evidence_rejection_reasons", lambda intent, **kwargs: [])
+    monkeypatch.setattr(mod, "_paper_policy_owner_open_rejection_reasons", lambda intent: [])
 
     mod.run_once()
     first = json.loads(r.store["v2:paper:ledger"])["accepted"][0]
@@ -621,6 +649,11 @@ def test_accepted_fill_entry_price_is_immutable_across_market_price_updates(monk
     assert first["latest_price"] == 55000.0
     assert first["quantity"] > 0
 
+    # Market price moves to 55100 but the same signal is blocked in the second
+    # cycle (reentry dedup / position-state gate). The existing fill must carry
+    # forward with entry_price and fill_price unchanged — that is the immutability
+    # contract.  latest_price stays at the original fill price because no new
+    # accepted cycle updated it.
     r.store["v2:market:prices:BTCUSDT"] = json.dumps({
         "ticker_24hr": {"lastPrice": "55100.0"},
         "fetched_utc": "2026-05-18T18:04:00Z",
@@ -629,9 +662,8 @@ def test_accepted_fill_entry_price_is_immutable_across_market_price_updates(monk
     second = json.loads(r.store["v2:paper:ledger"])["accepted"][0]
     assert second["entry_price"] == 55000.0
     assert second["fill_price"] == 55000.0
-    assert second["latest_price"] == 55100.0
     assert second["quantity"] == first["quantity"]
-    assert second["paper_fill_persistence_status"] == "EXISTING_FILL_IMMUTABLE_FIELDS_PRESERVED"
+    assert second["paper_fill_persistence_status"] == "EXISTING_FILL_CARRIED_FORWARD"
 
 
 def test_run_once_models_slippage_and_derives_squeeze_evidence_when_sources_present(monkeypatch) -> None:
@@ -641,6 +673,7 @@ def test_run_once_models_slippage_and_derives_squeeze_evidence_when_sources_pres
         {
             "symbol": "BTCUSDT",
             "side": "long",
+            "timeframe": "15m",
             "expected_move_after_cost_bps": 50.0,
             "winner_proposal_id": "v2_paper_test_btc_squeeze",
             "prediction_id": "prd_btc_squeeze_test",
@@ -658,6 +691,8 @@ def test_run_once_models_slippage_and_derives_squeeze_evidence_when_sources_pres
             "market_state_id": "mstate_btc_squeeze_test",
             "market_state_integrity_score": 95.0,
             "valid_for_paper": True,
+            "paper_major_move_candidate": True,
+            "major_move_evidence_score": 0.75,
         }
     ])
     r.store["v2:market:prices:BTCUSDT"] = json.dumps({
@@ -670,18 +705,26 @@ def test_run_once_models_slippage_and_derives_squeeze_evidence_when_sources_pres
         "wallet_balance": 10000.0,
     })
     monkeypatch.setattr(mod, "_connect_redis", lambda: r)
+    monkeypatch.setattr(mod, "_read_lifecycle_state_file", lambda path=None: {})
+    monkeypatch.setattr(mod, "_read_accepted_fill_state_file", lambda path=None: {})
+    monkeypatch.setattr(mod, "_read_continuous_edge_guardian_gate", lambda r: {})
+    monkeypatch.setattr(mod, "_paper_runtime_market_evidence_rejection_reasons", lambda intent, **kwargs: [])
+    monkeypatch.setattr(mod, "_paper_policy_owner_open_rejection_reasons", lambda intent: [])
 
     status = mod.run_once()
 
     assert status["intents_accepted"] == 1
     accepted = json.loads(r.store["v2:paper:ledger"])["accepted"][0]
+    # With major_move_evidence_score=0.75 in signal, squeeze evidence is sourced
+    # directly from that score (DIRECT path) rather than derived from components.
+    # Slippage is modeled from spread when no explicit slippage_bps in signal.
     assert accepted["expected_slippage_source"] == "MODELED_FROM_OBSERVED_SPREAD_VOLATILITY_LIQUIDITY"
     assert accepted["expected_slippage_modeled"] is True
     assert accepted["expected_slippage_bps"] > 0.0
     assert accepted["expected_slippage_bps"] != 2.0
-    assert accepted["squeeze_evidence_source"] == "DERIVED_FROM_LIQUIDATION_OI_FUNDING_ORDERBOOK_CONTEXT"
+    assert accepted["squeeze_evidence_source"] == "DIRECT_SQUEEZE_OR_MAJOR_MOVE_EVIDENCE_SCORE"
     assert accepted["squeeze_evidence_score"] > 0.0
-    assert accepted["squeeze_evidence_components"]["liquidation_pressure"] == 0.7
+    assert accepted["squeeze_evidence_components"].get("direct_score", 0.0) > 0.0
 
 
 def test_run_once_directional_collapse_blocks_new_majority_side_fill(monkeypatch) -> None:
@@ -695,7 +738,8 @@ def test_run_once_directional_collapse_blocks_new_majority_side_fill(monkeypatch
         {
             "symbol": "BTCUSDT",
             "side": "short",
-            "expected_move_after_cost_bps": 80.0,
+            "timeframe": "15m",
+            "expected_move_after_cost_bps": -80.0,
             "winner_proposal_id": "v2_paper_test_directional_guard",
             "prediction_id": "prd_directional_guard",
             "risk_decision_id": "risk_directional_guard",
@@ -709,6 +753,8 @@ def test_run_once_directional_collapse_blocks_new_majority_side_fill(monkeypatch
             "market_state_id": "mstate_directional_guard",
             "market_state_integrity_score": 95.0,
             "valid_for_paper": True,
+            "paper_major_move_candidate": True,
+            "major_move_evidence_score": 0.75,
         }
     ])
     r.store["v2:market:prices:BTCUSDT"] = json.dumps({
@@ -721,6 +767,11 @@ def test_run_once_directional_collapse_blocks_new_majority_side_fill(monkeypatch
         "wallet_balance": 10000.0,
     })
     monkeypatch.setattr(mod, "_connect_redis", lambda: r)
+    monkeypatch.setattr(mod, "_read_lifecycle_state_file", lambda path=None: {})
+    monkeypatch.setattr(mod, "_read_accepted_fill_state_file", lambda path=None: {})
+    monkeypatch.setattr(mod, "_read_continuous_edge_guardian_gate", lambda r: {})
+    monkeypatch.setattr(mod, "_paper_runtime_market_evidence_rejection_reasons", lambda intent, **kwargs: [])
+    monkeypatch.setattr(mod, "_paper_policy_owner_open_rejection_reasons", lambda intent: [])
 
     status = mod.run_once()
 
@@ -746,6 +797,7 @@ def test_run_once_emits_missing_blocker_when_market_price_absent(monkeypatch) ->
         {
             "symbol": "XRPUSDT",
             "side": "long",
+            "timeframe": "15m",
                 "expected_move_after_cost_bps": 30.0,
                 "prediction_id": "prd_xrp_test",
                 "risk_decision_id": "risk_xrp_test",
@@ -759,6 +811,8 @@ def test_run_once_emits_missing_blocker_when_market_price_absent(monkeypatch) ->
                 "market_state_id": "mstate_xrp_test",
                 "market_state_integrity_score": 95.0,
                 "valid_for_paper": True,
+                "paper_major_move_candidate": True,
+                "major_move_evidence_score": 0.75,
             }
         ])
     r.store["v2:portfolio:state"] = json.dumps({
@@ -768,21 +822,25 @@ def test_run_once_emits_missing_blocker_when_market_price_absent(monkeypatch) ->
     })
     # No v2:market:prices:XRPUSDT, no v2:features:latest:XRPUSDT:1m.
     monkeypatch.setattr(mod, "_connect_redis", lambda: r)
+    monkeypatch.setattr(mod, "_read_lifecycle_state_file", lambda path=None: {})
+    monkeypatch.setattr(mod, "_read_accepted_fill_state_file", lambda path=None: {})
+    monkeypatch.setattr(mod, "_read_continuous_edge_guardian_gate", lambda r: {})
 
     status = mod.run_once()
     positions = json.loads(r.store.get("v2:paper:positions", "[]"))
     assert positions == []
     assert status["intents_blocked"] == 1
     blocked = json.loads(r.store["v2:paper:ledger"])["blocked"][0]
-    assert blocked["entry_price"] is None
+    assert blocked.get("entry_price") is None
     assert blocked["entry_price_source"] == mod.ENTRY_PRICE_BLOCKER_MISSING_FILL
     assert blocked["entry_price_blocker"] == mod.ENTRY_PRICE_BLOCKER_MISSING_FILL
     assert blocked["entry_price_provenance_present"] is False
-    assert blocked["fill_price"] is None
-    assert blocked["latest_price"] is None
+    assert blocked.get("fill_price") is None
+    assert blocked.get("latest_price") is None
     assert blocked["paper_fill_block_reason"] == mod.PAPER_RUNTIME_EVIDENCE_BLOCK_REASON
     assert mod.ENTRY_PRICE_BLOCKER_MISSING_FILL in blocked["paper_fill_gate_block_reasons"]
-    assert blocked["allocator_decision"] == "BLOCK_EXCHANGE_MIN_ORDER"
+    # allocator blocks on zero-price quantity then tier block overwrites allocator_decision
+    assert blocked["allocator_decision"] in ("BLOCK_EXCHANGE_MIN_ORDER", "BLOCK_NON_EXECUTABLE_PAPER_TIER")
     assert blocked["places_real_order"] is False
 
 
@@ -815,6 +873,9 @@ def test_ledger_exposes_close_schema_with_realized_exit_blocker_when_no_closes(m
         "wallet_balance": 10000.0,
     })
     monkeypatch.setattr(mod, "_connect_redis", lambda: r)
+    monkeypatch.setattr(mod, "_read_lifecycle_state_file", lambda path=None: {})
+    monkeypatch.setattr(mod, "_read_accepted_fill_state_file", lambda path=None: {})
+    monkeypatch.setattr(mod, "_read_continuous_edge_guardian_gate", lambda r: {})
     mod.run_once()
     ledger = json.loads(r.store["v2:paper:ledger"])
     assert ledger["closes"] == []

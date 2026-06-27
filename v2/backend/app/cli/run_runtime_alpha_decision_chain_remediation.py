@@ -181,6 +181,16 @@ def build_one_shot_status() -> dict[str, Any]:
         intra_trade_low_price=100.0,
         last_mark_price=102.0,
         last_mark_est=generated,
+        # Trust envelope fields required for trainer_consumable=True
+        decision_id="decision_demo",
+        mtf_snapshot_id="mtf_demo",
+        feature_cutoff="2026-06-13T23:59:59Z",
+        decision_time="2026-06-14T00:00:00Z",
+        available_at="2026-06-14T00:00:00Z",
+        selected_action="long",
+        model_version="v2_demo",
+        checkpoint_id="checkpoint_demo",
+        source_hashes={"model": "abc123demo", "feature": "def456demo"},
     )
     exit_eval = evaluate_exit(
         position=position,

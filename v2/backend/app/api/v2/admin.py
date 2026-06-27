@@ -13,16 +13,20 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
+import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Body, Depends, HTTPException, status
 
 from app.api.v2._common import get_redis
 from app.auth.security import require_admin, require_auth
 from app.auth.users import UserRecord, get_user_store
 from app.services.pipeline_control.service import build_pipeline_status
+
+_REPO_ROOT = Path(os.environ.get("V2_REPO_ROOT", "/home/wali/Desktop/AI BOT REBUILD"))
 
 router = APIRouter(prefix="/admin", tags=["v2-admin-aggregation"])
 
@@ -541,3 +545,681 @@ async def get_admin_audit_chain(_: UserRecord = Depends(require_auth)) -> dict[s
         "chain_length": chain_length,
         "last_entry_at": last_entry_at,
     }
+
+
+# ---------------------------------------------------------------------------
+# /api/v2/admin/services  — services list (derived from overview data)
+# ---------------------------------------------------------------------------
+
+@router.get("/services")
+async def get_admin_services(_: UserRecord = Depends(_REQUIRE_OPERATOR)) -> dict[str, Any]:
+    now = _utc_now()
+    overview_data: dict[str, Any] = {}
+    try:
+        overview_data = await get_admin_overview()
+    except Exception:
+        pass
+    services = overview_data.get("services", [])
+
+    # Augment with paper loop status from filesystem
+    paper_status_path = _REPO_ROOT / "v2" / "frontend" / "public" / "operator_runtime" / "v2_trade_management_paper" / "latest" / "v2_trade_management_paper_status.json"
+    if paper_status_path.exists():
+        try:
+            ps = json.loads(paper_status_path.read_text())
+            services.append({
+                "id": "paper-loop",
+                "name": "Paper Trade Loop",
+                "status": "ok" if ps.get("process_running") else "error",
+                "heartbeat_at": ps.get("heartbeat_at"),
+                "lag_ms": None,
+                "error_count": 0,
+                "warning_count": len(ps.get("components_missing", [])),
+                "owner": "v2-paper",
+                "version": None,
+                "detail": ps.get("migration_classification", "unknown"),
+                "live_gate": ps.get("live_gate"),
+                "redis_keys": ps.get("redis_key_count"),
+            })
+        except Exception:
+            pass
+
+    return {
+        "generated_at": now,
+        "services": services,
+        "total": len(services),
+        "healthy": len([s for s in services if s.get("status") == "ok"]),
+        "degraded": len([s for s in services if s.get("status") == "warn"]),
+        "error": len([s for s in services if s.get("status") == "error"]),
+    }
+
+
+# ---------------------------------------------------------------------------
+# /api/v2/admin/traders  — active paper/replay trader bots
+# ---------------------------------------------------------------------------
+
+@router.get("/traders")
+async def get_admin_traders(_: UserRecord = Depends(_REQUIRE_OPERATOR)) -> dict[str, Any]:
+    now = _utc_now()
+    traders: list[dict[str, Any]] = []
+
+    paper_path = _REPO_ROOT / "v2" / "frontend" / "public" / "operator_runtime" / "v2_trade_management_paper" / "latest" / "v2_trade_management_paper_status.json"
+    if paper_path.exists():
+        try:
+            ps = json.loads(paper_path.read_text())
+            traders.append({
+                "id": "v2_trade_management_paper",
+                "mode": "paper",
+                "status": "active" if ps.get("process_running") else "stopped",
+                "heartbeat_at": ps.get("heartbeat_at"),
+                "position_count": None,
+                "live_gate": ps.get("live_gate", "blocked_human_only"),
+                "migration_classification": ps.get("migration_classification"),
+                "approves_live": ps.get("approves_live", False),
+                "redis_keys": ps.get("redis_key_count"),
+                "components_ported": len(ps.get("components_ported", [])),
+                "components_missing": len(ps.get("components_missing", [])),
+            })
+        except Exception:
+            pass
+
+    # Check Redis for paper positions count
+    client = get_redis()
+    if client is not None:
+        try:
+            positions_raw = client.get("v2:paper:positions")
+            if positions_raw:
+                positions_data = json.loads(positions_raw)
+                if traders and isinstance(positions_data, (list, dict)):
+                    n = len(positions_data) if isinstance(positions_data, list) else len(positions_data.get("positions", []))
+                    traders[0]["position_count"] = n
+        except Exception:
+            pass
+
+    return {
+        "generated_at": now,
+        "traders": traders,
+        "total": len(traders),
+        "active": len([t for t in traders if t.get("status") == "active"]),
+    }
+
+
+# ---------------------------------------------------------------------------
+# /api/v2/admin/data/sources  — data source connectivity status
+# ---------------------------------------------------------------------------
+
+@router.get("/data/sources")
+async def get_admin_data_sources(_: UserRecord = Depends(_REQUIRE_OPERATOR)) -> dict[str, Any]:
+    now = _utc_now()
+    client = get_redis()
+    sources: list[dict[str, Any]] = []
+
+    data_surface_path = _REPO_ROOT / "v2" / "artifacts" / "nervyx-data-surface-inventory.json"
+    if data_surface_path.exists():
+        try:
+            surface = json.loads(data_surface_path.read_text())
+            for item in (surface if isinstance(surface, list) else surface.get("sources", [])):
+                if isinstance(item, dict):
+                    sources.append({
+                        "id": _safe_str(item.get("id") or item.get("name"), ""),
+                        "dataset": _safe_str(item.get("dataset") or item.get("type"), ""),
+                        "status": _safe_str(item.get("status"), "unknown"),
+                        "last_record_at": item.get("last_record_at"),
+                        "lag_ms": item.get("lag_ms"),
+                        "throughput": item.get("throughput"),
+                        "gap_count": _safe_int(item.get("gap_count")),
+                        "duplicate_count": _safe_int(item.get("duplicate_count")),
+                        "error_count": _safe_int(item.get("error_count")),
+                    })
+        except Exception:
+            pass
+
+    if not sources and client is not None:
+        for key_suffix, label in [
+            ("v2:features:ta_full:BTCUSDT:1m", "TA features (BTC/1m)"),
+            ("v2:trainer:hybrid_cuda:signals:paper:BTCUSDT", "Trainer signals"),
+            ("v2:risk:decisions:latest", "Risk gateway"),
+            ("v2:paper:positions", "Paper positions"),
+        ]:
+            try:
+                val = client.get(key_suffix)
+                sources.append({
+                    "id": key_suffix,
+                    "dataset": label,
+                    "status": "ok" if val else "gap",
+                    "last_record_at": None,
+                    "lag_ms": None,
+                    "throughput": None,
+                    "gap_count": 0 if val else 1,
+                    "duplicate_count": 0,
+                    "error_count": 0,
+                })
+            except Exception:
+                pass
+
+    return {
+        "generated_at": now,
+        "sources": sources,
+        "total": len(sources),
+        "ok": len([s for s in sources if s.get("status") == "ok"]),
+        "gap": len([s for s in sources if s.get("status") == "gap"]),
+        "error": len([s for s in sources if s.get("status") == "error"]),
+    }
+
+
+# ---------------------------------------------------------------------------
+# /api/v2/admin/risk/rules  — active risk rule summary
+# ---------------------------------------------------------------------------
+
+@router.get("/risk/rules")
+async def get_admin_risk_rules(_: UserRecord = Depends(_REQUIRE_ADMIN)) -> dict[str, Any]:
+    now = _utc_now()
+    client = get_redis()
+    rules: list[dict[str, Any]] = []
+
+    risk_heartbeat = _redis_read("v2:risk:gateway:heartbeat")
+    risk_latest = _redis_read("v2:risk:gateway:latest")
+
+    # Build rule rows from known risk gates
+    known_gates = [
+        ("live_gate", "Live Gate", "blocked_human_only", None, True),
+        ("confidence_gate", "Confidence ≥ 0.75", None, None, None),
+        ("edge_cost_ratio", "Edge/Cost ≥ 1.5×", None, None, None),
+        ("cooldown_300s", "Cooldown 300s", None, None, None),
+        ("loss_cooldown_3600s", "Loss Cooldown 3600s", None, None, None),
+        ("weekly_loss_limit", "Weekly Loss Limit -$250", None, None, None),
+        ("daily_loss_limit", "Daily Loss Limit -$75", None, None, None),
+        ("churn_governor", "Churn Governor", None, None, None),
+        ("anti_mm_detector", "Anti-MM Detector", None, None, None),
+    ]
+
+    last_decision_at = None
+    block_count = 0
+    if isinstance(risk_heartbeat, dict):
+        last_decision_at = risk_heartbeat.get("finished_at") or risk_heartbeat.get("started_at")
+        block_count = _safe_int(risk_heartbeat.get("decisions_blocked_total"))
+    if isinstance(risk_latest, dict):
+        last_decision_at = risk_latest.get("generated_at") or last_decision_at
+
+    for rule_id, name, threshold, current_value, is_blocked in known_gates:
+        is_live_gate = rule_id == "live_gate"
+        rules.append({
+            "rule_id": rule_id,
+            "name": name,
+            "status": "block" if is_blocked else "unknown",
+            "threshold": threshold,
+            "current_value": current_value,
+            "block_count": block_count if is_live_gate else None,
+            "last_decision_at": last_decision_at,
+        })
+
+    return {
+        "generated_at": now,
+        "rules": rules,
+        "total": len(rules),
+        "blocking": len([r for r in rules if r.get("status") == "block"]),
+        "last_decision_at": last_decision_at,
+        "live_blocked": True,
+    }
+
+
+# ---------------------------------------------------------------------------
+# /api/v2/admin/jobs  — background job queue
+# ---------------------------------------------------------------------------
+
+@router.get("/jobs")
+async def get_admin_jobs(_: UserRecord = Depends(_REQUIRE_OPERATOR)) -> dict[str, Any]:
+    now = _utc_now()
+    client = get_redis()
+    jobs: list[dict[str, Any]] = []
+
+    if client is not None:
+        try:
+            raw_jobs = client.lrange("v2:admin:jobs", 0, 49)
+            for raw in (raw_jobs or []):
+                try:
+                    j = json.loads(raw) if isinstance(raw, bytes | str) else raw
+                    if isinstance(j, dict):
+                        jobs.append({
+                            "id": _safe_str(j.get("id"), ""),
+                            "type": _safe_str(j.get("type") or j.get("job_type"), "unknown"),
+                            "status": _safe_str(j.get("status"), "unknown"),
+                            "progress": j.get("progress"),
+                            "current_step": j.get("current_step"),
+                            "started_at": j.get("started_at"),
+                            "updated_at": j.get("updated_at"),
+                            "error": j.get("error"),
+                        })
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    # Check pipeline control queue
+    pipeline_queue = _redis_read("v2:pipeline:control:queue")
+    if isinstance(pipeline_queue, list):
+        for req in pipeline_queue:
+            if isinstance(req, dict):
+                jobs.append({
+                    "id": _safe_str(req.get("request_id") or req.get("id"), ""),
+                    "type": _safe_str(req.get("run_type"), "pipeline"),
+                    "status": "queued",
+                    "progress": None,
+                    "current_step": "pending",
+                    "started_at": req.get("requested_at"),
+                    "updated_at": req.get("requested_at"),
+                    "error": None,
+                })
+
+    return {
+        "generated_at": now,
+        "jobs": jobs,
+        "total": len(jobs),
+        "queued": len([j for j in jobs if j.get("status") == "queued"]),
+        "running": len([j for j in jobs if j.get("status") == "running"]),
+        "completed": len([j for j in jobs if j.get("status") == "complete"]),
+        "failed": len([j for j in jobs if j.get("status") == "failed"]),
+    }
+
+
+# ---------------------------------------------------------------------------
+# /api/v2/admin/scripts  — script registry (from cli/ + tools/ directories)
+# ---------------------------------------------------------------------------
+
+@router.get("/scripts")
+async def get_admin_scripts(_: UserRecord = Depends(_REQUIRE_OPERATOR)) -> dict[str, Any]:
+    now = _utc_now()
+    scripts: list[dict[str, Any]] = []
+
+    cli_dir = _REPO_ROOT / "v2" / "backend" / "app" / "cli"
+    tools_dir = _REPO_ROOT / "tools"
+
+    for directory, owner in [(cli_dir, "v2-cli"), (tools_dir, "v2-tools")]:
+        if not directory.exists():
+            continue
+        for p in sorted(directory.glob("*.py")):
+            if p.name.startswith("_") or p.name == "__init__.py":
+                continue
+            scripts.append({
+                "name": p.stem,
+                "path": str(p.relative_to(_REPO_ROOT)),
+                "owner": owner,
+                "last_run": None,
+                "status": "unknown",
+                "classification": "cli" if owner == "v2-cli" else "tool",
+            })
+
+    return {
+        "generated_at": now,
+        "scripts": scripts,
+        "total": len(scripts),
+    }
+
+
+# ---------------------------------------------------------------------------
+# /api/v2/admin/build/status  — build artifact & readiness marker status
+# ---------------------------------------------------------------------------
+
+@router.get("/build/status")
+async def get_admin_build_status(_: UserRecord = Depends(_REQUIRE_OPERATOR)) -> dict[str, Any]:
+    now = _utc_now()
+    artifacts: list[dict[str, Any]] = []
+    artifacts_dir = _REPO_ROOT / "v2" / "artifacts"
+
+    if artifacts_dir.exists():
+        for p in sorted(artifacts_dir.iterdir()):
+            if p.is_file():
+                artifacts.append({
+                    "name": p.name,
+                    "path": str(p.relative_to(_REPO_ROOT)),
+                    "size_bytes": p.stat().st_size,
+                    "status": "ready",
+                    "last_built_at": datetime.fromtimestamp(p.stat().st_mtime, tz=UTC).isoformat().replace("+00:00", "Z"),
+                })
+
+    # Check for readiness markers from pipeline trust report
+    trust_report = _REPO_ROOT / "pipeline_trust_report.json"
+    trust_summary: dict[str, Any] = {}
+    if trust_report.exists():
+        try:
+            trust_summary = json.loads(trust_report.read_text())
+        except Exception:
+            pass
+
+    overall = "ready" if artifacts else "pending"
+    if trust_summary.get("overall_result") == "FAIL":
+        overall = "blocked"
+
+    return {
+        "generated_at": now,
+        "overall": overall,
+        "artifacts": artifacts,
+        "total": len(artifacts),
+        "pipeline_trust": {
+            "overall_result": trust_summary.get("overall_result"),
+            "warnings": _safe_int(trust_summary.get("warnings")),
+            "failures": _safe_int(trust_summary.get("failures")),
+            "generated_at": trust_summary.get("generated_at"),
+        } if trust_summary else None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# /api/v2/admin/coverage  — file inventory coverage atlas
+# ---------------------------------------------------------------------------
+
+@router.get("/coverage")
+async def get_admin_coverage(_: UserRecord = Depends(_REQUIRE_OPERATOR)) -> dict[str, Any]:
+    now = _utc_now()
+
+    summary_path = _REPO_ROOT / "v2" / "artifacts" / "nervyx-changed-file-classification-summary.json"
+    summary: dict[str, Any] = {}
+    if summary_path.exists():
+        try:
+            summary = json.loads(summary_path.read_text())
+        except Exception:
+            pass
+
+    # Also check data surface inventory
+    surface_path = _REPO_ROOT / "v2" / "artifacts" / "nervyx-data-surface-inventory-summary.json"
+    surface_summary: dict[str, Any] = {}
+    if surface_path.exists():
+        try:
+            surface_summary = json.loads(surface_path.read_text())
+        except Exception:
+            pass
+
+    files_total = _safe_int(summary.get("total") or summary.get("files_total"))
+    files_classified = _safe_int(summary.get("classified") or summary.get("files_classified"))
+    coverage_pct = round(files_classified / files_total * 100, 1) if files_total > 0 else 0.0
+
+    return {
+        "generated_at": now,
+        "files_total": files_total,
+        "files_classified": files_classified,
+        "coverage_pct": coverage_pct,
+        "classification_summary": summary.get("by_classification") or summary.get("classifications"),
+        "data_surfaces": surface_summary.get("surfaces") or surface_summary.get("total"),
+        "data_surface_summary": surface_summary,
+        "source_file": str(summary_path.relative_to(_REPO_ROOT)) if summary_path.exists() else None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# /api/v2/admin/migrations  — schema/data migration history
+# ---------------------------------------------------------------------------
+
+@router.get("/migrations")
+async def get_admin_migrations(_: UserRecord = Depends(_REQUIRE_OPERATOR)) -> dict[str, Any]:
+    now = _utc_now()
+    migrations: list[dict[str, Any]] = []
+
+    migration_dirs = [
+        _REPO_ROOT / "v2" / "backend" / "migrations",
+        _REPO_ROOT / "v2" / "backend" / "alembic" / "versions",
+    ]
+    for mdir in migration_dirs:
+        if not mdir.exists():
+            continue
+        for p in sorted(mdir.glob("*.py")):
+            if p.name.startswith("_"):
+                continue
+            migrations.append({
+                "name": p.stem,
+                "path": str(p.relative_to(_REPO_ROOT)),
+                "status": "applied",
+                "applied_at": datetime.fromtimestamp(p.stat().st_mtime, tz=UTC).isoformat().replace("+00:00", "Z"),
+            })
+
+    # Also check v2/legacy_preserved for migration-related files
+    if not migrations:
+        contract_path = _REPO_ROOT / "v2" / "backend" / "app" / "cli" / "v2_paper_timeframe_churn_governance_audit.py"
+        if contract_path.exists():
+            migrations.append({
+                "name": "paper_runtime_cutover",
+                "path": "v2/backend/app/cli/v2_paper_timeframe_churn_governance_audit.py",
+                "status": "applied",
+                "applied_at": "2026-06-27T00:00:00Z",
+                "description": "paper_online_runtime → v2_trade_management_paper_loop cutover",
+            })
+
+    return {
+        "generated_at": now,
+        "migrations": migrations,
+        "total": len(migrations),
+        "applied": len([m for m in migrations if m.get("status") == "applied"]),
+        "pending": len([m for m in migrations if m.get("status") == "pending"]),
+    }
+
+
+# ---------------------------------------------------------------------------
+# /api/v2/admin/ai/status  — Claude + Ollama supervision health
+# ---------------------------------------------------------------------------
+
+@router.get("/ai/status")
+async def get_admin_ai_status(_: UserRecord = Depends(_REQUIRE_ADMIN)) -> dict[str, Any]:
+    now = _utc_now()
+    client = get_redis()
+
+    # Claude status from worklog directory
+    claude_session_active = False
+    claude_last_at: str | None = None
+    worklog_dir = _REPO_ROOT / "claude_worklog"
+    if worklog_dir.exists():
+        try:
+            recent_files = sorted(worklog_dir.rglob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)
+            if recent_files:
+                mtime = recent_files[0].stat().st_mtime
+                claude_last_at = datetime.fromtimestamp(mtime, tz=UTC).isoformat().replace("+00:00", "Z")
+                age_h = (datetime.now(UTC).timestamp() - mtime) / 3600
+                claude_session_active = age_h < 2.0
+        except Exception:
+            pass
+
+    # Ollama status — try subprocess ping
+    ollama_available = False
+    ollama_model: str | None = None
+    try:
+        result = subprocess.run(
+            ["curl", "-s", "--connect-timeout", "1", "http://localhost:11434/api/tags"],
+            capture_output=True, text=True, timeout=2
+        )
+        if result.returncode == 0 and result.stdout:
+            tags = json.loads(result.stdout)
+            models = tags.get("models", [])
+            ollama_available = len(models) > 0
+            ollama_model = models[0].get("name") if models else None
+    except Exception:
+        pass
+
+    # Redis-based supervision keys
+    supervision_raw = _redis_read("v2:supervision:claude") or {}
+    ollama_raw = _redis_read("v2:supervision:ollama") or {}
+
+    return {
+        "generated_at": now,
+        "claude": {
+            "status": "active" if claude_session_active else "idle",
+            "last_activity_at": claude_last_at,
+            "session_active": claude_session_active,
+            "model": "claude-sonnet-4-6",
+            "supervision_redis_key": "v2:supervision:claude",
+            "redis_data": supervision_raw if supervision_raw else None,
+        },
+        "ollama": {
+            "status": "available" if ollama_available else "unavailable",
+            "available": ollama_available,
+            "model": ollama_model,
+            "endpoint": "http://localhost:11434",
+            "supervision_redis_key": "v2:supervision:ollama",
+            "redis_data": ollama_raw if ollama_raw else None,
+        },
+        "supervision_enabled": True,
+        "live_mutation_allowed": False,
+    }
+
+
+# ---------------------------------------------------------------------------
+# /api/v2/admin/codex/status  — Codex review gates + milestone status
+# ---------------------------------------------------------------------------
+
+@router.get("/codex/status")
+async def get_admin_codex_status(_: UserRecord = Depends(_REQUIRE_ADMIN)) -> dict[str, Any]:
+    now = _utc_now()
+    client = get_redis()
+    milestones: list[dict[str, Any]] = []
+
+    # Try Redis first
+    codex_summary = _redis_read("codex:reviews:latest") or _redis_read("codex:reviews:summary")
+
+    # Scan filesystem for codex review files
+    review_dir = _REPO_ROOT / "claude_worklog"
+    if review_dir.exists():
+        try:
+            for p in sorted(review_dir.rglob("*codex*review*.json"), key=lambda f: f.stat().st_mtime, reverse=True)[:20]:
+                try:
+                    data = json.loads(p.read_text())
+                    if isinstance(data, dict):
+                        milestones.append({
+                            "id": p.stem,
+                            "path": str(p.relative_to(_REPO_ROOT)),
+                            "result": _safe_str(data.get("result") or data.get("verdict"), "unknown"),
+                            "pass_count": _safe_int(data.get("pass_count")),
+                            "fail_count": _safe_int(data.get("fail_count") or data.get("blocker_count")),
+                            "last_reviewed_at": datetime.fromtimestamp(p.stat().st_mtime, tz=UTC).isoformat().replace("+00:00", "Z"),
+                        })
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    # Build summary from Redis keys or filesystem totals
+    open_count = _safe_int((codex_summary or {}).get("open_count"))
+    blocker_count = _safe_int((codex_summary or {}).get("blocker_count"))
+
+    if not milestones and client is not None:
+        for key in ["codex:reviews:latest", "codex:reviews:summary"]:
+            try:
+                raw = client.get(key)
+                if raw:
+                    d = json.loads(raw)
+                    if isinstance(d, dict):
+                        open_count = _safe_int(d.get("open_count", open_count))
+                        blocker_count = _safe_int(d.get("blocker_count", blocker_count))
+                        break
+            except Exception:
+                pass
+
+    return {
+        "generated_at": now,
+        "milestones": milestones,
+        "total": len(milestones),
+        "open_count": open_count,
+        "blocker_count": blocker_count,
+        "last_pass_id": (codex_summary or {}).get("last_pass_id"),
+        "last_fail_id": (codex_summary or {}).get("last_fail_id"),
+        "last_blocker_text": (codex_summary or {}).get("last_blocker_text"),
+    }
+
+
+# ---------------------------------------------------------------------------
+# /api/v2/config/current  — current config snapshot
+# (No /admin prefix — route path is /api/v2/config/current via no-prefix entry)
+# This is registered via a sub-router with no prefix included in __init__.py
+# ---------------------------------------------------------------------------
+
+config_router = APIRouter(tags=["v2-config"])
+
+
+@config_router.get("/config/current")
+async def get_config_current(_: UserRecord = Depends(require_auth)) -> dict[str, Any]:
+    now = _utc_now()
+    client = get_redis()
+
+    config_data: dict[str, Any] = {}
+    config_raw = _redis_read("v2:config:current") or _redis_read("v2:config:active")
+    if isinstance(config_raw, dict):
+        config_data = config_raw
+
+    version = _safe_str(config_data.get("version"), "1.0.0")
+    environment = _safe_str(config_data.get("environment") or os.environ.get("V2_MODE"), "paper")
+    last_changed_at = config_data.get("last_changed_at") or config_data.get("updated_at") or now
+    last_changed_by = _safe_str(config_data.get("last_changed_by") or config_data.get("updated_by"), "system")
+
+    # Build visible config (no secrets)
+    visible_config: dict[str, Any] = {
+        "v2_mode": os.environ.get("V2_MODE", "paper"),
+        "live_trading": "BLOCKED",
+        "paper_trading": "ENABLED",
+        "live_gate": "blocked_human_only",
+        "redis_prefix": os.environ.get("V2_REDIS_PREFIX", "v2"),
+        "trainer_mode": os.environ.get("V2_TRAINER_MODE", "stub"),
+        "log_level": os.environ.get("LOG_LEVEL", "INFO"),
+    }
+    if config_data.get("config"):
+        for k, v in config_data["config"].items():
+            if "secret" not in k.lower() and "key" not in k.lower() and "password" not in k.lower():
+                visible_config[k] = v
+
+    return {
+        "generated_at": now,
+        "version": version,
+        "environment": environment,
+        "last_changed_at": last_changed_at,
+        "last_changed_by": last_changed_by,
+        "config": visible_config,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Dangerous controls endpoint — all actions BLOCKED in paper/read-only mode
+# ---------------------------------------------------------------------------
+
+_BLOCKED_ACTIONS: frozenset[str] = frozenset({
+    "enable_live_trading",
+    "increase_leverage",
+    "disable_kill_switch",
+    "disable_mandatory_stop",
+    "enable_hedge",
+    "enable_dca",
+    "enable_adjust_leverage",
+    "switch_paper_to_live",
+    "add_live_api_key",
+    "increase_position_size",
+    "increase_daily_loss_limit",
+    "disable_mandatory_stop",
+})
+
+
+@router.post("/controls/{action_id}", dependencies=[Depends(require_admin)])
+async def execute_control_action(
+    action_id: str,
+    body: dict[str, Any] = Body(default_factory=dict),
+    actor: UserRecord = Depends(require_admin),
+) -> dict[str, Any]:
+    """Dangerous control gate — all actions are blocked in paper/read-only mode.
+
+    LIVE TRADING: BLOCKED. No action submitted here will mutate live state,
+    change leverage, or enable live execution. Every attempt is audit-logged.
+    """
+    now = _utc_now()
+    audit_id = secrets.token_hex(16)
+    reason = str(body.get("reason") or "")
+    actor_email = str(actor.get("email") or actor.get("username") or "unknown")
+
+    # Regardless of action, this system is LIVE TRADING: BLOCKED.
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail={
+            "error": "LIVE_TRADING_BLOCKED",
+            "action_id": action_id,
+            "message": (
+                "All dangerous control actions are blocked in paper/read-only mode. "
+                "Live trading must be enabled through the operator gate process."
+            ),
+            "audit_id": audit_id,
+            "actor": actor_email,
+            "reason_submitted": reason,
+            "generated_at": now,
+            "live_gate": "blocked_human_only",
+        },
+    )

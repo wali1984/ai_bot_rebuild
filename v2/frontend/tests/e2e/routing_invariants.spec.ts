@@ -160,4 +160,9 @@ test.describe('Routing invariants (no browser)', () => {
   test('/admin is not a redirect source', () => {
     expect(MERGED_LEGACY_PATHS['/admin']).toBeUndefined();
   });
+
+  test('Phase 5 website aliases resolve to runtime truth surfaces', () => {
+    expect(MERGED_LEGACY_PATHS['/ai']).toBe('/ai-predictions');
+    expect(MERGED_LEGACY_PATHS['/system/model-state']).toBe('/admin/intelligence');
+  });
 });

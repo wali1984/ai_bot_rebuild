@@ -37,8 +37,50 @@ ROLE_RANK: dict[str, int] = {
 
 SESSION_COOKIE = "alphaforge_session"
 PRODUCTION_AUTH_SECRET_MIN_LENGTH = 32
-_PROCESS_SECRET = secrets.token_urlsafe(48)
 _REVOCATION_LOCK = threading.Lock()
+_PERSISTENT_SECRET_LOCK = threading.Lock()
+_CACHED_PROCESS_SECRET: str | None = None
+
+
+def _load_or_create_process_secret() -> str:
+    """Load or create a persistent local secret so sessions survive restarts.
+
+    When ALPHAFORGE_AUTH_SECRET is not set, the secret is stored next to the
+    auth_users.json file so it persists across process restarts. This prevents
+    all active sessions from being silently invalidated every time the backend
+    reloads.
+    """
+    global _CACHED_PROCESS_SECRET  # noqa: PLW0603
+    with _PERSISTENT_SECRET_LOCK:
+        if _CACHED_PROCESS_SECRET is not None:
+            return _CACHED_PROCESS_SECRET
+        configured_store = os.environ.get("ALPHAFORGE_AUTH_STORE", "").strip()
+        if configured_store:
+            secret_path = Path(configured_store).parent
+        else:
+            # Default: same directory as auth_users.json (v2/backend/)
+            secret_path = Path(__file__).parent.parent.parent
+        secret_file = secret_path / ".auth_process_secret"
+        try:
+            if secret_file.exists():
+                value = secret_file.read_text(encoding="utf-8").strip()
+                if len(value) >= 32:
+                    _CACHED_PROCESS_SECRET = value
+                    return value
+        except OSError:
+            pass
+        # Generate and persist a new secret.
+        new_secret = secrets.token_urlsafe(48)
+        try:
+            secret_file.write_text(new_secret, encoding="utf-8")
+            os.chmod(secret_file, 0o600)
+        except OSError:
+            pass
+        _CACHED_PROCESS_SECRET = new_secret
+        return new_secret
+
+
+_PROCESS_SECRET: str = _load_or_create_process_secret()
 
 
 def _truthy(value: str | None) -> bool:

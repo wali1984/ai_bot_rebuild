@@ -1250,6 +1250,9 @@ def test_market_indicators_derive_from_public_closed_klines_for_prochart(tmp_pat
         return (klines, "binance-public-klines", None)
 
     monkeypatch.setattr(market_contracts, "_binance_public_json", fake_public_json)
+    # Force the klines path: skip any live Redis indicator cache so the test
+    # exercises the public-API fallback regardless of local Redis state.
+    monkeypatch.setattr(market_contracts, "_redis_indicator_response", lambda *a, **kw: None)
     client = _client(tmp_path, monkeypatch)
 
     payload = client.get("/api/v2/market/BTCUSDT/indicators").json()

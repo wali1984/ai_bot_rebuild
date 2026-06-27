@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import {
   adaptiveStatusColor,
   formatAdaptiveBps,
@@ -50,6 +51,30 @@ interface AdaptiveCapitalTelemetryPanelProps {
   showCapital?: boolean;
   showMatrix?: boolean;
   maxMatrixHeight?: number;
+}
+
+interface PaperRuntimeStatusPayload {
+  runtime?: string | null;
+  runtime_state?: string | null;
+  live_gate_status?: string | null;
+  paper_loop?: {
+    candidate_id?: string | null;
+    policy_id?: string | null;
+    paper_policy_owner?: string | null;
+    current_allowed_paper_owner?: string | null;
+    policy_fingerprint?: string | null;
+    model_source?: string | null;
+    intents_built?: number | null;
+    intents_accepted?: number | null;
+    intents_blocked?: number | null;
+    production_grade_cost_rows?: number | null;
+    production_grade_cost_coverage?: number | null;
+    no_order_explained_rows?: number | null;
+    unexplained_missing_cost_rows?: number | null;
+    paper_fill_allowed_rows?: number | null;
+    routes_to_live_rows?: number | null;
+    places_real_order_rows?: number | null;
+  } | null;
 }
 
 function timeframeSortValue(timeframe: string): number {
@@ -550,6 +575,19 @@ export function AdaptiveCapitalTelemetryPanel({
   showMatrix = false,
   maxMatrixHeight,
 }: AdaptiveCapitalTelemetryPanelProps): JSX.Element {
+  const { envelope: paperRuntimeEnvelope } = useRealtimeResource<PaperRuntimeStatusPayload>({
+    url: '/api/v2/paper/runtime-status',
+    source: '/api/v2/paper/runtime-status',
+    source_type: 'api',
+    pollIntervalMs: 10_000,
+    staleThresholdMs: 30_000,
+    initialFetch: true,
+    httpFallback: true,
+    mode: 'paper',
+    unwrapEnvelopeData: false,
+  });
+  const paperRuntime = paperRuntimeEnvelope.data;
+  const paperLoop = paperRuntime?.paper_loop ?? null;
   const view = resolveTelemetry(payload);
   const capital = view.capital;
   const policy = view.policy;
@@ -703,6 +741,31 @@ export function AdaptiveCapitalTelemetryPanel({
           label="1000x Trajectory"
           value={guardian?.trajectory_status?.status ?? 'INSUFFICIENT_EVIDENCE'}
           color={guardian?.trajectory_status?.status === 'ON_1000X_TRAJECTORY' ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
+          label="Paper Owner"
+          value={paperLoop?.paper_policy_owner ?? 'CONNECTING'}
+          color={paperLoop?.paper_policy_owner === 'challenger_v2' ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
+          label="Cost Coverage"
+          value={formatAdaptivePercent(paperLoop?.production_grade_cost_coverage)}
+          color={(paperLoop?.production_grade_cost_coverage ?? 0) >= 0.95 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
+          label="Cost Rows"
+          value={`${countText(paperLoop?.production_grade_cost_rows)}/${countText(paperLoop?.intents_built)}`}
+          color={(paperLoop?.production_grade_cost_coverage ?? 0) >= 0.95 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
+          label="No-Order Explained"
+          value={countText(paperLoop?.no_order_explained_rows)}
+          color={(paperLoop?.unexplained_missing_cost_rows ?? 1) === 0 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
+          label="Live Gate"
+          value={paperRuntime?.live_gate_status ?? 'blocked_human_only'}
+          color="var(--sell,#ef4444)"
         />
       </div>
 

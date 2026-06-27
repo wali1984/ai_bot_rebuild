@@ -785,7 +785,7 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
     for sym in symbols:
         # Attach klines + orderbook + OI history + liquidation notional so the
         # feature builder can compute real TA (no silent zeros).
-        raw_klines = _read_klines(r, sym, timeframe, decision_ms=decision_ms)
+        raw_klines = _read_klines(r, sym, timeframe)
         closed_klines, latest_closed_kline = _closed_klines(raw_klines, decision_ms=decision_ms)
         m = _read_market(r, sym) or _market_from_closed_klines(closed_klines)
         if not m:

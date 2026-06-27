@@ -239,6 +239,13 @@ struct PaperTradingView: View {
             DataRow(label: "Intents built", value: "\(loop.intents_built)")
             DataRow(label: "Block rate", value: String(format: "%.1f%%", loop.blockRate),
                     valueColor: loop.blockRate > 80 ? NerVyx.warning : NerVyx.textSecondary)
+            DataRow(label: "Cycle", value: nervyxPublicRuntimeText(loop.cycle_state ?? "UNKNOWN"), valueColor: NerVyx.textSecondary)
+            DataRow(label: "Heartbeat TTL", value: loop.heartbeat_ttl_seconds.map { "\($0)s" } ?? "—", mono: true)
+            DataRow(label: "Owner", value: nervyxPublicRuntimeText(loop.paper_policy_owner ?? "UNKNOWN"), valueColor: NerVyx.paper)
+            DataRow(label: "Route", value: loop.runtimeRouteLabel, valueColor: loop.routes_to_live == true ? NerVyx.sell : NerVyx.signal)
+            if let model = loop.model_source, !model.isEmpty {
+                DataRow(label: "Model", value: model, mono: true)
+            }
             DataRow(label: "Classification", value: loop.classification, valueColor: NerVyx.paper)
         }
         .nerVyxCard(accent: NerVyx.paper.opacity(0.3))

@@ -110,14 +110,26 @@ function coerceSnapshot(value: unknown): TraderSnapshot | null {
 export function applyTraderSnapshotEnvelope(envelope: ValidatedDataEnvelope<unknown>): TraderRealtimeState {
   const nextSnapshot = coerceSnapshot(envelope.data);
   if (!nextSnapshot || containsInvalidNumber(nextSnapshot)) {
+    const sourceUnavailable = !nextSnapshot && (
+      envelope.data === null
+      || envelope.data === undefined
+      || envelope.freshness_status === 'offline'
+      || envelope.freshness_status === 'unavailable'
+      || envelope.data_quality_status === 'missing'
+      || envelope.errors.length > 0
+    );
     state = {
       ...state,
       source: envelope.source,
       sourceType: envelope.source_type,
       receivedAt: envelope.received_at,
       freshness: envelope.freshness_status,
-      quality: 'invalid',
-      lastError: nextSnapshot ? 'Trader snapshot contains NaN or infinity' : 'Trader snapshot payload is missing required sections',
+      quality: sourceUnavailable ? 'missing' : 'invalid',
+      lastError: nextSnapshot
+        ? 'Trader snapshot contains NaN or infinity'
+        : sourceUnavailable
+          ? 'Trader snapshot source unavailable'
+          : 'Trader snapshot payload is missing required sections',
       warnings: [...state.warnings, ...envelope.warnings],
       missingFields: [...new Set([...state.missingFields, ...envelope.missing_fields])],
     };

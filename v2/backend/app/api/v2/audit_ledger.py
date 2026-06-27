@@ -197,3 +197,72 @@ async def get_audit_ledger_tail(
             }
         )
     return out
+
+
+_EVENTS_CACHE = TtlCache(ttl_seconds=5.0)
+_CACHE_KEY_EVENTS = "events"
+
+
+@router.get(
+    "/events",
+    dependencies=[Depends(require_min_role("observer"))],
+)
+async def get_audit_events(
+    limit: int = Query(default=50, ge=1, le=200),
+) -> dict[str, Any]:
+    """Audit events in the shape the audit-ledger frontend page expects.
+
+    Returns { events: [...], total: int, immutable: bool }.
+    """
+    cached = _EVENTS_CACHE.get(_CACHE_KEY_EVENTS)
+    if cached is not None:
+        return cached
+
+    r = get_redis()
+    if r is None:
+        result: dict[str, Any] = {"events": [], "total": 0, "immutable": False}
+        return result
+
+    streams = discover_audit_ledger_streams(r)
+    candidates: list[tuple[int, str, dict[str, Any]]] = []
+    per_stream = min(limit, 200)
+    for s in streams:
+        try:
+            entries = r.xrevrange(s, count=per_stream)
+        except Exception:
+            continue
+        for evt_id, fields in entries or []:
+            ms = _stream_entry_ms(evt_id)
+            if ms is None:
+                continue
+            normalized = fields if isinstance(fields, dict) else dict(fields or {})
+            candidates.append((ms, evt_id, normalized))
+
+    candidates.sort(key=lambda t: t[0], reverse=True)
+    candidates = candidates[:limit]
+
+    now_ms = int(time.time() * 1000)
+    events: list[dict[str, Any]] = []
+    for ms, evt_id, fields in candidates:
+        parsed = _parse_event_fields(fields)
+        ts = datetime.fromtimestamp(ms / 1000.0, tz=timezone.utc).isoformat()
+        events.append(
+            {
+                "id": str(evt_id),
+                "actor": str(parsed.get("source") or fields.get("trader_id") or "system"),
+                "action": str(parsed.get("act") or "event"),
+                "resource": str(parsed.get("decision_id") or ""),
+                "result": str(parsed.get("chain_status") or fields.get("result") or "recorded"),
+                "reason": parsed.get("reason"),
+                "evidence": str(evt_id),
+                "timestamp": ts,
+            }
+        )
+
+    result = {
+        "events": events,
+        "total": len(events),
+        "immutable": True,
+    }
+    _EVENTS_CACHE.set(_CACHE_KEY_EVENTS, result)
+    return result

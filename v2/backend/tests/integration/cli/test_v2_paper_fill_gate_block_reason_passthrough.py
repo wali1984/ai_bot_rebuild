@@ -281,6 +281,9 @@ def test_paper_loop_reads_per_symbol_paper_signal_keys(monkeypatch) -> None:
     generated_utc = now.isoformat().replace("+00:00", "Z")
     available_at = (now - timedelta(seconds=30)).isoformat().replace("+00:00", "Z")
     feature_cutoff = (now - timedelta(minutes=1)).isoformat().replace("+00:00", "Z")
+    # Orderbook timestamp 30s ago (epoch ms) — required for cost_source_timestamp /
+    # cost_evidence_freshness_ms which the production-grade cost capture gate checks.
+    orderbook_event_ms = int((now - timedelta(seconds=30)).timestamp() * 1000)
     fake.store["v2:signals:paper"] = json.dumps([])
     fake.store["v2:signals:paper:BTCUSDT:1m"] = json.dumps(
         {
@@ -312,18 +315,56 @@ def test_paper_loop_reads_per_symbol_paper_signal_keys(monkeypatch) -> None:
             "expected_slippage_bps": 0.8,
             "expected_slippage_source": "TEST_SIGNAL_FIXTURE",
             "fee_bps": 5.0,
+            "funding_rate": 0.0001,
+            "maker_taker_assumption": "taker",
+            "maker_taker_probability": 0.8,
+            "latency_reserve_bps": 0.5,
             "market_state_id": "mstate_btc_1m",
             "market_state_integrity_score": 95.0,
             "valid_for_paper": True,
             "market_state_reject_reasons": [],
             "paper_fill_allowed": True,
             "paper_fill_gate_status": "PAPER_FILL_ALLOWED",
+            # Allow allocation: tier must be A_GRADE_EXECUTION_PAPER for the
+            # allocator to proceed (otherwise it sets allocator_decision=BLOCK_NON_EXECUTABLE_PAPER_TIER
+            # which leaves order_size and depth_derived_price_impact_bps unset).
+            "paper_opportunity_tier": "A_GRADE_EXECUTION_PAPER",
+            # Allow route_strategy to return breakout_mode instead of mean_reversion_mode:
+            # without MASA predictions, route_strategy defaults to RANGE/mean_reversion_mode
+            # which is blocked for long by entry_gate.blocked_side_mode_combinations.
+            "paper_major_move_candidate": True,
+            "major_move_evidence_score": 0.75,
         }
     )
     fake.store["v2:market:prices:BTCUSDT"] = json.dumps(
         {
             "ticker_24hr": {"lastPrice": "100.0"},
+            "markPrice": "100.02",
+            "indexPrice": "100.00",
             "fetched_utc": "2026-06-08T21:00:00Z",
+        }
+    )
+    # Orderbook provides observed_bid/ask, depth, and levels for depth-impact
+    # calculation — all required by the production-grade cost-capture contract.
+    fake.store["v2:market:orderbook:BTCUSDT"] = json.dumps(
+        {
+            "best_bid": 99.99,
+            "best_ask": 100.01,
+            "bids": [
+                {"price": 99.99, "quantity": 500.0},
+                {"price": 99.98, "quantity": 500.0},
+                {"price": 99.97, "quantity": 500.0},
+                {"price": 99.96, "quantity": 500.0},
+                {"price": 99.95, "quantity": 500.0},
+            ],
+            "asks": [
+                {"price": 100.01, "quantity": 500.0},
+                {"price": 100.02, "quantity": 500.0},
+                {"price": 100.03, "quantity": 500.0},
+                {"price": 100.04, "quantity": 500.0},
+                {"price": 100.05, "quantity": 500.0},
+            ],
+            "E": orderbook_event_ms,
         }
     )
     fake.store["v2:portfolio:state"] = json.dumps(
@@ -348,6 +389,14 @@ def test_paper_loop_reads_per_symbol_paper_signal_keys(monkeypatch) -> None:
     )
     _patch_connect(monkeypatch, "v2.backend.app.cli.v2_trade_management_paper_loop", fake)
     paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
+
+    # Isolate from on-disk state files: lifecycle state contains real open
+    # positions whose correlation drives correlation_exposure_pct=1.0 → budget=0.
+    monkeypatch.setattr(paper, "_read_lifecycle_state_file", lambda path=None: {})
+    monkeypatch.setattr(paper, "_read_accepted_fill_state_file", lambda path=None: {})
+    # The on-disk continuous-edge-guardian gate file blocks A_GRADE entries;
+    # return empty dict so the gate is treated as absent for this unit test.
+    monkeypatch.setattr(paper, "_read_continuous_edge_guardian_gate", lambda r: {})
 
     status = paper.run_once()
 

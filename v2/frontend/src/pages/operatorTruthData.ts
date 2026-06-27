@@ -210,7 +210,11 @@ export interface CoinankMarketIntelligencePayload {
 }
 
 const operatorTruthPayloadPath = '/operator_truth/latest/operator_truth_payload.json';
-const paperOnlineRuntimePayloadPath = '/operator_runtime/paper_online/latest/paper_runtime_status.json';
+const paperOnlineRuntimePayloadPath = '/api/v2/paper/runtime-status';
+const legacyPaperRuntimePayloadPaths = new Set([
+  'v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json',
+  '/operator_runtime/paper_online/latest/paper_runtime_status.json',
+]);
 const liveObserverRuntimePayloadPath = '/operator_runtime/live_observer/latest/current_runtime_truth_payload.json';
 const coinankMarketIntelligencePayloadPath = '/operator_runtime/coinank_market_intelligence/latest/coinank_market_intelligence_status.json';
 const tonightReadinessPayloadPath = '/tonight_live_like_paper_shadow/latest/operator_dashboard_payload.json';
@@ -223,8 +227,16 @@ function ageSeconds(generatedAt: string | null | undefined): number | null {
   return Math.max(0, Math.round((Date.now() - ms) / 1000));
 }
 
+const ACTIVE_RUNTIME_STATES = new Set([
+  'PAPER_RUNTIME_ONLINE_ACTIVE',
+  'ACTIVE',
+  'RUNNING_CYCLE',
+  'V2_TRADE_MANAGEMENT_PAPER_CYCLE_RUNNING',
+]);
+
 function runtimeIsCurrent(payload: PaperOnlineRuntimePayload | null): boolean {
-  if (!payload || payload.runtime_state !== 'PAPER_RUNTIME_ONLINE_ACTIVE') return false;
+  if (!payload) return false;
+  if (!ACTIVE_RUNTIME_STATES.has(payload.runtime_state ?? '')) return false;
   const age = ageSeconds(payload.generated_at);
   return age !== null && age <= RUNTIME_CURRENT_SECONDS;
 }
@@ -261,7 +273,7 @@ function synthesizeTruthFromPaperRuntime(
   const staleTruthIsFresh = staleTruthAge !== null && staleTruthAge <= RUNTIME_CURRENT_SECONDS;
   const paperStatus = makeStatusRow(
     'v2 execution runtime',
-    'v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json',
+    paperOnlineRuntimePayloadPath,
     'REALTIME_RUNTIME_EVIDENCE',
     paperRuntime.generated_at,
     age,
@@ -311,7 +323,9 @@ function synthesizeTruthFromPaperRuntime(
   ];
   const payloadStatuses = [
     paperStatus,
-    ...(staleTruth?.dashboard_freshness_status.payload_statuses ?? []).filter((row) => row.path !== paperStatus.path),
+    ...(staleTruth?.dashboard_freshness_status.payload_statuses ?? []).filter(
+      (row) => row.path !== paperStatus.path && !legacyPaperRuntimePayloadPaths.has(row.path),
+    ),
   ];
 
   return {
@@ -320,7 +334,7 @@ function synthesizeTruthFromPaperRuntime(
     live_gate_status: paperRuntime.live_gate_status,
     redis_trim_status: staleTruth?.redis_trim_status ?? 'deferred_non_blocking',
     canonical_truth_bridge: {
-      status: 'PAPER_ONLINE_CANONICAL_TRUTH_ACTIVE',
+      status: 'V2_TRADE_MANAGEMENT_PAPER_CANONICAL_TRUTH_ACTIVE',
       source: paperStatus.path,
       generated_at: paperRuntime.generated_at,
       paper_runtime_age_seconds: age,

@@ -158,6 +158,49 @@ PAPER_EXECUTION_EVIDENCE_FIELDS: tuple[str, ...] = (
     "mark_index_available_at",
     "mark_price",
     "index_price",
+    "observed_bid",
+    "observed_ask",
+    "observed_spread_bps",
+    "order_size",
+    "order_size_usd",
+    "top_book_bid_depth_usd",
+    "top_book_ask_depth_usd",
+    "depth_derived_price_impact_bps",
+    "maker_taker_assumption",
+    "maker_taker_probability_detail",
+    "fee_schedule",
+    "fee_bps",
+    "fee_bps_source",
+    "fee_bps_configured_schedule",
+    "holding_period_funding_bps",
+    "holding_period_funding_source",
+    "latency_reserve_bps",
+    "latency_reserve_source",
+    "partial_fill_estimate",
+    "partial_fill_probability",
+    "partial_fill_adjustment_bps",
+    "execution_probability",
+    "cost_source",
+    "cost_source_timestamp",
+    "source_timestamp",
+    "cost_evidence_freshness_ms",
+    "cost_evidence_source_fields",
+    "runtime_cost_capture_source",
+    "runtime_cost_capture_status",
+    "runtime_cost_capture_required_fields",
+    "runtime_cost_capture_missing_fields",
+    "runtime_cost_capture_explained_missing_fields",
+    "runtime_cost_capture_unexplained_missing_fields",
+    "runtime_cost_capture_order_cost_applicable",
+    "runtime_cost_capture_no_order_reason",
+    "runtime_cost_capture_temporal_reject_reasons",
+    "fallback_cost_flag",
+    "fallback",
+    "production_grade_cost_flag",
+    "production_grade_cost_evidence",
+    "estimated_production_cost",
+    "estimated_production_cost_bps",
+    "counts_as_production_grade_training_evidence",
 )
 
 STATIC_SPREAD_PLACEHOLDER_SOURCES: frozenset[str] = frozenset(
@@ -273,9 +316,34 @@ def _action_was_profitable(*, selected_action: Any, directional_outcome: str, re
     return False
 
 
+_REPLAY_LABEL_SOURCES: frozenset[str] = frozenset({
+    "closed_candle_replay_label",
+    "replay_label",
+    "future_window_replay_label",
+    "REPLAY",
+})
+
+_MODEL_PROVENANCE_FIELDS: frozenset[str] = frozenset({
+    "decision_id",
+    "mtf_snapshot_id",
+    "feature_cutoff",
+    "decision_time",
+    "available_at",
+    "checkpoint_id",
+    "model_version",
+    "source_hashes",
+    "selected_action",
+})
+
+
 def _trust_envelope_rejection_reasons(row: dict[str, Any]) -> list[str]:
     reasons: list[str] = []
+    # Replay-sourced rows (e.g. major-move replay feedback) don't go through the
+    # live model pipeline, so model-provenance fields are not applicable to them.
+    is_replay_row = str(row.get("future_window_label_source") or "").strip() in _REPLAY_LABEL_SOURCES
     for field in REQUIRED_TRUST_ENVELOPE_FIELDS:
+        if is_replay_row and field in _MODEL_PROVENANCE_FIELDS:
+            continue
         value = row.get(field)
         if value in (None, "") or (field == "source_hashes" and (not isinstance(value, dict) or not value)):
             reasons.append(f"MISSING_TRUST_{field.upper()}")
@@ -290,7 +358,7 @@ def _trust_envelope_rejection_reasons(row: dict[str, Any]) -> list[str]:
         reasons.append("TRUST_RECONSTRUCTED_WITHOUT_SOURCE_IDS")
     for reason in row.get("trust_reconstruction_rejection_reasons") or []:
         reasons.append(f"TRUST_RECONSTRUCTION:{reason}")
-    if row.get("prediction_id") and not row.get("mtf_snapshot_id") and not row.get("feature_cutoff"):
+    if not is_replay_row and row.get("prediction_id") and not row.get("mtf_snapshot_id") and not row.get("feature_cutoff"):
         reasons.append("PREDICTION_ID_ALONE_NOT_TRUST_EVIDENCE")
     return sorted(set(reasons))
 

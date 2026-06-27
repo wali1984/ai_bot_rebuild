@@ -301,13 +301,42 @@ def test_anti_mm_detection_recorded_in_risk() -> None:
 def test_anti_mm_entry_block_denies_risk_action() -> None:
     """Phase 9: when anti_mm detects entry_blocked, risk_action must become deny."""
     lineage = _lineage(timeframe="15m", confidence=0.85, edge_bps=20.0)
+    lineage["risk_decision"]["production_cost_evidence"] = {
+        "actual_observed_spread_entry_bps": 1.0,
+        "expected_fee_bps": 4.0,
+        "depth_price_impact_bps": 1.0,
+        "depth_price_impact_source": "unit_test_depth",
+        "expected_slippage_bps": 1.0,
+        "expected_funding_bps": 0.1,
+        "latency_reserve_bps": 0.2,
+        "partial_fill_reserve_bps": 0.1,
+        "round_trip_cost_bps": 7.4,
+        "cost_uncertainty_bps": 0.5,
+        "fallback": False,
+        "source_timestamp": "2026-06-17T11:59:59Z",
+        "evidence_freshness_seconds": 1,
+        "expected_gross_edge_bps": 20.0,
+    }
     from v2.backend.app.services.paper_trade_management import high_precision_gate as hp_mod
     from v2.backend.app.services.paper_trade_management import anti_market_maker_detector as amm_mod
+    from v2.backend.app.services import paper_churn_governor as churn_mod
     _saved_hp = hp_mod.evaluate_high_precision_gate
     _saved_amm = amm_mod.evaluate_all_detectors
+    _saved_churn = churn_mod.evaluate_churn_governor_entry_gate
 
     def _permissive_hp(*a, **kw):
         return {"allow": True, "abstain": False, "reasons": [], "paper_only": True, "places_real_order": False}
+
+    def _permissive_churn(*a, **kw):
+        return {
+            "schema_version": "paper_churn_governor_v1",
+            "status": "PASS_PAPER_CHURN_GOVERNOR_ENTRY_GATE",
+            "allowed": True,
+            "reasons": [],
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        }
 
     def _entry_blocked_amm(features):
         return {
@@ -331,11 +360,13 @@ def test_anti_mm_entry_block_denies_risk_action() -> None:
         }
 
     hp_mod.evaluate_high_precision_gate = _permissive_hp
+    churn_mod.evaluate_churn_governor_entry_gate = _permissive_churn
     amm_mod.evaluate_all_detectors = _entry_blocked_amm
     try:
         result = apply_paper_entry_gates(lineage)
     finally:
         hp_mod.evaluate_high_precision_gate = _saved_hp
+        churn_mod.evaluate_churn_governor_entry_gate = _saved_churn
         amm_mod.evaluate_all_detectors = _saved_amm
 
     assert result["risk_decision"]["risk_action"] == "deny"

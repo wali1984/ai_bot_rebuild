@@ -30,8 +30,15 @@ export function useTraderSnapshot(): TraderRealtimeState & { loading: boolean; r
   const state = useTraderRealtimeState();
 
   useEffect(() => {
-    applyTraderSnapshotEnvelope(resource.envelope);
-  }, [resource.envelope]);
+    // Don't apply an envelope whose quality is 'invalid' due to a fetch error — the
+    // envelope may still carry stale data from a previous success, and writing
+    // quality:'invalid' to the store shows "Data validation error" on every metric
+    // that currently has a null value.  markTraderSnapshotDisconnected (below)
+    // handles the error path correctly without corrupting quality.
+    if (!resource.error) {
+      applyTraderSnapshotEnvelope(resource.envelope);
+    }
+  }, [resource.envelope, resource.error]);
 
   useEffect(() => {
     if (resource.error) markTraderSnapshotDisconnected(resource.error);

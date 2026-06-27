@@ -156,6 +156,10 @@ class PaperNetPosition:
     value_baseline: float | None = None
     prediction_score_source: str | None = None
     prediction_score_missing_reason: str | None = None
+    candidate_id: str | None = None
+    paper_policy_owner: str | None = None
+    policy_fingerprint: str | None = None
+    model_source: str | None = None
     selector_policy_fingerprint: str | None = None
     frozen_selector_fingerprint: str | None = None
     candidate_selected_before_outcome: bool | None = None
@@ -223,6 +227,14 @@ class PaperNetPosition:
     entry_observed_spread_bps: float | None = None
     entry_spread_source: str | None = None
     entry_spread_unavailable_reason: str | None = None
+    observed_bid: float | None = None
+    observed_ask: float | None = None
+    observed_spread_bps: float | None = None
+    order_size: float | None = None
+    order_size_usd: float | None = None
+    top_book_bid_depth_usd: float | None = None
+    top_book_ask_depth_usd: float | None = None
+    depth_derived_price_impact_bps: float | None = None
     bid_depth_usd: float | None = None
     ask_depth_usd: float | None = None
     orderbook_depth_usd: float | None = None
@@ -256,22 +268,57 @@ class PaperNetPosition:
     realized_slippage_usd: float | None = None
     decision_latency_ms: float | None = None
     latency_source: str | None = None
+    latency_reserve_bps: float | None = None
+    latency_reserve_source: str | None = None
+    maker_taker_assumption: str | None = None
     maker_probability: float | None = None
     taker_probability: float | None = None
     maker_taker_probability: float | None = None
+    maker_taker_probability_detail: dict[str, Any] | None = None
     maker_taker_probabilities: dict[str, Any] | None = None
     maker_taker_probability_source: str | None = None
+    fee_schedule: dict[str, Any] | None = None
+    fee_bps: float | None = None
+    fee_bps_source: str | None = None
+    fee_bps_configured_schedule: bool | None = None
+    holding_period_funding_bps: float | None = None
+    holding_period_funding_source: str | None = None
     partial_fill_count: int | None = None
+    partial_fill_estimate: dict[str, Any] | None = None
+    partial_fill_probability: float | None = None
+    partial_fill_adjustment_bps: float | None = None
     partial_fills: list[dict[str, Any]] | None = None
     fill_count: int | None = None
     all_partial_fills: list[dict[str, Any]] | None = None
     partial_fill_plan: dict[str, Any] | list[dict[str, Any]] | None = None
+    execution_probability: float | None = None
     mark_index_divergence_bps: float | None = None
     mark_index_divergence: float | None = None
     mark_index_source: str | None = None
     mark_index_available_at: str | None = None
     mark_price: float | None = None
     index_price: float | None = None
+    cost_source: str | None = None
+    cost_source_timestamp: str | None = None
+    source_timestamp: str | None = None
+    cost_evidence_freshness_ms: float | None = None
+    cost_evidence_source_fields: dict[str, Any] | None = None
+    runtime_cost_capture_source: str | None = None
+    runtime_cost_capture_status: str | None = None
+    runtime_cost_capture_required_fields: list[str] | None = None
+    runtime_cost_capture_missing_fields: list[str] | None = None
+    runtime_cost_capture_explained_missing_fields: list[str] | None = None
+    runtime_cost_capture_unexplained_missing_fields: list[str] | None = None
+    runtime_cost_capture_order_cost_applicable: bool | None = None
+    runtime_cost_capture_no_order_reason: str | None = None
+    runtime_cost_capture_temporal_reject_reasons: list[str] | None = None
+    fallback_cost_flag: bool | None = None
+    fallback: bool | None = None
+    production_grade_cost_flag: bool | None = None
+    production_grade_cost_evidence: bool | None = None
+    estimated_production_cost: float | None = None
+    estimated_production_cost_bps: float | None = None
+    counts_as_production_grade_training_evidence: bool | None = None
     fill_ids: list[str] = field(default_factory=list)
     best_favorable_price: float | None = None
     worst_adverse_price: float | None = None
@@ -458,6 +505,10 @@ class PaperNetPosition:
             "value_baseline": self.value_baseline,
             "prediction_score_source": self.prediction_score_source,
             "prediction_score_missing_reason": self.prediction_score_missing_reason,
+            "candidate_id": self.candidate_id,
+            "paper_policy_owner": self.paper_policy_owner,
+            "policy_fingerprint": self.policy_fingerprint,
+            "model_source": self.model_source,
             "selector_policy_fingerprint": self.selector_policy_fingerprint,
             "frozen_selector_fingerprint": self.frozen_selector_fingerprint,
             "candidate_selected_before_outcome": self.candidate_selected_before_outcome,
@@ -499,8 +550,15 @@ class PaperNetPosition:
             "trailing_stop_price": self.trailing_stop_price,
             "trailing_stop_history": list(self.trailing_stop_history),
             "actual_observed_spread_entry_bps": self.entry_observed_spread_bps,
+            "observed_bid": self.observed_bid,
+            "observed_ask": self.observed_ask,
+            "observed_spread_bps": self.observed_spread_bps,
+            "order_size": self.order_size,
+            "order_size_usd": self.order_size_usd,
             "entry_spread_source": self.entry_spread_source,
             "entry_spread_unavailable_reason": self.entry_spread_unavailable_reason,
+            "top_book_bid_depth_usd": self.top_book_bid_depth_usd,
+            "top_book_ask_depth_usd": self.top_book_ask_depth_usd,
             "bid_depth_usd": self.bid_depth_usd,
             "ask_depth_usd": self.ask_depth_usd,
             "orderbook_depth_usd": self.orderbook_depth_usd,
@@ -511,6 +569,7 @@ class PaperNetPosition:
             "orderbook_depth_source": self.orderbook_depth_source,
             "depth_utilization_pct": self.depth_utilization_pct,
             "depth_price_impact_bps": self.depth_price_impact_bps,
+            "depth_derived_price_impact_bps": self.depth_derived_price_impact_bps,
             "depth_price_impact_source": self.depth_price_impact_source,
             "depth_price_impact_model": self.depth_price_impact_model,
             "depth_price_impact_side": self.depth_price_impact_side,
@@ -538,22 +597,57 @@ class PaperNetPosition:
             "execution_latency_ms": self.decision_latency_ms,
             "simulated_latency_ms": self.decision_latency_ms,
             "latency_source": self.latency_source,
+            "latency_reserve_bps": self.latency_reserve_bps,
+            "latency_reserve_source": self.latency_reserve_source,
+            "maker_taker_assumption": self.maker_taker_assumption,
             "maker_probability": self.maker_probability,
             "taker_probability": self.taker_probability,
             "maker_taker_probability": self.maker_taker_probability,
+            "maker_taker_probability_detail": self.maker_taker_probability_detail,
             "maker_taker_probabilities": self.maker_taker_probabilities,
             "maker_taker_probability_source": self.maker_taker_probability_source,
+            "fee_schedule": self.fee_schedule,
+            "fee_bps": self.fee_bps,
+            "fee_bps_source": self.fee_bps_source,
+            "fee_bps_configured_schedule": self.fee_bps_configured_schedule,
+            "holding_period_funding_bps": self.holding_period_funding_bps,
+            "holding_period_funding_source": self.holding_period_funding_source,
             "partial_fill_count": self.partial_fill_count,
+            "partial_fill_estimate": self.partial_fill_estimate,
+            "partial_fill_probability": self.partial_fill_probability,
+            "partial_fill_adjustment_bps": self.partial_fill_adjustment_bps,
             "partial_fills": self.partial_fills,
             "fill_count": self.fill_count,
             "all_partial_fills": self.all_partial_fills,
             "partial_fill_plan": self.partial_fill_plan,
+            "execution_probability": self.execution_probability,
             "mark_index_divergence_bps": self.mark_index_divergence_bps,
             "mark_index_divergence": self.mark_index_divergence,
             "mark_index_source": self.mark_index_source,
             "mark_index_available_at": self.mark_index_available_at,
             "mark_price": self.mark_price,
             "index_price": self.index_price,
+            "cost_source": self.cost_source,
+            "cost_source_timestamp": self.cost_source_timestamp,
+            "source_timestamp": self.source_timestamp,
+            "cost_evidence_freshness_ms": self.cost_evidence_freshness_ms,
+            "cost_evidence_source_fields": self.cost_evidence_source_fields,
+            "runtime_cost_capture_source": self.runtime_cost_capture_source,
+            "runtime_cost_capture_status": self.runtime_cost_capture_status,
+            "runtime_cost_capture_required_fields": self.runtime_cost_capture_required_fields,
+            "runtime_cost_capture_missing_fields": self.runtime_cost_capture_missing_fields,
+            "runtime_cost_capture_explained_missing_fields": self.runtime_cost_capture_explained_missing_fields,
+            "runtime_cost_capture_unexplained_missing_fields": self.runtime_cost_capture_unexplained_missing_fields,
+            "runtime_cost_capture_order_cost_applicable": self.runtime_cost_capture_order_cost_applicable,
+            "runtime_cost_capture_no_order_reason": self.runtime_cost_capture_no_order_reason,
+            "runtime_cost_capture_temporal_reject_reasons": self.runtime_cost_capture_temporal_reject_reasons,
+            "fallback_cost_flag": self.fallback_cost_flag,
+            "fallback": self.fallback,
+            "production_grade_cost_flag": self.production_grade_cost_flag,
+            "production_grade_cost_evidence": self.production_grade_cost_evidence,
+            "estimated_production_cost": self.estimated_production_cost,
+            "estimated_production_cost_bps": self.estimated_production_cost_bps,
+            "counts_as_production_grade_training_evidence": self.counts_as_production_grade_training_evidence,
             "source_fill_ids": list(self.fill_ids),
             "best_favorable_price": self.best_favorable_price,
             "worst_adverse_price": self.worst_adverse_price,
@@ -829,6 +923,29 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         value_baseline=value_baseline,
         prediction_score_source=prediction_score_source,
         prediction_score_missing_reason=prediction_score_missing_reason,
+        candidate_id=first_present(fill.get("candidate_id"), allocation.get("candidate_id")),
+        paper_policy_owner=first_present(
+            fill.get("paper_policy_owner"),
+            allocation.get("paper_policy_owner"),
+            fill.get("current_allowed_paper_owner"),
+            allocation.get("current_allowed_paper_owner"),
+        ),
+        policy_fingerprint=first_present(
+            fill.get("policy_fingerprint"),
+            allocation.get("policy_fingerprint"),
+            fill.get("selector_policy_fingerprint"),
+            allocation.get("selector_policy_fingerprint"),
+            fill.get("frozen_selector_fingerprint"),
+            allocation.get("frozen_selector_fingerprint"),
+        ),
+        model_source=first_present(
+            fill.get("model_source"),
+            allocation.get("model_source"),
+            fill.get("model_version"),
+            allocation.get("model_version"),
+            fill.get("model_id"),
+            allocation.get("model_id"),
+        ),
         selector_policy_fingerprint=first_present(
             fill.get("selector_policy_fingerprint"),
             allocation.get("selector_policy_fingerprint"),
@@ -972,6 +1089,17 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         entry_spread_unavailable_reason=(
             None if entry_spread is not None else "MISSING_ENTRY_OBSERVED_SPREAD_BPS"
         ),
+        observed_bid=first_number(fill.get("observed_bid"), fill.get("best_bid")),
+        observed_ask=first_number(fill.get("observed_ask"), fill.get("best_ask")),
+        observed_spread_bps=first_number(fill.get("observed_spread_bps"), entry_spread),
+        order_size=first_number(fill.get("order_size"), fill.get("notional"), fill.get("notional_usdt")),
+        order_size_usd=first_number(fill.get("order_size_usd"), fill.get("order_size"), fill.get("notional")),
+        top_book_bid_depth_usd=first_number(fill.get("top_book_bid_depth_usd"), fill.get("bid_depth_usd")),
+        top_book_ask_depth_usd=first_number(fill.get("top_book_ask_depth_usd"), fill.get("ask_depth_usd")),
+        depth_derived_price_impact_bps=first_number(
+            fill.get("depth_derived_price_impact_bps"),
+            fill.get("depth_price_impact_bps"),
+        ),
         bid_depth_usd=first_number(fill.get("bid_depth_usd")),
         ask_depth_usd=first_number(fill.get("ask_depth_usd")),
         orderbook_depth_usd=first_number(fill.get("orderbook_depth_usd")),
@@ -1009,16 +1137,35 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         expected_move_after_cost_bps=expected_move_after_cost_bps,
         decision_latency_ms=first_number(fill.get("decision_latency_ms"), fill.get("latency_ms")),
         latency_source=fill.get("latency_source"),
+        latency_reserve_bps=first_number(fill.get("latency_reserve_bps")),
+        latency_reserve_source=fill.get("latency_reserve_source"),
+        maker_taker_assumption=fill.get("maker_taker_assumption"),
         maker_probability=first_number(fill.get("maker_probability")),
         taker_probability=first_number(fill.get("taker_probability")),
         maker_taker_probability=first_number(fill.get("maker_taker_probability")),
+        maker_taker_probability_detail=fill.get("maker_taker_probability_detail")
+        if isinstance(fill.get("maker_taker_probability_detail"), dict)
+        else None,
         maker_taker_probabilities=fill.get("maker_taker_probabilities")
         if isinstance(fill.get("maker_taker_probabilities"), dict)
         else None,
         maker_taker_probability_source=fill.get("maker_taker_probability_source"),
+        fee_schedule=fill.get("fee_schedule") if isinstance(fill.get("fee_schedule"), dict) else None,
+        fee_bps=first_number(fill.get("fee_bps")),
+        fee_bps_source=fill.get("fee_bps_source"),
+        fee_bps_configured_schedule=fill.get("fee_bps_configured_schedule")
+        if isinstance(fill.get("fee_bps_configured_schedule"), bool)
+        else None,
+        holding_period_funding_bps=first_number(fill.get("holding_period_funding_bps")),
+        holding_period_funding_source=fill.get("holding_period_funding_source"),
         partial_fill_count=int(first_number(fill.get("partial_fill_count"), fill.get("fill_count")) or 0)
         if first_number(fill.get("partial_fill_count"), fill.get("fill_count")) is not None
         else None,
+        partial_fill_estimate=fill.get("partial_fill_estimate")
+        if isinstance(fill.get("partial_fill_estimate"), dict)
+        else None,
+        partial_fill_probability=first_number(fill.get("partial_fill_probability")),
+        partial_fill_adjustment_bps=first_number(fill.get("partial_fill_adjustment_bps")),
         partial_fills=fill.get("partial_fills") if isinstance(fill.get("partial_fills"), list) else None,
         fill_count=int(first_number(fill.get("fill_count"), fill.get("partial_fill_count")) or 0)
         if first_number(fill.get("fill_count"), fill.get("partial_fill_count")) is not None
@@ -1027,12 +1174,56 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         partial_fill_plan=fill.get("partial_fill_plan")
         if isinstance(fill.get("partial_fill_plan"), (dict, list))
         else None,
+        execution_probability=first_number(fill.get("execution_probability")),
         mark_index_divergence_bps=first_number(fill.get("mark_index_divergence_bps")),
         mark_index_divergence=first_number(fill.get("mark_index_divergence")),
         mark_index_source=fill.get("mark_index_source"),
         mark_index_available_at=fill.get("mark_index_available_at"),
         mark_price=first_number(fill.get("mark_price")),
         index_price=first_number(fill.get("index_price")),
+        cost_source=fill.get("cost_source"),
+        cost_source_timestamp=fill.get("cost_source_timestamp"),
+        source_timestamp=fill.get("source_timestamp"),
+        cost_evidence_freshness_ms=first_number(fill.get("cost_evidence_freshness_ms")),
+        cost_evidence_source_fields=fill.get("cost_evidence_source_fields")
+        if isinstance(fill.get("cost_evidence_source_fields"), dict)
+        else None,
+        runtime_cost_capture_source=fill.get("runtime_cost_capture_source"),
+        runtime_cost_capture_status=fill.get("runtime_cost_capture_status"),
+        runtime_cost_capture_required_fields=list(fill.get("runtime_cost_capture_required_fields"))
+        if isinstance(fill.get("runtime_cost_capture_required_fields"), list)
+        else None,
+        runtime_cost_capture_missing_fields=list(fill.get("runtime_cost_capture_missing_fields"))
+        if isinstance(fill.get("runtime_cost_capture_missing_fields"), list)
+        else None,
+        runtime_cost_capture_explained_missing_fields=list(fill.get("runtime_cost_capture_explained_missing_fields"))
+        if isinstance(fill.get("runtime_cost_capture_explained_missing_fields"), list)
+        else None,
+        runtime_cost_capture_unexplained_missing_fields=list(fill.get("runtime_cost_capture_unexplained_missing_fields"))
+        if isinstance(fill.get("runtime_cost_capture_unexplained_missing_fields"), list)
+        else None,
+        runtime_cost_capture_order_cost_applicable=fill.get("runtime_cost_capture_order_cost_applicable")
+        if isinstance(fill.get("runtime_cost_capture_order_cost_applicable"), bool)
+        else None,
+        runtime_cost_capture_no_order_reason=fill.get("runtime_cost_capture_no_order_reason"),
+        runtime_cost_capture_temporal_reject_reasons=list(fill.get("runtime_cost_capture_temporal_reject_reasons"))
+        if isinstance(fill.get("runtime_cost_capture_temporal_reject_reasons"), list)
+        else None,
+        fallback_cost_flag=fill.get("fallback_cost_flag")
+        if isinstance(fill.get("fallback_cost_flag"), bool)
+        else None,
+        fallback=fill.get("fallback") if isinstance(fill.get("fallback"), bool) else None,
+        production_grade_cost_flag=fill.get("production_grade_cost_flag")
+        if isinstance(fill.get("production_grade_cost_flag"), bool)
+        else None,
+        production_grade_cost_evidence=fill.get("production_grade_cost_evidence")
+        if isinstance(fill.get("production_grade_cost_evidence"), bool)
+        else None,
+        estimated_production_cost=first_number(fill.get("estimated_production_cost")),
+        estimated_production_cost_bps=first_number(fill.get("estimated_production_cost_bps")),
+        counts_as_production_grade_training_evidence=fill.get("counts_as_production_grade_training_evidence")
+        if isinstance(fill.get("counts_as_production_grade_training_evidence"), bool)
+        else None,
         fill_ids=[fill_id],
         best_favorable_price=price,
         worst_adverse_price=price,

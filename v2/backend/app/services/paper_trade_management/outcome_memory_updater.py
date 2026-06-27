@@ -383,11 +383,31 @@ def _update_bucket(bucket: dict, event: dict) -> dict:
     bucket["degraded"] = False
     bucket["block_reason"] = None
     bucket["degraded_since"] = None
+
+    # Compute degraded status directly from rolling stats when enough trades exist.
+    # This runs regardless of outcome_memory_can_block_entries so that untrusted
+    # (advisory) buckets with clear WR/EV failures still surface as degraded.
+    thresholds = OutcomeMemoryThresholds()
+    trade_count = int(bucket.get("trade_count") or 0)
+    if trade_count >= thresholds.min_trade_count_for_dynamic:
+        block_parts: list[str] = []
+        wr = bucket.get("rolling_win_rate")
+        if wr is not None and wr < thresholds.min_win_rate:
+            block_parts.append(f"WIN_RATE_DEGRADED:{wr:.2%}<{thresholds.min_win_rate:.2%}")
+        ev = bucket.get("rolling_ev_bps")
+        if ev is not None and ev < thresholds.min_rolling_ev_bps:
+            block_parts.append(f"ROLLING_EV_DEGRADED:{ev:.2f}<{thresholds.min_rolling_ev_bps:.2f}")
+        if block_parts:
+            bucket["degraded"] = True
+            bucket["block_reason"] = ";".join(block_parts)
+            bucket["degraded_since"] = prior_degraded_since or generated_at
+
+    # Call evaluator as secondary confirmation (honours pre-set degraded state).
     evaluation = evaluate_outcome_memory_bucket(
         OutcomeMemoryBucket.from_dict(bucket),
-        OutcomeMemoryThresholds(),
+        thresholds,
     )
-    if evaluation.get("blocked"):
+    if evaluation.get("blocked") and not bucket["degraded"]:
         bucket["degraded"] = True
         bucket["block_reason"] = ";".join(str(r) for r in evaluation.get("reasons", []))
         bucket["degraded_since"] = prior_degraded_since or generated_at

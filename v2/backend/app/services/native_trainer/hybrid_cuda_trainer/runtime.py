@@ -156,10 +156,11 @@ def run_hybrid_trainer_cycle(
     io: V2OnlyJsonIO | None = None,
     publish: bool = True,
     replay_buffer: Any | None = None,
+    trusted_replay_archive_root: "Path | None" = None,
 ) -> HybridRuntimeResult:
     config.validate_safety()
     safe_io = io or V2OnlyJsonIO(client=None)
-    loader = V2HybridTrainerDataLoader(io=safe_io)
+    loader = V2HybridTrainerDataLoader(io=safe_io, trusted_replay_archive_root=trusted_replay_archive_root)
     prediction_examples = loader.load_training_examples(
         symbols=config.symbols,
         timeframes=config.timeframes,

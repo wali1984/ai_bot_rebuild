@@ -54,6 +54,16 @@ def _position(**overrides) -> PaperNetPosition:
         intra_trade_low_price=100.0,
         last_mark_price=100.0,
         last_mark_est="2026-06-14T00:00:00Z",
+        # Trust envelope fields required for trainer_consumable=True
+        decision_id="decision_test",
+        mtf_snapshot_id="mtf_test",
+        feature_cutoff="2026-06-13T23:59:59Z",
+        decision_time="2026-06-14T00:00:00Z",
+        available_at="2026-06-14T00:00:00Z",
+        selected_action="long",
+        model_version="v2_test",
+        checkpoint_id="checkpoint_test",
+        source_hashes={"model": "abc123", "feature": "def456"},
     )
     base.update(overrides)
     return PaperNetPosition(**base)

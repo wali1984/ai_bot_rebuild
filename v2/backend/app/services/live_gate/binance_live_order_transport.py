@@ -967,7 +967,11 @@ def evaluate_live_order_transport(
                 available_balance is None or available_balance < min_order_adjustment
             ):
                 blockers.append("INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER")
-        required_initial_margin = notional / max(max_leverage, 1.0) if notional > 0 else 0.0
+        max_notional_per_trade = _as_float(fields.get("max_notional_per_trade")) or 0.0
+        # When allocator blocks with 0 notional, use max_notional_per_trade as the margin reference
+        # so the balance check reflects the actual minimum order cost, not a zeroed blocked notional.
+        margin_ref_notional = notional if notional > 0 else max_notional_per_trade
+        required_initial_margin = margin_ref_notional / max(max_leverage, 1.0) if margin_ref_notional > 0 else 0.0
         account_margin_status["required_initial_margin_usdt"] = round(required_initial_margin, 8)
         account_margin_status["required_notional_usdt"] = round(notional, 8)
         if account_margin_status.get("ok") is True and account_margin_status.get("available_balance_checked") is True:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from typing import Any
 
@@ -14,6 +15,19 @@ from app.services.market_stream_alert_history import market_stream_alert_history
 from app.services.market_stream_alert_notifier import market_stream_alert_notifier_status
 
 router = APIRouter(tags=["v2-public-status"])
+
+
+def _redis_json(key: str) -> Any:
+    r = get_redis()
+    if r is None:
+        return None
+    try:
+        raw = r.get(key)
+        if raw is None:
+            return None
+        return json.loads(raw) if isinstance(raw, (str, bytes)) else raw
+    except Exception:
+        return None
 
 
 def _utc_now() -> str:
@@ -167,4 +181,125 @@ async def get_v2_status() -> dict[str, Any]:
         "endpoint": "/api/v2/status",
         "stale": r is None,
         "warnings": warnings,
+    }
+
+
+# ---------------------------------------------------------------------------
+# /api/v2/ai/model-state  — ML model / technical analysis state
+# (Consumed by the Technical Analysis page)
+# ---------------------------------------------------------------------------
+
+@router.get("/ai/model-state")
+async def get_ai_model_state() -> dict[str, Any]:
+    r = get_redis()
+    now = _utc_now()
+
+    ta_keys_total = 0
+    ta_keys_fresh = 0
+    symbols_covered = 0
+    sample_btc_1m: dict[str, Any] | None = None
+
+    if r is not None:
+        try:
+            ta_keys = r.keys("v2:features:ta_full:*")
+            ta_keys_total = len(ta_keys or [])
+            symbols_seen: set[str] = set()
+            for k in (ta_keys or [])[:200]:
+                key_str = k.decode("utf-8") if isinstance(k, bytes) else str(k)
+                parts = key_str.split(":")
+                if len(parts) >= 5:
+                    symbol = parts[3]
+                    symbols_seen.add(symbol)
+                try:
+                    raw = r.get(k)
+                    if raw:
+                        ta_keys_fresh += 1
+                        if key_str.endswith("BTCUSDT:1m") and sample_btc_1m is None:
+                            data = json.loads(raw)
+                            if isinstance(data, dict):
+                                sample_btc_1m = {
+                                    "symbol": "BTCUSDT",
+                                    "timeframe": "1m",
+                                    "generated_utc": data.get("generated_utc") or now,
+                                    "source_label": str(data.get("source") or "redis"),
+                                    "families_present": [k for k in data if k.startswith("ta_")][: 8],
+                                    "indicators": {
+                                        k: v for k, v in data.items()
+                                        if k.startswith("ta_") and isinstance(v, (int, float))
+                                    },
+                                }
+                except Exception:
+                    pass
+            symbols_covered = len(symbols_seen)
+        except Exception:
+            pass
+
+    # Determine classification
+    if ta_keys_fresh > 50:
+        classification = "ACTIVE_REDIS_EVIDENCE"
+    elif ta_keys_fresh > 0:
+        classification = "PARTIAL_EVIDENCE"
+    else:
+        classification = "MISSING_EVIDENCE"
+
+    return {
+        "generated_at": now,
+        "classification": classification,
+        "symbols_covered": symbols_covered,
+        "symbols_fresh": symbols_covered,
+        "ta_keys_total": ta_keys_total,
+        "ta_keys_fresh": ta_keys_fresh,
+        "sample_btc_1m": sample_btc_1m,
+        "source": "redis:v2:features:ta_full:*",
+        "stale": ta_keys_fresh == 0,
+    }
+
+
+# ---------------------------------------------------------------------------
+# /api/v2/signals/all-timeframe-truth  — all-timeframe signal truth table
+# (fallbackSource in canonicalFieldRegistry)
+# ---------------------------------------------------------------------------
+
+@router.get("/signals/all-timeframe-truth")
+async def get_signals_all_timeframe_truth() -> dict[str, Any]:
+    r = get_redis()
+    now = _utc_now()
+    truth_rows: list[dict[str, Any]] = []
+    timeframes = ["1m", "5m", "15m", "1h", "4h"]
+
+    if r is not None:
+        try:
+            signal_keys = r.keys("v2:trainer:hybrid_cuda:signals:paper:*")
+            for k in (signal_keys or [])[:100]:
+                key_str = k.decode("utf-8") if isinstance(k, bytes) else str(k)
+                parts = key_str.split(":")
+                symbol = parts[-2] if len(parts) >= 7 and parts[-1] in timeframes else parts[-1]
+                tf = parts[-1] if parts[-1] in timeframes else None
+                try:
+                    raw = r.get(k)
+                    if raw:
+                        data = json.loads(raw)
+                        if isinstance(data, dict):
+                            truth_rows.append({
+                                "symbol": symbol,
+                                "timeframe": tf,
+                                "side": data.get("side") or data.get("direction"),
+                                "confidence": data.get("confidence"),
+                                "model_source": data.get("model_source"),
+                                "trainer_source": data.get("trainer_source"),
+                                "generated_at": data.get("generated_at") or data.get("timestamp"),
+                            })
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    return {
+        "generated_at": now,
+        "timeframes": timeframes,
+        "symbols_count": len({r["symbol"] for r in truth_rows}),
+        "truth_rows": truth_rows[:200],
+        "total": len(truth_rows),
+        "source": "redis:v2:trainer:hybrid_cuda:signals:paper:*",
+        "stale": len(truth_rows) == 0,
     }

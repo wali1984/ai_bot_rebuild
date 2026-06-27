@@ -29,6 +29,11 @@ READY_MARKER = "V2_PAPER_ONLINE_FULL_OPERATIONAL_RECOVERY_READY"
 BLOCKED_MARKER = "V2_PAPER_ONLINE_FULL_OPERATIONAL_RECOVERY_BLOCKED"
 CODEX_PASS_MARKER = "V2_PAPER_ONLINE_FULL_OPERATIONAL_CODEX_PASS"
 CODEX_FAIL_MARKER = "V2_PAPER_ONLINE_FULL_OPERATIONAL_CODEX_FAIL"
+V2_CURRENT_PAPER_OWNER = "adaptive_cuda_challenger_pipeline"
+PAPER_ONLINE_LEGACY_OWNER = "old_policy"
+PAPER_ONLINE_LEGACY_OWNER_MODE = "LEGACY_SHADOW_ONLY"
+PAPER_ONLINE_LEGACY_MODEL_SOURCE = "toy_momentum_wrapper_legacy_shadow_only"
+PAPER_ONLINE_NEW_ENTRY_BLOCK_REASON = "OLD_POLICY_NEW_ECONOMIC_PAPER_OPENS_DISABLED"
 PAPER_ONLINE_INTENTS_KEY = "v2:paper_online:intents"
 PAPER_ONLINE_LEDGER_KEY = "v2:paper_online:ledger"
 PAPER_ONLINE_RISK_DECISIONS_KEY = "v2:risk:paper_online_decisions"
@@ -107,6 +112,12 @@ PAPER_POSITION_MAX_HOLD_SECONDS = 15 * 60
 PAPER_POSITION_DEFAULT_STOP_BPS = 8.0
 PAPER_POSITION_MIN_TAKE_PROFIT_BPS = 8.0
 PAPER_MICROSTRUCTURE_TOXICITY_MAX_BPS = 150.0
+PAPER_EXECUTION_TIMING_TIMEFRAME = "1m"
+PAPER_UNKNOWN_THESIS_TIMEFRAME = "UNKNOWN"
+PAPER_ALLOWED_TIMEFRAMES = {"1m", "5m", "15m", "1h", "4h"}
+PAPER_EDGE_TO_COST_CONTEXTUAL_SAFETY_RATIO = 1.5
+PAPER_COST_MAX_FRESHNESS_SECONDS = 120
+PAPER_REENTRY_DEDUP_RUNTIME_LOOKBACK_ROWS = 500
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,6 +133,7 @@ class MarketSnapshot:
     freshness_state: str
     errors: list[str]
     candles: list[dict[str, Any]]
+    timeframe: str = PAPER_EXECUTION_TIMING_TIMEFRAME
 
 
 def iso_now() -> str:
@@ -143,6 +155,63 @@ def _float_or_none(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _clean_paper_timeframe(value: Any, *, fallback: str | None = None) -> str | None:
+    text = str(value or "").strip()
+    if text in PAPER_ALLOWED_TIMEFRAMES:
+        return text
+    return fallback
+
+
+def _paper_execution_timeframe(*sources: dict[str, Any]) -> str:
+    for source in sources:
+        for field in ("execution_timeframe", "feature_timeframe", "timeframe"):
+            parsed = _clean_paper_timeframe(source.get(field))
+            if parsed is not None:
+                return parsed
+    return PAPER_EXECUTION_TIMING_TIMEFRAME
+
+
+def _paper_thesis_timeframe(*sources: dict[str, Any]) -> str:
+    for source in sources:
+        for field in (
+            "thesis_timeframe",
+            "prediction_timeframe",
+            "expected_move_timeframe",
+            "timeframe",
+        ):
+            parsed = _clean_paper_timeframe(source.get(field))
+            if parsed is not None:
+                return parsed
+    return PAPER_UNKNOWN_THESIS_TIMEFRAME
+
+
+def _paper_identity_part(value: Any) -> str:
+    text = str(value or "").strip()
+    cleaned = "".join(ch if ch.isalnum() else "_" for ch in text).strip("_")
+    return cleaned[:96] or "unknown"
+
+
+def _paper_economic_identity(lineage: dict[str, Any], generated_at: str) -> dict[str, Any]:
+    ids = lineage.get("lineage_ids") if isinstance(lineage.get("lineage_ids"), dict) else {}
+    signal = lineage.get("signal") if isinstance(lineage.get("signal"), dict) else {}
+    prediction = lineage.get("trainer_prediction") if isinstance(lineage.get("trainer_prediction"), dict) else {}
+    feature_snapshot = lineage.get("feature_snapshot") if isinstance(lineage.get("feature_snapshot"), dict) else {}
+    prediction_id = _paper_identity_part(ids.get("prediction_id") or prediction.get("prediction_id") or generated_at)
+    signal_id = _paper_identity_part(ids.get("signal_id") or signal.get("signal_id") or prediction_id)
+    timeframe = _paper_identity_part(_paper_thesis_timeframe(prediction, signal, feature_snapshot))
+    economic_thesis_id = f"ethesis_{prediction_id}_{timeframe}"
+    parent_position_id = f"ppos_{signal_id}_{timeframe}"
+    return {
+        "economic_trade_id": f"econ_{parent_position_id}",
+        "economic_thesis_id": economic_thesis_id,
+        "parent_position_id": parent_position_id,
+        "thesis_prediction_id": ids.get("prediction_id") or prediction.get("prediction_id"),
+        "execution_snapshot_id": ids.get("feature_snapshot_id") or feature_snapshot.get("feature_snapshot_id"),
+        "thesis_timeframe": timeframe,
+        "execution_timeframe": _paper_execution_timeframe(feature_snapshot, prediction, signal),
+    }
 
 
 def _first_float(*values: Any) -> float | None:
@@ -256,7 +325,7 @@ def _trainer_bridge_expected_move(feature_snapshot: dict[str, Any]) -> dict[str,
     bridge_symbol = str(bridge.get("prediction_symbol") or "").strip().upper()
     bridge_timeframe = str(bridge.get("prediction_timeframe") or "").strip()
     feature_symbol = str(feature_snapshot.get("symbol") or "").strip().upper()
-    feature_timeframe = "1m"
+    feature_timeframe = _paper_execution_timeframe(feature_snapshot)
     if bridge_symbol != feature_symbol:
         return {
             "status": "EXPECTED_MOVE_SYMBOL_MISMATCH",
@@ -293,8 +362,9 @@ def _freshness(age_seconds: int | None) -> str:
     return "STALE"
 
 
-def fetch_market_snapshot(symbol: str) -> MarketSnapshot:
-    snapshot = fetch_unified_market_snapshot(symbol, timeframe="1m", limit=30)
+def fetch_market_snapshot(symbol: str, timeframe: str | None = None) -> MarketSnapshot:
+    execution_timeframe = _paper_execution_timeframe({"execution_timeframe": timeframe})
+    snapshot = fetch_unified_market_snapshot(symbol, timeframe=execution_timeframe, limit=30)
     return MarketSnapshot(
         symbol=snapshot.symbol,
         price=snapshot.price,
@@ -307,6 +377,7 @@ def fetch_market_snapshot(symbol: str) -> MarketSnapshot:
         freshness_state=snapshot.freshness_state,
         errors=snapshot.errors,
         candles=snapshot.candles,
+        timeframe=execution_timeframe,
     )
 
 
@@ -331,6 +402,634 @@ def _read_jsonl_tail(path: Path, limit: int = 500) -> list[dict[str, Any]]:
         if isinstance(item, dict):
             rows.append(item)
     return rows
+
+
+def _paper_churn_governor_runtime_rows(limit: int = 500) -> list[dict[str, Any]]:
+    rows = _read_jsonl_tail(LOCAL_RUNTIME_DIR / "paper_events.jsonl", limit=limit)
+    return [
+        row
+        for row in rows
+        if row.get("paper_result") == "POSITION_CLOSED_PAPER_ONLY"
+        and row.get("live_gate_status", LIVE_GATE_STATUS) == LIVE_GATE_STATUS
+        and row.get("exchange_order") is False
+    ]
+
+
+def _paper_dedup_identity_part(value: Any) -> str | None:
+    if value in (None, "", [], {}):
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _paper_first_identity(*values: Any) -> str | None:
+    for value in values:
+        parsed = _paper_dedup_identity_part(value)
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _paper_reentry_dedup_runtime_rows(
+    limit: int = PAPER_REENTRY_DEDUP_RUNTIME_LOOKBACK_ROWS,
+) -> list[dict[str, Any]]:
+    rows = _read_jsonl_tail(LOCAL_RUNTIME_DIR / "paper_events.jsonl", limit=limit)
+    return [
+        row
+        for row in rows
+        if row.get("paper_result") in {"FILLED_PAPER_ONLY", "POSITION_CLOSED_PAPER_ONLY"}
+        and row.get("exchange_order") is False
+    ]
+
+
+def _paper_strategy_id(
+    *,
+    signal: dict[str, Any] | None = None,
+    prediction: dict[str, Any] | None = None,
+    row: dict[str, Any] | None = None,
+) -> str:
+    signal = signal or {}
+    prediction = prediction or {}
+    row = row or {}
+    return _paper_first_identity(
+        row.get("strategy_id"),
+        row.get("strategy_mode"),
+        signal.get("strategy_id"),
+        prediction.get("strategy_id"),
+        prediction.get("strategy_mode"),
+        "paper_runtime_momentum",
+    ) or "paper_runtime_momentum"
+
+
+def _paper_thesis_candle_value(*sources: dict[str, Any]) -> str | None:
+    for source in sources:
+        parsed = _paper_first_identity(
+            source.get("thesis_candle_close_time"),
+            source.get("entry_feature_cutoff"),
+            source.get("feature_cutoff"),
+            source.get("candle_close_time"),
+            source.get("finalized_candle_close_time"),
+        )
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _paper_reentry_dedup_candidate_row(
+    *,
+    symbol: str,
+    timeframe: str,
+    side: str,
+    risk: dict[str, Any],
+    signal: dict[str, Any],
+    prediction: dict[str, Any],
+    feature_snapshot: dict[str, Any],
+) -> dict[str, Any]:
+    features = feature_snapshot.get("features") if isinstance(feature_snapshot.get("features"), dict) else {}
+    entry_time = _paper_first_identity(
+        risk.get("generated_at"),
+        signal.get("generated_at"),
+        prediction.get("generated_at"),
+        feature_snapshot.get("generated_at"),
+    )
+    return {
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "thesis_timeframe": timeframe,
+        "side": side.upper(),
+        "prediction_id": _paper_first_identity(
+            prediction.get("prediction_id"),
+            signal.get("prediction_id"),
+            risk.get("prediction_id"),
+        ),
+        "decision_id": _paper_first_identity(
+            risk.get("decision_id"),
+            risk.get("orchestrator_decision_id"),
+            risk.get("risk_decision_id"),
+        ),
+        "risk_decision_id": _paper_first_identity(risk.get("risk_decision_id")),
+        "signal_id": _paper_first_identity(signal.get("signal_id"), risk.get("signal_id")),
+        "feature_snapshot_id": _paper_first_identity(
+            feature_snapshot.get("feature_snapshot_id"),
+            prediction.get("feature_snapshot_id"),
+            risk.get("feature_snapshot_id"),
+        ),
+        "strategy_id": _paper_strategy_id(signal=signal, prediction=prediction),
+        "thesis_candle_close_time": _paper_thesis_candle_value(
+            risk,
+            signal,
+            prediction,
+            feature_snapshot,
+        ),
+        "entry_time": entry_time,
+        "generated_at": entry_time,
+        "expected_move_after_cost_bps": risk.get("expected_move_after_cost_bps"),
+        "market_regime_at_entry": _paper_first_identity(
+            features.get("market_regime"),
+            risk.get("market_regime_at_entry"),
+            signal.get("market_regime_at_entry"),
+        )
+        or "UNKNOWN",
+        "microstructure_context": _paper_first_identity(
+            features.get("microstructure_context"),
+            risk.get("microstructure_context"),
+            signal.get("microstructure_context"),
+        )
+        or "UNKNOWN",
+        "liquidation_context": _paper_first_identity(
+            features.get("liquidation_context"),
+            risk.get("liquidation_context"),
+            signal.get("liquidation_context"),
+        )
+        or "UNKNOWN",
+    }
+
+
+def _paper_row_symbol(row: dict[str, Any]) -> str:
+    return str(row.get("symbol") or "").upper()
+
+
+def _paper_row_timeframe(row: dict[str, Any]) -> str:
+    return str(row.get("thesis_timeframe") or row.get("timeframe") or "").strip()
+
+
+def _paper_row_side(row: dict[str, Any]) -> str:
+    return str(row.get("side") or row.get("paper_action") or "").replace("paper_", "").upper()
+
+
+def _paper_row_thesis_candle(row: dict[str, Any]) -> str | None:
+    return _paper_thesis_candle_value(row)
+
+
+def _paper_row_entry_time(row: dict[str, Any]) -> str | None:
+    return _paper_first_identity(
+        row.get("entry_time"),
+        row.get("entry_feature_decision_time"),
+        row.get("opened_at"),
+        row.get("generated_at"),
+    )
+
+
+def _paper_row_exit_time(row: dict[str, Any]) -> str | None:
+    return _paper_first_identity(
+        row.get("exit_time"),
+        row.get("closed_at"),
+        row.get("exit_price_utc"),
+        row.get("generated_at") if row.get("paper_result") == "POSITION_CLOSED_PAPER_ONLY" else None,
+    )
+
+
+def _paper_row_identity(row: dict[str, Any]) -> dict[str, str | None]:
+    symbol = _paper_row_symbol(row)
+    timeframe = _paper_row_timeframe(row)
+    candle = _paper_row_thesis_candle(row) or ""
+    strategy = _paper_strategy_id(row=row)
+    side = _paper_row_side(row)
+    return {
+        "prediction_id": _paper_first_identity(row.get("entry_prediction_id"), row.get("prediction_id")),
+        "decision_id": _paper_first_identity(
+            row.get("decision_id"),
+            row.get("orchestrator_decision_id"),
+            row.get("risk_decision_id"),
+        ),
+        "signal_id": _paper_first_identity(row.get("entry_signal_id"), row.get("signal_id")),
+        "feature_snapshot_id": _paper_first_identity(
+            row.get("entry_feature_snapshot_id"),
+            row.get("feature_snapshot_id"),
+        ),
+        "same_candle_same_thesis": "|".join([symbol, timeframe, candle, strategy, side]),
+    }
+
+
+def _paper_partial_close(row: dict[str, Any]) -> bool:
+    close_reason = str(row.get("close_reason") or row.get("exit_reason") or "").lower()
+    return bool(row.get("is_partial_close") is True or row.get("is_partial_reduce") is True or "partial" in close_reason)
+
+
+def _paper_reentry_material_change_reasons(previous: dict[str, Any], current: dict[str, Any]) -> list[str]:
+    reasons: list[str] = []
+    previous_candle = _paper_row_thesis_candle(previous)
+    current_candle = _paper_row_thesis_candle(current)
+    if previous_candle and current_candle and previous_candle != current_candle:
+        reasons.append("new_finalized_thesis_candle")
+    previous_regime = _paper_first_identity(previous.get("market_regime_at_entry"), previous.get("market_regime"))
+    current_regime = _paper_first_identity(current.get("market_regime_at_entry"), current.get("market_regime"))
+    if (
+        previous_regime
+        and current_regime
+        and previous_regime != "UNKNOWN"
+        and current_regime != "UNKNOWN"
+        and previous_regime != current_regime
+    ):
+        reasons.append("market_regime_change")
+    if _paper_strategy_id(row=previous) != _paper_strategy_id(row=current):
+        reasons.append("strategy_change")
+    if _paper_row_side(previous) != _paper_row_side(current):
+        reasons.append("direction_change")
+    previous_edge = _float_or_none(
+        previous.get("expected_move_after_cost_bps")
+        or previous.get("expected_net_edge_bps")
+        or previous.get("expected_move_bps")
+    )
+    current_edge = _float_or_none(
+        current.get("expected_move_after_cost_bps")
+        or current.get("expected_net_edge_bps")
+        or current.get("expected_move_bps")
+    )
+    if previous_edge is not None and current_edge is not None and current_edge > previous_edge:
+        reasons.append("expected_edge_improvement")
+    previous_context = _paper_first_identity(
+        previous.get("liquidation_context"),
+        previous.get("microstructure_context"),
+        previous.get("market_state_id"),
+    )
+    current_context = _paper_first_identity(
+        current.get("liquidation_context"),
+        current.get("microstructure_context"),
+        current.get("market_state_id"),
+    )
+    if (
+        previous_context
+        and current_context
+        and previous_context != "UNKNOWN"
+        and current_context != "UNKNOWN"
+        and previous_context != current_context
+    ):
+        reasons.append("liquidation_or_microstructure_state_change")
+    previous_exit = _parse_ts(_paper_row_exit_time(previous))
+    current_entry = _parse_ts(_paper_row_entry_time(current))
+    cooldown_seconds = _float_or_none(current.get("reentry_cooldown_seconds") or current.get("cooldown_seconds")) or 300.0
+    previous_snapshot = _paper_row_identity(previous).get("feature_snapshot_id")
+    current_snapshot = _paper_row_identity(current).get("feature_snapshot_id")
+    if (
+        previous_exit is not None
+        and current_entry is not None
+        and current_entry - previous_exit >= cooldown_seconds
+        and previous_snapshot
+        and current_snapshot
+        and previous_snapshot != current_snapshot
+    ):
+        reasons.append("cooldown_elapsed_with_fresh_independent_evidence")
+    return reasons
+
+
+def _paper_reentry_dedup_gate(previous_rows: list[dict[str, Any]], candidate: dict[str, Any]) -> dict[str, Any]:
+    blockers: list[str] = []
+    duplicate_fields: list[str] = []
+    duplicate_samples: list[dict[str, Any]] = []
+    permitted_reasons: set[str] = set()
+    candidate_identity = _paper_row_identity(candidate)
+    exact_fields = ("prediction_id", "decision_id", "signal_id", "feature_snapshot_id")
+    exact_blocker_by_field = {
+        "prediction_id": "same_prediction_id",
+        "decision_id": "same_decision_id",
+        "signal_id": "same_signal_id",
+        "feature_snapshot_id": "same_feature_snapshot_id",
+    }
+    for index, previous in enumerate(previous_rows):
+        previous_identity = _paper_row_identity(previous)
+        for field in exact_fields:
+            candidate_value = candidate_identity.get(field)
+            previous_value = previous_identity.get(field)
+            if candidate_value and previous_value and candidate_value == previous_value:
+                blocker = exact_blocker_by_field[field]
+                if blocker not in blockers:
+                    blockers.append(blocker)
+                if field not in duplicate_fields:
+                    duplicate_fields.append(field)
+                if len(duplicate_samples) < 10:
+                    duplicate_samples.append(
+                        {
+                            "duplicate_field": field,
+                            "duplicate_value": candidate_value,
+                            "previous_index": index,
+                            "previous_paper_result": previous.get("paper_result"),
+                        }
+                    )
+
+        same_symbol_timeframe_strategy_side = (
+            _paper_row_symbol(previous) == _paper_row_symbol(candidate)
+            and _paper_row_timeframe(previous) == _paper_row_timeframe(candidate)
+            and _paper_strategy_id(row=previous) == _paper_strategy_id(row=candidate)
+            and _paper_row_side(previous) == _paper_row_side(candidate)
+        )
+        if not same_symbol_timeframe_strategy_side:
+            continue
+        material_reasons = _paper_reentry_material_change_reasons(previous, candidate)
+        if material_reasons:
+            permitted_reasons.update(material_reasons)
+            continue
+        previous_candle_key = previous_identity.get("same_candle_same_thesis")
+        candidate_candle_key = candidate_identity.get("same_candle_same_thesis")
+        if previous_candle_key and candidate_candle_key and previous_candle_key == candidate_candle_key:
+            if "same_candle_same_thesis" not in blockers:
+                blockers.append("same_candle_same_thesis")
+            if "same_candle_same_thesis" not in duplicate_fields:
+                duplicate_fields.append("same_candle_same_thesis")
+        if _paper_partial_close(previous) and "partial_close_reentry_without_material_change" not in blockers:
+            blockers.append("partial_close_reentry_without_material_change")
+        if "same_symbol_side_strategy_without_material_change" not in blockers:
+            blockers.append("same_symbol_side_strategy_without_material_change")
+        if len(duplicate_samples) < 10:
+            duplicate_samples.append(
+                {
+                    "duplicate_field": "same_symbol_side_strategy_without_material_change",
+                    "duplicate_value": candidate_candle_key,
+                    "previous_index": index,
+                    "previous_paper_result": previous.get("paper_result"),
+                }
+            )
+
+    allowed = not blockers
+    return {
+        "schema_version": "paper_reentry_dedup_runtime_gate_v1",
+        "status": "PASS_PAPER_REENTRY_DEDUP_GATE" if allowed else "BLOCKED_PAPER_REENTRY_DEDUP_GATE",
+        "allowed": allowed,
+        "blockers": blockers,
+        "duplicate_identity_fields": duplicate_fields,
+        "duplicate_identity_samples": duplicate_samples,
+        "candidate_identity": candidate_identity,
+        "previous_rows_examined": len(previous_rows),
+        "permitted_reentry_reasons": sorted(permitted_reasons),
+        "allowed_reentry_reasons": [
+            "new_finalized_thesis_candle",
+            "market_regime_change",
+            "strategy_change",
+            "direction_change",
+            "expected_edge_improvement",
+            "liquidation_or_microstructure_state_change",
+            "cooldown_elapsed_with_fresh_independent_evidence",
+        ],
+        "runtime_wired_to_entry_gate": True,
+        "paper_only": True,
+        "paper_fill_allowed": allowed,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+
+
+def _paper_bool_flag(*sources: dict[str, Any], names: tuple[str, ...]) -> bool:
+    for source in sources:
+        for name in names:
+            if source.get(name) is True:
+                return True
+    return False
+
+
+def _paper_standalone_1m_strategy_eligible(
+    *,
+    strategy_id: str,
+    risk: dict[str, Any],
+    signal: dict[str, Any],
+    prediction: dict[str, Any],
+    feature_snapshot: dict[str, Any],
+) -> bool:
+    features = feature_snapshot.get("features") if isinstance(feature_snapshot.get("features"), dict) else {}
+    explicit_flag = _paper_bool_flag(
+        risk,
+        signal,
+        prediction,
+        features,
+        names=(
+            "standalone_1m_strategy_eligible",
+            "dedicated_1m_strategy_bucket",
+            "one_minute_strategy_eligible",
+            "one_minute_scalp_strategy_eligible",
+        ),
+    )
+    strategy_text = str(strategy_id or "").lower()
+    named_bucket = (
+        ("1m" in strategy_text or "one_minute" in strategy_text)
+        and any(token in strategy_text for token in ("scalp", "standalone", "micro"))
+    )
+    return explicit_flag or named_bucket
+
+
+def _paper_standalone_1m_eligibility_gate(
+    *,
+    symbol: str,
+    thesis_timeframe: str,
+    side: str,
+    risk: dict[str, Any],
+    signal: dict[str, Any],
+    prediction: dict[str, Any],
+    feature_snapshot: dict[str, Any],
+) -> dict[str, Any]:
+    execution_timeframe = _paper_execution_timeframe(feature_snapshot, prediction, signal)
+    strategy_id = _paper_strategy_id(signal=signal, prediction=prediction)
+    standalone_1m_thesis = thesis_timeframe == "1m"
+    higher_timeframe_timing_role_allowed = execution_timeframe == "1m" and thesis_timeframe != "1m"
+    dedicated_strategy_bucket = _paper_standalone_1m_strategy_eligible(
+        strategy_id=strategy_id,
+        risk=risk,
+        signal=signal,
+        prediction=prediction,
+        feature_snapshot=feature_snapshot,
+    )
+    blockers: list[str] = []
+    if standalone_1m_thesis and not dedicated_strategy_bucket:
+        blockers.append("standalone_1m_thesis_requires_dedicated_strategy_bucket")
+    allowed = not blockers
+    return {
+        "schema_version": "paper_standalone_1m_eligibility_gate_v1",
+        "status": "PASS_PAPER_STANDALONE_1M_ELIGIBILITY" if allowed else "BLOCKED_PAPER_STANDALONE_1M_ELIGIBILITY",
+        "allowed": allowed,
+        "symbol": symbol,
+        "side": side.upper(),
+        "thesis_timeframe": thesis_timeframe,
+        "execution_timeframe": execution_timeframe,
+        "strategy_id": strategy_id,
+        "standalone_1m_thesis": standalone_1m_thesis,
+        "dedicated_strategy_bucket": dedicated_strategy_bucket,
+        "standalone_execution_allowed": allowed if standalone_1m_thesis else True,
+        "higher_timeframe_timing_role_allowed": higher_timeframe_timing_role_allowed,
+        "blockers": blockers,
+        "runtime_wired_to_entry_gate": True,
+        "paper_only": True,
+        "paper_fill_allowed": allowed,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+
+
+def _paper_churn_governor_candidate_row(
+    *,
+    symbol: str,
+    timeframe: str,
+    side: str,
+    risk: dict[str, Any],
+    signal: dict[str, Any],
+    prediction: dict[str, Any],
+    feature_snapshot: dict[str, Any],
+) -> dict[str, Any]:
+    paper_edge_gate = risk.get("paper_edge_gate") if isinstance(risk.get("paper_edge_gate"), dict) else {}
+    fee_bps = _float_or_none(paper_edge_gate.get("fee_bps")) or 0.0
+    spread_bps = _float_or_none(paper_edge_gate.get("spread_bps")) or 0.0
+    slippage_bps = _float_or_none(paper_edge_gate.get("slippage_bps")) or 0.0
+    funding_bps = _float_or_none(paper_edge_gate.get("funding_risk_bps")) or 0.0
+    strategy = (
+        signal.get("strategy_id")
+        or prediction.get("strategy_id")
+        or prediction.get("strategy_mode")
+        or "paper_runtime_momentum"
+    )
+    features = feature_snapshot.get("features") if isinstance(feature_snapshot.get("features"), dict) else {}
+    return {
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "thesis_timeframe": timeframe,
+        "strategy_id": strategy,
+        "side": side.upper(),
+        "market_regime_at_entry": features.get("market_regime") or "UNKNOWN",
+        "expected_move_after_cost_bps": risk.get("expected_move_after_cost_bps"),
+        "round_trip_cost_bps": fee_bps + spread_bps + slippage_bps + abs(funding_bps),
+        "generated_at": risk.get("generated_at") or signal.get("generated_at"),
+    }
+
+
+def _paper_cost_source_row(
+    risk: dict[str, Any],
+    signal: dict[str, Any],
+    prediction: dict[str, Any],
+    feature_snapshot: dict[str, Any],
+) -> dict[str, Any]:
+    row: dict[str, Any] = {}
+    for source in (prediction, signal, feature_snapshot, risk):
+        if isinstance(source, dict):
+            row.update(source)
+    for field in (
+        "production_cost_evidence",
+        "paper_entry_cost_evidence",
+        "cost_evidence",
+        "execution_cost_evidence",
+    ):
+        nested = risk.get(field)
+        if isinstance(nested, dict):
+            row.update(nested)
+    return row
+
+
+def _paper_cost_float(row: dict[str, Any], *names: str) -> float | None:
+    for name in names:
+        parsed = _float_or_none(row.get(name))
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _paper_cost_present(row: dict[str, Any], *names: str) -> bool:
+    return any(row.get(name) not in (None, "", [], {}) for name in names)
+
+
+def _paper_cost_round_trip_bps(row: dict[str, Any]) -> float | None:
+    explicit = _paper_cost_float(row, "round_trip_cost_bps", "expected_round_trip_cost_bps", "total_cost_bps")
+    if explicit is not None:
+        return abs(explicit)
+    parts = [
+        _paper_cost_float(row, "actual_observed_spread_entry_bps", "bid_ask_spread_bps"),
+        _paper_cost_float(row, "expected_slippage_bps", "expected_slippage_usd", "slippage_bps"),
+        _paper_cost_float(row, "depth_price_impact_bps", "depth_impact_bps"),
+        _paper_cost_float(row, "funding_bps", "expected_funding_bps"),
+        _paper_cost_float(row, "actual_fee_bps", "fee_bps", "taker_fee_bps", "expected_fee_bps"),
+        _paper_cost_float(row, "latency_reserve_bps", "expected_latency_reserve_bps"),
+        _paper_cost_float(row, "partial_fill_reserve_bps", "partial_fill_adjustment_bps"),
+    ]
+    total = sum(abs(value) for value in parts if value is not None)
+    return total if total > 0.0 else None
+
+
+def _paper_entry_production_cost_gate(
+    *,
+    risk: dict[str, Any],
+    signal: dict[str, Any],
+    prediction: dict[str, Any],
+    feature_snapshot: dict[str, Any],
+) -> dict[str, Any]:
+    row = _paper_cost_source_row(risk, signal, prediction, feature_snapshot)
+    observed_spread = _paper_cost_float(row, "actual_observed_spread_entry_bps", "bid_ask_spread_bps") is not None
+    maker_taker_fee = _paper_cost_float(row, "actual_fee_bps", "fee_bps", "taker_fee_bps", "expected_fee_bps") is not None
+    depth_impact = (
+        _paper_cost_float(row, "depth_price_impact_bps", "depth_impact_bps") is not None
+        and _paper_cost_present(row, "depth_price_impact_source", "depth_price_impact_model")
+    )
+    expected_slippage = _paper_cost_float(row, "expected_slippage_bps", "expected_slippage_usd", "slippage_bps") is not None
+    funding = _paper_cost_float(row, "funding_bps", "expected_funding_bps", "funding_rate") is not None
+    latency_reserve = _paper_cost_float(row, "latency_reserve_bps", "expected_latency_reserve_bps") is not None
+    partial_fill = _paper_cost_present(
+        row,
+        "partial_fill_reserve_bps",
+        "partial_fill_adjustment_bps",
+        "partial_fill_plan",
+        "partial_fills",
+    )
+    round_trip_cost = _paper_cost_round_trip_bps(row)
+    cost_uncertainty = _paper_cost_float(
+        row,
+        "cost_uncertainty_bps",
+        "round_trip_cost_uncertainty_bps",
+        "execution_cost_uncertainty_bps",
+    )
+    freshness_seconds = _paper_cost_float(row, "evidence_freshness_seconds", "cost_evidence_freshness_seconds")
+    source_timestamp_present = _paper_cost_present(
+        row,
+        "source_timestamp",
+        "cost_source_timestamp",
+        "cost_generated_at",
+        "generated_at",
+    )
+    fallback = row.get("fallback")
+    flags = {
+        "observed_spread": observed_spread,
+        "maker_taker_fee": maker_taker_fee,
+        "depth_derived_price_impact": depth_impact,
+        "expected_slippage": expected_slippage,
+        "funding": funding,
+        "latency_reserve": latency_reserve,
+        "partial_fill_reserve": partial_fill,
+        "round_trip_cost": round_trip_cost is not None,
+        "cost_uncertainty": cost_uncertainty is not None,
+        "fallback_flag_false": fallback is False,
+        "source_timestamp": source_timestamp_present,
+        "evidence_freshness": freshness_seconds is not None and freshness_seconds <= PAPER_COST_MAX_FRESHNESS_SECONDS,
+    }
+    missing = [name for name, passed in flags.items() if passed is not True]
+    gross_edge = abs(_paper_cost_float(row, "expected_gross_edge_bps", "expected_move_bps") or 0.0)
+    after_cost = _paper_cost_float(row, "expected_net_edge_bps", "expected_move_after_cost_bps")
+    lower_bound = None if after_cost is None or cost_uncertainty is None else abs(after_cost) - abs(cost_uncertainty)
+    edge_to_cost_ratio = (
+        gross_edge / round_trip_cost
+        if gross_edge > 0.0 and round_trip_cost is not None and round_trip_cost > 0.0
+        else None
+    )
+    blockers: list[str] = []
+    if missing:
+        blockers.append("missing_production_grade_cost_evidence")
+    if lower_bound is None:
+        blockers.append("expected_net_edge_lower_bound_missing")
+    elif lower_bound <= 0.0:
+        blockers.append("expected_net_edge_lower_bound_lte_0")
+    if edge_to_cost_ratio is None:
+        blockers.append("edge_to_cost_ratio_missing")
+    elif edge_to_cost_ratio < PAPER_EDGE_TO_COST_CONTEXTUAL_SAFETY_RATIO:
+        blockers.append("edge_to_cost_ratio_below_contextual_safety_ratio")
+    allowed = not blockers
+    return {
+        "schema_version": "paper_entry_production_cost_gate_v1",
+        "status": "PASS_PAPER_ENTRY_PRODUCTION_COST_GATE" if allowed else "BLOCKED_PAPER_ENTRY_PRODUCTION_COST_GATE",
+        "allowed": allowed,
+        "flags": flags,
+        "missing_cost_fields": missing,
+        "blockers": blockers,
+        "expected_gross_edge_bps": gross_edge if gross_edge > 0.0 else None,
+        "expected_round_trip_cost_bps": round_trip_cost,
+        "expected_net_edge_lower_bound_bps": lower_bound,
+        "edge_to_cost_ratio": edge_to_cost_ratio,
+        "contextual_safety_ratio": PAPER_EDGE_TO_COST_CONTEXTUAL_SAFETY_RATIO,
+        "paper_only": True,
+        "paper_fill_allowed": allowed,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -459,6 +1158,7 @@ def _confidence_bucket(value: Any) -> str:
 
 
 def build_feature_snapshot(market: MarketSnapshot, tick_id: str) -> dict[str, Any]:
+    execution_timeframe = _paper_execution_timeframe(asdict(market))
     closes = [float(candle["close"]) for candle in market.candles if "close" in candle]
     volumes = [float(candle["volume"]) for candle in market.candles if "volume" in candle]
     last = market.price if market.price is not None else (closes[-1] if closes else None)
@@ -482,6 +1182,9 @@ def build_feature_snapshot(market: MarketSnapshot, tick_id: str) -> dict[str, An
         "generated_at": market.generated_at,
         "source_type": market.source_type,
         "symbol": market.symbol,
+        "timeframe": execution_timeframe,
+        "execution_timeframe": execution_timeframe,
+        "feature_timeframe": execution_timeframe,
         "freshness_state": market.freshness_state,
         "market_age_seconds": market.age_seconds,
         "features": {
@@ -507,6 +1210,8 @@ def build_trainer_prediction(feature_snapshot: dict[str, Any], tick_id: str) -> 
     raw_confidence = _clamp(0.56 + abs(momentum_score), 0.50, 0.84)
     calibrated_confidence = _clamp(raw_confidence - 0.02, 0.50, 0.80)
     bridge_expected_move = _trainer_bridge_expected_move(feature_snapshot)
+    execution_timeframe = _paper_execution_timeframe(feature_snapshot)
+    thesis_timeframe = _paper_thesis_timeframe(bridge_expected_move, feature_snapshot)
     raw_output: dict[str, Any] = {
         "side": side,
         "momentum_score": round(momentum_score, 8),
@@ -529,7 +1234,11 @@ def build_trainer_prediction(feature_snapshot: dict[str, Any], tick_id: str) -> 
         "trainer_bridge_status": bridge_expected_move.get("trainer_bridge_status") or "MISSING_NATIVE_EXPECTED_MOVE",
         "trainer_state": "V2_PAPER_TRAINER_WRAPPER_CURRENT",
         "symbol": feature_snapshot["symbol"],
-        "timeframe": "1m",
+        "timeframe": thesis_timeframe,
+        "prediction_timeframe": thesis_timeframe,
+        "thesis_timeframe": thesis_timeframe,
+        "execution_timeframe": execution_timeframe,
+        "confirmation_timeframes": [execution_timeframe] if execution_timeframe != thesis_timeframe else [],
         "model_checkpoint": bridge_expected_move.get("checkpoint_id") or "v2_paper_readonly_momentum_wrapper_v1",
         "model_version": bridge_expected_move.get("model_version") or "v2_paper_readonly_momentum_wrapper_v1",
         "feature_snapshot_id": feature_snapshot["feature_snapshot_id"],
@@ -560,7 +1269,7 @@ def build_signal_lineage(
     prediction: dict[str, Any],
     market: MarketSnapshot,
 ) -> dict[str, Any]:
-    return build_paper_runtime_lineage(
+    lineage = build_paper_runtime_lineage(
         tick_id=tick_id,
         generated_at=generated_at,
         feature_snapshot=feature_snapshot,
@@ -569,6 +1278,28 @@ def build_signal_lineage(
         market_freshness_state=market.freshness_state,
         market_age_seconds=market.age_seconds,
     )
+    thesis_timeframe = _paper_thesis_timeframe(prediction, lineage.get("signal", {}), feature_snapshot)
+    execution_timeframe = _paper_execution_timeframe(feature_snapshot, prediction)
+    for section_name in (
+        "feature_snapshot",
+        "trainer_prediction",
+        "signal",
+        "orchestrator_decision",
+        "risk_decision",
+        "execution_intent",
+    ):
+        section = lineage.get(section_name)
+        if isinstance(section, dict):
+            section["thesis_timeframe"] = thesis_timeframe
+            section["execution_timeframe"] = execution_timeframe
+            section["timeframe"] = thesis_timeframe
+    lineage["thesis_timeframe"] = thesis_timeframe
+    lineage["execution_timeframe"] = execution_timeframe
+    lineage["timeframe_attribution_rule"] = (
+        "economic paper outcomes are attributed to thesis_timeframe; "
+        "execution_timeframe is timing-only unless it is also the approved thesis timeframe"
+    )
+    return lineage
 
 
 def _paper_outcome_model_contract() -> tuple[dict[str, Any], list[str]]:
@@ -818,13 +1549,17 @@ def apply_paper_tightening_gate(
 
 
 def apply_paper_entry_gates(lineage: dict[str, Any]) -> dict[str, Any]:
-    """Phase 3/4/8/9 entry gates for new paper positions.
+    """Phase 3/4/6/7/8/9 entry gates for new paper positions.
 
     Only called when no open position exists. Checks in order:
         Phase 3 — symbol/timeframe/outcome-memory entry gate
         Phase 4 — high-precision confidence/edge/coverage gate
+        Phase 5 — paper reentry and signal identity dedup gate
+        Phase 7 — production-grade cost and edge-to-cost gate
+        Phase 8 — standalone 1m thesis eligibility gate
+        Phase 6 — adaptive churn/turnover governor
         Phase 9 — anti-market-maker detector (entry-block detectors)
-        Phase 8 — leverage recommendation (advisory; never blocks)
+        Phase 10 — leverage recommendation (advisory; never blocks)
 
     All checks fail-safe: any import error or unexpected input silently
     skips that gate (fail-open for the individual gate, not the full chain).
@@ -844,7 +1579,7 @@ def apply_paper_entry_gates(lineage: dict[str, Any]) -> dict[str, Any]:
     raw_output = prediction.get("raw_output") if isinstance(prediction.get("raw_output"), dict) else {}
     features = feature_snapshot.get("features") if isinstance(feature_snapshot.get("features"), dict) else {}
     sym = str(intent.get("symbol") or signal.get("symbol") or "").upper()
-    tf = str(prediction.get("timeframe") or "")
+    tf = _paper_thesis_timeframe(prediction, signal, feature_snapshot)
     side = str(intent.get("side") or "").lower()
     conf = _float_or_none(prediction.get("confidence_calibrated"))
     edge = _float_or_none(risk.get("expected_move_after_cost_bps"))
@@ -853,6 +1588,7 @@ def apply_paper_entry_gates(lineage: dict[str, Any]) -> dict[str, Any]:
         risk["risk_action"] = "deny"
         risk["risk_result"] = f"BLOCKED_{gate_name.upper()}"
         risk["risk_reason_code"] = reason_code
+        risk[f"{gate_name}_blockers"] = list(reasons)
         checked = list(risk.get("required_blocks_checked") or [])
         if gate_name not in checked:
             checked.append(gate_name)
@@ -860,6 +1596,23 @@ def apply_paper_entry_gates(lineage: dict[str, Any]) -> dict[str, Any]:
         intent["intent_action"] = "paper_noop_blocked"
         intent["exchange_order_allowed"] = False
         intent["paper_only"] = True
+
+    if tf not in PAPER_ALLOWED_TIMEFRAMES:
+        risk["thesis_timeframe_gate"] = {
+            "status": "BLOCKED_MISSING_OR_INVALID_THESIS_TIMEFRAME",
+            "allowed": False,
+            "thesis_timeframe": tf,
+            "blockers": ["missing_or_invalid_thesis_timeframe"],
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        }
+        _block(
+            "deny_missing_thesis_timeframe",
+            ["missing_or_invalid_thesis_timeframe"],
+            "thesis_timeframe_gate",
+        )
+        return gated
 
     # ── Phase 3: entry gate ────────────────────────────────────────────────────
     try:
@@ -907,6 +1660,102 @@ def apply_paper_entry_gates(lineage: dict[str, Any]) -> dict[str, Any]:
     if risk["risk_action"] != "allow":
         return gated
 
+    # ── Phase 5: reentry and signal identity dedup gate ──────────────────────
+    dedup_result = _paper_reentry_dedup_gate(
+        _paper_reentry_dedup_runtime_rows(),
+        _paper_reentry_dedup_candidate_row(
+            symbol=sym,
+            timeframe=tf,
+            side=side,
+            risk=risk,
+            signal=signal,
+            prediction=prediction,
+            feature_snapshot=feature_snapshot,
+        ),
+    )
+    risk["paper_reentry_dedup_gate"] = dedup_result
+    if not dedup_result["allowed"]:
+        _block("deny_paper_reentry_dedup", dedup_result["blockers"], "paper_reentry_dedup_gate")
+        return gated
+
+    if risk["risk_action"] != "allow":
+        return gated
+
+    # ── Phase 7: production-grade cost and edge-to-cost gate ─────────────────
+    cost_result = _paper_entry_production_cost_gate(
+        risk=risk,
+        signal=signal,
+        prediction=prediction,
+        feature_snapshot=feature_snapshot,
+    )
+    risk["paper_entry_production_cost_gate"] = cost_result
+    if not cost_result["allowed"]:
+        _block("deny_paper_entry_cost_gate", cost_result["blockers"], "paper_entry_production_cost_gate")
+        return gated
+
+    if risk["risk_action"] != "allow":
+        return gated
+
+    # ── Phase 8: standalone 1m thesis eligibility gate ──────────────────────
+    one_minute_result = _paper_standalone_1m_eligibility_gate(
+        symbol=sym,
+        thesis_timeframe=tf,
+        side=side,
+        risk=risk,
+        signal=signal,
+        prediction=prediction,
+        feature_snapshot=feature_snapshot,
+    )
+    risk["paper_standalone_1m_eligibility"] = one_minute_result
+    if not one_minute_result["allowed"]:
+        _block(
+            "deny_paper_standalone_1m_eligibility",
+            one_minute_result["blockers"],
+            "paper_standalone_1m_eligibility",
+        )
+        return gated
+
+    if risk["risk_action"] != "allow":
+        return gated
+
+    # ── Phase 6: adaptive paper churn/turnover governor ──────────────────────
+    try:
+        from v2.backend.app.services.paper_churn_governor import (  # noqa: PLC0415
+            evaluate_churn_governor_entry_gate,
+        )
+        churn_result = evaluate_churn_governor_entry_gate(
+            _paper_churn_governor_runtime_rows(),
+            _paper_churn_governor_candidate_row(
+                symbol=sym,
+                timeframe=tf,
+                side=side,
+                risk=risk,
+                signal=signal,
+                prediction=prediction,
+                feature_snapshot=feature_snapshot,
+            ),
+        )
+        risk["paper_churn_governor"] = churn_result
+        if not churn_result["allowed"]:
+            _block("deny_paper_churn_governor", churn_result["reasons"], "paper_churn_governor")
+            return gated
+    except Exception as exc:  # noqa: BLE001
+        risk["paper_churn_governor"] = {
+            "status": "BLOCKED_PAPER_CHURN_GOVERNOR_ENTRY_GATE",
+            "allowed": False,
+            "reasons": ["paper_churn_governor_runtime_error"],
+            "error": str(exc),
+            "runtime_wired_to_entry_gate": True,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        }
+        _block("deny_paper_churn_governor", ["paper_churn_governor_runtime_error"], "paper_churn_governor")
+        return gated
+
+    if risk["risk_action"] != "allow":
+        return gated
+
     # ── Phase 9: anti-market-maker detection ──────────────────────────────────
     try:
         from v2.backend.app.services.paper_trade_management.anti_market_maker_detector import (  # noqa: PLC0415
@@ -933,7 +1782,7 @@ def apply_paper_entry_gates(lineage: dict[str, Any]) -> dict[str, Any]:
             )
             lev_rec = recommend_leverage_for_signal(
                 symbol=sym,
-                timeframe=tf or "1m",
+                timeframe=tf,
                 signal_id=str((gated.get("signal") or {}).get("signal_id") or "unknown"),
                 direction=side or "long",
                 confidence_calibrated=float(conf or 0.0),
@@ -948,6 +1797,63 @@ def apply_paper_entry_gates(lineage: dict[str, Any]) -> dict[str, Any]:
     return gated
 
 
+def _apply_paper_online_owner_gate(lineage: dict[str, Any]) -> dict[str, Any]:
+    """Force legacy paper_online new entries into shadow-only mode.
+
+    This runtime may still publish diagnostics and may manage existing
+    paper-only lifecycle closes, but it must not open new economic paper
+    positions. Current economic paper ownership belongs to
+    v2_trade_management_paper_loop via the adaptive CUDA/challenger chain.
+    """
+    gated = lineage
+    risk = gated.get("risk_decision") if isinstance(gated.get("risk_decision"), dict) else {}
+    intent = gated.get("execution_intent") if isinstance(gated.get("execution_intent"), dict) else {}
+    signal = gated.get("signal") if isinstance(gated.get("signal"), dict) else {}
+    prediction = gated.get("trainer_prediction") if isinstance(gated.get("trainer_prediction"), dict) else {}
+    owner_gate = {
+        "status": "BLOCKED_LEGACY_PAPER_ONLINE_NEW_ENTRY",
+        "allowed": False,
+        "current_allowed_owner": V2_CURRENT_PAPER_OWNER,
+        "paper_policy_owner": PAPER_ONLINE_LEGACY_OWNER,
+        "legacy_owner_mode": PAPER_ONLINE_LEGACY_OWNER_MODE,
+        "block_reason": PAPER_ONLINE_NEW_ENTRY_BLOCK_REASON,
+        "old_policy_closes_allowed": True,
+        "old_policy_reduces_allowed": True,
+        "shadow_diagnostics_allowed": True,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    for target in (risk, intent, signal, prediction):
+        target["paper_policy_owner"] = PAPER_ONLINE_LEGACY_OWNER
+        target["policy_id"] = PAPER_ONLINE_LEGACY_OWNER
+        target["policy_fingerprint"] = PAPER_ONLINE_LEGACY_OWNER_MODE
+        target["model_source"] = PAPER_ONLINE_LEGACY_MODEL_SOURCE
+        target["current_allowed_paper_owner"] = V2_CURRENT_PAPER_OWNER
+        target["paper_entry_owner_gate"] = dict(owner_gate)
+        target["paper_only"] = True
+        target["routes_to_live"] = False
+        target["places_real_order"] = False
+    if risk.get("risk_action") == "allow":
+        risk["risk_action"] = "deny"
+        risk["risk_result"] = "BLOCKED_PAPER_ENTRY_OWNER_GATE"
+        risk["risk_reason_code"] = PAPER_ONLINE_NEW_ENTRY_BLOCK_REASON
+        risk["paper_fill_allowed"] = False
+        checked = list(risk.get("required_blocks_checked") or [])
+        if "paper_entry_owner_gate" not in checked:
+            checked.append("paper_entry_owner_gate")
+        risk["required_blocks_checked"] = checked
+        intent["intent_action"] = "paper_noop_legacy_shadow_only"
+        intent["exchange_order_allowed"] = False
+        intent["paper_fill_allowed"] = False
+        intent["paper_fill_block_reason"] = PAPER_ONLINE_NEW_ENTRY_BLOCK_REASON
+        blockers = list(intent.get("paper_fill_gate_block_reasons") or [])
+        if PAPER_ONLINE_NEW_ENTRY_BLOCK_REASON not in blockers:
+            blockers.append(PAPER_ONLINE_NEW_ENTRY_BLOCK_REASON)
+        intent["paper_fill_gate_block_reasons"] = blockers
+    return gated
+
+
 def build_paper_ledger_entry(
     *,
     tick_id: str,
@@ -956,19 +1862,22 @@ def build_paper_ledger_entry(
     lineage: dict[str, Any],
     previous_equity: float,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    _apply_paper_online_owner_gate(lineage)
     risk = lineage["risk_decision"]
     intent = lineage["execution_intent"]
     price = market.price or 0.0
-    notional = 25.0
+    notional = 0.0
     fee_rate = 0.0004
     slippage_bps = 2.0
-    fee = round(notional * fee_rate, 6) if risk["risk_action"] == "allow" else 0.0
-    slippage = round(_basis_points(price, slippage_bps), 6) if risk["risk_action"] == "allow" else 0.0
+    economic_identity = _paper_economic_identity(lineage, generated_at)
+    fill_allowed = risk["risk_action"] == "allow"
+    fee = round(notional * fee_rate, 6) if fill_allowed else 0.0
+    slippage = round(_basis_points(price, slippage_bps), 6) if fill_allowed else 0.0
     fill_price = round(price + slippage, 6) if intent["side"] == "long" else round(price - slippage, 6)
     funding_rate, funding_bps, funding_interval_seconds = _funding_inputs_from_lineage(lineage)
     funding = _paper_funding_accounting(
         side=str(intent.get("side") or ""),
-        notional_usdt=notional if risk["risk_action"] == "allow" else 0.0,
+        notional_usdt=notional if fill_allowed else 0.0,
         hold_time_seconds=0,
         funding_rate=funding_rate,
         funding_bps=funding_bps,
@@ -978,15 +1887,28 @@ def build_paper_ledger_entry(
     ledger_entry = {
         "paper_ledger_entry_id": f"pledger_{tick_id}",
         "generated_at": generated_at,
-        "policy_activated_at": generated_at if risk["risk_action"] == "allow" else None,
+        "policy_activated_at": generated_at if fill_allowed else None,
         "execution_intent_id": intent["execution_intent_id"],
         "risk_decision_id": risk["risk_decision_id"],
         "signal_id": lineage["signal"]["signal_id"],
         "symbol": market.symbol,
-        "ledger_action": "PAPER_FILL_SIMULATED" if risk["risk_action"] == "allow" else "PAPER_INTENT_BLOCKED",
-        "paper_result": "FILLED_PAPER_ONLY" if risk["risk_action"] == "allow" else "NO_FILL_RISK_BLOCKED",
-        "fill_price": fill_price if risk["risk_action"] == "allow" else None,
-        "notional_usdt": notional if risk["risk_action"] == "allow" else 0.0,
+        **economic_identity,
+        "paper_policy_owner": PAPER_ONLINE_LEGACY_OWNER,
+        "policy_id": PAPER_ONLINE_LEGACY_OWNER,
+        "policy_fingerprint": PAPER_ONLINE_LEGACY_OWNER_MODE,
+        "model_source": PAPER_ONLINE_LEGACY_MODEL_SOURCE,
+        "current_allowed_paper_owner": V2_CURRENT_PAPER_OWNER,
+        "paper_entry_owner_gate": risk.get("paper_entry_owner_gate"),
+        "entry_sequence": 1 if fill_allowed else 0,
+        "close_sequence": 0,
+        "is_partial_reduce": False,
+        "is_partial_close": False,
+        "is_full_close": False,
+        "is_reversal": False,
+        "ledger_action": "PAPER_FILL_SIMULATED" if fill_allowed else "PAPER_INTENT_BLOCKED",
+        "paper_result": "FILLED_PAPER_ONLY" if fill_allowed else "NO_FILL_RISK_BLOCKED",
+        "fill_price": fill_price if fill_allowed else None,
+        "notional_usdt": notional if fill_allowed else 0.0,
         "fee_usdt": fee,
         "fee_rate": fee_rate,
         "slippage_bps": slippage_bps,
@@ -1002,8 +1924,8 @@ def build_paper_ledger_entry(
         "equity": equity,
         "realized_pnl": round(equity - 10000.0, 6),
         "unrealized_pnl": 0.0,
-        "open_position_count": 1 if risk["risk_action"] == "allow" else 0,
-        "position_source": "V2_PAPER_RUNTIME_SIMULATED_FILL" if risk["risk_action"] == "allow" else "V2_PAPER_RUNTIME_EMPTY_RISK_BLOCKED",
+        "open_position_count": 1 if fill_allowed else 0,
+        "position_source": "V2_PAPER_RUNTIME_SIMULATED_FILL" if fill_allowed else "V2_PAPER_RUNTIME_EMPTY_RISK_BLOCKED",
     }
     return ledger_entry, account
 
@@ -1020,6 +1942,16 @@ def build_position_lifecycle_entry(
     risk = lineage["risk_decision"]
     current_price = market.price or _float_or_none(previous_position.get("entry_price")) or 0.0
     side = str(previous_position.get("side") or "").lower()
+    fallback_identity = _paper_economic_identity(lineage, generated_at)
+    economic_identity = {
+        "economic_trade_id": previous_position.get("economic_trade_id") or fallback_identity["economic_trade_id"],
+        "economic_thesis_id": previous_position.get("economic_thesis_id") or fallback_identity["economic_thesis_id"],
+        "parent_position_id": previous_position.get("parent_position_id") or fallback_identity["parent_position_id"],
+        "thesis_prediction_id": previous_position.get("thesis_prediction_id") or fallback_identity.get("thesis_prediction_id"),
+        "execution_snapshot_id": previous_position.get("execution_snapshot_id") or fallback_identity.get("execution_snapshot_id"),
+        "thesis_timeframe": previous_position.get("thesis_timeframe") or fallback_identity["thesis_timeframe"],
+        "execution_timeframe": previous_position.get("execution_timeframe") or fallback_identity["execution_timeframe"],
+    }
     notional = _float_or_none(previous_position.get("notional_usdt")) or 0.0
     entry_price = _float_or_none(previous_position.get("entry_price")) or 0.0
     fee_rate = _float_or_none(previous_position.get("fee_rate")) or 0.0004
@@ -1097,6 +2029,13 @@ def build_position_lifecycle_entry(
             "risk_decision_id": risk["risk_decision_id"],
             "signal_id": lineage["signal"]["signal_id"],
             "symbol": market.symbol,
+            **economic_identity,
+            "entry_sequence": int(previous_position.get("entry_sequence") or 1),
+            "close_sequence": int(previous_position.get("close_sequence") or 0) + 1,
+            "is_partial_reduce": False,
+            "is_partial_close": False,
+            "is_full_close": True,
+            "is_reversal": False,
             "ledger_action": "PAPER_POSITION_CLOSED",
             "paper_result": "POSITION_CLOSED_PAPER_ONLY",
             "fill_price": None,
@@ -1131,6 +2070,13 @@ def build_position_lifecycle_entry(
                 "status": "CLOSED",
                 "closed_at": generated_at,
                 "policy_activated_at": previous_position.get("policy_activated_at"),
+                **economic_identity,
+                "entry_sequence": int(previous_position.get("entry_sequence") or 1),
+                "close_sequence": int(previous_position.get("close_sequence") or 0) + 1,
+                "is_partial_reduce": False,
+                "is_partial_close": False,
+                "is_full_close": True,
+                "is_reversal": False,
                 "exit_price": current_price,
                 "exit_reason": exit_reason,
                 "exit_source": _phase7_exit_source,
@@ -1166,6 +2112,13 @@ def build_position_lifecycle_entry(
         "risk_decision_id": risk["risk_decision_id"],
         "signal_id": lineage["signal"]["signal_id"],
         "symbol": market.symbol,
+        **economic_identity,
+        "entry_sequence": int(previous_position.get("entry_sequence") or 1),
+        "close_sequence": int(previous_position.get("close_sequence") or 0),
+        "is_partial_reduce": False,
+        "is_partial_close": False,
+        "is_full_close": False,
+        "is_reversal": False,
         "ledger_action": "PAPER_POSITION_HELD",
         "paper_result": "POSITION_HELD_PAPER_ONLY",
         "fill_price": None,
@@ -1231,6 +2184,19 @@ def paper_position_lifecycle_from_entry(
             "policy_activated_at": ledger_entry.get("policy_activated_at"),
             "symbol": ledger_entry["symbol"],
             "side": intent.get("side"),
+            "economic_trade_id": ledger_entry.get("economic_trade_id"),
+            "economic_thesis_id": ledger_entry.get("economic_thesis_id"),
+            "parent_position_id": ledger_entry.get("parent_position_id"),
+            "entry_sequence": ledger_entry.get("entry_sequence"),
+            "close_sequence": ledger_entry.get("close_sequence"),
+            "is_partial_reduce": ledger_entry.get("is_partial_reduce"),
+            "is_partial_close": ledger_entry.get("is_partial_close"),
+            "is_full_close": ledger_entry.get("is_full_close"),
+            "is_reversal": ledger_entry.get("is_reversal"),
+            "thesis_prediction_id": ledger_entry.get("thesis_prediction_id"),
+            "execution_snapshot_id": ledger_entry.get("execution_snapshot_id"),
+            "thesis_timeframe": ledger_entry.get("thesis_timeframe"),
+            "execution_timeframe": ledger_entry.get("execution_timeframe"),
             "entry_price": ledger_entry["fill_price"],
             "notional_usdt": ledger_entry["notional_usdt"],
             "entry_fee_usdt": ledger_entry["fee_usdt"],
@@ -1327,6 +2293,26 @@ def append_paper_event(root: Path, payload: dict[str, Any], risk_runtime_payload
     _intent = (payload.get("current_signal_lineage") or {}).get("execution_intent") or {}
     feature_snapshot = payload["feature_snapshot"]
     paper_edge_gate = risk.get("paper_edge_gate") if isinstance(risk.get("paper_edge_gate"), dict) else {}
+    paper_churn_governor = (
+        risk.get("paper_churn_governor")
+        if isinstance(risk.get("paper_churn_governor"), dict)
+        else {}
+    )
+    paper_entry_cost_gate = (
+        risk.get("paper_entry_production_cost_gate")
+        if isinstance(risk.get("paper_entry_production_cost_gate"), dict)
+        else {}
+    )
+    paper_reentry_dedup_gate = (
+        risk.get("paper_reentry_dedup_gate")
+        if isinstance(risk.get("paper_reentry_dedup_gate"), dict)
+        else {}
+    )
+    paper_standalone_1m_eligibility = (
+        risk.get("paper_standalone_1m_eligibility")
+        if isinstance(risk.get("paper_standalone_1m_eligibility"), dict)
+        else {}
+    )
     protective_gate = (
         risk.get("paper_protective_behavior_gate")
         if isinstance(risk.get("paper_protective_behavior_gate"), dict)
@@ -1345,6 +2331,22 @@ def append_paper_event(root: Path, payload: dict[str, Any], risk_runtime_payload
         "risk_decision_id": ledger_entry["risk_decision_id"],
         "execution_intent_id": ledger_entry["execution_intent_id"],
         "paper_ledger_entry_id": ledger_entry["paper_ledger_entry_id"],
+        "economic_trade_id": ledger_entry.get("economic_trade_id"),
+        "economic_thesis_id": ledger_entry.get("economic_thesis_id"),
+        "parent_position_id": ledger_entry.get("parent_position_id"),
+        "entry_sequence": ledger_entry.get("entry_sequence"),
+        "close_sequence": ledger_entry.get("close_sequence"),
+        "is_partial_reduce": ledger_entry.get("is_partial_reduce"),
+        "is_partial_close": ledger_entry.get("is_partial_close"),
+        "is_full_close": ledger_entry.get("is_full_close"),
+        "is_reversal": ledger_entry.get("is_reversal"),
+        "thesis_prediction_id": ledger_entry.get("thesis_prediction_id"),
+        "execution_snapshot_id": ledger_entry.get("execution_snapshot_id"),
+        "thesis_timeframe": ledger_entry.get("thesis_timeframe"),
+        "execution_timeframe": ledger_entry.get("execution_timeframe"),
+        "strategy_id": _paper_strategy_id(signal=signal, prediction=trainer),
+        "thesis_candle_close_time": _paper_thesis_candle_value(risk, signal, trainer, feature_snapshot),
+        "entry_time": payload["generated_at"],
         "trainer_source": trainer.get("trainer_source"),
         "trainer_bridge_status": trainer.get("trainer_bridge_status"),
         "model_version": trainer.get("model_version"),
@@ -1390,6 +2392,24 @@ def append_paper_event(root: Path, payload: dict[str, Any], risk_runtime_payload
         "weekly_loss_breach": risk_runtime_payload["weekly_loss_breach"],
         "canary_profile_tightening_blockers": risk.get("canary_profile_tightening_blockers", []),
         "paper_edge_gate_blockers": risk.get("paper_edge_gate_blockers", []),
+        "paper_entry_production_cost_gate_status": paper_entry_cost_gate.get("status"),
+        "paper_entry_production_cost_gate_blockers": risk.get("paper_entry_production_cost_gate_blockers", []),
+        "paper_entry_production_cost_missing_fields": paper_entry_cost_gate.get("missing_cost_fields", []),
+        "expected_round_trip_cost_bps": paper_entry_cost_gate.get("expected_round_trip_cost_bps"),
+        "expected_net_edge_lower_bound_bps": paper_entry_cost_gate.get("expected_net_edge_lower_bound_bps"),
+        "edge_to_cost_ratio": paper_entry_cost_gate.get("edge_to_cost_ratio"),
+        "paper_reentry_dedup_gate_status": paper_reentry_dedup_gate.get("status"),
+        "paper_reentry_dedup_gate_blockers": risk.get("paper_reentry_dedup_gate_blockers", []),
+        "paper_reentry_duplicate_identity_fields": paper_reentry_dedup_gate.get("duplicate_identity_fields", []),
+        "paper_reentry_permitted_change_reasons": paper_reentry_dedup_gate.get("permitted_reentry_reasons", []),
+        "paper_standalone_1m_eligibility_status": paper_standalone_1m_eligibility.get("status"),
+        "paper_standalone_1m_eligibility_blockers": risk.get("paper_standalone_1m_eligibility_blockers", []),
+        "standalone_1m_thesis": paper_standalone_1m_eligibility.get("standalone_1m_thesis"),
+        "standalone_1m_strategy_bucket_eligible": paper_standalone_1m_eligibility.get("dedicated_strategy_bucket"),
+        "higher_timeframe_1m_timing_role_allowed": paper_standalone_1m_eligibility.get("higher_timeframe_timing_role_allowed"),
+        "paper_churn_governor_status": paper_churn_governor.get("status"),
+        "paper_churn_governor_blockers": risk.get("paper_churn_governor_blockers", []),
+        "paper_churn_governor_bucket": paper_churn_governor.get("candidate_bucket_key"),
         "paper_protective_behavior_gate": protective_gate,
         "minimum_hold_seconds": protective_gate.get("minimum_hold_seconds"),
         "microstructure_toxicity_score_bps": protective_gate.get("microstructure_toxicity_score_bps"),
@@ -1521,6 +2541,14 @@ def build_runtime_payload(symbol: str, interval: int) -> tuple[dict[str, Any], d
         "generated_at": generated_at,
         "runtime": "v2_paper_online",
         "runtime_state": runtime_state,
+        "paper_policy_owner": PAPER_ONLINE_LEGACY_OWNER,
+        "policy_id": PAPER_ONLINE_LEGACY_OWNER,
+        "model_source": PAPER_ONLINE_LEGACY_MODEL_SOURCE,
+        "current_allowed_paper_owner": V2_CURRENT_PAPER_OWNER,
+        "legacy_owner_mode": PAPER_ONLINE_LEGACY_OWNER_MODE,
+        "new_economic_entries_allowed": False,
+        "old_policy_closes_allowed": True,
+        "paper_entry_owner_gate": lineage["risk_decision"].get("paper_entry_owner_gate"),
         "live_gate": LIVE_GATE_STATUS,
         "live_gate_status": LIVE_GATE_STATUS,
         "live_symbols": [],
@@ -1569,6 +2597,7 @@ def build_runtime_payload(symbol: str, interval: int) -> tuple[dict[str, Any], d
             "orders": "BLOCKED_NO_EXCHANGE_MUTATION",
             "legacy_bot_mutation": False,
             "legacy_redis_mutation": False,
+            "legacy_new_economic_entries": "BLOCKED_BY_PAPER_ENTRY_OWNER_GATE",
             "risk_gateway": "CURRENT_SIGNAL_PROCESSED_FINAL_AUTHORITY",
         },
         "blockers": blockers,
@@ -1644,6 +2673,12 @@ def _push_decisions_to_redis(payload: dict[str, Any]) -> None:
         execution_intent = lineage.get("execution_intent") or {}
         ledger_entries = payload.get("paper_ledger_tail") or []
         generated_at = payload.get("generated_at", "")
+        paper_signal_timeframe = _paper_thesis_timeframe(
+            payload.get("trainer_prediction") or {},
+            lineage.get("trainer_prediction") or {},
+            execution_intent,
+            payload.get("feature_snapshot") or {},
+        )
 
         def _append_to_json_list(key: str, new_item: dict, max_len: int = 300) -> None:
             existing_raw = r.get(key)
@@ -1704,13 +2739,19 @@ def _push_decisions_to_redis(payload: dict[str, Any]) -> None:
         if ledger_entries:
             latest_entry = ledger_entries[0] if isinstance(ledger_entries[0], dict) else {}
             risk_action = risk_decision.get("risk_action", "deny")
+            fill_allowed = risk_action == "allow" and latest_entry.get("paper_result") == "FILLED_PAPER_ONLY"
             paper_ledger = {
                 "generated_at": generated_at,
                 "source": "v2.backend.app.cli.paper_online_runtime",
-                "accepted_count": 1 if risk_action == "allow" else 0,
-                "blocked_count": 0 if risk_action == "allow" else 1,
-                "accepted": [latest_entry] if risk_action == "allow" else [],
-                "shadow_observations": [latest_entry] if risk_action != "allow" else [],
+                "paper_policy_owner": PAPER_ONLINE_LEGACY_OWNER,
+                "policy_id": PAPER_ONLINE_LEGACY_OWNER,
+                "model_source": PAPER_ONLINE_LEGACY_MODEL_SOURCE,
+                "current_allowed_paper_owner": V2_CURRENT_PAPER_OWNER,
+                "legacy_owner_mode": PAPER_ONLINE_LEGACY_OWNER_MODE,
+                "accepted_count": 1 if fill_allowed else 0,
+                "blocked_count": 0 if fill_allowed else 1,
+                "accepted": [latest_entry] if fill_allowed else [],
+                "shadow_observations": [latest_entry] if not fill_allowed else [],
                 "latest_entry": latest_entry,
             }
             r.set(PAPER_ONLINE_LEDGER_KEY, json.dumps(paper_ledger))
@@ -1719,19 +2760,49 @@ def _push_decisions_to_redis(payload: dict[str, Any]) -> None:
         signal_id = lineage_ids.get("signal_id") or (lineage.get("signal") or {}).get("signal_id")
         if signal_id:
             signal_record = dict(lineage.get("signal") or {})
+            paper_signal_timeframe = _paper_thesis_timeframe(
+                signal_record,
+                payload.get("trainer_prediction") or {},
+                lineage.get("trainer_prediction") or {},
+                execution_intent,
+            )
+            paper_execution_timeframe = _paper_execution_timeframe(
+                signal_record,
+                payload.get("feature_snapshot") or {},
+                payload.get("market_feed") or {},
+            )
+            signal_record["thesis_timeframe"] = paper_signal_timeframe
+            signal_record["execution_timeframe"] = paper_execution_timeframe
+            signal_record["timeframe"] = paper_signal_timeframe
             signal_record["risk_decision_id"] = risk_decision.get("risk_decision_id")
             signal_record["orchestrator_decision_id"] = orch_decision.get("orchestrator_decision_id")
             signal_record["execution_intent_id"] = execution_intent.get("execution_intent_id")
+            signal_record["paper_policy_owner"] = PAPER_ONLINE_LEGACY_OWNER
+            signal_record["policy_id"] = PAPER_ONLINE_LEGACY_OWNER
+            signal_record["policy_fingerprint"] = PAPER_ONLINE_LEGACY_OWNER_MODE
+            signal_record["model_source"] = PAPER_ONLINE_LEGACY_MODEL_SOURCE
+            signal_record["current_allowed_paper_owner"] = V2_CURRENT_PAPER_OWNER
+            signal_record["paper_fill_allowed"] = False
+            signal_record["paper_opportunity_tier"] = PAPER_ONLINE_LEGACY_OWNER_MODE
+            signal_record["paper_fill_block_reason"] = PAPER_ONLINE_NEW_ENTRY_BLOCK_REASON
+            signal_record["paper_fill_gate_block_reasons"] = sorted(set(
+                list(signal_record.get("paper_fill_gate_block_reasons") or [])
+                + [PAPER_ONLINE_NEW_ENTRY_BLOCK_REASON]
+            ))
+            signal_record["paper_entry_owner_gate"] = risk_decision.get("paper_entry_owner_gate")
             signal_record["paper_ledger_entry_id"] = (
                 (ledger_entries[0] or {}).get("paper_ledger_entry_id") if ledger_entries else None
             )
             signal_record["generated_at"] = generated_at
             symbol_key = str(payload.get("market_feed", {}).get("symbol") or "").upper()
             if symbol_key:
-                r.set(f"v2:signals:paper:{symbol_key}:1m", json.dumps(signal_record))
+                r.set(f"v2:signals:paper:{symbol_key}:{paper_signal_timeframe}", json.dumps(signal_record))
                 gateway_entry = {
                     "generated_at": generated_at,
                     "symbol": symbol_key,
+                    "timeframe": paper_signal_timeframe,
+                    "thesis_timeframe": paper_signal_timeframe,
+                    "execution_timeframe": paper_execution_timeframe,
                     "prediction_id": lineage_ids.get("prediction_id"),
                     "risk_decision_id": risk_decision.get("risk_decision_id"),
                     "risk_action": risk_decision.get("risk_action"),
@@ -1771,7 +2842,7 @@ def _push_decisions_to_redis(payload: dict[str, Any]) -> None:
                         _sym_key = str(payload.get("market_feed", {}).get("symbol") or "").upper()
                         backfill_realized_outcome(
                             symbol=_sym_key,
-                            timeframe="1m",
+                            timeframe=paper_signal_timeframe,
                             prediction_id=str(lineage_ids["prediction_id"]),
                             realized_outcome_direction="long" if _realized_bps > 0 else "short",
                             realized_outcome_bps=_realized_bps,
@@ -2183,6 +3254,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--interval", type=int, default=30, help="Loop interval in seconds.")
     parser.add_argument("--symbol", default=None)
     parser.add_argument("--write-evidence", action="store_true", help="Write final readiness evidence files.")
+    parser.add_argument(
+        "--legacy-shadow-only",
+        action="store_true",
+        default=True,
+        help=(
+            "Explicit startup marker: paper_online_runtime may publish diagnostics "
+            "and close/hold existing paper lifecycle state, but cannot open new "
+            "economic paper entries."
+        ),
+    )
     return parser
 
 

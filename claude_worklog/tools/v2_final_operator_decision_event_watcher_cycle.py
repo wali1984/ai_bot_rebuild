@@ -90,16 +90,29 @@ def run_command(label: str, argv: list[str], timeout_seconds: int) -> dict[str, 
     env = os.environ.copy()
     env["PYTHONPATH"] = f"{ROOT / 'claude_worklog/tools'}:{ROOT}"
     env["LIVE_GATE"] = "blocked_human_only"
-    proc = subprocess.run(
-        argv,
-        cwd=ROOT,
-        env=env,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        timeout=timeout_seconds,
-        check=False,
-    )
+    try:
+        proc = subprocess.run(
+            argv,
+            cwd=ROOT,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout_seconds,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        return {
+            "label": label,
+            "exit_code": 124,
+            "ok": False,
+            "timeout_seconds": timeout_seconds,
+            "timeout": True,
+            "stdout_bytes": len(exc.stdout or ""),
+            "stderr_bytes": len(exc.stderr or ""),
+            "stdout_stored": False,
+            "stderr_stored": False,
+        }
     return {
         "label": label,
         "exit_code": proc.returncode,

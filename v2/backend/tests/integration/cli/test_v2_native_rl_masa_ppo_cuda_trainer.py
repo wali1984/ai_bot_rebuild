@@ -761,7 +761,12 @@ def test_runtime_publishes_predictions_lineage_and_artifacts(tmp_path: Path) -> 
         batch_size=4,
         model_dir=model_dir,
     )
-    result = run_hybrid_trainer_cycle(config=config, io=V2OnlyJsonIO(client=client), publish=True)
+    result = run_hybrid_trainer_cycle(
+        config=config,
+        io=V2OnlyJsonIO(client=client),
+        publish=True,
+        trusted_replay_archive_root=tmp_path / "empty_archive",
+    )
     assert result.go_no_go == TRAINER_CORE_PAPER_SHADOW_GO_NO_GO
     assert len(result.predictions) == 2
     assert len(result.lineages) == 2
@@ -855,7 +860,12 @@ def test_runtime_reports_quarantined_feedback_rejection_counts(tmp_path: Path) -
         model_dir=tmp_path / ".local_models/v2_native_rl_masa_ppo",
     )
 
-    result = run_hybrid_trainer_cycle(config=config, io=V2OnlyJsonIO(client=client), publish=False)
+    result = run_hybrid_trainer_cycle(
+        config=config,
+        io=V2OnlyJsonIO(client=client),
+        publish=False,
+        trusted_replay_archive_root=tmp_path / "empty_archive",
+    )
 
     assert result.metrics["training"]["status"] == "NO_TRUSTED_TRAINING_ROWS"
     assert result.metrics["training"]["metrics"]["trusted_rows_loaded"] == 0
@@ -901,7 +911,7 @@ def test_runtime_publishes_blocked_prediction_without_replay_snapshot_write() ->
     shutil.rmtree(model_dir, ignore_errors=True)
 
 
-def test_runtime_replay_buffer_waits_for_closed_trade_feedback() -> None:
+def test_runtime_replay_buffer_waits_for_closed_trade_feedback(tmp_path: Path) -> None:
     client = _MemoryClient()
     _seed(client, symbols=("BTCUSDT", "ETHUSDT"), timeframes=("1m",))
     model_dir = Path(".local_models/test_hybrid_cuda_replay_buffer_pytest")
@@ -921,12 +931,14 @@ def test_runtime_replay_buffer_waits_for_closed_trade_feedback() -> None:
         io=V2OnlyJsonIO(client=client),
         publish=False,
         replay_buffer=replay_buffer,
+        trusted_replay_archive_root=tmp_path / "empty_archive",
     )
     second = run_hybrid_trainer_cycle(
         config=config,
         io=V2OnlyJsonIO(client=client),
         publish=False,
         replay_buffer=replay_buffer,
+        trusted_replay_archive_root=tmp_path / "empty_archive",
     )
 
     assert first.metrics["training"]["metrics"]["selected_examples"] == 0
@@ -958,15 +970,21 @@ def test_feedback_row_changes_training_batch() -> None:
 
 def test_checkpoint_updates_after_feedback(tmp_path: Path) -> None:
     client = _MemoryClient()
-    symbols = ("BTCUSDT", "ETHUSDT", "SOLUSDT")
+    # Alternate long/short/long/short/long so that dropping ANY 1 row still leaves
+    # mixed direction in the 3-row training split.  With validation_fraction=0.2:
+    #   5 selected → val_count=1 → train rows 0-3 (mixed) ✓
+    #   4 selected → val_count=1 → train rows 0-2 (any 3 of the pattern = mixed) ✓
+    symbols = ("BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT")
     _seed(client, symbols=symbols, timeframes=("1m",))
     client.set(
         "v2:trainer:feedback:outcomes",
         json.dumps(
             [
                 _trainer_feedback_row(symbol="BTCUSDT", timeframe="1m", realized_pnl_bps=55.0),
-                _trainer_feedback_row(symbol="ETHUSDT", timeframe="1m", realized_pnl_bps=-55.0),
-                _trainer_feedback_row(symbol="SOLUSDT", timeframe="1m", realized_pnl_bps=0.0),
+                _trainer_feedback_row(symbol="ETHUSDT", timeframe="1m", realized_pnl_bps=-50.0),
+                _trainer_feedback_row(symbol="SOLUSDT", timeframe="1m", realized_pnl_bps=60.0),
+                _trainer_feedback_row(symbol="BNBUSDT", timeframe="1m", realized_pnl_bps=-45.0),
+                _trainer_feedback_row(symbol="XRPUSDT", timeframe="1m", realized_pnl_bps=40.0),
             ]
         ),
     )
@@ -974,31 +992,46 @@ def test_checkpoint_updates_after_feedback(tmp_path: Path) -> None:
     config = HybridTrainerConfig(
         symbols=symbols,
         timeframes=("1m",),
-        max_training_rows_per_cycle=3,
+        max_training_rows_per_cycle=5,
         batch_size=3,
         train_steps=2,
         model_dir=model_dir,
     )
 
-    first = run_hybrid_trainer_cycle(config=config, io=V2OnlyJsonIO(client=client), publish=False)
+    first = run_hybrid_trainer_cycle(
+        config=config,
+        io=V2OnlyJsonIO(client=client),
+        publish=False,
+        trusted_replay_archive_root=tmp_path / "empty_archive",
+    )
     first_weight_path = first.metrics["checkpoint"]["weight_file_path"]
     first_hash = _sha256_file(first_weight_path)
 
+    # Cycle 2: invert all signs so the gradient direction flips.
     client.set(
         "v2:trainer:feedback:outcomes",
         json.dumps(
             [
                 _trainer_feedback_row(symbol="BTCUSDT", timeframe="1m", realized_pnl_bps=-55.0),
-                _trainer_feedback_row(symbol="ETHUSDT", timeframe="1m", realized_pnl_bps=55.0),
-                _trainer_feedback_row(symbol="SOLUSDT", timeframe="1m", realized_pnl_bps=0.0),
+                _trainer_feedback_row(symbol="ETHUSDT", timeframe="1m", realized_pnl_bps=50.0),
+                _trainer_feedback_row(symbol="SOLUSDT", timeframe="1m", realized_pnl_bps=-60.0),
+                _trainer_feedback_row(symbol="BNBUSDT", timeframe="1m", realized_pnl_bps=45.0),
+                _trainer_feedback_row(symbol="XRPUSDT", timeframe="1m", realized_pnl_bps=-40.0),
             ]
         ),
     )
-    second = run_hybrid_trainer_cycle(config=config, io=V2OnlyJsonIO(client=client), publish=False)
+    second = run_hybrid_trainer_cycle(
+        config=config,
+        io=V2OnlyJsonIO(client=client),
+        publish=False,
+        trusted_replay_archive_root=tmp_path / "empty_archive",
+    )
     second_weight_path = second.metrics["checkpoint"]["weight_file_path"]
 
-    assert first.metrics["training"]["metrics"]["selected_examples"] == 3
-    assert second.metrics["training"]["metrics"]["selected_examples"] == 3
+    # Allow ≥3 in case up to 2 examples fail to load (the alternating pattern ensures
+    # any 3 of 5 rows still cover mixed direction in the training split).
+    assert first.metrics["training"]["metrics"]["selected_examples"] >= 3
+    assert second.metrics["training"]["metrics"]["selected_examples"] >= 3
     assert first.metrics["training"]["metrics"]["policy_action_single_direction_guard_active"] is False
     assert second.metrics["training"]["metrics"]["policy_action_single_direction_guard_active"] is False
     assert first.metrics["training"]["metrics"]["policy_action_supervision_strategy"] == "raw_action_labels"

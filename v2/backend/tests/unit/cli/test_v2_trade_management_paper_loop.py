@@ -94,6 +94,43 @@ def test_paper_adaptive_sizing_runtime_status_exposes_full_candidate_allocations
     assert status["generated_utc"] == "2026-06-22T13:30:00Z"
 
 
+def test_running_cycle_heartbeat_uses_challenger_owner_and_long_ttl(monkeypatch) -> None:
+    class FakeRedis:
+        def __init__(self) -> None:
+            self.writes: list[tuple[str, str, int | None]] = []
+
+        def set(self, key: str, value: str, ex: int | None = None) -> None:
+            self.writes.append((key, value, ex))
+
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-27T04:30:00Z")
+    fake = FakeRedis()
+
+    written = paper_loop._write_paper_runtime_heartbeat(  # noqa: SLF001
+        fake,
+        started_at="2026-06-27T04:29:00Z",
+        cycle_state="RUNNING_CYCLE",
+    )
+
+    assert written is True
+    assert len(fake.writes) == 1
+    key, raw_payload, ttl = fake.writes[0]
+    payload = json.loads(raw_payload)
+    assert key == f"{paper_loop.V2_REDIS_PREFIX}paper:heartbeat"
+    assert ttl == paper_loop.PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS
+    assert ttl > paper_loop.PAPER_RUNTIME_TRANSIENT_TTL_SECONDS
+    assert payload["cycle_state"] == "RUNNING_CYCLE"
+    assert payload["finished_at"] is None
+    assert payload["candidate_id"] == paper_loop.CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID
+    assert payload["policy_id"] == paper_loop.CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID
+    assert payload["paper_policy_owner"] == paper_loop.PAPER_POLICY_OWNER_CHALLENGER_V2
+    assert payload["model_source"] == paper_loop.CHALLENGER_V2_MODEL_SOURCE
+    assert payload["current_allowed_paper_owner"] == paper_loop.PAPER_POLICY_OWNER_CHALLENGER_V2
+    assert payload["paper_only"] is True
+    assert payload["routes_to_live"] is False
+    assert payload["places_real_order"] is False
+    assert payload["writes_legacy_redis"] is False
+
+
 def test_candidate_publication_derives_paper_accounting_aliases_from_decision_time_sources(
     monkeypatch,
 ) -> None:
@@ -418,14 +455,314 @@ def test_build_allocation_input_uses_configured_paper_fee_schedule_when_missing(
         },
     )
 
-    assert allocation_input.fee_bps == paper_loop._configured_paper_fee_bps()  # noqa: SLF001
-    assert intent["fee_bps"] == paper_loop._configured_paper_fee_bps()  # noqa: SLF001
-    assert intent["fee_bps_source"] == paper_loop.PAPER_CONFIGURED_FEE_SCHEDULE_SOURCE
+    # AllocationInput uses the configured paper fee schedule when no explicit fee evidence.
+    configured = paper_loop._configured_paper_fee_bps()  # noqa: SLF001
+    assert allocation_input.fee_bps == configured
+    # Configured fee is production-grade: it IS recorded in intent, not marked as fallback.
+    assert intent["fee_bps"] == configured
+    assert intent["fee_bps_source"] == paper_loop.PAPER_CONFIGURED_FEE_SCHEDULE_SOURCE  # noqa: SLF001
     assert intent["fee_bps_fallback"] is False
+    assert intent["fee_bps_for_allocator"] == configured
     assert intent["fee_bps_configured_schedule"] is True
     assert intent["fee_bps_unavailable_reason"] is None
     assert intent["market_cost_evidence_status"] == "COMPLETE_EXPLICIT_MARKET_COST_EVIDENCE"
-    assert "MISSING_FEES" not in intent["market_cost_evidence_missing_fields"]
+    assert "MISSING_FEES" not in (intent.get("market_cost_evidence_missing_fields") or [])
+
+
+def test_read_v2_feature_snapshot_missing_timeframe_does_not_default_to_1m() -> None:
+    class FakeRedis:
+        def __init__(self) -> None:
+            self.keys: list[str] = []
+
+        def get(self, key: str):
+            self.keys.append(key)
+            return None
+
+    fake = FakeRedis()
+
+    snapshot = paper_loop._read_v2_feature_snapshot(  # noqa: SLF001
+        fake,
+        "BTCUSDT",
+        None,
+        decision_time="2026-06-22T13:00:00Z",
+    )
+
+    assert snapshot["features"] == {}
+    assert snapshot["unavailable_reason"] == paper_loop.MISSING_THESIS_TIMEFRAME_BLOCK_REASON
+    assert fake.keys == []
+
+
+def test_build_allocation_input_marks_missing_thesis_timeframe_unknown() -> None:
+    intent = {
+        "symbol": "BTCUSDT",
+        "side": "long",
+        "entry_price": 100.0,
+        "confidence_calibrated": 0.8,
+        "expected_move_after_cost_bps": 14.0,
+        "market_state_integrity_score": 92.0,
+    }
+
+    allocation_input = paper_loop._build_allocation_input(  # noqa: SLF001
+        intent=intent,
+        signal={
+            "price_target": 100.0,
+            "fee_bps": 2.5,
+            "expected_funding_bps": 0.5,
+        },
+        prediction={"features": {}},
+        portfolio_context={
+            "equity": 10000.0,
+            "available_margin": 9000.0,
+            "wallet_balance": 10000.0,
+            "drawdown_bps": 0.0,
+        },
+        symbol_exposures={},
+        total_exposure=0.0,
+        market_microstructure={
+            "bid_ask_spread_bps": 1.2,
+            "source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK",
+            "orderbook_depth_usd": 100000.0,
+            "orderbook_depth_source": "orderbook_top5",
+        },
+    )
+
+    assert allocation_input.timeframe == paper_loop.UNKNOWN_THESIS_TIMEFRAME
+    assert intent["timeframe_attribution_status"] == "MISSING_THESIS_TIMEFRAME"
+    assert intent["timeframe_attribution_rejection_reason"] == paper_loop.MISSING_THESIS_TIMEFRAME_BLOCK_REASON
+
+
+def test_standalone_1m_without_dedicated_bucket_is_shadow_blocked() -> None:
+    intent = {
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "thesis_timeframe": "1m",
+        "strategy_id": "paper_runtime_momentum",
+        "paper_fill_allowed": True,
+    }
+
+    gate = paper_loop._paper_standalone_1m_eligibility_gate(  # noqa: SLF001
+        symbol="BTCUSDT",
+        thesis_timeframe="1m",
+        side="long",
+        intent=intent,
+        signal={"timeframe": "1m"},
+        prediction={},
+        feature_snapshot={"timeframe": "1m", "features": {}},
+        risk={},
+        strategy_router={"selected_mode": "paper_runtime_momentum"},
+    )
+    paper_loop._apply_paper_standalone_1m_gate(intent, gate)  # noqa: SLF001
+
+    assert gate["allowed"] is False
+    assert gate["standalone_1m_thesis"] is True
+    assert gate["dedicated_strategy_bucket"] is False
+    assert gate["blockers"] == [paper_loop.PAPER_STANDALONE_1M_BLOCK_REASON]
+    assert intent["paper_fill_allowed"] is False
+    assert intent["paper_standalone_1m_eligibility_blocked"] is True
+    assert intent["paper_fill_block_reason"] == paper_loop.PAPER_STANDALONE_1M_GATE_BLOCK_REASON
+    assert paper_loop.PAPER_STANDALONE_1M_BLOCK_REASON in intent["paper_fill_gate_block_reasons"]
+    assert f"standalone_1m_eligibility:{paper_loop.PAPER_STANDALONE_1M_BLOCK_REASON}" in intent[
+        "local_block_reasons"
+    ]
+
+
+def test_standalone_1m_with_dedicated_bucket_remains_eligible_for_paper_gate() -> None:
+    intent = {
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "thesis_timeframe": "1m",
+        "strategy_id": "standalone_1m_scalp",
+        "paper_fill_allowed": True,
+    }
+
+    gate = paper_loop._paper_standalone_1m_eligibility_gate(  # noqa: SLF001
+        symbol="BTCUSDT",
+        thesis_timeframe="1m",
+        side="long",
+        intent=intent,
+        signal={},
+        prediction={},
+        feature_snapshot={"timeframe": "1m", "features": {}},
+        risk={},
+        strategy_router={"selected_mode": "standalone_1m_scalp"},
+    )
+    paper_loop._apply_paper_standalone_1m_gate(intent, gate)  # noqa: SLF001
+
+    assert gate["allowed"] is True
+    assert gate["dedicated_strategy_bucket"] is True
+    assert intent["paper_fill_allowed"] is True
+    assert "paper_standalone_1m_eligibility_blocked" not in intent
+
+
+def test_higher_timeframe_thesis_can_use_1m_execution_timing() -> None:
+    intent = {
+        "symbol": "BTCUSDT",
+        "timeframe": "1h",
+        "thesis_timeframe": "1h",
+        "execution_timeframe": "1m",
+        "paper_fill_allowed": True,
+    }
+
+    gate = paper_loop._paper_standalone_1m_eligibility_gate(  # noqa: SLF001
+        symbol="BTCUSDT",
+        thesis_timeframe="1h",
+        side="long",
+        intent=intent,
+        signal={"execution_timeframe": "1m", "timeframe": "1h"},
+        prediction={},
+        feature_snapshot={"execution_timeframe": "1m", "timeframe": "1m", "features": {}},
+        risk={},
+        strategy_router={"selected_mode": "paper_runtime_momentum"},
+    )
+    paper_loop._apply_paper_standalone_1m_gate(intent, gate)  # noqa: SLF001
+
+    assert gate["allowed"] is True
+    assert gate["standalone_1m_thesis"] is False
+    assert gate["higher_timeframe_timing_role_allowed"] is True
+    assert intent["paper_fill_allowed"] is True
+
+
+def _reentry_candidate(
+    *,
+    candle: str = "2026-06-25T13:00:00Z",
+    prediction_id: str = "pred-new",
+    signal_id: str = "sig-new",
+    decision_id: str = "dec-new",
+    feature_snapshot_id: str = "fs-new",
+    expected_edge: float = 12.0,
+) -> dict:
+    intent = {
+        "paper_fill_allowed": True,
+        "expected_move_after_cost_bps": expected_edge,
+        "entry_feature_cutoff": candle,
+        "generated_utc": "2026-06-25T13:01:00Z",
+    }
+    return paper_loop._paper_reentry_dedup_candidate_row(  # noqa: SLF001
+        symbol="BTCUSDT",
+        thesis_timeframe="1h",
+        side="long",
+        intent=intent,
+        signal={"signal_id": signal_id},
+        prediction={
+            "prediction_id": prediction_id,
+            "feature_snapshot_id": feature_snapshot_id,
+            "generated_at": "2026-06-25T13:01:00Z",
+        },
+        feature_snapshot={
+            "feature_snapshot_id": feature_snapshot_id,
+            "feature_cutoff": candle,
+            "features": {},
+        },
+        risk={"decision_id": decision_id, "risk_decision_id": f"risk-{decision_id}"},
+        strategy_router={"selected_mode": "paper_runtime_momentum"},
+    )
+
+
+def test_paper_reentry_dedup_blocks_same_prediction_id() -> None:
+    candidate = _reentry_candidate(prediction_id="pred-1")
+    previous = [
+        {
+            "symbol": "BTCUSDT",
+            "timeframe": "1h",
+            "side": "LONG",
+            "strategy_id": "paper_runtime_momentum",
+            "prediction_id": "pred-1",
+            "signal_id": "sig-old",
+            "feature_snapshot_id": "fs-old",
+            "thesis_candle_close_time": "2026-06-25T13:00:00Z",
+            "paper_result": "FILLED_PAPER_ONLY",
+        }
+    ]
+
+    gate = paper_loop._paper_reentry_dedup_gate(previous, candidate)  # noqa: SLF001
+    intent = {"paper_fill_allowed": True}
+    paper_loop._apply_paper_reentry_dedup_gate(intent, gate)  # noqa: SLF001
+
+    assert gate["allowed"] is False
+    assert "same_prediction_id" in gate["blockers"]
+    assert "prediction_id" in gate["duplicate_identity_fields"]
+    assert intent["paper_fill_allowed"] is False
+    assert intent["paper_reentry_dedup_blocked"] is True
+    assert intent["paper_fill_block_reason"] == paper_loop.PAPER_REENTRY_DEDUP_GATE_BLOCK_REASON
+
+
+def test_paper_reentry_dedup_blocks_same_candle_same_thesis_without_material_change() -> None:
+    candidate = _reentry_candidate(expected_edge=10.0)
+    previous = [
+        {
+            "symbol": "BTCUSDT",
+            "timeframe": "1h",
+            "side": "LONG",
+            "strategy_id": "paper_runtime_momentum",
+            "prediction_id": "pred-old",
+            "signal_id": "sig-old",
+            "feature_snapshot_id": "fs-old",
+            "thesis_candle_close_time": "2026-06-25T13:00:00Z",
+            "expected_move_after_cost_bps": 10.0,
+            "paper_result": "POSITION_CLOSED_PAPER_ONLY",
+        }
+    ]
+
+    gate = paper_loop._paper_reentry_dedup_gate(previous, candidate)  # noqa: SLF001
+
+    assert gate["allowed"] is False
+    assert "same_candle_same_thesis" in gate["blockers"]
+    assert "same_symbol_side_strategy_without_material_change" in gate["blockers"]
+
+
+def test_paper_reentry_dedup_blocks_partial_close_reentry_without_material_change() -> None:
+    candidate = _reentry_candidate(expected_edge=10.0)
+    previous = [
+        {
+            "symbol": "BTCUSDT",
+            "timeframe": "1h",
+            "side": "LONG",
+            "strategy_id": "paper_runtime_momentum",
+            "prediction_id": "pred-old",
+            "signal_id": "sig-old",
+            "feature_snapshot_id": "fs-old",
+            "thesis_candle_close_time": "2026-06-25T13:00:00Z",
+            "expected_move_after_cost_bps": 10.0,
+            "close_reason": "partial_take_profit",
+            "paper_result": "POSITION_CLOSED_PAPER_ONLY",
+        }
+    ]
+
+    gate = paper_loop._paper_reentry_dedup_gate(previous, candidate)  # noqa: SLF001
+
+    assert gate["allowed"] is False
+    assert "partial_close_reentry_without_material_change" in gate["blockers"]
+
+
+def test_paper_reentry_dedup_allows_new_finalized_thesis_candle() -> None:
+    candidate = _reentry_candidate(
+        candle="2026-06-25T14:00:00Z",
+        prediction_id="pred-new",
+        signal_id="sig-new",
+        decision_id="dec-new",
+        feature_snapshot_id="fs-new",
+        expected_edge=10.0,
+    )
+    previous = [
+        {
+            "symbol": "BTCUSDT",
+            "timeframe": "1h",
+            "side": "LONG",
+            "strategy_id": "paper_runtime_momentum",
+            "prediction_id": "pred-old",
+            "signal_id": "sig-old",
+            "feature_snapshot_id": "fs-old",
+            "thesis_candle_close_time": "2026-06-25T13:00:00Z",
+            "expected_move_after_cost_bps": 10.0,
+            "paper_result": "POSITION_CLOSED_PAPER_ONLY",
+        }
+    ]
+
+    gate = paper_loop._paper_reentry_dedup_gate(previous, candidate)  # noqa: SLF001
+
+    assert gate["allowed"] is True
+    assert gate["blockers"] == []
+    assert gate["permitted_reentry_reasons"] == ["new_finalized_thesis_candle"]
 
 
 def test_build_allocation_input_prefers_explicit_fee_over_configured_schedule() -> None:
@@ -506,10 +843,12 @@ def test_build_allocation_input_preserves_signed_short_edge_for_allocator() -> N
     )
 
     assert allocation_input.action == "short"
+    # Signed edge is passed directly; allocator negates internally for short (max(0, -signed_edge)).
     assert allocation_input.expected_move_after_cost_bps == -42.0
-    assert intent["paper_allocation_signed_edge_preserved"] is True
+    assert intent["paper_allocation_signed_edge_normalized"] is True
     assert intent["paper_allocation_signed_expected_move_after_cost_bps"] == -42.0
-    assert "paper_allocation_signed_edge_normalized" not in intent
+    assert "paper_allocation_signed_edge_preserved" not in intent
+    assert "paper_allocation_signed_edge_mismatch" not in intent
 
 
 def test_write_payload_atomically_replaces_invalid_json(tmp_path) -> None:
@@ -1027,6 +1366,395 @@ def test_depth_price_impact_uses_orderbook_top5_vwap_after_sizing() -> None:
     assert intent["depth_price_impact_model"] == "ORDERBOOK_TOP5_VWAP_VS_TOUCH"
     assert intent["depth_price_impact_fill_complete"] is True
     assert intent["depth_utilization_pct"] == 0.4
+
+
+def test_runtime_cost_capture_contract_marks_complete_production_grade_cost() -> None:
+    intent = {
+        "symbol": "BANKUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "strategy_id": "trend_follow",
+        "decision_time": "2026-06-22T13:00:00.000Z",
+        "feature_cutoff": "2026-06-22T12:45:00.000Z",
+        "available_at": "2026-06-22T12:59:58.000Z",
+        "entry_feature_available_at": "2026-06-22T12:59:58.000Z",
+        "entry_feature_generated_at": "2026-06-22T12:59:58.000Z",
+        "entry_feature_cutoff": "2026-06-22T12:45:00.000Z",
+        "entry_feature_decision_time": "2026-06-22T13:00:00.000Z",
+        "entry_feature_candle_closed_confirmed": True,
+        "feature_vector_hash": "fv-hash-1",
+        "selected_action": "long",
+        "expected_move_bps": 20.0,
+        "expected_move_after_cost_bps": 12.0,
+        "score": 0.72,
+        "entry_price_provenance_present": True,
+        "entry_spread_source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:v2:market:orderbook:BANKUSDT",
+        "entry_spread_available_at": "2026-06-22T12:59:59.500Z",
+        "entry_spread_decision_time": "2026-06-22T13:00:00.000Z",
+        "actual_observed_spread_entry_bps": 1.2,
+        "expected_slippage_bps": 0.8,
+        "expected_slippage_source": "MODELED_FROM_OBSERVED_ORDERBOOK",
+        "fee_bps": 4.0,
+        "fee_bps_source": "CONFIGURED_PAPER_FEE_SCHEDULE",
+        "fee_bps_configured_schedule": True,
+        "expected_funding_bps": 0.5,
+        "expected_funding_bps_source": "V2_MARKET_FUNDING_PREMIUM_INDEX",
+        "funding_rate": 0.00005,
+        "funding_interval_seconds": 28800,
+        "fill_price": 100.0,
+        "fill_price_utc": "2026-06-22T13:00:00.250Z",
+        "entry_price": 100.0,
+        "quantity": 2.5,
+        "notional_usdt": 250.0,
+        "gross_notional_usd": 250.0,
+        "allocated_margin_usd": 125.0,
+        "recommended_leverage": 2.0,
+        "recommended_margin_mode": "isolated_paper_simulated",
+        "adaptive_allocation": {},
+    }
+    market_microstructure = {
+        "source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:v2:market:orderbook:BANKUSDT",
+        "entry_spread_available_at": "2026-06-22T12:59:59.500Z",
+        "best_bid": 99.99,
+        "best_ask": 100.01,
+        "mid_price": 100.0,
+        "bid_depth_usd": 10000.0,
+        "ask_depth_usd": 12000.0,
+        "orderbook_depth_usd": 10000.0,
+        "market_depth_usd": 10000.0,
+        "ask_levels_top5": [
+            {"price": 100.01, "quantity": 10.0},
+        ],
+        "bid_levels_top5": [
+            {"price": 99.99, "quantity": 10.0},
+        ],
+    }
+    mark_index = {
+        "mark_price": 100.03,
+        "index_price": 100.0,
+        "mark_index_divergence_bps": 3.0,
+        "mark_index_source": "V2_MARKET_FUNDING_PREMIUM_INDEX:v2:market:funding:BANKUSDT",
+        "mark_index_available_at": "2026-06-22T12:59:59.000Z",
+    }
+
+    paper_loop._attach_depth_price_impact_evidence(intent, market_microstructure)  # noqa: SLF001
+    paper_loop._attach_paper_execution_evidence(intent, mark_index)  # noqa: SLF001
+    paper_loop._attach_runtime_cost_capture_contract(  # noqa: SLF001
+        intent,
+        market_microstructure,
+        signal={"policy_fingerprint": "policy-fp-1"},
+        prediction={"model_source": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA"},
+    )
+
+    assert intent["candidate_id"] == paper_loop.CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID
+    assert intent["paper_policy_owner"] == paper_loop.PAPER_POLICY_OWNER_CHALLENGER_V2
+    assert intent["predicted_direction"] == "long"
+    assert intent["predicted_move_bps"] == 20.0
+    assert intent["score"] == 0.72
+    assert intent["order_size"] == 250.0
+    assert intent["observed_bid"] == 99.99
+    assert intent["observed_ask"] == 100.01
+    assert intent["top_book_bid_depth_usd"] == 10000.0
+    assert intent["top_book_ask_depth_usd"] == 12000.0
+    assert intent["depth_derived_price_impact_bps"] == 0.0
+    assert intent["maker_taker_assumption"] == "taker"
+    assert intent["fee_schedule"]["fee_bps"] == 4.0
+    assert intent["holding_period_funding_bps"] == 0.5
+    assert intent["latency_reserve_bps"] == 0.0
+    assert intent["partial_fill_estimate"]["expected_fill_probability"] == 1.0
+    assert intent["cost_source_timestamp"] == "2026-06-22T12:59:59.500Z"
+    assert intent["cost_evidence_freshness_ms"] == 500.0
+    assert intent["runtime_cost_capture_missing_fields"] == []
+    assert intent["fallback_cost_flag"] is False
+    assert intent["fallback"] is False
+    assert intent["production_grade_cost_flag"] is True
+    assert intent["routes_to_live"] is False
+    assert intent["counts_as_a_grade_evidence"] is False
+    assert intent["paper_canary_fixed_notional_allowed"] is False
+    assert paper_loop._paper_policy_owner_open_rejection_reasons(intent) == []  # noqa: SLF001
+    assert intent["paper_policy_owner_open_allowed"] is True
+    assert intent["adaptive_allocation"]["production_grade_cost_flag"] is True
+
+    rows = paper_loop._current_cycle_candidate_allocation_rows(intents=[intent])  # noqa: SLF001
+    assert rows[0]["candidate_id"] == paper_loop.CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID
+    assert rows[0]["predicted_direction"] == "long"
+    assert rows[0]["production_grade_cost_flag"] is True
+    assert rows[0]["routes_to_live"] is False
+
+
+def test_runtime_cost_capture_prefers_final_paper_notional_for_order_size() -> None:
+    intent = {
+        "symbol": "BANKUSDT",
+        "side": "long",
+        "order_size": 1000.0,
+        "order_size_usd": 1000.0,
+        "gross_notional_usd": 250.0,
+        "notional_usdt": 250.0,
+    }
+
+    paper_loop._attach_runtime_cost_capture_contract(intent, {})  # noqa: SLF001
+
+    assert intent["order_size"] == 250.0
+    assert intent["order_size_usd"] == 250.0
+
+
+def test_runtime_cost_capture_contract_fallback_rows_do_not_pass_challenger_owner_gate() -> None:
+    intent = {
+        "symbol": "BANKUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "decision_time": "2026-06-22T13:00:00.000Z",
+        "entry_price_provenance_present": True,
+        "fill_price": 100.0,
+        "fill_price_utc": "2026-06-22T13:00:00.250Z",
+        "quantity": 2.5,
+        "notional_usdt": 250.0,
+        "expected_slippage_bps": 0.8,
+        "expected_slippage_source": "MODELED_FROM_OBSERVED_ORDERBOOK",
+        "fee_bps": 4.0,
+        "fee_bps_source": "CONFIGURED_PAPER_FEE_SCHEDULE",
+        "expected_funding_bps": 0.5,
+        "expected_funding_bps_source": "V2_MARKET_FUNDING_PREMIUM_INDEX",
+        "funding_rate": 0.00005,
+        "mark_index_divergence_bps": 0.0,
+    }
+
+    paper_loop._attach_paper_execution_evidence(intent, {})  # noqa: SLF001
+    paper_loop._attach_runtime_cost_capture_contract(intent, {})  # noqa: SLF001
+    reasons = paper_loop._paper_policy_owner_open_rejection_reasons(intent)  # noqa: SLF001
+
+    assert intent["fallback_cost_flag"] is True
+    assert intent["production_grade_cost_flag"] is False
+    assert "observed_bid" in intent["runtime_cost_capture_missing_fields"]
+    assert "top_book_bid_depth_usd" in intent["runtime_cost_capture_missing_fields"]
+    assert "depth_derived_price_impact_bps" in intent["runtime_cost_capture_missing_fields"]
+    assert "cost_source_timestamp" in intent["runtime_cost_capture_missing_fields"]
+    assert "CHALLENGER_COST_CAPTURE_NOT_PRODUCTION_GRADE" in reasons
+    assert "missing:observed_bid" in reasons
+    assert intent["paper_policy_owner_open_allowed"] is False
+
+
+def test_runtime_cost_capture_explains_zero_size_no_trade_rows_without_production_credit() -> None:
+    intent = {
+        "symbol": "BANKUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "decision_time": "2026-06-22T13:00:00.000Z",
+        "entry_price_provenance_present": True,
+        "entry_price": 100.0,
+        "fill_price": 100.0,
+        "fill_price_utc": "2026-06-22T13:00:00.250Z",
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_NO_TRADE,
+        "paper_fill_allowed": False,
+        "allocator_decision": "BLOCK_NON_EXECUTABLE_PAPER_TIER",
+        "actual_observed_spread_entry_bps": 2.0,
+        "expected_slippage_bps": 0.8,
+        "expected_slippage_source": "MODELED_FROM_OBSERVED_ORDERBOOK",
+        "fee_bps": 4.0,
+        "fee_bps_source": "CONFIGURED_PAPER_FEE_SCHEDULE",
+        "expected_funding_bps": 0.5,
+        "expected_funding_bps_source": "V2_MARKET_FUNDING_PREMIUM_INDEX",
+        "funding_rate": 0.00005,
+        "mark_index_divergence_bps": 0.0,
+    }
+    market_microstructure = {
+        "source": "V2_TRADE_TERMINAL_ORDERBOOK_PAYLOAD",
+        "entry_spread_available_at": "2026-06-22T12:59:59.500Z",
+        "best_bid": 99.99,
+        "best_ask": 100.01,
+        "mid_price": 100.0,
+        "bid_ask_spread_bps": 2.0,
+        "bid_depth_usd": 10000.0,
+        "ask_depth_usd": 12000.0,
+        "orderbook_depth_usd": 10000.0,
+        "market_depth_usd": 10000.0,
+    }
+
+    paper_loop._attach_paper_execution_evidence(intent, {})  # noqa: SLF001
+    paper_loop._attach_runtime_cost_capture_contract(  # noqa: SLF001
+        intent,
+        market_microstructure,
+    )
+
+    assert intent["production_grade_cost_flag"] is False
+    assert intent["fallback_cost_flag"] is True
+    assert intent["runtime_cost_capture_order_cost_applicable"] is False
+    assert intent["runtime_cost_capture_no_order_reason"] == "NO_TRADE_ZERO_SIZE_PAPER_INTENT"
+    assert intent["runtime_cost_capture_explained_missing_fields"] == [
+        "depth_derived_price_impact_bps",
+        "order_size",
+    ]
+    assert intent["runtime_cost_capture_unexplained_missing_fields"] == []
+    assert intent["paper_canary_fixed_notional_allowed"] is False
+    assert intent["routes_to_live"] is False
+    assert intent["places_real_order"] is False
+
+
+def test_old_policy_owner_cannot_open_new_economic_paper_fills() -> None:
+    intent = {
+        "paper_policy_owner": paper_loop.PAPER_POLICY_OWNER_OLD_POLICY,
+        "production_grade_cost_flag": True,
+    }
+
+    reasons = paper_loop._paper_policy_owner_open_rejection_reasons(intent)  # noqa: SLF001
+
+    assert reasons == ["OLD_POLICY_NEW_ECONOMIC_PAPER_OPENS_DISABLED"]
+    assert intent["paper_policy_owner_open_allowed"] is False
+    assert intent["paper_policy_owner_open_block_reason"] == "OLD_POLICY_NEW_ECONOMIC_PAPER_OPENS_DISABLED"
+
+
+def test_missing_owner_attribution_rows_are_explicit_pre_cutover_not_challenger_credit() -> None:
+    row = {
+        "fill_id": "fill-pre-cutover",
+        "ledger_row_id": "fill-pre-cutover",
+        "symbol": "BTCUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "decision": "ACCEPTED_PAPER_FILL",
+        "counts_as_a_grade_evidence": True,
+        "a_grade_promotion_allowed": True,
+    }
+
+    normalized = paper_loop._normalize_paper_owner_attribution(row)  # noqa: SLF001
+    compact = paper_loop._compact_accepted_fill_for_state(normalized)  # noqa: SLF001
+
+    assert normalized["candidate_id"] == paper_loop.UNATTRIBUTED_PRE_CUTOVER_CANDIDATE_ID
+    assert normalized["policy_id"] == paper_loop.UNATTRIBUTED_PRE_CUTOVER_CANDIDATE_ID
+    assert normalized["paper_policy_owner"] == paper_loop.PAPER_POLICY_OWNER_UNATTRIBUTED_PRE_CUTOVER
+    assert normalized["policy_fingerprint"] == paper_loop.UNATTRIBUTED_PRE_CUTOVER_POLICY_FINGERPRINT
+    assert normalized["model_source"] == paper_loop.UNATTRIBUTED_PRE_CUTOVER_MODEL_SOURCE
+    assert normalized["paper_owner_attribution_complete"] is False
+    assert set(normalized["paper_owner_attribution_missing_fields"]) == {
+        "candidate_id",
+        "model_source",
+        "paper_policy_owner",
+        "policy_fingerprint",
+        "policy_id",
+    }
+    assert normalized["paper_owner_attribution_blocks_challenger_credit"] is True
+    assert normalized["counts_as_a_grade_evidence"] is False
+    assert normalized["a_grade_promotion_allowed"] is False
+    assert normalized["challenger_credit_allowed"] is False
+    assert compact["candidate_id"] == paper_loop.UNATTRIBUTED_PRE_CUTOVER_CANDIDATE_ID
+    assert compact["paper_owner_attribution_status"] == "INCOMPLETE_OR_PRE_CUTOVER_OWNER_ATTRIBUTION"
+
+
+def test_pre_cutover_owner_attribution_does_not_keep_challenger_model_identity() -> None:
+    row = {
+        "fill_id": "fill-old-normalized",
+        "ledger_row_id": "fill-old-normalized",
+        "symbol": "BTCUSDT",
+        "timeframe": "15m",
+        "decision": "ACCEPTED_PAPER_FILL",
+        "candidate_id": paper_loop.UNATTRIBUTED_PRE_CUTOVER_CANDIDATE_ID,
+        "policy_id": paper_loop.UNATTRIBUTED_PRE_CUTOVER_CANDIDATE_ID,
+        "paper_policy_owner": paper_loop.PAPER_POLICY_OWNER_UNATTRIBUTED_PRE_CUTOVER,
+        "policy_fingerprint": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT,
+        "model_source": paper_loop.CHALLENGER_V2_MODEL_SOURCE,
+    }
+
+    normalized = paper_loop._normalize_paper_owner_attribution(row)  # noqa: SLF001
+
+    assert normalized["candidate_id"] == paper_loop.UNATTRIBUTED_PRE_CUTOVER_CANDIDATE_ID
+    assert normalized["policy_id"] == paper_loop.UNATTRIBUTED_PRE_CUTOVER_CANDIDATE_ID
+    assert normalized["paper_policy_owner"] == paper_loop.PAPER_POLICY_OWNER_UNATTRIBUTED_PRE_CUTOVER
+    assert normalized["policy_fingerprint"] == paper_loop.UNATTRIBUTED_PRE_CUTOVER_POLICY_FINGERPRINT
+    assert normalized["model_source"] == paper_loop.UNATTRIBUTED_PRE_CUTOVER_MODEL_SOURCE
+    assert normalized["paper_owner_attribution_complete"] is False
+    assert normalized["paper_owner_attribution_missing_fields"] == ["pre_cutover_owner_attribution"]
+    assert normalized["counts_as_a_grade_evidence"] is False
+
+
+def test_active_cuda_owner_attribution_rewrites_stale_frozen_candidate_id() -> None:
+    row = {
+        "fill_id": "fill-stale-frozen-candidate",
+        "ledger_row_id": "fill-stale-frozen-candidate",
+        "symbol": "ETHUSDT",
+        "timeframe": "5m",
+        "side": "short",
+        "decision": "ACCEPTED_PAPER_FILL",
+        "candidate_id": paper_loop.CHALLENGER_V2_FROZEN_CANDIDATE_ID,
+        "policy_id": paper_loop.CHALLENGER_V2_FROZEN_CANDIDATE_ID,
+        "paper_policy_owner": paper_loop.PAPER_POLICY_OWNER_CHALLENGER_V2,
+        "policy_fingerprint": paper_loop.OUT_OF_SAMPLE_REVERIFY_SELECTOR_POLICY_FINGERPRINT,
+        "model_source": paper_loop.CHALLENGER_V2_MODEL_SOURCE,
+    }
+
+    normalized = paper_loop._normalize_paper_owner_attribution(row)  # noqa: SLF001
+
+    assert normalized["candidate_id"] == paper_loop.CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID
+    assert normalized["policy_id"] == paper_loop.CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID
+    assert normalized["policy_fingerprint"] == paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT
+    assert normalized["model_source"] == paper_loop.CHALLENGER_V2_MODEL_SOURCE
+    assert normalized["paper_owner_attribution_complete"] is True
+    assert normalized["paper_owner_attribution_missing_fields"] == []
+    assert normalized["paper_owner_attribution_blocks_challenger_credit"] is False
+
+
+def test_active_cuda_owner_attribution_keeps_unknown_candidate_mismatch_blocked() -> None:
+    row = {
+        "fill_id": "fill-unknown-candidate",
+        "ledger_row_id": "fill-unknown-candidate",
+        "symbol": "ETHUSDT",
+        "timeframe": "5m",
+        "side": "short",
+        "decision": "ACCEPTED_PAPER_FILL",
+        "candidate_id": "challenger_v2_unknown_candidate",
+        "policy_id": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID,
+        "paper_policy_owner": paper_loop.PAPER_POLICY_OWNER_CHALLENGER_V2,
+        "policy_fingerprint": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT,
+        "model_source": paper_loop.CHALLENGER_V2_MODEL_SOURCE,
+    }
+
+    normalized = paper_loop._normalize_paper_owner_attribution(row)  # noqa: SLF001
+
+    assert normalized["candidate_id"] == "challenger_v2_unknown_candidate"
+    assert normalized["policy_id"] == paper_loop.CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID
+    assert normalized["paper_owner_attribution_complete"] is False
+    assert normalized["paper_owner_attribution_blocks_challenger_credit"] is True
+    assert normalized["counts_as_a_grade_evidence"] is False
+    assert normalized["challenger_credit_allowed"] is False
+
+
+def test_owner_attribution_status_allows_current_challenger_and_quarantines_history() -> None:
+    current = paper_loop._normalize_paper_owner_attribution(  # noqa: SLF001
+        {
+            "fill_id": "fill-current",
+            "ledger_row_id": "fill-current",
+            "symbol": "ETHUSDT",
+            "timeframe": "1h",
+            "side": "short",
+            "decision": "ACCEPTED_PAPER_FILL",
+            "candidate_id": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID,
+            "policy_id": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID,
+            "paper_policy_owner": paper_loop.PAPER_POLICY_OWNER_CHALLENGER_V2,
+            "policy_fingerprint": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT,
+            "model_source": paper_loop.CHALLENGER_V2_MODEL_SOURCE,
+        }
+    )
+    historical = paper_loop._normalize_paper_owner_attribution(  # noqa: SLF001
+        {
+            "fill_id": "fill-pre-cutover",
+            "ledger_row_id": "fill-pre-cutover",
+            "symbol": "BTCUSDT",
+            "timeframe": "15m",
+            "side": "long",
+            "decision": "ACCEPTED_PAPER_FILL",
+        }
+    )
+
+    status = paper_loop._paper_owner_attribution_status(  # noqa: SLF001
+        [historical, current],
+        current_accepted_rows=[current],
+    )
+
+    assert status["status"] == "PASS_CURRENT_ACCEPTED_OWNER_ATTRIBUTION"
+    assert status["current_accepted_count"] == 1
+    assert status["current_incomplete_count"] == 0
+    assert status["persistent_incomplete_or_pre_cutover_count"] == 1
+    assert status["current_owner_counts"] == {paper_loop.PAPER_POLICY_OWNER_CHALLENGER_V2: 1}
+    assert status["persistent_owner_counts"][paper_loop.PAPER_POLICY_OWNER_UNATTRIBUTED_PRE_CUTOVER] == 1
+    assert status["pre_cutover_rows_block_challenger_credit"] is True
 
 
 def test_runtime_market_evidence_requires_execution_evidence_fields() -> None:

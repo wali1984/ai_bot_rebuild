@@ -83,6 +83,7 @@ claude_worklog/quota/CLAUDE_CODE_QUOTA_STATUS.md
 claude_worklog/quota/CLAUDE_CODE_QUOTA_GUARD_STATUS.md
 claude_worklog/quota/CLAUDE_CODE_QUOTA_GUARD.log
 .local_scratch/
+.local_data/
 v2/.venv-control-plane
 v2/runtime/
 v2/frontend/public/operator_runtime/
@@ -91,6 +92,7 @@ v2/frontend/public/operator_runtime/
 .local_secrets/
 v2/.env.local
 v2/secrets/
+v2/backend/.auth_process_secret
 *.local.env
 *.secret.local
 *.secrets.local
@@ -154,6 +156,9 @@ native_trainer_continuous_training_and_checkpoint_parity_status.json
 liquidity_zone_and_liquidation_level_parity_status.json
 
 # Root-level pass/evidence run directories (audit run snapshots)
+artifacts/
+v2/artifacts/
+v2/frontend/artifacts/
 pass2b_edge_proof/
 pass3a_live_canary_safety/
 pass3b_exact_live_path/
@@ -189,6 +194,7 @@ v2/frontend/public/v2_report_center/
 # Final readiness latest/ output directories
 # Workers write JSON/MD/screenshots here on every run — never source
 claude_worklog/final_readiness/*/latest/
+claude_worklog/final_readiness/**/latest/
 
 # Final readiness state/ directories — replay/lease state, not source
 claude_worklog/final_readiness/*/state/

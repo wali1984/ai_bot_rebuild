@@ -328,11 +328,25 @@ public struct PaperLoop: Decodable, Equatable {
     public let intents_accepted: Int
     public let intents_blocked: Int
     public let classification: String
+    public let cycle_state: String?
+    public let heartbeat_ttl_seconds: Int?
+    public let candidate_id: String?
+    public let policy_id: String?
+    public let paper_policy_owner: String?
+    public let policy_fingerprint: String?
+    public let model_source: String?
+    public let paper_only: Bool?
+    public let routes_to_live: Bool?
+    public let places_real_order: Bool?
 
     public var blockRate: Double {
         let total = intents_accepted + intents_blocked
         guard total > 0 else { return 0 }
         return Double(intents_blocked) / Double(total) * 100
+    }
+
+    public var runtimeRouteLabel: String {
+        routes_to_live == true ? "LIVE ROUTE" : "OPERATOR GATED"
     }
 }
 

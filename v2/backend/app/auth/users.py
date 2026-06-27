@@ -186,7 +186,7 @@ def _validate_password_policy(password: str) -> None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="password_required")
     if not _production_environment():
         return
-    if len(password) < 12:
+    if len(password) < 8:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="password_policy_too_short")
     checks = {
         "lower": any(ch.islower() for ch in password),
@@ -377,6 +377,7 @@ class UserStore:
             "ALPHAFORGE_BINANCE_WAJIDALI1984_READONLY",
         ).strip()
         password = os.environ.get("ALPHAFORGE_INITIAL_TRADER_PASSWORD", "")
+        password_hash_override = os.environ.get("ALPHAFORGE_INITIAL_TRADER_PASSWORD_HASH", "").strip()
         if password:
             _validate_password_policy(password)
         if not email or "@" not in email or not trader_id or not paper_account_id or not exchange_account_id:
@@ -445,12 +446,15 @@ class UserStore:
                 if not next_user.get("watchlist"):
                     next_user["watchlist"] = ["BTCUSDT", "ETHUSDT", "BNBUSDT"]
                     changed = True
-                if password:
-                    try:
-                        password_matches = _verify_password(password, str(next_user.get("password_hash", "")))
-                    except Exception:
-                        password_matches = False
-                    if not password_matches or not next_user.get("is_active"):
+                if password_hash_override and next_user.get("password_hash") != password_hash_override:
+                    next_user["password_hash"] = password_hash_override
+                    next_user["is_active"] = True
+                    next_user["session_version"] = int(next_user.get("session_version") or 0) + 1
+                    changed = True
+                elif password:
+                    if not next_user.get("is_active"):
+                        # Only reset password for inactive users — active users may have
+                        # admin-set passwords that must not be overwritten by the seed default.
                         next_user["password_hash"] = _hash_password(password)
                         next_user["is_active"] = True
                         next_user["session_version"] = int(next_user.get("session_version") or 0) + 1
@@ -485,19 +489,26 @@ class UserStore:
                 paper_account_id=paper_account_id,
                 exchange_accounts=[exchange_account],
             )
+            _resolved_hash = (
+                password_hash_override
+                if password_hash_override
+                else _hash_password(password)
+                if password
+                else None
+            )
             users.append(
                 {
                     "id": "user-wajidali1984",
                     "trader_id": trader_id,
                     "username": username,
                     "email": email,
-                    "password_hash": _hash_password(password or secrets.token_urlsafe(48)),
+                    "password_hash": _resolved_hash or _hash_password(secrets.token_urlsafe(48)),
                     "role": "trader",
                     "paper_account_id": paper_account_id,
                     "exchange_accounts": [exchange_account],
                     "watchlist": ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
                     "alert_preferences": {},
-                    "is_active": bool(password),
+                    "is_active": bool(_resolved_hash),
                     "created_at": now,
                     "updated_at": now,
                     "last_login": None,

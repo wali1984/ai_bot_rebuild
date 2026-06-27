@@ -2269,15 +2269,18 @@ def _adaptive_capital_compact_payload() -> tuple[dict[str, Any] | None, str, str
         or (capital_source or {}).get("signal_prediction_accuracy_status")
     )
     prediction_accuracy_fallback = _signal_runtime_prediction_accuracy_fallback()
+    _used_prediction_fallback = False
     if _accuracy_source_row_count(accuracy_source) == 0 and _accuracy_source_row_count(prediction_accuracy_fallback) > 0:
         accuracy_source = prediction_accuracy_fallback
-    # Redis fallback: use real evaluated outcome data when static file has 0 evaluated rows
+        _used_prediction_fallback = True
+    # Redis fallback: use real evaluated outcome data when static file has 0 evaluated rows.
+    # Skip if we already chose the signal prediction fallback (it has source_row_count but no evaluated rows yet).
     def _acc_evaluated_count(src: Any) -> int:
         if not isinstance(src, dict):
             return 0
         v = src.get("evaluated_row_count") or src.get("correct_count", 0) or 0
         return int(v) if isinstance(v, (int, float)) else 0
-    if _acc_evaluated_count(accuracy_source) == 0:
+    if not _used_prediction_fallback and _acc_evaluated_count(accuracy_source) == 0:
         _redis_acc = _redis_accuracy_status()
         if _redis_acc and _redis_acc.get("evaluated_row_count", 0) > 0:
             accuracy_source = _redis_acc
@@ -8086,6 +8089,12 @@ async def get_risk_status() -> dict[str, Any]:
     _resp["fail_closed"] = _fail_closed
     _resp["recent_decisions"] = _normalized_decisions
     _resp["active_profile"] = profile_summary
+    # Risk gateway heartbeat updates once per cycle (~5-15 min), not per-second.
+    # Override stale if classification confirms gateway is live and lag < 15 min.
+    _hb_classification = (heartbeat.get("classification") or "") if heartbeat else ""
+    _lag = _resp.get("lag_ms")
+    if _hb_classification in ("V2_RISK_GATEWAY_LIVE_OK", "RUNTIME_ARTIFACT_CURRENT", "V2_RISK_GATEWAY_OK"):
+        _resp["stale"] = _lag is None or _lag > 900_000
     return _resp
 
 
@@ -9407,6 +9416,278 @@ async def get_paper_status(actor: UserRecord | None = Depends(optional_auth)) ->
         mode="paper",
         trader_context=_trader_context(actor),
     )
+
+
+@router.get("/paper/runtime-status")
+async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_auth)) -> dict[str, Any]:
+    """Real-time paper runtime status synthesized from Redis — replaces stale static file."""
+
+    def _build() -> dict[str, Any]:
+        try:
+            client = get_redis()
+            now = _utc_now()
+
+            hb_raw = client.get("v2:paper:heartbeat")
+            hb: dict[str, Any] = json.loads(hb_raw) if hb_raw else {}
+            hb_ts = hb.get("heartbeat_generated_at") or hb.get("started_at") or ""
+            hb_age = _lag_ms(hb_ts or None)
+            heartbeat_fresh = hb_age is not None and hb_age < 900_000
+
+            market_hb_raw = client.get("v2:market:coinapi:ohlcv:heartbeat")
+            market_hb: dict[str, Any] = json.loads(market_hb_raw) if market_hb_raw else {}
+            market_ts = market_hb.get("finished_utc") or market_hb.get("ts") or ""
+            market_age_ms = _lag_ms(market_ts or None)
+            market_age_s = int(market_age_ms / 1000) if market_age_ms is not None else None
+
+            ledger_raw = client.get("v2:paper:ledger")
+            ledger_stats: dict[str, Any] = {}
+            if ledger_raw:
+                parsed_ledger = json.loads(ledger_raw)
+                ledger_stats = parsed_ledger if isinstance(parsed_ledger, dict) else {}
+            paper_event_count = int(ledger_stats.get("accepted_count") or 0)
+
+            intents_raw = client.get("v2:paper:intents")
+            paper_intents: list[dict[str, Any]] = []
+            if intents_raw:
+                parsed_intents = json.loads(intents_raw)
+                if isinstance(parsed_intents, list):
+                    paper_intents = [row for row in parsed_intents if isinstance(row, dict)]
+            production_grade_cost_rows = sum(
+                1
+                for row in paper_intents
+                if row.get("production_grade_cost_flag") is True
+                or row.get("production_grade_cost_evidence") is True
+            )
+            no_order_explained_rows = sum(
+                1
+                for row in paper_intents
+                if row.get("runtime_cost_capture_order_cost_applicable") is False
+            )
+            unexplained_missing_cost_rows = sum(
+                1
+                for row in paper_intents
+                if len(row.get("runtime_cost_capture_unexplained_missing_fields") or []) > 0
+            )
+            paper_fill_allowed_rows = sum(1 for row in paper_intents if row.get("paper_fill_allowed") is True)
+            routes_to_live_rows = sum(1 for row in paper_intents if row.get("routes_to_live") is True)
+            places_real_order_rows = sum(1 for row in paper_intents if row.get("places_real_order") is True)
+            cost_coverage = (
+                production_grade_cost_rows / len(paper_intents)
+                if paper_intents
+                else 0.0
+            )
+
+            sig_keys = client.keys("v2:signals:latest:*")
+            latest_signal: dict[str, Any] = {}
+            latest_sig_ts = ""
+            for raw_key in (sig_keys or []):
+                k = raw_key.decode() if isinstance(raw_key, bytes) else raw_key
+                try:
+                    s_raw = client.get(k)
+                    if not s_raw:
+                        continue
+                    s = json.loads(s_raw)
+                    if not isinstance(s, dict):
+                        continue
+                    s_ts = s.get("available_at") or s.get("ts") or ""
+                    if not latest_sig_ts or s_ts > latest_sig_ts:
+                        latest_sig_ts = s_ts
+                        latest_signal = s
+                except Exception:
+                    pass
+
+            last_event: dict[str, Any] = {}
+            if latest_signal:
+                last_event = {
+                    "paper_action": latest_signal.get("action") or latest_signal.get("paper_fill_status"),
+                    "risk_gateway_result": latest_signal.get("risk_state") or latest_signal.get("paper_fill_gate_status"),
+                    "paper_ledger_entry_id": latest_signal.get("paper_ledger_id") or latest_signal.get("paper_intent_id"),
+                    "symbol": latest_signal.get("symbol"),
+                    "timeframe": latest_signal.get("timeframe"),
+                    "available_at": latest_sig_ts,
+                }
+
+            risk_hb_raw = client.get("v2:risk:gateway:heartbeat")
+            risk_hb: dict[str, Any] = json.loads(risk_hb_raw) if risk_hb_raw else {}
+
+            runtime_state = "PAPER_RUNTIME_ONLINE_ACTIVE" if heartbeat_fresh else "PAPER_RUNTIME_HEARTBEAT_STALE"
+
+            lineage_ids: dict[str, Any] = {}
+            if latest_signal:
+                raw_lineage = latest_signal.get("lineage_ids")
+                base_lineage = raw_lineage if isinstance(raw_lineage, dict) else {}
+                lineage_ids = {
+                    "prediction_id": (
+                        latest_signal.get("prediction_id")
+                        or base_lineage.get("prediction_id")
+                        or base_lineage.get("trainer_prediction_id")
+                    ),
+                    "feature_snapshot_id": (
+                        latest_signal.get("feature_snapshot_id")
+                        or base_lineage.get("feature_snapshot_id")
+                    ),
+                    "signal_id": (
+                        latest_signal.get("signal_id")
+                        or latest_signal.get("decision_id")
+                        or base_lineage.get("signal_id")
+                    ),
+                    "risk_decision_id": (
+                        latest_signal.get("risk_decision_id")
+                        or base_lineage.get("risk_decision_id")
+                        or risk_hb.get("risk_decision_id")
+                    ),
+                    "execution_intent_id": (
+                        base_lineage.get("paper_intent_id")
+                        or latest_signal.get("paper_intent_id")
+                    ),
+                    "orchestrator_decision_id": (
+                        latest_signal.get("orchestrator_decision_id")
+                        or base_lineage.get("orchestrator_decision_id")
+                    ),
+                }
+
+            return {
+                "generated_at": now,
+                "runtime": hb.get("worker_id", "v2_trade_management_paper_loop"),
+                "runtime_state": runtime_state,
+                "live_gate_status": "blocked_human_only",
+                "mode": "paper",
+                "continuous_loop_available": heartbeat_fresh,
+                "loop_interval_seconds": 10,
+                "writes_only_local_v2_artifacts": True,
+                "legacy_redis_writes": bool(hb.get("writes_legacy_redis", False)),
+                "exchange_orders": bool(hb.get("places_real_order", False)),
+                "leverage_changes": False,
+                "margin_mode_changes": False,
+                "redis_trim_approval_created": False,
+                "market_feed": {
+                    "symbol": market_hb.get("live_symbols", [None])[0] if market_hb.get("live_symbols") else "BTCUSDT",
+                    "price": None,
+                    "source_type": "redis_live",
+                    "source": market_hb.get("source", "coinapi_rest"),
+                    "source_pointer": "v2:market:coinapi:ohlcv:heartbeat",
+                    "generated_at": market_ts or now,
+                    "last_event_at": market_ts or None,
+                    "age_seconds": market_age_s,
+                    "freshness_state": "MARKET_FEED_CURRENT" if market_age_s is not None and market_age_s < 600 else "MARKET_FEED_STALE",
+                    "errors": [],
+                },
+                "paper_loop": {
+                    "state": hb.get("cycle_state", "RUNNING_CYCLE"),
+                    "tick_id": hb.get("candidate_id", ""),
+                    "candidate_id": hb.get("candidate_id"),
+                    "policy_id": hb.get("policy_id"),
+                    "paper_policy_owner": hb.get("paper_policy_owner"),
+                    "current_allowed_paper_owner": hb.get("current_allowed_paper_owner"),
+                    "policy_fingerprint": hb.get("policy_fingerprint") or hb.get("selector_policy_fingerprint"),
+                    "model_source": hb.get("model_source"),
+                    "last_tick_at": hb_ts or now,
+                    "paper_event_count": paper_event_count,
+                    "last_paper_event_count": paper_event_count,
+                    "last_shadow_decision_count": int(ledger_stats.get("shadow_observation_count") or 0),
+                    "last_risk_block_count": int(ledger_stats.get("blocked_count") or 0),
+                    "intents_built": hb.get("intents_built"),
+                    "intents_accepted": hb.get("intents_accepted"),
+                    "intents_blocked": hb.get("intents_blocked"),
+                    "production_grade_cost_rows": production_grade_cost_rows,
+                    "production_grade_cost_coverage": cost_coverage,
+                    "no_order_explained_rows": no_order_explained_rows,
+                    "unexplained_missing_cost_rows": unexplained_missing_cost_rows,
+                    "paper_fill_allowed_rows": paper_fill_allowed_rows,
+                    "routes_to_live_rows": routes_to_live_rows,
+                    "places_real_order_rows": places_real_order_rows,
+                },
+                "paper_account": {
+                    "currency": "USDT",
+                    "starting_equity": 10000.0,
+                    "equity": 10000.0,
+                    "realized_pnl": 0.0,
+                    "unrealized_pnl": 0.0,
+                    "open_position_count": 0,
+                    "position_source": "v2:paper:positions",
+                },
+                "trainer_prediction": {
+                    "prediction_id": latest_signal.get("prediction_id"),
+                    "feature_snapshot_id": latest_signal.get("feature_snapshot_id"),
+                    "status": "ACTIVE_PAPER_RUNTIME" if latest_signal else "MISSING_EVIDENCE",
+                    "source": "redis:v2:signals:latest:*",
+                } if latest_signal else None,
+                "current_signal_lineage": {
+                    "status": "REALTIME_RUNTIME_EVIDENCE" if latest_signal else "MISSING_EVIDENCE",
+                    "source": "redis:v2:signals:latest:*",
+                    "classification": "V2_PAPER_SIGNAL_ACTIVE" if latest_signal else "NO_SIGNAL",
+                    "lineage_ids": lineage_ids,
+                    "live_trading_enabled": False,
+                    "signal": {
+                        "signal_id": latest_signal.get("signal_id") or latest_signal.get("decision_id"),
+                        "proposed_action": latest_signal.get("action"),
+                        "symbol": latest_signal.get("symbol"),
+                        "timeframe": latest_signal.get("timeframe"),
+                        "confidence": latest_signal.get("confidence"),
+                        "available_at": latest_sig_ts,
+                    } if latest_signal else None,
+                } if latest_signal else {"status": "MISSING_EVIDENCE", "source": "redis:v2:signals:latest:*", "lineage_ids": {}},
+                "current_risk_decision": {
+                    "status": "LIVE_OK",
+                    "classification": risk_hb.get("classification", "V2_RISK_GATEWAY_LIVE_OK"),
+                    "generated_at": risk_hb.get("available_at") or risk_hb.get("ts") or now,
+                    "live_gate": "blocked_human_only",
+                    "live_blocked": True,
+                    "profile_id": risk_hb.get("profile_id"),
+                },
+                "last_paper_event": last_event or {
+                    "paper_action": "NO_RECENT_EVENT",
+                    "risk_gateway_result": "NO_RECENT_EVENT",
+                    "paper_ledger_entry_id": None,
+                },
+                "safety": {
+                    "live_trading_enabled": False,
+                    "exchange_orders_enabled": False,
+                    "leverage_changes_enabled": False,
+                    "margin_mode_changes_enabled": False,
+                    "legacy_redis_writes_enabled": False,
+                    "live_gate_status": "blocked_human_only",
+                },
+                "blockers": [
+                    {
+                        "id": "LIVE_GATE_BLOCKED_HUMAN_ONLY",
+                        "severity": "expected_safety_gate",
+                        "detail": "Live order routing remains blocked_human_only.",
+                    },
+                ],
+                "freshness": {
+                    "status": "REALTIME_RUNTIME_EVIDENCE" if heartbeat_fresh else "STALE_HEARTBEAT",
+                    "generated_at": now,
+                    "runtime_age_seconds": int(hb_age / 1000) if hb_age is not None else None,
+                    "market_age_seconds": market_age_s,
+                    "source_type": "redis_live",
+                },
+                "signal_lineage_status": {
+                    "status": "REALTIME_RUNTIME_EVIDENCE" if latest_signal else "MISSING_EVIDENCE",
+                    "source": "redis:v2:signals:latest:*",
+                    "classification": "ACTIVE_PAPER_RUNTIME",
+                    "live_trading_enabled": False,
+                },
+                "source": "redis_live",
+                "heartbeat_classification": hb.get("classification"),
+            }
+        except Exception as exc:
+            return {
+                "generated_at": _utc_now(),
+                "runtime": "v2_trade_management_paper_loop",
+                "runtime_state": "PAPER_RUNTIME_EVIDENCE_ERROR",
+                "live_gate_status": "blocked_human_only",
+                "mode": "paper",
+                "error": str(exc),
+                "exchange_orders": False,
+                "legacy_redis_writes": False,
+                "leverage_changes": False,
+                "margin_mode_changes": False,
+                "continuous_loop_available": False,
+            }
+
+    data = await run_in_threadpool(_build)
+    return data
 
 
 @router.get("/paper/fills")

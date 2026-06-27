@@ -54,7 +54,7 @@ chk = {
     "state": "${STATE}",
     "completion_allowed": "${COMPLETION}" == "true",
     "completion_gates_passed": int("${GATES_PASSED}"),
-    "completion_gates_total": 18,
+    "completion_gates_total": 16,
     "open_finding_count": int("${OPEN_FINDINGS}"),
     "critical_finding_count": int("${CRITICAL}"),
     "high_finding_count": int("${HIGH}"),

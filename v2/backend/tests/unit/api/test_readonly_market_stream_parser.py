@@ -506,12 +506,99 @@ def _sample_paper_activity_payload() -> tuple[dict, list[str]]:
 
 
 class _FakeRedis:
-    def __init__(self, values: dict[str, dict]) -> None:
+    def __init__(self, values: dict[str, object]) -> None:
         self.values = values
 
     def get(self, key: str) -> str | None:
         value = self.values.get(key)
         return json.dumps(value) if value is not None else None
+
+    def keys(self, pattern: str) -> list[str]:
+        import fnmatch
+
+        return [key for key in self.values if fnmatch.fnmatch(key, pattern)]
+
+
+@pytest.mark.asyncio
+async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch: pytest.MonkeyPatch) -> None:
+    values = {
+        "v2:paper:heartbeat": {
+            "worker_id": "v2_trade_management_paper_loop",
+            "heartbeat_generated_at": "2026-06-27T20:50:00Z",
+            "cycle_state": "COMPLETED_CYCLE",
+            "candidate_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
+            "policy_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
+            "paper_policy_owner": "challenger_v2",
+            "current_allowed_paper_owner": "challenger_v2",
+            "policy_fingerprint": "83d35e31eea385da1a283b8efab3102ac292be2904724d11777f2b7a32e68630",
+            "model_source": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA",
+            "intents_built": 3,
+            "intents_accepted": 1,
+            "intents_blocked": 2,
+            "writes_legacy_redis": False,
+            "places_real_order": False,
+        },
+        "v2:paper:ledger": {
+            "accepted_count": 1,
+            "blocked_count": 2,
+            "shadow_observation_count": 0,
+        },
+        "v2:paper:intents": [
+            {
+                "production_grade_cost_flag": True,
+                "runtime_cost_capture_order_cost_applicable": True,
+                "paper_fill_allowed": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+            },
+            {
+                "production_grade_cost_flag": False,
+                "runtime_cost_capture_order_cost_applicable": False,
+                "runtime_cost_capture_unexplained_missing_fields": [],
+                "routes_to_live": False,
+                "places_real_order": False,
+            },
+            {
+                "production_grade_cost_flag": False,
+                "runtime_cost_capture_order_cost_applicable": True,
+                "runtime_cost_capture_unexplained_missing_fields": ["order_size"],
+                "routes_to_live": False,
+                "places_real_order": False,
+            },
+        ],
+        "v2:signals:latest:BTCUSDT:1m": {
+            "signal_id": "sig-test",
+            "prediction_id": "pred-test",
+            "feature_snapshot_id": "feature-test",
+            "action": "long",
+            "symbol": "BTCUSDT",
+            "timeframe": "1m",
+            "available_at": "2026-06-27T20:49:00Z",
+        },
+        "v2:risk:gateway:heartbeat": {
+            "classification": "V2_RISK_GATEWAY_LIVE_OK",
+            "profile_id": "paper-only",
+        },
+    }
+    monkeypatch.setattr(market_contracts, "get_redis", lambda: _FakeRedis(values))
+    monkeypatch.setattr(market_contracts, "_utc_now", lambda: "2026-06-27T20:50:10Z")
+
+    payload = await market_contracts.get_paper_runtime_status(actor=None)
+
+    assert payload["runtime"] == "v2_trade_management_paper_loop"
+    assert payload["legacy_redis_writes"] is False
+    assert payload["exchange_orders"] is False
+    loop = payload["paper_loop"]
+    assert loop["paper_policy_owner"] == "challenger_v2"
+    assert loop["policy_fingerprint"] == "83d35e31eea385da1a283b8efab3102ac292be2904724d11777f2b7a32e68630"
+    assert loop["model_source"] == "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA"
+    assert loop["production_grade_cost_rows"] == 1
+    assert loop["production_grade_cost_coverage"] == pytest.approx(1 / 3)
+    assert loop["no_order_explained_rows"] == 1
+    assert loop["unexplained_missing_cost_rows"] == 1
+    assert loop["paper_fill_allowed_rows"] == 1
+    assert loop["routes_to_live_rows"] == 0
+    assert loop["places_real_order_rows"] == 0
 
 
 @pytest.mark.asyncio

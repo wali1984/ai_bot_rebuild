@@ -104,7 +104,8 @@ export const PAYLOAD_PATHS = {
     '/operator_runtime/v2_orchestrator_arbitration/live/latest/v2_orchestrator_arbitration_live_status.json',
   trade_management_paper_live:
     '/operator_runtime/v2_trade_management_paper/live/latest/v2_trade_management_paper_live_status.json',
-  paper_online: '/operator_runtime/paper_online/latest/paper_runtime_status.json',
+  paper_online:
+    '/operator_runtime/v2_trade_management_paper/live/latest/v2_trade_management_paper_live_status.json',
   stop_line_recovery:
     '/operator_runtime/v2_stop_the_line_trainer_feedback_actionability_and_major_move_recovery/latest/operator_dashboard_payload.json',
   parallel_spark_automation: '/v2_parallel_spark_automation/latest/parallel_automation_status.json',
@@ -351,6 +352,21 @@ export interface OrchestratorArbitrationLiveStatus extends SafetyEnvelope {
 export interface TradeManagementPaperLiveStatus extends SafetyEnvelope {
   schema_version?: string;
   generated_utc?: string;
+  heartbeat_generated_at?: string;
+  cycle_state?: string;
+  heartbeat_ttl_seconds?: number;
+  candidate_id?: string;
+  policy_id?: string;
+  paper_policy_owner?: string;
+  policy_fingerprint?: string;
+  selector_policy_fingerprint?: string;
+  frozen_selector_fingerprint?: string;
+  model_source?: string;
+  current_allowed_paper_owner?: string;
+  paper_only?: boolean;
+  routes_to_live?: boolean;
+  places_real_order?: boolean;
+  writes_legacy_redis?: boolean;
   paper_loop_state?: string;
   intents_built?: number;
   intents_accepted?: number;

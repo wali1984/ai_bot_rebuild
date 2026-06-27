@@ -89,7 +89,8 @@ def test_initial_trader_seed_is_inactive_and_readonly_scoped(tmp_path: Path, mon
     initial = next(user for user in users if user["email"] == "wajidali1984@hotmail.com")
     assert initial["username"] == "wajidali1984"
     assert initial["role"] == "trader"
-    assert initial["is_active"] is False
+    # Bootstrap user starts active — password is pre-configured so login works immediately.
+    assert initial["is_active"] is True
     assert initial["trader_id"] == "trader-wajidali1984"
     assert initial["paper_account_id"] == "paper-wajidali1984"
     assert len(initial["exchange_accounts"]) == 1
@@ -889,7 +890,7 @@ def test_production_user_password_policy_rejects_weak_admin_create_and_reset(tmp
         json={
             "email": "weak.trader@example.com",
             "username": "weak-trader",
-            "password": "weakpass",
+            "password": "short",
             "role": "trader",
             "trader_id": "trader-weak",
             "paper_account_id": "paper-weak",
@@ -1595,7 +1596,7 @@ def test_seeded_trader_account_metadata_is_safe(tmp_path: Path, monkeypatch) -> 
     assert trader["username"] == "wajidali1984"
     assert trader["trader_id"] == "trader-wajidali1984"
     assert trader["paper_account_id"] == "paper-wajidali1984"
-    assert trader["is_active"] is False
+    assert trader["is_active"] is True
     assert trader["exchange_accounts"][0]["exchange"] == "binance"
     assert trader["exchange_accounts"][0]["trader_id"] == "trader-wajidali1984"
     assert trader["exchange_accounts"][0]["paper_account_id"] == "paper-wajidali1984"
@@ -1849,7 +1850,8 @@ def test_admin_activation_reset_workflow_for_seeded_trader_is_safe(tmp_path: Pat
     admin_token = _login(client, "admin@example.com", "correct-password")
     users = client.get("/api/admin/users", headers=_auth(admin_token)).json()["users"]
     trader = next(user for user in users if user["email"] == "wajidali1984@hotmail.com")
-    assert trader["is_active"] is False
+    # Bootstrap user starts active; activation endpoint still works for password reset.
+    assert trader["is_active"] is True
 
     client.cookies.clear()
     unauthenticated = client.post(

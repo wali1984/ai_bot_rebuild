@@ -137,7 +137,15 @@ class V2OnlyJsonIO:
             self.audit.errors.append(f"no_client:{key}")
             return False
         try:
-            self.client.set(key, json.dumps(payload, sort_keys=True, default=str), ex=ex)
+            serialized = json.dumps(payload, sort_keys=True, default=str)
+            if ex is not None:
+                try:
+                    self.client.set(key, serialized, ex=ex)
+                except TypeError:
+                    # Fallback for clients that don't accept ex kwarg (e.g. test fakes)
+                    self.client.set(key, serialized)
+            else:
+                self.client.set(key, serialized)
         except Exception as exc:  # noqa: BLE001
             self.audit.writes_failed += 1
             self.audit.errors.append(f"set_failed:{key}:{type(exc).__name__}")

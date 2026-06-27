@@ -89,6 +89,15 @@ class PaperExitConfig:
     # Phase 7: liquidity-aware TP — skip TP when ob_spread_bps exceeds this limit.
     # Wide spreads indicate poor fill quality; better to hold than take a spread-eaten TP.
     max_ob_spread_bps_for_tp: float = 20.0
+    # Static threshold exits are kept available for unit tests and offline
+    # experiments, but the active paper runtime disables them so exits are
+    # driven by adaptive/model/market-state controls instead of fixed bps/hold
+    # constants.
+    static_stop_loss_enabled: bool = True
+    static_take_profit_enabled: bool = True
+    static_profit_lock_enabled: bool = True
+    static_profit_bank_enabled: bool = True
+    static_max_hold_enabled: bool = True
 
 
 def evaluate_exit(
@@ -170,7 +179,7 @@ def evaluate_exit(
                 "atr_bps": atr_bps,
                 "atr_stop_bps": atr_stop,
             }
-    if pnl_bps_value <= -abs(config.stop_loss_bps):
+    if config.static_stop_loss_enabled and pnl_bps_value <= -abs(config.stop_loss_bps):
         return {
             "should_close": True,
             "close_reason": "TIER_1_STOP_LOSS",
@@ -329,7 +338,11 @@ def evaluate_exit(
                     "atr_bps": atr_bps,
                     **trailing_stop_price_context,
                 }
-            if pnl_bps_value > 0 and drawdown_from_best_bps >= abs(config.profit_lock_bps):
+            if (
+                config.static_profit_lock_enabled
+                and pnl_bps_value > 0
+                and drawdown_from_best_bps >= abs(config.profit_lock_bps)
+            ):
                 if (
                     config.defer_profit_lock_to_active_trailing_stop
                     and config.trailing_stop_enabled
@@ -483,7 +496,11 @@ def evaluate_exit(
                     "atr_bps": atr_bps,
                     **trailing_stop_price_context,
                 }
-            if pnl_bps_value > 0 and drawdown_from_best_bps >= abs(config.profit_lock_bps):
+            if (
+                config.static_profit_lock_enabled
+                and pnl_bps_value > 0
+                and drawdown_from_best_bps >= abs(config.profit_lock_bps)
+            ):
                 if (
                     config.defer_profit_lock_to_active_trailing_stop
                     and config.trailing_stop_enabled
@@ -512,7 +529,7 @@ def evaluate_exit(
                         "pnl_bps": pnl_bps_value,
                         "drawdown_from_best_bps": drawdown_from_best_bps,
                     }
-    if pnl_bps_value >= abs(config.profit_bank_bps):
+    if config.static_profit_bank_enabled and pnl_bps_value >= abs(config.profit_bank_bps):
         if (
             config.defer_profit_bank_to_active_trailing_stop
             and armed_trailing_context is not None
@@ -537,7 +554,7 @@ def evaluate_exit(
     # Phase 7: liquidity-aware TP — skip TP when spread is too wide (poor fill).
     if ob_spread_bps is not None and ob_spread_bps > config.max_ob_spread_bps_for_tp:
         pass  # skip TP tiers — spread too wide, hold for better liquidity
-    elif pnl_bps_value >= abs(config.take_profit_bps):
+    elif config.static_take_profit_enabled and pnl_bps_value >= abs(config.take_profit_bps):
         if (
             config.defer_take_profit_to_active_trailing_stop
             and armed_trailing_context is not None
@@ -570,7 +587,7 @@ def evaluate_exit(
         }
     if profit_lock_result is not None:
         return profit_lock_result
-    if hold_seconds >= config.max_hold_seconds:
+    if config.static_max_hold_enabled and hold_seconds >= config.max_hold_seconds:
         return {
             "should_close": True,
             "close_reason": "TIER_4_MAX_HOLD_TIME",

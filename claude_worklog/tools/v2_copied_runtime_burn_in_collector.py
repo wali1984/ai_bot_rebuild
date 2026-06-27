@@ -304,7 +304,10 @@ def journal_error_count(unit: str) -> int:
 def redis_scan_count(pattern: str) -> int:
     if not shutil.which("redis-cli"):
         return -1
-    proc = run(["redis-cli", "--raw", "--scan", "--pattern", pattern], timeout=30)
+    try:
+        proc = run(["redis-cli", "--raw", "--scan", "--pattern", pattern], timeout=10)
+    except subprocess.TimeoutExpired:
+        return -1
     if proc.returncode != 0:
         return -1
     return sum(1 for line in proc.stdout.splitlines() if line.strip())

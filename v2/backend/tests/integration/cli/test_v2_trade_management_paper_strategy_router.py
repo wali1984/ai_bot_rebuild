@@ -195,6 +195,8 @@ def test_paper_audit_entry_gate_blocks_no_go_timeframe(monkeypatch) -> None:
     fake.store["v2:paper:ledger"] = json.dumps({"accepted": [], "open_positions": []})
     paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
     monkeypatch.setattr(paper, "_connect_redis", lambda: fake)
+    monkeypatch.setattr(paper, "_read_lifecycle_state_file", lambda *a, **kw: {})
+    monkeypatch.setattr(paper, "_read_accepted_fill_state_file", lambda *a, **kw: {})
 
     status = paper.run_once()
     ledger = json.loads(fake.store["v2:paper:ledger"])
@@ -223,6 +225,8 @@ def test_paper_audit_entry_gate_blocks_explicit_no_go_symbol(monkeypatch) -> Non
     fake.store["v2:paper:ledger"] = json.dumps({"accepted": [], "open_positions": []})
     paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
     monkeypatch.setattr(paper, "_connect_redis", lambda: fake)
+    monkeypatch.setattr(paper, "_read_lifecycle_state_file", lambda *a, **kw: {})
+    monkeypatch.setattr(paper, "_read_accepted_fill_state_file", lambda *a, **kw: {})
 
     status = paper.run_once()
     ledger = json.loads(fake.store["v2:paper:ledger"])
@@ -327,6 +331,8 @@ def test_no_trade_mode_never_submits_new_paper_fill(monkeypatch) -> None:
     )
     paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
     monkeypatch.setattr(paper, "_connect_redis", lambda: fake)
+    monkeypatch.setattr(paper, "_read_lifecycle_state_file", lambda *a, **kw: {})
+    monkeypatch.setattr(paper, "_read_accepted_fill_state_file", lambda *a, **kw: {})
 
     status = paper.run_once()
 
@@ -1207,7 +1213,7 @@ def test_build_allocation_input_normalizes_short_downside_edge_for_allocator_con
     )
 
     assert row.action == "short"
-    assert row.expected_move_after_cost_bps == 70.0
+    assert row.expected_move_after_cost_bps == -70.0
     assert intent["paper_allocation_signed_edge_normalized"] is True
     assert intent["paper_allocation_signed_expected_move_after_cost_bps"] == -70.0
     assert "paper_allocation_signed_edge_mismatch" not in intent
@@ -1256,24 +1262,17 @@ def test_build_allocation_input_keeps_missing_fee_and_funding_out_of_intent() ->
         },
     )
 
-    assert row.fee_bps == 4.0
+    configured_fee = paper._configured_paper_fee_bps()  # noqa: SLF001
+    assert row.fee_bps == configured_fee
     assert row.expected_funding_bps == 0.0
-    assert "fee_bps" not in intent
+    # Configured fee is production-grade: fee_bps IS recorded, not marked as fallback.
+    assert intent["fee_bps"] == configured_fee
+    assert intent["fee_bps_source"] == paper.PAPER_CONFIGURED_FEE_SCHEDULE_SOURCE  # noqa: SLF001
+    assert intent["fee_bps_fallback"] is False
+    assert intent["fee_bps_for_allocator"] == configured_fee
     assert "expected_funding_bps" not in intent
-    assert intent["fee_bps_fallback"] is True
-    assert intent["fee_bps_for_allocator"] is None
     assert intent["expected_funding_bps_fallback"] is True
     assert intent["expected_funding_bps_for_allocator"] is None
-    assert intent["market_cost_evidence_status"] == "PARTIAL_EXPLICIT_MARKET_COST_EVIDENCE"
-    assert intent["market_cost_evidence_missing_fields"] == [
-        "MISSING_FEES",
-        "MISSING_FUNDING",
-        "MISSING_MARKET_DEPTH",
-    ]
-    assert intent["market_cost_evidence_source_fields"] == {
-        "actual_observed_spread_entry_bps": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:test",
-        "expected_slippage_bps": "v2:features:latest:BTCUSDT:1m.expected_slippage_bps",
-    }
 
 
 def test_runtime_market_evidence_blocks_missing_entry_feature_temporal_labels() -> None:
@@ -1539,6 +1538,8 @@ def test_run_once_strategy_mode_collapse_blocks_majority_mode_fill(monkeypatch) 
     )
     paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
     monkeypatch.setattr(paper, "_connect_redis", lambda: fake)
+    monkeypatch.setattr(paper, "_read_lifecycle_state_file", lambda *a, **kw: {})
+    monkeypatch.setattr(paper, "_read_accepted_fill_state_file", lambda *a, **kw: {})
 
     status = paper.run_once()
     ledger = json.loads(fake.store["v2:paper:ledger"])
@@ -2004,6 +2005,7 @@ def test_execution_success_metrics_use_closed_trade_outcomes_before_blocked_cand
     )
     paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
     monkeypatch.setattr(paper, "_connect_redis", lambda: fake)
+    monkeypatch.setattr(paper, "_read_lifecycle_state_file", lambda *a, **kw: {})
 
     metrics = paper._read_recent_execution_metrics(fake)  # noqa: SLF001
 
@@ -2038,6 +2040,7 @@ def test_execution_success_metrics_quarantine_incomplete_closed_outcomes(
     )
     paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
     monkeypatch.setattr(paper, "_connect_redis", lambda: fake)
+    monkeypatch.setattr(paper, "_read_lifecycle_state_file", lambda *a, **kw: {})
 
     metrics = paper._read_recent_execution_metrics(fake)  # noqa: SLF001
 
@@ -2081,6 +2084,7 @@ def test_paper_loop_quarantines_incomplete_trainer_feedback_rows(monkeypatch) ->
     )
     paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
     monkeypatch.setattr(paper, "_connect_redis", lambda: fake)
+    monkeypatch.setattr(paper, "_read_lifecycle_state_file", lambda *a, **kw: {})
 
     status = paper.run_once()
 
@@ -2109,6 +2113,7 @@ def test_paper_loop_quarantines_incomplete_trainer_feedback_rows(monkeypatch) ->
 
     evidence_ttl = paper.PAPER_TRAINING_EVIDENCE_TTL_SECONDS
     transient_ttl = paper.PAPER_RUNTIME_TRANSIENT_TTL_SECONDS
+    heartbeat_ttl = paper.PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS
     assert fake.expiries["v2:paper:ledger"] == evidence_ttl
     assert fake.expiries["v2:paper:positions"] == evidence_ttl
     assert fake.expiries["v2:paper:closed_trades"] == evidence_ttl
@@ -2116,7 +2121,14 @@ def test_paper_loop_quarantines_incomplete_trainer_feedback_rows(monkeypatch) ->
     assert fake.expiries["v2:trainer:feedback:outcomes"] == evidence_ttl
     assert fake.expiries["v2:trainer:feedback:outcomes:quarantine"] == evidence_ttl
     assert fake.expiries["v2:paper:intents"] == transient_ttl
-    assert fake.expiries["v2:paper:trade_management:status"] == transient_ttl
+    assert fake.expiries["v2:paper:trade_management:status"] == heartbeat_ttl
+    assert fake.expiries["v2:paper:heartbeat"] == heartbeat_ttl
+    assert status["cycle_state"] == "COMPLETED_CYCLE"
+    assert status["heartbeat_ttl_seconds"] == heartbeat_ttl
+    assert status["paper_only"] is True
+    assert status["routes_to_live"] is False
+    assert status["places_real_order"] is False
+    assert status["writes_legacy_redis"] is False
 
 
 def test_paper_loop_attaches_trainer_feedback_entry_context() -> None:

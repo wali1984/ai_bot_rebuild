@@ -95,10 +95,19 @@ def _complete_feedback_row(**overrides: Any) -> dict[str, Any]:
         "missing_feedback_fields": [],
         "prediction_id": "v2h_test_feedback_123",
         "signal_id": "sig_test_feedback_123",
+        "decision_id": "dec_test_feedback_123",
         "entry_prediction_id": "v2h_test_feedback_123",
         "feature_snapshot_id": "v2_fsnap_test_feedback_123",
         "entry_feature_snapshot_id": "v2_fsnap_test_feedback_123",
+        "mtf_snapshot_id": "mtf_test_feedback_123",
         "market_state_id": "mstate_test_feedback_123",
+        "feature_cutoff": "2026-06-16T01:00:00Z",
+        "decision_time": "2026-06-16T01:00:00Z",
+        "available_at": "2026-06-16T01:00:00Z",
+        "selected_action": "short",
+        "model_version": "v2_hybrid_trainer_v1",
+        "checkpoint_id": "ckpt_test_feedback_123",
+        "source_hashes": {"feedback_enrichment": "abc123"},
         "timeframe": "1m",
         "symbol": "BTCUSDT",
         "action": "short",
@@ -387,6 +396,8 @@ def test_prediction_changes_after_consumed_feedback() -> None:
     feedback_row = _complete_feedback_row(
         symbol="BTCUSDT",
         timeframe="1m",
+        action="long",
+        selected_action="long",
         realized_pnl_bps=200.0,
     )
     payloads: dict[str, Any] = {

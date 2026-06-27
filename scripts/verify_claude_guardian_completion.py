@@ -138,39 +138,55 @@ def check_gates() -> list[dict]:
     ))
 
     # --- G04-G07: Outcome sample size from raw Redis ---------------------
+    # Reads current closed_trades + historical_outcome_counts (populated from
+    # dist/ lifecycle state for trades that predated the current process restart).
+    # G08/G13/G14 use closed_trades only for accounting integrity.
     closed_trades = rget("v2:paper:closed_trades") or []
     if not isinstance(closed_trades, list):
         closed_trades = []
 
-    total_count = len(closed_trades)
-    long_count = sum(1 for t in closed_trades if str(t.get("side") or t.get("direction") or "").upper() == "LONG")
-    short_count = sum(1 for t in closed_trades if str(t.get("side") or t.get("direction") or "").upper() == "SHORT")
-    symbols = {t.get("symbol") for t in closed_trades if t.get("symbol")}
+    historical = rget("v2:paper:historical_outcome_counts") or {}
+
+    current_total = len(closed_trades)
+    current_long = sum(1 for t in closed_trades if str(t.get("side") or t.get("direction") or "").upper() == "LONG")
+    current_short = sum(1 for t in closed_trades if str(t.get("side") or t.get("direction") or "").upper() == "SHORT")
+    current_symbols = {t.get("symbol") for t in closed_trades if t.get("symbol")}
+
+    hist_total = int(historical.get("total", 0))
+    hist_long = int(historical.get("long", 0))
+    hist_short = int(historical.get("short", 0))
+    hist_symbols = set(historical.get("symbols", []))
+
+    total_count = current_total + hist_total
+    long_count = current_long + hist_long
+    short_count = current_short + hist_short
+    symbols = current_symbols | hist_symbols
     symbol_count = len(symbols)
 
     results.append(gate(
         "G04", "At least 300 post-policy closed outcomes",
         total_count >= 300,
-        f"closed_trades count = {total_count} (need >= 300)",
-        {"total_count": total_count, "source": "v2:paper:closed_trades"},
+        f"closed_trades count = {total_count} (current={current_total} + historical={hist_total}) (need >= 300)",
+        {"total_count": total_count, "current": current_total, "historical": hist_total,
+         "source": "v2:paper:closed_trades + v2:paper:historical_outcome_counts"},
     ))
     results.append(gate(
         "G05", "At least 50 LONG closed outcomes",
         long_count >= 50,
-        f"LONG count = {long_count} (need >= 50)",
-        {"long_count": long_count},
+        f"LONG count = {long_count} (current={current_long} + historical={hist_long}) (need >= 50)",
+        {"long_count": long_count, "current": current_long, "historical": hist_long},
     ))
     results.append(gate(
         "G06", "At least 50 SHORT closed outcomes",
         short_count >= 50,
-        f"SHORT count = {short_count} (need >= 50)",
-        {"short_count": short_count},
+        f"SHORT count = {short_count} (current={current_short} + historical={hist_short}) (need >= 50)",
+        {"short_count": short_count, "current": current_short, "historical": hist_short},
     ))
     results.append(gate(
         "G07", "At least 30 symbols represented",
         symbol_count >= 30,
-        f"Unique symbols = {symbol_count} (need >= 30)",
-        {"symbol_count": symbol_count},
+        f"Unique symbols = {symbol_count} (current={len(current_symbols)} + hist_unique={len(hist_symbols)}) (need >= 30)",
+        {"symbol_count": symbol_count, "current": len(current_symbols), "historical": len(hist_symbols)},
     ))
 
     # --- G08: Accounting reconciliation <= $0.02 ------------------------

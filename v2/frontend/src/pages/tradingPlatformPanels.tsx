@@ -107,7 +107,7 @@ export function MissionTradingPlatformPanel({
           <Metric label="live order" value={String(paper.live_order ?? false)} />
         </div>
       </div>
-      {sourceNote('operator_runtime/paper_online/latest + operator_runtime/coinank_market_intelligence/latest + operator_truth/latest')}
+      {sourceNote('/api/v2/paper/runtime-status + operator_runtime/coinank_market_intelligence/latest + operator_truth/latest')}
     </Panel>
   );
 }
@@ -205,7 +205,7 @@ function SignalsPlatformPanel({ paperRuntime }: { paperRuntime: PaperOnlineRunti
           <span>{valueText(risk.risk_result ?? MISSING)} / {valueText(risk.risk_reason_code ?? MISSING)}</span>
         </div>
       </div>
-      {sourceNote('operator_runtime/paper_online/latest/current_signal_lineage.json')}
+      {sourceNote('/api/v2/paper/runtime-status current_signal_lineage')}
     </Panel>
   );
 }

@@ -1,6 +1,6 @@
 import { useRealtimeResource } from '../hooks/useRealtimeResource';
 
-export const CURRENT_RUNTIME_LINEAGE_PATH = '/operator_runtime/paper_online/latest/current_signal_lineage.json';
+export const CURRENT_RUNTIME_LINEAGE_PATH = '/api/v2/paper/runtime-status';
 
 export type RuntimeRecord = Record<string, unknown>;
 
@@ -15,13 +15,36 @@ export interface CurrentRuntimeLineagePayload {
   classification?: string | null;
 }
 
+function normalizeRuntimeStatusLineage(raw: unknown): CurrentRuntimeLineagePayload {
+  const root = runtimeRecord(raw);
+  const lineage = runtimeRecord(root.current_signal_lineage);
+  if (Object.keys(lineage).length === 0) {
+    return root as CurrentRuntimeLineagePayload;
+  }
+  const trainer = runtimeRecord(root.trainer_prediction ?? lineage.trainer_prediction);
+  const risk = runtimeRecord(root.current_risk_decision ?? lineage.risk_decision);
+  const orchestrator = runtimeRecord(lineage.orchestrator_decision);
+  const featureSnapshot = runtimeRecord(lineage.feature_snapshot);
+  return {
+    generated_at: runtimeText(lineage.generated_at, root.generated_at),
+    signal: runtimeRecord(lineage.signal),
+    trainer_prediction: Object.keys(trainer).length ? trainer : null,
+    risk_decision: Object.keys(risk).length ? risk : null,
+    orchestrator_decision: Object.keys(orchestrator).length ? orchestrator : null,
+    feature_snapshot: Object.keys(featureSnapshot).length ? featureSnapshot : null,
+    lineage_ids: runtimeRecord(lineage.lineage_ids),
+    classification: runtimeText(lineage.classification, root.heartbeat_classification),
+  };
+}
+
 export function useCurrentRuntimeLineage(pollIntervalMs = 10_000) {
   return useRealtimeResource<CurrentRuntimeLineagePayload>({
     url: CURRENT_RUNTIME_LINEAGE_PATH,
     source: CURRENT_RUNTIME_LINEAGE_PATH,
-    source_type: 'websocket',
+    source_type: 'api',
     pollIntervalMs,
     staleThresholdMs: pollIntervalMs * 3,
+    transform: normalizeRuntimeStatusLineage,
     initialFetch: true,
     httpFallback: true,
     mode: 'read_only',

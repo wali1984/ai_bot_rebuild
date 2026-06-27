@@ -84,7 +84,14 @@ class HedgeModeFakeTransport(FakeTransport):
         }
 
 
-class InsufficientMarginFakeTransport(HedgeModeFakeTransport):
+class InsufficientMarginFakeTransport(FakeTransport):
+    def fetch_position_mode(self, *, api_key: str, api_secret: str) -> dict[str, Any]:
+        return {
+            "ok": True,
+            "dual_side_position": False,
+            "endpoint": "GET /fapi/v1/positionSide/dual",
+        }
+
     def fetch_account_margin_status(self, *, api_key: str, api_secret: str) -> dict[str, Any]:
         return {
             "ok": True,

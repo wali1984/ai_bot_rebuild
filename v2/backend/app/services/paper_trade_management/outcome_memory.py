@@ -188,7 +188,17 @@ def evaluate_outcome_memory_bucket(
         # model-lineage metadata (mtf_snapshot_id, source_hashes, etc.), which
         # the current paper loop doesn't emit.  Without this guard, aggregate
         # outcome memory with WR=17-27% and large drawdowns never blocks entries.
-        if not (bucket.degraded and bucket.block_reason):
+        #
+        # Exception: legacy __ALL__ timeframe aggregates (REDIS_TIMEFRAME_AGGREGATE
+        # without trust metadata) are treated as advisory-only for symbols that have
+        # no per-symbol history. A new symbol should not be permanently excluded by
+        # stale aggregate data lacking model-lineage trust evidence.
+        is_legacy_aggregate = (
+            bucket.data_source == "REDIS_TIMEFRAME_AGGREGATE"
+            and bucket.trust_evidence_status in ("LEGACY_UNVERIFIED_OUTCOME_MEMORY", "UNVERIFIED_OUTCOME_MEMORY")
+            and not bucket.trusted_trade_count
+        )
+        if not (bucket.degraded and bucket.block_reason) or is_legacy_aggregate:
             return {
                 "allowed": True,
                 "blocked": False,

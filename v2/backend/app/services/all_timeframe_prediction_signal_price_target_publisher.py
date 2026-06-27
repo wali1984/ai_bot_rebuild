@@ -54,6 +54,8 @@ PAPER_DIRECTIONAL_COLLAPSE_MIN_CURRENT_DIRECTIONAL_ROWS = 50
 PAPER_DIRECTIONAL_COLLAPSE_MIN_MAJORITY_SIDE_ROWS = 50
 PAPER_DIRECTIONAL_COLLAPSE_MAJOR_SIDE_SHARE = 0.90
 DEFAULT_RUNTIME_TRAINER_TRUST_RECONCILIATION_LIMIT = 0
+MISSING_THESIS_TIMEFRAME_BLOCK_REASON = "MISSING_THESIS_TIMEFRAME"
+UNKNOWN_THESIS_TIMEFRAME = "UNKNOWN"
 
 TRAINER_SOURCE_REQUIRED = "V2_NATIVE_RL_MASA_PPO_CUDA_TRAINER_PAPER_SHADOW"
 MODEL_SOURCE_REQUIRED = "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA"
@@ -183,6 +185,16 @@ def as_dict(value: Any) -> dict[str, Any]:
 
 def as_list(value: Any) -> list[Any]:
     return list(value) if isinstance(value, list) else []
+
+
+def _runtime_paper_thesis_timeframe(signal: Mapping[str, Any]) -> str | None:
+    for field in ("thesis_timeframe", "prediction_timeframe", "expected_move_timeframe", "timeframe"):
+        value = signal.get(field)
+        if value not in (None, ""):
+            text = str(value).strip()
+            if text:
+                return text
+    return None
 
 
 def _live_context_from_store(store: "V2KeyValueStore") -> dict[str, Any]:
@@ -2672,7 +2684,9 @@ def build_runtime_paper_signal_rows(store: V2KeyValueStore, live_context: Mappin
         ) or None
         action = str(signal.get("side") or signal.get("selected_action") or signal.get("action") or "hold")
         confidence = to_float(signal.get("confidence_calibrated") or signal.get("confidence"))
-        timeframe = str(signal.get("timeframe") or signal.get("prediction_timeframe") or "1m")
+        thesis_timeframe = _runtime_paper_thesis_timeframe(signal)
+        missing_thesis_timeframe = thesis_timeframe is None
+        timeframe = str(thesis_timeframe or UNKNOWN_THESIS_TIMEFRAME)
         expected_move = to_float(signal.get("expected_move_bps"))
         if expected_move is None:
             expected_move = to_float(signal.get("expected_move"))
@@ -2724,6 +2738,8 @@ def build_runtime_paper_signal_rows(store: V2KeyValueStore, live_context: Mappin
         if paper_fill_allowed and (not risk_decision_id or not orchestrator_decision_id):
             paper_fill_allowed = False
             _orch_source = "ORCHESTRATOR_DECISION_UNAVAILABLE"
+        if missing_thesis_timeframe:
+            paper_fill_allowed = False
         paper_state = (
             "ACCEPTED_PAPER_FILL"
             if paper_fill_allowed
@@ -2731,7 +2747,13 @@ def build_runtime_paper_signal_rows(store: V2KeyValueStore, live_context: Mappin
         )
         risk_state = "VISIBLE" if risk else "RISK_DECISION_MISSING"
         blocked_reason = None
-        if not risk:
+        paper_fill_gate_block_reasons = as_list(signal.get("paper_fill_gate_block_reasons"))
+        if missing_thesis_timeframe:
+            paper_fill_gate_block_reasons = sorted(set(
+                paper_fill_gate_block_reasons + [MISSING_THESIS_TIMEFRAME_BLOCK_REASON]
+            ))
+            blocked_reason = MISSING_THESIS_TIMEFRAME_BLOCK_REASON
+        elif not risk:
             blocked_reason = "RISK_DECISION_MISSING_FROM_CURRENT_PAPER_LANE"
         elif not paper_fill_allowed:
             blocked_reason = "PAPER_FILL_GATE_FALSE_SHADOW_OBSERVATION_ONLY"
@@ -2766,6 +2788,17 @@ def build_runtime_paper_signal_rows(store: V2KeyValueStore, live_context: Mappin
                 "paper_ledger_id": paper_ledger_id,
                 "symbol": symbol,
                 "timeframe": timeframe,
+                "thesis_timeframe": timeframe,
+                "timeframe_attribution_status": (
+                    "MISSING_THESIS_TIMEFRAME"
+                    if missing_thesis_timeframe
+                    else "EXPLICIT_THESIS_TIMEFRAME"
+                ),
+                "timeframe_attribution_rejection_reason": (
+                    MISSING_THESIS_TIMEFRAME_BLOCK_REASON
+                    if missing_thesis_timeframe
+                    else None
+                ),
                 "action": action,
                 "selected_action": action,
                 "feature_snapshot_id": feature_snapshot_id,
@@ -2791,7 +2824,7 @@ def build_runtime_paper_signal_rows(store: V2KeyValueStore, live_context: Mappin
                 "paper_fill_status": paper_state,
                 "paper_fill_allowed": paper_fill_allowed,
                 "paper_fill_gate_status": signal.get("paper_fill_gate_status"),
-                "paper_fill_gate_block_reasons": as_list(signal.get("paper_fill_gate_block_reasons")),
+                "paper_fill_gate_block_reasons": paper_fill_gate_block_reasons,
                 "market_state_id": signal.get("market_state_id"),
                 "market_state_integrity_score": signal.get("market_state_integrity_score"),
                 "valid_for_prediction": signal.get("valid_for_prediction"),

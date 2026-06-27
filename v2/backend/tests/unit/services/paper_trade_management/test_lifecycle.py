@@ -16,6 +16,7 @@ from v2.backend.app.services.paper_trade_management.caps import PaperExposureCap
 from v2.backend.app.services.paper_trade_management.exits import (
     PAPER_EXIT_POLICY_VERSION,
     PaperExitConfig,
+    evaluate_exit,
 )
 from v2.backend.app.services.paper_trade_management.lifecycle import (
     PaperLifecycleConfig,
@@ -83,6 +84,11 @@ def _audit_quality_fields() -> dict:
     return {
         "actual_observed_spread_entry_bps": 1.4,
         "actual_observed_spread_exit_bps": 1.6,
+        "observed_bid": 99.99,
+        "observed_ask": 100.01,
+        "observed_spread_bps": 1.4,
+        "order_size": 100.0,
+        "order_size_usd": 100.0,
         "entry_spread_source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:test",
         "exit_spread_source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:test",
         "expected_slippage_bps": 0.9,
@@ -104,12 +110,15 @@ def _audit_quality_fields() -> dict:
         "bid_depth_usd": 125000.0,
         "ask_depth_usd": 100000.0,
         "orderbook_depth_usd": 100000.0,
+        "top_book_bid_depth_usd": 125000.0,
+        "top_book_ask_depth_usd": 100000.0,
         "entry_orderbook_depth_usd": 100000.0,
         "entry_orderbook_depth_side": "ask",
         "top_of_book_depth_usd": 100000.0,
         "market_depth_usd": 100000.0,
         "orderbook_depth_source": "v2:market:orderbook:BTCUSDT:top5_notional_usd",
         "depth_utilization_pct": 0.001,
+        "depth_derived_price_impact_bps": 0.25,
         "depth_price_impact_bps": 0.25,
         "depth_price_impact_source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:test:ask_levels_top5:top5_vwap_vs_touch",
         "depth_price_impact_model": "ORDERBOOK_TOP5_VWAP_VS_TOUCH",
@@ -119,6 +128,63 @@ def _audit_quality_fields() -> dict:
         "depth_price_impact_fill_complete": True,
         "depth_price_impact_vwap": 100.0025,
         "depth_price_impact_touch_price": 100.0,
+        "maker_taker_assumption": "taker",
+        "maker_taker_probability_detail": {"maker": 0.35, "taker": 0.65},
+        "fee_schedule": {
+            "fee_bps": 4.0,
+            "source": "CONFIGURED_PAPER_FEE_SCHEDULE:unit",
+            "maker_taker_assumption": "taker",
+            "configured_schedule": True,
+        },
+        "fee_bps": 4.0,
+        "fee_bps_source": "CONFIGURED_PAPER_FEE_SCHEDULE:unit",
+        "fee_bps_configured_schedule": True,
+        "funding_rate": 0.00002,
+        "expected_funding_bps": 0.2,
+        "holding_period_funding_bps": 0.2,
+        "holding_period_funding_source": "expected_funding_bps",
+        "latency_reserve_bps": 1.4,
+        "latency_reserve_source": "ADAPTIVE_ALLOCATOR_EXECUTION_UNCERTAINTY_BPS",
+        "partial_fill_estimate": {
+            "model": "PAPER_SINGLE_IMMEDIATE_FILL",
+            "expected_fill_count": 1,
+            "expected_fill_probability": 1.0,
+            "partial_fill_adjustment_bps": 0.0,
+            "source": "PAPER_RUNTIME_FILL_LEDGER_ESTIMATE",
+        },
+        "partial_fill_probability": 1.0,
+        "partial_fill_adjustment_bps": 0.0,
+        "execution_probability": 1.0,
+        "cost_source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:test",
+        "cost_source_timestamp": "2026-06-11T09:59:58Z",
+        "source_timestamp": "2026-06-11T09:59:58Z",
+        "cost_evidence_freshness_ms": 2000.0,
+        "cost_evidence_source_fields": {
+            "spread": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:test",
+            "fee": "CONFIGURED_PAPER_FEE_SCHEDULE:unit",
+        },
+        "runtime_cost_capture_source": "V2_PAPER_RUNTIME_DECISION_TIME_COST_CAPTURE",
+        "runtime_cost_capture_status": "PRODUCTION_GRADE_COST_CAPTURE",
+        "runtime_cost_capture_required_fields": [
+            "observed_bid",
+            "observed_ask",
+            "observed_spread_bps",
+            "order_size",
+            "fee_schedule",
+        ],
+        "runtime_cost_capture_missing_fields": [],
+        "runtime_cost_capture_explained_missing_fields": [],
+        "runtime_cost_capture_unexplained_missing_fields": [],
+        "runtime_cost_capture_order_cost_applicable": True,
+        "runtime_cost_capture_no_order_reason": None,
+        "runtime_cost_capture_temporal_reject_reasons": [],
+        "fallback_cost_flag": False,
+        "fallback": False,
+        "production_grade_cost_flag": True,
+        "production_grade_cost_evidence": True,
+        "estimated_production_cost": 6.5,
+        "estimated_production_cost_bps": 6.5,
+        "counts_as_production_grade_training_evidence": True,
         "realized_slippage_bps": 1.0,
         "realized_slippage_usd": 0.01,
         "implementation_shortfall_usd": 0.0,
@@ -153,6 +219,80 @@ def _entry_feature_snapshot(fill_id: str) -> dict:
         "source_hashes": {"feature_vector_hash": f"hash_{fill_id}"},
         "features": {"ret_pct": 1.0},
     }
+
+
+def _active_runtime_dynamic_exit_config(**overrides) -> PaperExitConfig:
+    return PaperExitConfig(
+        static_stop_loss_enabled=False,
+        static_take_profit_enabled=False,
+        static_profit_lock_enabled=False,
+        static_profit_bank_enabled=False,
+        static_max_hold_enabled=False,
+        **overrides,
+    )
+
+
+def _position(fill_id: str, *, price: float = 100.0):
+    fill = _fill(fill_id=fill_id, price=price)
+    return position_from_fill(
+        fill,
+        fill_id=fill_id,
+        side=str(fill["side"]),
+        quantity=float(fill["quantity"]),
+        price=price,
+    )
+
+
+def test_active_runtime_exit_config_suppresses_static_stop_loss() -> None:
+    position = _position("static_stop_disabled")
+
+    result = evaluate_exit(
+        position=position,
+        mark_price=98.0,
+        generated_utc="2026-06-11T10:30:00Z",
+        config=_active_runtime_dynamic_exit_config(stop_loss_bps=80.0),
+    )
+
+    assert result["should_close"] is False
+    assert result["close_reason"] is None
+
+
+def test_active_runtime_exit_config_suppresses_static_take_profit_and_max_hold() -> None:
+    take_profit_position = _position("static_tp_disabled")
+    take_profit = evaluate_exit(
+        position=take_profit_position,
+        mark_price=102.0,
+        generated_utc="2026-06-11T10:30:00Z",
+        config=_active_runtime_dynamic_exit_config(take_profit_bps=100.0),
+    )
+    assert take_profit["should_close"] is False
+    assert take_profit["close_reason"] is None
+
+    max_hold_position = _position("static_hold_disabled")
+    max_hold = evaluate_exit(
+        position=max_hold_position,
+        mark_price=100.0,
+        generated_utc="2026-06-11T12:00:00Z",
+        config=_active_runtime_dynamic_exit_config(max_hold_seconds=10),
+    )
+    assert max_hold["should_close"] is False
+    assert max_hold["close_reason"] is None
+
+
+def test_active_runtime_exit_config_keeps_dynamic_atr_stop_enabled() -> None:
+    position = _position("dynamic_atr_enabled")
+
+    result = evaluate_exit(
+        position=position,
+        mark_price=98.0,
+        generated_utc="2026-06-11T10:30:00Z",
+        config=_active_runtime_dynamic_exit_config(),
+        atr_bps=50.0,
+    )
+
+    assert result["should_close"] is True
+    assert result["close_reason"] == "TIER_1_ATR_VOLATILITY_STOP"
+    assert result["atr_stop_bps"] == pytest.approx(100.0)
 
 
 def test_position_from_fill_derives_entry_atr_from_percent_feature() -> None:
@@ -236,6 +376,9 @@ def test_closed_feedback_preserves_paper_execution_evidence() -> None:
         outcome_label=outcome,
     )
 
+    assert position.production_grade_cost_flag is True
+    assert position.runtime_cost_capture_status == "PRODUCTION_GRADE_COST_CAPTURE"
+    assert position.cost_source == "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:test"
     assert position.maker_probability == pytest.approx(0.35)
     assert close_event["maker_probability"] == pytest.approx(0.35)
     assert outcome["latency_ms"] == pytest.approx(42.0)
@@ -268,6 +411,22 @@ def test_closed_feedback_preserves_paper_execution_evidence() -> None:
     assert feedback["mark_index_available_at"] == "2026-06-11T10:00:00Z"
     assert feedback["mark_price"] == pytest.approx(100.08)
     assert feedback["index_price"] == pytest.approx(100.0)
+    for row in (close_event, outcome, feedback):
+        assert row["production_grade_cost_flag"] is True
+        assert row["production_grade_cost_evidence"] is True
+        assert row["counts_as_production_grade_training_evidence"] is True
+        assert row["runtime_cost_capture_status"] == "PRODUCTION_GRADE_COST_CAPTURE"
+        assert row["runtime_cost_capture_missing_fields"] == []
+        assert row["runtime_cost_capture_temporal_reject_reasons"] == []
+        assert row["cost_source"] == "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:test"
+        assert row["cost_source_timestamp"] == "2026-06-11T09:59:58Z"
+        assert row["cost_evidence_freshness_ms"] == pytest.approx(2000.0)
+        assert row["order_size_usd"] == pytest.approx(100.0)
+        assert row["fee_bps"] == pytest.approx(4.0)
+        assert row["fee_schedule"]["source"] == "CONFIGURED_PAPER_FEE_SCHEDULE:unit"
+        assert row["latency_reserve_bps"] == pytest.approx(1.4)
+        assert row["partial_fill_estimate"]["source"] == "PAPER_RUNTIME_FILL_LEDGER_ESTIMATE"
+        assert row["estimated_production_cost_bps"] == pytest.approx(6.5)
 
 
 def test_same_symbol_repeated_long_nets_into_one_position() -> None:
@@ -2942,6 +3101,14 @@ def test_lifecycle_promotes_nested_adaptive_policy_version_to_open_and_closed_pa
 def test_lifecycle_carries_trust_envelope_from_prior_position_into_close() -> None:
     original_fill = _fill(fill_id="trust-carry", qty=1.0, price=100.0)
     original_fill.update(_audit_quality_fields())
+    original_fill.update(
+        {
+            "candidate_id": "challenger_v2_unit",
+            "paper_policy_owner": "challenger_v2",
+            "policy_fingerprint": "policy-fp-trust-carry",
+            "model_source": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA",
+        }
+    )
     original_fill["entry_feature_snapshot"] = _entry_feature_snapshot("trust-carry")
     open_result = reconcile_paper_lifecycle(
         existing_ledger={},
@@ -2962,6 +3129,10 @@ def test_lifecycle_carries_trust_envelope_from_prior_position_into_close() -> No
         "available_at",
         "selected_action",
         "model_version",
+        "model_source",
+        "candidate_id",
+        "paper_policy_owner",
+        "policy_fingerprint",
         "checkpoint_id",
         "source_hashes",
         "entry_feature_snapshot",
@@ -2983,6 +3154,10 @@ def test_lifecycle_carries_trust_envelope_from_prior_position_into_close() -> No
         assert row["feature_snapshot_id"] == "feat_trust-carry"
         assert row["entry_feature_snapshot_id"] == "feat_trust-carry"
         assert row["decision_id"] == "orch_trust-carry"
+        assert row["candidate_id"] == "challenger_v2_unit"
+        assert row["paper_policy_owner"] == "challenger_v2"
+        assert row["policy_fingerprint"] == "policy-fp-trust-carry"
+        assert row["model_source"] == "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA"
         assert row["entry_feature_snapshot"] == _entry_feature_snapshot("trust-carry")
         assert row["entry_orderbook_depth_usd"] == 100000.0
         assert row["depth_price_impact_bps"] == 0.25
@@ -3021,6 +3196,10 @@ def test_lifecycle_carries_trust_envelope_from_prior_position_into_close() -> No
         assert row["available_at"] == "2026-06-11T09:59:30Z"
         assert row["selected_action"] == "long"
         assert row["model_version"] == "unit_model_v1"
+        assert row["model_source"] == "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA"
+        assert row["candidate_id"] == "challenger_v2_unit"
+        assert row["paper_policy_owner"] == "challenger_v2"
+        assert row["policy_fingerprint"] == "policy-fp-trust-carry"
         assert row["checkpoint_id"] == "ckpt_trust-carry"
         assert row["source_hashes"] == {"feature_vector_hash": "hash_trust-carry"}
         assert row["entry_feature_snapshot"] == _entry_feature_snapshot("trust-carry")

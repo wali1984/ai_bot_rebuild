@@ -515,7 +515,7 @@ async def set_user_activation(
         if len(request.temporary_password) < 8:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="temporary_password_too_short")
         updates["password"] = request.temporary_password
-    elif request.is_active and not target.get("is_active"):
+    elif request.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="temporary_password_required_for_activation")
     audit_event = append_admin_audit_event(
         {

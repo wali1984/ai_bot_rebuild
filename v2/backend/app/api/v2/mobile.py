@@ -282,6 +282,22 @@ def _live_gate_status() -> dict[str, Any]:
 
 # ── Compact model helpers ─────────────────────────────────────────────────────
 
+def _sanitize_decision_reasoning(raw: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Return decision_reasoning with all fields as mobile-safe JSON types.
+
+    Redis sometimes stores paper_fill_status as a Python bool (True/False).
+    Swift's JSONDecoder is strict: it cannot decode bool where String? is expected,
+    so we coerce to string here. All other fields pass through unchanged.
+    """
+    if not isinstance(raw, dict):
+        return None
+    out = dict(raw)
+    v = out.get("paper_fill_status")
+    if v is not None and not isinstance(v, str):
+        out["paper_fill_status"] = "accepted" if v is True else "blocked" if v is False else str(v)
+    return out
+
+
 def _compact_position(pos: dict[str, Any]) -> dict[str, Any]:
     entry_price, entry_price_source = _first_positive_price_with_source(
         pos,
@@ -345,7 +361,7 @@ def _compact_position(pos: dict[str, Any]) -> dict[str, Any]:
         "status": str(pos.get("status") or "open"),
         "signal_id": pos.get("signal_id"),
         "prediction_id": pos.get("prediction_id"),
-        "decision_reasoning": pos.get("decision_reasoning") if isinstance(pos.get("decision_reasoning"), dict) else None,
+        "decision_reasoning": _sanitize_decision_reasoning(pos.get("decision_reasoning") if isinstance(pos.get("decision_reasoning"), dict) else None),
     }
 
 
@@ -813,6 +829,16 @@ async def get_mobile_paper_summary(
             "intents_accepted": intents_accepted,
             "intents_blocked": intents_blocked,
             "classification": str(hb.get("classification") or "UNKNOWN"),
+            "cycle_state": str(hb.get("cycle_state") or "UNKNOWN"),
+            "heartbeat_ttl_seconds": _safe_int(hb.get("heartbeat_ttl_seconds")),
+            "candidate_id": str(hb.get("candidate_id") or ""),
+            "policy_id": str(hb.get("policy_id") or ""),
+            "paper_policy_owner": str(hb.get("paper_policy_owner") or ""),
+            "policy_fingerprint": str(hb.get("policy_fingerprint") or ""),
+            "model_source": str(hb.get("model_source") or ""),
+            "paper_only": bool(hb.get("paper_only", True)),
+            "routes_to_live": bool(hb.get("routes_to_live", False)),
+            "places_real_order": bool(hb.get("places_real_order", False)),
         },
         "positions": {
             "open_count": open_count,

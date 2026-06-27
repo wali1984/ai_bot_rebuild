@@ -90,7 +90,7 @@ RPT_IDX = "/v2_report_center/latest/report_index.json"
 EXEC_CC = "/v2_executive_command_center/latest/operator_dashboard_payload.json"
 EXEC_SCORE = "/v2_executive_command_center/latest/production_readiness_scorecard.json"
 SELF_HEAL = "/v2_autonomous_full_rebuild_self_healing/latest/operator_dashboard_payload.json"
-PAPER_RUNTIME = "/v2_paper_online_runtime/latest/operator_dashboard_payload.json"
+PAPER_RUNTIME = "/operator_runtime/v2_trade_management_paper/live/latest/v2_trade_management_paper_live_status.json"
 FULL_OBS = "/operator_runtime/v2_rl_core/latest/full_observation_builder_status.json"
 REM_DIM = "/v2_full_observation_remaining_dim_execution_queue/latest/operator_dashboard_payload.json"
 COMPARATOR = "/v2_legacy_v2_production_comparator/latest/operator_dashboard_payload.json"
@@ -387,9 +387,13 @@ def frontend_registered_routes() -> dict[str, str]:
     This intentionally reads only local TypeScript route metadata. The
     root route is registered in router.tsx as a redirect to /landing, so
     it is included as a router-level alias.
+    MERGED_LEGACY_PATHS redirect sources are also included since they are
+    registered router routes, just as redirects rather than page renderers.
     """
     routes: dict[str, str] = {}
     route_re = re.compile(r"path:\s*['\"]([^'\"]+)['\"]")
+    # Strips optional param segments like /:symbol? and wildcard segments
+    optional_re = re.compile(r"/:[^/]+\?$|/\*$")
     registry = REPO_ROOT / "v2" / "frontend" / "src" / "pages" / "registry.ts"
     registry_text = registry.read_text(encoding="utf-8") if registry.exists() else ""
     for route_file in _route_file_paths():
@@ -402,10 +406,31 @@ def frontend_registered_routes() -> dict[str, str]:
         # registry to actually render through the router.
         if f"from './{folder}'" not in registry_text:
             continue
-        routes[match.group(1)] = folder
+        raw_path = match.group(1)
+        routes[raw_path] = folder
+        # Also register the normalized base path (strip trailing optional params)
+        base_path = optional_re.sub("", raw_path)
+        if base_path and base_path != raw_path:
+            routes.setdefault(base_path, folder)
     router = REPO_ROOT / "v2" / "frontend" / "src" / "router.tsx"
     if router.exists() and 'path: \'/\'' in router.read_text(encoding="utf-8"):
         routes["/"] = "router-root-redirect"
+    # Include MERGED_LEGACY_PATHS redirect sources — these ARE registered routes
+    nav_file = REPO_ROOT / "v2" / "frontend" / "src" / "pages" / "productNavigation.ts"
+    if nav_file.exists():
+        nav_text = nav_file.read_text(encoding="utf-8")
+        # Parse the MERGED_LEGACY_PATHS block: find all '/path': '/target' entries
+        legacy_key_re = re.compile(r"'(/[^']+)'\s*:\s*'(/[^']+)'")
+        in_merged = False
+        for line in nav_text.splitlines():
+            if "MERGED_LEGACY_PATHS" in line and "=" in line:
+                in_merged = True
+            if in_merged:
+                m = legacy_key_re.search(line)
+                if m:
+                    routes.setdefault(m.group(1), "merged-legacy-redirect")
+                if line.strip().startswith("}") and ";" in line:
+                    in_merged = False
     return routes
 
 

@@ -177,7 +177,17 @@ final class AIBotV2CoreTests: XCTestCase {
             "intents_built": 2,
             "intents_accepted": 1,
             "intents_blocked": 1,
-            "classification": "RUNNING"
+            "classification": "RUNNING",
+            "cycle_state": "COMPLETED_CYCLE",
+            "heartbeat_ttl_seconds": 3600,
+            "candidate_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
+            "policy_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
+            "paper_policy_owner": "challenger_v2",
+            "policy_fingerprint": "83d35e31eea385da1a283b8efab3102ac292be2904724d11777f2b7a32e68630",
+            "model_source": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA",
+            "paper_only": true,
+            "routes_to_live": false,
+            "places_real_order": false
           },
           "positions": {
             "open_count": 1,
@@ -238,6 +248,16 @@ final class AIBotV2CoreTests: XCTestCase {
         XCTAssertEqual(summary.positions.positions_preview.first?.mark_price, 62000.0)
         XCTAssertEqual(summary.positions.positions_preview.first?.decision_reasoning?.reason, "fresh_features_positive_edge")
         XCTAssertEqual(summary.pnl.unrealized_usd, 20.0)
+        XCTAssertEqual(summary.loop.cycle_state, "COMPLETED_CYCLE")
+        XCTAssertEqual(summary.loop.heartbeat_ttl_seconds, 3600)
+        XCTAssertEqual(summary.loop.candidate_id, "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e")
+        XCTAssertEqual(summary.loop.policy_id, "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e")
+        XCTAssertEqual(summary.loop.paper_policy_owner, "challenger_v2")
+        XCTAssertEqual(summary.loop.policy_fingerprint, "83d35e31eea385da1a283b8efab3102ac292be2904724d11777f2b7a32e68630")
+        XCTAssertEqual(summary.loop.model_source, "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA")
+        XCTAssertEqual(summary.loop.paper_only, true)
+        XCTAssertEqual(summary.loop.routes_to_live, false)
+        XCTAssertEqual(summary.loop.places_real_order, false)
     }
 
     func testIOSViewModelsUseResourceWebSocketStreams() throws {

@@ -129,6 +129,15 @@ def test_every_page_carries_required_safety_pins() -> None:
             assert s in p.safety_pins, (p.page_id, s)
 
 
+def test_paper_pages_require_active_trade_management_runtime_payload() -> None:
+    expected = "/operator_runtime/v2_trade_management_paper/live/latest/v2_trade_management_paper_live_status.json"
+    for page_id in ("trader", "history", "paper-trading"):
+        page = page_by_id(page_id)
+        assert page is not None
+        assert expected in page.required_payloads
+        assert "/v2_paper_online_runtime/latest/operator_dashboard_payload.json" not in page.required_payloads
+
+
 def test_page_to_dict_carries_safety_quartet() -> None:
     for p in PAGES:
         d = page_to_dict(p)
