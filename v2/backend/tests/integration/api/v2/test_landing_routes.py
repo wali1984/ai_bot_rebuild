@@ -653,6 +653,31 @@ def test_c2_public_status_reads_redis_payload(
     assert body["status_dimensions"]["order_submission_enabled"] is False
 
 
+def test_c2_public_status_uses_active_paper_heartbeat_when_legacy_status_key_absent(
+    client: TestClient, fake_redis: FakeRedis
+) -> None:
+    fake_redis.set(
+        "v2:paper:heartbeat",
+        {
+            "worker_id": "v2_trade_management_paper_loop",
+            "heartbeat_generated_at": "2999-01-01T00:00:00Z",
+            "cycle_state": "COMPLETED_CYCLE",
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        },
+    )
+
+    res = client.get("/api/v2/public/status")
+
+    assert res.status_code == 200
+    body = res.json()
+    assert body["runtime_state"] == "PAPER_RUNTIME_ONLINE_ACTIVE"
+    assert body["status_dimensions"]["automation"] == "ACTIVE"
+    assert body["status_dimensions"]["execution"] == "RESTRICTED"
+    assert body["status_dimensions"]["places_real_order"] is False
+
+
 def test_c2_public_status_never_leaks_internal_ids(
     client: TestClient, fake_redis: FakeRedis
 ) -> None:

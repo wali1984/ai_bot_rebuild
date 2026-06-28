@@ -9,6 +9,8 @@ This is the only public-safe endpoint added by the landing redesign.
 
 from __future__ import annotations
 
+import json
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter
@@ -18,6 +20,8 @@ from app.api.v2.status_contracts import _safe_market_stream_status
 from app.api.v2.truthful_status import build_truthful_status_dimensions
 
 router = APIRouter(prefix="/public", tags=["v2-landing-public"])
+
+PAPER_HEARTBEAT_STALE_AFTER_SECONDS = 900
 
 
 _DEFAULT_PAYLOAD: dict[str, Any] = {
@@ -40,6 +44,49 @@ _DEFAULT_PAYLOAD: dict[str, Any] = {
 }
 
 
+def _json_object(raw: Any) -> dict[str, Any]:
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8", errors="replace")
+    if not isinstance(raw, str) or not raw.strip():
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except Exception:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _parse_utc(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip().replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def _runtime_state_from_paper_heartbeat(heartbeat: dict[str, Any]) -> str | None:
+    if str(heartbeat.get("worker_id") or "") != "v2_trade_management_paper_loop":
+        return None
+    generated = _parse_utc(
+        heartbeat.get("heartbeat_generated_at")
+        or heartbeat.get("finished_at")
+        or heartbeat.get("started_at")
+    )
+    if generated is None:
+        return "PAPER_RUNTIME_HEARTBEAT_STALE"
+    age_seconds = (datetime.now(UTC) - generated).total_seconds()
+    if age_seconds > PAPER_HEARTBEAT_STALE_AFTER_SECONDS:
+        return "PAPER_RUNTIME_HEARTBEAT_STALE"
+    return "PAPER_RUNTIME_ONLINE_ACTIVE"
+
+
 @router.get("/status")
 async def get_public_status() -> dict[str, Any]:
     r = get_redis()
@@ -58,6 +105,15 @@ async def get_public_status() -> dict[str, Any]:
             payload["runtime_state"] = str(runtime)
     except Exception:
         pass
+    if payload.get("runtime_state") == "MISSING_EVIDENCE":
+        try:
+            runtime_state = _runtime_state_from_paper_heartbeat(
+                _json_object(r.get("v2:paper:heartbeat"))
+            )
+            if runtime_state:
+                payload["runtime_state"] = runtime_state
+        except Exception:
+            pass
     try:
         failed = r.get("tonight:readiness:public_route_failed_count")
         if failed is not None:
