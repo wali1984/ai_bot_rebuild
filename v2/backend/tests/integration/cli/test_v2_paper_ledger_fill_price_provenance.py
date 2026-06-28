@@ -158,11 +158,12 @@ def test_current_risk_state_ignores_historical_accepted_drawdown_for_router() ->
         state = mod._read_current_risk_state(r)
 
     assert state["current_drawdown_bps"] == 168.6
-    assert state["current_drawdown_source"] == "CURRENT_PORTFOLIO_AND_OPEN_POSITIONS"
+    assert state["current_drawdown_source"] == "CURRENT_PORTFOLIO_STATE"
+    assert state["worst_open_position_drawdown_bps"] == 115.0
     assert state["open_position_count"] == 1
 
 
-def test_current_risk_state_keeps_open_position_drawdown_when_larger() -> None:
+def test_current_risk_state_keeps_open_position_drawdown_as_telemetry() -> None:
     mod = _mod()
     r = FakeRedis()
     r.store["v2:portfolio:state"] = json.dumps({"current_drawdown_bps": 50.0})
@@ -180,7 +181,33 @@ def test_current_risk_state_keeps_open_position_drawdown_when_larger() -> None:
     with patch.object(mod, "_read_lifecycle_state_file", return_value={}):
         state = mod._read_current_risk_state(r)
 
+    assert state["current_drawdown_bps"] == 50.0
+    assert state["current_drawdown_source"] == "CURRENT_PORTFOLIO_STATE"
+    assert state["worst_open_position_drawdown_bps"] == 260.0
+    assert state["open_position_drawdown_source"] == "OPEN_POSITION_MAE_AND_UNREALIZED_LOSS"
+    assert state["open_position_count"] == 1
+
+
+def test_current_risk_state_falls_back_to_open_position_drawdown_without_portfolio() -> None:
+    mod = _mod()
+    r = FakeRedis()
+    r.store["v2:portfolio:state"] = json.dumps({})
+    r.store["v2:paper:ledger"] = json.dumps({
+        "open_positions": [
+            {
+                "symbol": "BNBUSDT",
+                "mae_bps": 260.0,
+                "unrealized_pnl_bps": -120.0,
+            }
+        ],
+    })
+
+    with patch.object(mod, "_read_lifecycle_state_file", return_value={}):
+        state = mod._read_current_risk_state(r)
+
     assert state["current_drawdown_bps"] == 260.0
+    assert state["current_drawdown_source"] == "OPEN_POSITION_DRAWDOWN_FALLBACK"
+    assert state["worst_open_position_drawdown_bps"] == 260.0
     assert state["open_position_count"] == 1
 
 

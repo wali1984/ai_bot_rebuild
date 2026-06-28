@@ -1276,6 +1276,7 @@ def _read_v2_orderbook_microstructure(r, symbol: str) -> dict[str, Any]:
             or payload.get("event_time")
             or payload.get("generated_at_ms")
         )
+        captured_at = _utc_iso()
         return {
             "source": f"{ENTRY_SPREAD_SOURCE_V2_ORDERBOOK}:{key}",
             "bid_ask_spread_bps": round(float(spread_bps), 8),
@@ -1292,7 +1293,8 @@ def _read_v2_orderbook_microstructure(r, symbol: str) -> dict[str, Any]:
             "market_depth_usd": round(float(top_depth_usd), 8) if top_depth_usd is not None else None,
             "orderbook_depth_source": f"{key}:top5_notional_usd" if top_depth_usd is not None else None,
             "entry_spread_available_at": available_at,
-            "entry_spread_captured_at": _utc_iso(),
+            "entry_spread_captured_at": captured_at,
+            "entry_spread_decision_time": captured_at,
         }
     return {}
 
@@ -9378,10 +9380,8 @@ def _closed_outcome_is_alpha_complete(row: dict[str, Any]) -> bool:
 def _read_current_risk_state(r) -> dict[str, Any]:
     ledger = _read_existing_ledger_payload(r)
     portfolio = _read_portfolio_state(r)
-    drawdowns: list[float] = []
     portfolio_drawdown = _coerce_float(portfolio.get("current_drawdown_bps"))
-    if portfolio_drawdown is not None:
-        drawdowns.append(abs(portfolio_drawdown))
+    open_position_drawdowns: list[float] = []
     open_rows = [
         row for row in (ledger.get("open_positions") or ledger.get("positions") or [])
         if isinstance(row, dict)
@@ -9391,13 +9391,25 @@ def _read_current_risk_state(r) -> dict[str, Any]:
             _first_present(row.get("drawdown_bps"), row.get("max_drawdown_bps"), row.get("mae_bps"))
         )
         if row_drawdown is not None:
-            drawdowns.append(abs(row_drawdown))
+            open_position_drawdowns.append(abs(row_drawdown))
         unrealized_bps = _coerce_float(row.get("unrealized_pnl_bps"))
         if unrealized_bps is not None and unrealized_bps < 0:
-            drawdowns.append(abs(unrealized_bps))
+            open_position_drawdowns.append(abs(unrealized_bps))
+    worst_open_position_drawdown = max(open_position_drawdowns) if open_position_drawdowns else 0.0
+    current_drawdown = (
+        abs(portfolio_drawdown)
+        if portfolio_drawdown is not None
+        else worst_open_position_drawdown
+    )
     return {
-        "current_drawdown_bps": max(drawdowns) if drawdowns else 0.0,
-        "current_drawdown_source": "CURRENT_PORTFOLIO_AND_OPEN_POSITIONS",
+        "current_drawdown_bps": current_drawdown,
+        "current_drawdown_source": (
+            "CURRENT_PORTFOLIO_STATE"
+            if portfolio_drawdown is not None
+            else "OPEN_POSITION_DRAWDOWN_FALLBACK"
+        ),
+        "worst_open_position_drawdown_bps": worst_open_position_drawdown,
+        "open_position_drawdown_source": "OPEN_POSITION_MAE_AND_UNREALIZED_LOSS",
         "open_position_count": len(open_rows),
     }
 
@@ -11013,6 +11025,7 @@ def _build_allocation_input(
             intent.get("decision_time"),
             intent.get("generated_at"),
             intent.get("generated_utc"),
+            market_microstructure.get("entry_spread_decision_time"),
         )
         if model_decision_time is not None:
             intent["entry_spread_decision_time"] = model_decision_time
