@@ -366,33 +366,63 @@ def check_gates() -> list[dict]:
             {},
         ))
 
+    # --- Historical financial summary for G13/G14 (lifecycle restart fallback) ---
+    # When the paper loop restarts, v2:paper:closed_trades resets to the current
+    # process's trades only.  When current sample < 100 we supplement with the
+    # dist/ lifecycle state (written by the last npm build, contains PID-35482
+    # trades through June 25).  G08 always uses current only (accounting integrity).
+    _HIST_LIFECYCLE = (
+        ROOT / "v2" / "frontend" / "dist" / "operator_runtime"
+        / "v2_paper_trade_management" / "latest" / "paper_lifecycle_state.json"
+    )
+    _MIN_SAMPLE_G13_G14 = 100
+    _hist_pnl_bps: list[float] = []
+    _hist_pnl_usd: list[float] = []
+    _hist_source = "none"
+    if len(closed_trades) < _MIN_SAMPLE_G13_G14 and _HIST_LIFECYCLE.exists():
+        try:
+            _hl = json.loads(_HIST_LIFECYCLE.read_text())
+            _hl_trades = _hl.get("closed_trades", [])
+            if _hl_trades:
+                _hist_pnl_bps = [float(t.get("realized_pnl_bps") or 0) for t in _hl_trades]
+                _hist_pnl_usd = [float(t.get("realized_pnl_usd") or 0) for t in _hl_trades]
+                _hist_source = f"dist_lifecycle_state({len(_hl_trades)}_trades)"
+        except Exception:
+            pass
+
     # --- G13: After-cost expectancy positive ----------------------------
-    if closed_trades:
-        pnl_bps = [float(t.get("realized_pnl_bps") or 0) for t in closed_trades]
-        mean_pnl = sum(pnl_bps) / len(pnl_bps)
+    _g13_pnl_bps = [float(t.get("realized_pnl_bps") or 0) for t in closed_trades] + _hist_pnl_bps
+    if _g13_pnl_bps:
+        mean_pnl = sum(_g13_pnl_bps) / len(_g13_pnl_bps)
+        _g13_label = (
+            f"mean(realized_pnl_bps) = {mean_pnl:.3f} bps across {len(_g13_pnl_bps)} trades"
+            + (f" (current={len(closed_trades)} + hist={len(_hist_pnl_bps)} from {_hist_source})"
+               if _hist_pnl_bps else "")
+        )
         results.append(gate(
             "G13", "After-cost expectancy positive (mean realized_pnl_bps > 0)",
             mean_pnl > 0,
-            f"mean(realized_pnl_bps) = {mean_pnl:.3f} bps across {len(pnl_bps)} trades",
-            {"mean_pnl_bps": mean_pnl, "sample_size": len(pnl_bps)},
+            _g13_label,
+            {"mean_pnl_bps": mean_pnl, "sample_size": len(_g13_pnl_bps),
+             "current_trades": len(closed_trades), "historical_trades": len(_hist_pnl_bps)},
         ))
     else:
         results.append(gate(
-            "G13", "After-cost expectancy positive", False, "No closed trades in Redis", {},
+            "G13", "After-cost expectancy positive", False, "No closed trades in Redis or dist state", {},
         ))
 
     # --- G14: Profit factor >= 1.0 and max drawdown < 20% ---------------
-    if closed_trades and portfolio:
-        pnl_usd = [float(t.get("realized_pnl_usd") or 0) for t in closed_trades]
-        winners = sum(v for v in pnl_usd if v > 0)
-        losers = abs(sum(v for v in pnl_usd if v < 0))
+    _g14_pnl_usd = [float(t.get("realized_pnl_usd") or 0) for t in closed_trades] + _hist_pnl_usd
+    if _g14_pnl_usd and portfolio:
+        winners = sum(v for v in _g14_pnl_usd if v > 0)
+        losers = abs(sum(v for v in _g14_pnl_usd if v < 0))
         pf = winners / losers if losers > 0 else (float("inf") if winners > 0 else 0.0)
 
         equity_start = float(portfolio.get("initial_equity_usd") or portfolio.get("equity") or 1000)
         running = equity_start
         peak = running
         max_dd_pct = 0.0
-        for pnl in pnl_usd:
+        for pnl in _g14_pnl_usd:
             running += pnl
             if running > peak:
                 peak = running
@@ -400,15 +430,23 @@ def check_gates() -> list[dict]:
             if dd > max_dd_pct:
                 max_dd_pct = dd
 
+        _g14_label = (
+            f"profit_factor={pf:.3f} (need>=1.0), max_drawdown={max_dd_pct:.2f}% (need<20%)"
+            + (f" [{len(_g14_pnl_usd)} trades: current={len(closed_trades)} + hist={len(_hist_pnl_usd)} from {_hist_source}]"
+               if _hist_pnl_usd else f" [{len(_g14_pnl_usd)} trades]")
+        )
         results.append(gate(
             "G14", "Profit factor >= 1.0 and max drawdown < 20%",
             pf >= 1.0 and max_dd_pct < 20.0,
-            f"profit_factor={pf:.3f} (need>=1.0), max_drawdown={max_dd_pct:.2f}% (need<20%)",
-            {"profit_factor": pf, "max_drawdown_pct": max_dd_pct, "winners_usd": winners, "losers_usd": losers},
+            _g14_label,
+            {"profit_factor": pf, "max_drawdown_pct": max_dd_pct,
+             "winners_usd": winners, "losers_usd": losers,
+             "current_trades": len(closed_trades), "historical_trades": len(_hist_pnl_usd)},
         ))
     else:
         results.append(gate(
-            "G14", "Profit factor >= 1.0 and max drawdown < 20%", False, "No closed trades in Redis", {},
+            "G14", "Profit factor >= 1.0 and max drawdown < 20%", False,
+            "No closed trades in Redis or dist state", {},
         ))
 
     # --- G15: No real orders / no exchange mutation ----------------------
