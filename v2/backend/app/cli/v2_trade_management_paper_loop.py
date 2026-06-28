@@ -58,6 +58,9 @@ TRADE_MANAGEMENT_PUBLIC_DIR = Path(
 )
 PAPER_ACCEPTED_FILLS_STATE_PATH = TRADE_MANAGEMENT_PUBLIC_DIR / "paper_accepted_fills_state.json"
 PAPER_LIFECYCLE_STATE_PATH = TRADE_MANAGEMENT_PUBLIC_DIR / "paper_lifecycle_state.json"
+PAPER_FORWARD_CANARY_CLOSED_OUTCOME_ARCHIVE_PATH = (
+    TRADE_MANAGEMENT_PUBLIC_DIR / "paper_forward_canary_closed_outcome_archive.json"
+)
 PAPER_B_GRADE_BUCKET_PROMOTION_READINESS_STATUS_PATH = (
     TRADE_MANAGEMENT_PUBLIC_DIR / "paper_b_grade_bucket_promotion_readiness_status.json"
 )
@@ -8446,6 +8449,139 @@ def _paper_forward_canary_evidence_status(
     }
 
 
+def _paper_forward_canary_closed_outcome_identity(row: dict[str, Any]) -> str | None:
+    for field in (
+        "close_id",
+        "paper_close_id",
+        "close_event_id",
+        "outcome_label_id",
+        "paper_trade_id",
+        "paper_fill_id",
+    ):
+        value = row.get(field)
+        if value not in (None, ""):
+            return f"{field}:{value}"
+    symbol = str(row.get("symbol") or "").upper()
+    side = _normalized_directional_side(_first_present(row.get("side"), row.get("action")))
+    event_time = _first_present(
+        row.get("exit_time"),
+        row.get("closed_at"),
+        row.get("execution_time"),
+        row.get("decision_time"),
+        row.get("available_at"),
+    )
+    lineage = _first_present(
+        row.get("entry_signal_id"),
+        row.get("signal_id"),
+        row.get("entry_prediction_id"),
+        row.get("prediction_id"),
+        row.get("position_id"),
+    )
+    if not symbol or not side or not event_time:
+        return None
+    return f"composite:{symbol}:{side}:{event_time}:{lineage or ''}"
+
+
+def _paper_forward_canary_archive_row_score(row: dict[str, Any]) -> tuple[int, int]:
+    populated_fields = sum(1 for value in row.values() if value not in (None, "", [], {}))
+    production_cost = 1 if _paper_forward_canary_production_cost_pass(row) else 0
+    return production_cost, populated_fields
+
+
+def _read_paper_forward_canary_closed_outcome_archive(
+    path: Path | None = None,
+) -> list[dict[str, Any]]:
+    path = path or PAPER_FORWARD_CANARY_CLOSED_OUTCOME_ARCHIVE_PATH
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    try:
+        payload = json.loads(raw)
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(payload, dict):
+        return []
+    rows = (
+        payload.get("closed_outcomes")
+        or payload.get("closed_trades")
+        or payload.get("rows")
+        or []
+    )
+    return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+
+
+def _paper_forward_canary_closed_outcome_archive_status(
+    current_closed_rows: list[dict[str, Any]],
+    *,
+    path: Path | None = None,
+) -> dict[str, Any]:
+    path = path or PAPER_FORWARD_CANARY_CLOSED_OUTCOME_ARCHIVE_PATH
+    existing_rows = _read_paper_forward_canary_closed_outcome_archive(path)
+    archive_by_id: dict[str, dict[str, Any]] = {}
+    duplicate_rows = 0
+    rows_without_identity = 0
+
+    def merge_row(row: dict[str, Any]) -> None:
+        nonlocal duplicate_rows, rows_without_identity
+        if row.get("paper_opportunity_tier") != PAPER_TIER_B_GRADE_EXPLORATION:
+            return
+        if not _paper_forward_canary_challenger_owned(row):
+            return
+        identity = _paper_forward_canary_closed_outcome_identity(row)
+        if identity is None:
+            rows_without_identity += 1
+            return
+        existing = archive_by_id.get(identity)
+        if existing is not None:
+            duplicate_rows += 1
+            if _paper_forward_canary_archive_row_score(row) <= _paper_forward_canary_archive_row_score(existing):
+                return
+        archived = dict(row)
+        archived["forward_canary_archive_identity"] = identity
+        archive_by_id[identity] = archived
+
+    for row in existing_rows:
+        merge_row(row)
+    existing_unique_count = len(archive_by_id)
+    for row in current_closed_rows:
+        merge_row(row)
+
+    archived_rows = sorted(
+        archive_by_id.values(),
+        key=lambda row: str(
+            _first_present(
+                row.get("exit_time"),
+                row.get("closed_at"),
+                row.get("execution_time"),
+                row.get("decision_time"),
+                row.get("available_at"),
+                row.get("close_id"),
+            )
+            or ""
+        ),
+    )
+    return {
+        "schema_version": "paper_forward_canary_closed_outcome_archive_v1",
+        "status": "ACTIVE_FORWARD_CANARY_CLOSED_OUTCOME_ARCHIVE",
+        "source": str(path),
+        "existing_archived_closed_outcome_rows": len(existing_rows),
+        "existing_unique_closed_outcome_rows": existing_unique_count,
+        "current_closed_rows_seen": len(current_closed_rows),
+        "archived_closed_outcome_rows": len(archived_rows),
+        "new_archived_closed_outcome_rows": max(0, len(archived_rows) - existing_unique_count),
+        "duplicate_closed_outcome_rows": duplicate_rows,
+        "rows_without_archive_identity": rows_without_identity,
+        "closed_outcomes": archived_rows,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_a_grade_evidence": False,
+        "live_path_changed": False,
+        "generated_utc": _utc_iso(),
+    }
+
+
 def _normalized_directional_side(value: Any) -> str | None:
     side = str(value or "").strip().lower()
     if side in {"long", "buy", "open_long", "proceed_long"} or side.endswith("_long"):
@@ -12483,8 +12619,11 @@ def run_once() -> dict:
             paper_b_grade_model_quality_status
         )
     )
+    paper_forward_canary_closed_outcome_archive_status = (
+        _paper_forward_canary_closed_outcome_archive_status(closes)
+    )
     paper_forward_canary_evidence_status = _paper_forward_canary_evidence_status(
-        closed_rows=closes,
+        closed_rows=paper_forward_canary_closed_outcome_archive_status["closed_outcomes"],
         accepted_rows=accepted_for_ledger,
     )
     paper_closed_trade_outcome_label_status = dict(
@@ -12594,6 +12733,9 @@ def run_once() -> dict:
                 paper_b_grade_bucket_promotion_readiness_status
             ),
             "paper_forward_canary_evidence_status": paper_forward_canary_evidence_status,
+            "paper_forward_canary_closed_outcome_archive_status": (
+                paper_forward_canary_closed_outcome_archive_status
+            ),
             "paper_closed_outcome_entry_context_backfill_status": (
                 paper_closed_outcome_entry_context_backfill_status
             ),
@@ -12720,6 +12862,9 @@ def run_once() -> dict:
                 "paper_a_grade_gate_burndown_status": paper_a_grade_gate_burndown_status,
                 "paper_adaptive_threshold_runtime_status": paper_adaptive_threshold_runtime_status,
                 "paper_forward_canary_evidence_status": paper_forward_canary_evidence_status,
+                "paper_forward_canary_closed_outcome_archive_status": (
+                    paper_forward_canary_closed_outcome_archive_status
+                ),
                 "paper_closed_outcome_entry_context_backfill_status": (
                     paper_closed_outcome_entry_context_backfill_status
                 ),
@@ -12866,6 +13011,9 @@ def run_once() -> dict:
         "paper_a_grade_gate_burndown_status": paper_a_grade_gate_burndown_status,
         "paper_adaptive_threshold_runtime_status": paper_adaptive_threshold_runtime_status,
         "paper_forward_canary_evidence_status": paper_forward_canary_evidence_status,
+        "paper_forward_canary_closed_outcome_archive_status": (
+            paper_forward_canary_closed_outcome_archive_status
+        ),
         "paper_closed_outcome_entry_context_backfill_status": (
             paper_closed_outcome_entry_context_backfill_status
         ),
@@ -13067,6 +13215,10 @@ def run_once() -> dict:
         write_payload(
             paper_forward_canary_evidence_status,
             TRADE_MANAGEMENT_PUBLIC_DIR / "paper_forward_canary_evidence_status.json",
+        )
+        write_payload(
+            paper_forward_canary_closed_outcome_archive_status,
+            PAPER_FORWARD_CANARY_CLOSED_OUTCOME_ARCHIVE_PATH,
         )
         write_payload(
             paper_closed_outcome_entry_context_backfill_status,

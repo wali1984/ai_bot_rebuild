@@ -2950,6 +2950,74 @@ def test_forward_canary_evidence_status_passes_only_complete_paper_canary_set(mo
     assert status["live_path_changed"] is False
 
 
+def test_forward_canary_archive_preserves_observed_outcomes_across_cycles(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-28T01:20:00Z")
+    archive_path = tmp_path / "paper_forward_canary_closed_outcome_archive.json"
+    existing_rows = [
+        _forward_canary_closed_row("ARXUSDT", "long", close_id="close-1"),
+        _forward_canary_closed_row("BNBUSDT", "short", close_id="close-2"),
+    ]
+    archive_path.write_text(
+        json.dumps({"closed_outcomes": existing_rows}),
+        encoding="utf-8",
+    )
+
+    archive = paper_loop._paper_forward_canary_closed_outcome_archive_status(  # noqa: SLF001
+        [_forward_canary_closed_row("ETHUSDT", "short", close_id="close-3")],
+        path=archive_path,
+    )
+    status = paper_loop._paper_forward_canary_evidence_status(  # noqa: SLF001
+        closed_rows=archive["closed_outcomes"],
+        accepted_rows=[],
+    )
+
+    assert archive["existing_archived_closed_outcome_rows"] == 2
+    assert archive["archived_closed_outcome_rows"] == 3
+    assert archive["new_archived_closed_outcome_rows"] == 1
+    assert archive["paper_only"] is True
+    assert archive["routes_to_live"] is False
+    assert archive["places_real_order"] is False
+    assert status["valid_forward_canary_economic_outcomes"] == 3
+    assert status["valid_symbol_count"] == 3
+    assert status["production_grade_cost_coverage"] == 1.0
+
+
+def test_forward_canary_archive_replaces_duplicate_with_cost_complete_row(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-28T01:21:00Z")
+    archive_path = tmp_path / "paper_forward_canary_closed_outcome_archive.json"
+    archive_path.write_text(
+        json.dumps(
+            {
+                "closed_outcomes": [
+                    _forward_canary_closed_row(
+                        "ARXUSDT",
+                        "short",
+                        close_id="close-1",
+                        production_grade_cost_flag=None,
+                        production_grade_cost_evidence=None,
+                        runtime_cost_capture_status=None,
+                    )
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    archive = paper_loop._paper_forward_canary_closed_outcome_archive_status(  # noqa: SLF001
+        [_forward_canary_closed_row("ARXUSDT", "short", close_id="close-1")],
+        path=archive_path,
+    )
+
+    assert archive["archived_closed_outcome_rows"] == 1
+    assert archive["duplicate_closed_outcome_rows"] == 1
+    assert archive["closed_outcomes"][0]["production_grade_cost_flag"] is True
+    assert archive["closed_outcomes"][0]["runtime_cost_capture_status"] == "PRODUCTION_GRADE_COST_CAPTURE"
+
+
 def test_confidence_trial_positive_edge_becomes_b_grade_paper_only_exploration() -> None:
     signal = {
         "paper_confidence_threshold_trial": True,
