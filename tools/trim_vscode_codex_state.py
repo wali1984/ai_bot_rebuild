@@ -54,17 +54,28 @@ def get_key_size(conn: sqlite3.Connection, key: str) -> int:
     return row[0] if row else 0
 
 
-def trim_prompt_history(state: dict) -> dict:
-    ph = state.get("prompt-history", {})
-    if not ph:
-        return state
+def _trim_ph_dict(ph: dict) -> dict:
+    """Trim a prompt-history dict: keep last N prompts per session, cap each prompt length."""
     trimmed = {}
     for session_key, prompts in ph.items():
         if isinstance(prompts, list):
             trimmed[session_key] = [str(p)[:MAX_PROMPT_TEXT_LEN] for p in prompts[-MAX_PROMPT_HISTORY_PROMPTS:]]
         else:
             trimmed[session_key] = prompts
-    state["prompt-history"] = trimmed
+    return trimmed
+
+
+def trim_prompt_history(state: dict) -> dict:
+    # Top-level prompt-history (older Codex extension versions)
+    if "prompt-history" in state and isinstance(state["prompt-history"], dict):
+        state["prompt-history"] = _trim_ph_dict(state["prompt-history"])
+
+    # Nested inside persisted-atom-state (newer Codex extension versions ≥ v26)
+    atom = state.get("persisted-atom-state")
+    if isinstance(atom, dict) and "prompt-history" in atom and isinstance(atom["prompt-history"], dict):
+        atom["prompt-history"] = _trim_ph_dict(atom["prompt-history"])
+        state["persisted-atom-state"] = atom
+
     return state
 
 
@@ -139,7 +150,7 @@ def run_trim() -> None:
 
     # Also specifically check openai.chatgpt even if under threshold
     oai_size = get_key_size(conn, "openai.chatgpt")
-    if oai_size > 100 * 1024:  # over 100KB — trim it proactively
+    if oai_size > 50 * 1024:  # over 50KB — trim it proactively (was 100KB; crash happens at ~1MB)
         before, after = trim_key(conn, "openai.chatgpt")
         saved = before - after
         if saved > 0:

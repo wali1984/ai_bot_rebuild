@@ -1,8 +1,14 @@
 {
   "files.watcherExclude": {
+    "**/.git/**": true,
     "**/.venv/**": true,
+    "**/.local_models/**": true,
+    "**/.local_scratch/**": true,
+    "**/.local_secrets/**": true,
     "**/node_modules/**": true,
     "**/legacy_reference/**": true,
+    "**/v2/legacy_preserved/**": true,
+    "**/v2/legacy_owned_runtime/**": true,
     "**/legacy_trainer_design_requirements_from_docs.json": true,
     "**/legacy_hybrid_trainer_behavior_parity_matrix.json": true,
     "**/legacy_hybrid_trainer_line_inventory.json": true,
@@ -46,8 +52,13 @@
   },
   "search.exclude": {
     "**/.venv/**": true,
+    "**/.local_models/**": true,
+    "**/.local_scratch/**": true,
+    "**/.local_secrets/**": true,
     "**/node_modules/**": true,
     "**/legacy_reference/**": true,
+    "**/v2/legacy_preserved/**": true,
+    "**/v2/legacy_owned_runtime/**": true,
     "**/__pycache__/**": true,
     "**/logs/**": true,
     "**/screenshots/**": true,
@@ -80,7 +91,7 @@
     "recorded_state_verification_pass4a/**",
     "pipeline_trust_quarantine/**"
   ],
-  "python.analysis.indexing": true,
+  "python.analysis.indexing": false,
   "python.analysis.packageIndexDepths": [
     {
       "name": "",
@@ -93,7 +104,11 @@
   "git.ignoreLimitWarning": true,
   "git.autoRepositoryDetection": false,
   "git.decorations.enabled": false,
-  "git.autoFetch": false,
+  "git.autofetch": false,
+  "github.copilot.chat.localIndex.enabled": false,
+  "github.copilot.chat.workspace.enableCodeSearch": false,
+  "github.copilot.chat.codesearch.enabled": false,
+  "github.copilot.chat.getChangedFilesTool.enabled": false,
   "git.statusDecorationColors": false,
   "git.untrackedChanges": "hidden",
   "scm.statusLimit": 500

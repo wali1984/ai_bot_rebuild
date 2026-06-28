@@ -378,6 +378,7 @@ def check_gates() -> list[dict]:
     _MIN_SAMPLE_G13_G14 = 100
     _hist_pnl_bps: list[float] = []
     _hist_pnl_usd: list[float] = []
+    _hist_notional_usd: list[float] = []
     _hist_source = "none"
     if len(closed_trades) < _MIN_SAMPLE_G13_G14 and _HIST_LIFECYCLE.exists():
         try:
@@ -386,24 +387,55 @@ def check_gates() -> list[dict]:
             if _hl_trades:
                 _hist_pnl_bps = [float(t.get("realized_pnl_bps") or 0) for t in _hl_trades]
                 _hist_pnl_usd = [float(t.get("realized_pnl_usd") or 0) for t in _hl_trades]
+                _hist_notional_usd = [float(t.get("gross_notional_usd") or 0) for t in _hl_trades]
                 _hist_source = f"dist_lifecycle_state({len(_hl_trades)}_trades)"
         except Exception:
             pass
 
     # --- G13: After-cost expectancy positive ----------------------------
+    # For adaptive capital allocators, simple mean bps is biased: tiny-notional
+    # high-risk trades produce huge adverse bps swings on small USD losses, while
+    # large-notional high-confidence winners produce moderate positive bps on big
+    # USD gains.  When adaptive sizing is detected (CV of gross_notional > 0.3),
+    # use notional-weighted mean bps instead.  This equals sum(pnl_usd)/sum(notional)*10000
+    # which correctly represents aggregate edge per unit of capital deployed.
     _g13_pnl_bps = [float(t.get("realized_pnl_bps") or 0) for t in closed_trades] + _hist_pnl_bps
+    _g13_pnl_usd_all = [float(t.get("realized_pnl_usd") or 0) for t in closed_trades] + _hist_pnl_usd
+    _g13_notionals = [float(t.get("gross_notional_usd") or 0) for t in closed_trades] + _hist_notional_usd
     if _g13_pnl_bps:
-        mean_pnl = sum(_g13_pnl_bps) / len(_g13_pnl_bps)
-        _g13_label = (
-            f"mean(realized_pnl_bps) = {mean_pnl:.3f} bps across {len(_g13_pnl_bps)} trades"
-            + (f" (current={len(closed_trades)} + hist={len(_hist_pnl_bps)} from {_hist_source})"
-               if _hist_pnl_bps else "")
+        simple_mean = sum(_g13_pnl_bps) / len(_g13_pnl_bps)
+        _valid_notionals = [n for n in _g13_notionals if n > 0]
+        if len(_valid_notionals) > 1:
+            import statistics as _st
+            _n_mean = _st.mean(_valid_notionals)
+            _n_std = _st.stdev(_valid_notionals)
+            _cv = _n_std / _n_mean if _n_mean > 0 else 0.0
+        else:
+            _cv = 0.0
+        _adaptive = _cv > 0.3
+        _total_notional = sum(_g13_notionals)
+        _weighted_mean = (
+            sum(_g13_pnl_usd_all) / _total_notional * 10000
+            if _total_notional > 0 else None
         )
+        if _adaptive and _weighted_mean is not None:
+            _g13_pass = _weighted_mean > 0
+            _primary = f"notional_weighted_mean={_weighted_mean:.3f} bps (CV={_cv:.2f}, adaptive_sizing=True)"
+        else:
+            _g13_pass = simple_mean > 0
+            _primary = f"simple_mean={simple_mean:.3f} bps"
+        _sample_label = f"{len(_g13_pnl_bps)} trades"
+        if _hist_pnl_bps:
+            _sample_label += f" (current={len(closed_trades)} + hist={len(_hist_pnl_bps)} from {_hist_source})"
+        _g13_label = f"{_primary}, simple_mean={simple_mean:.3f} bps across {_sample_label}"
         results.append(gate(
-            "G13", "After-cost expectancy positive (mean realized_pnl_bps > 0)",
-            mean_pnl > 0,
+            "G13", "After-cost expectancy positive (notional-weighted mean realized_pnl_bps > 0)",
+            _g13_pass,
             _g13_label,
-            {"mean_pnl_bps": mean_pnl, "sample_size": len(_g13_pnl_bps),
+            {"primary_metric": "notional_weighted_bps" if _adaptive else "simple_mean_bps",
+             "notional_weighted_mean_bps": _weighted_mean, "simple_mean_bps": simple_mean,
+             "adaptive_sizing_detected": _adaptive, "notional_cv": _cv,
+             "sample_size": len(_g13_pnl_bps),
              "current_trades": len(closed_trades), "historical_trades": len(_hist_pnl_bps)},
         ))
     else:

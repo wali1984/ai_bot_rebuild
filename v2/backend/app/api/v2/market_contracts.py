@@ -9,6 +9,7 @@ live gates, or write execution state. Missing data returns a structured
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import inspect
 import json
 import os
@@ -25,6 +26,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
+from starlette.websockets import WebSocketState
 
 from app.api.v2._common import get_redis
 from app.auth.security import optional_auth, require_auth
@@ -49,6 +51,13 @@ from app.services.market_stream_alert_history import (
 from app.services.market_stream_alert_notifier import market_stream_alert_notifier_status
 from app.services.paper_audit_ledger import local_paper_audit_ledger_metadata, read_local_paper_audit_events
 from app.services.trader_account_repository import TraderPaperAccount, get_trader_account_repository
+from app.services.backend_shutdown import (
+    SERVICE_RESTART_CLOSE_CODE,
+    create_registered_task,
+    shutdown_started,
+    track_current_task,
+    wait_for_shutdown,
+)
 
 router = APIRouter(tags=["v2-market-contracts"])
 stream_router = APIRouter(tags=["v2-market-streams"])
@@ -68,6 +77,8 @@ READONLY_RESOURCE_HTTP_TIMEOUT_SECONDS = float(os.environ.get("ALPHAFORGE_READON
 BINANCE_PUBLIC_CACHE_TTL_SECONDS = float(os.environ.get("ALPHAFORGE_BINANCE_PUBLIC_CACHE_TTL_SECONDS", "5"))
 BINANCE_PUBLIC_JSON_CACHE_LOCK = threading.Lock()
 BINANCE_PUBLIC_JSON_CACHE: dict[str, tuple[float, Any, str]] = {}
+READONLY_RESOURCE_RESOLVE_TIMEOUT_SECONDS = float(os.environ.get("ALPHAFORGE_READONLY_RESOURCE_RESOLVE_TIMEOUT_SECONDS", "2.5"))
+WEBSOCKET_DISCONNECT_POLL_SECONDS = float(os.environ.get("ALPHAFORGE_WEBSOCKET_DISCONNECT_POLL_SECONDS", "0.25"))
 SIGNALS_MATRIX_CACHE_TTL_SECONDS = float(os.environ.get("ALPHAFORGE_SIGNALS_MATRIX_CACHE_TTL_SECONDS", "2"))
 SIGNALS_MATRIX_CACHE_LOCK = threading.Lock()
 SIGNALS_MATRIX_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
@@ -220,6 +231,13 @@ def _json_object_from_redis_raw(raw: Any) -> dict[str, Any] | None:
     except (TypeError, ValueError):
         return None
     return payload if isinstance(payload, dict) else None
+
+
+async def _bounded_run_in_threadpool(func: Any, *args: Any, timeout: float, **kwargs: Any) -> Any:
+    return await asyncio.wait_for(
+        run_in_threadpool(func, *args, **kwargs),
+        timeout=max(0.1, timeout),
+    )
 
 
 async def _redis_get_json_object(client: Any, key: str) -> dict[str, Any] | None:
@@ -531,6 +549,92 @@ def _readonly_resource_direct_payload_sync(
     headers: dict[str, str] | None = None,
 ) -> tuple[bool, Any]:
     return asyncio.run(_readonly_resource_direct_payload(path_with_query, headers))
+
+
+async def _readonly_resource_resolve_payload(target: str, headers: dict[str, str]) -> Any:
+    """Async-native resolver that avoids creating nested event loops via asyncio.run()."""
+    handled, payload = await asyncio.wait_for(
+        _readonly_resource_direct_payload(target, headers),
+        timeout=max(0.1, READONLY_RESOURCE_RESOLVE_TIMEOUT_SECONDS),
+    )
+    if handled:
+        return payload
+    return await _bounded_run_in_threadpool(
+        _fetch_same_origin_readonly_json,
+        target,
+        headers,
+        timeout=READONLY_RESOURCE_HTTP_TIMEOUT_SECONDS + 0.5,
+    )
+
+
+def _websocket_is_connected(websocket: WebSocket) -> bool:
+    return (
+        websocket.client_state == WebSocketState.CONNECTED
+        and websocket.application_state == WebSocketState.CONNECTED
+    )
+
+
+async def _close_websocket_for_service_restart(websocket: WebSocket) -> None:
+    if websocket.application_state == WebSocketState.DISCONNECTED:
+        return
+    with contextlib.suppress(Exception):
+        await websocket.close(code=SERVICE_RESTART_CLOSE_CODE)
+
+
+async def _watch_websocket_disconnect(websocket: WebSocket) -> str:
+    try:
+        while not shutdown_started():
+            message = await websocket.receive()
+            if message.get("type") == "websocket.disconnect":
+                return "client_disconnect"
+    except WebSocketDisconnect:
+        return "client_disconnect"
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        return f"receive_error:{type(exc).__name__}"
+    return "shutdown"
+
+
+async def _wait_for_next_websocket_iteration(
+    seconds: float,
+    disconnect_task: "asyncio.Task[Any]",
+) -> str:
+    deadline = time.monotonic() + max(0.0, seconds)
+    while True:
+        if shutdown_started():
+            return "shutdown"
+        if disconnect_task.done():
+            return "disconnect"
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return "interval"
+        shutdown_task = asyncio.create_task(wait_for_shutdown())
+        sleep_task = asyncio.create_task(
+            asyncio.sleep(min(remaining, WEBSOCKET_DISCONNECT_POLL_SECONDS))
+        )
+        try:
+            done, _pending = await asyncio.wait(
+                {shutdown_task, sleep_task, disconnect_task},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if shutdown_task in done:
+                return "shutdown"
+            if disconnect_task in done:
+                return "disconnect"
+        finally:
+            for task in (shutdown_task, sleep_task):
+                if not task.done():
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task
+
+
+async def _cancel_websocket_disconnect_task(task: "asyncio.Task[Any]") -> None:
+    if not task.done():
+        task.cancel()
+    with contextlib.suppress(asyncio.CancelledError, Exception):
+        await task
 
 
 def _readonly_resource_ws_payload(target: str, payload: Any, started: float) -> dict[str, Any]:
@@ -9841,47 +9945,65 @@ async def get_paper_activity(actor: UserRecord | None = Depends(optional_auth)) 
 
 
 async def _paper_activity_websocket(websocket: WebSocket) -> None:
-    await websocket.accept()
-    try:
-        requested_interval = int(websocket.query_params.get("interval_ms", "1000"))
-    except ValueError:
-        requested_interval = 1000
-    interval_seconds = max(0.5, min(10.0, requested_interval / 1000))
-    try:
-        while True:
-            try:
-                data, warnings = await run_in_threadpool(_load_paper_activity_payload)
-                payload = _base_response(
-                    endpoint="/api/v2/ws/paper-activity",
-                    data=data,
-                    source="v2:paper:* Redis",
-                    source_type="redis_live",
-                    timestamp=_utc_now(),
-                    missing_fields=[],
-                    warnings=warnings,
-                    mode="paper",
-                )
-            except Exception as exc:
-                payload = {
-                    "data": None,
-                    "source": "v2:paper:* Redis",
-                    "source_type": "unavailable",
-                    "endpoint": "/api/v2/ws/paper-activity",
-                    "timestamp": _utc_now(),
-                    "received_at": _utc_now(),
-                    "lag_ms": None,
-                    "stale": True,
-                    "missing_fields": ["paper_activity"],
-                    "warnings": [str(exc)],
-                    "mode": "paper",
-                }
-            try:
-                await websocket.send_json(payload)
-            except Exception:
-                return
-            await asyncio.sleep(interval_seconds)
-    except WebSocketDisconnect:
-        return
+    async with track_current_task("websocket:paper-activity"):
+        await websocket.accept()
+        try:
+            requested_interval = int(websocket.query_params.get("interval_ms", "1000"))
+        except ValueError:
+            requested_interval = 1000
+        interval_seconds = max(0.5, min(10.0, requested_interval / 1000))
+        disconnect_task = create_registered_task(
+            _watch_websocket_disconnect(websocket),
+            label="websocket-disconnect:paper-activity",
+        )
+        try:
+            while _websocket_is_connected(websocket) and not shutdown_started() and not disconnect_task.done():
+                try:
+                    data, warnings = await _bounded_run_in_threadpool(
+                        _load_paper_activity_payload,
+                        timeout=READONLY_RESOURCE_RESOLVE_TIMEOUT_SECONDS,
+                    )
+                    payload = _base_response(
+                        endpoint="/api/v2/ws/paper-activity",
+                        data=data,
+                        source="v2:paper:* Redis",
+                        source_type="redis_live",
+                        timestamp=_utc_now(),
+                        missing_fields=[],
+                        warnings=warnings,
+                        mode="paper",
+                    )
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    payload = {
+                        "data": None,
+                        "source": "v2:paper:* Redis",
+                        "source_type": "unavailable",
+                        "endpoint": "/api/v2/ws/paper-activity",
+                        "timestamp": _utc_now(),
+                        "received_at": _utc_now(),
+                        "lag_ms": None,
+                        "stale": True,
+                        "missing_fields": ["paper_activity"],
+                        "warnings": [str(exc)],
+                        "mode": "paper",
+                    }
+                try:
+                    await websocket.send_json(payload)
+                except Exception:
+                    return
+                wait_result = await _wait_for_next_websocket_iteration(interval_seconds, disconnect_task)
+                if wait_result in {"shutdown", "disconnect"}:
+                    break
+            if shutdown_started():
+                await _close_websocket_for_service_restart(websocket)
+        except WebSocketDisconnect:
+            return
+        except asyncio.CancelledError:
+            raise
+        finally:
+            await _cancel_websocket_disconnect_task(disconnect_task)
 
 
 @router.websocket("/ws/paper-activity")
@@ -9895,66 +10017,75 @@ async def root_paper_activity_stream(websocket: WebSocket) -> None:
 
 
 async def _readonly_resource_websocket(websocket: WebSocket) -> None:
-    await websocket.accept()
-    target = _safe_readonly_resource_target(websocket.query_params.get("path"))
-    try:
-        requested_interval = int(websocket.query_params.get("interval_ms", "15000"))
-    except ValueError:
-        requested_interval = 15000
-    interval_seconds = max(0.5, min(120.0, requested_interval / 1000))
-    if target is None:
-        await websocket.send_json({
-            "data": None,
-            "source": "readonly_resource_websocket",
-            "source_type": "unavailable",
-            "endpoint": "/api/v2/ws/resource",
-            "timestamp": _utc_now(),
-            "received_at": _utc_now(),
-            "lag_ms": None,
-            "stale": True,
-            "missing_fields": ["path"],
-            "warnings": ["Invalid or non-read-only resource path"],
-            "mode": "read_only",
-        })
-        await websocket.close(code=1008)
-        return
+    async with track_current_task("websocket:readonly-resource"):
+        await websocket.accept()
+        target = _safe_readonly_resource_target(websocket.query_params.get("path"))
+        try:
+            requested_interval = int(websocket.query_params.get("interval_ms", "15000"))
+        except ValueError:
+            requested_interval = 15000
+        interval_seconds = max(0.5, min(120.0, requested_interval / 1000))
+        if target is None:
+            await websocket.send_json({
+                "data": None,
+                "source": "readonly_resource_websocket",
+                "source_type": "unavailable",
+                "endpoint": "/api/v2/ws/resource",
+                "timestamp": _utc_now(),
+                "received_at": _utc_now(),
+                "lag_ms": None,
+                "stale": True,
+                "missing_fields": ["path"],
+                "warnings": ["Invalid or non-read-only resource path"],
+                "mode": "read_only",
+            })
+            await websocket.close(code=1008)
+            return
 
-    headers = {key.lower(): value for key, value in websocket.headers.items()}
-    try:
-        while True:
-            started = time.monotonic()
-            try:
-                handled, payload = await run_in_threadpool(
-                    _readonly_resource_direct_payload_sync,
-                    target,
-                    headers,
-                )
-                if not handled:
-                    payload = await run_in_threadpool(_fetch_same_origin_readonly_json, target, headers)
-                payload = _readonly_resource_ws_payload(target, payload, started)
-            except Exception as exc:
-                payload = {
-                    "data": None,
-                    "source": target,
-                    "source_type": "unavailable",
-                    "endpoint": target,
-                    "timestamp": _utc_now(),
-                    "received_at": _utc_now(),
-                    "lag_ms": round((time.monotonic() - started) * 1000),
-                    "stale": True,
-                    "missing_fields": ["resource"],
-                    "warnings": [str(exc)],
-                    "mode": "read_only",
-                    "transport": "websocket",
-                    "resource_path": target,
-                }
-            try:
-                await websocket.send_json(payload)
-            except Exception:
-                return
-            await asyncio.sleep(interval_seconds)
-    except WebSocketDisconnect:
-        return
+        headers = {key.lower(): value for key, value in websocket.headers.items()}
+        disconnect_task = create_registered_task(
+            _watch_websocket_disconnect(websocket),
+            label="websocket-disconnect:readonly-resource",
+        )
+        try:
+            while _websocket_is_connected(websocket) and not shutdown_started() and not disconnect_task.done():
+                started = time.monotonic()
+                try:
+                    payload = await _readonly_resource_resolve_payload(target, headers)
+                    payload = _readonly_resource_ws_payload(target, payload, started)
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    payload = {
+                        "data": None,
+                        "source": target,
+                        "source_type": "unavailable",
+                        "endpoint": target,
+                        "timestamp": _utc_now(),
+                        "received_at": _utc_now(),
+                        "lag_ms": round((time.monotonic() - started) * 1000),
+                        "stale": True,
+                        "missing_fields": ["resource"],
+                        "warnings": [str(exc)],
+                        "mode": "read_only",
+                        "transport": "websocket",
+                        "resource_path": target,
+                    }
+                try:
+                    await websocket.send_json(payload)
+                except Exception:
+                    return
+                wait_result = await _wait_for_next_websocket_iteration(interval_seconds, disconnect_task)
+                if wait_result in {"shutdown", "disconnect"}:
+                    break
+            if shutdown_started():
+                await _close_websocket_for_service_restart(websocket)
+        except WebSocketDisconnect:
+            return
+        except asyncio.CancelledError:
+            raise
+        finally:
+            await _cancel_websocket_disconnect_task(disconnect_task)
 
 
 @router.websocket("/ws/resource")

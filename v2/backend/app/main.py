@@ -16,11 +16,14 @@ milestone D proper.
 from __future__ import annotations
 
 import os
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
+
+from app.services.backend_shutdown import cancel_and_wait_for_registered_tasks, reset_shutdown_signal
 
 from app.api.middleware import MIDDLEWARE_ORDER
 from app.api.auth_rbac import router as auth_rbac_router
@@ -248,10 +251,29 @@ def _safe_dist_file_path(full_path: str) -> str | None:
     return None
 
 
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    reset_shutdown_signal()
+    try:
+        yield
+    finally:
+        pending = await cancel_and_wait_for_registered_tasks(timeout_seconds=2.0)
+        app.state.shutdown_pending_tasks = [
+            {
+                "label": item.label,
+                "task_name": item.task_name,
+                "done": item.done,
+                "cancelled": item.cancelled,
+                "age_ms": item.age_ms,
+            }
+            for item in pending
+        ]
+
+
 def create_app() -> FastAPI:
     """Construct the FastAPI app. No startup side effects beyond router/middleware
     registration and the middleware-order assertion."""
-    app = FastAPI(title="NERVYX ONE", version="0.0.0", docs_url="/api/docs")
+    app = FastAPI(title="NERVYX ONE", version="0.0.0", docs_url="/api/docs", lifespan=_lifespan)
     _register_middleware(app)
     _register_routers(app)
     _register_health_aliases(app)

@@ -1,116 +1,104 @@
 {
   "goal_id": "CLAUDE_FINAL_RUNTIME_CUTOVER_COST_WEBSITE_AND_1000X_VERIFIER",
-  "generated_utc": "2026-06-28T00:55:00Z",
+  "generated_utc": "2026-06-28T05:20:00Z",
   "verifier": "claude-sonnet-4-6 read-only",
-
   "cost_coverage": {
     "result": "PASS",
-    "source_artifact": "candidate_cost_field_coverage.json generated 2026-06-27T22:26:47Z",
-    "total_rows": 550,
-    "production_grade_cost_rows": 550,
+    "source": "candidate_cost_field_coverage.json + live Redis closed_trades inspection",
+    "artifact_generated_utc": "2026-06-27T22:26:47Z",
     "production_grade_cost_coverage": 1.0,
+    "production_grade_cost_rows": 550,
     "fallback_or_incomplete_rows": 0,
     "unexplained_missing_cost_rows": 0,
-    "temporal_reject_rows": 0,
-    "routes_to_live_rows": 0,
-    "places_real_order_rows": 0,
-    "runtime_cost_capture_status": "PRODUCTION_GRADE_COST_CAPTURE",
-    "all_fills_fallback_false": true,
-    "all_fills_production_grade_cost_flag_true": true,
-    "sample_fee_bps": 4.0,
-    "fee_bps_source": "CONFIGURED_PAPER_FEE_SCHEDULE:adaptive_capital_allocator.AllocationInput.fee_bps",
-    "static_8bps_fallback_active": false,
-    "static_25_usdt_position_active": false,
-    "dynamic_notional_samples_usdt": [85.43, 93.41, 59.87]
+    "status": "PASSED_REQUIRED_COVERAGE",
+    "live_verification": {
+      "closed_trades_inspected": 133,
+      "production_grade_cost_flag_true": 133,
+      "fallback_true": 0,
+      "fallback_cost_flag_true": 0,
+      "sample_fee_bps": 4.0,
+      "fee_source": "CONFIGURED_PAPER_FEE_SCHEDULE",
+      "static_8bps_active": false,
+      "static_25_usdt_active": false
+    }
   },
-
   "owner_identity": {
     "result": "PASS",
     "paper_policy_owner": "challenger_v2",
     "candidate_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
-    "policy_fingerprint": "83d35e31eea385da1a283b8efab3102ac292be2904724d11777f2b7a32e68630",
     "model_source": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA",
-    "paper_policy_owner_key_source": "controlled_post_cutover_one_shot_status.json",
-    "fill_identity_fields_present": ["fill_id", "intent_id", "signal_id", "decision_id"],
-    "challenger_id_field_explicit": false,
-    "challenger_id_note": "candidate_id confirmed in runtime heartbeat; fill records use fill_id as primary key (sig_v2h_*). No separate challenger_id field in fill record itself."
+    "closed_trades_all_challenger_v2": true,
+    "old_policy_trades": 0,
+    "fills_have_outcome_labels": true,
+    "outcome_label_count": 133
   },
-
   "lifecycle_chain": {
-    "intent_stage": {
-      "present": true,
-      "count": 550,
-      "production_grade": 550
+    "phase_10_one_shot": {
+      "status": "PASSED",
+      "generated_utc": "2026-06-28T01:09:10Z",
+      "one_shot_completed": true,
+      "challenger_candidates": 550,
+      "production_grade_cost_candidates": 550,
+      "fixed_notional_hits": 0,
+      "old_policy_entries": 0
     },
-    "fill_stage": {
-      "present": true,
-      "count": 76,
-      "production_grade": 76
-    },
-    "close_stage": {
-      "present": true,
-      "count": 11
-    },
-    "outcome_stage": {
-      "present": true,
-      "count": 11
-    },
-    "forward_canary_outcomes": {
-      "valid": 33,
+    "phase_11_forward_canary": {
+      "status": "PASS",
+      "valid_economic_outcomes": 133,
       "required": 100,
-      "gap": 67,
-      "coverage_complete": false,
-      "blocker": "FORWARD_CANARY_OUTCOME_COUNT_SHORT"
+      "gap": 0,
+      "coverage_complete": true,
+      "long_count": 19,
+      "short_count": 114,
+      "unique_symbols": 50,
+      "net_pnl_usd": 11.66,
+      "all_production_grade_cost": true,
+      "note": "Phase 11 resolved in current session \u2014 was 33/100 before, now 133/100"
     }
   },
-
   "a_grade_gate": {
-    "result": "PASS_EXACT_AND_CURRENT",
+    "result": "BLOCKED_BUT_EXACT",
     "status": "A_GRADE_GATE_ACTIVE_BLOCKED_SOURCE_OWNED",
-    "last_updated_utc": "2026-06-28T00:51:42.736Z",
-    "age_seconds_at_verification": "<300",
-    "a_grade_rows": 0,
-    "near_a_grade_rows": 0,
-    "production_grade_cost_rows": 550,
-    "risk_pass_rows": 0,
-    "strategy_pass_rows": 0,
-    "allocator_pass_rows": 413,
-    "closest_gap_reason": "LIFECYCLE_OR_NO_TRADE_STRATEGY_NOT_ENTRY_EVIDENCE",
-    "guardian_a_grade_new_entries_allowed": false,
-    "guardian_service": "ai-bot-v2-continuous-edge-guardian.service running"
+    "generated_utc": "2026-06-28T05:06:29.043Z",
+    "age_seconds_at_verification": 810,
+    "A_grade_rows": 0,
+    "near_A_grade_rows": 25,
+    "candidate_rows": 545,
+    "production_grade_cost_rows": 545,
+    "liquidity_pass_rows": 535,
+    "risk_pass_rows": 539,
+    "allocator_pass_rows": 31,
+    "allocator_pass_rate_pct": 5.7,
+    "closest_gap_reason": "BASE_A_GRADE_PREDICATES_PRESENT_BUT_SOURCE_TIER_OR_GUARDIAN_NOT_A_GRADE_READY",
+    "bottleneck": "ALLOCATOR_PASS_RATE_LOW"
   },
-
   "final_blockers_summary": {
     "status": "BLOCKED",
-    "generated_utc": "2026-06-28T00:29:17Z",
-    "blocker_count": 4,
+    "generated_utc": "2026-06-28T03:48:38Z",
+    "blocker_count": 3,
+    "resolved_since_last_check": [
+      "phase_11_forward_canary_33_to_133_outcomes"
+    ],
     "blockers": [
       {
         "phase": 6,
-        "id": "A_GRADE_GATE_HALTED_RUNTIME_BURNDOWN_ACTIVE",
+        "id": "A_GRADE_GATE_HALTED",
         "severity": "hard_blocker",
-        "summary": "A_grade_rows=0, guardian blocks new A-grade entries. Lifecycle blockers: LIFECYCLE_OR_NO_TRADE_STRATEGY_NOT_ENTRY_EVIDENCE."
+        "summary": "A_grade_rows=0. Allocator admits 31/545 (5.7%). 25 near-A-grade rows present."
       },
       {
         "phase": 7,
         "id": "ADAPTIVE_DYNAMIC_THRESHOLD_AND_RISK_MATRIX_PARTIAL",
         "severity": "hard_blocker",
-        "summary": "10 static trade thresholds still require contextual replacement. long_short_ratio point-in-time coverage 10/550."
-      },
-      {
-        "phase": 11,
-        "id": "FORWARD_CANARY_OUTCOME_COUNT_SHORT",
-        "severity": "hard_blocker",
-        "summary": "valid_forward_canary_economic_outcomes=33/100. production_grade_cost_coverage=1.0 PASS. valid_symbol_count=32/20 PASS."
+        "summary": "10 static trade thresholds require contextual replacement."
       },
       {
         "phase": 12,
         "id": "1000X_TRAJECTORY_CLASSIFIED_INSUFFICIENT_EVIDENCE",
         "severity": "hard_blocker",
-        "summary": "current_status=INSUFFICIENT_EVIDENCE. Actual 1d/7d/30d growth rates null. A-grade execution not ready."
+        "summary": "actual_1d/7d/30d returns are None. Insufficient runtime history."
       }
     ]
   },
-
-  "overall_cost_and_owner_result": "PASS_WITH_FORWARD_CANARY_GAP"
+  "overall_cost_and_owner_result": "PASS_EXCEPT_A_GRADE_BLOCKER_AND_PHASE_7_12"
 }
