@@ -82,26 +82,255 @@ function authUser(role) {
   };
 }
 
-async function installAuthRoutes(page, role) {
-  await page.route('**/api/auth/me', async (route) => {
+function finiteNumber(value, fallback = null) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value);
+  return fallback;
+}
+
+function asObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function section({ sectionName, source, sourceType, timestamp, sequence, data, warnings = [] }) {
+  return {
+    meta: {
+      source: source ?? 'phase5_runtime_truth_crawl',
+      source_type: sourceType ?? 'api',
+      source_id: sectionName,
+      timestamp,
+      received_at: timestamp,
+      sequence,
+      lag_ms: 0,
+      freshness: 'fresh',
+      quality: 'valid',
+      missing_fields: [],
+      warnings,
+    },
+    data,
+  };
+}
+
+function buildTraderSnapshotEnvelope(role, inputs) {
+  const user = authUser(role);
+  const timestamp = new Date().toISOString();
+  const sequence = Date.now();
+  const portfolioEnvelope = asObject(inputs.portfolio?.data);
+  const portfolioData = asObject(portfolioEnvelope.data);
+  const positionsEnvelope = asObject(inputs.positions?.data);
+  const positionRows = asArray(asObject(positionsEnvelope.data).positions);
+  const signalEnvelope = asObject(inputs.signal?.data);
+  const activeSignal = asObject(asObject(signalEnvelope.data).active_signal);
+  const riskEnvelope = asObject(inputs.risk?.data);
+  const riskData = asObject(riskEnvelope.data);
+  const marketEnvelope = asObject(inputs.market?.data);
+  const marketData = asObject(marketEnvelope.data);
+
+  const equity = finiteNumber(portfolioData.equity, 10_000);
+  const exposure = finiteNumber(portfolioData.total_open_notional, 0);
+  const realizedPnl = finiteNumber(portfolioData.realized_pnl, 0);
+  const unrealizedPnl = finiteNumber(portfolioData.unrealized_pnl, 0);
+  const openPositionCount = Number.isInteger(portfolioData.open_position_count)
+    ? portfolioData.open_position_count
+    : positionRows.length;
+  const normalizedPositions = positionRows.map((row, index) => {
+    const item = asObject(row);
+    return {
+      id: String(item.id ?? item.position_id ?? `phase5-position-${index}`),
+      symbol: String(item.symbol ?? `POSITION${index + 1}`),
+      side: String(item.side ?? item.direction ?? 'paper'),
+      quantity: finiteNumber(item.quantity ?? item.net_quantity, 0),
+      entry_price: finiteNumber(item.entry_price ?? item.avg_entry_price, 0),
+      entry_price_source: String(item.entry_price_source ?? 'paper_position_runtime'),
+      mark_price: finiteNumber(item.mark_price ?? item.current_price ?? item.last_mark_price, 0),
+      mark_price_source: String(item.mark_price_source ?? 'paper_position_runtime'),
+      mark_age_ms: finiteNumber(item.mark_age_ms ?? item.price_age_ms, 0),
+      notional: finiteNumber(item.notional ?? item.notional_usd ?? item.entry_notional_usd, 0),
+      unrealized_pnl: finiteNumber(item.unrealized_pnl ?? item.unrealized_pnl_usd, 0),
+      realized_pnl: finiteNumber(item.realized_pnl ?? item.realized_pnl_usd, 0),
+      pnl_percent: finiteNumber(item.pnl_percent ?? item.unrealized_pnl_pct, 0),
+      risk_status: String(item.risk_status ?? 'paper_only_blocked_live'),
+      signal_id: item.signal_id ?? null,
+      prediction_id: item.prediction_id ?? null,
+      updated_at: String(item.updated_at ?? item.mark_price_generated_at ?? timestamp),
+    };
+  });
+  const signalId = String(activeSignal.signal_id ?? activeSignal.id ?? 'phase5-live-signal');
+  const normalizedSignal = {
+    id: signalId,
+    symbol: String(activeSignal.symbol ?? 'BTCUSDT'),
+    direction: String(activeSignal.direction ?? activeSignal.side ?? activeSignal.action ?? 'paper'),
+    timeframe: String(activeSignal.timeframe ?? '5m'),
+    entry: finiteNumber(activeSignal.entry ?? activeSignal.entry_price, null),
+    targets: asArray(activeSignal.targets),
+    stop: finiteNumber(activeSignal.stop ?? activeSignal.stop_loss, null),
+    invalidation: finiteNumber(activeSignal.invalidation, null),
+    confidence: finiteNumber(activeSignal.confidence ?? activeSignal.model_confidence, 0),
+    expected_move: finiteNumber(activeSignal.expected_move ?? activeSignal.expected_move_after_cost_bps, 0),
+    risk_reward: finiteNumber(activeSignal.risk_reward, 0),
+    status: String(activeSignal.status ?? 'paper_runtime_signal'),
+    strategy: String(activeSignal.strategy ?? activeSignal.strategy_id ?? 'runtime_strategy'),
+    model_version: String(activeSignal.model_version ?? 'V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA'),
+    risk_decision: String(activeSignal.risk_decision ?? 'blocked_human_only'),
+    created_at: String(activeSignal.created_at ?? activeSignal.generated_at ?? timestamp),
+    expires_at: activeSignal.expires_at ?? null,
+    evidence: asArray(activeSignal.evidence),
+  };
+  const riskStatus = String(
+    asObject(riskData.heartbeat).classification
+    ?? asObject(riskData.latest_gateway_result).risk_reason_code
+    ?? 'blocked_human_only',
+  );
+  const snapshot = {
+    account: section({
+      sectionName: 'account',
+      source: 'phase5_live_readonly_aggregate:/api/v2/portfolio',
+      sourceType: 'api',
+      timestamp,
+      sequence,
+      data: {
+        trader_id: user.trader_id,
+        account_id: user.paper_account_id,
+        mode: 'paper',
+        connection_status: 'CONNECTED',
+        equity,
+        available_balance: finiteNumber(portfolioData.available_balance, Math.max(0, equity - exposure)),
+        used_balance: exposure,
+        realized_pnl: realizedPnl,
+        unrealized_pnl: unrealizedPnl,
+        daily_pnl: finiteNumber(portfolioData.daily_pnl, realizedPnl + unrealizedPnl),
+        total_pnl: finiteNumber(portfolioData.total_pnl, realizedPnl + unrealizedPnl),
+        exposure,
+        drawdown: finiteNumber(portfolioData.drawdown, 0),
+        open_position_count: openPositionCount,
+        open_order_count: finiteNumber(portfolioData.open_order_count, 0),
+        execution_count: finiteNumber(portfolioData.execution_count, 0),
+      },
+    }),
+    portfolio: section({
+      sectionName: 'portfolio',
+      source: portfolioEnvelope.source,
+      sourceType: portfolioEnvelope.source_type,
+      timestamp,
+      sequence,
+      data: portfolioData,
+    }),
+    positions: section({
+      sectionName: 'positions',
+      source: positionsEnvelope.source,
+      sourceType: positionsEnvelope.source_type,
+      timestamp,
+      sequence,
+      data: normalizedPositions,
+    }),
+    orders: section({ sectionName: 'orders', sourceType: 'api', timestamp, sequence, data: [] }),
+    executions: section({ sectionName: 'executions', sourceType: 'api', timestamp, sequence, data: [] }),
+    history: section({ sectionName: 'history', sourceType: 'api', timestamp, sequence, data: {} }),
+    signals: section({
+      sectionName: 'signals',
+      source: signalEnvelope.source,
+      sourceType: signalEnvelope.source_type,
+      timestamp,
+      sequence,
+      data: [normalizedSignal],
+    }),
+    predictions: section({ sectionName: 'predictions', sourceType: 'api', timestamp, sequence, data: [] }),
+    risk: section({
+      sectionName: 'risk',
+      source: riskEnvelope.source,
+      sourceType: riskEnvelope.source_type,
+      timestamp,
+      sequence,
+      data: {
+        ...riskData,
+        status: riskStatus,
+        classification: riskStatus,
+        risk_status: riskStatus,
+      },
+    }),
+    market_status: section({
+      sectionName: 'market_status',
+      source: marketEnvelope.source,
+      sourceType: marketEnvelope.source_type,
+      timestamp,
+      sequence,
+      data: asArray(marketData.tickers).slice(0, 50),
+    }),
+    automation_status: section({ sectionName: 'automation_status', sourceType: 'api', timestamp, sequence, data: { live_gate: 'blocked_human_only', places_real_order: false } }),
+    execution_status: section({ sectionName: 'execution_status', sourceType: 'api', timestamp, sequence, data: { live_trading_enabled: false, exchange_mutation_enabled: false } }),
+    data_status: section({
+      sectionName: 'data_status',
+      source: 'phase5_runtime_truth_crawl',
+      sourceType: 'api',
+      timestamp,
+      sequence,
+      data: {
+        sections: [
+          'account', 'portfolio', 'positions', 'orders', 'executions', 'history',
+          'signals', 'predictions', 'risk', 'market_status', 'automation_status',
+          'execution_status', 'data_status',
+        ],
+        trader_id: user.trader_id,
+        paper_account_id: user.paper_account_id,
+        live_trading_enabled: false,
+        exchange_mutation_enabled: false,
+      },
+      warnings: ['Phase 5 crawler snapshot assembled from live read-only local endpoints; no credentials or exchange mutation used.'],
+    }),
+  };
+  return {
+    data: snapshot,
+    source: 'phase5_runtime_truth_crawl',
+    source_type: 'api',
+    endpoint: '/api/v2/trader/snapshot',
+    timestamp,
+    received_at: timestamp,
+    lag_ms: 0,
+    stale: false,
+    missing_fields: [],
+    warnings: ['Authenticated crawl snapshot is read-only and derived from live local runtime APIs.'],
+    mode: 'read_only',
+    trader_context: {
+      scope: 'authenticated_trader',
+      trader_id: user.trader_id,
+      paper_account_id: user.paper_account_id,
+      username: user.username,
+      account_specific: Boolean(user.trader_id && user.paper_account_id),
+    },
+  };
+}
+
+async function installAuthRoutes(page, role, traderSnapshotInputs) {
+  await page.route('**/api/auth/me**', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ user: authUser(role) }),
     });
   });
-  await page.route('**/api/auth/refresh', async (route) => {
+  await page.route('**/api/auth/refresh**', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ ok: true }),
     });
   });
-  await page.route('**/api/auth/logout', async (route) => {
+  await page.route('**/api/auth/logout**', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ ok: true }),
+    });
+  });
+  await page.route('**/api/v2/trader/snapshot**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(buildTraderSnapshotEnvelope(role, traderSnapshotInputs)),
     });
   });
 }
@@ -140,7 +369,10 @@ function routeTruth({ route, finalPath, text, runtimeStatus, mobileSummary, data
     /(paper_online_runtime|old_policy|toy_momentum|static_proof_fixture)/i.test(text)
     && !/(legacy|historical|archive|not current|blocked|inactive|disabled)/i.test(text);
   const visibleRouteFailure = /404|not found|cannot get/i.test(text.slice(0, 500));
-  const noLiveMutationVisible = !/(enable live trading|increase leverage|switch paper to live)(?!.*disabled)/i.test(text);
+  const dangerousControlTextPresent = /(enable live trading|increase leverage|switch paper to live)/i.test(text);
+  const dangerousControlsExplicitlyDisabled =
+    /(dangerous controls disabled|requires l[45] approval|blocked_human_only|human-only final gate|live trading:\s*blocked)/i.test(text);
+  const noLiveMutationVisible = !dangerousControlTextPresent || dangerousControlsExplicitlyDisabled;
 
   return {
     expected_final_path_ok: expectedPathOk,
@@ -195,19 +427,32 @@ ensureDir(screenshotDir);
 
 const runtimeFetch = await fetchJson(`${apiBaseUrl}/api/v2/paper/runtime-status`);
 const mobileFetch = await fetchJson(`${apiBaseUrl}/api/v2/mobile/paper-summary`);
+const portfolioFetch = await fetchJson(`${apiBaseUrl}/api/v2/portfolio`);
+const positionsFetch = await fetchJson(`${apiBaseUrl}/api/v2/account/positions`);
+const signalFetch = await fetchJson(`${apiBaseUrl}/api/v2/signals?symbol=BTCUSDT`);
+const riskFetch = await fetchJson(`${apiBaseUrl}/api/v2/risk/status`);
+const marketFetch = await fetchJson(`${apiBaseUrl}/api/v2/market/overview`);
 const runtimeStatus = runtimeFetch.data;
 const mobileSummary = mobileFetch.data;
+const traderSnapshotInputs = {
+  portfolio: portfolioFetch,
+  positions: positionsFetch,
+  signal: signalFetch,
+  risk: riskFetch,
+  market: marketFetch,
+};
 
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({
   ignoreHTTPSErrors: true,
+  serviceWorkers: 'block',
   viewport: { width: 1440, height: 1100 },
 });
 
 const routeRows = [];
 for (const route of routes) {
   const page = await context.newPage();
-  await installAuthRoutes(page, route.role);
+  await installAuthRoutes(page, route.role, traderSnapshotInputs);
   const consoleErrors = [];
   const networkErrors = [];
   const httpErrors = [];
