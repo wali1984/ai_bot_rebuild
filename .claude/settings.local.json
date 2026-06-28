@@ -16,7 +16,10 @@
       "Bash(.venv/bin/pytest v2/backend/tests/unit/domain/risk_gateway/ v2/backend/tests/unit/services/risk_gateway/ -q)",
       "Bash(.venv/bin/pytest v2/backend/tests/unit/domain/risk_gateway/test_risk_gateway_domain_forbidden_tokens.py -q)",
       "Bash(.venv/bin/pytest v2/backend/tests/unit/services/risk_gateway/test_assembler_service_forbidden_tokens.py -q)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/src/main.tsx)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/src/main.tsx)",
+      "Bash(python3 \"/home/wali/Desktop/AI BOT REBUILD/scripts/verify_claude_guardian_completion.py\")",
+      "Bash(python3 -c ' *)",
+      "Bash(sudo cp \"/home/wali/Desktop/AI BOT REBUILD/scripts/verify_claude_guardian_completion.py\" /usr/local/lib/ai-bot-guardian/verify_claude_guardian_completion.py)"
     ],
     "deny": [
       "Read(./legacy_reference/.env)",
