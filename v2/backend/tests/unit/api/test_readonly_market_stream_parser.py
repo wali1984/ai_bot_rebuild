@@ -564,7 +564,8 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
             {
                 "production_grade_cost_flag": False,
                 "runtime_cost_capture_order_cost_applicable": False,
-                "runtime_cost_capture_unexplained_missing_fields": [],
+                "runtime_cost_capture_missing_fields": ["observed_bid"],
+                "runtime_cost_capture_unexplained_missing_fields": ["observed_bid"],
                 "routes_to_live": False,
                 "places_real_order": False,
             },
@@ -634,8 +635,12 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
     assert owner_status["current_runtime_row_count"] == 3
     assert owner_status["current_runtime_owner_contract_passed"] is True
     assert loop["production_grade_cost_rows"] == 1
-    assert loop["production_grade_cost_coverage"] == pytest.approx(1 / 3)
+    assert loop["order_cost_applicable_rows"] == 2
+    assert loop["production_grade_cost_order_applicable_rows"] == 1
+    assert loop["production_grade_cost_coverage"] == pytest.approx(1 / 2)
+    assert loop["production_grade_cost_total_row_coverage"] == pytest.approx(1 / 3)
     assert loop["no_order_explained_rows"] == 1
+    assert loop["no_order_missing_cost_rows"] == 1
     assert loop["unexplained_missing_cost_rows"] == 1
     assert loop["paper_fill_allowed_rows"] == 1
     assert loop["routes_to_live_rows"] == 0

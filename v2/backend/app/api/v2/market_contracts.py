@@ -9452,9 +9452,20 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                 parsed_intents = json.loads(intents_raw)
                 if isinstance(parsed_intents, list):
                     paper_intents = [row for row in parsed_intents if isinstance(row, dict)]
+            order_applicable_intents = [
+                row
+                for row in paper_intents
+                if row.get("runtime_cost_capture_order_cost_applicable") is not False
+            ]
             production_grade_cost_rows = sum(
                 1
                 for row in paper_intents
+                if row.get("production_grade_cost_flag") is True
+                or row.get("production_grade_cost_evidence") is True
+            )
+            production_grade_cost_order_applicable_rows = sum(
+                1
+                for row in order_applicable_intents
                 if row.get("production_grade_cost_flag") is True
                 or row.get("production_grade_cost_evidence") is True
             )
@@ -9465,15 +9476,29 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
             )
             unexplained_missing_cost_rows = sum(
                 1
-                for row in paper_intents
+                for row in order_applicable_intents
                 if len(row.get("runtime_cost_capture_unexplained_missing_fields") or []) > 0
+            )
+            no_order_missing_cost_rows = sum(
+                1
+                for row in paper_intents
+                if row.get("runtime_cost_capture_order_cost_applicable") is False
+                and (
+                    len(row.get("runtime_cost_capture_missing_fields") or []) > 0
+                    or len(row.get("runtime_cost_capture_unexplained_missing_fields") or []) > 0
+                )
             )
             paper_fill_allowed_rows = sum(1 for row in paper_intents if row.get("paper_fill_allowed") is True)
             routes_to_live_rows = sum(1 for row in paper_intents if row.get("routes_to_live") is True)
             places_real_order_rows = sum(1 for row in paper_intents if row.get("places_real_order") is True)
-            cost_coverage = (
+            total_row_cost_coverage = (
                 production_grade_cost_rows / len(paper_intents)
                 if paper_intents
+                else 0.0
+            )
+            cost_coverage = (
+                production_grade_cost_order_applicable_rows / len(order_applicable_intents)
+                if order_applicable_intents
                 else 0.0
             )
 
@@ -9647,10 +9672,14 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                     "intents_built": hb.get("intents_built"),
                     "intents_accepted": hb.get("intents_accepted"),
                     "intents_blocked": hb.get("intents_blocked"),
+                    "order_cost_applicable_rows": len(order_applicable_intents),
                     "production_grade_cost_rows": production_grade_cost_rows,
+                    "production_grade_cost_order_applicable_rows": production_grade_cost_order_applicable_rows,
                     "production_grade_cost_coverage": cost_coverage,
+                    "production_grade_cost_total_row_coverage": total_row_cost_coverage,
                     "no_order_explained_rows": no_order_explained_rows,
                     "unexplained_missing_cost_rows": unexplained_missing_cost_rows,
+                    "no_order_missing_cost_rows": no_order_missing_cost_rows,
                     "paper_fill_allowed_rows": paper_fill_allowed_rows,
                     "routes_to_live_rows": routes_to_live_rows,
                     "places_real_order_rows": places_real_order_rows,

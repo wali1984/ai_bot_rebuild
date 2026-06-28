@@ -2455,11 +2455,7 @@ def _attach_runtime_cost_capture_contract(
 
     explained_missing_fields: list[str] = []
     if no_order_reason is not None:
-        explained_missing_fields = [
-            field
-            for field in ("order_size", "depth_derived_price_impact_bps")
-            if field in missing
-        ]
+        explained_missing_fields = list(missing)
     unexplained_missing_fields = [
         field for field in missing if field not in set(explained_missing_fields)
     ]
@@ -2473,7 +2469,7 @@ def _attach_runtime_cost_capture_contract(
             "expected_funding_bps_fallback",
         )
     )
-    fallback = bool(unexplained_missing_fields or temporal_reject_reasons or component_fallback)
+    fallback = bool(missing or temporal_reject_reasons or component_fallback)
     intent["runtime_cost_capture_required_fields"] = list(required_fields)
     intent["runtime_cost_capture_missing_fields"] = sorted(set(missing))
     intent["runtime_cost_capture_explained_missing_fields"] = sorted(set(explained_missing_fields))

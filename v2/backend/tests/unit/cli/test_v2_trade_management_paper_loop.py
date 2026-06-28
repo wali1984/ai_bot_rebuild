@@ -1855,6 +1855,48 @@ def test_runtime_cost_capture_marks_zero_size_no_trade_rows_complete_without_tra
     assert intent["places_real_order"] is False
 
 
+def test_runtime_cost_capture_explains_no_order_missing_cost_without_production_credit() -> None:
+    intent = {
+        "symbol": "BANKUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "decision_time": "2026-06-22T13:00:00.000Z",
+        "entry_price_provenance_present": True,
+        "entry_price": 100.0,
+        "fill_price": 100.0,
+        "fill_price_utc": "2026-06-22T13:00:00.250Z",
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_NO_TRADE,
+        "paper_fill_allowed": False,
+        "allocator_decision": "BLOCK_NON_EXECUTABLE_PAPER_TIER",
+        "actual_observed_spread_entry_bps": 2.0,
+        "expected_slippage_bps": 0.8,
+        "expected_slippage_source": "MODELED_FROM_OBSERVED_ORDERBOOK",
+        "fee_bps": 4.0,
+        "fee_bps_source": "CONFIGURED_PAPER_FEE_SCHEDULE",
+        "expected_funding_bps": 0.5,
+        "expected_funding_bps_source": "V2_MARKET_FUNDING_PREMIUM_INDEX",
+        "funding_rate": 0.00005,
+    }
+
+    paper_loop._attach_paper_execution_evidence(intent, {})  # noqa: SLF001
+    paper_loop._attach_runtime_cost_capture_contract(intent, {})  # noqa: SLF001
+
+    assert intent["runtime_cost_capture_order_cost_applicable"] is False
+    assert intent["runtime_cost_capture_no_order_reason"] == "NO_TRADE_ZERO_SIZE_PAPER_INTENT"
+    assert intent["runtime_cost_capture_missing_fields"]
+    assert intent["runtime_cost_capture_explained_missing_fields"] == intent[
+        "runtime_cost_capture_missing_fields"
+    ]
+    assert intent["runtime_cost_capture_unexplained_missing_fields"] == []
+    assert intent["fallback_cost_flag"] is True
+    assert intent["production_grade_cost_flag"] is False
+    assert intent["production_grade_cost_evidence"] is False
+    assert intent["counts_as_production_grade_training_evidence"] is False
+    assert intent["routes_to_live"] is False
+    assert intent["places_real_order"] is False
+    assert intent["paper_canary_fixed_notional_allowed"] is False
+
+
 def test_old_policy_owner_cannot_open_new_economic_paper_fills() -> None:
     intent = {
         "paper_policy_owner": paper_loop.PAPER_POLICY_OWNER_OLD_POLICY,
