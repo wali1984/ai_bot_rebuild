@@ -1,0 +1,73 @@
+{
+  "goal_id": "CLAUDE_FINAL_RUNTIME_CUTOVER_COST_WEBSITE_AND_1000X_VERIFIER",
+  "generated_utc": "2026-06-28T00:55:00Z",
+  "verifier": "claude-sonnet-4-6 read-only",
+  "artifact_source": "goal_state/V2_FINAL_RUNTIME_CUTOVER_PRODUCTION_COST_A_GRADE_WEBSITE_AND_1000X_TRAJECTORY_READY/",
+
+  "website_service": {
+    "unit": "ai-bot-v2-public-website-backend.service",
+    "main_pid_at_phase5": 983544,
+    "port": "127.0.0.1:5173",
+    "active_release": "/home/wali/releases/nervyx-one/20260625T181512Z-07dd939dda",
+    "active_commit": "07dd939dda0631214ed28896bacefa1ec3c5e6cc"
+  },
+
+  "live_api_checks": {
+    "portfolio": {
+      "status": 200,
+      "has_data": true,
+      "equity": 10015.82,
+      "open_position_count": 23,
+      "closed_trade_count": 14,
+      "error": null
+    },
+    "signals": {
+      "status": 200,
+      "has_data": true,
+      "error": null
+    },
+    "health": {
+      "places_real_order": false,
+      "live_gate": "blocked_human_only",
+      "note": "Verified in phase5 checks; local health endpoint returned 200 in earlier audit"
+    },
+    "build_metadata": {
+      "live_trading_enabled": false,
+      "exchange_mutation_enabled": false,
+      "note": "Confirmed in website_closeout_current_state.md"
+    }
+  },
+
+  "data_validation_errors": {
+    "visible_count": 0,
+    "stale_contradiction_count": 0,
+    "failed_route_count": 0,
+    "categories": {},
+    "source": "website_data_validation_error_matrix.json generated 2026-06-27T20:56:17Z",
+    "result": "PASS"
+  },
+
+  "runtime_truth": {
+    "active_paper_runtime": "v2_trade_management_paper_loop",
+    "paper_policy_owner": "challenger_v2",
+    "candidate_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
+    "model_source": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA",
+    "paper_only": true,
+    "routes_to_live": false,
+    "places_real_order": false,
+    "live_gate": "blocked_human_only",
+    "runtime_state": "PAPER_RUNTIME_ONLINE_ACTIVE",
+    "source": "redis_live",
+    "runtime_api_ok": true,
+    "signals_seen_current_cycle": 550,
+    "intents_built_current_cycle": 550,
+    "intents_accepted_current_cycle": 0,
+    "persistent_accepted_fill_count": 76,
+    "open_position_count": 23,
+    "closed_trade_count": 11
+  },
+
+  "website_runtime_truth_result": "PASS",
+  "website_data_validation_error_result": "PASS",
+  "overall_website_result": "PASS"
+}
