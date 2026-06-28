@@ -161,6 +161,7 @@ NON_EXECUTABLE_PAPER_TIERS = {
     PAPER_TIER_NO_TRADE,
 }
 CONTINUOUS_EDGE_GUARDIAN_GATE_REDIS_KEY = "v2:continuous_edge_guardian:a_grade_execution_gate"
+CONTINUOUS_EDGE_GUARDIAN_STATUS_REDIS_KEY = "v2:continuous_edge_guardian:status"
 CONTINUOUS_EDGE_GUARDIAN_GATE_PATH = Path(
     "v2/frontend/public/operator_runtime/v2_continuous_edge_guardian/latest/a_grade_execution_gate.json"
 )
@@ -7463,6 +7464,254 @@ def _paper_b_grade_canary_supply_status(
     }
 
 
+def _paper_a_grade_gate_burndown_status(
+    rows: list[dict[str, Any]],
+    *,
+    accepted_rows: list[dict[str, Any]],
+    open_position_rows: list[dict[str, Any]],
+    closed_rows: list[dict[str, Any]],
+    guardian_gate: dict[str, Any] | None,
+    guardian_status: dict[str, Any] | None,
+    b_grade_canary_supply_status: dict[str, Any],
+) -> dict[str, Any]:
+    guardian_gate = guardian_gate if isinstance(guardian_gate, dict) else {}
+    guardian_status = guardian_status if isinstance(guardian_status, dict) else {}
+    predicate_counts = {
+        "score_threshold_pass_rows": 0,
+        "expected_edge_after_cost_favorable_rows": 0,
+        "production_grade_cost_rows": 0,
+        "liquidity_pass_rows": 0,
+        "integrity_pass_rows": 0,
+        "risk_pass_rows": 0,
+        "orchestrator_rows": 0,
+        "strategy_pass_rows": 0,
+        "allocator_pass_rows": 0,
+        "paper_only_safety_rows": 0,
+    }
+    a_grade_rows: list[dict[str, Any]] = []
+    near_a_grade_rows: list[dict[str, Any]] = []
+    root_causes = {
+        "score_below_threshold": 0,
+        "expected_edge_below_cost": 0,
+        "production_grade_cost_missing": 0,
+        "liquidity_failed": 0,
+        "integrity_failed": 0,
+        "risk_failed": 0,
+        "orchestrator_failed": 0,
+        "strategy_failed": 0,
+        "allocator_failed": 0,
+        "unsafe_live_route_flags": 0,
+        "guardian_halted": 0,
+    }
+
+    guardian_halted = guardian_gate.get("a_grade_new_entries_allowed") is False
+    for row in rows:
+        score = _paper_canary_score(row)
+        score_pass = score is not None and score >= B_GRADE_EXPLORATION_MIN_CONFIDENCE
+        edge_pass = _paper_canary_edge_favorable(row)
+        production_cost_pass = _paper_forward_canary_production_cost_pass(row)
+        liquidity_pass = _paper_canary_liquidity_pass(row)
+        integrity_pass = _paper_canary_integrity_pass(row)
+        risk_pass = _paper_canary_risk_pass(row)
+        orchestrator_pass = bool(row.get("orchestrator_decision_id"))
+        strategy_pass = not _paper_lifecycle_or_no_trade_strategy_reasons(
+            signal={},
+            intent=row,
+        )
+        allocator_pass = _paper_canary_pre_tier_allocator_pass(row)
+        paper_only_safety = (
+            row.get("paper_only") is True
+            and not _paper_forward_canary_live_route_unsafe(row)
+            and row.get("counts_as_a_grade_evidence") is not True
+        )
+
+        predicate_counts["score_threshold_pass_rows"] += int(score_pass)
+        predicate_counts["expected_edge_after_cost_favorable_rows"] += int(edge_pass)
+        predicate_counts["production_grade_cost_rows"] += int(production_cost_pass)
+        predicate_counts["liquidity_pass_rows"] += int(liquidity_pass)
+        predicate_counts["integrity_pass_rows"] += int(integrity_pass)
+        predicate_counts["risk_pass_rows"] += int(risk_pass)
+        predicate_counts["orchestrator_rows"] += int(orchestrator_pass)
+        predicate_counts["strategy_pass_rows"] += int(strategy_pass)
+        predicate_counts["allocator_pass_rows"] += int(allocator_pass)
+        predicate_counts["paper_only_safety_rows"] += int(paper_only_safety)
+
+        if not score_pass:
+            root_causes["score_below_threshold"] += 1
+        if not edge_pass:
+            root_causes["expected_edge_below_cost"] += 1
+        if not production_cost_pass:
+            root_causes["production_grade_cost_missing"] += 1
+        if not liquidity_pass:
+            root_causes["liquidity_failed"] += 1
+        if not integrity_pass:
+            root_causes["integrity_failed"] += 1
+        if not risk_pass:
+            root_causes["risk_failed"] += 1
+        if not orchestrator_pass:
+            root_causes["orchestrator_failed"] += 1
+        if not strategy_pass:
+            root_causes["strategy_failed"] += 1
+        if not allocator_pass:
+            root_causes["allocator_failed"] += 1
+        if not paper_only_safety:
+            root_causes["unsafe_live_route_flags"] += 1
+        if guardian_halted:
+            root_causes["guardian_halted"] += 1
+
+        a_grade_tier = row.get("paper_opportunity_tier") == PAPER_TIER_A_GRADE_EXECUTION
+        base_predicates_pass = all(
+            (
+                score_pass,
+                edge_pass,
+                production_cost_pass,
+                liquidity_pass,
+                integrity_pass,
+                risk_pass,
+                orchestrator_pass,
+                strategy_pass,
+                allocator_pass,
+                paper_only_safety,
+            )
+        )
+        if a_grade_tier and row.get("paper_fill_allowed") is True and base_predicates_pass:
+            a_grade_rows.append(row)
+        elif base_predicates_pass:
+            near_a_grade_rows.append(row)
+
+    guardian_reasons = [
+        reason
+        for reason in (guardian_gate.get("failure_reasons") or [])
+        if isinstance(reason, dict)
+    ]
+    dominant_current_reasons = _count_first_present_values(
+        rows,
+        (
+            "pre_non_executable_paper_tier_reason",
+            "paper_opportunity_tier_reason",
+            "paper_fill_block_reason",
+            "paper_allocation_block_reason",
+            "allocator_reason",
+        ),
+    )
+    top_current_reason = (
+        max(dominant_current_reasons.items(), key=lambda item: item[1])[0]
+        if dominant_current_reasons
+        else None
+    )
+    top_guardian_reason = guardian_reasons[0] if guardian_reasons else None
+    if a_grade_rows:
+        closest_gap_reason = "A_GRADE_ROWS_PRESENT"
+    elif near_a_grade_rows:
+        closest_gap_reason = (
+            "BASE_A_GRADE_PREDICATES_PRESENT_BUT_SOURCE_TIER_OR_GUARDIAN_NOT_A_GRADE_READY"
+        )
+    elif top_current_reason:
+        closest_gap_reason = str(top_current_reason or "CURRENT_RUNTIME_GATE_BLOCKED")
+    elif top_guardian_reason:
+        closest_gap_reason = str(top_guardian_reason.get("reason") or "GUARDIAN_GATE_BLOCKED")
+    else:
+        closest_gap_reason = "NO_A_GRADE_RUNTIME_SUPPLY"
+
+    strategy_brain = guardian_status.get("strategy_brain_status")
+    strategy_brain = strategy_brain if isinstance(strategy_brain, dict) else {}
+    zero_liquidation = guardian_status.get("zero_liquidation_status")
+    zero_liquidation = zero_liquidation if isinstance(zero_liquidation, dict) else {}
+    performance = guardian_status.get("realtime_a_grade_performance_status")
+    performance = performance if isinstance(performance, dict) else {}
+    b_grade_lifecycle_supply_present = all(
+        bool(value)
+        for value in (b_grade_canary_supply_status.get("pass_conditions") or {}).values()
+    )
+    current_cycle_supply_present = all(
+        bool(value)
+        for value in (b_grade_canary_supply_status.get("current_cycle_pass_conditions") or {}).values()
+    )
+
+    return {
+        "schema_version": "paper_a_grade_gate_burndown_status_v1",
+        "status": "A_GRADE_GATE_ACTIVE_BLOCKED_SOURCE_OWNED",
+        "prediction_rows": len(rows),
+        "candidate_rows": len(rows),
+        "production_grade_cost_rows": predicate_counts["production_grade_cost_rows"],
+        "liquidity_pass_rows": predicate_counts["liquidity_pass_rows"],
+        "risk_pass_rows": predicate_counts["risk_pass_rows"],
+        "strategy_pass_rows": predicate_counts["strategy_pass_rows"],
+        "allocator_pass_rows": predicate_counts["allocator_pass_rows"],
+        "A_grade_rows": len(a_grade_rows),
+        "near_A_grade_rows": len(near_a_grade_rows),
+        "accepted_b_grade_lifecycle_rows": int(
+            b_grade_canary_supply_status.get("lifecycle_accepted_canary_rows") or 0
+        ),
+        "open_b_grade_lifecycle_rows": int(
+            b_grade_canary_supply_status.get("lifecycle_open_canary_rows") or 0
+        ),
+        "closed_b_grade_lifecycle_outcome_rows": int(
+            b_grade_canary_supply_status.get("lifecycle_closed_canary_outcome_rows") or 0
+        ),
+        "b_grade_lifecycle_supply_present": b_grade_lifecycle_supply_present,
+        "current_cycle_b_grade_supply_present": current_cycle_supply_present,
+        "current_cycle_b_grade_supply_counts": {
+            "canary_candidates": b_grade_canary_supply_status.get("current_cycle_canary_candidates"),
+            "canary_intents": b_grade_canary_supply_status.get("current_cycle_canary_intents"),
+            "canary_pending_rows": b_grade_canary_supply_status.get("current_cycle_canary_pending_rows"),
+        },
+        "predicate_counts": predicate_counts,
+        "root_cause_counts": root_causes,
+        "dominant_current_runtime_reasons": dominant_current_reasons,
+        "guardian_gate_status": {
+            "status": guardian_gate.get("status"),
+            "a_grade_new_entries_allowed": guardian_gate.get("a_grade_new_entries_allowed"),
+            "block_all_new_a_grade_entries": guardian_gate.get("block_all_new_a_grade_entries"),
+            "new_candidate_tier_override": guardian_gate.get("new_candidate_tier_override"),
+            "allowed_runtime_actions": guardian_gate.get("allowed_runtime_actions") or [],
+            "failure_reasons": guardian_reasons,
+            "generated_utc": guardian_gate.get("generated_utc"),
+        },
+        "guardian_strategy_brain_status": {
+            "status": strategy_brain.get("status"),
+            "a_grade_active_bucket_count": strategy_brain.get("a_grade_active_bucket_count"),
+            "bucket_count": strategy_brain.get("bucket_count"),
+            "blocker_counts": strategy_brain.get("blocker_counts") or {},
+        },
+        "guardian_zero_liquidation_status": {
+            "status": zero_liquidation.get("status"),
+            "a_grade_candidate_count": zero_liquidation.get("a_grade_candidate_count"),
+            "passed_a_grade_candidate_count": zero_liquidation.get("passed_a_grade_candidate_count"),
+        },
+        "guardian_realtime_performance_status": {
+            "status": performance.get("status"),
+            "closed_economic_trade_count": performance.get("closed_economic_trade_count"),
+            "symbol_count": performance.get("symbol_count"),
+            "long_outcomes": performance.get("long_outcomes"),
+            "short_outcomes": performance.get("short_outcomes"),
+        },
+        "closest_gap_reason": closest_gap_reason,
+        "pass_conditions": {
+            "A_grade_rows_gt_zero": len(a_grade_rows) > 0,
+            "source_owned_zero_supply_root_cause_mapped": bool(
+                root_causes or guardian_reasons or dominant_current_reasons
+            ),
+            "a_grade_new_entries_allowed": guardian_gate.get("a_grade_new_entries_allowed") is True,
+            "ready_allowed": False,
+        },
+        "sample_a_grade_rows": _compact_rows_for_state(_sample_rows(a_grade_rows, 10)),
+        "sample_near_a_grade_rows": _compact_rows_for_state(_sample_rows(near_a_grade_rows, 10)),
+        "source_rows": {
+            "intent_rows": len(rows),
+            "accepted_rows": len(accepted_rows),
+            "open_position_rows": len(open_position_rows),
+            "closed_rows": len(closed_rows),
+        },
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_a_grade_evidence": False,
+        "live_path_changed": False,
+        "generated_utc": _utc_iso(),
+    }
+
+
 def _paper_forward_canary_production_cost_pass(row: dict[str, Any]) -> bool:
     return (
         row.get("production_grade_cost_flag") is True
@@ -10561,6 +10810,10 @@ def run_once() -> dict:
         cycle_state="RUNNING_CYCLE",
     )
     continuous_edge_guardian_gate = _read_continuous_edge_guardian_gate(r)
+    continuous_edge_guardian_status = _read_json_key(
+        r,
+        CONTINUOUS_EDGE_GUARDIAN_STATUS_REDIS_KEY,
+    )
     paper_only_label_collection_priority_index = (
         _read_paper_only_label_collection_priority_index()
     )
@@ -11832,6 +12085,15 @@ def run_once() -> dict:
         open_position_rows=open_positions,
         closed_rows=closes,
     )
+    paper_a_grade_gate_burndown_status = _paper_a_grade_gate_burndown_status(
+        intents,
+        accepted_rows=accepted_for_ledger,
+        open_position_rows=open_positions,
+        closed_rows=closes,
+        guardian_gate=continuous_edge_guardian_gate,
+        guardian_status=continuous_edge_guardian_status,
+        b_grade_canary_supply_status=paper_b_grade_canary_supply_status,
+    )
     feedback_lineage_contexts = _lineage_context_by_prediction_id(
         closes,
         outcome_labels,
@@ -12010,6 +12272,7 @@ def run_once() -> dict:
             "paper_runtime_admission_status": paper_runtime_admission_status,
             "paper_exploration_tier_status": paper_exploration_tier_status,
             "paper_b_grade_canary_supply_status": paper_b_grade_canary_supply_status,
+            "paper_a_grade_gate_burndown_status": paper_a_grade_gate_burndown_status,
             "paper_audit_entry_gate_status": paper_audit_entry_gate_status,
             "paper_adaptive_sizing_runtime_status": paper_adaptive_sizing_runtime_status,
             "risk_envelope_dynamic_budget_status": risk_envelope_dynamic_budget_status,
@@ -12103,6 +12366,7 @@ def run_once() -> dict:
                 "paper_runtime_admission_status": paper_runtime_admission_status,
                 "paper_exploration_tier_status": paper_exploration_tier_status,
                 "paper_b_grade_canary_supply_status": paper_b_grade_canary_supply_status,
+                "paper_a_grade_gate_burndown_status": paper_a_grade_gate_burndown_status,
                 "paper_forward_canary_evidence_status": paper_forward_canary_evidence_status,
                 "paper_closed_outcome_entry_context_backfill_status": (
                     paper_closed_outcome_entry_context_backfill_status
@@ -12141,6 +12405,13 @@ def run_once() -> dict:
             ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}paper:b_grade_canary_supply_status")
+        if _safe_write(
+            r,
+            f"{V2_REDIS_PREFIX}paper:a_grade_gate_burndown_status",
+            json.dumps(paper_a_grade_gate_burndown_status),
+            ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
+        ):
+            keys_written.append(f"{V2_REDIS_PREFIX}paper:a_grade_gate_burndown_status")
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}paper:forward_canary_evidence_status",
@@ -12233,6 +12504,7 @@ def run_once() -> dict:
         "paper_runtime_admission_status": paper_runtime_admission_status,
         "paper_exploration_tier_status": paper_exploration_tier_status,
         "paper_b_grade_canary_supply_status": paper_b_grade_canary_supply_status,
+        "paper_a_grade_gate_burndown_status": paper_a_grade_gate_burndown_status,
         "paper_forward_canary_evidence_status": paper_forward_canary_evidence_status,
         "paper_closed_outcome_entry_context_backfill_status": (
             paper_closed_outcome_entry_context_backfill_status
@@ -12423,6 +12695,10 @@ def run_once() -> dict:
         write_payload(
             paper_b_grade_canary_supply_status,
             TRADE_MANAGEMENT_PUBLIC_DIR / "paper_b_grade_canary_supply_status.json",
+        )
+        write_payload(
+            paper_a_grade_gate_burndown_status,
+            TRADE_MANAGEMENT_PUBLIC_DIR / "paper_a_grade_gate_burndown_status.json",
         )
         write_payload(
             paper_forward_canary_evidence_status,

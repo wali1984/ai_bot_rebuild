@@ -2540,6 +2540,117 @@ def test_b_grade_canary_supply_status_counts_lifecycle_supply_when_current_cycle
     assert status["counts_as_a_grade_evidence"] is False
 
 
+def test_a_grade_gate_burndown_tracks_live_counts_and_guardian_block(monkeypatch) -> None:
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-27T23:58:00Z")
+    row = {
+        "symbol": "AGTUSDT",
+        "timeframe": "4h",
+        "side": "short",
+        "strategy_id": "no_trade_mode",
+        "confidence_calibrated": 0.66,
+        "expected_move_after_cost_bps": -40.0,
+        "production_grade_cost_flag": True,
+        "valid_for_paper": True,
+        "risk_decision_id": "rd-1",
+        "orchestrator_decision_id": "dec-1",
+        "gross_notional_usd": 100.0,
+        "risk_budget_usd": 1.0,
+        "paper_opportunity_tier": "NO_TRADE",
+        "paper_opportunity_tier_reason": "LIFECYCLE_OR_NO_TRADE_STRATEGY_NOT_ENTRY_EVIDENCE",
+        "paper_fill_allowed": False,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "live_order": False,
+        "test_order": False,
+        "counts_as_a_grade_evidence": False,
+    }
+    b_grade_supply = {
+        "pass_conditions": {
+            "canary_candidates_gt_zero": True,
+            "canary_intents_gt_zero": True,
+            "canary_pending_rows_gt_zero": True,
+        },
+        "current_cycle_pass_conditions": {
+            "canary_candidates_gt_zero": False,
+            "canary_intents_gt_zero": False,
+            "canary_pending_rows_gt_zero": False,
+        },
+        "current_cycle_canary_candidates": 0,
+        "current_cycle_canary_intents": 0,
+        "current_cycle_canary_pending_rows": 0,
+        "lifecycle_accepted_canary_rows": 77,
+        "lifecycle_open_canary_rows": 1,
+        "lifecycle_closed_canary_outcome_rows": 33,
+    }
+    guardian_gate = {
+        "status": "A_GRADE_HALTED_PERFORMANCE",
+        "a_grade_new_entries_allowed": False,
+        "block_all_new_a_grade_entries": True,
+        "new_candidate_tier_override": "SHADOW_ONLY",
+        "allowed_runtime_actions": ["reduce", "close"],
+        "failure_reasons": [
+            {
+                "reason": "INSUFFICIENT_REALTIME_A_GRADE_CLOSED_ECONOMIC_TRADES",
+                "observed": 0,
+                "required": 1000,
+            }
+        ],
+        "generated_utc": "2026-06-27T23:57:00Z",
+    }
+    guardian_status = {
+        "strategy_brain_status": {
+            "status": "BLOCKED_NO_A_GRADE_STRATEGY_ELIGIBILITY",
+            "a_grade_active_bucket_count": 0,
+            "bucket_count": 33,
+            "blocker_counts": {"B_GRADE_OUTCOMES_ARE_LEARNING_ONLY_NOT_A_GRADE_EVIDENCE": 33},
+        },
+        "zero_liquidation_status": {
+            "status": "BLOCKED_NO_A_GRADE_CANDIDATES_STRESS_VERIFIED",
+            "a_grade_candidate_count": 0,
+            "passed_a_grade_candidate_count": 0,
+        },
+        "realtime_a_grade_performance_status": {
+            "status": "BLOCKED_INSUFFICIENT_REALTIME_A_GRADE_EVIDENCE",
+            "closed_economic_trade_count": 0,
+            "symbol_count": 0,
+        },
+    }
+
+    status = paper_loop._paper_a_grade_gate_burndown_status(  # noqa: SLF001
+        [row],
+        accepted_rows=[],
+        open_position_rows=[],
+        closed_rows=[],
+        guardian_gate=guardian_gate,
+        guardian_status=guardian_status,
+        b_grade_canary_supply_status=b_grade_supply,
+    )
+
+    assert status["status"] == "A_GRADE_GATE_ACTIVE_BLOCKED_SOURCE_OWNED"
+    assert status["prediction_rows"] == 1
+    assert status["production_grade_cost_rows"] == 1
+    assert status["risk_pass_rows"] == 1
+    assert status["strategy_pass_rows"] == 0
+    assert status["A_grade_rows"] == 0
+    assert status["near_A_grade_rows"] == 0
+    assert status["b_grade_lifecycle_supply_present"] is True
+    assert status["current_cycle_b_grade_supply_present"] is False
+    assert status["accepted_b_grade_lifecycle_rows"] == 77
+    assert status["open_b_grade_lifecycle_rows"] == 1
+    assert status["closed_b_grade_lifecycle_outcome_rows"] == 33
+    assert status["guardian_gate_status"]["a_grade_new_entries_allowed"] is False
+    assert status["pass_conditions"] == {
+        "A_grade_rows_gt_zero": False,
+        "source_owned_zero_supply_root_cause_mapped": True,
+        "a_grade_new_entries_allowed": False,
+        "ready_allowed": False,
+    }
+    assert status["routes_to_live"] is False
+    assert status["places_real_order"] is False
+    assert status["counts_as_a_grade_evidence"] is False
+
+
 def _forward_canary_closed_row(symbol: str, side: str, **overrides) -> dict:
     row = {
         "symbol": symbol,
