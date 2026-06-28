@@ -168,7 +168,22 @@ def _register_health_aliases(app: FastAPI) -> None:
 _REBUILD_ROOT = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 )
+_PUBLIC_DIR = os.path.join(_REBUILD_ROOT, "frontend", "public")
 _DIST_DIR = os.path.join(_REBUILD_ROOT, "frontend", "dist")
+_OPERATOR_RUNTIME_STATIC_DIR_ENV = "V2_OPERATOR_RUNTIME_STATIC_DIR"
+
+
+def _operator_runtime_static_dir() -> str | None:
+    configured = os.environ.get(_OPERATOR_RUNTIME_STATIC_DIR_ENV, "").strip()
+    if configured:
+        candidate = os.path.abspath(os.path.expanduser(configured))
+        return candidate if os.path.isdir(candidate) else None
+
+    for base_dir in (_PUBLIC_DIR, _DIST_DIR):
+        candidate = os.path.join(base_dir, "operator_runtime")
+        if os.path.isdir(candidate):
+            return candidate
+    return None
 
 
 def _register_spa(app: FastAPI) -> None:
@@ -186,8 +201,8 @@ def _register_spa(app: FastAPI) -> None:
     if os.path.isdir(assets_dir):
         app.mount("/assets", StaticFiles(directory=assets_dir), name="static-assets")
 
-    operator_runtime_dir = os.path.join(_DIST_DIR, "operator_runtime")
-    if os.path.isdir(operator_runtime_dir):
+    operator_runtime_dir = _operator_runtime_static_dir()
+    if operator_runtime_dir:
         app.mount(
             "/operator_runtime",
             StaticFiles(directory=operator_runtime_dir),
