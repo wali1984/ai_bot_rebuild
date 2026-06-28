@@ -297,6 +297,7 @@ PAPER_OPPORTUNITY_TIERS = (
 )
 PAPER_STRICT_A_CONFIDENCE_THRESHOLD = 0.75
 B_GRADE_EXPLORATION_MIN_CONFIDENCE = 0.50
+B_GRADE_EXPLORATION_ADAPTIVE_CONFIDENCE_FLOOR_MAX = 0.74
 B_GRADE_EXPLORATION_MAX_RISK_FRACTION_OF_NORMAL = 0.25
 B_GRADE_EXPLORATION_DRAWDOWN_STOP_BPS = 500.0
 B_GRADE_MODEL_QUALITY_BUCKET_LIMIT = 250
@@ -551,6 +552,10 @@ _FEEDBACK_ENTRY_CONTEXT_FIELDS: tuple[str, ...] = (
     "strict_paper_fill_allowed_upstream",
     "b_grade_exploration_budget_cap_applied",
     "risk_budget_fraction_of_normal_adaptive",
+    "b_grade_exploration_static_confidence_floor",
+    "b_grade_exploration_adaptive_confidence_floor",
+    "b_grade_exploration_floor_mode",
+    "b_grade_exploration_confidence_floor_pass",
     "normal_adaptive_risk_budget_usd",
     "normal_adaptive_gross_notional_usd",
     "calibration_label_purpose",
@@ -2600,6 +2605,10 @@ PERSISTENT_ACCEPTED_FILL_METADATA_FIELDS = (
     "normal_adaptive_gross_notional_usd",
     "normal_adaptive_allocated_margin_usd",
     "normal_adaptive_expected_net_pnl_usd",
+    "b_grade_exploration_static_confidence_floor",
+    "b_grade_exploration_adaptive_confidence_floor",
+    "b_grade_exploration_floor_mode",
+    "b_grade_exploration_confidence_floor_pass",
     "b_grade_exploration_uncertainty_factor",
     "b_grade_exploration_drawdown_factor",
     "calibration_label_purpose",
@@ -6185,26 +6194,144 @@ def _missing_paper_opportunity_tier_count(rows: list[dict[str, Any]]) -> int:
     )
 
 
+def _b_grade_exploration_adaptive_confidence_floor(
+    *,
+    drawdown_bps: Any,
+    expected_move_after_cost_bps: Any = None,
+    observed_spread_bps: Any = None,
+    expected_slippage_bps: Any = None,
+    fee_bps: Any = None,
+    depth_utilization_pct: Any = None,
+    long_short_ratio_status: Any = None,
+) -> dict[str, Any]:
+    static_floor = B_GRADE_EXPLORATION_MIN_CONFIDENCE
+    max_floor = min(
+        B_GRADE_EXPLORATION_ADAPTIVE_CONFIDENCE_FLOOR_MAX,
+        PAPER_STRICT_A_CONFIDENCE_THRESHOLD - 0.01,
+    )
+    drawdown = max(0.0, _coerce_float(drawdown_bps) or 0.0)
+    drawdown_pressure = _clamp_float(
+        drawdown / B_GRADE_EXPLORATION_DRAWDOWN_STOP_BPS,
+        0.0,
+        1.0,
+    )
+    penalties: dict[str, float] = {
+        "drawdown_pressure": round(0.10 * drawdown_pressure, 8),
+        "cost_edge_pressure": 0.0,
+        "depth_pressure": 0.0,
+        "long_short_point_in_time_pressure": 0.0,
+    }
+
+    edge_abs = _coerce_float(expected_move_after_cost_bps)
+    if edge_abs is not None:
+        edge_abs = abs(edge_abs)
+    cost_components = [
+        max(0.0, value)
+        for value in (
+            _coerce_float(observed_spread_bps),
+            _coerce_float(expected_slippage_bps),
+            _coerce_float(fee_bps),
+        )
+        if value is not None
+    ]
+    cost_drag_bps = sum(cost_components) if cost_components else None
+    edge_to_cost_ratio = None
+    if cost_drag_bps is not None and cost_drag_bps > 0.0:
+        if edge_abs is None or edge_abs <= 0.0:
+            penalties["cost_edge_pressure"] = 0.08
+        else:
+            edge_to_cost_ratio = edge_abs / cost_drag_bps
+            penalties["cost_edge_pressure"] = round(
+                0.08 * _clamp_float((3.0 - edge_to_cost_ratio) / 3.0, 0.0, 1.0),
+                8,
+            )
+
+    depth_utilization = _coerce_float(depth_utilization_pct)
+    if depth_utilization is not None:
+        if depth_utilization <= 1.0:
+            depth_utilization *= 100.0
+        penalties["depth_pressure"] = round(
+            0.06 * _clamp_float(depth_utilization / 100.0, 0.0, 1.0),
+            8,
+        )
+
+    long_short_status = str(long_short_ratio_status or "").strip().upper()
+    if long_short_status.startswith("REJECTED_LONG_SHORT"):
+        penalties["long_short_point_in_time_pressure"] = 0.04
+    elif long_short_status in {"MISSING_V2_LONG_SHORT_RATIO", "REJECTED_LONG_SHORT_AVAILABLE_AT_UNPROVEN"}:
+        penalties["long_short_point_in_time_pressure"] = 0.02
+
+    raw_floor = static_floor + sum(penalties.values())
+    adaptive_floor = _clamp_float(raw_floor, static_floor, max_floor)
+    return {
+        "b_grade_exploration_static_confidence_floor": static_floor,
+        "b_grade_exploration_adaptive_confidence_floor": round(adaptive_floor, 8),
+        "b_grade_exploration_adaptive_confidence_floor_max": max_floor,
+        "b_grade_exploration_floor_never_below_static": adaptive_floor >= static_floor,
+        "b_grade_exploration_floor_mode": (
+            "ADAPTIVE_FAIL_CLOSED_CONTEXTUAL_FLOOR_NEVER_BELOW_STATIC"
+        ),
+        "b_grade_exploration_floor_penalties": penalties,
+        "b_grade_exploration_floor_context": {
+            "drawdown_bps": round(drawdown, 8),
+            "drawdown_pressure": round(drawdown_pressure, 8),
+            "expected_move_after_cost_bps_abs": (
+                round(edge_abs, 8) if edge_abs is not None else None
+            ),
+            "observed_cost_drag_bps": (
+                round(cost_drag_bps, 8) if cost_drag_bps is not None else None
+            ),
+            "edge_to_cost_ratio": (
+                round(edge_to_cost_ratio, 8) if edge_to_cost_ratio is not None else None
+            ),
+            "depth_utilization_pct": (
+                round(depth_utilization, 8) if depth_utilization is not None else None
+            ),
+            "long_short_ratio_status": long_short_status or None,
+        },
+    }
+
+
 def _b_grade_exploration_budget_fraction(
     *,
     confidence_calibrated: Any,
     drawdown_bps: Any,
+    expected_move_after_cost_bps: Any = None,
+    observed_spread_bps: Any = None,
+    expected_slippage_bps: Any = None,
+    fee_bps: Any = None,
+    depth_utilization_pct: Any = None,
+    long_short_ratio_status: Any = None,
 ) -> dict[str, Any]:
     confidence = _coerce_float(confidence_calibrated)
+    floor = _b_grade_exploration_adaptive_confidence_floor(
+        drawdown_bps=drawdown_bps,
+        expected_move_after_cost_bps=expected_move_after_cost_bps,
+        observed_spread_bps=observed_spread_bps,
+        expected_slippage_bps=expected_slippage_bps,
+        fee_bps=fee_bps,
+        depth_utilization_pct=depth_utilization_pct,
+        long_short_ratio_status=long_short_ratio_status,
+    )
+    adaptive_floor = float(floor["b_grade_exploration_adaptive_confidence_floor"])
     drawdown = _coerce_float(drawdown_bps) or 0.0
-    if confidence is None or confidence < B_GRADE_EXPLORATION_MIN_CONFIDENCE:
+    if confidence is None or confidence < adaptive_floor:
         return {
+            **floor,
             "risk_budget_fraction_of_normal_adaptive": 0.0,
             "b_grade_exploration_uncertainty_factor": 0.0,
             "b_grade_exploration_drawdown_factor": 0.0,
-            "b_grade_exploration_budget_formula": "confidence_below_b_grade_exploration_floor",
+            "b_grade_exploration_confidence_floor_pass": False,
+            "b_grade_exploration_budget_formula": (
+                "confidence_below_adaptive_b_grade_exploration_floor"
+            ),
         }
     confidence_span = max(
         1e-9,
-        PAPER_STRICT_A_CONFIDENCE_THRESHOLD - B_GRADE_EXPLORATION_MIN_CONFIDENCE,
+        PAPER_STRICT_A_CONFIDENCE_THRESHOLD - adaptive_floor,
     )
     confidence_progress = _clamp_float(
-        (confidence - B_GRADE_EXPLORATION_MIN_CONFIDENCE) / confidence_span,
+        (confidence - adaptive_floor) / confidence_span,
         0.0,
         1.0,
     )
@@ -6223,9 +6350,11 @@ def _b_grade_exploration_budget_fraction(
         * drawdown_factor
     )
     return {
+        **floor,
         "risk_budget_fraction_of_normal_adaptive": round(max(0.0, fraction), 8),
         "b_grade_exploration_uncertainty_factor": round(uncertainty_factor, 8),
         "b_grade_exploration_drawdown_factor": round(drawdown_factor, 8),
+        "b_grade_exploration_confidence_floor_pass": True,
         "b_grade_exploration_budget_formula": (
             "max_fraction_of_normal_adaptive"
             "*confidence_uncertainty_factor*drawdown_guard_factor"
@@ -6460,6 +6589,16 @@ def _classify_paper_opportunity_tier(
         budget = _b_grade_exploration_budget_fraction(
             confidence_calibrated=confidence,
             drawdown_bps=portfolio_drawdown_bps,
+            expected_move_after_cost_bps=expected_edge,
+            observed_spread_bps=_first_present(
+                intent.get("actual_observed_spread_entry_bps"),
+                intent.get("observed_spread_bps"),
+                intent.get("bid_ask_spread_bps"),
+            ),
+            expected_slippage_bps=intent.get("expected_slippage_bps"),
+            fee_bps=intent.get("fee_bps"),
+            depth_utilization_pct=intent.get("depth_utilization_pct"),
+            long_short_ratio_status=intent.get("long_short_ratio_status"),
         )
         if budget["risk_budget_fraction_of_normal_adaptive"] > 0.0:
             return {
@@ -6516,6 +6655,14 @@ def _apply_paper_tier_classification(
         "risk_budget_fraction_of_normal_adaptive",
         "b_grade_exploration_uncertainty_factor",
         "b_grade_exploration_drawdown_factor",
+        "b_grade_exploration_static_confidence_floor",
+        "b_grade_exploration_adaptive_confidence_floor",
+        "b_grade_exploration_adaptive_confidence_floor_max",
+        "b_grade_exploration_floor_never_below_static",
+        "b_grade_exploration_floor_mode",
+        "b_grade_exploration_floor_penalties",
+        "b_grade_exploration_floor_context",
+        "b_grade_exploration_confidence_floor_pass",
         "b_grade_exploration_budget_formula",
         "calibration_label_purpose",
         "expected_move_side",
@@ -6542,6 +6689,14 @@ def _apply_paper_tier_classification(
         "risk_budget_fraction_of_normal_adaptive",
         "b_grade_exploration_uncertainty_factor",
         "b_grade_exploration_drawdown_factor",
+        "b_grade_exploration_static_confidence_floor",
+        "b_grade_exploration_adaptive_confidence_floor",
+        "b_grade_exploration_adaptive_confidence_floor_max",
+        "b_grade_exploration_floor_never_below_static",
+        "b_grade_exploration_floor_mode",
+        "b_grade_exploration_floor_penalties",
+        "b_grade_exploration_floor_context",
+        "b_grade_exploration_confidence_floor_pass",
         "b_grade_exploration_budget_formula",
     ):
         if field in classification:
@@ -7459,6 +7614,139 @@ def _paper_b_grade_canary_supply_status(
         "sample_near_miss_strategy_blocked_rows": _compact_rows_for_state(
             _sample_rows(near_miss_strategy_rows, 10)
         ),
+        "live_path_changed": False,
+        "generated_utc": _utc_iso(),
+    }
+
+
+def _paper_adaptive_threshold_runtime_status(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    floor_rows: list[dict[str, Any]] = []
+    evaluated_rows = 0
+    static_pass_rows = 0
+    adaptive_pass_rows = 0
+    adaptive_block_rows = 0
+    raised_floor_rows = 0
+    never_below_static_rows = 0
+    floor_values: list[float] = []
+    penalty_counts = {
+        "drawdown_pressure": 0,
+        "cost_edge_pressure": 0,
+        "depth_pressure": 0,
+        "long_short_point_in_time_pressure": 0,
+    }
+    for row in rows:
+        confidence = _paper_canary_score(row)
+        if confidence is None:
+            continue
+        evaluated_rows += 1
+        budget = _b_grade_exploration_budget_fraction(
+            confidence_calibrated=confidence,
+            drawdown_bps=_first_present(
+                row.get("drawdown_bps"),
+                row.get("drawdown_at_entry"),
+                row.get("portfolio_drawdown_bps"),
+            ),
+            expected_move_after_cost_bps=_first_present(
+                row.get("expected_move_after_cost_bps"),
+                row.get("expected_net_edge_bps"),
+                row.get("paper_allocation_signed_expected_move_after_cost_bps"),
+            ),
+            observed_spread_bps=_first_present(
+                row.get("actual_observed_spread_entry_bps"),
+                row.get("observed_spread_bps"),
+                row.get("bid_ask_spread_bps"),
+            ),
+            expected_slippage_bps=row.get("expected_slippage_bps"),
+            fee_bps=row.get("fee_bps"),
+            depth_utilization_pct=row.get("depth_utilization_pct"),
+            long_short_ratio_status=row.get("long_short_ratio_status"),
+        )
+        static_floor = _coerce_float(budget.get("b_grade_exploration_static_confidence_floor"))
+        adaptive_floor = _coerce_float(budget.get("b_grade_exploration_adaptive_confidence_floor"))
+        if static_floor is None or adaptive_floor is None:
+            continue
+        floor_values.append(adaptive_floor)
+        static_pass = confidence >= static_floor
+        adaptive_pass = confidence >= adaptive_floor
+        static_pass_rows += int(static_pass)
+        adaptive_pass_rows += int(adaptive_pass)
+        adaptive_block_rows += int(static_pass and not adaptive_pass)
+        raised_floor_rows += int(adaptive_floor > static_floor)
+        never_below_static_rows += int(adaptive_floor >= static_floor)
+        penalties = budget.get("b_grade_exploration_floor_penalties")
+        if isinstance(penalties, dict):
+            for key in penalty_counts:
+                penalty_counts[key] += int((_coerce_float(penalties.get(key)) or 0.0) > 0.0)
+        floor_rows.append({
+            "symbol": row.get("symbol"),
+            "timeframe": row.get("timeframe"),
+            "side": row.get("side"),
+            "paper_opportunity_tier": row.get("paper_opportunity_tier"),
+            "confidence_calibrated": round(float(confidence), 8),
+            "static_floor": round(float(static_floor), 8),
+            "adaptive_floor": round(float(adaptive_floor), 8),
+            "static_floor_pass": static_pass,
+            "adaptive_floor_pass": adaptive_pass,
+            "long_short_ratio_status": row.get("long_short_ratio_status"),
+            "paper_only": row.get("paper_only"),
+            "routes_to_live": row.get("routes_to_live"),
+            "places_real_order": row.get("places_real_order"),
+        })
+    floor_min = min(floor_values) if floor_values else None
+    floor_max = max(floor_values) if floor_values else None
+    floor_avg = sum(floor_values) / len(floor_values) if floor_values else None
+    return {
+        "schema_version": "paper_adaptive_threshold_runtime_status_v1",
+        "status": (
+            "PARTIAL_B_GRADE_CONFIDENCE_FLOOR_ADAPTIVE_FAIL_CLOSED_"
+            "STATIC_THRESHOLDS_REMAIN"
+        ),
+        "adaptive_threshold_id": "b_grade_confidence_floor",
+        "adaptive_threshold_scope": "paper_only_b_grade_exploration_admission",
+        "runtime_behavior_changed": True,
+        "strategy_or_risk_logic_changed": False,
+        "paper_admission_changed": True,
+        "threshold_lowering_to_force_trades": False,
+        "static_confidence_floor": B_GRADE_EXPLORATION_MIN_CONFIDENCE,
+        "adaptive_confidence_floor_max": B_GRADE_EXPLORATION_ADAPTIVE_CONFIDENCE_FLOOR_MAX,
+        "evaluated_rows": evaluated_rows,
+        "static_floor_pass_rows": static_pass_rows,
+        "adaptive_floor_pass_rows": adaptive_pass_rows,
+        "adaptive_floor_block_rows": adaptive_block_rows,
+        "raised_floor_rows": raised_floor_rows,
+        "adaptive_floor_never_below_static_rows": never_below_static_rows,
+        "floor_stats": {
+            "min": round(floor_min, 8) if floor_min is not None else None,
+            "max": round(floor_max, 8) if floor_max is not None else None,
+            "avg": round(floor_avg, 8) if floor_avg is not None else None,
+        },
+        "penalty_counts": penalty_counts,
+        "remaining_static_threshold_blockers": [
+            "paper_signal_stale_seconds",
+            "directional_collapse_guard",
+            "strategy_mode_collapse_guard",
+            "paper_drawdown_recovery_min_confidence",
+            "standalone_1m_gate",
+            "audit_blocked_allowed_entry_timeframes",
+            "outcome_memory_degradation_thresholds",
+            "leverage_recommendation_tiers",
+            "alpha_liquidity_risk_config",
+            "microstructure_toxicity_threshold",
+        ],
+        "pass_conditions": {
+            "adaptive_floor_evaluated_rows_gt_zero": evaluated_rows > 0,
+            "adaptive_floor_never_below_static": never_below_static_rows == evaluated_rows,
+            "threshold_not_lowered_to_force_trades": True,
+            "paper_only": True,
+            "routes_to_live_false": True,
+            "places_real_order_false": True,
+            "ready_allowed": False,
+        },
+        "sample_rows": _sample_rows(floor_rows, 10),
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_a_grade_evidence": False,
         "live_path_changed": False,
         "generated_utc": _utc_iso(),
     }
@@ -12094,6 +12382,9 @@ def run_once() -> dict:
         guardian_status=continuous_edge_guardian_status,
         b_grade_canary_supply_status=paper_b_grade_canary_supply_status,
     )
+    paper_adaptive_threshold_runtime_status = _paper_adaptive_threshold_runtime_status(
+        intents,
+    )
     feedback_lineage_contexts = _lineage_context_by_prediction_id(
         closes,
         outcome_labels,
@@ -12273,6 +12564,7 @@ def run_once() -> dict:
             "paper_exploration_tier_status": paper_exploration_tier_status,
             "paper_b_grade_canary_supply_status": paper_b_grade_canary_supply_status,
             "paper_a_grade_gate_burndown_status": paper_a_grade_gate_burndown_status,
+            "paper_adaptive_threshold_runtime_status": paper_adaptive_threshold_runtime_status,
             "paper_audit_entry_gate_status": paper_audit_entry_gate_status,
             "paper_adaptive_sizing_runtime_status": paper_adaptive_sizing_runtime_status,
             "risk_envelope_dynamic_budget_status": risk_envelope_dynamic_budget_status,
@@ -12367,6 +12659,7 @@ def run_once() -> dict:
                 "paper_exploration_tier_status": paper_exploration_tier_status,
                 "paper_b_grade_canary_supply_status": paper_b_grade_canary_supply_status,
                 "paper_a_grade_gate_burndown_status": paper_a_grade_gate_burndown_status,
+                "paper_adaptive_threshold_runtime_status": paper_adaptive_threshold_runtime_status,
                 "paper_forward_canary_evidence_status": paper_forward_canary_evidence_status,
                 "paper_closed_outcome_entry_context_backfill_status": (
                     paper_closed_outcome_entry_context_backfill_status
@@ -12412,6 +12705,13 @@ def run_once() -> dict:
             ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}paper:a_grade_gate_burndown_status")
+        if _safe_write(
+            r,
+            f"{V2_REDIS_PREFIX}paper:adaptive_threshold_runtime_status",
+            json.dumps(paper_adaptive_threshold_runtime_status),
+            ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
+        ):
+            keys_written.append(f"{V2_REDIS_PREFIX}paper:adaptive_threshold_runtime_status")
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}paper:forward_canary_evidence_status",
@@ -12505,6 +12805,7 @@ def run_once() -> dict:
         "paper_exploration_tier_status": paper_exploration_tier_status,
         "paper_b_grade_canary_supply_status": paper_b_grade_canary_supply_status,
         "paper_a_grade_gate_burndown_status": paper_a_grade_gate_burndown_status,
+        "paper_adaptive_threshold_runtime_status": paper_adaptive_threshold_runtime_status,
         "paper_forward_canary_evidence_status": paper_forward_canary_evidence_status,
         "paper_closed_outcome_entry_context_backfill_status": (
             paper_closed_outcome_entry_context_backfill_status
@@ -12699,6 +13000,10 @@ def run_once() -> dict:
         write_payload(
             paper_a_grade_gate_burndown_status,
             TRADE_MANAGEMENT_PUBLIC_DIR / "paper_a_grade_gate_burndown_status.json",
+        )
+        write_payload(
+            paper_adaptive_threshold_runtime_status,
+            TRADE_MANAGEMENT_PUBLIC_DIR / "paper_adaptive_threshold_runtime_status.json",
         )
         write_payload(
             paper_forward_canary_evidence_status,

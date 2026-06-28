@@ -2320,6 +2320,95 @@ def test_b_grade_exploration_budget_fraction_uses_uncertainty_and_drawdown() -> 
     )
 
 
+def test_b_grade_exploration_budget_fraction_adaptive_floor_is_fail_closed() -> None:
+    base = paper_loop._b_grade_exploration_budget_fraction(  # noqa: SLF001
+        confidence_calibrated=0.55,
+        drawdown_bps=0.0,
+    )
+    pressured = paper_loop._b_grade_exploration_budget_fraction(  # noqa: SLF001
+        confidence_calibrated=0.52,
+        drawdown_bps=450.0,
+        expected_move_after_cost_bps=6.0,
+        observed_spread_bps=4.0,
+        expected_slippage_bps=3.0,
+        fee_bps=4.0,
+        depth_utilization_pct=0.40,
+        long_short_ratio_status="REJECTED_LONG_SHORT_AVAILABLE_AFTER_DECISION",
+    )
+
+    assert base["b_grade_exploration_static_confidence_floor"] == 0.5
+    assert base["b_grade_exploration_adaptive_confidence_floor"] == 0.5
+    assert base["b_grade_exploration_confidence_floor_pass"] is True
+    assert pressured["b_grade_exploration_adaptive_confidence_floor"] > 0.5
+    assert pressured["b_grade_exploration_floor_never_below_static"] is True
+    assert pressured["b_grade_exploration_confidence_floor_pass"] is False
+    assert pressured["risk_budget_fraction_of_normal_adaptive"] == 0.0
+    assert pressured["b_grade_exploration_budget_formula"] == (
+        "confidence_below_adaptive_b_grade_exploration_floor"
+    )
+    penalties = pressured["b_grade_exploration_floor_penalties"]
+    assert penalties["drawdown_pressure"] > 0.0
+    assert penalties["cost_edge_pressure"] > 0.0
+    assert penalties["depth_pressure"] > 0.0
+    assert penalties["long_short_point_in_time_pressure"] > 0.0
+
+
+def test_adaptive_threshold_runtime_status_counts_b_grade_floor_blocks() -> None:
+    rows = [
+        {
+            "symbol": "BANKUSDT",
+            "timeframe": "15m",
+            "side": "long",
+            "paper_opportunity_tier": "B_GRADE_EXPLORATION_PAPER",
+            "confidence_calibrated": 0.66,
+            "expected_move_after_cost_bps": 18.0,
+            "actual_observed_spread_entry_bps": 1.0,
+            "expected_slippage_bps": 1.0,
+            "fee_bps": 4.0,
+            "depth_utilization_pct": 0.01,
+            "long_short_ratio_status": "V2_LONG_SHORT_RATIO_ATTACHED",
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        },
+        {
+            "symbol": "RISKUSDT",
+            "timeframe": "5m",
+            "side": "short",
+            "paper_opportunity_tier": "NO_TRADE",
+            "confidence_calibrated": 0.52,
+            "expected_move_after_cost_bps": -6.0,
+            "actual_observed_spread_entry_bps": 4.0,
+            "expected_slippage_bps": 3.0,
+            "fee_bps": 4.0,
+            "depth_utilization_pct": 0.40,
+            "long_short_ratio_status": "REJECTED_LONG_SHORT_AVAILABLE_AFTER_DECISION",
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        },
+    ]
+
+    status = paper_loop._paper_adaptive_threshold_runtime_status(rows)  # noqa: SLF001
+
+    assert status["status"] == (
+        "PARTIAL_B_GRADE_CONFIDENCE_FLOOR_ADAPTIVE_FAIL_CLOSED_"
+        "STATIC_THRESHOLDS_REMAIN"
+    )
+    assert status["adaptive_threshold_id"] == "b_grade_confidence_floor"
+    assert status["evaluated_rows"] == 2
+    assert status["static_floor_pass_rows"] == 2
+    assert status["adaptive_floor_pass_rows"] == 1
+    assert status["adaptive_floor_block_rows"] == 1
+    assert status["adaptive_floor_never_below_static_rows"] == 2
+    assert status["threshold_lowering_to_force_trades"] is False
+    assert status["pass_conditions"]["adaptive_floor_never_below_static"] is True
+    assert status["pass_conditions"]["ready_allowed"] is False
+    assert status["routes_to_live"] is False
+    assert status["places_real_order"] is False
+    assert status["counts_as_a_grade_evidence"] is False
+
+
 def test_b_grade_canary_supply_status_reports_paper_only_pending_supply(monkeypatch) -> None:
     monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-27T23:05:00Z")
     row = {
