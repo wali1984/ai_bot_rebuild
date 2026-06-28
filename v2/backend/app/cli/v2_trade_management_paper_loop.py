@@ -152,6 +152,7 @@ PAPER_POLICY_OWNER_CHALLENGER_V2 = "challenger_v2"
 PAPER_POLICY_OWNER_OLD_POLICY = "old_policy"
 PAPER_POLICY_OWNER_SHADOW_ONLY = "shadow_only"
 PAPER_POLICY_OWNER_UNATTRIBUTED_PRE_CUTOVER = "unattributed_pre_owner_cutover"
+PAPER_RUNTIME_OWNER_BLOCK_REASON = "PAPER_RUNTIME_OWNER_NOT_ACTIVE_CHALLENGER_V2"
 UNATTRIBUTED_PRE_CUTOVER_CANDIDATE_ID = "unattributed_pre_owner_cutover"
 UNATTRIBUTED_PRE_CUTOVER_POLICY_FINGERPRINT = "UNATTRIBUTED_PRE_OWNER_CUTOVER"
 UNATTRIBUTED_PRE_CUTOVER_MODEL_SOURCE = "unknown_pre_owner_cutover"
@@ -2510,16 +2511,46 @@ def _attach_runtime_cost_capture_contract(
                 allocation[field] = intent.get(field)
 
 
+def _active_challenger_runtime_owner_rejection_reasons(intent: dict[str, Any]) -> list[str]:
+    expected_fields = (
+        ("paper_policy_owner", PAPER_POLICY_OWNER_CHALLENGER_V2),
+        ("candidate_id", CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID),
+        ("policy_id", CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID),
+        ("policy_fingerprint", CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT),
+        ("model_source", CHALLENGER_V2_MODEL_SOURCE),
+    )
+    reasons: list[str] = []
+    for field, expected in expected_fields:
+        value = intent.get(field)
+        if value in (None, ""):
+            reasons.append(f"{field}_missing")
+        elif str(value) != str(expected):
+            reasons.append(f"{field}_mismatch:{value}")
+    if intent.get("routes_to_live") is not False:
+        reasons.append("routes_to_live_not_false")
+    if intent.get("places_real_order") is not False:
+        reasons.append("places_real_order_not_false")
+    return reasons
+
+
 def _paper_policy_owner_open_rejection_reasons(intent: dict[str, Any]) -> list[str]:
-    owner = str(intent.get("paper_policy_owner") or PAPER_POLICY_OWNER_CHALLENGER_V2)
+    owner = str(intent.get("paper_policy_owner") or "")
     if owner == PAPER_POLICY_OWNER_OLD_POLICY:
         intent["paper_policy_owner_open_allowed"] = False
         intent["paper_policy_owner_open_block_reason"] = "OLD_POLICY_NEW_ECONOMIC_PAPER_OPENS_DISABLED"
+        intent["paper_runtime_owner_rejection_reasons"] = ["paper_policy_owner_old_policy"]
         return ["OLD_POLICY_NEW_ECONOMIC_PAPER_OPENS_DISABLED"]
     if owner == PAPER_POLICY_OWNER_SHADOW_ONLY:
         intent["paper_policy_owner_open_allowed"] = False
         intent["paper_policy_owner_open_block_reason"] = "SHADOW_ONLY_POLICY_OWNER_NOT_ECONOMIC_FILL"
+        intent["paper_runtime_owner_rejection_reasons"] = ["paper_policy_owner_shadow_only"]
         return ["SHADOW_ONLY_POLICY_OWNER_NOT_ECONOMIC_FILL"]
+    owner_reasons = _active_challenger_runtime_owner_rejection_reasons(intent)
+    intent["paper_runtime_owner_rejection_reasons"] = owner_reasons
+    if owner_reasons:
+        intent["paper_policy_owner_open_allowed"] = False
+        intent["paper_policy_owner_open_block_reason"] = PAPER_RUNTIME_OWNER_BLOCK_REASON
+        return [PAPER_RUNTIME_OWNER_BLOCK_REASON, *owner_reasons]
     if owner == PAPER_POLICY_OWNER_CHALLENGER_V2 and intent.get("production_grade_cost_flag") is not True:
         missing = [
             f"missing:{field}"
@@ -3795,19 +3826,36 @@ def _paper_owner_attribution_status(
     accepted_rows: list[dict[str, Any]],
     *,
     current_accepted_rows: list[dict[str, Any]] | None = None,
+    current_runtime_rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     current_accepted_rows = current_accepted_rows if current_accepted_rows is not None else accepted_rows
+    current_runtime_rows = current_runtime_rows if current_runtime_rows is not None else current_accepted_rows
     persistent_rows = [_normalize_paper_owner_attribution(row) for row in accepted_rows if isinstance(row, dict)]
     current_rows = [_normalize_paper_owner_attribution(row) for row in current_accepted_rows if isinstance(row, dict)]
+    runtime_rows = [_normalize_paper_owner_attribution(row) for row in current_runtime_rows if isinstance(row, dict)]
     incomplete_persistent = [
         row for row in persistent_rows if row.get("paper_owner_attribution_complete") is not True
     ]
     incomplete_current = [
         row for row in current_rows if row.get("paper_owner_attribution_complete") is not True
     ]
+    incomplete_runtime = [
+        row for row in runtime_rows if row.get("paper_owner_attribution_complete") is not True
+    ]
     return {
         "schema_version": "paper_owner_attribution_status_v1",
         "status": (
+            "PASS_CURRENT_ACCEPTED_OWNER_ATTRIBUTION"
+            if current_rows and not incomplete_current
+            else "NO_GO_CURRENT_ACCEPTED_OWNER_ATTRIBUTION_INCOMPLETE"
+            if current_rows
+            else "PASS_CURRENT_RUNTIME_OWNER_ATTRIBUTION_NO_ACCEPTED_FILLS"
+            if runtime_rows and not incomplete_runtime
+            else "NO_GO_CURRENT_RUNTIME_OWNER_ATTRIBUTION_INCOMPLETE"
+            if runtime_rows
+            else "NO_CURRENT_RUNTIME_ROWS_TO_VERIFY"
+        ),
+        "accepted_fill_status": (
             "NO_CURRENT_ACCEPTED_ROWS_TO_VERIFY"
             if not current_rows
             else "PASS_CURRENT_ACCEPTED_OWNER_ATTRIBUTION"
@@ -3821,15 +3869,24 @@ def _paper_owner_attribution_status(
         "current_accepted_count": len(current_rows),
         "current_complete_count": len(current_rows) - len(incomplete_current),
         "current_incomplete_count": len(incomplete_current),
+        "current_runtime_row_count": len(runtime_rows),
+        "current_runtime_complete_count": len(runtime_rows) - len(incomplete_runtime),
+        "current_runtime_incomplete_count": len(incomplete_runtime),
         "persistent_accepted_count": len(persistent_rows),
         "persistent_complete_count": len(persistent_rows) - len(incomplete_persistent),
         "persistent_incomplete_or_pre_cutover_count": len(incomplete_persistent),
         "current_owner_counts": _count_values(current_rows, "paper_policy_owner"),
+        "current_runtime_owner_counts": _count_values(runtime_rows, "paper_policy_owner"),
         "persistent_owner_counts": _count_values(persistent_rows, "paper_policy_owner"),
         "current_candidate_counts": _count_values(current_rows, "candidate_id"),
+        "current_runtime_candidate_counts": _count_values(runtime_rows, "candidate_id"),
         "persistent_candidate_counts": _count_values(persistent_rows, "candidate_id"),
         "current_missing_field_counts": _count_list_values(
             current_rows,
+            "paper_owner_attribution_missing_fields",
+        ),
+        "current_runtime_missing_field_counts": _count_list_values(
+            runtime_rows,
             "paper_owner_attribution_missing_fields",
         ),
         "persistent_missing_field_counts": _count_list_values(
@@ -3841,6 +3898,7 @@ def _paper_owner_attribution_status(
             and row.get("counts_as_a_grade_evidence") is False
             for row in incomplete_persistent
         ),
+        "current_runtime_owner_contract_passed": bool(runtime_rows) and not incomplete_runtime,
         "sample_incomplete_or_pre_cutover_rows": _sample_rows(
             [
                 {
@@ -12264,6 +12322,7 @@ def run_once() -> dict:
     paper_owner_attribution_status = _paper_owner_attribution_status(
         accepted_for_ledger,
         current_accepted_rows=accepted,
+        current_runtime_rows=intents,
     )
     paper_audit_entry_gate_status = {
         "guard": PAPER_AUDIT_ENTRY_GATE_NAME,

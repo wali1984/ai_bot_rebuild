@@ -536,7 +536,17 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
             "intents_accepted": 1,
             "intents_blocked": 2,
             "writes_legacy_redis": False,
+            "paper_only": True,
+            "routes_to_live": False,
             "places_real_order": False,
+            "paper_owner_attribution_status": {
+                "status": "PASS_CURRENT_RUNTIME_OWNER_ATTRIBUTION_NO_ACCEPTED_FILLS",
+                "accepted_fill_status": "NO_CURRENT_ACCEPTED_ROWS_TO_VERIFY",
+                "current_runtime_row_count": 3,
+                "current_runtime_complete_count": 3,
+                "current_runtime_incomplete_count": 0,
+                "current_runtime_owner_contract_passed": True,
+            },
         },
         "v2:paper:ledger": {
             "accepted_count": 1,
@@ -616,6 +626,13 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
     assert loop["paper_policy_owner"] == "challenger_v2"
     assert loop["policy_fingerprint"] == "83d35e31eea385da1a283b8efab3102ac292be2904724d11777f2b7a32e68630"
     assert loop["model_source"] == "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA"
+    assert loop["paper_only"] is True
+    assert loop["routes_to_live"] is False
+    assert loop["places_real_order"] is False
+    owner_status = loop["paper_owner_attribution_status"]
+    assert owner_status["status"] == "PASS_CURRENT_RUNTIME_OWNER_ATTRIBUTION_NO_ACCEPTED_FILLS"
+    assert owner_status["current_runtime_row_count"] == 3
+    assert owner_status["current_runtime_owner_contract_passed"] is True
     assert loop["production_grade_cost_rows"] == 1
     assert loop["production_grade_cost_coverage"] == pytest.approx(1 / 3)
     assert loop["no_order_explained_rows"] == 1

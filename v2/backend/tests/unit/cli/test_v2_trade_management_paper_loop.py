@@ -1557,7 +1557,7 @@ def test_runtime_cost_capture_contract_marks_complete_production_grade_cost() ->
     paper_loop._attach_runtime_cost_capture_contract(  # noqa: SLF001
         intent,
         market_microstructure,
-        signal={"policy_fingerprint": "policy-fp-1"},
+        signal={"policy_fingerprint": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT},
         prediction={"model_source": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA"},
     )
 
@@ -1656,7 +1656,7 @@ def test_runtime_cost_capture_rejects_orderbook_timestamp_after_feature_decision
     paper_loop._attach_runtime_cost_capture_contract(  # noqa: SLF001
         intent,
         market_microstructure,
-        signal={"policy_fingerprint": "policy-fp-1"},
+        signal={"policy_fingerprint": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT},
         prediction={"model_source": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA"},
     )
     reasons = paper_loop._paper_policy_owner_open_rejection_reasons(intent)  # noqa: SLF001
@@ -1732,7 +1732,7 @@ def test_runtime_cost_capture_uses_explicit_paper_admission_decision_time() -> N
     paper_loop._attach_runtime_cost_capture_contract(  # noqa: SLF001
         intent,
         market_microstructure,
-        signal={"policy_fingerprint": "policy-fp-1"},
+        signal={"policy_fingerprint": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT},
         prediction={"model_source": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA"},
     )
 
@@ -1866,6 +1866,47 @@ def test_old_policy_owner_cannot_open_new_economic_paper_fills() -> None:
     assert reasons == ["OLD_POLICY_NEW_ECONOMIC_PAPER_OPENS_DISABLED"]
     assert intent["paper_policy_owner_open_allowed"] is False
     assert intent["paper_policy_owner_open_block_reason"] == "OLD_POLICY_NEW_ECONOMIC_PAPER_OPENS_DISABLED"
+
+
+def test_missing_runtime_owner_identity_cannot_open_new_economic_paper_fills() -> None:
+    intent = {
+        "candidate_id": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID,
+        "policy_id": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID,
+        "policy_fingerprint": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT,
+        "model_source": paper_loop.CHALLENGER_V2_MODEL_SOURCE,
+        "production_grade_cost_flag": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+
+    reasons = paper_loop._paper_policy_owner_open_rejection_reasons(intent)  # noqa: SLF001
+
+    assert reasons[0] == paper_loop.PAPER_RUNTIME_OWNER_BLOCK_REASON
+    assert "paper_policy_owner_missing" in reasons
+    assert intent["paper_policy_owner_open_allowed"] is False
+    assert intent["paper_policy_owner_open_block_reason"] == paper_loop.PAPER_RUNTIME_OWNER_BLOCK_REASON
+
+
+def test_mismatched_runtime_owner_identity_cannot_open_new_economic_paper_fills() -> None:
+    intent = {
+        "candidate_id": "paper_online_runtime",
+        "policy_id": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID,
+        "paper_policy_owner": paper_loop.PAPER_POLICY_OWNER_CHALLENGER_V2,
+        "policy_fingerprint": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT,
+        "model_source": paper_loop.CHALLENGER_V2_MODEL_SOURCE,
+        "production_grade_cost_flag": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+
+    reasons = paper_loop._paper_policy_owner_open_rejection_reasons(intent)  # noqa: SLF001
+
+    assert reasons[0] == paper_loop.PAPER_RUNTIME_OWNER_BLOCK_REASON
+    assert "candidate_id_mismatch:paper_online_runtime" in reasons
+    assert intent["paper_policy_owner_open_allowed"] is False
+    assert intent["paper_runtime_owner_rejection_reasons"] == [
+        "candidate_id_mismatch:paper_online_runtime"
+    ]
 
 
 def test_missing_owner_attribution_rows_are_explicit_pre_cutover_not_challenger_credit() -> None:
@@ -2020,6 +2061,34 @@ def test_owner_attribution_status_allows_current_challenger_and_quarantines_hist
     assert status["current_owner_counts"] == {paper_loop.PAPER_POLICY_OWNER_CHALLENGER_V2: 1}
     assert status["persistent_owner_counts"][paper_loop.PAPER_POLICY_OWNER_UNATTRIBUTED_PRE_CUTOVER] == 1
     assert status["pre_cutover_rows_block_challenger_credit"] is True
+
+
+def test_owner_attribution_status_validates_current_runtime_rows_without_current_fills() -> None:
+    current_intent = {
+        "symbol": "ETHUSDT",
+        "timeframe": "1h",
+        "side": "short",
+        "candidate_id": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID,
+        "policy_id": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID,
+        "paper_policy_owner": paper_loop.PAPER_POLICY_OWNER_CHALLENGER_V2,
+        "policy_fingerprint": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT,
+        "model_source": paper_loop.CHALLENGER_V2_MODEL_SOURCE,
+    }
+
+    status = paper_loop._paper_owner_attribution_status(  # noqa: SLF001
+        [],
+        current_accepted_rows=[],
+        current_runtime_rows=[current_intent],
+    )
+
+    assert status["status"] == "PASS_CURRENT_RUNTIME_OWNER_ATTRIBUTION_NO_ACCEPTED_FILLS"
+    assert status["accepted_fill_status"] == "NO_CURRENT_ACCEPTED_ROWS_TO_VERIFY"
+    assert status["current_runtime_row_count"] == 1
+    assert status["current_runtime_complete_count"] == 1
+    assert status["current_runtime_owner_contract_passed"] is True
+    assert status["current_runtime_owner_counts"] == {
+        paper_loop.PAPER_POLICY_OWNER_CHALLENGER_V2: 1
+    }
 
 
 def test_runtime_market_evidence_requires_execution_evidence_fields() -> None:
