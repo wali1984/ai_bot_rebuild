@@ -95,6 +95,7 @@ PAPER_RUNTIME_STATUS_SAMPLE_KEYS = {
     "sample_a_grade_rows",
     "sample_canary_candidates",
     "sample_canary_pending_rows",
+    "sample_compacted_economic_trades",
     "sample_lifecycle_closed_canary_outcomes",
     "sample_near_a_grade_rows",
     "sample_near_miss_strategy_blocked_rows",
@@ -10020,6 +10021,50 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                     "generated_at": now,
                 }
 
+            churn_equity_bleed_key = "v2:paper:churn_equity_bleed_governor_status"
+            try:
+                churn_equity_bleed_raw = client.get(churn_equity_bleed_key)
+            except Exception:
+                churn_equity_bleed_raw = None
+            paper_churn_equity_bleed_governor_status = _json_object_from_redis_raw(
+                churn_equity_bleed_raw
+            )
+            if not paper_churn_equity_bleed_governor_status:
+                fallback_churn = trade_management_status.get(
+                    "paper_churn_equity_bleed_governor_status"
+                )
+                if isinstance(fallback_churn, dict):
+                    paper_churn_equity_bleed_governor_status = fallback_churn
+            if not paper_churn_equity_bleed_governor_status:
+                fallback_churn = hb.get("paper_churn_equity_bleed_governor_status")
+                if isinstance(fallback_churn, dict):
+                    paper_churn_equity_bleed_governor_status = fallback_churn
+            if paper_churn_equity_bleed_governor_status:
+                paper_churn_equity_bleed_governor_status = (
+                    _compact_paper_runtime_contract(
+                        paper_churn_equity_bleed_governor_status
+                    )
+                )
+                paper_churn_equity_bleed_governor_status.setdefault(
+                    "source", f"redis:{churn_equity_bleed_key}"
+                )
+                paper_churn_equity_bleed_governor_status.setdefault("available", True)
+            else:
+                paper_churn_equity_bleed_governor_status = {
+                    "schema_version": "paper_churn_equity_bleed_governor_status_v1",
+                    "status": "PAPER_CHURN_EQUITY_BLEED_GOVERNOR_STATUS_UNAVAILABLE",
+                    "source": f"redis:{churn_equity_bleed_key}",
+                    "available": False,
+                    "paper_only": True,
+                    "routes_to_live": False,
+                    "places_real_order": False,
+                    "duplicate_new_entries": None,
+                    "same_candle_reentry_unexplained": None,
+                    "cost_drag_within_envelope": None,
+                    "economic_trade_count_reconciles": None,
+                    "generated_at": now,
+                }
+
             forward_canary_key = "v2:paper:forward_canary_evidence_status"
             try:
                 forward_canary_raw = client.get(forward_canary_key)
@@ -10416,6 +10461,9 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                     ),
                     "trainer_model_quality_runtime_status": (
                         paper_trainer_model_quality_runtime_status
+                    ),
+                    "paper_churn_equity_bleed_governor_status": (
+                        paper_churn_equity_bleed_governor_status
                     ),
                     "paper_forward_canary_evidence_status": paper_forward_canary_evidence_status,
                 },

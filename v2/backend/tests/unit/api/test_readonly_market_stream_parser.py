@@ -666,6 +666,42 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
                 {"symbol": "BTCUSDT", "large_runtime_row": {"nested": ["omitted"] * 20}},
             ],
         },
+        "v2:paper:churn_equity_bleed_governor_status": {
+            "schema_version": "paper_churn_equity_bleed_governor_status_v1",
+            "status": "ACTIVE",
+            "state": "ACTIVE",
+            "new_entries_allowed": True,
+            "raw_close_records": 30,
+            "compacted_economic_trades": 30,
+            "entries_per_symbol_per_hour": 3,
+            "reentries_per_symbol_per_hour": 0,
+            "cost_drag_pct": 0.084,
+            "fees_usd": 1.23,
+            "slippage_usd": 0.71,
+            "funding_usd": 0.02,
+            "turnover_usd": 2365.06,
+            "edge_to_cost_ratio": 1.5,
+            "median_hold_time": 1189.5,
+            "same_candle_reentry_count": 0,
+            "same_prediction_duplicate_count": 0,
+            "same_signal_duplicate_count": 0,
+            "duplicate_new_entries": 0,
+            "same_candle_reentry_unexplained": 0,
+            "cost_drag_within_envelope": True,
+            "economic_trade_count_reconciles": True,
+            "pass_conditions": {
+                "duplicate_new_entries_eq_zero": True,
+                "same_candle_reentry_unexplained_eq_zero": True,
+                "cost_drag_within_envelope": True,
+                "economic_trade_count_reconciles": True,
+            },
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "sample_compacted_economic_trades": [
+                {"symbol": "BTCUSDT", "fill_id": "fill-1"},
+            ],
+        },
         "v2:paper:trainer_model_quality_runtime_status": {
             "schema_version": "paper_trainer_model_quality_runtime_status_v1",
             "status": "PASSED_CURRENT_MODEL_QUALITY_PUBLISHED_A_GRADE_BLOCKED",
@@ -800,6 +836,26 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
     assert canary_supply["sample_rows_omitted_from_api"] is True
     assert canary_supply["sample_canary_candidates_count"] == 1
     assert "sample_canary_candidates" not in canary_supply
+    churn = loop["paper_churn_equity_bleed_governor_status"]
+    assert churn["source"] == "redis:v2:paper:churn_equity_bleed_governor_status"
+    assert churn["available"] is True
+    assert churn["status"] == "ACTIVE"
+    assert churn["state"] == "ACTIVE"
+    assert churn["new_entries_allowed"] is True
+    assert churn["raw_close_records"] == 30
+    assert churn["compacted_economic_trades"] == 30
+    assert churn["duplicate_new_entries"] == 0
+    assert churn["same_candle_reentry_unexplained"] == 0
+    assert churn["cost_drag_within_envelope"] is True
+    assert churn["economic_trade_count_reconciles"] is True
+    assert churn["pass_conditions"]["duplicate_new_entries_eq_zero"] is True
+    assert churn["pass_conditions"]["same_candle_reentry_unexplained_eq_zero"] is True
+    assert churn["pass_conditions"]["cost_drag_within_envelope"] is True
+    assert churn["pass_conditions"]["economic_trade_count_reconciles"] is True
+    assert churn["routes_to_live"] is False
+    assert churn["places_real_order"] is False
+    assert churn["sample_compacted_economic_trades_count"] == 1
+    assert "sample_compacted_economic_trades" not in churn
     trainer_quality = loop["paper_trainer_model_quality_runtime_status"]
     assert trainer_quality is loop["trainer_model_quality_runtime_status"]
     assert trainer_quality["source"] == "redis:v2:paper:trainer_model_quality_runtime_status"
