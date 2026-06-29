@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;1,14..32,400&display=swap');
-
 :root {
   /* Legacy tokens */
   --color-bg: #0b0f14;
@@ -2642,7 +2640,8 @@ a { color: inherit; }
  * Claude Design handoff 2026-05-11 — additive design tokens + primitives
  * Source: claude_worklog/frontend_design/handoffs/2026-05-11/
  * Rule: additive only — existing rules above remain authoritative for live state.
- * Inter + DejaVu Sans Mono imported at top of file (CSS @import ordering requirement).
+ * Uses local/system Inter-compatible fallbacks; production route loading must not
+ * depend on a blocking remote font stylesheet.
  * ======================================================================= */
 
 :root, [data-theme="dark"] {

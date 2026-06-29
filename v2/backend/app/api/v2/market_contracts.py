@@ -91,6 +91,23 @@ PAPER_ACTIVITY_LAST_NON_EMPTY_POSITIONS: dict[str, Any] = {
     "updated_monotonic": 0.0,
     "updated_at": None,
 }
+PAPER_RUNTIME_STATUS_SAMPLE_KEYS = {
+    "sample_canary_candidates",
+    "sample_canary_pending_rows",
+    "sample_lifecycle_closed_canary_outcomes",
+    "sample_near_miss_strategy_blocked_rows",
+    "sample_rejected_forward_canary_outcomes",
+    "sample_valid_forward_canary_outcomes",
+}
+PAPER_RUNTIME_STATUS_SIGNAL_FALLBACK_SYMBOLS = tuple(
+    symbol.strip().upper()
+    for symbol in os.environ.get(
+        "ALPHAFORGE_RUNTIME_STATUS_SIGNAL_FALLBACK_SYMBOLS",
+        "BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,DOGEUSDT,ADAUSDT,AVAXUSDT",
+    ).split(",")
+    if symbol.strip()
+)
+PAPER_RUNTIME_STATUS_SIGNAL_FALLBACK_TIMEFRAMES = ("1m", "5m", "15m", "1h", "4h")
 READONLY_RESOURCE_WS_DENY_PREFIXES = (
     "/api/v2/ws/",
     "/ws/",
@@ -231,6 +248,60 @@ def _json_object_from_redis_raw(raw: Any) -> dict[str, Any] | None:
     except (TypeError, ValueError):
         return None
     return payload if isinstance(payload, dict) else None
+
+
+def _compact_paper_runtime_contract(payload: dict[str, Any]) -> dict[str, Any]:
+    compact: dict[str, Any] = {}
+    for key, value in payload.items():
+        if key in PAPER_RUNTIME_STATUS_SAMPLE_KEYS:
+            if isinstance(value, list):
+                compact[f"{key}_count"] = len(value)
+            continue
+        compact[key] = value
+    compact["sample_rows_omitted_from_api"] = True
+    return compact
+
+
+def _paper_runtime_signal_timestamp(row: dict[str, Any]) -> str:
+    for key in ("available_at", "decision_time", "generated_at", "generated_utc", "timestamp", "ts"):
+        value = row.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return ""
+
+
+def _latest_signal_from_paper_intents(rows: list[dict[str, Any]]) -> tuple[dict[str, Any], str]:
+    latest_signal: dict[str, Any] = {}
+    latest_ts = ""
+    for row in rows:
+        if not any(row.get(key) for key in ("signal_id", "prediction_id", "decision_id")):
+            continue
+        row_ts = _paper_runtime_signal_timestamp(row)
+        if not latest_ts or row_ts > latest_ts:
+            latest_ts = row_ts
+            latest_signal = row
+    return latest_signal, latest_ts
+
+
+def _latest_signal_from_bounded_keys(client: Any) -> tuple[dict[str, Any], str]:
+    latest_signal: dict[str, Any] = {}
+    latest_ts = ""
+    for symbol in PAPER_RUNTIME_STATUS_SIGNAL_FALLBACK_SYMBOLS:
+        keys = [f"v2:signals:latest:{symbol}"]
+        keys.extend(f"v2:signals:latest:{symbol}:{timeframe}" for timeframe in PAPER_RUNTIME_STATUS_SIGNAL_FALLBACK_TIMEFRAMES)
+        for key in keys:
+            try:
+                raw = client.get(key)
+            except Exception:
+                continue
+            parsed = _json_object_from_redis_raw(raw)
+            if not parsed:
+                continue
+            row_ts = _paper_runtime_signal_timestamp(parsed)
+            if not latest_ts or row_ts > latest_ts:
+                latest_ts = row_ts
+                latest_signal = parsed
+    return latest_signal, latest_ts
 
 
 async def _bounded_run_in_threadpool(func: Any, *args: Any, timeout: float, **kwargs: Any) -> Any:
@@ -9573,12 +9644,12 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
             market_age_ms = _lag_ms(market_ts or None)
             market_age_s = int(market_age_ms / 1000) if market_age_ms is not None else None
 
-            ledger_raw = client.get("v2:paper:ledger")
-            ledger_stats: dict[str, Any] = {}
-            if ledger_raw:
-                parsed_ledger = json.loads(ledger_raw)
-                ledger_stats = parsed_ledger if isinstance(parsed_ledger, dict) else {}
-            paper_event_count = int(ledger_stats.get("accepted_count") or 0)
+            paper_event_count = int(
+                hb.get("paper_event_count")
+                or hb.get("persistent_accepted_fill_count")
+                or hb.get("accepted_count")
+                or 0
+            )
 
             intents_raw = client.get("v2:paper:intents")
             paper_intents: list[dict[str, Any]] = []
@@ -9636,24 +9707,9 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                 else 0.0
             )
 
-            sig_keys = client.keys("v2:signals:latest:*")
-            latest_signal: dict[str, Any] = {}
-            latest_sig_ts = ""
-            for raw_key in (sig_keys or []):
-                k = raw_key.decode() if isinstance(raw_key, bytes) else raw_key
-                try:
-                    s_raw = client.get(k)
-                    if not s_raw:
-                        continue
-                    s = json.loads(s_raw)
-                    if not isinstance(s, dict):
-                        continue
-                    s_ts = s.get("available_at") or s.get("ts") or ""
-                    if not latest_sig_ts or s_ts > latest_sig_ts:
-                        latest_sig_ts = s_ts
-                        latest_signal = s
-                except Exception:
-                    pass
+            latest_signal, latest_sig_ts = _latest_signal_from_paper_intents(paper_intents)
+            if not latest_signal:
+                latest_signal, latest_sig_ts = _latest_signal_from_bounded_keys(client)
 
             last_event: dict[str, Any] = {}
             if latest_signal:
@@ -9676,7 +9732,9 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                 b_grade_canary_supply_raw = None
             b_grade_canary_supply_status = _json_object_from_redis_raw(b_grade_canary_supply_raw)
             if b_grade_canary_supply_status:
-                b_grade_canary_supply_status = dict(b_grade_canary_supply_status)
+                b_grade_canary_supply_status = _compact_paper_runtime_contract(
+                    b_grade_canary_supply_status
+                )
                 b_grade_canary_supply_status.setdefault("source", f"redis:{b_grade_canary_supply_key}")
                 b_grade_canary_supply_status.setdefault("available", True)
             else:
@@ -9801,8 +9859,8 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                     "last_tick_at": hb_ts or now,
                     "paper_event_count": paper_event_count,
                     "last_paper_event_count": paper_event_count,
-                    "last_shadow_decision_count": int(ledger_stats.get("shadow_observation_count") or 0),
-                    "last_risk_block_count": int(ledger_stats.get("blocked_count") or 0),
+                    "last_shadow_decision_count": int(hb.get("shadow_observation_count") or 0),
+                    "last_risk_block_count": int(hb.get("blocked_count") or 0),
                     "intents_built": hb.get("intents_built"),
                     "intents_accepted": hb.get("intents_accepted"),
                     "intents_blocked": hb.get("intents_blocked"),

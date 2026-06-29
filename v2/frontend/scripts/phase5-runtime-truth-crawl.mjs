@@ -348,12 +348,33 @@ function classifyDataValidationError({ contextText, networkErrors, httpErrors })
   return 'missing source';
 }
 
-function routeTruth({ route, finalPath, text, runtimeStatus, mobileSummary, dataValidationErrors, consoleErrors, networkErrors, httpErrors }) {
+function routeTruth({
+  route,
+  finalPath,
+  text,
+  runtimeStatus,
+  mobileSummary,
+  dataValidationErrors,
+  consoleErrors,
+  networkErrors,
+  httpErrors,
+  navigationError,
+  routeLoadWarning,
+}) {
   const lower = text.toLowerCase();
   const expectedPathOk = !route.expectedFinalPath || finalPath === route.expectedFinalPath;
   const visibleDataErrors = dataValidationErrors.length;
   const actionableConsoleErrors = consoleErrors.filter((entry) => !/favicon|tradingview|failed to load resource/i.test(entry));
-  const actionableNetworkErrors = networkErrors.filter((entry) => !/favicon|tradingview|analytics|googletagmanager|clarity|sentry/i.test(entry.url ?? ''));
+  const abortedRequestCount = networkErrors.filter((entry) => entry.failure === 'net::ERR_ABORTED').length;
+  const actionableNetworkErrors = networkErrors.filter((entry) => (
+    entry.failure !== 'net::ERR_ABORTED'
+    && !/favicon|tradingview|analytics|googletagmanager|clarity|sentry/i.test(entry.url ?? '')
+  ));
+  const expectedAuthProbeHttpErrors = httpErrors.filter((entry) => (
+    entry.status === 401
+    && /\/api\/v2\/(admin\/overview|account\/exchange-readonly)\b/i.test(entry.url ?? '')
+  ));
+  const actionableHttpErrors = httpErrors.filter((entry) => !expectedAuthProbeHttpErrors.includes(entry));
   const activeRuntime = runtimeStatus?.runtime === 'v2_trade_management_paper_loop'
     && runtimeStatus?.runtime_state === 'PAPER_RUNTIME_ONLINE_ACTIVE'
     && runtimeStatus?.live_gate_status === 'blocked_human_only';
@@ -369,33 +390,43 @@ function routeTruth({ route, finalPath, text, runtimeStatus, mobileSummary, data
     /(paper_online_runtime|old_policy|toy_momentum|static_proof_fixture)/i.test(text)
     && !/(legacy|historical|archive|not current|blocked|inactive|disabled)/i.test(text);
   const visibleRouteFailure = /404|not found|cannot get/i.test(text.slice(0, 500));
+  const routeLoaded = !navigationError && compact(text, 200).length > 0 && !visibleRouteFailure;
   const dangerousControlTextPresent = /(enable live trading|increase leverage|switch paper to live)/i.test(text);
   const dangerousControlsExplicitlyDisabled =
     /(dangerous controls disabled|requires l[45] approval|blocked_human_only|human-only final gate|live trading:\s*blocked)/i.test(text);
   const noLiveMutationVisible = !dangerousControlTextPresent || dangerousControlsExplicitlyDisabled;
+  const routeSpecificTruth = route.path !== '/ai-predictions' || aGradeBlockerShown;
 
   return {
+    route_loaded: routeLoaded,
+    navigation_error_present: Boolean(navigationError),
+    route_load_warning_present: Boolean(routeLoadWarning),
     expected_final_path_ok: expectedPathOk,
     visible_data_validation_error_count: visibleDataErrors,
     stale_contradiction_count: staleContradiction ? 1 : 0,
     route_failure_visible: visibleRouteFailure,
     console_error_count: actionableConsoleErrors.length,
+    aborted_request_count: abortedRequestCount,
     network_error_count: actionableNetworkErrors.length,
-    http_error_count: httpErrors.length,
+    expected_auth_probe_http_error_count: expectedAuthProbeHttpErrors.length,
+    http_error_count: actionableHttpErrors.length,
     active_runtime_api_truth: activeRuntime,
     mobile_runtime_api_truth: mobileRuntime,
     paper_owner_shown_or_runtime_visible: paperOwnerShown,
     cost_coverage_shown_or_runtime_visible: costCoverageShown || route.path === '/trade',
     a_grade_blocker_shown_or_runtime_visible: aGradeBlockerShown || route.path !== '/ai-predictions',
     no_live_mutation_controls_enabled: noLiveMutationVisible,
-    pass: expectedPathOk
+    pass: routeLoaded
+      && expectedPathOk
       && visibleDataErrors === 0
       && !staleContradiction
-      && !visibleRouteFailure
       && actionableConsoleErrors.length === 0
+      && actionableNetworkErrors.length === 0
+      && actionableHttpErrors.length === 0
       && activeRuntime
       && mobileRuntime
-      && noLiveMutationVisible,
+      && noLiveMutationVisible
+      && routeSpecificTruth,
   };
 }
 
@@ -443,14 +474,14 @@ const traderSnapshotInputs = {
 };
 
 const browser = await chromium.launch({ headless: true });
-const context = await browser.newContext({
-  ignoreHTTPSErrors: true,
-  serviceWorkers: 'block',
-  viewport: { width: 1440, height: 1100 },
-});
 
 const routeRows = [];
 for (const route of routes) {
+  const context = await browser.newContext({
+    ignoreHTTPSErrors: true,
+    serviceWorkers: 'block',
+    viewport: { width: 1440, height: 1100 },
+  });
   const page = await context.newPage();
   await installAuthRoutes(page, route.role, traderSnapshotInputs);
   const consoleErrors = [];
@@ -481,13 +512,26 @@ for (const route of routes) {
   requestedUrl.searchParams.set('role', route.role);
   let status = null;
   let navigationError = null;
+  let routeLoadWarning = null;
   try {
-    const response = await page.goto(requestedUrl.toString(), { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    const response = await page.goto(requestedUrl.toString(), { waitUntil: 'commit', timeout: 45_000 });
     status = response?.status() ?? null;
-    await page.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => undefined);
-    await page.waitForTimeout(800);
   } catch (error) {
     navigationError = error instanceof Error ? error.message : String(error);
+  }
+  if (!navigationError) {
+    try {
+      await page.waitForLoadState('domcontentloaded', { timeout: 30_000 });
+    } catch (error) {
+      routeLoadWarning = error instanceof Error ? error.message : String(error);
+    }
+    try {
+      await page.locator('[data-testid]').first().waitFor({ state: 'visible', timeout: 15_000 });
+    } catch (error) {
+      routeLoadWarning = routeLoadWarning ?? (error instanceof Error ? error.message : String(error));
+    }
+    await page.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => undefined);
+    await page.waitForTimeout(800);
   }
 
   const finalUrl = page.url();
@@ -507,6 +551,8 @@ for (const route of routes) {
     consoleErrors,
     networkErrors,
     httpErrors,
+    navigationError,
+    routeLoadWarning,
   });
 
   routeRows.push({
@@ -519,6 +565,7 @@ for (const route of routes) {
     expected_final_path: route.expectedFinalPath ?? route.path,
     screenshot: `phase5_website_screenshots/${screenshotName}`,
     navigation_error: navigationError,
+    route_load_warning: routeLoadWarning,
     console_errors: uniq(consoleErrors),
     network_errors: networkErrors,
     http_errors: httpErrors,
@@ -527,6 +574,7 @@ for (const route of routes) {
     truth,
   });
   await page.close();
+  await context.close();
 }
 
 await browser.close();
@@ -613,6 +661,8 @@ const repairStatus = {
     route: row.route,
     final_path: row.final_path,
     expected_final_path: row.expected_final_path,
+    navigation_error: row.navigation_error,
+    route_load_warning: row.route_load_warning,
     truth: row.truth,
     data_validation_error_count: row.data_validation_errors.length,
     console_error_count: row.console_errors.length,

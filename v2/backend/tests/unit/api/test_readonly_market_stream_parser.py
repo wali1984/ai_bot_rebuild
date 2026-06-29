@@ -600,6 +600,9 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
                 "strategy_failed": 3,
                 "unsafe_live_route_flags": 0,
             },
+            "sample_canary_candidates": [
+                {"symbol": "BTCUSDT", "large_runtime_row": {"nested": ["omitted"] * 20}},
+            ],
         },
         "v2:signals:latest:BTCUSDT:1m": {
             "signal_id": "sig-test",
@@ -615,7 +618,13 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
             "profile_id": "paper-only",
         },
     }
-    monkeypatch.setattr(market_contracts, "get_redis", lambda: _FakeRedis(values))
+    client = _FakeRedis(values)
+
+    def fail_keys(_pattern: str) -> list[str]:
+        raise AssertionError("paper runtime status must not use Redis KEYS")
+
+    client.keys = fail_keys  # type: ignore[method-assign]
+    monkeypatch.setattr(market_contracts, "get_redis", lambda: client)
     monkeypatch.setattr(market_contracts, "_utc_now", lambda: "2026-06-27T20:50:10Z")
 
     payload = await market_contracts.get_paper_runtime_status(actor=None)
@@ -658,6 +667,11 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
     assert canary_supply["predicate_counts"]["production_grade_cost_rows"] == 3
     assert canary_supply["predicate_counts"]["risk_pass_rows"] == 0
     assert canary_supply["root_cause_counts"]["risk_failed"] == 3
+    assert canary_supply["sample_rows_omitted_from_api"] is True
+    assert canary_supply["sample_canary_candidates_count"] == 1
+    assert "sample_canary_candidates" not in canary_supply
+    assert payload["current_signal_lineage"]["lineage_ids"]["prediction_id"] == "pred-test"
+    assert payload["current_signal_lineage"]["lineage_ids"]["signal_id"] == "sig-test"
     assert any(blocker["id"] == "B_GRADE_CANARY_SUPPLY_ZERO" for blocker in payload["blockers"])
 
 
