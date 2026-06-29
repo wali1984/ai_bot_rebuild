@@ -1162,6 +1162,113 @@ def test_write_payload_atomically_replaces_invalid_json(tmp_path) -> None:
     assert not list(tmp_path.glob("*.tmp"))
 
 
+def _completed_controlled_one_shot_status(**overrides):
+    payload = {
+        "classification": "V2_TRADE_MANAGEMENT_PAPER_PRODUCTION_OK",
+        "cycle_state": "COMPLETED_CYCLE",
+        "started_at": "2026-06-29T10:00:00Z",
+        "finished_at": "2026-06-29T10:00:30Z",
+        "candidate_id": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID,
+        "policy_id": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID,
+        "paper_policy_owner": paper_loop.PAPER_POLICY_OWNER_CHALLENGER_V2,
+        "current_allowed_paper_owner": paper_loop.PAPER_POLICY_OWNER_CHALLENGER_V2,
+        "policy_fingerprint": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT,
+        "model_source": paper_loop.CHALLENGER_V2_MODEL_SOURCE,
+        "live_gate": paper_loop.LIVE_GATE_BLOCKED,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "writes_legacy_redis": False,
+        "paper_runtime_cost_capture_status": {
+            "production_grade_cost_coverage": 1.0,
+            "unexplained_missing_cost_rows": 0,
+        },
+        "paper_b_grade_canary_supply_status": {
+            "canary_id": paper_loop.CHALLENGER_B_GRADE_PAPER_CANARY,
+            "canary_candidates": 416,
+            "canary_intents": 21,
+            "canary_pending_rows": 21,
+            "canary_binding_missing_rows": 0,
+            "counts_as_a_grade_evidence": False,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "pass_conditions": {
+                "canary_candidates_gt_zero": True,
+                "canary_identity_preserved": True,
+                "canary_intents_gt_zero": True,
+                "canary_pending_rows_gt_zero": True,
+            },
+        },
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_controlled_one_shot_cutover_marker_writes_only_safe_challenger_canary(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-29T10:01:00Z")
+    marker_path = tmp_path / "paper_forward_canary_cutover_marker.json"
+    one_shot_output_path = tmp_path / "controlled_one_shot.json"
+
+    marker = paper_loop._write_controlled_one_shot_cutover_marker(  # noqa: SLF001
+        _completed_controlled_one_shot_status(),
+        one_shot_output_path=one_shot_output_path,
+        path=marker_path,
+    )
+
+    assert marker["cutover_marker_written"] is True
+    assert marker["cutover_completed_at"] == "2026-06-29T10:00:30Z"
+    assert marker["one_shot_completed"] is True
+    assert marker["paper_policy_owner"] == paper_loop.PAPER_POLICY_OWNER_CHALLENGER_V2
+    assert marker["model_source"] == paper_loop.CHALLENGER_V2_MODEL_SOURCE
+    assert marker["production_grade_cost_coverage"] == 1.0
+    assert marker["canary_intents"] == 21
+    persisted = json.loads(marker_path.read_text(encoding="utf-8"))
+    assert persisted["cutover_marker_write_allowed"] is True
+    assert persisted["controlled_one_shot_output"] == str(one_shot_output_path)
+    assert persisted["routes_to_live"] is False
+    assert persisted["places_real_order"] is False
+    assert persisted["counts_as_a_grade_evidence"] is False
+
+
+def test_controlled_one_shot_cutover_marker_rejects_incomplete_canary_contract(
+    tmp_path,
+) -> None:
+    marker_path = tmp_path / "paper_forward_canary_cutover_marker.json"
+    status = _completed_controlled_one_shot_status(
+        live_gate=paper_loop.LIVE_GATE_ENABLED,
+        paper_b_grade_canary_supply_status={
+            "canary_id": paper_loop.CHALLENGER_B_GRADE_PAPER_CANARY,
+            "canary_candidates": 12,
+            "canary_intents": 0,
+            "canary_pending_rows": 0,
+            "counts_as_a_grade_evidence": False,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        },
+    )
+
+    marker = paper_loop._write_controlled_one_shot_cutover_marker(  # noqa: SLF001
+        status,
+        one_shot_output_path=tmp_path / "controlled_one_shot.json",
+        path=marker_path,
+    )
+
+    assert marker["cutover_marker_written"] is False
+    assert marker["cutover_marker_write_allowed"] is False
+    assert "LIVE_GATE_NOT_BLOCKED_HUMAN_ONLY" in marker["cutover_marker_write_rejection_reasons"]
+    assert "NO_CHALLENGER_CANARY_INTENTS" in marker["cutover_marker_write_rejection_reasons"]
+    assert "NO_CHALLENGER_CANARY_PENDING_ROWS" in marker["cutover_marker_write_rejection_reasons"]
+    assert "CHALLENGER_CANARY_BINDING_MISSING_ROWS_UNKNOWN" in marker[
+        "cutover_marker_write_rejection_reasons"
+    ]
+    assert not marker_path.exists()
+
+
 def test_compact_accepted_fill_state_omits_snapshot_but_keeps_trust_and_execution() -> None:
     compact = paper_loop._compact_accepted_fill_for_state(  # noqa: SLF001
         {

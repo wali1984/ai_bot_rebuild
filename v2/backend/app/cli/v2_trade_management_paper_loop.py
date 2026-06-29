@@ -15493,6 +15493,169 @@ def write_payload(payload: dict, path: Path) -> None:
     tmp.replace(path)
 
 
+def _positive_count(value: Any) -> int:
+    parsed = _coerce_float(value)
+    if parsed is None or parsed <= 0:
+        return 0
+    return int(parsed)
+
+
+def _controlled_one_shot_cutover_marker_payload(
+    one_shot_status: dict[str, Any],
+    *,
+    one_shot_output_path: Path,
+    generated_utc: str | None = None,
+) -> dict[str, Any]:
+    cost_status = one_shot_status.get("paper_runtime_cost_capture_status")
+    if not isinstance(cost_status, dict):
+        cost_status = {}
+    canary_status = one_shot_status.get("paper_b_grade_canary_supply_status")
+    if not isinstance(canary_status, dict):
+        canary_status = {}
+    pass_conditions = canary_status.get("pass_conditions")
+    if not isinstance(pass_conditions, dict):
+        pass_conditions = {}
+
+    started_at = one_shot_status.get("started_at")
+    finished_at = one_shot_status.get("finished_at")
+    production_grade_cost_coverage = _coerce_float(
+        cost_status.get("production_grade_cost_coverage")
+    )
+    unexplained_missing_cost_rows = _coerce_float(
+        cost_status.get("unexplained_missing_cost_rows")
+    )
+    candidate_id = _first_present(
+        one_shot_status.get("candidate_id"),
+        one_shot_status.get("policy_id"),
+    )
+
+    rejection_reasons: list[str] = []
+    if one_shot_status.get("cycle_state") != "COMPLETED_CYCLE":
+        rejection_reasons.append("ONE_SHOT_CYCLE_NOT_COMPLETED")
+    if _parse_strategy_time(started_at) is None:
+        rejection_reasons.append("CONTROLLED_ONE_SHOT_STARTED_AT_INVALID")
+    if _parse_strategy_time(finished_at) is None:
+        rejection_reasons.append("CONTROLLED_ONE_SHOT_FINISHED_AT_INVALID")
+    if one_shot_status.get("paper_only") is not True:
+        rejection_reasons.append("ONE_SHOT_NOT_PAPER_ONLY")
+    if one_shot_status.get("routes_to_live") is not False:
+        rejection_reasons.append("ONE_SHOT_ROUTES_TO_LIVE")
+    if one_shot_status.get("places_real_order") is not False:
+        rejection_reasons.append("ONE_SHOT_PLACES_REAL_ORDER")
+    if one_shot_status.get("writes_legacy_redis") is not False:
+        rejection_reasons.append("ONE_SHOT_WRITES_LEGACY_REDIS")
+    if one_shot_status.get("live_gate") != LIVE_GATE_BLOCKED:
+        rejection_reasons.append("LIVE_GATE_NOT_BLOCKED_HUMAN_ONLY")
+    if one_shot_status.get("paper_policy_owner") != PAPER_POLICY_OWNER_CHALLENGER_V2:
+        rejection_reasons.append("PAPER_POLICY_OWNER_NOT_CHALLENGER_V2")
+    if (
+        one_shot_status.get("current_allowed_paper_owner")
+        != PAPER_POLICY_OWNER_CHALLENGER_V2
+    ):
+        rejection_reasons.append("CURRENT_ALLOWED_PAPER_OWNER_NOT_CHALLENGER_V2")
+    if candidate_id != CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID:
+        rejection_reasons.append("ACTIVE_CUDA_CANDIDATE_ID_MISMATCH")
+    if (
+        one_shot_status.get("policy_fingerprint")
+        != CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT
+    ):
+        rejection_reasons.append("ACTIVE_CUDA_POLICY_FINGERPRINT_MISMATCH")
+    if one_shot_status.get("model_source") != CHALLENGER_V2_MODEL_SOURCE:
+        rejection_reasons.append("MODEL_SOURCE_NOT_V2_CUDA_CHALLENGER")
+    if (
+        production_grade_cost_coverage is None
+        or production_grade_cost_coverage < 0.95
+    ):
+        rejection_reasons.append("PRODUCTION_GRADE_COST_COVERAGE_BELOW_95_PCT")
+    if unexplained_missing_cost_rows not in (0, 0.0):
+        rejection_reasons.append("UNEXPLAINED_MISSING_COST_ROWS_NONZERO")
+    if canary_status.get("canary_id") != CHALLENGER_B_GRADE_PAPER_CANARY:
+        rejection_reasons.append("CANARY_ID_NOT_CHALLENGER_B_GRADE_PAPER_CANARY")
+    if _positive_count(canary_status.get("canary_candidates")) <= 0:
+        rejection_reasons.append("NO_CHALLENGER_CANARY_CANDIDATES")
+    if _positive_count(canary_status.get("canary_intents")) <= 0:
+        rejection_reasons.append("NO_CHALLENGER_CANARY_INTENTS")
+    if _positive_count(canary_status.get("canary_pending_rows")) <= 0:
+        rejection_reasons.append("NO_CHALLENGER_CANARY_PENDING_ROWS")
+    if canary_status.get("canary_binding_missing_rows") in (None, ""):
+        rejection_reasons.append("CHALLENGER_CANARY_BINDING_MISSING_ROWS_UNKNOWN")
+    elif _positive_count(canary_status.get("canary_binding_missing_rows")) != 0:
+        rejection_reasons.append("CHALLENGER_CANARY_BINDING_MISSING_ROWS_NONZERO")
+    if pass_conditions and not all(value is True for value in pass_conditions.values()):
+        rejection_reasons.append("CHALLENGER_CANARY_PASS_CONDITIONS_NOT_ALL_TRUE")
+    if canary_status.get("counts_as_a_grade_evidence") is not False:
+        rejection_reasons.append("CANARY_COUNTS_AS_A_GRADE_EVIDENCE")
+    if canary_status.get("paper_only") is not True:
+        rejection_reasons.append("CANARY_STATUS_NOT_PAPER_ONLY")
+    if canary_status.get("routes_to_live") is not False:
+        rejection_reasons.append("CANARY_STATUS_ROUTES_TO_LIVE")
+    if canary_status.get("places_real_order") is not False:
+        rejection_reasons.append("CANARY_STATUS_PLACES_REAL_ORDER")
+
+    generated = generated_utc or _utc_iso()
+    return {
+        "schema_version": "paper_forward_canary_cutover_marker_v1",
+        "source": "v2_trade_management_paper_loop:controlled_one_shot",
+        "status": (
+            "CONTROLLED_ONE_SHOT_FORWARD_CANARY_CUTOVER_MARKER_READY"
+            if not rejection_reasons
+            else "BLOCKED_CONTROLLED_ONE_SHOT_FORWARD_CANARY_CUTOVER_MARKER"
+        ),
+        "generated_utc": generated,
+        "controlled_one_shot_started_at": started_at,
+        "controlled_one_shot_finished_at": finished_at,
+        "controlled_one_shot_output": str(one_shot_output_path),
+        "cutover_completed_at": finished_at if not rejection_reasons else None,
+        "one_shot_completed": not rejection_reasons,
+        "cutover_marker_write_allowed": not rejection_reasons,
+        "cutover_marker_write_rejection_reasons": rejection_reasons,
+        "paper_policy_owner": one_shot_status.get("paper_policy_owner"),
+        "current_allowed_paper_owner": one_shot_status.get("current_allowed_paper_owner"),
+        "candidate_id": candidate_id,
+        "policy_id": one_shot_status.get("policy_id"),
+        "policy_fingerprint": one_shot_status.get("policy_fingerprint"),
+        "model_source": one_shot_status.get("model_source"),
+        "live_gate_status": one_shot_status.get("live_gate"),
+        "paper_only": one_shot_status.get("paper_only"),
+        "routes_to_live": one_shot_status.get("routes_to_live"),
+        "places_real_order": one_shot_status.get("places_real_order"),
+        "writes_legacy_redis": one_shot_status.get("writes_legacy_redis"),
+        "production_grade_cost_coverage": production_grade_cost_coverage,
+        "unexplained_missing_cost_rows": unexplained_missing_cost_rows,
+        "canary_id": canary_status.get("canary_id"),
+        "canary_candidates": _positive_count(canary_status.get("canary_candidates")),
+        "canary_intents": _positive_count(canary_status.get("canary_intents")),
+        "canary_pending_rows": _positive_count(canary_status.get("canary_pending_rows")),
+        "canary_binding_missing_rows": _positive_count(
+            canary_status.get("canary_binding_missing_rows")
+        ),
+        "counts_as_a_grade_evidence": False,
+        "live_path_changed": False,
+        "places_real_order_rows": 0,
+        "routes_to_live_rows": 0,
+    }
+
+
+def _write_controlled_one_shot_cutover_marker(
+    one_shot_status: dict[str, Any],
+    *,
+    one_shot_output_path: Path,
+    path: Path | None = None,
+) -> dict[str, Any]:
+    marker_path = path or PAPER_FORWARD_CANARY_CUTOVER_MARKER_PATH
+    marker = _controlled_one_shot_cutover_marker_payload(
+        one_shot_status,
+        one_shot_output_path=one_shot_output_path,
+    )
+    marker["cutover_marker_path"] = str(marker_path)
+    marker["cutover_marker_written"] = False
+    if marker["cutover_marker_write_allowed"] is not True:
+        return marker
+    marker["cutover_marker_written"] = True
+    write_payload(marker, marker_path)
+    return marker
+
+
 def _try_acquire_loop_lock(path: Path = PAPER_LOOP_LOCK_PATH) -> TextIO | None:
     import fcntl
 
@@ -15525,7 +15688,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--loop", action="store_true")
     parser.add_argument("--interval-seconds", type=int, default=60)
     parser.add_argument("--out", type=Path, default=DEFAULT_PAYLOAD_PATH)
+    parser.add_argument("--mark-forward-canary-cutover", action="store_true")
     args = parser.parse_args(argv)
+    if args.loop and args.mark_forward_canary_cutover:
+        parser.error("--mark-forward-canary-cutover is only valid for controlled one-shot runs")
     if args.loop:
         loop_lock_handle = _try_acquire_loop_lock()
         if loop_lock_handle is None:
@@ -15545,12 +15711,29 @@ def main(argv: list[str] | None = None) -> int:
             write_payload(hb, args.out)
             time.sleep(max(5, int(args.interval_seconds)))
     hb = run_once()
+    cutover_marker_status = None
+    if args.mark_forward_canary_cutover:
+        write_payload(hb, args.out)
+        cutover_marker_status = _write_controlled_one_shot_cutover_marker(
+            hb,
+            one_shot_output_path=args.out,
+        )
+        hb["paper_forward_canary_cutover_marker_status"] = cutover_marker_status
+        if cutover_marker_status["cutover_marker_write_allowed"] is not True:
+            write_payload(hb, args.out)
+            print(json.dumps(cutover_marker_status, sort_keys=True))
+            return 2
     write_payload(hb, args.out)
     print(json.dumps({
         "classification": hb["classification"],
         "intents_built": hb["intents_built"],
         "intents_accepted": hb["intents_accepted"],
         "v2_paper_keys_written_count": hb["v2_paper_keys_written_count"],
+        "forward_canary_cutover_marker_written": (
+            cutover_marker_status.get("cutover_marker_written")
+            if cutover_marker_status is not None
+            else False
+        ),
     }))
     return 0
 
