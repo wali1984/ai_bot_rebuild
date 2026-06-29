@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, '..', '..', '..');
-const goalId = 'V2_FINAL_RUNTIME_CUTOVER_PRODUCTION_COST_A_GRADE_WEBSITE_AND_1000X_TRAJECTORY_READY';
+const goalId = process.env.PHASE5_GOAL_ID
+  ?? 'V2_FINAL_RUNTIME_CUTOVER_PRODUCTION_COST_A_GRADE_WEBSITE_AND_1000X_TRAJECTORY_READY';
 const goalDir = resolve(repoRoot, 'goal_state', goalId);
 const screenshotDir = resolve(goalDir, 'phase5_website_screenshots');
 const baseUrl = (process.env.PHASE5_WEBSITE_BASE_URL ?? 'http://127.0.0.1:5173').replace(/\/$/, '');
