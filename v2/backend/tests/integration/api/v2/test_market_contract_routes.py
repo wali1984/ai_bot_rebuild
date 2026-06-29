@@ -1470,7 +1470,7 @@ def test_portfolio_contract_uses_paper_mode_without_live_account_claim(tmp_path:
         "operator_runtime/paper_online/latest/paper_runtime_status.json",
         {"generated_at": "2026-06-13T03:00:00Z", "paper_account": {"equity": 50000, "realized_pnl": 12}},
     )
-    client = _client(tmp_path, monkeypatch)
+    client = _client(tmp_path, monkeypatch, isolate_redis=True)
 
     payload = client.get("/api/v2/portfolio").json()
 
@@ -1478,6 +1478,54 @@ def test_portfolio_contract_uses_paper_mode_without_live_account_claim(tmp_path:
     assert payload["mode"] == "paper"
     assert payload["source_type"] == "static_payload"
     assert "live account" not in json.dumps(payload).lower()
+
+
+def test_public_portfolio_prefers_live_redis_portfolio_state(tmp_path: Path, monkeypatch) -> None:
+    redis_store = {
+        "v2:portfolio:state": json.dumps(
+            {
+                "generated_utc": "2026-06-29T01:35:00Z",
+                "equity": 10025.5,
+                "realized_pnl_usd": 31.25,
+                "unrealized_pnl_usd": -5.75,
+                "open_positions_count": 1,
+                "closed_positions_count": 12,
+                "open_position_notional": 250.0,
+                "open_positions": [
+                    {
+                        "symbol": "BTCUSDT",
+                        "net_quantity": 0.01,
+                        "avg_entry_price": 61200.0,
+                        "latest_price": 61450.0,
+                        "unrealized_pnl_usd": 2.5,
+                    }
+                ],
+            }
+        )
+    }
+    monkeypatch.setattr(market_contracts, "get_redis", lambda: redis_store)
+    client = _client(tmp_path, monkeypatch)
+
+    payload = client.get("/api/v2/portfolio").json()
+
+    _assert_contract(payload, "/api/v2/portfolio")
+    assert payload["source"] == "redis:v2:portfolio:state"
+    assert payload["source_type"] == "redis_live"
+    assert payload["timestamp"] == "2026-06-29T01:35:00Z"
+    assert payload["data"]["portfolio_source"] == "redis:v2:portfolio:state"
+    assert payload["data"]["portfolio_source_type"] == "redis_live"
+    assert payload["data"]["fallback_used"] is False
+    assert payload["data"]["equity"] == 10025.5
+    assert payload["data"]["realized_pnl"] == 31.25
+    assert payload["data"]["unrealized_pnl"] == -5.75
+    assert payload["data"]["open_position_count"] == 1
+    assert payload["data"]["closed_trade_count"] == 12
+    assert payload["data"]["total_open_notional"] == 250.0
+    assert payload["data"]["positions"][0]["symbol"] == "BTCUSDT"
+    assert payload["data"]["positions"][0]["quantity"] == 0.01
+    assert payload["data"]["positions"][0]["entry_price"] == 61200.0
+    assert payload["data"]["positions"][0]["last_mark_price"] == 61450.0
+    assert "Canonical paper portfolio source is Redis v2:portfolio:state" in payload["warnings"]
 
 
 def test_authenticated_trader_receives_global_paper_runtime_projection(tmp_path: Path, monkeypatch) -> None:

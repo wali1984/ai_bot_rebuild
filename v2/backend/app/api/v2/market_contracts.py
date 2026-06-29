@@ -4560,11 +4560,13 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
         )
     # Canonical source: v2:portfolio:state Redis (always available, no scoping)
     pub_portfolio_state: dict[str, Any] = {}
+    pub_portfolio_state_from_redis = False
     pub_positions: list[dict[str, Any]] = []
     try:
         _pub_ps_raw = get_redis().get("v2:portfolio:state")
         if _pub_ps_raw:
             pub_portfolio_state = json.loads(_pub_ps_raw)
+            pub_portfolio_state_from_redis = True
     except Exception:
         pass
     try:
@@ -4608,6 +4610,13 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
     # Use Redis paper positions (no scoping required — paper trading system)
     positions = pub_positions if pub_positions else _scoped_rows(portfolio_data.get("positions") if scoped_portfolio else [], actor)
     position_scope_missing = False
+    runtime_position_missing: list[str] = []
+    runtime_position_warnings: list[str] = []
+    if not positions and pub_portfolio_state:
+        positions, runtime_position_missing, runtime_position_warnings = _runtime_portfolio_positions(
+            pub_portfolio_state,
+            actor,
+        )
     # Prefer canonical Redis portfolio state for PnL and equity
     base_realized = (
         _float(pub_portfolio_state.get("realized_pnl_usd"))
@@ -4646,13 +4655,25 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
         "paper_account_id": actor.get("paper_account_id") if actor else None,
         "account_scope": "authenticated_trader" if actor else "public_read_only",
         "account_specific": bool(scoped_paper or scoped_portfolio),
+        "portfolio_source": "redis:v2:portfolio:state" if pub_portfolio_state_from_redis else portfolio_source,
+        "portfolio_source_type": "redis_live" if pub_portfolio_state_from_redis else "static_payload",
+        "fallback_used": not pub_portfolio_state_from_redis,
+        "fallback_source_visible": True,
     }
     missing = [key for key in ("equity", "realized_pnl", "unrealized_pnl") if data.get(key) is None]
     if not positions:
         missing.append("positions")
     if not data["account_specific"]:
         missing.append("trader_specific_repository")
-    warnings = ["Paper/static payload fallback; not a brokerage account API"]
+    missing.extend(runtime_position_missing)
+    warnings = [
+        (
+            "Canonical paper portfolio source is Redis v2:portfolio:state"
+            if pub_portfolio_state_from_redis
+            else "Paper/static payload fallback; not a brokerage account API"
+        ),
+        *runtime_position_warnings,
+    ]
     if position_scope_missing:
         warnings.append("Unscoped or mismatched fallback positions were withheld from authenticated trader account view")
     if actor:
@@ -4663,13 +4684,22 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
         )
     else:
         warnings.append(_account_scope_warning(actor))
+    # Source metadata: prefer Redis when available, fall back to static file timestamps.
+    if pub_portfolio_state_from_redis:
+        _pub_source = "redis:v2:portfolio:state"
+        _pub_source_type: SourceType = "redis_live"
+        _pub_timestamp = pub_portfolio_state.get("generated_utc") or _utc_now()
+    else:
+        _pub_source = f"{paper_source} + {portfolio_source}"
+        _pub_source_type = "static_payload"
+        _pub_timestamp = _timestamp_from_payload(paper) or _timestamp_from_payload(portfolio)
     return _base_response(
         endpoint=endpoint,
         data=data,
-        source=f"{paper_source} + {portfolio_source}",
-        source_type="static_payload",
-        timestamp=_timestamp_from_payload(paper) or _timestamp_from_payload(portfolio),
-        missing_fields=missing,
+        source=_pub_source,
+        source_type=_pub_source_type,
+        timestamp=_pub_timestamp,
+        missing_fields=[*dict.fromkeys(missing)],
         warnings=warnings,
         mode="paper",
         trader_context=_trader_context(actor),
