@@ -600,6 +600,26 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
                 {"symbol": "BTCUSDT", "large_runtime_row": {"nested": ["omitted"] * 20}},
             ],
         },
+        "v2:paper:trainer_model_quality_runtime_status": {
+            "schema_version": "paper_trainer_model_quality_runtime_status_v1",
+            "status": "PASSED_CURRENT_MODEL_QUALITY_PUBLISHED_A_GRADE_BLOCKED",
+            "weights_update": True,
+            "quality_metrics_current": True,
+            "trusted_rows_loaded": 4008,
+            "optimizer_steps_last_hour": 64,
+            "parameter_hash_changed": True,
+            "checkpoint_written": True,
+            "checkpoint_reload_verified": True,
+            "directional_accuracy": 0.53,
+            "after_cost_expectancy_bps": 15.25,
+            "accuracy_by_symbol": {"BTCUSDT": 0.55},
+            "sample_quality_rows": [{"symbol": "BTCUSDT"}],
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "counts_as_a_grade_evidence": False,
+            "a_grade_promotion_allowed": False,
+        },
         "v2:paper:forward_canary_evidence_status": {
             "schema_version": "paper_forward_canary_evidence_status_v1",
             "status": "BLOCKED_FORWARD_CANARY_EVIDENCE_INCOMPLETE",
@@ -688,6 +708,26 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
     assert canary_supply["sample_rows_omitted_from_api"] is True
     assert canary_supply["sample_canary_candidates_count"] == 1
     assert "sample_canary_candidates" not in canary_supply
+    trainer_quality = loop["paper_trainer_model_quality_runtime_status"]
+    assert trainer_quality is loop["trainer_model_quality_runtime_status"]
+    assert trainer_quality["source"] == "redis:v2:paper:trainer_model_quality_runtime_status"
+    assert trainer_quality["available"] is True
+    assert trainer_quality["status"] == "PASSED_CURRENT_MODEL_QUALITY_PUBLISHED_A_GRADE_BLOCKED"
+    assert trainer_quality["weights_update"] is True
+    assert trainer_quality["quality_metrics_current"] is True
+    assert trainer_quality["trusted_rows_loaded"] == 4008
+    assert trainer_quality["optimizer_steps_last_hour"] == 64
+    assert trainer_quality["parameter_hash_changed"] is True
+    assert trainer_quality["checkpoint_written"] is True
+    assert trainer_quality["checkpoint_reload_verified"] is True
+    assert trainer_quality["directional_accuracy"] == pytest.approx(0.53)
+    assert trainer_quality["after_cost_expectancy_bps"] == pytest.approx(15.25)
+    assert trainer_quality["routes_to_live"] is False
+    assert trainer_quality["places_real_order"] is False
+    assert trainer_quality["counts_as_a_grade_evidence"] is False
+    assert trainer_quality["a_grade_promotion_allowed"] is False
+    assert trainer_quality["sample_quality_rows_count"] == 1
+    assert "sample_quality_rows" not in trainer_quality
     forward_canary = loop["paper_forward_canary_evidence_status"]
     assert forward_canary["source"] == "redis:v2:paper:forward_canary_evidence_status"
     assert forward_canary["available"] is True

@@ -21,6 +21,17 @@ test.describe('operator truth realtime contract', () => {
     expect(source).not.toContain('/operator_runtime/paper_online/latest/current_signal_lineage.json');
   });
 
+  test('trainer system page renders paper runtime trainer quality contract', () => {
+    const source = readFileSync(path.resolve(process.cwd(), 'src/pages/admin-intelligence/index.tsx'), 'utf8');
+
+    expect(source).toContain("const PAPER_RUNTIME_ENDPOINT = '/api/v2/paper/runtime-status'");
+    expect(source).toContain('paper_trainer_model_quality_runtime_status');
+    expect(source).toContain('Paper Runtime Trainer Quality');
+    expect(source).toContain('Optimizer steps last hour');
+    expect(source).toContain('Checkpoint reload');
+    expect(source).toContain('A-grade promotion');
+  });
+
   test('resource hook opens WebSockets for operator truth static JSON folders', () => {
     const source = readFileSync(path.resolve(process.cwd(), 'src/hooks/useRealtimeResource.ts'), 'utf8');
 

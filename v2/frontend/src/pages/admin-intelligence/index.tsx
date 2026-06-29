@@ -5,6 +5,7 @@ import { relativeAge } from '../../data/adminFieldRegistry';
 
 const TRAINER_ENDPOINT = '/api/v2/trainer/status';
 const RISK_ENDPOINT = '/api/v2/risk/status';
+const PAPER_RUNTIME_ENDPOINT = '/api/v2/paper/runtime-status';
 
 const SC = { ok: '#22c55e', warn: '#f59e0b', error: '#ef4444', unknown: '#6b7280', info: '#60a5fa' };
 function sColor(s?: string | null) {
@@ -26,6 +27,34 @@ function Field({ label, value, mono, accent, full }: { label: string; value: str
       <span style={{ fontSize: 12, color: accent || 'var(--text-primary)', fontFamily: mono ? 'var(--font-mono)' : undefined, wordBreak: full ? 'break-all' : undefined, textAlign: full ? undefined : 'right' }}>{value}</span>
     </div>
   );
+}
+
+function flagText(value: boolean | null | undefined): string {
+  if (value === true) return 'YES';
+  if (value === false) return 'NO';
+  return '—';
+}
+
+function numText(value: number | null | undefined, digits = 0): string {
+  return typeof value === 'number' && Number.isFinite(value) ? value.toFixed(digits) : '—';
+}
+
+function unitPercent(value: number | null | undefined): string {
+  return typeof value === 'number' && Number.isFinite(value) ? `${(value * 100).toFixed(2)}%` : '—';
+}
+
+function bpsText(value: number | null | undefined): string {
+  return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(2)} bps` : '—';
+}
+
+function runtimeSourceText(value: unknown, fallback: string): string {
+  if (typeof value === 'string' && value.trim()) return value;
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, entry]) => `${key}: ${String(entry)}`)
+      .join(' · ') || fallback;
+  }
+  return fallback;
 }
 
 interface TrainerPayload {
@@ -50,6 +79,37 @@ interface RiskPayload {
   };
 }
 
+interface PaperTrainerModelQualityStatus {
+  status?: string | null;
+  weights_update?: boolean | null;
+  quality_metrics_current?: boolean | null;
+  trusted_rows_loaded?: number | null;
+  optimizer_steps_last_hour?: number | null;
+  parameter_hash_changed?: boolean | null;
+  checkpoint_written?: boolean | null;
+  checkpoint_reload_verified?: boolean | null;
+  directional_accuracy?: number | null;
+  after_cost_expectancy_bps?: number | null;
+  counts_as_a_grade_evidence?: boolean | null;
+  a_grade_promotion_allowed?: boolean | null;
+  routes_to_live?: boolean | null;
+  places_real_order?: boolean | null;
+  source?: unknown;
+}
+
+interface PaperRuntimePayload {
+  live_gate_status?: string | null;
+  paper_loop?: {
+    paper_policy_owner?: string | null;
+    production_grade_cost_coverage?: number | null;
+    a_grade_rows?: number | null;
+    guardian_status?: string | null;
+    paper_trainer_model_quality_runtime_status?: PaperTrainerModelQualityStatus | null;
+    trainer_model_quality_runtime_status?: PaperTrainerModelQualityStatus | null;
+  } | null;
+  blockers?: Array<{ id?: string; detail?: string; severity?: string }> | null;
+}
+
 const TABS = ['Model', 'Predictions', 'Signals', 'Risk Checks'] as const;
 type Tab = typeof TABS[number];
 
@@ -57,9 +117,22 @@ export default function AdminIntelligencePage(): JSX.Element {
   const [tab, setTab] = useState<Tab>('Model');
   const { envelope: te, loading } = useRealtimeResource<TrainerPayload>({ url: TRAINER_ENDPOINT, source: 'admin-intelligence', pollIntervalMs: 15_000 });
   const { envelope: re } = useRealtimeResource<RiskPayload>({ url: RISK_ENDPOINT, source: 'admin-risk-data', pollIntervalMs: 10_000 });
+  const { envelope: pe } = useRealtimeResource<PaperRuntimePayload>({
+    url: PAPER_RUNTIME_ENDPOINT,
+    source: PAPER_RUNTIME_ENDPOINT,
+    source_type: 'api',
+    pollIntervalMs: 10_000,
+    staleThresholdMs: 45_000,
+    mode: 'paper',
+  });
 
   const t = te.data;
   const r = re.data?.data;
+  const runtime = pe.data;
+  const paperLoop = runtime?.paper_loop;
+  const trainerQuality = paperLoop?.paper_trainer_model_quality_runtime_status
+    ?? paperLoop?.trainer_model_quality_runtime_status
+    ?? null;
   const latestDecision = r?.latest_gateway_result;
 
   const trainerOk = t?.state?.includes('ACTIVE');
@@ -134,6 +207,22 @@ export default function AdminIntelligencePage(): JSX.Element {
             <Field label="Win Rate 30D" value={t?.win_rate_30d != null ? `${(t.win_rate_30d * 100).toFixed(2)}%` : '—'} mono />
             <Field label="Episodes Total" value={t?.episodes_total != null ? t.episodes_total.toLocaleString() : '—'} mono />
             <Field label="Promo Min Role" value={t?.promotion_min_role || '—'} mono />
+          </div>
+          <div style={{ padding: '16px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Paper Runtime Trainer Quality</div>
+            <Field label="Runtime status" value={trainerQuality?.status || 'TRAINER_MODEL_QUALITY_RUNTIME_STATUS_UNAVAILABLE'} mono full accent={trainerQuality?.quality_metrics_current ? SC.ok : SC.warn} />
+            <Field label="Weights update" value={flagText(trainerQuality?.weights_update)} mono accent={trainerQuality?.weights_update ? SC.ok : SC.warn} />
+            <Field label="Optimizer steps last hour" value={numText(trainerQuality?.optimizer_steps_last_hour)} mono accent={(trainerQuality?.optimizer_steps_last_hour ?? 0) > 0 ? SC.ok : SC.warn} />
+            <Field label="Trusted rows loaded" value={numText(trainerQuality?.trusted_rows_loaded)} mono />
+            <Field label="Parameter hash changed" value={flagText(trainerQuality?.parameter_hash_changed)} mono accent={trainerQuality?.parameter_hash_changed ? SC.ok : SC.warn} />
+            <Field label="Checkpoint written" value={flagText(trainerQuality?.checkpoint_written)} mono accent={trainerQuality?.checkpoint_written ? SC.ok : SC.warn} />
+            <Field label="Checkpoint reload" value={flagText(trainerQuality?.checkpoint_reload_verified)} mono accent={trainerQuality?.checkpoint_reload_verified ? SC.ok : SC.warn} />
+            <Field label="Directional accuracy" value={unitPercent(trainerQuality?.directional_accuracy)} mono />
+            <Field label="After-cost expectancy" value={bpsText(trainerQuality?.after_cost_expectancy_bps)} mono />
+            <Field label="A-grade promotion" value={trainerQuality?.a_grade_promotion_allowed ? 'ALLOWED' : 'BLOCKED'} mono accent={trainerQuality?.a_grade_promotion_allowed ? SC.ok : SC.warn} />
+            <Field label="Paper owner / cost" value={`${paperLoop?.paper_policy_owner ?? '—'} / ${unitPercent(paperLoop?.production_grade_cost_coverage)}`} mono />
+            <Field label="Guardian blocker" value={paperLoop?.guardian_status ?? runtime?.blockers?.[0]?.id ?? '—'} mono full accent={(paperLoop?.a_grade_rows ?? 0) > 0 ? SC.ok : SC.warn} />
+            <Field label="Runtime source" value={runtimeSourceText(trainerQuality?.source, PAPER_RUNTIME_ENDPOINT)} mono full />
           </div>
         </div>
       )}

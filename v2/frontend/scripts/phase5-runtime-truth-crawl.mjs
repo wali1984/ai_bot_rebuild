@@ -386,6 +386,13 @@ function routeTruth({
   const paperOwnerShown = /challenger[_\s-]*v2|paper owner|paper runtime|paper_runtime_online_active|blocked_human_only/i.test(text);
   const costCoverageShown = /cost|coverage|production-grade|production grade|cost capture/i.test(text);
   const aGradeBlockerShown = /a-?grade|blocked|halted|no_trade|no edge|cost coverage|canary/i.test(text);
+  const trainerQualityShown = route.path !== '/system/trainer' || (
+    /paper runtime trainer quality/i.test(text)
+    && /weights update/i.test(text)
+    && /optimizer steps last hour/i.test(text)
+    && /checkpoint reload/i.test(text)
+    && /after-cost expectancy/i.test(text)
+  );
   const staleContradiction =
     /(paper_online_runtime|old_policy|toy_momentum|static_proof_fixture)/i.test(text)
     && !/(legacy|historical|archive|not current|blocked|inactive|disabled)/i.test(text);
@@ -415,6 +422,7 @@ function routeTruth({
     paper_owner_shown_or_runtime_visible: paperOwnerShown,
     cost_coverage_shown_or_runtime_visible: costCoverageShown || route.path === '/trade',
     a_grade_blocker_shown_or_runtime_visible: aGradeBlockerShown || route.path !== '/ai-predictions',
+    trainer_quality_runtime_visible: trainerQualityShown,
     no_live_mutation_controls_enabled: noLiveMutationVisible,
     pass: routeLoaded
       && expectedPathOk
@@ -425,6 +433,7 @@ function routeTruth({
       && actionableHttpErrors.length === 0
       && activeRuntime
       && mobileRuntime
+      && trainerQualityShown
       && noLiveMutationVisible
       && routeSpecificTruth,
   };
@@ -637,7 +646,7 @@ const passConditions = {
   signals_valid: routeRows.find((row) => row.route === '/signals')?.truth.pass ?? false,
   portfolio_valid: routeRows.find((row) => row.route === '/portfolio')?.truth.pass ?? false,
   a_grade_status_shows_exact_blocker: routeRows.find((row) => row.route === '/ai-predictions')?.truth.a_grade_blocker_shown_or_runtime_visible ?? false,
-  trainer_learning_status_shows_actual_optimizer_weight_state: routeRows.find((row) => row.route === '/system/trainer')?.truth.pass ?? false,
+  trainer_learning_status_shows_actual_optimizer_weight_state: routeRows.find((row) => row.route === '/system/trainer')?.truth.trainer_quality_runtime_visible ?? false,
   paper_owner_shown_correctly: mobileSummary?.loop?.paper_policy_owner === 'challenger_v2'
     && routeRows.some((row) => row.truth.paper_owner_shown_or_runtime_visible),
   cost_coverage_shown_correctly: routeRows.some((row) => row.truth.cost_coverage_shown_or_runtime_visible),

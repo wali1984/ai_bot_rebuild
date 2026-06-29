@@ -98,6 +98,7 @@ PAPER_RUNTIME_STATUS_SAMPLE_KEYS = {
     "sample_lifecycle_closed_canary_outcomes",
     "sample_near_a_grade_rows",
     "sample_near_miss_strategy_blocked_rows",
+    "sample_quality_rows",
     "sample_rejected_forward_canary_outcomes",
     "sample_valid_forward_canary_outcomes",
 }
@@ -9874,6 +9875,54 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                 }
             b_grade_canary_status = str(b_grade_canary_supply_status.get("status") or "")
 
+            trainer_quality_key = "v2:paper:trainer_model_quality_runtime_status"
+            try:
+                trainer_quality_raw = client.get(trainer_quality_key)
+            except Exception:
+                trainer_quality_raw = None
+            paper_trainer_model_quality_runtime_status = _json_object_from_redis_raw(
+                trainer_quality_raw
+            )
+            if not paper_trainer_model_quality_runtime_status:
+                fallback_trainer_quality = trade_management_status.get(
+                    "paper_trainer_model_quality_runtime_status"
+                )
+                if isinstance(fallback_trainer_quality, dict):
+                    paper_trainer_model_quality_runtime_status = fallback_trainer_quality
+            if not paper_trainer_model_quality_runtime_status:
+                fallback_trainer_quality = hb.get("paper_trainer_model_quality_runtime_status")
+                if isinstance(fallback_trainer_quality, dict):
+                    paper_trainer_model_quality_runtime_status = fallback_trainer_quality
+            if paper_trainer_model_quality_runtime_status:
+                paper_trainer_model_quality_runtime_status = _compact_paper_runtime_contract(
+                    paper_trainer_model_quality_runtime_status
+                )
+                paper_trainer_model_quality_runtime_status.setdefault(
+                    "source", f"redis:{trainer_quality_key}"
+                )
+                paper_trainer_model_quality_runtime_status.setdefault("available", True)
+            else:
+                paper_trainer_model_quality_runtime_status = {
+                    "schema_version": "paper_trainer_model_quality_runtime_status_v1",
+                    "status": "TRAINER_MODEL_QUALITY_RUNTIME_STATUS_UNAVAILABLE",
+                    "source": f"redis:{trainer_quality_key}",
+                    "available": False,
+                    "paper_only": True,
+                    "routes_to_live": False,
+                    "places_real_order": False,
+                    "counts_as_a_grade_evidence": False,
+                    "a_grade_promotion_allowed": False,
+                    "weights_update": False,
+                    "quality_metrics_current": False,
+                    "trusted_rows_loaded": 0,
+                    "optimizer_steps_last_hour": 0,
+                    "parameter_hash_changed": False,
+                    "checkpoint_written": False,
+                    "checkpoint_reload_verified": False,
+                    "after_cost_expectancy_bps": None,
+                    "generated_at": now,
+                }
+
             forward_canary_key = "v2:paper:forward_canary_evidence_status"
             try:
                 forward_canary_raw = client.get(forward_canary_key)
@@ -10096,6 +10145,12 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                     "a_grade_predicate_counts": a_grade_predicates,
                     "paper_a_grade_gate_burndown_status": a_grade_gate_status,
                     "b_grade_canary_supply_status": b_grade_canary_supply_status,
+                    "paper_trainer_model_quality_runtime_status": (
+                        paper_trainer_model_quality_runtime_status
+                    ),
+                    "trainer_model_quality_runtime_status": (
+                        paper_trainer_model_quality_runtime_status
+                    ),
                     "paper_forward_canary_evidence_status": paper_forward_canary_evidence_status,
                 },
                 "paper_account": {
