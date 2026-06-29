@@ -1699,6 +1699,83 @@ def test_paper_runtime_cost_capture_summary_preserves_true_zero_without_cost_row
     assert summary["production_grade_cost_total_row_coverage"] == 0.0
 
 
+def test_paper_candidate_cost_field_coverage_tracks_order_applicable_fields() -> None:
+    complete = {
+        field: f"value-{field}"
+        for field in paper_loop.PHASE2_RUNTIME_COST_CAPTURE_REQUIRED_FIELDS
+    }
+    complete.update(
+        {
+            "runtime_cost_capture_order_cost_applicable": True,
+            "fallback_cost_flag": False,
+            "production_grade_cost_flag": True,
+            "runtime_cost_capture_missing_fields": [],
+            "runtime_cost_capture_unexplained_missing_fields": [],
+        }
+    )
+    no_order = {
+        field: f"value-{field}"
+        for field in paper_loop.PHASE2_RUNTIME_COST_CAPTURE_REQUIRED_FIELDS
+    }
+    no_order.update(
+        {
+            "runtime_cost_capture_order_cost_applicable": False,
+            "fallback_cost_flag": True,
+            "production_grade_cost_flag": False,
+            "order_size": None,
+            "gross_notional_usd": None,
+            "allocated_margin_usd": None,
+            "runtime_cost_capture_missing_fields": [
+                "allocated_margin_usd",
+                "gross_notional_usd",
+                "order_size",
+            ],
+            "runtime_cost_capture_unexplained_missing_fields": [],
+        }
+    )
+
+    coverage = paper_loop._paper_candidate_cost_field_coverage([complete, no_order])  # noqa: SLF001
+
+    assert coverage["candidate_rows"] == 2
+    assert coverage["order_applicable_rows"] == 1
+    assert coverage["order_applicable_field_coverage"] == 1.0
+    assert coverage["unexplained_missing_order_applicable_rows"] == 0
+    assert coverage["pass_conditions"] == {
+        "unexplained_missing_order_applicable_rows_zero": True,
+        "order_applicable_field_coverage_complete": True,
+    }
+    assert coverage["paper_only"] is True
+    assert coverage["routes_to_live"] is False
+    assert coverage["places_real_order"] is False
+
+
+def test_paper_candidate_cost_field_coverage_fails_unexplained_order_applicable_gap() -> None:
+    row = {
+        field: f"value-{field}"
+        for field in paper_loop.PHASE2_RUNTIME_COST_CAPTURE_REQUIRED_FIELDS
+    }
+    row.update(
+        {
+            "runtime_cost_capture_order_cost_applicable": True,
+            "observed_bid": None,
+            "fallback_cost_flag": True,
+            "production_grade_cost_flag": False,
+            "runtime_cost_capture_missing_fields": ["observed_bid"],
+            "runtime_cost_capture_unexplained_missing_fields": ["observed_bid"],
+        }
+    )
+
+    coverage = paper_loop._paper_candidate_cost_field_coverage([row])  # noqa: SLF001
+
+    assert coverage["order_applicable_field_coverage"] < 1.0
+    assert coverage["unexplained_missing_order_applicable_rows"] == 1
+    assert coverage["unexplained_missing_by_field"] == {"observed_bid": 1}
+    assert coverage["pass_conditions"] == {
+        "unexplained_missing_order_applicable_rows_zero": False,
+        "order_applicable_field_coverage_complete": False,
+    }
+
+
 def test_feedback_context_fallback_preserves_pre_outcome_candidate_provenance() -> None:
     close_event = {"trainer_feedback_id": "fb-1", "prediction_id": "pred-1"}
     source_context = {

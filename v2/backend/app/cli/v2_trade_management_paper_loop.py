@@ -4003,6 +4003,100 @@ def _paper_runtime_cost_capture_summary(rows: list[dict[str, Any]]) -> dict[str,
     }
 
 
+def _paper_candidate_cost_field_coverage(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    intent_rows = [row for row in rows if isinstance(row, dict)]
+    order_applicable_rows = [
+        row
+        for row in intent_rows
+        if row.get("runtime_cost_capture_order_cost_applicable") is not False
+    ]
+
+    def present(row: dict[str, Any], field: str) -> bool:
+        missing_fields = set(row.get("runtime_cost_capture_missing_fields") or [])
+        if field in missing_fields:
+            return False
+        value = row.get(field)
+        if field in PHASE2_RUNTIME_COST_CAPTURE_DERIVED_FLAG_FIELDS:
+            return value in (True, False)
+        return value not in (None, "")
+
+    field_rows: list[dict[str, Any]] = []
+    all_present_cells = 0
+    all_required_cells = len(intent_rows) * len(PHASE2_RUNTIME_COST_CAPTURE_REQUIRED_FIELDS)
+    order_present_cells = 0
+    order_required_cells = len(order_applicable_rows) * len(PHASE2_RUNTIME_COST_CAPTURE_REQUIRED_FIELDS)
+    unexplained_missing_by_field: dict[str, int] = {}
+
+    for field in PHASE2_RUNTIME_COST_CAPTURE_REQUIRED_FIELDS:
+        all_present = sum(1 for row in intent_rows if present(row, field))
+        order_present = sum(1 for row in order_applicable_rows if present(row, field))
+        unexplained_missing = sum(
+            1
+            for row in order_applicable_rows
+            if field in set(row.get("runtime_cost_capture_unexplained_missing_fields") or [])
+        )
+        if unexplained_missing:
+            unexplained_missing_by_field[field] = unexplained_missing
+        all_present_cells += all_present
+        order_present_cells += order_present
+        field_rows.append(
+            {
+                "field": field,
+                "present_rows": all_present,
+                "total_rows": len(intent_rows),
+                "coverage": all_present / len(intent_rows) if intent_rows else 0.0,
+                "order_applicable_present_rows": order_present,
+                "order_applicable_rows": len(order_applicable_rows),
+                "order_applicable_coverage": (
+                    order_present / len(order_applicable_rows)
+                    if order_applicable_rows
+                    else 0.0
+                ),
+                "unexplained_missing_order_applicable_rows": unexplained_missing,
+            }
+        )
+
+    order_applicable_field_coverage = (
+        order_present_cells / order_required_cells
+        if order_required_cells
+        else 0.0
+    )
+    all_row_field_coverage = (
+        all_present_cells / all_required_cells
+        if all_required_cells
+        else 0.0
+    )
+    unexplained_missing_order_applicable_rows = sum(
+        1
+        for row in order_applicable_rows
+        if row.get("runtime_cost_capture_unexplained_missing_fields")
+    )
+    return {
+        "schema_version": "candidate_cost_field_coverage_v1",
+        "source": "v2_trade_management_paper_loop:intents",
+        "required_fields": list(PHASE2_RUNTIME_COST_CAPTURE_REQUIRED_FIELDS),
+        "candidate_rows": len(intent_rows),
+        "order_applicable_rows": len(order_applicable_rows),
+        "all_row_field_coverage": all_row_field_coverage,
+        "order_applicable_field_coverage": order_applicable_field_coverage,
+        "unexplained_missing_order_applicable_rows": unexplained_missing_order_applicable_rows,
+        "unexplained_missing_by_field": unexplained_missing_by_field,
+        "fields": field_rows,
+        "pass_conditions": {
+            "unexplained_missing_order_applicable_rows_zero": (
+                unexplained_missing_order_applicable_rows == 0
+            ),
+            "order_applicable_field_coverage_complete": (
+                order_required_cells > 0
+                and order_present_cells == order_required_cells
+            ),
+        },
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+
+
 def _accepted_fill_identity(row: dict[str, Any]) -> str:
     return str(
         _first_present(
@@ -15282,6 +15376,7 @@ def run_once() -> dict:
         "generated_utc": _utc_iso(),
     }
     paper_runtime_cost_capture_status = _paper_runtime_cost_capture_summary(intents)
+    candidate_cost_field_coverage = _paper_candidate_cost_field_coverage(intents)
     paper_exploration_tier_status = _paper_exploration_tier_status(
         accepted_rows=accepted_for_ledger,
         current_accepted_rows=accepted,
@@ -15769,6 +15864,30 @@ def run_once() -> dict:
             r,
             f"{V2_REDIS_PREFIX}paper:trade_management:status",
             json.dumps(_compact_status_for_redis({
+                "worker_id": "v2_trade_management_paper_loop",
+                "schema_version": "v2_trade_management_paper_runtime_status_v1",
+                "runtime_identity": _paper_runtime_owner_identity(),
+                "active_runtime_status": paper_active_runtime_owner_status,
+                "active_runtime_owner_current_proof": paper_active_runtime_owner_status,
+                "accepted_position_count": len(open_positions),
+                "open_position_count": len(open_positions),
+                "closed_trade_count": len(closes),
+                "outcome_label_count": len(outcome_labels),
+                "persistent_accepted_fill_count": len(accepted_for_ledger),
+                "accepted_fill_state_row_count": len(accepted_state_rows),
+                "current_cycle_accepted_count": len(accepted),
+                "paper_lifecycle_state_schema_version": "v2_paper_lifecycle_state_v1",
+                "lifecycle_state_path": str(PAPER_LIFECYCLE_STATE_PATH),
+                "production_grade_cost_coverage": (
+                    paper_runtime_cost_capture_status.get("production_grade_cost_coverage")
+                ),
+                "unexplained_missing_cost_rows": (
+                    paper_runtime_cost_capture_status.get("unexplained_missing_cost_rows")
+                ),
+                "runtime_production_cost_capture_status": (
+                    paper_runtime_cost_capture_status
+                ),
+                "candidate_cost_field_coverage": candidate_cost_field_coverage,
                 "paper_position_lifecycle_status": lifecycle_result["paper_position_lifecycle_status"],
                 "paper_position_exposure_cap_status": lifecycle_result["paper_position_exposure_cap_status"],
                 "paper_hedge_netting_status": lifecycle_result["paper_hedge_netting_status"],
@@ -16198,6 +16317,14 @@ def run_once() -> dict:
         write_payload(
             paper_a_grade_gate_burndown_status,
             TRADE_MANAGEMENT_PUBLIC_DIR / "paper_a_grade_gate_burndown_status.json",
+        )
+        write_payload(
+            paper_runtime_cost_capture_status,
+            TRADE_MANAGEMENT_PUBLIC_DIR / "runtime_production_cost_capture_status.json",
+        )
+        write_payload(
+            candidate_cost_field_coverage,
+            TRADE_MANAGEMENT_PUBLIC_DIR / "candidate_cost_field_coverage.json",
         )
         write_payload(
             paper_adaptive_threshold_runtime_status,
