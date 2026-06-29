@@ -181,7 +181,7 @@ def test_paper_loop_process_lock_refuses_second_holder(tmp_path) -> None:
     released_handle.close()
 
 
-def test_paper_audit_entry_gate_blocks_no_go_timeframe(monkeypatch) -> None:
+def test_paper_audit_entry_gate_does_not_static_block_native_5m(monkeypatch) -> None:
     fake = FakeRedis()
     signal, prediction = _fresh_paper_signal_and_prediction(
         symbol="BTCUSDT",
@@ -199,14 +199,63 @@ def test_paper_audit_entry_gate_blocks_no_go_timeframe(monkeypatch) -> None:
     monkeypatch.setattr(paper, "_read_accepted_fill_state_file", lambda *a, **kw: {})
 
     status = paper.run_once()
+
+    assert status["paper_audit_entry_gate_status"]["timeframe_policy"] == (
+        "DYNAMIC_OUTCOME_MEMORY_NATIVE_TIMEFRAMES"
+    )
+    assert status["paper_audit_entry_gate_status"]["blocked_entry_timeframes"] == []
+    assert "5m" in status["paper_audit_entry_gate_status"]["allowed_entry_timeframes"]
+    assert status["paper_audit_entry_gate_status"]["audit_timeframe_block_count"] == 0
+    assert not any(
+        str(reason).startswith("TIMEFRAME_BLOCKED:5m")
+        for reason in status["paper_audit_entry_gate_status"]["block_reason_counts"]
+    )
+    assert status["paper_audit_entry_gate_status"]["live_path_changed"] is False
+
+
+def test_paper_audit_entry_gate_blocks_degraded_5m_outcome_memory(monkeypatch) -> None:
+    fake = FakeRedis()
+    signal, prediction = _fresh_paper_signal_and_prediction(
+        symbol="BTCUSDT",
+        timeframe="5m",
+    )
+    fake.store["v2:signals:paper"] = json.dumps([signal])
+    fake.store["v2:prediction:BTCUSDT:5m"] = json.dumps(prediction)
+    fake.store["v2:market:prices:BTCUSDT"] = json.dumps(
+        {"ticker_24hr": {"lastPrice": "100.0"}, "fetched_utc": _utc_now_for_test()}
+    )
+    fake.store["v2:paper:outcome_memory:__ALL__:5m"] = json.dumps(
+        {
+            "symbol": "__ALL__",
+            "timeframe": "5m",
+            "trade_count": 25,
+            "rolling_ev_bps": -6.0,
+            "drawdown_contribution_usd": -12.0,
+            "degraded": True,
+            "block_reason": "ROLLING_EV_DEGRADED:-6.00bps<-5.00bps",
+            "trust_evidence_status": "TRUSTED_OUTCOME_MEMORY",
+            "outcome_memory_can_block_entries": True,
+            "trusted_trade_count": 25,
+        }
+    )
+    fake.store["v2:paper:ledger"] = json.dumps({"accepted": [], "open_positions": []})
+    paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
+    monkeypatch.setattr(paper, "_connect_redis", lambda: fake)
+    monkeypatch.setattr(paper, "_read_lifecycle_state_file", lambda *a, **kw: {})
+    monkeypatch.setattr(paper, "_read_accepted_fill_state_file", lambda *a, **kw: {})
+
+    status = paper.run_once()
     ledger = json.loads(fake.store["v2:paper:ledger"])
     blocked = [row for row in ledger["blocked"] if row.get("signal_id") == signal["signal_id"]]
 
     assert status["intents_accepted"] == 0
     assert len(blocked) == 1
     assert blocked[0]["paper_fill_block_reason"] == "P0_ENTRY_GATE_BLOCKED"
-    assert "TIMEFRAME_BLOCKED:5m" in blocked[0]["entry_gate_block_reasons"]
-    assert status["paper_audit_entry_gate_status"]["audit_timeframe_block_count"] == 1
+    assert (
+        "OUTCOME_MEMORY_BLOCK:ROLLING_EV_DEGRADED:-6.00bps<-5.00bps:"
+        "source=REDIS_TIMEFRAME_AGGREGATE"
+    ) in blocked[0]["entry_gate_block_reasons"]
+    assert status["paper_audit_entry_gate_status"]["audit_timeframe_block_count"] == 0
     assert status["paper_audit_entry_gate_status"]["live_path_changed"] is False
     assert all(row.get("signal_id") != signal["signal_id"] for row in ledger["accepted"])
 
@@ -1085,9 +1134,11 @@ def test_build_allocation_input_uses_explicit_fee_and_funding_from_entry_feature
         "fee_bps": "v2:features:latest:BTCUSDT:1m.taker_fee_bps",
         "orderbook_depth_usd": "orderbook_depth_usd",
     }
-    assert intent["market_cost_evidence_source_lineage"] == {
+    lineage = intent["market_cost_evidence_source_lineage"]
+    assert lineage == {
         "source": "paper_loop_decision_time_market_cost_capture",
-        "decision_time": "2026-06-20T01:00:00Z",
+        "decision_time": lineage["decision_time"],
+        "model_decision_time": "2026-06-20T01:00:00Z",
         "signal_id": None,
         "prediction_id": None,
         "feature_snapshot_id": None,
@@ -1096,12 +1147,15 @@ def test_build_allocation_input_uses_explicit_fee_and_funding_from_entry_feature
         "feature_generated_at": None,
         "feature_cutoff": None,
         "entry_spread_available_at": "2026-06-20T00:59:59Z",
+        "entry_spread_captured_at": lineage["entry_spread_captured_at"],
         "entry_spread_source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:test",
         "orderbook_depth_source": None,
         "fee_bps_source": "v2:features:latest:BTCUSDT:1m.taker_fee_bps",
         "expected_funding_bps_source": "v2:features:latest:BTCUSDT:1m.funding_rate",
         "expected_slippage_source": "v2:features:latest:BTCUSDT:1m.expected_slippage_bps",
     }
+    assert lineage["decision_time"] == intent["entry_spread_captured_at"]
+    assert lineage["entry_spread_captured_at"] == intent["entry_spread_captured_at"]
 
 
 def test_build_allocation_input_derives_liquidity_and_regime_scores_from_context() -> None:
@@ -1551,7 +1605,10 @@ def test_run_once_strategy_mode_collapse_blocks_majority_mode_fill(monkeypatch) 
     assert ledger["current_cycle_accepted_count"] == 0
     assert len(blocked) == 1
     assert blocked[0]["paper_fill_block_reason"] == paper.STRATEGY_MODE_COLLAPSE_BLOCK_REASON
-    assert blocked[0]["paper_strategy_mode_collapse_guard"]["allowed"] is False
+    assert "paper_strategy_mode_collapse_guard" not in blocked[0]
+    assert f"strategy_mode_collapse_guard:{paper.STRATEGY_MODE_COLLAPSE_BLOCK_REASON}" in blocked[0][
+        "local_block_reasons"
+    ]
     assert (
         status["paper_strategy_mode_collapse_guard_status"]["blocked_majority_mode_fill_count"]
         == 1

@@ -600,6 +600,27 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
                 {"symbol": "BTCUSDT", "large_runtime_row": {"nested": ["omitted"] * 20}},
             ],
         },
+        "v2:paper:forward_canary_evidence_status": {
+            "schema_version": "paper_forward_canary_evidence_status_v1",
+            "status": "BLOCKED_FORWARD_CANARY_EVIDENCE_INCOMPLETE",
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "counts_as_a_grade_evidence": False,
+            "required_forward_canary_economic_outcomes": 100,
+            "archived_b_grade_challenger_closed_outcome_rows": 1099,
+            "b_grade_challenger_closed_outcome_rows": 20,
+            "pre_cutover_b_grade_challenger_closed_outcome_rows": 1079,
+            "valid_forward_canary_economic_outcomes": 20,
+            "post_cutover_valid_forward_canary_economic_outcomes": 20,
+            "valid_symbol_count": 11,
+            "valid_side_counts": {"long": 2, "short": 18},
+            "production_grade_cost_coverage": 1.0,
+            "cutover_completed_at": "2026-06-29T03:57:38.333Z",
+            "sample_valid_forward_canary_outcomes": [
+                {"symbol": "BTCUSDT", "realized_pnl_bps": 12.5},
+            ],
+        },
         "v2:signals:latest:BTCUSDT:1m": {
             "signal_id": "sig-test",
             "prediction_id": "pred-test",
@@ -666,9 +687,26 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
     assert canary_supply["sample_rows_omitted_from_api"] is True
     assert canary_supply["sample_canary_candidates_count"] == 1
     assert "sample_canary_candidates" not in canary_supply
+    forward_canary = loop["paper_forward_canary_evidence_status"]
+    assert forward_canary["source"] == "redis:v2:paper:forward_canary_evidence_status"
+    assert forward_canary["available"] is True
+    assert forward_canary["status"] == "BLOCKED_FORWARD_CANARY_EVIDENCE_INCOMPLETE"
+    assert forward_canary["archived_b_grade_challenger_closed_outcome_rows"] == 1099
+    assert forward_canary["b_grade_challenger_closed_outcome_rows"] == 20
+    assert forward_canary["pre_cutover_b_grade_challenger_closed_outcome_rows"] == 1079
+    assert forward_canary["post_cutover_valid_forward_canary_economic_outcomes"] == 20
+    assert forward_canary["valid_symbol_count"] == 11
+    assert forward_canary["valid_side_counts"] == {"long": 2, "short": 18}
+    assert forward_canary["production_grade_cost_coverage"] == 1.0
+    assert forward_canary["cutover_completed_at"] == "2026-06-29T03:57:38.333Z"
+    assert forward_canary["counts_as_a_grade_evidence"] is False
+    assert forward_canary["sample_rows_omitted_from_api"] is True
+    assert forward_canary["sample_valid_forward_canary_outcomes_count"] == 1
+    assert "sample_valid_forward_canary_outcomes" not in forward_canary
     assert payload["current_signal_lineage"]["lineage_ids"]["prediction_id"] == "pred-test"
     assert payload["current_signal_lineage"]["lineage_ids"]["signal_id"] == "sig-test"
     assert any(blocker["id"] == "B_GRADE_CANARY_SUPPLY_ZERO" for blocker in payload["blockers"])
+    assert any(blocker["id"] == "FORWARD_CANARY_EVIDENCE_NOT_READY" for blocker in payload["blockers"])
     assert "v2:paper:intents" not in client.get_calls
 
 

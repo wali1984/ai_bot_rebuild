@@ -601,6 +601,99 @@ def test_standalone_1m_with_dedicated_bucket_remains_eligible_for_paper_gate() -
     assert "paper_standalone_1m_eligibility_blocked" not in intent
 
 
+def test_standalone_1m_priority_bucket_evidence_allows_b_grade_collection_only() -> None:
+    intent = {
+        "symbol": "HUSDT",
+        "timeframe": "1m",
+        "thesis_timeframe": "1m",
+        "side": "long",
+        "strategy_id": "paper_runtime_momentum",
+        "strategy_regime_labels": ["TREND"],
+        "confidence_calibrated": 0.64,
+        "expected_move_after_cost_bps": 8.0,
+        "paper_fill_allowed": True,
+    }
+    priority_index = paper_loop._paper_only_label_collection_priority_index(  # noqa: SLF001
+        {
+            "generated_utc": "2026-06-23T20:55:00Z",
+            "paper_only_label_collection_priority_buckets": [
+                {
+                    "symbol": "HUSDT",
+                    "timeframe": "1m",
+                    "side": "long",
+                    "strategy": "paper_runtime_momentum",
+                    "regime": "TREND",
+                    "confidence_bucket": "0.6-0.7",
+                    "closed_economic_outcome_count": 3,
+                    "sample_count_deficit_to_minimum": 27,
+                    "priority_reason": "PRIORITY_UNDERPOWERED_1M_BUCKET",
+                }
+            ],
+        }
+    )
+
+    gate = paper_loop._paper_standalone_1m_eligibility_gate(  # noqa: SLF001
+        symbol="HUSDT",
+        thesis_timeframe="1m",
+        side="long",
+        intent=intent,
+        signal={"timeframe": "1m"},
+        prediction={},
+        feature_snapshot={"timeframe": "1m", "features": {}},
+        risk={},
+        strategy_router={"selected_mode": "paper_runtime_momentum"},
+        paper_only_label_collection_priority_index=priority_index,
+    )
+    paper_loop._apply_paper_standalone_1m_gate(intent, gate)  # noqa: SLF001
+
+    assert gate["allowed"] is True
+    assert gate["dedicated_strategy_bucket"] is False
+    assert gate["paper_only_label_collection_priority_allowed"] is True
+    assert gate["paper_only_label_collection_priority_bucket_key"] == (
+        "HUSDT|1m|long|paper_runtime_momentum|TREND|0.6-0.7"
+    )
+    assert gate["standalone_1m_adaptive_policy"] == (
+        "PAPER_ONLY_PRIORITY_BUCKET_LABEL_COLLECTION"
+    )
+    assert gate["blockers"] == []
+    assert gate["counts_as_a_grade_evidence"] is False
+    assert gate["a_grade_promotion_allowed"] is False
+    assert gate["live_ready_implication"] is False
+    assert "paper_standalone_1m_eligibility_blocked" not in intent
+
+    allocation = _allowed_allocation(
+        confidence_calibrated=0.64,
+        expected_move_after_cost_bps=8.0,
+    )
+    paper_loop._attach_paper_only_label_collection_priority(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        priority_index=priority_index,
+    )
+    classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+        signal={
+            "selected_action": "long",
+            "confidence_calibrated": 0.64,
+            "expected_move_after_cost_bps": 8.0,
+        },
+        intent=intent,
+        allocation=allocation,
+        integrity_gate={"allowed": True},
+        local_trade_gates_pass=False,
+        exploration_trade_gates_pass=True,
+        paper_fill_allowed_upstream=True,
+        portfolio_drawdown_bps=0.0,
+    )
+
+    assert classification["paper_opportunity_tier"] == "B_GRADE_EXPLORATION_PAPER"
+    assert classification["paper_opportunity_tier_reason"] == (
+        "PAPER_ONLY_PRIORITY_BUCKET_LABEL_COLLECTION"
+    )
+    assert classification["counts_as_a_grade_evidence"] is False
+    assert classification["a_grade_promotion_allowed"] is False
+    assert classification["live_ready_implication"] is False
+
+
 def test_higher_timeframe_thesis_can_use_1m_execution_timing() -> None:
     intent = {
         "symbol": "BTCUSDT",
@@ -3217,6 +3310,78 @@ def test_forward_canary_evidence_status_passes_only_complete_paper_canary_set(mo
     assert all(status["pass_conditions"].values())
     assert status["paper_only"] is True
     assert status["live_path_changed"] is False
+
+
+def test_forward_canary_evidence_status_requires_post_cutover_outcomes(monkeypatch) -> None:
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-29T04:20:00Z")
+    archived_rows = [
+        _forward_canary_closed_row(
+            f"OLD{idx % 20:02d}USDT",
+            "long" if idx % 2 == 0 else "short",
+            close_id=f"old-close-{idx}",
+            exit_price_utc="2026-06-29T03:57:37.000Z",
+        )
+        for idx in range(100)
+    ]
+    post_cutover_rows = [
+        _forward_canary_closed_row(
+            "NEW01USDT",
+            "long",
+            close_id="new-close-1",
+            exit_price_utc="2026-06-29T03:57:39.000Z",
+        ),
+        _forward_canary_closed_row(
+            "NEW02USDT",
+            "short",
+            close_id="new-close-2",
+            exit_price_utc="2026-06-29T03:57:40.000Z",
+        ),
+    ]
+
+    status = paper_loop._paper_forward_canary_evidence_status(  # noqa: SLF001
+        closed_rows=[*archived_rows, *post_cutover_rows],
+        accepted_rows=[*archived_rows, *post_cutover_rows],
+        cutover_completed_at="2026-06-29T03:57:38.333Z",
+    )
+
+    assert status["status"] == "BLOCKED_FORWARD_CANARY_EVIDENCE_INCOMPLETE"
+    assert status["source_closed_trade_rows"] == 102
+    assert status["archived_b_grade_challenger_closed_outcome_rows"] == 102
+    assert status["b_grade_challenger_closed_outcome_rows"] == 2
+    assert status["pre_cutover_b_grade_challenger_closed_outcome_rows"] == 100
+    assert status["cutover_marker_present"] is True
+    assert status["cutover_marker_valid"] is True
+    assert status["valid_forward_canary_economic_outcomes"] == 2
+    assert status["post_cutover_valid_forward_canary_economic_outcomes"] == 2
+    assert status["valid_symbol_count"] == 2
+    assert status["valid_side_counts"] == {"long": 1, "short": 1}
+    assert status["production_grade_cost_coverage"] == 1.0
+    assert status["pass_conditions"]["valid_forward_canary_outcomes_gte_100"] is False
+    assert status["pass_conditions"]["valid_symbol_count_gte_20"] is False
+    assert status["counts_as_a_grade_evidence"] is False
+
+
+def test_forward_canary_evidence_status_rejects_invalid_cutover_marker(monkeypatch) -> None:
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-29T04:21:00Z")
+    rows = [
+        _forward_canary_closed_row(
+            f"SYM{idx % 20:02d}USDT",
+            "long" if idx % 2 == 0 else "short",
+            close_id=f"close-{idx}",
+        )
+        for idx in range(100)
+    ]
+
+    status = paper_loop._paper_forward_canary_evidence_status(  # noqa: SLF001
+        closed_rows=rows,
+        accepted_rows=rows,
+        cutover_completed_at="not-a-timestamp",
+    )
+
+    assert status["status"] == "BLOCKED_FORWARD_CANARY_CUTOVER_MARKER_INVALID"
+    assert status["cutover_marker_present"] is True
+    assert status["cutover_marker_valid"] is False
+    assert status["valid_forward_canary_economic_outcomes"] == 100
 
 
 def test_forward_canary_archive_preserves_observed_outcomes_across_cycles(

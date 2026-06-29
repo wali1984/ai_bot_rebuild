@@ -61,6 +61,9 @@ PAPER_LIFECYCLE_STATE_PATH = TRADE_MANAGEMENT_PUBLIC_DIR / "paper_lifecycle_stat
 PAPER_FORWARD_CANARY_CLOSED_OUTCOME_ARCHIVE_PATH = (
     TRADE_MANAGEMENT_PUBLIC_DIR / "paper_forward_canary_closed_outcome_archive.json"
 )
+PAPER_FORWARD_CANARY_CUTOVER_MARKER_PATH = (
+    TRADE_MANAGEMENT_PUBLIC_DIR / "paper_forward_canary_cutover_marker.json"
+)
 PAPER_B_GRADE_BUCKET_PROMOTION_READINESS_STATUS_PATH = (
     TRADE_MANAGEMENT_PUBLIC_DIR / "paper_b_grade_bucket_promotion_readiness_status.json"
 )
@@ -107,8 +110,10 @@ PAPER_REDIS_LEDGER_ROW_SAMPLE_LIMIT = 50
 PAPER_STATE_FULL_FILE_READ_MAX_BYTES = int(os.getenv("PAPER_STATE_FULL_FILE_READ_MAX_BYTES", "25000000"))
 PAPER_REDIS_HISTORY_READ_MAX_BYTES = int(os.getenv("PAPER_REDIS_HISTORY_READ_MAX_BYTES", "75000000"))
 PAPER_AUDIT_ENTRY_GATE_NAME = "PAPER_ONLY_2026_06_19_AUDIT_ENTRY_GATE"
-PAPER_AUDIT_BLOCKED_ENTRY_TIMEFRAMES = frozenset({"5m", "4h"})
-PAPER_AUDIT_ALLOWED_ENTRY_TIMEFRAMES = frozenset({"1m", "15m", "1h"})
+PAPER_AUDIT_TIMEFRAME_POLICY = "DYNAMIC_OUTCOME_MEMORY_NATIVE_TIMEFRAMES"
+PAPER_AUDIT_DEPRECATED_STATIC_BLOCKED_ENTRY_TIMEFRAMES = frozenset({"5m", "4h"})
+PAPER_AUDIT_BLOCKED_ENTRY_TIMEFRAMES = frozenset()
+PAPER_AUDIT_ALLOWED_ENTRY_TIMEFRAMES = frozenset({"1m", "5m", "15m", "1h", "4h"})
 PAPER_AUDIT_SYMBOL_EXCLUSION_LIST = frozenset({
     "NIGHTUSDT",
     "TIAUSDT",
@@ -1525,14 +1530,35 @@ def _attach_long_short_ratio_context(intent: dict[str, Any], evidence: dict[str,
     available_at = evidence.get("long_short_available_at")
     decision_dt = _parse_strategy_time(decision_time)
     available_dt = _parse_strategy_time(available_at)
+
+    def _record_rejected_long_short_evidence() -> None:
+        intent["long_short_ratio_decision_effect"] = (
+            "REJECTED_PIT_TELEMETRY_ONLY_NO_ADMISSION_CHANGE"
+        )
+        for source_field, rejected_field in (
+            ("long_short_period", "rejected_long_short_period"),
+            ("long_short_source", "rejected_long_short_source"),
+            ("long_short_event_time", "rejected_long_short_event_time"),
+            ("long_short_available_at", "rejected_long_short_available_at"),
+            ("long_short_captured_at", "rejected_long_short_captured_at"),
+        ):
+            value = evidence.get(source_field)
+            if value not in (None, ""):
+                intent[rejected_field] = value
+        if decision_time not in (None, ""):
+            intent["rejected_long_short_decision_time"] = decision_time
+
     if decision_dt is None:
         intent["long_short_ratio_status"] = "REJECTED_LONG_SHORT_DECISION_TIME_UNPROVEN"
+        _record_rejected_long_short_evidence()
         return
     if available_dt is None:
         intent["long_short_ratio_status"] = "REJECTED_LONG_SHORT_AVAILABLE_AT_UNPROVEN"
+        _record_rejected_long_short_evidence()
         return
     if available_dt > decision_dt:
         intent["long_short_ratio_status"] = "REJECTED_LONG_SHORT_AVAILABLE_AFTER_DECISION"
+        _record_rejected_long_short_evidence()
         return
     for field in (
         "long_short_ratio",
@@ -4380,6 +4406,7 @@ def _paper_standalone_1m_eligibility_gate(
     feature_snapshot: dict[str, Any],
     risk: dict[str, Any] | None = None,
     strategy_router: dict[str, Any] | None = None,
+    paper_only_label_collection_priority_index: dict[tuple[str, ...], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     normalized_thesis_timeframe = str(thesis_timeframe or UNKNOWN_THESIS_TIMEFRAME)
     execution_timeframe = _paper_execution_timeframe(feature_snapshot, prediction, signal, intent)
@@ -4399,8 +4426,19 @@ def _paper_standalone_1m_eligibility_gate(
         feature_snapshot=feature_snapshot,
         risk=risk,
     )
+    priority_payload = _paper_only_label_collection_priority_payload(
+        intent,
+        paper_only_label_collection_priority_index or {},
+    )
+    priority_bucket_allows_paper_collection = (
+        standalone_1m_thesis and priority_payload is not None
+    )
     blockers: list[str] = []
-    if standalone_1m_thesis and not dedicated_strategy_bucket:
+    if (
+        standalone_1m_thesis
+        and not dedicated_strategy_bucket
+        and not priority_bucket_allows_paper_collection
+    ):
         blockers.append(PAPER_STANDALONE_1M_BLOCK_REASON)
     allowed = not blockers
     return {
@@ -4414,6 +4452,29 @@ def _paper_standalone_1m_eligibility_gate(
         "strategy_id": strategy_id,
         "standalone_1m_thesis": standalone_1m_thesis,
         "dedicated_strategy_bucket": dedicated_strategy_bucket,
+        "paper_only_label_collection_priority_allowed": (
+            priority_bucket_allows_paper_collection
+        ),
+        "paper_only_label_collection_priority_bucket_key": (
+            None
+            if priority_payload is None
+            else priority_payload.get("paper_only_label_collection_priority_bucket_key")
+        ),
+        "paper_only_label_collection_priority_reason": (
+            None
+            if priority_payload is None
+            else priority_payload.get("paper_only_label_collection_priority_reason")
+        ),
+        "standalone_1m_adaptive_policy": (
+            "PAPER_ONLY_PRIORITY_BUCKET_LABEL_COLLECTION"
+            if priority_bucket_allows_paper_collection
+            else "EXPLICIT_OR_NAMED_DEDICATED_1M_BUCKET"
+            if dedicated_strategy_bucket
+            else "FAIL_CLOSED_REQUIRES_DEDICATED_OR_PRIORITY_BUCKET_EVIDENCE"
+        ),
+        "counts_as_a_grade_evidence": False,
+        "a_grade_promotion_allowed": False,
+        "live_ready_implication": False,
         "standalone_execution_allowed": allowed if standalone_1m_thesis else True,
         "higher_timeframe_timing_role_allowed": higher_timeframe_timing_role_allowed,
         "blockers": blockers,
@@ -8695,6 +8756,7 @@ def _paper_forward_canary_evidence_status(
     *,
     closed_rows: list[dict[str, Any]],
     accepted_rows: list[dict[str, Any]],
+    cutover_completed_at: str | None = None,
 ) -> dict[str, Any]:
     """Summarize Phase 11 forward canary evidence from actual paper lifecycle rows."""
     source_closed_rows = [row for row in closed_rows if isinstance(row, dict)]
@@ -8705,6 +8767,31 @@ def _paper_forward_canary_evidence_status(
         if row.get("paper_opportunity_tier") == PAPER_TIER_B_GRADE_EXPLORATION
         and _paper_forward_canary_challenger_owned(row)
     ]
+    cutover_dt = _parse_strategy_time(cutover_completed_at)
+    cutover_marker_valid = cutover_completed_at in (None, "") or cutover_dt is not None
+
+    def _closed_event_time(row: dict[str, Any]) -> datetime | None:
+        return _parse_strategy_time(
+            _first_present(
+                row.get("exit_price_utc"),
+                row.get("exit_time"),
+                row.get("closed_at"),
+                row.get("execution_time"),
+                row.get("generated_utc"),
+                row.get("decision_time"),
+                row.get("available_at"),
+            )
+        )
+
+    if cutover_dt is None:
+        evidence_rows = b_grade_closed_rows
+    else:
+        evidence_rows = [
+            row
+            for row in b_grade_closed_rows
+            if (_closed_event_time(row) is not None and _closed_event_time(row) >= cutover_dt)
+        ]
+    pre_cutover_rows = max(0, len(b_grade_closed_rows) - len(evidence_rows))
     accepted_b_grade_rows = [
         row
         for row in source_accepted_rows
@@ -8712,12 +8799,12 @@ def _paper_forward_canary_evidence_status(
         and _paper_forward_canary_challenger_owned(row)
     ]
     production_cost_rows = [
-        row for row in b_grade_closed_rows if _paper_forward_canary_production_cost_pass(row)
+        row for row in evidence_rows if _paper_forward_canary_production_cost_pass(row)
     ]
     rows_rejected_by_reason: dict[str, int] = {}
     valid_rows: list[dict[str, Any]] = []
     rejected_rows: list[dict[str, Any]] = []
-    for row in b_grade_closed_rows:
+    for row in evidence_rows:
         reasons = _paper_forward_canary_row_rejection_reasons(row)
         if reasons:
             rejected = dict(row)
@@ -8729,7 +8816,7 @@ def _paper_forward_canary_evidence_status(
             valid_rows.append(row)
 
     valid_symbols = sorted({str(row.get("symbol") or "").upper() for row in valid_rows if row.get("symbol")})
-    source_symbols = sorted({str(row.get("symbol") or "").upper() for row in b_grade_closed_rows if row.get("symbol")})
+    source_symbols = sorted({str(row.get("symbol") or "").upper() for row in evidence_rows if row.get("symbol")})
     valid_side_counts = {
         "long": sum(
             1
@@ -8745,31 +8832,31 @@ def _paper_forward_canary_evidence_status(
     source_side_counts = {
         "long": sum(
             1
-            for row in b_grade_closed_rows
+            for row in evidence_rows
             if _normalized_directional_side(_first_present(row.get("side"), row.get("action"))) == "long"
         ),
         "short": sum(
             1
-            for row in b_grade_closed_rows
+            for row in evidence_rows
             if _normalized_directional_side(_first_present(row.get("side"), row.get("action"))) == "short"
         ),
     }
     production_cost_coverage = (
-        len(production_cost_rows) / len(b_grade_closed_rows)
-        if b_grade_closed_rows
+        len(production_cost_rows) / len(evidence_rows)
+        if evidence_rows
         else 0.0
     )
     accounting_mismatch_rows = sum(
-        1 for row in b_grade_closed_rows if _paper_forward_canary_accounting_reasons(row)
+        1 for row in evidence_rows if _paper_forward_canary_accounting_reasons(row)
     )
     liquidation_rows = sum(
-        1 for row in b_grade_closed_rows if _paper_forward_canary_liquidation_reasons(row)
+        1 for row in evidence_rows if _paper_forward_canary_liquidation_reasons(row)
     )
     point_in_time_invalid_rows = sum(
-        1 for row in b_grade_closed_rows if _paper_forward_canary_point_in_time_reasons(row)
+        1 for row in evidence_rows if _paper_forward_canary_point_in_time_reasons(row)
     )
     unsafe_live_route_rows = sum(
-        1 for row in b_grade_closed_rows if _paper_forward_canary_live_route_unsafe(row)
+        1 for row in evidence_rows if _paper_forward_canary_live_route_unsafe(row)
     )
     accepted_production_cost_rows = sum(
         1 for row in accepted_b_grade_rows if _paper_forward_canary_production_cost_pass(row)
@@ -8787,7 +8874,9 @@ def _paper_forward_canary_evidence_status(
         "no_point_in_time_violation": point_in_time_invalid_rows == 0,
         "no_live_route_flags": unsafe_live_route_rows == 0,
     }
-    if all(pass_conditions.values()):
+    if cutover_completed_at not in (None, "") and not cutover_marker_valid:
+        status = "BLOCKED_FORWARD_CANARY_CUTOVER_MARKER_INVALID"
+    elif all(pass_conditions.values()):
         status = "FORWARD_CANARY_EVIDENCE_REQUIREMENTS_MET"
     elif valid_rows:
         status = "BLOCKED_FORWARD_CANARY_EVIDENCE_INCOMPLETE"
@@ -8805,8 +8894,14 @@ def _paper_forward_canary_evidence_status(
         "required_initial_symbols": FORWARD_CANARY_REQUIRED_SYMBOLS,
         "source_closed_trade_rows": len(source_closed_rows),
         "source_accepted_rows": len(source_accepted_rows),
-        "b_grade_challenger_closed_outcome_rows": len(b_grade_closed_rows),
+        "archived_b_grade_challenger_closed_outcome_rows": len(b_grade_closed_rows),
+        "b_grade_challenger_closed_outcome_rows": len(evidence_rows),
+        "pre_cutover_b_grade_challenger_closed_outcome_rows": pre_cutover_rows,
+        "cutover_completed_at": cutover_completed_at,
+        "cutover_marker_present": cutover_completed_at not in (None, ""),
+        "cutover_marker_valid": cutover_marker_valid,
         "valid_forward_canary_economic_outcomes": len(valid_rows),
+        "post_cutover_valid_forward_canary_economic_outcomes": len(valid_rows),
         "production_grade_cost_closed_outcome_rows": len(production_cost_rows),
         "production_grade_cost_coverage": production_cost_coverage,
         "accepted_b_grade_canary_rows": len(accepted_b_grade_rows),
@@ -8891,6 +8986,13 @@ def _read_paper_forward_canary_closed_outcome_archive(
         or []
     )
     return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+
+
+def _read_paper_forward_canary_cutover_marker(
+    path: Path | None = None,
+) -> dict[str, Any]:
+    path = path or PAPER_FORWARD_CANARY_CUTOVER_MARKER_PATH
+    return _read_json_file_payload(path)
 
 
 def _paper_forward_canary_closed_outcome_archive_status(
@@ -12174,6 +12276,9 @@ def run_once() -> dict:
             feature_snapshot=entry_feature_snapshot,
             risk=risk_decisions[-1] if risk_decisions else None,
             strategy_router=strategy_router,
+            paper_only_label_collection_priority_index=(
+                paper_only_label_collection_priority_index
+            ),
         )
         if risk_decisions:
             risk_decisions[-1]["paper_standalone_1m_eligibility"] = one_minute_result
@@ -12299,6 +12404,10 @@ def run_once() -> dict:
                 list(intent.get("local_block_reasons") or [])
                 + [f"entry_gate:{r}" for r in _eg["reasons"]]
             ))
+        one_minute_strict_local_gate_allowed = (
+            one_minute_result["allowed"]
+            and one_minute_result.get("paper_only_label_collection_priority_allowed") is not True
+        )
         local_trade_gates_pass = (
             _eg["allowed"]
             and pre["allowed"]
@@ -12307,7 +12416,7 @@ def run_once() -> dict:
             and integrity_gate["allowed"]
             and strategy_trade_allowed
             and strategy_mode_guard.get("allowed") is True
-            and one_minute_result["allowed"]
+            and one_minute_strict_local_gate_allowed
             and reentry_dedup_result["allowed"]
             and not missing_thesis_timeframe
             and not paper_signal_temporal_rejection_reasons
@@ -12922,6 +13031,10 @@ def run_once() -> dict:
         "guard": PAPER_AUDIT_ENTRY_GATE_NAME,
         "enabled": True,
         "paper_only": True,
+        "timeframe_policy": PAPER_AUDIT_TIMEFRAME_POLICY,
+        "deprecated_static_blocked_entry_timeframes": sorted(
+            PAPER_AUDIT_DEPRECATED_STATIC_BLOCKED_ENTRY_TIMEFRAMES
+        ),
         "blocked_entry_timeframes": sorted(PAPER_AUDIT_BLOCKED_ENTRY_TIMEFRAMES),
         "allowed_entry_timeframes": sorted(PAPER_AUDIT_ALLOWED_ENTRY_TIMEFRAMES),
         "symbol_exclusion_list": sorted(PAPER_AUDIT_SYMBOL_EXCLUSION_LIST),
@@ -13080,10 +13193,23 @@ def run_once() -> dict:
     paper_forward_canary_closed_outcome_archive_status = (
         _paper_forward_canary_closed_outcome_archive_status(closes)
     )
+    paper_forward_canary_cutover_marker = _read_paper_forward_canary_cutover_marker()
+    paper_forward_canary_cutover_completed_at = _first_present(
+        paper_forward_canary_cutover_marker.get("cutover_completed_at"),
+        paper_forward_canary_cutover_marker.get("controlled_one_shot_finished_at"),
+    )
     paper_forward_canary_evidence_status = _paper_forward_canary_evidence_status(
         closed_rows=paper_forward_canary_closed_outcome_archive_status["closed_outcomes"],
         accepted_rows=accepted_for_ledger,
+        cutover_completed_at=paper_forward_canary_cutover_completed_at,
     )
+    if paper_forward_canary_cutover_marker:
+        paper_forward_canary_evidence_status["cutover_marker_schema_version"] = (
+            paper_forward_canary_cutover_marker.get("schema_version")
+        )
+        paper_forward_canary_evidence_status["cutover_marker_one_shot_completed"] = (
+            paper_forward_canary_cutover_marker.get("one_shot_completed") is True
+        )
     paper_closed_trade_outcome_label_status = dict(
         lifecycle_result["paper_closed_trade_outcome_label_status"]
     )

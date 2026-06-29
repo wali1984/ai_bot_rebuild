@@ -9780,6 +9780,46 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                 }
             b_grade_canary_status = str(b_grade_canary_supply_status.get("status") or "")
 
+            forward_canary_key = "v2:paper:forward_canary_evidence_status"
+            try:
+                forward_canary_raw = client.get(forward_canary_key)
+            except Exception:
+                forward_canary_raw = None
+            paper_forward_canary_evidence_status = _json_object_from_redis_raw(forward_canary_raw)
+            if not paper_forward_canary_evidence_status:
+                fallback_forward_canary = trade_management_status.get(
+                    "paper_forward_canary_evidence_status"
+                )
+                if isinstance(fallback_forward_canary, dict):
+                    paper_forward_canary_evidence_status = fallback_forward_canary
+            if not paper_forward_canary_evidence_status:
+                fallback_forward_canary = hb.get("paper_forward_canary_evidence_status")
+                if isinstance(fallback_forward_canary, dict):
+                    paper_forward_canary_evidence_status = fallback_forward_canary
+            if paper_forward_canary_evidence_status:
+                paper_forward_canary_evidence_status = _compact_paper_runtime_contract(
+                    paper_forward_canary_evidence_status
+                )
+                paper_forward_canary_evidence_status.setdefault("source", f"redis:{forward_canary_key}")
+                paper_forward_canary_evidence_status.setdefault("available", True)
+            else:
+                paper_forward_canary_evidence_status = {
+                    "schema_version": "paper_forward_canary_evidence_status_v1",
+                    "status": "FORWARD_CANARY_EVIDENCE_STATUS_UNAVAILABLE",
+                    "source": f"redis:{forward_canary_key}",
+                    "available": False,
+                    "paper_only": True,
+                    "routes_to_live": False,
+                    "places_real_order": False,
+                    "counts_as_a_grade_evidence": False,
+                    "valid_forward_canary_economic_outcomes": 0,
+                    "post_cutover_valid_forward_canary_economic_outcomes": 0,
+                    "generated_at": now,
+                }
+            forward_canary_status = str(
+                paper_forward_canary_evidence_status.get("status") or ""
+            )
+
             runtime_state = "PAPER_RUNTIME_ONLINE_ACTIVE" if heartbeat_fresh else "PAPER_RUNTIME_HEARTBEAT_STALE"
             blockers = [
                 {
@@ -9805,6 +9845,37 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                         "severity": "missing_runtime_contract",
                         "detail": "Active paper runtime has not published the B-grade canary supply contract.",
                         "source": f"redis:{b_grade_canary_supply_key}",
+                    }
+                )
+
+            if forward_canary_status == "FORWARD_CANARY_EVIDENCE_STATUS_UNAVAILABLE":
+                blockers.append(
+                    {
+                        "id": "FORWARD_CANARY_EVIDENCE_STATUS_UNAVAILABLE",
+                        "severity": "missing_runtime_contract",
+                        "detail": "Active paper runtime has not published the forward canary evidence contract.",
+                        "source": f"redis:{forward_canary_key}",
+                    }
+                )
+            elif forward_canary_status != "FORWARD_CANARY_EVIDENCE_REQUIREMENTS_MET":
+                blockers.append(
+                    {
+                        "id": "FORWARD_CANARY_EVIDENCE_NOT_READY",
+                        "severity": "runtime_blocker",
+                        "detail": "Post-cutover challenger paper canary economic outcomes are not sufficient for A-grade readiness.",
+                        "source": paper_forward_canary_evidence_status.get("source")
+                        or f"redis:{forward_canary_key}",
+                        "status": forward_canary_status,
+                        "post_cutover_valid_forward_canary_economic_outcomes": (
+                            paper_forward_canary_evidence_status.get(
+                                "post_cutover_valid_forward_canary_economic_outcomes"
+                            )
+                        ),
+                        "required_forward_canary_economic_outcomes": (
+                            paper_forward_canary_evidence_status.get(
+                                "required_forward_canary_economic_outcomes"
+                            )
+                        ),
                     }
                 )
 
@@ -9901,6 +9972,7 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                     "routes_to_live_rows": routes_to_live_rows,
                     "places_real_order_rows": places_real_order_rows,
                     "b_grade_canary_supply_status": b_grade_canary_supply_status,
+                    "paper_forward_canary_evidence_status": paper_forward_canary_evidence_status,
                 },
                 "paper_account": {
                     "currency": "USDT",
