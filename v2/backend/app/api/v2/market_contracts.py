@@ -10183,6 +10183,41 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
             forward_canary_status = str(
                 paper_forward_canary_evidence_status.get("status") or ""
             )
+            trajectory_rel = (
+                "operator_runtime/v2_continuous_edge_guardian/latest/"
+                "one_thousand_x_trajectory_status.json"
+            )
+            one_thousand_x_trajectory_status, _trajectory_source = _read_json(
+                trajectory_rel
+            )
+            if isinstance(one_thousand_x_trajectory_status, dict):
+                one_thousand_x_trajectory_status = dict(
+                    one_thousand_x_trajectory_status
+                )
+                one_thousand_x_trajectory_status.setdefault("source", trajectory_rel)
+                one_thousand_x_trajectory_status.setdefault("available", True)
+                one_thousand_x_trajectory_status.setdefault(
+                    "guaranteed_profit_claim", False
+                )
+                one_thousand_x_trajectory_status.setdefault(
+                    "leverage_increase_allowed_because_behind", False
+                )
+            else:
+                one_thousand_x_trajectory_status = {
+                    "schema_version": "one_thousand_x_trajectory_status_v1",
+                    "status": "ONE_THOUSAND_X_TRAJECTORY_STATUS_UNAVAILABLE",
+                    "current_status": "INSUFFICIENT_EVIDENCE",
+                    "source": trajectory_rel,
+                    "available": False,
+                    "guaranteed_profit_claim": False,
+                    "leverage_increase_allowed_because_behind": False,
+                    "generated_at": now,
+                }
+            trajectory_status = str(
+                one_thousand_x_trajectory_status.get("current_status")
+                or one_thousand_x_trajectory_status.get("status")
+                or ""
+            )
 
             runtime_state = "PAPER_RUNTIME_ONLINE_ACTIVE" if heartbeat_fresh else "PAPER_RUNTIME_HEARTBEAT_STALE"
             blockers = [
@@ -10400,6 +10435,76 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                         or {},
                     }
                 )
+            if trajectory_status != "ON_1000X_TRAJECTORY":
+                blockers.append(
+                    {
+                        "id": "ONE_THOUSAND_X_TRAJECTORY_NOT_READY",
+                        "severity": "runtime_blocker",
+                        "detail": "1000x trajectory is not proven; status must remain honest and cannot imply live readiness.",
+                        "source": one_thousand_x_trajectory_status.get("source")
+                        or trajectory_rel,
+                        "status": trajectory_status
+                        or "ONE_THOUSAND_X_TRAJECTORY_STATUS_UNAVAILABLE",
+                        "required_daily_geometric_return": (
+                            one_thousand_x_trajectory_status.get(
+                                "required_daily_geometric_return"
+                            )
+                        ),
+                        "required_monthly_geometric_return": (
+                            one_thousand_x_trajectory_status.get(
+                                "required_monthly_geometric_return"
+                            )
+                        ),
+                        "actual_1d_return": one_thousand_x_trajectory_status.get(
+                            "actual_1d_return"
+                        ),
+                        "actual_7d_return": one_thousand_x_trajectory_status.get(
+                            "actual_7d_return"
+                        ),
+                        "actual_30d_return": one_thousand_x_trajectory_status.get(
+                            "actual_30d_return"
+                        ),
+                        "drawdown_adjusted_growth_rate": (
+                            one_thousand_x_trajectory_status.get(
+                                "drawdown_adjusted_growth_rate"
+                            )
+                        ),
+                        "lower_confidence_bound_growth_rate": (
+                            one_thousand_x_trajectory_status.get(
+                                "lower_confidence_bound_growth_rate"
+                            )
+                        ),
+                        "days_ahead_or_behind_target": (
+                            one_thousand_x_trajectory_status.get(
+                                "days_ahead_or_behind_target"
+                            )
+                        ),
+                        "required_edge": one_thousand_x_trajectory_status.get(
+                            "required_edge"
+                        ),
+                        "required_capital": one_thousand_x_trajectory_status.get(
+                            "required_capital"
+                        ),
+                        "missing_trajectory_evidence_fields": (
+                            one_thousand_x_trajectory_status.get(
+                                "missing_trajectory_evidence_fields"
+                            )
+                            or []
+                        ),
+                        "guaranteed_profit_claim": (
+                            one_thousand_x_trajectory_status.get(
+                                "guaranteed_profit_claim"
+                            )
+                            is True
+                        ),
+                        "leverage_increase_allowed_because_behind": (
+                            one_thousand_x_trajectory_status.get(
+                                "leverage_increase_allowed_because_behind"
+                            )
+                            is True
+                        ),
+                    }
+                )
 
             lineage_ids: dict[str, Any] = {}
             if latest_signal:
@@ -10541,6 +10646,9 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                         paper_churn_equity_bleed_governor_status
                     ),
                     "paper_forward_canary_evidence_status": paper_forward_canary_evidence_status,
+                    "one_thousand_x_trajectory_runtime_status": (
+                        one_thousand_x_trajectory_status
+                    ),
                 },
                 "paper_account": {
                     "currency": "USDT",

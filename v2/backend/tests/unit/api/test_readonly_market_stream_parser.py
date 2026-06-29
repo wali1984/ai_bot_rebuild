@@ -767,6 +767,33 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
     monkeypatch.setattr(market_contracts, "get_redis", lambda: client)
     monkeypatch.setattr(market_contracts, "_utc_now", lambda: "2026-06-27T20:50:10Z")
 
+    def fake_read_json(relative: str) -> tuple[dict | None, str]:
+        if relative == (
+            "operator_runtime/v2_continuous_edge_guardian/latest/"
+            "one_thousand_x_trajectory_status.json"
+        ):
+            return {
+                "schema_version": "one_thousand_x_trajectory_status_v1",
+                "status": "INSUFFICIENT_EVIDENCE",
+                "current_status": "INSUFFICIENT_EVIDENCE",
+                "required_daily_geometric_return": 0.003792243814971563,
+                "required_monthly_geometric_return": 0.12201845430196334,
+                "actual_1d_return": 0.0,
+                "actual_7d_return": 0.0,
+                "actual_30d_return": 0.0,
+                "drawdown_adjusted_growth_rate": 0.0,
+                "lower_confidence_bound_growth_rate": 0.0,
+                "days_ahead_or_behind_target": -1814.4667829543546,
+                "required_edge": 0.00379224,
+                "required_capital": 10_000_000.0,
+                "missing_trajectory_evidence_fields": [],
+                "guaranteed_profit_claim": False,
+                "leverage_increase_allowed_because_behind": False,
+            }, "unit-test-trajectory"
+        return None, "unit-test-missing"
+
+    monkeypatch.setattr(market_contracts, "_read_json", fake_read_json)
+
     payload = await market_contracts.get_paper_runtime_status(actor=None)
 
     assert payload["runtime"] == "v2_trade_management_paper_loop"
@@ -902,6 +929,30 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
     assert forward_canary["sample_rows_omitted_from_api"] is True
     assert forward_canary["sample_valid_forward_canary_outcomes_count"] == 1
     assert "sample_valid_forward_canary_outcomes" not in forward_canary
+    trajectory = loop["one_thousand_x_trajectory_runtime_status"]
+    assert trajectory["source"] == (
+        "operator_runtime/v2_continuous_edge_guardian/latest/"
+        "one_thousand_x_trajectory_status.json"
+    )
+    assert trajectory["available"] is True
+    assert trajectory["status"] == "INSUFFICIENT_EVIDENCE"
+    assert trajectory["current_status"] == "INSUFFICIENT_EVIDENCE"
+    assert trajectory["required_daily_geometric_return"] == pytest.approx(
+        0.003792243814971563
+    )
+    assert trajectory["required_monthly_geometric_return"] == pytest.approx(
+        0.12201845430196334
+    )
+    assert trajectory["actual_1d_return"] == 0.0
+    assert trajectory["actual_7d_return"] == 0.0
+    assert trajectory["actual_30d_return"] == 0.0
+    assert trajectory["days_ahead_or_behind_target"] == pytest.approx(
+        -1814.4667829543546
+    )
+    assert trajectory["required_edge"] == pytest.approx(0.00379224)
+    assert trajectory["required_capital"] == pytest.approx(10_000_000.0)
+    assert trajectory["guaranteed_profit_claim"] is False
+    assert trajectory["leverage_increase_allowed_because_behind"] is False
     assert payload["current_signal_lineage"]["lineage_ids"]["prediction_id"] == "pred-test"
     assert payload["current_signal_lineage"]["lineage_ids"]["signal_id"] == "sig-test"
     assert any(blocker["id"] == "B_GRADE_CANARY_SUPPLY_ZERO" for blocker in payload["blockers"])
@@ -922,6 +973,29 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
         "long_outcomes": 0,
         "short_outcomes": 0,
     }
+    trajectory_blocker = next(
+        blocker
+        for blocker in payload["blockers"]
+        if blocker["id"] == "ONE_THOUSAND_X_TRAJECTORY_NOT_READY"
+    )
+    assert trajectory_blocker["status"] == "INSUFFICIENT_EVIDENCE"
+    assert trajectory_blocker["required_daily_geometric_return"] == pytest.approx(
+        0.003792243814971563
+    )
+    assert trajectory_blocker["required_monthly_geometric_return"] == pytest.approx(
+        0.12201845430196334
+    )
+    assert trajectory_blocker["actual_1d_return"] == 0.0
+    assert trajectory_blocker["actual_7d_return"] == 0.0
+    assert trajectory_blocker["actual_30d_return"] == 0.0
+    assert trajectory_blocker["days_ahead_or_behind_target"] == pytest.approx(
+        -1814.4667829543546
+    )
+    assert trajectory_blocker["required_edge"] == pytest.approx(0.00379224)
+    assert trajectory_blocker["required_capital"] == pytest.approx(10_000_000.0)
+    assert trajectory_blocker["missing_trajectory_evidence_fields"] == []
+    assert trajectory_blocker["guaranteed_profit_claim"] is False
+    assert trajectory_blocker["leverage_increase_allowed_because_behind"] is False
     assert "v2:paper:intents" not in client.get_calls
 
 

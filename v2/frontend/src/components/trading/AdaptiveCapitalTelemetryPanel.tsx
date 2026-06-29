@@ -79,6 +79,19 @@ interface PaperRuntimeBlocker {
   guardian_failure_reason_count?: number | null;
   source_tier_a_grade_execution_rows?: number | null;
   pass_conditions?: Record<string, boolean> | null;
+  required_daily_geometric_return?: number | null;
+  required_monthly_geometric_return?: number | null;
+  actual_1d_return?: number | null;
+  actual_7d_return?: number | null;
+  actual_30d_return?: number | null;
+  drawdown_adjusted_growth_rate?: number | null;
+  lower_confidence_bound_growth_rate?: number | null;
+  days_ahead_or_behind_target?: number | null;
+  required_edge?: number | null;
+  required_capital?: number | null;
+  missing_trajectory_evidence_fields?: string[] | null;
+  guaranteed_profit_claim?: boolean | null;
+  leverage_increase_allowed_because_behind?: boolean | null;
 }
 
 interface PaperTrainerModelQualityStatus {
@@ -96,6 +109,24 @@ interface PaperTrainerModelQualityStatus {
   a_grade_promotion_allowed?: boolean | null;
   routes_to_live?: boolean | null;
   places_real_order?: boolean | null;
+}
+
+interface OneThousandXTrajectoryStatus {
+  status?: string | null;
+  current_status?: string | null;
+  required_daily_geometric_return?: number | null;
+  required_monthly_geometric_return?: number | null;
+  actual_1d_return?: number | null;
+  actual_7d_return?: number | null;
+  actual_30d_return?: number | null;
+  drawdown_adjusted_growth_rate?: number | null;
+  lower_confidence_bound_growth_rate?: number | null;
+  days_ahead_or_behind_target?: number | null;
+  required_edge?: number | null;
+  required_capital?: number | null;
+  missing_trajectory_evidence_fields?: string[] | null;
+  guaranteed_profit_claim?: boolean | null;
+  leverage_increase_allowed_because_behind?: boolean | null;
 }
 
 interface PaperRuntimeStatusPayload {
@@ -171,6 +202,7 @@ interface PaperRuntimeStatusPayload {
     } | null;
     paper_trainer_model_quality_runtime_status?: PaperTrainerModelQualityStatus | null;
     trainer_model_quality_runtime_status?: PaperTrainerModelQualityStatus | null;
+    one_thousand_x_trajectory_runtime_status?: OneThousandXTrajectoryStatus | null;
   } | null;
 }
 
@@ -725,12 +757,14 @@ export function AdaptiveCapitalTelemetryPanel({
   const paperRuntimeBlockers = paperRuntime?.blockers ?? [];
   const forwardCanaryBlocker = blockerById(paperRuntimeBlockers, 'FORWARD_CANARY_EVIDENCE_NOT_READY');
   const aGradeSupplyBlocker = blockerById(paperRuntimeBlockers, 'A_GRADE_SUPPLY_ZERO');
+  const trajectoryBlocker = blockerById(paperRuntimeBlockers, 'ONE_THOUSAND_X_TRAJECTORY_NOT_READY');
   const paperChurn = paperLoop?.paper_churn_equity_bleed_governor_status ?? null;
   const paperForwardCanary = paperLoop?.paper_forward_canary_evidence_status ?? null;
   const paperAgrade = paperLoop?.paper_a_grade_gate_burndown_status ?? null;
   const paperTrainerQuality = paperLoop?.paper_trainer_model_quality_runtime_status
     ?? paperLoop?.trainer_model_quality_runtime_status
     ?? null;
+  const paperTrajectory = paperLoop?.one_thousand_x_trajectory_runtime_status ?? null;
   const forwardOutcomes = forwardCanaryBlocker?.valid_forward_canary_economic_outcomes
     ?? paperForwardCanary?.valid_forward_canary_economic_outcomes;
   const requiredForwardOutcomes = forwardCanaryBlocker?.required_forward_canary_economic_outcomes
@@ -831,6 +865,35 @@ export function AdaptiveCapitalTelemetryPanel({
   const guardianTruth = guardian?.readiness_truth;
   const guardianGate = guardian?.a_grade_execution_gate;
   const trajectory = guardian?.trajectory_status;
+  const runtimeTrajectoryStatus = trajectoryBlocker?.status
+    ?? paperTrajectory?.current_status
+    ?? paperTrajectory?.status
+    ?? trajectory?.current_status
+    ?? trajectory?.status;
+  const runtimeTrajectoryActual1d = trajectoryBlocker?.actual_1d_return
+    ?? paperTrajectory?.actual_1d_return
+    ?? trajectory?.actual_1d_return;
+  const runtimeTrajectoryActual7d = trajectoryBlocker?.actual_7d_return
+    ?? paperTrajectory?.actual_7d_return
+    ?? trajectory?.actual_7d_return;
+  const runtimeTrajectoryActual30d = trajectoryBlocker?.actual_30d_return
+    ?? paperTrajectory?.actual_30d_return
+    ?? trajectory?.actual_30d_return;
+  const runtimeTrajectoryRequiredEdge = trajectoryBlocker?.required_edge
+    ?? paperTrajectory?.required_edge
+    ?? trajectory?.required_edge;
+  const runtimeTrajectoryRequiredCapital = trajectoryBlocker?.required_capital
+    ?? paperTrajectory?.required_capital
+    ?? trajectory?.required_capital;
+  const runtimeTrajectoryLcb = trajectoryBlocker?.lower_confidence_bound_growth_rate
+    ?? paperTrajectory?.lower_confidence_bound_growth_rate
+    ?? trajectory?.lower_confidence_bound_growth_rate;
+  const runtimeTrajectoryDrawdown = trajectoryBlocker?.drawdown_adjusted_growth_rate
+    ?? paperTrajectory?.drawdown_adjusted_growth_rate
+    ?? trajectory?.drawdown_adjusted_growth_rate;
+  const runtimeTrajectoryDays = trajectoryBlocker?.days_ahead_or_behind_target
+    ?? paperTrajectory?.days_ahead_or_behind_target
+    ?? trajectory?.days_ahead_or_behind_target;
   const accuracy = view.accuracy;
   const accuracyCellTotal = accuracy?.symbol_timeframe_cell_count ?? accuracy?.required_symbol_timeframe_cell_count;
   const positiveEdgeDiagnostics = capital?.positive_edge_non_a_grade_diagnostics;
@@ -966,28 +1029,28 @@ export function AdaptiveCapitalTelemetryPanel({
         />
         <HeaderMetric
           label="1000x Trajectory"
-          value={trajectory?.current_status ?? trajectory?.status ?? 'INSUFFICIENT_EVIDENCE'}
-          color={trajectory?.status === 'ON_1000X_TRAJECTORY' ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+          value={runtimeTrajectoryStatus ?? 'INSUFFICIENT_EVIDENCE'}
+          color={runtimeTrajectoryStatus === 'ON_1000X_TRAJECTORY' ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
         />
         <HeaderMetric
           label="1000x 1/7/30"
-          value={`${compactPercent(trajectory?.actual_1d_return)} / ${compactPercent(trajectory?.actual_7d_return)} / ${compactPercent(trajectory?.actual_30d_return)}`}
-          color={trajectory?.status === 'ON_1000X_TRAJECTORY' ? 'var(--buy,#10b981)' : 'var(--text-secondary)'}
+          value={`${compactPercent(runtimeTrajectoryActual1d)} / ${compactPercent(runtimeTrajectoryActual7d)} / ${compactPercent(runtimeTrajectoryActual30d)}`}
+          color={runtimeTrajectoryStatus === 'ON_1000X_TRAJECTORY' ? 'var(--buy,#10b981)' : 'var(--text-secondary)'}
         />
         <HeaderMetric
           label="1000x Edge"
-          value={`${compactPercent(trajectory?.required_edge)} · ${compactMoney(trajectory?.required_capital)}`}
+          value={`${compactPercent(runtimeTrajectoryRequiredEdge)} · ${compactMoney(runtimeTrajectoryRequiredCapital)}`}
           color="var(--text-secondary)"
         />
         <HeaderMetric
           label="1000x LCB/DD"
-          value={`${compactPercent(trajectory?.lower_confidence_bound_growth_rate, 3)} / ${compactPercent(trajectory?.drawdown_adjusted_growth_rate, 3)}`}
-          color={trajectory?.status === 'ON_1000X_TRAJECTORY' ? 'var(--buy,#10b981)' : 'var(--text-secondary)'}
+          value={`${compactPercent(runtimeTrajectoryLcb, 3)} / ${compactPercent(runtimeTrajectoryDrawdown, 3)}`}
+          color={runtimeTrajectoryStatus === 'ON_1000X_TRAJECTORY' ? 'var(--buy,#10b981)' : 'var(--text-secondary)'}
         />
         <HeaderMetric
           label="1000x Days"
-          value={signedDays(trajectory?.days_ahead_or_behind_target)}
-          color={(trajectory?.days_ahead_or_behind_target ?? -1) >= 0 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+          value={signedDays(runtimeTrajectoryDays)}
+          color={(runtimeTrajectoryDays ?? -1) >= 0 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
         />
         <HeaderMetric
           label="Paper Owner"

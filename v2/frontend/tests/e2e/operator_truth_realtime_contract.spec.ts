@@ -39,11 +39,13 @@ test.describe('operator truth realtime contract', () => {
     expect(source).toContain('blockers?: PaperRuntimeBlocker[]');
     expect(source).toContain('FORWARD_CANARY_EVIDENCE_NOT_READY');
     expect(source).toContain('A_GRADE_SUPPLY_ZERO');
+    expect(source).toContain('ONE_THOUSAND_X_TRAJECTORY_NOT_READY');
     expect(source).toContain('paper_churn_equity_bleed_governor_status');
     expect(source).toContain('paper_forward_canary_evidence_status');
     expect(source).toContain('paper_a_grade_gate_burndown_status');
     expect(source).toContain('paper_trainer_model_quality_runtime_status');
     expect(source).toContain('trainer_model_quality_runtime_status');
+    expect(source).toContain('one_thousand_x_trajectory_runtime_status');
     expect(source).toContain('forward_canary_shortfalls');
     expect(source).toContain('root_cause_counts');
     expect(source).toContain('predicate_counts');
@@ -58,6 +60,8 @@ test.describe('operator truth realtime contract', () => {
     expect(source).toContain('Trainer Edge');
     expect(source).toContain('Trainer Acc/Base');
     expect(source).toContain('Trainer Reload');
+    expect(source).toContain('1000x Trajectory');
+    expect(source).toContain('1000x Days');
     expect(source).toContain('A-grade Source');
     expect(source).toContain('A-grade Roots');
     expect(source).toContain('A-grade Dominant');
