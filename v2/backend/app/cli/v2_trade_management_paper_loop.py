@@ -66,6 +66,8 @@ PAPER_B_GRADE_BUCKET_PROMOTION_READINESS_STATUS_PATH = (
 )
 PREDICTION_STALE_SECONDS = 900
 PAPER_SIGNAL_STALE_SECONDS = PREDICTION_STALE_SECONDS
+PAPER_SIGNAL_ADAPTIVE_STALE_OPERATOR_MIN_SECONDS = 120
+PAPER_SIGNAL_ADAPTIVE_STALE_CANDLE_MULTIPLIER = 3
 CURRENT_PREDICTION_STATUSES = {
     "PRESENT_CURRENT",
     "PRESENT_CURRENT_RL_CORE_SIDECAR_NOT_CUDA_PARITY",
@@ -993,6 +995,62 @@ def _is_paper_confidence_trial_row(row: dict) -> bool:
     )
 
 
+def _paper_signal_timeframe_duration_seconds(timeframe: Any) -> int | None:
+    value = str(timeframe or "").strip().lower()
+    if len(value) < 2:
+        return None
+    unit = value[-1]
+    raw_amount = value[:-1]
+    try:
+        amount = float(raw_amount)
+    except (TypeError, ValueError):
+        return None
+    if amount <= 0:
+        return None
+    unit_seconds = {
+        "m": 60,
+        "h": 60 * 60,
+        "d": 24 * 60 * 60,
+    }.get(unit)
+    if unit_seconds is None:
+        return None
+    return int(amount * unit_seconds)
+
+
+def _paper_signal_adaptive_stale_policy(
+    signal: dict[str, Any],
+    prediction: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    prediction = prediction if isinstance(prediction, dict) else {}
+    timeframe = _paper_thesis_timeframe(signal, prediction)
+    timeframe_seconds = _paper_signal_timeframe_duration_seconds(timeframe)
+    static_max_seconds = int(PAPER_SIGNAL_STALE_SECONDS)
+    if timeframe_seconds is None:
+        adaptive_seconds = static_max_seconds
+        mode = "STATIC_OPERATOR_MAX_WHEN_TIMEFRAME_UNKNOWN"
+    else:
+        raw_seconds = timeframe_seconds * PAPER_SIGNAL_ADAPTIVE_STALE_CANDLE_MULTIPLIER
+        adaptive_seconds = int(min(static_max_seconds, raw_seconds))
+        adaptive_seconds = max(
+            PAPER_SIGNAL_ADAPTIVE_STALE_OPERATOR_MIN_SECONDS,
+            adaptive_seconds,
+        )
+        adaptive_seconds = min(static_max_seconds, adaptive_seconds)
+        mode = "TIMEFRAME_CONTEXTUAL_FAIL_CLOSED_NEVER_ABOVE_STATIC"
+    return {
+        "threshold_id": "paper_signal_stale_seconds",
+        "static_operator_max_seconds": static_max_seconds,
+        "operator_min_seconds": PAPER_SIGNAL_ADAPTIVE_STALE_OPERATOR_MIN_SECONDS,
+        "timeframe": timeframe,
+        "timeframe_seconds": timeframe_seconds,
+        "adaptive_stale_seconds": adaptive_seconds,
+        "adaptive_never_above_static": adaptive_seconds <= static_max_seconds,
+        "adaptive_stricter_than_static": adaptive_seconds < static_max_seconds,
+        "threshold_lowering_to_force_trades": False,
+        "mode": mode,
+    }
+
+
 def _read_paper_signals(r) -> list[dict]:
     if r is None:
         return []
@@ -1009,8 +1067,10 @@ def _read_paper_signals(r) -> list[dict]:
             row.get("generated_est"),
         )
         generated = _parse_strategy_time(generated_raw)
-        if generated is not None and (now - generated).total_seconds() > PAPER_SIGNAL_STALE_SECONDS:
-            return f"STALE_SIGNAL_GT_{PAPER_SIGNAL_STALE_SECONDS}s_EXCLUDED_FROM_PAPER_ADMISSION"
+        stale_policy = _paper_signal_adaptive_stale_policy(row)
+        stale_seconds = int(stale_policy["adaptive_stale_seconds"])
+        if generated is not None and (now - generated).total_seconds() > stale_seconds:
+            return f"STALE_SIGNAL_GT_{stale_seconds}s_ADAPTIVE_EXCLUDED_FROM_PAPER_ADMISSION"
         return None
 
     def _is_enriched_paper_signal(row: dict) -> bool:
@@ -7693,7 +7753,26 @@ def _paper_adaptive_threshold_runtime_status(rows: list[dict[str, Any]]) -> dict
         "depth_pressure": 0,
         "long_short_point_in_time_pressure": 0,
     }
+    signal_stale_policy_rows = 0
+    signal_stale_never_above_static_rows = 0
+    signal_stale_stricter_rows = 0
+    signal_stale_threshold_values: list[int] = []
     for row in rows:
+        stale_policy = row.get("paper_signal_adaptive_stale_policy")
+        if not isinstance(stale_policy, dict):
+            stale_policy = _paper_signal_adaptive_stale_policy(row)
+        signal_stale_policy_rows += 1
+        adaptive_stale_seconds = _coerce_float(stale_policy.get("adaptive_stale_seconds"))
+        static_stale_seconds = _coerce_float(stale_policy.get("static_operator_max_seconds"))
+        if adaptive_stale_seconds is not None and static_stale_seconds is not None:
+            signal_stale_threshold_values.append(int(adaptive_stale_seconds))
+            signal_stale_never_above_static_rows += int(
+                adaptive_stale_seconds <= static_stale_seconds
+            )
+            signal_stale_stricter_rows += int(
+                adaptive_stale_seconds < static_stale_seconds
+            )
+
         confidence = _paper_canary_score(row)
         if confidence is None:
             continue
@@ -7754,14 +7833,16 @@ def _paper_adaptive_threshold_runtime_status(rows: list[dict[str, Any]]) -> dict
     floor_min = min(floor_values) if floor_values else None
     floor_max = max(floor_values) if floor_values else None
     floor_avg = sum(floor_values) / len(floor_values) if floor_values else None
+    stale_min = min(signal_stale_threshold_values) if signal_stale_threshold_values else None
+    stale_max = max(signal_stale_threshold_values) if signal_stale_threshold_values else None
     return {
         "schema_version": "paper_adaptive_threshold_runtime_status_v1",
         "status": (
-            "PARTIAL_B_GRADE_CONFIDENCE_FLOOR_ADAPTIVE_FAIL_CLOSED_"
+            "PARTIAL_B_GRADE_CONFIDENCE_FLOOR_AND_SIGNAL_STALENESS_ADAPTIVE_FAIL_CLOSED_"
             "STATIC_THRESHOLDS_REMAIN"
         ),
-        "adaptive_threshold_id": "b_grade_confidence_floor",
-        "adaptive_threshold_scope": "paper_only_b_grade_exploration_admission",
+        "adaptive_threshold_id": "b_grade_confidence_floor,paper_signal_stale_seconds",
+        "adaptive_threshold_scope": "paper_only_b_grade_exploration_admission_and_signal_freshness",
         "runtime_behavior_changed": True,
         "strategy_or_risk_logic_changed": False,
         "paper_admission_changed": True,
@@ -7780,8 +7861,20 @@ def _paper_adaptive_threshold_runtime_status(rows: list[dict[str, Any]]) -> dict
             "avg": round(floor_avg, 8) if floor_avg is not None else None,
         },
         "penalty_counts": penalty_counts,
+        "adaptive_signal_stale_threshold": {
+            "threshold_id": "paper_signal_stale_seconds",
+            "operator_min_seconds": PAPER_SIGNAL_ADAPTIVE_STALE_OPERATOR_MIN_SECONDS,
+            "operator_max_seconds": PAPER_SIGNAL_STALE_SECONDS,
+            "timeframe_candle_multiplier": PAPER_SIGNAL_ADAPTIVE_STALE_CANDLE_MULTIPLIER,
+            "evaluated_rows": signal_stale_policy_rows,
+            "adaptive_never_above_static_rows": signal_stale_never_above_static_rows,
+            "adaptive_stricter_than_static_rows": signal_stale_stricter_rows,
+            "threshold_seconds_min": stale_min,
+            "threshold_seconds_max": stale_max,
+            "threshold_lowering_to_force_trades": False,
+            "mode": "TIMEFRAME_CONTEXTUAL_FAIL_CLOSED_NEVER_ABOVE_STATIC",
+        },
         "remaining_static_threshold_blockers": [
-            "paper_signal_stale_seconds",
             "directional_collapse_guard",
             "strategy_mode_collapse_guard",
             "paper_drawdown_recovery_min_confidence",
@@ -7795,6 +7888,10 @@ def _paper_adaptive_threshold_runtime_status(rows: list[dict[str, Any]]) -> dict
         "pass_conditions": {
             "adaptive_floor_evaluated_rows_gt_zero": evaluated_rows > 0,
             "adaptive_floor_never_below_static": never_below_static_rows == evaluated_rows,
+            "adaptive_signal_stale_threshold_evaluated_rows_gt_zero": signal_stale_policy_rows > 0,
+            "adaptive_signal_stale_threshold_never_above_static": (
+                signal_stale_never_above_static_rows == signal_stale_policy_rows
+            ),
             "threshold_not_lowered_to_force_trades": True,
             "paper_only": True,
             "routes_to_live_false": True,
@@ -9611,6 +9708,7 @@ def _paper_signal_temporal_rejection_reasons(
     signal: dict[str, Any],
     prediction: dict[str, Any],
     now: datetime,
+    stale_policy: dict[str, Any] | None = None,
 ) -> list[str]:
     reasons: list[str] = []
     freshness = str(
@@ -9632,11 +9730,13 @@ def _paper_signal_temporal_rejection_reasons(
         signal.get("generated_est"),
     )
     signal_generated = _parse_strategy_time(signal_generated_raw)
+    stale_policy = stale_policy or _paper_signal_adaptive_stale_policy(signal, prediction)
+    stale_seconds = int(stale_policy["adaptive_stale_seconds"])
     if (
         signal_generated is not None
-        and (now - signal_generated).total_seconds() > PAPER_SIGNAL_STALE_SECONDS
+        and (now - signal_generated).total_seconds() > stale_seconds
     ):
-        reasons.append(f"STALE_SIGNAL_GT_{PAPER_SIGNAL_STALE_SECONDS}s")
+        reasons.append(f"STALE_SIGNAL_GT_{stale_seconds}s_ADAPTIVE")
 
     source_status = str(signal.get("source_prediction_status") or "").strip()
     if source_status and source_status not in CURRENT_PREDICTION_STATUSES:
@@ -11352,10 +11452,15 @@ def run_once() -> dict:
         prediction = predictions_by_id.get(lineage["prediction_id"], {})
         paper_thesis_timeframe = _paper_thesis_timeframe(s, prediction)
         missing_thesis_timeframe = paper_thesis_timeframe in (None, "")
+        paper_signal_adaptive_stale_policy = _paper_signal_adaptive_stale_policy(
+            s,
+            prediction,
+        )
         paper_signal_temporal_rejection_reasons = _paper_signal_temporal_rejection_reasons(
             signal=s,
             prediction=prediction,
             now=runtime_now,
+            stale_policy=paper_signal_adaptive_stale_policy,
         )
         em_after = _coerce_float(s.get("expected_move_after_cost_bps"))
         em_after = 0.0 if em_after is None else em_after
@@ -11500,6 +11605,13 @@ def run_once() -> dict:
             "strategy_future_cutoff_offender_count": len(future_cutoff_offenders),
             "strategy_future_cutoff_offenders": future_cutoff_offenders[:5],
             "paper_drawdown_recovery_guard": drawdown_recovery_guard,
+            "paper_signal_static_stale_seconds": paper_signal_adaptive_stale_policy[
+                "static_operator_max_seconds"
+            ],
+            "paper_signal_adaptive_stale_seconds": paper_signal_adaptive_stale_policy[
+                "adaptive_stale_seconds"
+            ],
+            "paper_signal_adaptive_stale_policy": paper_signal_adaptive_stale_policy,
             "paper_signal_temporal_rejection_reasons": paper_signal_temporal_rejection_reasons,
             "risk_manager_final_authority": True,
         })
@@ -11571,6 +11683,13 @@ def run_once() -> dict:
             "strategy_future_cutoff_offender_count": len(future_cutoff_offenders),
             "strategy_future_cutoff_offenders": future_cutoff_offenders[:5],
             "paper_drawdown_recovery_guard": drawdown_recovery_guard,
+            "paper_signal_static_stale_seconds": paper_signal_adaptive_stale_policy[
+                "static_operator_max_seconds"
+            ],
+            "paper_signal_adaptive_stale_seconds": paper_signal_adaptive_stale_policy[
+                "adaptive_stale_seconds"
+            ],
+            "paper_signal_adaptive_stale_policy": paper_signal_adaptive_stale_policy,
             "paper_signal_temporal_rejection_reasons": paper_signal_temporal_rejection_reasons,
             "strategy_router": strategy_router,
             "pre_trade_allowed": pre["allowed"],

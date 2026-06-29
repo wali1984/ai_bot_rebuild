@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 
 import pytest
 
@@ -2464,11 +2465,57 @@ def test_b_grade_exploration_budget_fraction_adaptive_floor_is_fail_closed() -> 
     assert penalties["long_short_point_in_time_pressure"] > 0.0
 
 
+def test_paper_signal_adaptive_stale_policy_never_relaxes_static_cap() -> None:
+    one_minute = paper_loop._paper_signal_adaptive_stale_policy(  # noqa: SLF001
+        {"timeframe": "1m"}
+    )
+    five_minute = paper_loop._paper_signal_adaptive_stale_policy(  # noqa: SLF001
+        {"timeframe": "5m"}
+    )
+    higher_timeframe = paper_loop._paper_signal_adaptive_stale_policy(  # noqa: SLF001
+        {"timeframe": "4h"}
+    )
+    missing_timeframe = paper_loop._paper_signal_adaptive_stale_policy({})  # noqa: SLF001
+
+    assert one_minute["adaptive_stale_seconds"] == 180
+    assert one_minute["adaptive_stricter_than_static"] is True
+    assert five_minute["adaptive_stale_seconds"] == paper_loop.PAPER_SIGNAL_STALE_SECONDS
+    assert higher_timeframe["adaptive_stale_seconds"] == paper_loop.PAPER_SIGNAL_STALE_SECONDS
+    assert missing_timeframe["adaptive_stale_seconds"] == paper_loop.PAPER_SIGNAL_STALE_SECONDS
+    for policy in (one_minute, five_minute, higher_timeframe, missing_timeframe):
+        assert policy["adaptive_never_above_static"] is True
+        assert policy["threshold_lowering_to_force_trades"] is False
+
+
+def test_paper_signal_temporal_rejection_uses_adaptive_stale_seconds() -> None:
+    now = datetime(2026, 6, 29, 2, 0, tzinfo=timezone.utc)
+
+    one_minute_reasons = paper_loop._paper_signal_temporal_rejection_reasons(  # noqa: SLF001
+        signal={
+            "timeframe": "1m",
+            "generated_utc": "2026-06-29T01:56:00Z",
+        },
+        prediction={},
+        now=now,
+    )
+    higher_timeframe_reasons = paper_loop._paper_signal_temporal_rejection_reasons(  # noqa: SLF001
+        signal={
+            "timeframe": "4h",
+            "generated_utc": "2026-06-29T01:56:00Z",
+        },
+        prediction={},
+        now=now,
+    )
+
+    assert one_minute_reasons == ["STALE_SIGNAL_GT_180s_ADAPTIVE"]
+    assert higher_timeframe_reasons == []
+
+
 def test_adaptive_threshold_runtime_status_counts_b_grade_floor_blocks() -> None:
     rows = [
         {
             "symbol": "BANKUSDT",
-            "timeframe": "15m",
+            "timeframe": "1m",
             "side": "long",
             "paper_opportunity_tier": "B_GRADE_EXPLORATION_PAPER",
             "confidence_calibrated": 0.66,
@@ -2503,10 +2550,10 @@ def test_adaptive_threshold_runtime_status_counts_b_grade_floor_blocks() -> None
     status = paper_loop._paper_adaptive_threshold_runtime_status(rows)  # noqa: SLF001
 
     assert status["status"] == (
-        "PARTIAL_B_GRADE_CONFIDENCE_FLOOR_ADAPTIVE_FAIL_CLOSED_"
+        "PARTIAL_B_GRADE_CONFIDENCE_FLOOR_AND_SIGNAL_STALENESS_ADAPTIVE_FAIL_CLOSED_"
         "STATIC_THRESHOLDS_REMAIN"
     )
-    assert status["adaptive_threshold_id"] == "b_grade_confidence_floor"
+    assert status["adaptive_threshold_id"] == "b_grade_confidence_floor,paper_signal_stale_seconds"
     assert status["evaluated_rows"] == 2
     assert status["static_floor_pass_rows"] == 2
     assert status["adaptive_floor_pass_rows"] == 1
@@ -2514,6 +2561,10 @@ def test_adaptive_threshold_runtime_status_counts_b_grade_floor_blocks() -> None
     assert status["adaptive_floor_never_below_static_rows"] == 2
     assert status["threshold_lowering_to_force_trades"] is False
     assert status["pass_conditions"]["adaptive_floor_never_below_static"] is True
+    assert status["pass_conditions"]["adaptive_signal_stale_threshold_never_above_static"] is True
+    assert status["adaptive_signal_stale_threshold"]["evaluated_rows"] == 2
+    assert status["adaptive_signal_stale_threshold"]["adaptive_stricter_than_static_rows"] == 1
+    assert "paper_signal_stale_seconds" not in status["remaining_static_threshold_blockers"]
     assert status["pass_conditions"]["ready_allowed"] is False
     assert status["routes_to_live"] is False
     assert status["places_real_order"] is False
