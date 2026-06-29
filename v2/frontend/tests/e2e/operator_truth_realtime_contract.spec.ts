@@ -36,13 +36,24 @@ test.describe('operator truth realtime contract', () => {
     const source = readFileSync(path.resolve(process.cwd(), 'src/components/trading/AdaptiveCapitalTelemetryPanel.tsx'), 'utf8');
 
     expect(source).toContain("url: '/api/v2/paper/runtime-status'");
+    expect(source).toContain('blockers?: PaperRuntimeBlocker[]');
+    expect(source).toContain('FORWARD_CANARY_EVIDENCE_NOT_READY');
+    expect(source).toContain('A_GRADE_SUPPLY_ZERO');
     expect(source).toContain('paper_churn_equity_bleed_governor_status');
     expect(source).toContain('paper_forward_canary_evidence_status');
     expect(source).toContain('paper_a_grade_gate_burndown_status');
+    expect(source).toContain('forward_canary_shortfalls');
+    expect(source).toContain('root_cause_counts');
+    expect(source).toContain('predicate_counts');
     expect(source).toContain('closest_gap_reason');
     expect(source).toContain('Churn Governor');
     expect(source).toContain('Canary Outcomes');
+    expect(source).toContain('Canary Shortfall');
     expect(source).toContain('A-grade Source');
+    expect(source).toContain('A-grade Roots');
+    expect(source).toContain('A-grade Dominant');
+    expect(source).toContain('A-grade Predicates');
+    expect(source).toContain('A-grade Guardian');
   });
 
   test('resource hook opens WebSockets for operator truth static JSON folders', () => {

@@ -53,10 +53,39 @@ interface AdaptiveCapitalTelemetryPanelProps {
   maxMatrixHeight?: number;
 }
 
+interface PaperRuntimeBlocker {
+  id?: string | null;
+  severity?: string | null;
+  detail?: string | null;
+  status?: string | null;
+  valid_forward_canary_economic_outcomes?: number | null;
+  post_cutover_valid_forward_canary_economic_outcomes?: number | null;
+  required_forward_canary_economic_outcomes?: number | null;
+  valid_symbol_count?: number | null;
+  required_symbol_count?: number | null;
+  required_initial_symbols?: number | null;
+  forward_canary_shortfalls?: Record<string, number> | null;
+  A_grade_rows?: number | null;
+  a_grade_rows?: number | null;
+  near_A_grade_rows?: number | null;
+  near_a_grade_rows?: number | null;
+  closest_gap_reason?: string | null;
+  predicate_counts?: Record<string, number> | null;
+  root_cause_counts?: Record<string, number> | null;
+  dominant_current_runtime_reasons?: Record<string, number> | null;
+  guardian_status?: string | null;
+  guardian_new_entries_allowed?: boolean | null;
+  guardian_block_all_new_a_grade_entries?: boolean | null;
+  guardian_failure_reason_count?: number | null;
+  source_tier_a_grade_execution_rows?: number | null;
+  pass_conditions?: Record<string, boolean> | null;
+}
+
 interface PaperRuntimeStatusPayload {
   runtime?: string | null;
   runtime_state?: string | null;
   live_gate_status?: string | null;
+  blockers?: PaperRuntimeBlocker[] | null;
   paper_loop?: {
     candidate_id?: string | null;
     policy_id?: string | null;
@@ -114,6 +143,14 @@ interface PaperRuntimeStatusPayload {
       a_grade_rows?: number | null;
       near_A_grade_rows?: number | null;
       near_a_grade_rows?: number | null;
+      predicate_counts?: Record<string, number> | null;
+      root_cause_counts?: Record<string, number> | null;
+      dominant_current_runtime_reasons?: Record<string, number> | null;
+      source_tier_a_grade_execution_rows?: number | null;
+      guardian_status?: string | null;
+      guardian_new_entries_allowed?: boolean | null;
+      guardian_block_all_new_a_grade_entries?: boolean | null;
+      pass_conditions?: Record<string, boolean> | null;
     } | null;
   } | null;
 }
@@ -342,6 +379,21 @@ function compactReasons(value: Record<string, number> | null | undefined): strin
   const entries = Object.entries(value ?? {}).filter(([key]) => key !== '__missing__');
   if (entries.length === 0) return '—';
   return entries.slice(0, 2).map(([key, count]) => `${publicTelemetryText(key)}: ${countText(count)}`).join(' · ');
+}
+
+function compactTopReasons(value: Record<string, number> | null | undefined): string {
+  const entries = Object.entries(value ?? {})
+    .filter(([key, count]) => key !== '__missing__' && typeof count === 'number' && Number.isFinite(count))
+    .sort((a, b) => b[1] - a[1]);
+  if (entries.length === 0) return '—';
+  return entries.slice(0, 2).map(([key, count]) => `${publicTelemetryText(key)}: ${countText(count)}`).join(' · ');
+}
+
+function blockerById(
+  blockers: PaperRuntimeBlocker[] | null | undefined,
+  id: string,
+): PaperRuntimeBlocker | null {
+  return blockers?.find((blocker) => blocker.id === id) ?? null;
 }
 
 function sourceReadiness(
@@ -651,13 +703,25 @@ export function AdaptiveCapitalTelemetryPanel({
   });
   const paperRuntime = paperRuntimeEnvelope.data;
   const paperLoop = paperRuntime?.paper_loop ?? null;
+  const paperRuntimeBlockers = paperRuntime?.blockers ?? [];
+  const forwardCanaryBlocker = blockerById(paperRuntimeBlockers, 'FORWARD_CANARY_EVIDENCE_NOT_READY');
+  const aGradeSupplyBlocker = blockerById(paperRuntimeBlockers, 'A_GRADE_SUPPLY_ZERO');
   const paperChurn = paperLoop?.paper_churn_equity_bleed_governor_status ?? null;
   const paperForwardCanary = paperLoop?.paper_forward_canary_evidence_status ?? null;
   const paperAgrade = paperLoop?.paper_a_grade_gate_burndown_status ?? null;
-  const forwardOutcomes = paperForwardCanary?.valid_forward_canary_economic_outcomes;
-  const requiredForwardOutcomes = paperForwardCanary?.required_forward_canary_economic_outcomes;
-  const forwardSymbols = paperForwardCanary?.valid_symbol_count;
-  const requiredForwardSymbols = paperForwardCanary?.required_symbol_count;
+  const forwardOutcomes = forwardCanaryBlocker?.valid_forward_canary_economic_outcomes
+    ?? paperForwardCanary?.valid_forward_canary_economic_outcomes;
+  const requiredForwardOutcomes = forwardCanaryBlocker?.required_forward_canary_economic_outcomes
+    ?? paperForwardCanary?.required_forward_canary_economic_outcomes;
+  const forwardSymbols = forwardCanaryBlocker?.valid_symbol_count
+    ?? paperForwardCanary?.valid_symbol_count;
+  const requiredForwardSymbols = forwardCanaryBlocker?.required_symbol_count
+    ?? forwardCanaryBlocker?.required_initial_symbols
+    ?? paperForwardCanary?.required_symbol_count;
+  const forwardOutcomeShortfall = forwardCanaryBlocker?.forward_canary_shortfalls?.valid_forward_canary_economic_outcomes
+    ?? paperForwardCanary?.forward_canary_shortfalls?.valid_forward_canary_economic_outcomes;
+  const forwardSymbolShortfall = forwardCanaryBlocker?.forward_canary_shortfalls?.valid_symbol_count
+    ?? paperForwardCanary?.forward_canary_shortfalls?.valid_symbol_count;
   const forwardLongOutcomes = paperForwardCanary?.side_counts?.LONG
     ?? paperForwardCanary?.side_counts?.long
     ?? null;
@@ -671,8 +735,33 @@ export function AdaptiveCapitalTelemetryPanel({
     && (churnSameCandleReentry ?? 1) === 0
     && paperChurn?.cost_drag_within_envelope === true
     && paperChurn?.economic_trade_count_reconciles === true;
-  const paperAgradeRows = paperAgrade?.A_grade_rows ?? paperAgrade?.a_grade_rows;
-  const paperNearAgradeRows = paperAgrade?.near_A_grade_rows ?? paperAgrade?.near_a_grade_rows;
+  const paperAgradeRows = aGradeSupplyBlocker?.A_grade_rows
+    ?? aGradeSupplyBlocker?.a_grade_rows
+    ?? paperAgrade?.A_grade_rows
+    ?? paperAgrade?.a_grade_rows;
+  const paperNearAgradeRows = aGradeSupplyBlocker?.near_A_grade_rows
+    ?? aGradeSupplyBlocker?.near_a_grade_rows
+    ?? paperAgrade?.near_A_grade_rows
+    ?? paperAgrade?.near_a_grade_rows;
+  const aGradeClosestGap = aGradeSupplyBlocker?.closest_gap_reason
+    ?? paperAgrade?.closest_gap_reason
+    ?? aGradeSupplyBlocker?.status
+    ?? paperAgrade?.status;
+  const aGradeRootCauses = aGradeSupplyBlocker?.root_cause_counts
+    ?? paperAgrade?.root_cause_counts
+    ?? null;
+  const aGradePredicates = aGradeSupplyBlocker?.predicate_counts
+    ?? paperAgrade?.predicate_counts
+    ?? null;
+  const aGradeDominantReasons = aGradeSupplyBlocker?.dominant_current_runtime_reasons
+    ?? paperAgrade?.dominant_current_runtime_reasons
+    ?? null;
+  const aGradeGuardianStatus = aGradeSupplyBlocker?.guardian_status
+    ?? paperAgrade?.guardian_status
+    ?? null;
+  const aGradeSourceTierRows = aGradeSupplyBlocker?.source_tier_a_grade_execution_rows
+    ?? paperAgrade?.source_tier_a_grade_execution_rows
+    ?? null;
   const view = resolveTelemetry(payload);
   const capital = view.capital;
   const policy = view.policy;
@@ -889,6 +978,11 @@ export function AdaptiveCapitalTelemetryPanel({
           color={(forwardSymbols ?? -1) >= (requiredForwardSymbols ?? Number.POSITIVE_INFINITY) ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
         />
         <HeaderMetric
+          label="Canary Shortfall"
+          value={`${countText(forwardOutcomeShortfall)} outcomes / ${countText(forwardSymbolShortfall)} symbols`}
+          color={(forwardOutcomeShortfall ?? 1) === 0 && (forwardSymbolShortfall ?? 1) === 0 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
           label="Canary Long/Short"
           value={`${countText(forwardLongOutcomes)} / ${countText(forwardShortOutcomes)}`}
           color={(forwardLongOutcomes ?? 0) > 0 && (forwardShortOutcomes ?? 0) > 0 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
@@ -900,7 +994,27 @@ export function AdaptiveCapitalTelemetryPanel({
         />
         <HeaderMetric
           label="A-grade Source"
-          value={paperAgrade?.closest_gap_reason ?? paperAgrade?.status ?? 'CONNECTING'}
+          value={aGradeClosestGap ?? 'CONNECTING'}
+          color={(paperAgradeRows ?? 0) > 0 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
+          label="A-grade Roots"
+          value={compactTopReasons(aGradeRootCauses)}
+          color={(paperAgradeRows ?? 0) > 0 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
+          label="A-grade Dominant"
+          value={compactTopReasons(aGradeDominantReasons)}
+          color={(paperAgradeRows ?? 0) > 0 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
+          label="A-grade Predicates"
+          value={`risk ${countText(aGradePredicates?.risk_pass_rows)} / strategy ${countText(aGradePredicates?.strategy_pass_rows)} / allocator ${countText(aGradePredicates?.allocator_pass_rows)}`}
+          color={(paperAgradeRows ?? 0) > 0 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
+          label="A-grade Guardian"
+          value={`${aGradeGuardianStatus ?? 'CONNECTING'} / tier ${countText(aGradeSourceTierRows)}`}
           color={(paperAgradeRows ?? 0) > 0 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
         />
         <HeaderMetric
