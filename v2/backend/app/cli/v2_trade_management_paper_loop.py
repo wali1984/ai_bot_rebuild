@@ -97,6 +97,10 @@ PAPER_DRAWDOWN_RECOVERY_DRAWDOWN_TIGHTEN_FULL_BPS = 1000.0
 PAPER_DRAWDOWN_RECOVERY_WEAK_EDGE_BPS = 20.0
 PAPER_DRAWDOWN_RECOVERY_SIZE_MULTIPLIER = 0.25
 PAPER_RUNTIME_EVIDENCE_BLOCK_REASON = "PAPER_RUNTIME_EVIDENCE_BLOCKED"
+PAPER_CHURN_EQUITY_BLEED_GOVERNOR_NAME = "PAPER_ONLY_CHURN_EQUITY_BLEED_GOVERNOR"
+PAPER_CHURN_EQUITY_BLEED_BLOCK_REASON = "PAPER_CHURN_EQUITY_BLEED_GOVERNOR_BLOCKED"
+PAPER_CHURN_EQUITY_BLEED_RECENT_WINDOW_SECONDS = 60 * 60
+PAPER_CHURN_COST_DRAG_MAX_PCT_OF_TURNOVER = 100.0
 MISSING_THESIS_TIMEFRAME_BLOCK_REASON = "MISSING_THESIS_TIMEFRAME"
 UNKNOWN_THESIS_TIMEFRAME = "UNKNOWN"
 PAPER_EXECUTION_TIMING_TIMEFRAME = "1m"
@@ -8835,6 +8839,453 @@ def _paper_adaptive_threshold_runtime_status(rows: list[dict[str, Any]]) -> dict
     }
 
 
+def _paper_churn_first_number(row: dict[str, Any], *fields: str) -> float | None:
+    for field in fields:
+        value = _coerce_float(row.get(field))
+        if value is not None:
+            return value
+    return None
+
+
+def _paper_churn_economic_trade_identity(row: dict[str, Any]) -> str | None:
+    for field in (
+        "close_id",
+        "paper_close_id",
+        "close_event_id",
+        "outcome_label_id",
+        "trainer_feedback_id",
+        "paper_trade_id",
+        "paper_fill_id",
+        "fill_id",
+        "ledger_row_id",
+    ):
+        value = row.get(field)
+        if value not in (None, ""):
+            return f"{field}:{value}"
+    source_fill_ids = row.get("source_fill_ids")
+    if isinstance(source_fill_ids, list) and source_fill_ids:
+        joined = "|".join(str(value) for value in source_fill_ids if value not in (None, ""))
+        if joined:
+            return f"source_fill_ids:{joined}"
+    symbol = str(row.get("symbol") or "").upper()
+    side = _normalized_directional_side(_first_present(row.get("side"), row.get("action")))
+    entry_time = _first_present(
+        row.get("entry_time"),
+        row.get("policy_activated_at"),
+        row.get("fill_price_utc"),
+        row.get("opened_at"),
+        row.get("opened_est"),
+        row.get("decision_time"),
+    )
+    exit_time = _first_present(
+        row.get("exit_time"),
+        row.get("closed_at"),
+        row.get("exit_price_utc"),
+        row.get("execution_time"),
+        row.get("generated_utc"),
+    )
+    if symbol and side and entry_time not in (None, "") and exit_time not in (None, ""):
+        return f"composite:{symbol}:{side}:{entry_time}:{exit_time}"
+    return None
+
+
+def _paper_churn_requires_economic_identity(row: dict[str, Any]) -> bool:
+    if str(row.get("symbol") or "").strip():
+        return True
+    if row.get("position_id") not in (None, ""):
+        return True
+    if row.get("prediction_id") not in (None, ""):
+        return True
+    if row.get("signal_id") not in (None, ""):
+        return True
+    return any(
+        row.get(field) not in (None, "")
+        for field in (
+            "close_id",
+            "paper_close_id",
+            "close_event_id",
+            "outcome_label_id",
+            "trainer_feedback_id",
+            "paper_trade_id",
+            "paper_fill_id",
+            "fill_id",
+            "ledger_row_id",
+        )
+    )
+
+
+def _paper_churn_entry_time(row: dict[str, Any]) -> datetime | None:
+    return _parse_strategy_time(
+        _first_present(
+            row.get("policy_activated_at"),
+            row.get("entry_time"),
+            row.get("fill_price_utc"),
+            row.get("opened_at"),
+            row.get("opened_est"),
+            row.get("decision_time"),
+            row.get("generated_utc"),
+        )
+    )
+
+
+def _paper_churn_same_candle_key(row: dict[str, Any]) -> str | None:
+    symbol = str(row.get("symbol") or "").upper()
+    timeframe = str(_first_present(row.get("timeframe"), row.get("thesis_timeframe")) or "")
+    side = _normalized_directional_side(_first_present(row.get("side"), row.get("action")))
+    candle = _first_present(
+        row.get("entry_feature_cutoff"),
+        row.get("feature_cutoff"),
+        row.get("candle_close_time"),
+    )
+    if symbol and timeframe and side and candle not in (None, ""):
+        return f"{symbol}:{timeframe}:{side}:{candle}"
+    return None
+
+
+def _paper_churn_duplicate_count(rows: list[dict[str, Any]], field: str) -> int:
+    counts: dict[str, int] = {}
+    for row in rows:
+        value = _first_present(row.get(field), row.get(f"source_{field}"))
+        if value in (None, ""):
+            continue
+        key = str(value)
+        counts[key] = counts.get(key, 0) + 1
+    return sum(max(0, count - 1) for count in counts.values())
+
+
+def _paper_churn_same_candle_duplicate_count(rows: list[dict[str, Any]]) -> int:
+    counts: dict[str, int] = {}
+    for row in rows:
+        key = _paper_churn_same_candle_key(row)
+        if key is None:
+            continue
+        counts[key] = counts.get(key, 0) + 1
+    return sum(max(0, count - 1) for count in counts.values())
+
+
+def _paper_churn_current_entry_rejection_reasons(
+    candidate: dict[str, Any],
+    prior_current_accepted_rows: list[dict[str, Any]],
+) -> list[str]:
+    reasons: list[str] = []
+    prediction_id = _first_present(candidate.get("prediction_id"), candidate.get("source_prediction_id"))
+    signal_id = _first_present(candidate.get("signal_id"), candidate.get("source_signal_id"))
+    same_candle_key = _paper_churn_same_candle_key(candidate)
+    for prior in prior_current_accepted_rows:
+        if prediction_id not in (None, "") and prediction_id == _first_present(
+            prior.get("prediction_id"),
+            prior.get("source_prediction_id"),
+        ):
+            reasons.append("DUPLICATE_CURRENT_CYCLE_PREDICTION")
+        if signal_id not in (None, "") and signal_id == _first_present(
+            prior.get("signal_id"),
+            prior.get("source_signal_id"),
+        ):
+            reasons.append("DUPLICATE_CURRENT_CYCLE_SIGNAL")
+        if same_candle_key is not None and same_candle_key == _paper_churn_same_candle_key(prior):
+            reasons.append("SAME_CANDLE_REENTRY_CURRENT_CYCLE")
+    return sorted(set(reasons))
+
+
+def _paper_apply_churn_equity_bleed_rejection(
+    intent: dict[str, Any],
+    reasons: list[str],
+) -> None:
+    if not reasons:
+        return
+    intent["paper_churn_equity_bleed_governor_block_reasons"] = sorted(set(
+        list(intent.get("paper_churn_equity_bleed_governor_block_reasons") or [])
+        + list(reasons)
+    ))
+    intent["paper_fill_block_reason"] = (
+        intent.get("paper_fill_block_reason") or PAPER_CHURN_EQUITY_BLEED_BLOCK_REASON
+    )
+    intent["paper_fill_gate_block_reasons"] = sorted(set(
+        list(intent.get("paper_fill_gate_block_reasons") or [])
+        + [PAPER_CHURN_EQUITY_BLEED_BLOCK_REASON]
+        + list(reasons)
+    ))
+    intent["local_block_reasons"] = sorted(set(
+        list(intent.get("local_block_reasons") or [])
+        + [f"churn_equity_bleed_governor:{reason}" for reason in reasons]
+    ))
+    intent["paper_fill_allowed"] = False
+    intent["paper_churn_equity_bleed_governor_allowed"] = False
+
+
+def _paper_filter_post_backfill_current_churn_duplicates(
+    accepted_for_ledger: list[dict[str, Any]],
+    current_accepted_rows: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    current_ids = {_accepted_fill_identity(row) for row in current_accepted_rows}
+    post_backfill_current_accepted: list[dict[str, Any]] = []
+    filtered_accepted_for_ledger: list[dict[str, Any]] = []
+    blocked_duplicates: list[dict[str, Any]] = []
+    for row in accepted_for_ledger:
+        row_identity = _accepted_fill_identity(row)
+        if row_identity in current_ids:
+            reasons = _paper_churn_current_entry_rejection_reasons(
+                row,
+                post_backfill_current_accepted,
+            )
+            if reasons:
+                blocked_row = dict(row)
+                _paper_apply_churn_equity_bleed_rejection(blocked_row, reasons)
+                blocked_row["paper_churn_equity_bleed_block_stage"] = (
+                    "POST_BACKFILL_PRE_LIFECYCLE"
+                )
+                blocked_duplicates.append(blocked_row)
+                continue
+            post_backfill_current_accepted.append(row)
+        filtered_accepted_for_ledger.append(row)
+    return filtered_accepted_for_ledger, post_backfill_current_accepted, blocked_duplicates
+
+
+def _paper_filter_open_positions_to_accepted_rows(
+    open_positions: list[dict[str, Any]],
+    accepted_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    allowed_open_position_ids = {_accepted_fill_identity(row) for row in accepted_rows}
+    if not allowed_open_position_ids:
+        return list(open_positions)
+    return [
+        row
+        for row in open_positions
+        if _accepted_fill_identity(_accepted_fill_from_open_position(row))
+        in allowed_open_position_ids
+    ]
+
+
+def _paper_churn_equity_bleed_governor_status(
+    *,
+    accepted_rows: list[dict[str, Any]],
+    open_position_rows: list[dict[str, Any]],
+    closed_rows: list[dict[str, Any]],
+    current_accepted_rows: list[dict[str, Any]],
+    blocked_rows: list[dict[str, Any]] | None = None,
+    generated_utc: str | None = None,
+) -> dict[str, Any]:
+    raw_closed_rows = [row for row in closed_rows if isinstance(row, dict)]
+    current_rows = [row for row in current_accepted_rows if isinstance(row, dict)]
+    accepted_source_rows = [row for row in accepted_rows if isinstance(row, dict)]
+    open_rows = [row for row in open_position_rows if isinstance(row, dict)]
+    blocked_source_rows = [row for row in (blocked_rows or []) if isinstance(row, dict)]
+
+    by_identity: dict[str, dict[str, Any]] = {}
+    rows_without_identity = 0
+    non_compactable_close_records = 0
+    for row in raw_closed_rows:
+        identity = _paper_churn_economic_trade_identity(row)
+        if identity is None:
+            if _paper_churn_requires_economic_identity(row):
+                rows_without_identity += 1
+            else:
+                non_compactable_close_records += 1
+            continue
+        by_identity.setdefault(identity, row)
+    compacted_closed_rows = list(by_identity.values())
+
+    fees_usd = 0.0
+    slippage_usd = 0.0
+    funding_usd = 0.0
+    funding_abs_usd = 0.0
+    turnover_usd = 0.0
+    edge_usd = 0.0
+    invalid_cost_rows = 0
+    hold_seconds: list[float] = []
+    for row in compacted_closed_rows:
+        fee = _paper_churn_first_number(row, "fees_usd", "fees", "expected_fees_usd") or 0.0
+        slippage = (
+            _paper_churn_first_number(
+                row,
+                "realized_slippage_usd",
+                "slippage_usd",
+                "slippage",
+                "expected_slippage_usd",
+            )
+            or 0.0
+        )
+        funding = (
+            _paper_churn_first_number(
+                row,
+                "funding_pnl_usd",
+                "funding_usd",
+                "funding",
+                "expected_funding_usd",
+            )
+            or 0.0
+        )
+        turnover = (
+            _paper_churn_first_number(
+                row,
+                "gross_notional_usd",
+                "gross_notional",
+                "order_size_usd",
+                "order_size",
+                "notional_usd",
+                "notional",
+                "notional_usdt",
+            )
+            or 0.0
+        )
+        edge = (
+            _paper_churn_first_number(
+                row,
+                "realized_net_pnl_usd",
+                "realized_pnl_usd",
+                "realized_pnl_usdt",
+                "expected_net_pnl_usd",
+            )
+            or 0.0
+        )
+        hold = _paper_churn_first_number(
+            row,
+            "hold_time_seconds",
+            "holding_period_seconds",
+            "holding_period",
+            "position_age_seconds",
+        )
+        if hold is not None and hold >= 0.0:
+            hold_seconds.append(hold)
+        if fee < 0.0 or slippage < 0.0:
+            invalid_cost_rows += 1
+        fees_usd += fee
+        slippage_usd += slippage
+        funding_usd += funding
+        funding_abs_usd += abs(funding)
+        turnover_usd += max(0.0, turnover)
+        edge_usd += edge
+
+    cost_drag_usd = max(0.0, fees_usd) + max(0.0, slippage_usd) + funding_abs_usd
+    cost_drag_pct = (cost_drag_usd / turnover_usd * 100.0) if turnover_usd > 0.0 else None
+    edge_to_cost_ratio = (edge_usd / cost_drag_usd) if cost_drag_usd > 0.0 else None
+    if hold_seconds:
+        ordered_holds = sorted(hold_seconds)
+        middle = len(ordered_holds) // 2
+        if len(ordered_holds) % 2:
+            median_hold_time = ordered_holds[middle]
+        else:
+            median_hold_time = (ordered_holds[middle - 1] + ordered_holds[middle]) / 2.0
+    else:
+        median_hold_time = None
+
+    generated_dt = _parse_strategy_time(generated_utc) or datetime.now(timezone.utc)
+    recent_cutoff = generated_dt.timestamp() - PAPER_CHURN_EQUITY_BLEED_RECENT_WINDOW_SECONDS
+    recent_entries_by_symbol: dict[str, int] = {}
+    seen_entry_identities: set[str] = set()
+    for row in accepted_source_rows + open_rows + current_rows:
+        symbol = str(row.get("symbol") or "").upper()
+        if not symbol:
+            continue
+        entry_identity = _accepted_fill_identity(row)
+        if entry_identity in seen_entry_identities:
+            continue
+        seen_entry_identities.add(entry_identity)
+        entry_time = _paper_churn_entry_time(row)
+        if entry_time is None:
+            continue
+        if entry_time.timestamp() >= recent_cutoff:
+            recent_entries_by_symbol[symbol] = recent_entries_by_symbol.get(symbol, 0) + 1
+    reentries_by_symbol = {
+        symbol: max(0, count - 1) for symbol, count in recent_entries_by_symbol.items()
+    }
+    same_candle_reentry_count = _paper_churn_same_candle_duplicate_count(current_rows)
+    same_prediction_duplicate_count = _paper_churn_duplicate_count(current_rows, "prediction_id")
+    same_signal_duplicate_count = _paper_churn_duplicate_count(current_rows, "signal_id")
+    duplicate_new_entries = max(
+        same_candle_reentry_count,
+        same_prediction_duplicate_count,
+        same_signal_duplicate_count,
+    )
+    blocked_attempt_rows = [
+        row
+        for row in blocked_source_rows
+        if row.get("paper_churn_equity_bleed_governor_block_reasons")
+    ]
+    same_candle_reentry_unexplained = same_candle_reentry_count
+    economic_trade_count_reconciles = (
+        rows_without_identity == 0
+        and len(compacted_closed_rows) <= len(raw_closed_rows)
+    )
+    cost_drag_within_envelope = (
+        invalid_cost_rows == 0
+        and (
+            (cost_drag_pct is None and cost_drag_usd == 0.0)
+            or (
+                cost_drag_pct is not None
+                and 0.0 <= cost_drag_pct <= PAPER_CHURN_COST_DRAG_MAX_PCT_OF_TURNOVER
+            )
+        )
+    )
+    if duplicate_new_entries > 0:
+        state = "CHURN_HALTED"
+    elif same_candle_reentry_unexplained > 0:
+        state = "COOLDOWN"
+    elif not economic_trade_count_reconciles or not cost_drag_within_envelope:
+        state = "SHADOW_ONLY"
+    else:
+        state = "ACTIVE"
+    pass_conditions = {
+        "duplicate_new_entries_eq_zero": duplicate_new_entries == 0,
+        "same_candle_reentry_unexplained_eq_zero": same_candle_reentry_unexplained == 0,
+        "cost_drag_within_envelope": cost_drag_within_envelope,
+        "economic_trade_count_reconciles": economic_trade_count_reconciles,
+    }
+    new_entries_allowed = state == "ACTIVE"
+    return {
+        "schema_version": "paper_churn_equity_bleed_governor_status_v1",
+        "governor": PAPER_CHURN_EQUITY_BLEED_GOVERNOR_NAME,
+        "status": state,
+        "state": state,
+        "enabled": True,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "live_path_changed": False,
+        "new_entries_allowed": new_entries_allowed,
+        "raw_close_records": len(raw_closed_rows),
+        "compacted_economic_trades": len(compacted_closed_rows),
+        "duplicate_close_record_count": max(0, len(raw_closed_rows) - len(compacted_closed_rows)),
+        "rows_without_economic_identity": rows_without_identity,
+        "non_compactable_close_records": non_compactable_close_records,
+        "current_cycle_new_entry_rows": len(current_rows),
+        "duplicate_new_entries": duplicate_new_entries,
+        "blocked_duplicate_or_churn_attempt_rows": len(blocked_attempt_rows),
+        "entries_per_symbol_per_hour": max(recent_entries_by_symbol.values(), default=0),
+        "reentries_per_symbol_per_hour": max(reentries_by_symbol.values(), default=0),
+        "entries_per_symbol_per_hour_by_symbol": dict(sorted(recent_entries_by_symbol.items())),
+        "reentries_per_symbol_per_hour_by_symbol": dict(sorted(reentries_by_symbol.items())),
+        "cost_drag_pct": round(cost_drag_pct, 8) if cost_drag_pct is not None else None,
+        "cost_drag_bps": round(cost_drag_pct * 100.0, 8) if cost_drag_pct is not None else None,
+        "fees_usd": round(fees_usd, 8),
+        "slippage_usd": round(slippage_usd, 8),
+        "funding_usd": round(funding_usd, 8),
+        "funding_abs_usd": round(funding_abs_usd, 8),
+        "turnover_usd": round(turnover_usd, 8),
+        "edge_to_cost_ratio": (
+            round(edge_to_cost_ratio, 8) if edge_to_cost_ratio is not None else None
+        ),
+        "median_hold_time": round(median_hold_time, 8) if median_hold_time is not None else None,
+        "same_candle_reentry_count": same_candle_reentry_count,
+        "same_prediction_duplicate_count": same_prediction_duplicate_count,
+        "same_signal_duplicate_count": same_signal_duplicate_count,
+        "same_candle_reentry_unexplained": same_candle_reentry_unexplained,
+        "cost_drag_within_envelope": cost_drag_within_envelope,
+        "economic_trade_count_reconciles": economic_trade_count_reconciles,
+        "invalid_cost_rows": invalid_cost_rows,
+        "cost_drag_max_pct_of_turnover": PAPER_CHURN_COST_DRAG_MAX_PCT_OF_TURNOVER,
+        "recent_window_seconds": PAPER_CHURN_EQUITY_BLEED_RECENT_WINDOW_SECONDS,
+        "pass_conditions": pass_conditions,
+        "sample_blocked_governor_rows": _compact_rows_for_state(
+            _sample_rows(blocked_attempt_rows, 10)
+        ),
+        "sample_compacted_economic_trades": _paper_forward_canary_compact_sample(
+            _sample_rows(compacted_closed_rows, 10)
+        ),
+        "generated_utc": generated_utc or _utc_iso(),
+    }
+
+
 def _paper_a_grade_gate_burndown_status(
     rows: list[dict[str, Any]],
     *,
@@ -12509,6 +12960,15 @@ def run_once() -> dict:
     predictions_by_symbol = _group_predictions_by_symbol(prediction_rows)
     existing_ledger = _read_existing_ledger_payload(r)
     existing_accepted = _read_existing_accepted_fills(r)
+    pre_cycle_churn_equity_bleed_governor_status = (
+        _paper_churn_equity_bleed_governor_status(
+            accepted_rows=list(existing_accepted.values()),
+            open_position_rows=list(existing_accepted.values()),
+            closed_rows=_closed_trade_rows(existing_ledger),
+            current_accepted_rows=[],
+            generated_utc=started,
+        )
+    )
     portfolio_context = _portfolio_equity_context(r)
     symbol_exposures, total_exposure = _open_exposures_from_ledger(existing_ledger)
     candidate_symbols = [
@@ -13038,6 +13498,25 @@ def run_once() -> dict:
             runtime_market_evidence_rejection_reasons + policy_owner_reasons
         ))
         intent["paper_runtime_market_evidence_rejection_reasons"] = runtime_market_evidence_rejection_reasons
+        intent["paper_churn_equity_bleed_governor_state"] = (
+            pre_cycle_churn_equity_bleed_governor_status.get("state")
+        )
+        intent["paper_churn_equity_bleed_governor_allowed"] = (
+            pre_cycle_churn_equity_bleed_governor_status.get("new_entries_allowed") is True
+        )
+        churn_equity_bleed_rejection_reasons: list[str] = []
+        if pre_cycle_churn_equity_bleed_governor_status.get("new_entries_allowed") is not True:
+            churn_equity_bleed_rejection_reasons.append(
+                str(
+                    pre_cycle_churn_equity_bleed_governor_status.get("state")
+                    or PAPER_CHURN_EQUITY_BLEED_BLOCK_REASON
+                )
+            )
+        if churn_equity_bleed_rejection_reasons:
+            _paper_apply_churn_equity_bleed_rejection(
+                intent,
+                churn_equity_bleed_rejection_reasons,
+            )
         directional_guard = _paper_directional_collapse_guard(existing_ledger, side)
         intent["paper_directional_collapse_guard"] = directional_guard
         directional_guard_evaluations.append(directional_guard)
@@ -13084,6 +13563,7 @@ def run_once() -> dict:
             and not missing_thesis_timeframe
             and not paper_signal_temporal_rejection_reasons
             and not runtime_market_evidence_rejection_reasons
+            and not churn_equity_bleed_rejection_reasons
         )
         exploration_trade_gates_pass = (
             pre["allowed"]
@@ -13095,6 +13575,7 @@ def run_once() -> dict:
             and not missing_thesis_timeframe
             and not paper_signal_temporal_rejection_reasons
             and not runtime_market_evidence_rejection_reasons
+            and not churn_equity_bleed_rejection_reasons
         )
         if not integrity_gate["allowed"]:
             intent["paper_fill_block_reason"] = "MARKET_STATE_INTEGRITY_PAPER_GATE_BLOCKED"
@@ -13306,6 +13787,17 @@ def run_once() -> dict:
             ))
             blocked.append(intent)
             continue
+        current_cycle_churn_rejection_reasons = _paper_churn_current_entry_rejection_reasons(
+            intent,
+            accepted,
+        )
+        if current_cycle_churn_rejection_reasons:
+            _paper_apply_churn_equity_bleed_rejection(
+                intent,
+                current_cycle_churn_rejection_reasons,
+            )
+            blocked.append(intent)
+            continue
         # Accepted fill: passes both the local gates AND the
         # strict upstream paper-fill gate (P0.2F). Goes to
         # v2:paper:positions.
@@ -13408,6 +13900,14 @@ def run_once() -> dict:
         require_feature_snapshot_deref=True,
     )
     accepted_for_ledger = _normalize_paper_owner_attribution_rows(accepted_for_ledger)
+    accepted_for_ledger, accepted, post_backfill_churn_blocked = (
+        _paper_filter_post_backfill_current_churn_duplicates(
+            accepted_for_ledger,
+            accepted,
+        )
+    )
+    if post_backfill_churn_blocked:
+        blocked.extend(post_backfill_churn_blocked)
     mark_prices: dict[str, dict[str, Any]] = {}
     for symbol in sorted({str(row.get("symbol") or "").upper() for row in accepted_for_ledger if row.get("symbol")}):
         px, px_source, px_source_utc = _read_v2_market_price(r, symbol)
@@ -13455,6 +13955,16 @@ def run_once() -> dict:
         for row in accepted_for_ledger
         if _accepted_fill_identity(row) in current_accepted_ids
     ]
+    accepted_for_ledger, accepted, post_lifecycle_churn_blocked = (
+        _paper_filter_post_backfill_current_churn_duplicates(
+            accepted_for_ledger,
+            accepted,
+        )
+    )
+    if post_lifecycle_churn_blocked:
+        for row in post_lifecycle_churn_blocked:
+            row["paper_churn_equity_bleed_block_stage"] = "POST_LIFECYCLE_ACCEPTED_OPEN_FILLS"
+        blocked.extend(post_lifecycle_churn_blocked)
     current_cycle_shadow_observations = list(shadow_observations)
     persisted_shadow_observations = _merge_shadow_observation_history(
         _read_json_list_key(r, f"{V2_REDIS_PREFIX}paper:shadow_observations"),
@@ -13819,6 +14329,27 @@ def run_once() -> dict:
             _deduped.append(_ct)
     closes: list[dict] = _deduped
     open_positions: list[dict] = list(lifecycle_result["open_positions"])
+    filtered_open_positions = _paper_filter_open_positions_to_accepted_rows(
+        open_positions,
+        accepted_for_ledger,
+    )
+    open_position_count_before_filter = len(open_positions)
+    open_positions = filtered_open_positions
+    lifecycle_result["open_positions"] = open_positions
+    lifecycle_result["accepted_open_fills"] = accepted_for_ledger
+    if len(open_positions) != open_position_count_before_filter:
+        positions_by_symbol = lifecycle_result.get("positions_by_symbol")
+        if isinstance(positions_by_symbol, dict):
+            open_symbols = {
+                str(row.get("symbol") or "").upper()
+                for row in open_positions
+                if row.get("symbol")
+            }
+            lifecycle_result["positions_by_symbol"] = {
+                str(symbol).upper(): position
+                for symbol, position in positions_by_symbol.items()
+                if str(symbol).upper() in open_symbols
+            }
     outcome_labels: list[dict] = list(lifecycle_result["outcome_labels"])
     entry_context_by_fill_id = _entry_feedback_context_by_fill_id(accepted_for_ledger)
     closes, paper_closed_outcome_entry_context_backfill_status = (
@@ -13852,6 +14383,14 @@ def run_once() -> dict:
     )
     paper_adaptive_threshold_runtime_status = _paper_adaptive_threshold_runtime_status(
         intents,
+    )
+    paper_churn_equity_bleed_governor_status = _paper_churn_equity_bleed_governor_status(
+        accepted_rows=accepted_for_ledger,
+        open_position_rows=open_positions,
+        closed_rows=closes,
+        current_accepted_rows=accepted,
+        blocked_rows=blocked,
+        generated_utc=started,
     )
     feedback_lineage_contexts = _lineage_context_by_prediction_id(
         closes,
@@ -14064,6 +14603,9 @@ def run_once() -> dict:
             "paper_b_grade_canary_supply_status": paper_b_grade_canary_supply_status,
             "paper_a_grade_gate_burndown_status": paper_a_grade_gate_burndown_status,
             "paper_adaptive_threshold_runtime_status": paper_adaptive_threshold_runtime_status,
+            "paper_churn_equity_bleed_governor_status": (
+                paper_churn_equity_bleed_governor_status
+            ),
             "paper_audit_entry_gate_status": paper_audit_entry_gate_status,
             "paper_adaptive_sizing_runtime_status": paper_adaptive_sizing_runtime_status,
             "risk_envelope_dynamic_budget_status": risk_envelope_dynamic_budget_status,
@@ -14160,6 +14702,9 @@ def run_once() -> dict:
                 "paper_b_grade_canary_supply_status": paper_b_grade_canary_supply_status,
                 "paper_a_grade_gate_burndown_status": paper_a_grade_gate_burndown_status,
                 "paper_adaptive_threshold_runtime_status": paper_adaptive_threshold_runtime_status,
+                "paper_churn_equity_bleed_governor_status": (
+                    paper_churn_equity_bleed_governor_status
+                ),
                 "paper_forward_canary_evidence_status": paper_forward_canary_evidence_status,
                 "paper_forward_canary_closed_outcome_archive_status": (
                     paper_forward_canary_closed_outcome_archive_status
@@ -14218,6 +14763,15 @@ def run_once() -> dict:
             ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}paper:adaptive_threshold_runtime_status")
+        if _safe_write(
+            r,
+            f"{V2_REDIS_PREFIX}paper:churn_equity_bleed_governor_status",
+            json.dumps(paper_churn_equity_bleed_governor_status),
+            ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
+        ):
+            keys_written.append(
+                f"{V2_REDIS_PREFIX}paper:churn_equity_bleed_governor_status"
+            )
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}paper:trainer_model_quality_runtime_status",
@@ -14325,6 +14879,7 @@ def run_once() -> dict:
         "paper_b_grade_canary_supply_status": paper_b_grade_canary_supply_status,
         "paper_a_grade_gate_burndown_status": paper_a_grade_gate_burndown_status,
         "paper_adaptive_threshold_runtime_status": paper_adaptive_threshold_runtime_status,
+        "paper_churn_equity_bleed_governor_status": paper_churn_equity_bleed_governor_status,
         "paper_forward_canary_evidence_status": paper_forward_canary_evidence_status,
         "paper_forward_canary_closed_outcome_archive_status": (
             paper_forward_canary_closed_outcome_archive_status
@@ -14533,6 +15088,10 @@ def run_once() -> dict:
         write_payload(
             paper_adaptive_threshold_runtime_status,
             TRADE_MANAGEMENT_PUBLIC_DIR / "paper_adaptive_threshold_runtime_status.json",
+        )
+        write_payload(
+            paper_churn_equity_bleed_governor_status,
+            TRADE_MANAGEMENT_PUBLIC_DIR / "paper_churn_equity_bleed_governor_status.json",
         )
         write_payload(
             paper_forward_canary_evidence_status,

@@ -3545,6 +3545,231 @@ def test_a_grade_gate_burndown_tracks_live_counts_and_guardian_block(monkeypatch
     assert status["counts_as_a_grade_evidence"] is False
 
 
+def test_churn_equity_bleed_governor_compacts_economic_trades_and_costs(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-29T08:00:00Z")
+    closed = [
+        {
+            "close_id": "close-1",
+            "symbol": "ETHUSDT",
+            "timeframe": "15m",
+            "side": "long",
+            "entry_time": "2026-06-29T07:40:00Z",
+            "exit_time": "2026-06-29T07:45:00Z",
+            "gross_notional_usd": 100.0,
+            "fees_usd": 0.04,
+            "realized_slippage_usd": 0.02,
+            "funding_pnl_usd": 0.01,
+            "realized_net_pnl_usd": 1.25,
+            "hold_time_seconds": 300,
+            "paper_only": True,
+            "places_real_order": False,
+        },
+        {
+            "close_id": "close-1",
+            "symbol": "ETHUSDT",
+            "timeframe": "15m",
+            "side": "long",
+            "entry_time": "2026-06-29T07:40:00Z",
+            "exit_time": "2026-06-29T07:45:00Z",
+            "gross_notional_usd": 100.0,
+            "fees_usd": 0.04,
+            "realized_slippage_usd": 0.02,
+            "funding_pnl_usd": 0.01,
+            "realized_net_pnl_usd": 1.25,
+            "hold_time_seconds": 300,
+            "paper_only": True,
+            "places_real_order": False,
+        },
+    ]
+    current = [
+        {
+            "fill_id": "fill-1",
+            "symbol": "ETHUSDT",
+            "timeframe": "15m",
+            "side": "long",
+            "prediction_id": "pred-1",
+            "signal_id": "sig-1",
+            "entry_feature_cutoff": "2026-06-29T07:44:59.999Z",
+            "policy_activated_at": "2026-06-29T07:50:00Z",
+            "paper_only": True,
+            "places_real_order": False,
+        }
+    ]
+
+    status = paper_loop._paper_churn_equity_bleed_governor_status(  # noqa: SLF001
+        accepted_rows=current,
+        open_position_rows=[],
+        closed_rows=closed,
+        current_accepted_rows=current,
+        generated_utc="2026-06-29T08:00:00Z",
+    )
+
+    assert status["state"] == "ACTIVE"
+    assert status["new_entries_allowed"] is True
+    assert status["raw_close_records"] == 2
+    assert status["compacted_economic_trades"] == 1
+    assert status["duplicate_close_record_count"] == 1
+    assert status["fees_usd"] == 0.04
+    assert status["slippage_usd"] == 0.02
+    assert status["funding_usd"] == 0.01
+    assert status["turnover_usd"] == 100.0
+    assert status["edge_to_cost_ratio"] == pytest.approx(17.85714286)
+    assert status["median_hold_time"] == 300
+    assert status["entries_per_symbol_per_hour"] == 1
+    assert status["duplicate_new_entries"] == 0
+    assert status["pass_conditions"] == {
+        "duplicate_new_entries_eq_zero": True,
+        "same_candle_reentry_unexplained_eq_zero": True,
+        "cost_drag_within_envelope": True,
+        "economic_trade_count_reconciles": True,
+    }
+    assert status["routes_to_live"] is False
+    assert status["places_real_order"] is False
+
+
+def test_churn_equity_bleed_governor_halts_duplicate_current_entries() -> None:
+    row = {
+        "fill_id": "fill-1",
+        "symbol": "SOLUSDT",
+        "timeframe": "5m",
+        "side": "short",
+        "prediction_id": "pred-dupe",
+        "signal_id": "sig-dupe",
+        "entry_feature_cutoff": "2026-06-29T07:54:59.999Z",
+        "policy_activated_at": "2026-06-29T07:58:00Z",
+        "paper_only": True,
+        "places_real_order": False,
+    }
+    duplicate = {**row, "fill_id": "fill-2"}
+
+    status = paper_loop._paper_churn_equity_bleed_governor_status(  # noqa: SLF001
+        accepted_rows=[row, duplicate],
+        open_position_rows=[],
+        closed_rows=[],
+        current_accepted_rows=[row, duplicate],
+        generated_utc="2026-06-29T08:00:00Z",
+    )
+
+    assert status["state"] == "CHURN_HALTED"
+    assert status["new_entries_allowed"] is False
+    assert status["duplicate_new_entries"] == 1
+    assert status["same_candle_reentry_count"] == 1
+    assert status["same_prediction_duplicate_count"] == 1
+    assert status["same_signal_duplicate_count"] == 1
+    assert status["pass_conditions"]["duplicate_new_entries_eq_zero"] is False
+
+
+def test_churn_equity_bleed_current_entry_rejection_reasons() -> None:
+    existing = {
+        "fill_id": "fill-1",
+        "symbol": "SOLUSDT",
+        "timeframe": "5m",
+        "side": "short",
+        "prediction_id": "pred-dupe",
+        "signal_id": "sig-dupe",
+        "entry_feature_cutoff": "2026-06-29T07:54:59.999Z",
+    }
+    candidate = {**existing, "fill_id": "fill-2"}
+
+    reasons = paper_loop._paper_churn_current_entry_rejection_reasons(  # noqa: SLF001
+        candidate,
+        [existing],
+    )
+
+    assert reasons == [
+        "DUPLICATE_CURRENT_CYCLE_PREDICTION",
+        "DUPLICATE_CURRENT_CYCLE_SIGNAL",
+        "SAME_CANDLE_REENTRY_CURRENT_CYCLE",
+    ]
+
+
+def test_churn_equity_bleed_post_backfill_quarantines_same_signal_duplicates() -> None:
+    current = [
+        {
+            "fill_id": "fill-1",
+            "signal_id": "sig-original-1",
+            "prediction_id": "pred-1",
+        },
+        {
+            "fill_id": "fill-2",
+            "signal_id": "sig-original-2",
+            "prediction_id": "pred-2",
+        },
+    ]
+    backfilled = [
+        {
+            "fill_id": "fill-1",
+            "symbol": "GUSDT",
+            "timeframe": "1h",
+            "side": "short",
+            "signal_id": "sig-shared",
+            "prediction_id": "pred-1",
+            "entry_feature_cutoff": "2026-06-29T07:59:59.999Z",
+        },
+        {
+            "fill_id": "fill-2",
+            "symbol": "GUSDT",
+            "timeframe": "15m",
+            "side": "short",
+            "signal_id": "sig-shared",
+            "prediction_id": "pred-2",
+            "entry_feature_cutoff": "2026-06-29T07:44:59.999Z",
+        },
+    ]
+
+    filtered, current_after_backfill, blocked = (
+        paper_loop._paper_filter_post_backfill_current_churn_duplicates(  # noqa: SLF001
+            backfilled,
+            current,
+        )
+    )
+
+    assert [row["fill_id"] for row in filtered] == ["fill-1"]
+    assert [row["fill_id"] for row in current_after_backfill] == ["fill-1"]
+    assert [row["fill_id"] for row in blocked] == ["fill-2"]
+    assert blocked[0]["paper_fill_block_reason"] == (
+        paper_loop.PAPER_CHURN_EQUITY_BLEED_BLOCK_REASON
+    )
+    assert blocked[0]["paper_churn_equity_bleed_block_stage"] == (
+        "POST_BACKFILL_PRE_LIFECYCLE"
+    )
+    assert blocked[0]["paper_churn_equity_bleed_governor_block_reasons"] == [
+        "DUPLICATE_CURRENT_CYCLE_SIGNAL"
+    ]
+
+
+def test_churn_equity_bleed_open_position_filter_matches_position_id_to_fill_id() -> None:
+    open_positions = [
+        {
+            "position_id": "paper_pos_KEEPUSDT",
+            "symbol": "KEEPUSDT",
+            "side": "short",
+        },
+        {
+            "position_id": "paper_pos_DROPUSDT",
+            "symbol": "DROPUSDT",
+            "side": "short",
+        },
+    ]
+    accepted_rows = [
+        {
+            "fill_id": "paper_pos_KEEPUSDT",
+            "ledger_row_id": "paper_pos_KEEPUSDT",
+            "symbol": "KEEPUSDT",
+            "side": "short",
+        }
+    ]
+
+    filtered = paper_loop._paper_filter_open_positions_to_accepted_rows(  # noqa: SLF001
+        open_positions,
+        accepted_rows,
+    )
+
+    assert [row["position_id"] for row in filtered] == ["paper_pos_KEEPUSDT"]
+
+
 def _forward_canary_closed_row(symbol: str, side: str, **overrides) -> dict:
     row = {
         "symbol": symbol,
