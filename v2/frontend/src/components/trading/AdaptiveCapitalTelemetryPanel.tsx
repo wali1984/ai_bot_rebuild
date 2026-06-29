@@ -74,6 +74,47 @@ interface PaperRuntimeStatusPayload {
     paper_fill_allowed_rows?: number | null;
     routes_to_live_rows?: number | null;
     places_real_order_rows?: number | null;
+    paper_churn_equity_bleed_governor_status?: {
+      status?: string | null;
+      state?: string | null;
+      duplicate_new_entries?: number | null;
+      same_candle_reentry_unexplained?: number | null;
+      cost_drag_within_envelope?: boolean | null;
+      economic_trade_count_reconciles?: boolean | null;
+      compacted_economic_trades?: number | null;
+      raw_close_records?: number | null;
+      cost_drag_pct?: number | null;
+      sample_compacted_economic_trades_count?: number | null;
+      pass_conditions?: Record<string, boolean>;
+    } | null;
+    paper_forward_canary_evidence_status?: {
+      status?: string | null;
+      valid_forward_canary_economic_outcomes?: number | null;
+      required_forward_canary_economic_outcomes?: number | null;
+      valid_symbol_count?: number | null;
+      required_symbol_count?: number | null;
+      side_counts?: Record<string, number>;
+      production_grade_cost_coverage?: number | null;
+      forward_canary_shortfalls?: {
+        valid_forward_canary_economic_outcomes?: number | null;
+        valid_symbol_count?: number | null;
+        long_outcomes?: number | null;
+        short_outcomes?: number | null;
+        production_grade_cost_coverage_bps?: number | null;
+        accounting_mismatch_rows?: number | null;
+        liquidation_rows?: number | null;
+        point_in_time_invalid_rows?: number | null;
+        unsafe_live_route_rows?: number | null;
+      } | null;
+    } | null;
+    paper_a_grade_gate_burndown_status?: {
+      status?: string | null;
+      closest_gap_reason?: string | null;
+      A_grade_rows?: number | null;
+      a_grade_rows?: number | null;
+      near_A_grade_rows?: number | null;
+      near_a_grade_rows?: number | null;
+    } | null;
   } | null;
 }
 
@@ -610,6 +651,28 @@ export function AdaptiveCapitalTelemetryPanel({
   });
   const paperRuntime = paperRuntimeEnvelope.data;
   const paperLoop = paperRuntime?.paper_loop ?? null;
+  const paperChurn = paperLoop?.paper_churn_equity_bleed_governor_status ?? null;
+  const paperForwardCanary = paperLoop?.paper_forward_canary_evidence_status ?? null;
+  const paperAgrade = paperLoop?.paper_a_grade_gate_burndown_status ?? null;
+  const forwardOutcomes = paperForwardCanary?.valid_forward_canary_economic_outcomes;
+  const requiredForwardOutcomes = paperForwardCanary?.required_forward_canary_economic_outcomes;
+  const forwardSymbols = paperForwardCanary?.valid_symbol_count;
+  const requiredForwardSymbols = paperForwardCanary?.required_symbol_count;
+  const forwardLongOutcomes = paperForwardCanary?.side_counts?.LONG
+    ?? paperForwardCanary?.side_counts?.long
+    ?? null;
+  const forwardShortOutcomes = paperForwardCanary?.side_counts?.SHORT
+    ?? paperForwardCanary?.side_counts?.short
+    ?? null;
+  const churnDuplicateNewEntries = paperChurn?.duplicate_new_entries;
+  const churnSameCandleReentry = paperChurn?.same_candle_reentry_unexplained;
+  const churnGovernorPassing = (paperChurn?.status ?? paperChurn?.state) === 'ACTIVE'
+    && (churnDuplicateNewEntries ?? 1) === 0
+    && (churnSameCandleReentry ?? 1) === 0
+    && paperChurn?.cost_drag_within_envelope === true
+    && paperChurn?.economic_trade_count_reconciles === true;
+  const paperAgradeRows = paperAgrade?.A_grade_rows ?? paperAgrade?.a_grade_rows;
+  const paperNearAgradeRows = paperAgrade?.near_A_grade_rows ?? paperAgrade?.near_a_grade_rows;
   const view = resolveTelemetry(payload);
   const capital = view.capital;
   const policy = view.policy;
@@ -804,6 +867,41 @@ export function AdaptiveCapitalTelemetryPanel({
           label="No-Order Explained"
           value={countText(paperLoop?.no_order_explained_rows)}
           color={(paperLoop?.unexplained_missing_cost_rows ?? 1) === 0 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
+          label="Churn Governor"
+          value={paperChurn?.status ?? paperChurn?.state ?? 'CONNECTING'}
+          color={churnGovernorPassing ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
+          label="Churn Dup/Reentry"
+          value={`${countText(churnDuplicateNewEntries)} / ${countText(churnSameCandleReentry)}`}
+          color={(churnDuplicateNewEntries ?? 1) === 0 && (churnSameCandleReentry ?? 1) === 0 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
+          label="Canary Outcomes"
+          value={`${countText(forwardOutcomes)}/${countText(requiredForwardOutcomes)}`}
+          color={(forwardOutcomes ?? -1) >= (requiredForwardOutcomes ?? Number.POSITIVE_INFINITY) ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
+          label="Canary Symbols"
+          value={`${countText(forwardSymbols)}/${countText(requiredForwardSymbols)}`}
+          color={(forwardSymbols ?? -1) >= (requiredForwardSymbols ?? Number.POSITIVE_INFINITY) ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
+          label="Canary Long/Short"
+          value={`${countText(forwardLongOutcomes)} / ${countText(forwardShortOutcomes)}`}
+          color={(forwardLongOutcomes ?? 0) > 0 && (forwardShortOutcomes ?? 0) > 0 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
+          label="A-grade Rows"
+          value={`${countText(paperAgradeRows)} / near ${countText(paperNearAgradeRows)}`}
+          color={(paperAgradeRows ?? 0) > 0 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
+          label="A-grade Source"
+          value={paperAgrade?.closest_gap_reason ?? paperAgrade?.status ?? 'CONNECTING'}
+          color={(paperAgradeRows ?? 0) > 0 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
         />
         <HeaderMetric
           label="Live Gate"
