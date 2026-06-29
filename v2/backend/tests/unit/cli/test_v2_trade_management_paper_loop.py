@@ -18,6 +18,12 @@ class _FakeRedis:
     def get(self, key: str):
         return self.payloads.get(key)
 
+    def strlen(self, key: str) -> int:
+        value = self.payloads.get(key)
+        if value is None:
+            return 0
+        return len(value.encode("utf-8") if isinstance(value, str) else value)
+
 
 def _allowed_allocation(**overrides):
     payload = {
@@ -952,6 +958,10 @@ def test_compact_accepted_fill_state_omits_snapshot_but_keeps_trust_and_executio
     assert compact["adaptive_allocation"]["depth_impact_bps"] == 0.25
     assert compact["adaptive_allocation"]["model_inputs"]["confidence_calibrated"] == 0.75
     assert "huge_feature_vector" not in compact["adaptive_allocation"]["model_inputs"]
+    assert "partial_fills" not in compact
+    assert "all_partial_fills" not in compact
+    assert "partial_fills" not in compact["adaptive_allocation"]
+    assert "all_partial_fills" not in compact["adaptive_allocation"]
 
 
 def test_read_existing_accepted_fills_prefers_compact_file_state(monkeypatch, tmp_path) -> None:
@@ -991,6 +1001,122 @@ def test_read_existing_accepted_fills_prefers_compact_file_state(monkeypatch, tm
 
     assert list(rows) == ["file-fill"]
     assert rows["file-fill"]["prediction_id"] == "file-pred"
+
+
+def test_read_existing_accepted_fills_replays_open_positions_when_file_is_oversized(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    state_path = tmp_path / "paper_accepted_fills_state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "accepted_fills": [
+                    {
+                        "fill_id": "stale-file-fill",
+                        "symbol": "ETHUSDT",
+                        "prediction_id": "stale-file-pred",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(paper_loop, "PAPER_ACCEPTED_FILLS_STATE_PATH", state_path)
+    monkeypatch.setattr(paper_loop, "PAPER_STATE_FULL_FILE_READ_MAX_BYTES", 1)
+    redis_client = _FakeRedis(
+        {
+            "v2:paper:positions": [
+                {
+                    "position_id": "pos-BTC",
+                    "symbol": "BTCUSDT",
+                    "side": "long",
+                    "net_quantity": 0.25,
+                    "avg_entry_price": 40000.0,
+                    "notional": 10000.0,
+                    "prediction_id": "pred-open",
+                    "risk_decision_id": "risk-open",
+                    "orchestrator_decision_id": "orch-open",
+                }
+            ]
+        }
+    )
+
+    rows = paper_loop._read_existing_accepted_fills(redis_client)  # noqa: SLF001
+
+    assert list(rows) == ["pos-BTC"]
+    replay = rows["pos-BTC"]
+    assert replay["prediction_id"] == "pred-open"
+    assert replay["quantity"] == 0.25
+    assert replay["fill_price"] == 40000.0
+    assert replay["paper_fill_persistence_status"] == "OPEN_POSITION_COMPACT_STATE_REPLAY"
+
+
+def test_compact_status_for_redis_omits_heavy_row_lists() -> None:
+    payload = {
+        "paper_adaptive_sizing_runtime_status": {
+            "candidate_allocation_count": 2,
+            "candidate_allocations": [{"allocation_id": "a1"}, {"allocation_id": "a2"}],
+            "sample_allocations": [{"allocation_id": "a1"}],
+        },
+        "paper_a_grade_gate_burndown_status": {
+            "near_A_grade_rows": 1,
+            "sample_near_a_grade_rows": [{"prediction_id": "pred-1"}],
+            "failure_reasons": [{"reason": "A_GRADE_HALTED"}],
+        },
+        "shadow_observations": [{"prediction_id": "shadow-1"}],
+        "held_by_paper_fill_gate": [{"prediction_id": "held-1"}],
+    }
+
+    compact = paper_loop._compact_status_for_redis(payload)  # noqa: SLF001
+
+    sizing = compact["paper_adaptive_sizing_runtime_status"]
+    assert "candidate_allocations" not in sizing
+    assert "sample_allocations" not in sizing
+    assert sizing["candidate_allocations_count"] == 2
+    assert sizing["sample_allocations_count"] == 1
+    assert sizing["sample_rows_omitted_from_redis_status"] is True
+    burndown = compact["paper_a_grade_gate_burndown_status"]
+    assert "sample_near_a_grade_rows" not in burndown
+    assert burndown["sample_near_a_grade_rows_count"] == 1
+    assert burndown["failure_reasons"] == [{"reason": "A_GRADE_HALTED"}]
+    assert "shadow_observations" not in compact
+    assert compact["shadow_observations_count"] == 1
+    assert "held_by_paper_fill_gate" not in compact
+    assert compact["held_by_paper_fill_gate_count"] == 1
+
+
+def test_paper_runtime_cost_capture_summary_counts_order_applicable_rows() -> None:
+    rows = [
+        {
+            "runtime_cost_capture_order_cost_applicable": True,
+            "production_grade_cost_flag": True,
+            "paper_fill_allowed": True,
+        },
+        {
+            "runtime_cost_capture_order_cost_applicable": True,
+            "production_grade_cost_flag": False,
+            "runtime_cost_capture_unexplained_missing_fields": ["observed_bid"],
+        },
+        {
+            "runtime_cost_capture_order_cost_applicable": False,
+            "runtime_cost_capture_missing_fields": ["order_size"],
+        },
+    ]
+
+    summary = paper_loop._paper_runtime_cost_capture_summary(rows)  # noqa: SLF001
+
+    assert summary["paper_intent_rows"] == 3
+    assert summary["order_cost_applicable_rows"] == 2
+    assert summary["production_grade_cost_rows"] == 1
+    assert summary["production_grade_cost_order_applicable_rows"] == 1
+    assert summary["production_grade_cost_coverage"] == 0.5
+    assert summary["production_grade_cost_total_row_coverage"] == 1 / 3
+    assert summary["no_order_explained_rows"] == 1
+    assert summary["unexplained_missing_cost_rows"] == 1
+    assert summary["no_order_missing_cost_rows"] == 1
+    assert summary["paper_fill_allowed_rows"] == 1
+    assert summary["places_real_order"] is False
 
 
 def test_feedback_context_fallback_preserves_pre_outcome_candidate_provenance() -> None:
@@ -1052,6 +1178,45 @@ def test_existing_ledger_payload_overlays_lifecycle_state(monkeypatch, tmp_path)
     assert ledger["outcome_label_count"] == 1
     assert ledger["open_positions"] == [{"position_id": "pos-1", "symbol": "BTCUSDT"}]
     assert ledger["lifecycle_state_source"] == str(state_path)
+
+
+def test_existing_ledger_payload_skips_oversized_lifecycle_state(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    state_path = tmp_path / "paper_lifecycle_state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "closed_trades": [{"trainer_feedback_id": "stale-file-close"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(paper_loop, "PAPER_LIFECYCLE_STATE_PATH", state_path)
+    monkeypatch.setattr(paper_loop, "PAPER_STATE_FULL_FILE_READ_MAX_BYTES", 1)
+    redis_client = _FakeRedis(
+        {
+            "v2:paper:positions": [{"position_id": "pos-redis", "symbol": "BTCUSDT"}],
+            "v2:paper:closed_trades": [
+                {"trainer_feedback_id": "redis-close", "source_fill_ids": ["pos-redis"]}
+            ],
+            "v2:paper:outcome_labels": [{"trainer_feedback_id": "redis-close", "winner": True}],
+        }
+    )
+
+    ledger = paper_loop._read_existing_ledger_payload(redis_client)  # noqa: SLF001
+
+    assert ledger["open_position_count"] == 1
+    assert ledger["closed_trade_count"] == 1
+    assert ledger["outcome_label_count"] == 1
+    assert ledger["closed_trades"] == [
+        {"trainer_feedback_id": "redis-close", "source_fill_ids": ["pos-redis"]}
+    ]
+    assert ledger["outcome_labels"] == [{"trainer_feedback_id": "redis-close", "winner": True}]
+    assert ledger["lifecycle_state_file_skipped"]["skipped_reason"] == (
+        "STATE_FILE_EXCEEDS_BOUNDED_RUNTIME_READ_CAP"
+    )
 
 
 def test_attach_paper_sizing_preserves_decision_time_context_on_allocation() -> None:
@@ -1265,6 +1430,9 @@ def test_attach_long_short_ratio_context_rejects_future_available_at() -> None:
     }
     evidence = {
         "long_short_ratio": 1.25,
+        "long_short_period": "5m",
+        "long_short_source": "binance_global_long_short_account_ratio:v2:market:long_short:BANKUSDT",
+        "long_short_event_time": "2026-06-22T13:00:00Z",
         "long_short_available_at": "2026-06-22T13:00:21Z",
         "long_short_captured_at": "2026-06-22T13:00:30Z",
     }
@@ -1272,8 +1440,16 @@ def test_attach_long_short_ratio_context_rejects_future_available_at() -> None:
     paper_loop._attach_long_short_ratio_context(intent, evidence)  # noqa: SLF001
 
     assert intent["long_short_ratio_status"] == "REJECTED_LONG_SHORT_AVAILABLE_AFTER_DECISION"
+    assert intent["long_short_ratio_decision_effect"] == (
+        "REJECTED_PIT_TELEMETRY_ONLY_NO_ADMISSION_CHANGE"
+    )
     assert "long_short_ratio" not in intent
     assert "long_short_available_at" not in intent
+    assert intent["rejected_long_short_period"] == "5m"
+    assert intent["rejected_long_short_event_time"] == "2026-06-22T13:00:00Z"
+    assert intent["rejected_long_short_available_at"] == "2026-06-22T13:00:21Z"
+    assert intent["rejected_long_short_captured_at"] == "2026-06-22T13:00:30Z"
+    assert intent["rejected_long_short_decision_time"] == "2026-06-22T13:00:20Z"
     assert intent["paper_fill_allowed"] is False
 
 

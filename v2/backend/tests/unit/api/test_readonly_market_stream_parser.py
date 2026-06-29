@@ -508,8 +508,10 @@ def _sample_paper_activity_payload() -> tuple[dict, list[str]]:
 class _FakeRedis:
     def __init__(self, values: dict[str, object]) -> None:
         self.values = values
+        self.get_calls: list[str] = []
 
     def get(self, key: str) -> str | None:
+        self.get_calls.append(key)
         value = self.values.get(key)
         return json.dumps(value) if value is not None else None
 
@@ -548,35 +550,29 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
                 "current_runtime_owner_contract_passed": True,
             },
         },
-        "v2:paper:ledger": {
-            "accepted_count": 1,
-            "blocked_count": 2,
-            "shadow_observation_count": 0,
+        "v2:paper:trade_management:status": {
+            "paper_runtime_admission_status": {
+                "intents_built": 3,
+                "accepted_count": 1,
+                "blocked_count": 2,
+            },
+            "paper_runtime_cost_capture_status": {
+                "paper_intent_rows": 3,
+                "order_cost_applicable_rows": 2,
+                "production_grade_cost_rows": 1,
+                "production_grade_cost_order_applicable_rows": 1,
+                "production_grade_cost_coverage": 0.5,
+                "production_grade_cost_total_row_coverage": 1 / 3,
+                "no_order_explained_rows": 1,
+                "no_order_missing_cost_rows": 1,
+                "unexplained_missing_cost_rows": 1,
+                "paper_fill_allowed_rows": 1,
+                "routes_to_live": False,
+                "places_real_order": False,
+                "routes_to_live_rows": 0,
+                "places_real_order_rows": 0,
+            },
         },
-        "v2:paper:intents": [
-            {
-                "production_grade_cost_flag": True,
-                "runtime_cost_capture_order_cost_applicable": True,
-                "paper_fill_allowed": True,
-                "routes_to_live": False,
-                "places_real_order": False,
-            },
-            {
-                "production_grade_cost_flag": False,
-                "runtime_cost_capture_order_cost_applicable": False,
-                "runtime_cost_capture_missing_fields": ["observed_bid"],
-                "runtime_cost_capture_unexplained_missing_fields": ["observed_bid"],
-                "routes_to_live": False,
-                "places_real_order": False,
-            },
-            {
-                "production_grade_cost_flag": False,
-                "runtime_cost_capture_order_cost_applicable": True,
-                "runtime_cost_capture_unexplained_missing_fields": ["order_size"],
-                "routes_to_live": False,
-                "places_real_order": False,
-            },
-        ],
         "v2:paper:b_grade_canary_supply_status": {
             "schema_version": "paper_b_grade_canary_supply_status_v1",
             "status": "BLOCKED_ZERO_B_GRADE_CANARY_SUPPLY",
@@ -673,6 +669,79 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
     assert payload["current_signal_lineage"]["lineage_ids"]["prediction_id"] == "pred-test"
     assert payload["current_signal_lineage"]["lineage_ids"]["signal_id"] == "sig-test"
     assert any(blocker["id"] == "B_GRADE_CANARY_SUPPLY_ZERO" for blocker in payload["blockers"])
+    assert "v2:paper:intents" not in client.get_calls
+
+
+@pytest.mark.asyncio
+async def test_paper_runtime_status_preserves_explicit_zero_cost_counts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    values = {
+        "v2:paper:heartbeat": {
+            "worker_id": "v2_trade_management_paper_loop",
+            "heartbeat_generated_at": "2026-06-27T20:50:00Z",
+            "cycle_state": "COMPLETED_CYCLE",
+            "paper_policy_owner": "challenger_v2",
+            "writes_legacy_redis": False,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        },
+        "v2:paper:trade_management:status": {
+            "paper_runtime_admission_status": {
+                "intents_built": 3,
+                "accepted_count": 2,
+            },
+            "paper_runtime_cost_capture_status": {
+                "paper_intent_rows": 3,
+                "order_cost_applicable_rows": 0,
+                "production_grade_cost_rows": 0,
+                "production_grade_cost_order_applicable_rows": 0,
+                "production_grade_cost_coverage": 0.0,
+                "production_grade_cost_total_row_coverage": 0.0,
+                "no_order_explained_rows": 3,
+                "no_order_missing_cost_rows": 3,
+                "unexplained_missing_cost_rows": 0,
+                "paper_fill_allowed_rows": 0,
+                "routes_to_live_rows": 0,
+                "places_real_order_rows": 0,
+            },
+            "paper_a_grade_gate_burndown_status": {
+                "prediction_rows": 3,
+                "production_grade_cost_rows": 3,
+                "predicate_counts": {
+                    "production_grade_cost_rows": 3,
+                },
+            },
+        },
+        "v2:paper:b_grade_canary_supply_status": {
+            "schema_version": "paper_b_grade_canary_supply_status_v1",
+            "status": "B_GRADE_CANARY_PENDING_SUPPLY_PRESENT",
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "counts_as_a_grade_evidence": False,
+            "canary_candidates": 0,
+            "canary_intents": 0,
+            "canary_pending_rows": 0,
+        },
+    }
+    client = _FakeRedis(values)
+    monkeypatch.setattr(market_contracts, "get_redis", lambda: client)
+    monkeypatch.setattr(market_contracts, "_utc_now", lambda: "2026-06-27T20:50:10Z")
+
+    payload = await market_contracts.get_paper_runtime_status(actor=None)
+
+    loop = payload["paper_loop"]
+    assert loop["order_cost_applicable_rows"] == 0
+    assert loop["production_grade_cost_rows"] == 0
+    assert loop["production_grade_cost_order_applicable_rows"] == 0
+    assert loop["production_grade_cost_coverage"] == 0.0
+    assert loop["production_grade_cost_total_row_coverage"] == 0.0
+    assert loop["paper_fill_allowed_rows"] == 0
+    assert loop["routes_to_live_rows"] == 0
+    assert loop["places_real_order_rows"] == 0
+    assert "v2:paper:intents" not in client.get_calls
 
 
 @pytest.mark.asyncio

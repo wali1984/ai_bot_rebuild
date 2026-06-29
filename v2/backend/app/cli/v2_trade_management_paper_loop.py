@@ -104,6 +104,8 @@ SHADOW_OBSERVATION_HISTORY_TTL_SECONDS = 2 * 60 * 60
 SHADOW_OBSERVATION_HISTORY_MAX_ROWS = 1500
 PAPER_TRAINING_EVIDENCE_TTL_SECONDS = 30 * 24 * 60 * 60
 PAPER_REDIS_LEDGER_ROW_SAMPLE_LIMIT = 50
+PAPER_STATE_FULL_FILE_READ_MAX_BYTES = int(os.getenv("PAPER_STATE_FULL_FILE_READ_MAX_BYTES", "25000000"))
+PAPER_REDIS_HISTORY_READ_MAX_BYTES = int(os.getenv("PAPER_REDIS_HISTORY_READ_MAX_BYTES", "75000000"))
 PAPER_AUDIT_ENTRY_GATE_NAME = "PAPER_ONLY_2026_06_19_AUDIT_ENTRY_GATE"
 PAPER_AUDIT_BLOCKED_ENTRY_TIMEFRAMES = frozenset({"5m", "4h"})
 PAPER_AUDIT_ALLOWED_ENTRY_TIMEFRAMES = frozenset({"1m", "15m", "1h"})
@@ -1512,6 +1514,7 @@ def _attach_long_short_ratio_context(intent: dict[str, Any], evidence: dict[str,
     if not isinstance(evidence, dict) or evidence.get("long_short_ratio") in (None, ""):
         intent["long_short_ratio_status"] = "MISSING_V2_LONG_SHORT_RATIO"
         return
+
     decision_time = _first_present(
         intent.get("paper_admission_decision_time"),
         intent.get("runtime_cost_capture_decision_time"),
@@ -3202,7 +3205,32 @@ COMPACT_ACCEPTED_FILL_ALLOCATION_FIELDS = tuple(
 )
 
 
-COMPACT_ACCEPTED_FILL_OMITTED_FIELDS = frozenset({"entry_feature_snapshot"})
+COMPACT_ACCEPTED_FILL_OMITTED_FIELDS = frozenset(
+    {
+        "entry_feature_snapshot",
+        "action_probabilities",
+        "all_partial_fills",
+        "cost_evidence_source_fields",
+        "fee_schedule",
+        "liquidation_context",
+        "liquidation_distance_context",
+        "liquidity_zone_context",
+        "microstructure_context",
+        "oi_funding_context",
+        "paper_directional_collapse_guard",
+        "paper_strategy_mode_collapse_guard",
+        "partial_fill_estimate",
+        "partial_fill_plan",
+        "partial_fills",
+        "pre_entry_stress_tests",
+        "production_grade_cost_evidence",
+        "public_intel_context",
+        "rare_event_stress_missing_inputs",
+        "rare_event_stress_suite",
+        "source_hashes",
+        "squeeze_evidence_components",
+    }
+)
 
 
 def _copy_present_fields(source: dict[str, Any], fields: tuple[str, ...]) -> dict[str, Any]:
@@ -3267,6 +3295,120 @@ def _sample_rows(rows: list[dict[str, Any]], limit: int = PAPER_REDIS_LEDGER_ROW
     return rows[-limit:]
 
 
+HEAVY_REDIS_STATUS_ROW_KEYS = frozenset(
+    {
+        "buckets",
+        "candidate_allocations",
+        "closed_outcomes",
+        "held_by_paper_fill_gate",
+        "persistent_shadow_observations",
+        "sample_a_grade_rows",
+        "sample_allocations",
+        "sample_b_grade_exploration_fills",
+        "sample_blocked_fills",
+        "sample_canary_candidates",
+        "sample_canary_intents",
+        "sample_canary_pending_rows",
+        "sample_near_a_grade_rows",
+        "sample_paper_only_label_collection_priority_fills",
+        "sample_rejected_forward_canary_outcomes",
+        "sample_valid_forward_canary_outcomes",
+        "shadow_observations",
+    }
+)
+
+
+def _compact_status_for_redis(value: Any) -> Any:
+    if isinstance(value, dict):
+        compact: dict[str, Any] = {}
+        omitted: list[str] = []
+        for key, item in value.items():
+            if key in HEAVY_REDIS_STATUS_ROW_KEYS and isinstance(item, list):
+                compact[f"{key}_count"] = len(item)
+                omitted.append(key)
+                continue
+            compact[key] = _compact_status_for_redis(item)
+        if omitted:
+            compact["sample_rows_omitted_from_redis_status"] = True
+            compact["omitted_redis_status_row_fields"] = sorted(omitted)
+        return compact
+    if isinstance(value, list):
+        return [_compact_status_for_redis(item) for item in value]
+    return value
+
+
+def _paper_runtime_cost_capture_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    intent_rows = [row for row in rows if isinstance(row, dict)]
+    order_applicable_rows = [
+        row
+        for row in intent_rows
+        if row.get("runtime_cost_capture_order_cost_applicable") is not False
+    ]
+    production_grade_cost_rows = sum(
+        1
+        for row in intent_rows
+        if row.get("production_grade_cost_flag") is True
+        or row.get("production_grade_cost_evidence") is True
+    )
+    production_grade_cost_order_applicable_rows = sum(
+        1
+        for row in order_applicable_rows
+        if row.get("production_grade_cost_flag") is True
+        or row.get("production_grade_cost_evidence") is True
+    )
+    no_order_explained_rows = sum(
+        1
+        for row in intent_rows
+        if row.get("runtime_cost_capture_order_cost_applicable") is False
+    )
+    unexplained_missing_cost_rows = sum(
+        1
+        for row in order_applicable_rows
+        if len(row.get("runtime_cost_capture_unexplained_missing_fields") or []) > 0
+    )
+    no_order_missing_cost_rows = sum(
+        1
+        for row in intent_rows
+        if row.get("runtime_cost_capture_order_cost_applicable") is False
+        and (
+            len(row.get("runtime_cost_capture_missing_fields") or []) > 0
+            or len(row.get("runtime_cost_capture_unexplained_missing_fields") or []) > 0
+        )
+    )
+    paper_fill_allowed_rows = sum(1 for row in intent_rows if row.get("paper_fill_allowed") is True)
+    routes_to_live_rows = sum(1 for row in intent_rows if row.get("routes_to_live") is True)
+    places_real_order_rows = sum(1 for row in intent_rows if row.get("places_real_order") is True)
+    total_row_cost_coverage = (
+        production_grade_cost_rows / len(intent_rows)
+        if intent_rows
+        else 0.0
+    )
+    cost_coverage = (
+        production_grade_cost_order_applicable_rows / len(order_applicable_rows)
+        if order_applicable_rows
+        else 0.0
+    )
+    return {
+        "schema_version": "v2_paper_runtime_cost_capture_summary_v1",
+        "source": "v2_trade_management_paper_loop:intents",
+        "paper_intent_rows": len(intent_rows),
+        "order_cost_applicable_rows": len(order_applicable_rows),
+        "production_grade_cost_rows": production_grade_cost_rows,
+        "production_grade_cost_order_applicable_rows": production_grade_cost_order_applicable_rows,
+        "production_grade_cost_coverage": cost_coverage,
+        "production_grade_cost_total_row_coverage": total_row_cost_coverage,
+        "no_order_explained_rows": no_order_explained_rows,
+        "unexplained_missing_cost_rows": unexplained_missing_cost_rows,
+        "no_order_missing_cost_rows": no_order_missing_cost_rows,
+        "paper_fill_allowed_rows": paper_fill_allowed_rows,
+        "routes_to_live_rows": routes_to_live_rows,
+        "places_real_order_rows": places_real_order_rows,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+
+
 def _accepted_fill_identity(row: dict[str, Any]) -> str:
     return str(
         _first_present(
@@ -3293,8 +3435,28 @@ def _index_accepted_fill_rows(rows: list[Any]) -> dict[str, dict]:
     return out
 
 
-def _read_accepted_fill_state_file(path: Path | None = None) -> dict[str, dict]:
-    path = path or PAPER_ACCEPTED_FILLS_STATE_PATH
+def _file_size_bytes(path: Path) -> int | None:
+    try:
+        return int(path.stat().st_size)
+    except OSError:
+        return None
+
+
+def _state_file_skip_status(path: Path, *, max_bytes: int) -> dict[str, Any] | None:
+    size = _file_size_bytes(path)
+    if size is None or size <= max_bytes:
+        return None
+    return {
+        "path": str(path),
+        "size_bytes": size,
+        "max_bytes": int(max_bytes),
+        "skipped_reason": "STATE_FILE_EXCEEDS_BOUNDED_RUNTIME_READ_CAP",
+    }
+
+
+def _read_json_file_payload(path: Path, *, max_bytes: int | None = None) -> dict[str, Any]:
+    if max_bytes is not None and _state_file_skip_status(path, max_bytes=max_bytes):
+        return {}
     try:
         raw = path.read_text(encoding="utf-8")
     except OSError:
@@ -3303,8 +3465,136 @@ def _read_accepted_fill_state_file(path: Path | None = None) -> dict[str, dict]:
         payload = json.loads(raw)
     except (TypeError, ValueError):
         return {}
-    if not isinstance(payload, dict):
+    return payload if isinstance(payload, dict) else {}
+
+
+def _redis_string_length(r, key: str) -> int | None:
+    strlen = getattr(r, "strlen", None)
+    if callable(strlen):
+        try:
+            return int(strlen(key))
+        except Exception:
+            return None
+    return None
+
+
+def _read_json_redis_key_if_small(
+    r,
+    key: str,
+    *,
+    max_bytes: int | None = PAPER_REDIS_HISTORY_READ_MAX_BYTES,
+) -> dict[str, Any]:
+    if r is None or not key.startswith(V2_REDIS_PREFIX):
         return {}
+    size = _redis_string_length(r, key)
+    if max_bytes is not None and size is not None and size > max_bytes:
+        return {}
+    try:
+        raw = r.get(key)
+    except Exception:
+        return {}
+    if not raw:
+        return {}
+    if max_bytes is not None and size is None:
+        try:
+            raw_size = len(raw.encode("utf-8")) if isinstance(raw, str) else len(raw)
+        except Exception:
+            raw_size = None
+        if raw_size is not None and raw_size > max_bytes:
+            return {}
+    try:
+        payload = json.loads(raw)
+    except (TypeError, ValueError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _read_json_list_redis_key_if_small(
+    r,
+    key: str,
+    *,
+    max_bytes: int | None = PAPER_REDIS_HISTORY_READ_MAX_BYTES,
+) -> list[dict[str, Any]]:
+    if r is None or not key.startswith(V2_REDIS_PREFIX):
+        return []
+    size = _redis_string_length(r, key)
+    if max_bytes is not None and size is not None and size > max_bytes:
+        return []
+    try:
+        raw = r.get(key)
+    except Exception:
+        return []
+    if not raw:
+        return []
+    if max_bytes is not None and size is None:
+        try:
+            raw_size = len(raw.encode("utf-8")) if isinstance(raw, str) else len(raw)
+        except Exception:
+            raw_size = None
+        if raw_size is not None and raw_size > max_bytes:
+            return []
+    try:
+        payload = json.loads(raw)
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(payload, list):
+        return []
+    return [dict(row) for row in payload if isinstance(row, dict)]
+
+
+def _accepted_fill_from_open_position(row: dict[str, Any]) -> dict[str, Any]:
+    item = dict(row)
+    source_fill_ids = row.get("source_fill_ids") if isinstance(row.get("source_fill_ids"), list) else []
+    fill_id = _first_present(
+        row.get("fill_id"),
+        row.get("ledger_row_id"),
+        row.get("position_id"),
+        source_fill_ids[0] if source_fill_ids else None,
+        f"{row.get('symbol')}:{row.get('timeframe')}:{row.get('side')}",
+    )
+    if fill_id:
+        item.setdefault("fill_id", str(fill_id))
+        item.setdefault("ledger_row_id", str(fill_id))
+    quantity = _coerce_float(
+        _first_present(row.get("quantity"), row.get("net_quantity"), row.get("order_size"))
+    )
+    if quantity is not None and quantity > 0:
+        item.setdefault("quantity", abs(quantity))
+        item.setdefault("order_size", abs(quantity))
+    price = _coerce_float(
+        _first_present(row.get("fill_price"), row.get("entry_price"), row.get("avg_entry_price"))
+    )
+    if price is not None and price > 0:
+        item.setdefault("fill_price", price)
+        item.setdefault("entry_price", price)
+        item.setdefault("mark_price_at_fill", price)
+    notional = _coerce_float(
+        _first_present(row.get("notional"), row.get("notional_usdt"), row.get("gross_notional_usd"))
+    )
+    if notional is None and quantity is not None and price is not None:
+        notional = abs(quantity * price)
+    if notional is not None and notional > 0:
+        item.setdefault("notional", abs(notional))
+        item.setdefault("notional_usdt", abs(notional))
+        item.setdefault("gross_notional_usd", abs(notional))
+    item.setdefault("paper_fill_persistence_status", "OPEN_POSITION_COMPACT_STATE_REPLAY")
+    item.setdefault("fill_price_immutable", True)
+    item.setdefault("paper_only", True)
+    item.setdefault("places_real_order", False)
+    return item
+
+
+def _accepted_fill_rows_from_open_positions(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        _accepted_fill_from_open_position(row)
+        for row in rows
+        if isinstance(row, dict) and row.get("symbol")
+    ]
+
+
+def _read_accepted_fill_state_file(path: Path | None = None) -> dict[str, dict]:
+    path = path or PAPER_ACCEPTED_FILLS_STATE_PATH
+    payload = _read_json_file_payload(path, max_bytes=PAPER_STATE_FULL_FILE_READ_MAX_BYTES)
     rows = (
         payload.get("accepted_fills")
         or payload.get("accepted_open_fills")
@@ -3319,35 +3609,32 @@ def _read_accepted_fill_state_file(path: Path | None = None) -> dict[str, dict]:
 
 def _read_lifecycle_state_file(path: Path | None = None) -> dict[str, Any]:
     path = path or PAPER_LIFECYCLE_STATE_PATH
-    try:
-        raw = path.read_text(encoding="utf-8")
-    except OSError:
-        return {}
-    try:
-        payload = json.loads(raw)
-    except (TypeError, ValueError):
-        return {}
-    return payload if isinstance(payload, dict) else {}
+    return _read_json_file_payload(path, max_bytes=PAPER_STATE_FULL_FILE_READ_MAX_BYTES)
 
 
 def _read_existing_accepted_fills(r) -> dict[str, dict]:
+    if r is not None:
+        open_positions = _read_json_list_redis_key_if_small(
+            r,
+            f"{V2_REDIS_PREFIX}paper:positions",
+        )
+        position_rows = _accepted_fill_rows_from_open_positions(open_positions)
+        if position_rows:
+            return _index_accepted_fill_rows(position_rows)
+        ledger_payload = _read_json_redis_key_if_small(
+            r,
+            f"{V2_REDIS_PREFIX}paper:ledger",
+        )
+        if isinstance(ledger_payload.get("open_positions"), list):
+            position_rows = _accepted_fill_rows_from_open_positions(ledger_payload["open_positions"])
+            if position_rows:
+                return _index_accepted_fill_rows(position_rows)
     file_rows = _read_accepted_fill_state_file()
     if file_rows:
         return file_rows
     if r is None:
         return {}
-    try:
-        raw = r.get(f"{V2_REDIS_PREFIX}paper:ledger")
-    except Exception:
-        raw = None
-    if not raw:
-        return {}
-    try:
-        payload = json.loads(raw)
-    except (TypeError, ValueError):
-        return {}
-    if not isinstance(payload, dict):
-        return {}
+    payload = _read_json_redis_key_if_small(r, f"{V2_REDIS_PREFIX}paper:ledger")
     rows = payload.get("accepted") or payload.get("accepted_intents") or []
     return _index_accepted_fill_rows(rows)
 
@@ -8989,22 +9276,64 @@ def _paper_drawdown_recovery_router_result(
 
 
 def _read_existing_ledger_payload(r) -> dict[str, Any]:
-    lifecycle_state = _read_lifecycle_state_file()
-    if r is None:
-        return lifecycle_state
-    try:
-        raw = r.get(f"{V2_REDIS_PREFIX}paper:ledger")
-    except Exception:
-        raw = None
     payload: dict[str, Any] = {}
-    if raw:
-        try:
-            decoded = json.loads(raw)
-        except (TypeError, ValueError):
-            decoded = {}
-        if isinstance(decoded, dict):
-            payload = decoded
+    if r is None:
+        lifecycle_state = _read_lifecycle_state_file()
+        if lifecycle_state:
+            lifecycle_state["lifecycle_state_source"] = str(PAPER_LIFECYCLE_STATE_PATH)
+        return lifecycle_state
+
+    open_positions = _read_json_list_redis_key_if_small(
+        r,
+        f"{V2_REDIS_PREFIX}paper:positions",
+    )
+    if open_positions:
+        payload["open_positions"] = open_positions
+        payload["positions_by_symbol"] = {
+            str(row["symbol"]).upper(): row
+            for row in open_positions
+            if isinstance(row, dict) and row.get("symbol")
+        }
+        payload["open_position_count"] = len(open_positions)
+
+    closed_trades = _read_json_list_redis_key_if_small(
+        r,
+        f"{V2_REDIS_PREFIX}paper:closed_trades",
+    )
+    if closed_trades:
+        payload["closed_trades"] = closed_trades
+        payload["closes"] = closed_trades
+        payload["closed_trade_count"] = len(closed_trades)
+
+    outcome_labels = _read_json_list_redis_key_if_small(
+        r,
+        f"{V2_REDIS_PREFIX}paper:outcome_labels",
+    )
+    if outcome_labels:
+        payload["outcome_labels"] = outcome_labels
+        payload["outcome_label_count"] = len(outcome_labels)
+
+    if not payload:
+        redis_ledger = _read_json_redis_key_if_small(
+            r,
+            f"{V2_REDIS_PREFIX}paper:ledger",
+        )
+        if redis_ledger:
+            payload = redis_ledger
+
+    lifecycle_state = _read_lifecycle_state_file()
     if not lifecycle_state:
+        lifecycle_skip = _state_file_skip_status(
+            PAPER_LIFECYCLE_STATE_PATH,
+            max_bytes=PAPER_STATE_FULL_FILE_READ_MAX_BYTES,
+        )
+        if lifecycle_skip:
+            payload["lifecycle_state_file_skipped"] = lifecycle_skip
+        if payload:
+            payload.setdefault(
+                "lifecycle_state_source",
+                "v2:paper:positions+v2:paper:closed_trades+v2:paper:outcome_labels",
+            )
         return payload
     merged = dict(payload)
     accepted_fills = lifecycle_state.get("accepted_fills")
@@ -12576,6 +12905,7 @@ def run_once() -> dict:
         "action_counts": _count_values(runtime_admission_rows, "action"),
         "generated_utc": _utc_iso(),
     }
+    paper_runtime_cost_capture_status = _paper_runtime_cost_capture_summary(intents)
     paper_exploration_tier_status = _paper_exploration_tier_status(
         accepted_rows=accepted_for_ledger,
         current_accepted_rows=accepted,
@@ -12974,7 +13304,7 @@ def run_once() -> dict:
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}paper:trade_management:status",
-            json.dumps({
+            json.dumps(_compact_status_for_redis({
                 "paper_position_lifecycle_status": lifecycle_result["paper_position_lifecycle_status"],
                 "paper_position_exposure_cap_status": lifecycle_result["paper_position_exposure_cap_status"],
                 "paper_hedge_netting_status": lifecycle_result["paper_hedge_netting_status"],
@@ -12985,6 +13315,7 @@ def run_once() -> dict:
                 "paper_strategy_mode_collapse_guard_status": strategy_mode_collapse_guard_status,
                 "paper_drawdown_recovery_guard_status": paper_drawdown_recovery_guard_status,
                 "paper_runtime_admission_status": paper_runtime_admission_status,
+                "paper_runtime_cost_capture_status": paper_runtime_cost_capture_status,
                 "paper_exploration_tier_status": paper_exploration_tier_status,
                 "paper_b_grade_canary_supply_status": paper_b_grade_canary_supply_status,
                 "paper_a_grade_gate_burndown_status": paper_a_grade_gate_burndown_status,
@@ -13019,7 +13350,7 @@ def run_once() -> dict:
                     "live_path_changed": False,
                 },
                 "generated_utc": _utc_iso(),
-            }),
+            })),
             ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}paper:trade_management:status")
@@ -13134,6 +13465,7 @@ def run_once() -> dict:
         "paper_strategy_mode_collapse_guard_status": strategy_mode_collapse_guard_status,
         "paper_drawdown_recovery_guard_status": paper_drawdown_recovery_guard_status,
         "paper_runtime_admission_status": paper_runtime_admission_status,
+        "paper_runtime_cost_capture_status": paper_runtime_cost_capture_status,
         "paper_exploration_tier_status": paper_exploration_tier_status,
         "paper_b_grade_canary_supply_status": paper_b_grade_canary_supply_status,
         "paper_a_grade_gate_burndown_status": paper_a_grade_gate_burndown_status,
@@ -13190,7 +13522,7 @@ def run_once() -> dict:
         _safe_write(
             r,
             f"{V2_REDIS_PREFIX}paper:heartbeat",
-            json.dumps(status),
+            json.dumps(_compact_status_for_redis(status)),
             ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
         )
     try:

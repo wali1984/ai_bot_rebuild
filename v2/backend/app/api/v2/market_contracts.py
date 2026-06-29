@@ -9651,65 +9651,90 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                 or 0
             )
 
-            intents_raw = client.get("v2:paper:intents")
-            paper_intents: list[dict[str, Any]] = []
-            if intents_raw:
-                parsed_intents = json.loads(intents_raw)
-                if isinstance(parsed_intents, list):
-                    paper_intents = [row for row in parsed_intents if isinstance(row, dict)]
-            order_applicable_intents = [
-                row
-                for row in paper_intents
-                if row.get("runtime_cost_capture_order_cost_applicable") is not False
-            ]
-            production_grade_cost_rows = sum(
-                1
-                for row in paper_intents
-                if row.get("production_grade_cost_flag") is True
-                or row.get("production_grade_cost_evidence") is True
+            tm_raw = client.get("v2:paper:trade_management:status")
+            trade_management_status = _json_object_from_redis_raw(tm_raw) or {}
+            runtime_admission_status = (
+                trade_management_status.get("paper_runtime_admission_status")
+                if isinstance(trade_management_status.get("paper_runtime_admission_status"), dict)
+                else {}
             )
-            production_grade_cost_order_applicable_rows = sum(
-                1
-                for row in order_applicable_intents
-                if row.get("production_grade_cost_flag") is True
-                or row.get("production_grade_cost_evidence") is True
+            runtime_cost_capture_status = (
+                trade_management_status.get("paper_runtime_cost_capture_status")
+                if isinstance(trade_management_status.get("paper_runtime_cost_capture_status"), dict)
+                else {}
             )
-            no_order_explained_rows = sum(
-                1
-                for row in paper_intents
-                if row.get("runtime_cost_capture_order_cost_applicable") is False
+            a_grade_gate_status = (
+                trade_management_status.get("paper_a_grade_gate_burndown_status")
+                if isinstance(trade_management_status.get("paper_a_grade_gate_burndown_status"), dict)
+                else {}
             )
-            unexplained_missing_cost_rows = sum(
-                1
-                for row in order_applicable_intents
-                if len(row.get("runtime_cost_capture_unexplained_missing_fields") or []) > 0
-            )
-            no_order_missing_cost_rows = sum(
-                1
-                for row in paper_intents
-                if row.get("runtime_cost_capture_order_cost_applicable") is False
-                and (
-                    len(row.get("runtime_cost_capture_missing_fields") or []) > 0
-                    or len(row.get("runtime_cost_capture_unexplained_missing_fields") or []) > 0
-                )
-            )
-            paper_fill_allowed_rows = sum(1 for row in paper_intents if row.get("paper_fill_allowed") is True)
-            routes_to_live_rows = sum(1 for row in paper_intents if row.get("routes_to_live") is True)
-            places_real_order_rows = sum(1 for row in paper_intents if row.get("places_real_order") is True)
-            total_row_cost_coverage = (
-                production_grade_cost_rows / len(paper_intents)
-                if paper_intents
-                else 0.0
-            )
-            cost_coverage = (
-                production_grade_cost_order_applicable_rows / len(order_applicable_intents)
-                if order_applicable_intents
-                else 0.0
+            a_grade_predicates = (
+                a_grade_gate_status.get("predicate_counts")
+                if isinstance(a_grade_gate_status.get("predicate_counts"), dict)
+                else {}
             )
 
-            latest_signal, latest_sig_ts = _latest_signal_from_paper_intents(paper_intents)
-            if not latest_signal:
-                latest_signal, latest_sig_ts = _latest_signal_from_bounded_keys(client)
+            def _first_integer(default: int, *values: Any) -> int:
+                for value in values:
+                    parsed = _integer(value)
+                    if parsed is not None:
+                        return int(parsed)
+                return int(default)
+
+            intent_rows = _first_integer(
+                0,
+                runtime_cost_capture_status.get("paper_intent_rows"),
+                runtime_admission_status.get("intents_built"),
+                a_grade_gate_status.get("prediction_rows"),
+            )
+            order_applicable_rows = _first_integer(
+                intent_rows,
+                runtime_cost_capture_status.get("order_cost_applicable_rows"),
+            )
+            production_grade_cost_rows = _first_integer(
+                0,
+                runtime_cost_capture_status.get("production_grade_cost_rows"),
+                a_grade_gate_status.get("production_grade_cost_rows"),
+                a_grade_predicates.get("production_grade_cost_rows"),
+            )
+            production_grade_cost_order_applicable_rows = _first_integer(
+                min(production_grade_cost_rows, order_applicable_rows),
+                runtime_cost_capture_status.get("production_grade_cost_order_applicable_rows"),
+            )
+            no_order_explained_rows = _first_integer(
+                0, runtime_cost_capture_status.get("no_order_explained_rows")
+            )
+            unexplained_missing_cost_rows = _first_integer(
+                0, runtime_cost_capture_status.get("unexplained_missing_cost_rows")
+            )
+            no_order_missing_cost_rows = _first_integer(
+                0, runtime_cost_capture_status.get("no_order_missing_cost_rows")
+            )
+            paper_fill_allowed_rows = _first_integer(
+                0,
+                runtime_cost_capture_status.get("paper_fill_allowed_rows"),
+                runtime_admission_status.get("accepted_count"),
+            )
+            routes_to_live_rows = _first_integer(
+                0, runtime_cost_capture_status.get("routes_to_live_rows")
+            )
+            places_real_order_rows = _first_integer(
+                0, runtime_cost_capture_status.get("places_real_order_rows")
+            )
+            total_row_cost_coverage = _float(
+                runtime_cost_capture_status.get("production_grade_cost_total_row_coverage")
+            )
+            if total_row_cost_coverage is None:
+                total_row_cost_coverage = production_grade_cost_rows / intent_rows if intent_rows else 0.0
+            cost_coverage = _float(runtime_cost_capture_status.get("production_grade_cost_coverage"))
+            if cost_coverage is None:
+                cost_coverage = (
+                    production_grade_cost_order_applicable_rows / order_applicable_rows
+                    if order_applicable_rows
+                    else 0.0
+                )
+
+            latest_signal, latest_sig_ts = _latest_signal_from_bounded_keys(client)
 
             last_event: dict[str, Any] = {}
             if latest_signal:
@@ -9864,7 +9889,7 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                     "intents_built": hb.get("intents_built"),
                     "intents_accepted": hb.get("intents_accepted"),
                     "intents_blocked": hb.get("intents_blocked"),
-                    "order_cost_applicable_rows": len(order_applicable_intents),
+                    "order_cost_applicable_rows": order_applicable_rows,
                     "production_grade_cost_rows": production_grade_cost_rows,
                     "production_grade_cost_order_applicable_rows": production_grade_cost_order_applicable_rows,
                     "production_grade_cost_coverage": cost_coverage,
