@@ -477,8 +477,18 @@ export interface ContinuousEdgeGuardianStatus {
   };
   trajectory_status?: {
     status?: string;
+    current_status?: string | null;
     required_daily_geometric_return?: number | null;
     required_monthly_geometric_return?: number | null;
+    actual_1d_return?: number | null;
+    actual_7d_return?: number | null;
+    actual_30d_return?: number | null;
+    lower_confidence_bound_growth_rate?: number | null;
+    drawdown_adjusted_growth_rate?: number | null;
+    days_ahead_or_behind_target?: number | null;
+    required_edge?: number | null;
+    required_capital?: number | null;
+    missing_trajectory_evidence_fields?: string[];
   };
 }
 

@@ -237,6 +237,28 @@ function countText(value: number | null | undefined): string {
   return value.toLocaleString('en-US');
 }
 
+function compactPercent(value: number | null | undefined, digits = 2): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
+  const safe = Math.abs(value) < 0.0000005 ? 0 : value;
+  const prefix = safe > 0 ? '+' : '';
+  return `${prefix}${(safe * 100).toFixed(digits)}%`;
+}
+
+function compactMoney(value: number | null | undefined): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000_000) return `$${(value / 1_000_000_000).toFixed(2)}B`;
+  if (abs >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
+  if (abs >= 1_000) return `$${(value / 1_000).toFixed(2)}K`;
+  return formatAdaptiveMoney(value);
+}
+
+function signedDays(value: number | null | undefined): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
+  const rounded = Math.round(value);
+  return `${rounded > 0 ? '+' : ''}${rounded.toLocaleString('en-US')}d`;
+}
+
 function publicTelemetryText(value: string | null | undefined): string {
   const raw = (value ?? '—').trim();
   const upper = raw.toUpperCase();
@@ -624,6 +646,7 @@ export function AdaptiveCapitalTelemetryPanel({
   const guardianMetrics = guardian?.realtime_a_grade_metrics;
   const guardianTruth = guardian?.readiness_truth;
   const guardianGate = guardian?.a_grade_execution_gate;
+  const trajectory = guardian?.trajectory_status;
   const accuracy = view.accuracy;
   const accuracyCellTotal = accuracy?.symbol_timeframe_cell_count ?? accuracy?.required_symbol_timeframe_cell_count;
   const positiveEdgeDiagnostics = capital?.positive_edge_non_a_grade_diagnostics;
@@ -739,8 +762,28 @@ export function AdaptiveCapitalTelemetryPanel({
         />
         <HeaderMetric
           label="1000x Trajectory"
-          value={guardian?.trajectory_status?.status ?? 'INSUFFICIENT_EVIDENCE'}
-          color={guardian?.trajectory_status?.status === 'ON_1000X_TRAJECTORY' ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+          value={trajectory?.current_status ?? trajectory?.status ?? 'INSUFFICIENT_EVIDENCE'}
+          color={trajectory?.status === 'ON_1000X_TRAJECTORY' ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
+          label="1000x 1/7/30"
+          value={`${compactPercent(trajectory?.actual_1d_return)} / ${compactPercent(trajectory?.actual_7d_return)} / ${compactPercent(trajectory?.actual_30d_return)}`}
+          color={trajectory?.status === 'ON_1000X_TRAJECTORY' ? 'var(--buy,#10b981)' : 'var(--text-secondary)'}
+        />
+        <HeaderMetric
+          label="1000x Edge"
+          value={`${compactPercent(trajectory?.required_edge)} · ${compactMoney(trajectory?.required_capital)}`}
+          color="var(--text-secondary)"
+        />
+        <HeaderMetric
+          label="1000x LCB/DD"
+          value={`${compactPercent(trajectory?.lower_confidence_bound_growth_rate, 3)} / ${compactPercent(trajectory?.drawdown_adjusted_growth_rate, 3)}`}
+          color={trajectory?.status === 'ON_1000X_TRAJECTORY' ? 'var(--buy,#10b981)' : 'var(--text-secondary)'}
+        />
+        <HeaderMetric
+          label="1000x Days"
+          value={signedDays(trajectory?.days_ahead_or_behind_target)}
+          color={(trajectory?.days_ahead_or_behind_target ?? -1) >= 0 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
         />
         <HeaderMetric
           label="Paper Owner"
