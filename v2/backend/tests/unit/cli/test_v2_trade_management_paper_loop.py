@@ -386,6 +386,12 @@ def test_current_cycle_candidate_allocations_publish_intent_runtime_evidence() -
         "paper_tier_local_fill_allowed": True,
         "paper_runtime_market_evidence_rejection_reasons": [],
         "market_cost_evidence_status": "COMPLETE_EXPLICIT_MARKET_COST_EVIDENCE",
+        "runtime_cost_capture_status": "PRODUCTION_GRADE_COST_CAPTURE",
+        "runtime_cost_capture_order_cost_applicable": False,
+        "runtime_cost_capture_no_order_reason": "NO_TRADE_ZERO_SIZE_PAPER_INTENT",
+        "runtime_cost_capture_missing_fields": ["observed_bid"],
+        "runtime_cost_capture_explained_missing_fields": ["observed_bid"],
+        "runtime_cost_capture_unexplained_missing_fields": [],
         "fee_bps": 4.0,
         "fee_bps_source": "exchange_fee_schedule",
         "fee_bps_fallback": False,
@@ -415,6 +421,12 @@ def test_current_cycle_candidate_allocations_publish_intent_runtime_evidence() -
     assert rows[0]["paper_fill_allowed"] is True
     assert rows[0]["paper_runtime_market_evidence_rejection_reasons"] == []
     assert rows[0]["market_cost_evidence_status"] == "COMPLETE_EXPLICIT_MARKET_COST_EVIDENCE"
+    assert rows[0]["runtime_cost_capture_status"] == "PRODUCTION_GRADE_COST_CAPTURE"
+    assert rows[0]["runtime_cost_capture_order_cost_applicable"] is False
+    assert rows[0]["runtime_cost_capture_no_order_reason"] == "NO_TRADE_ZERO_SIZE_PAPER_INTENT"
+    assert rows[0]["runtime_cost_capture_missing_fields"] == ["observed_bid"]
+    assert rows[0]["runtime_cost_capture_explained_missing_fields"] == ["observed_bid"]
+    assert rows[0]["runtime_cost_capture_unexplained_missing_fields"] == []
     assert rows[0]["fee_bps"] == 4.0
     assert rows[0]["fee_bps_source"] == "exchange_fee_schedule"
     assert rows[0]["expected_funding_bps_source"] == "funding_snapshot"
@@ -1082,6 +1094,10 @@ def test_compact_accepted_fill_state_omits_snapshot_but_keeps_trust_and_executio
             "mark_price": 100.1,
             "index_price": 100.0,
             "mark_index_source": "V2_MARKET_FUNDING_PREMIUM_INDEX:v2:market:funding:BTCUSDT",
+            "runtime_cost_capture_explained_missing_fields": ["order_size"],
+            "runtime_cost_capture_unexplained_missing_fields": [],
+            "runtime_cost_capture_order_cost_applicable": False,
+            "runtime_cost_capture_no_order_reason": "NO_TRADE_ZERO_SIZE_PAPER_INTENT",
             "adaptive_allocation": {
                 "gross_notional_usd": 200.0,
                 "recommended_leverage": 2.0,
@@ -1115,6 +1131,10 @@ def test_compact_accepted_fill_state_omits_snapshot_but_keeps_trust_and_executio
     assert compact["partial_fill_count"] == 1
     assert compact["mark_price"] == 100.1
     assert compact["index_price"] == 100.0
+    assert compact["runtime_cost_capture_explained_missing_fields"] == ["order_size"]
+    assert compact["runtime_cost_capture_unexplained_missing_fields"] == []
+    assert compact["runtime_cost_capture_order_cost_applicable"] is False
+    assert compact["runtime_cost_capture_no_order_reason"] == "NO_TRADE_ZERO_SIZE_PAPER_INTENT"
     assert compact["adaptive_allocation"]["gross_notional_usd"] == 200.0
     assert compact["adaptive_allocation"]["recommended_leverage"] == 2.0
     assert compact["adaptive_allocation"]["take_profit_structure"] == (
