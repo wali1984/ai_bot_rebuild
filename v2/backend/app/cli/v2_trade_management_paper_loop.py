@@ -321,6 +321,8 @@ RUNTIME_COST_CAPTURE_CONTRACT_FIELDS = (
     "mark_index_divergence_bps",
     "mark_index_source",
     "cost_source",
+    "cost_source_family",
+    "cost_source_allowed",
     "cost_source_timestamp",
     "source_timestamp",
     "cost_evidence_freshness_ms",
@@ -334,6 +336,7 @@ RUNTIME_COST_CAPTURE_CONTRACT_FIELDS = (
     "runtime_cost_capture_order_cost_applicable",
     "runtime_cost_capture_no_order_reason",
     "runtime_cost_capture_temporal_reject_reasons",
+    "runtime_cost_capture_source_reject_reasons",
     "fallback_cost_flag",
     "fallback",
     "production_grade_cost_flag",
@@ -392,6 +395,31 @@ PHASE2_RUNTIME_COST_CAPTURE_DERIVED_FLAG_FIELDS = (
     "fallback_cost_flag",
     "production_grade_cost_flag",
 )
+RUNTIME_COST_CAPTURE_ALLOWED_COST_SOURCE_FAMILIES = frozenset(
+    {
+        "COINAPI_WSDS_BOOK_DEPTH",
+        "BINANCE_PUBLIC_BOOK_DEPTH",
+        "KUCOIN_PUBLIC_BOOK_DEPTH",
+        "V2_TRADE_TERMINAL_ORDERBOOK_PAYLOAD",
+        "V2_MARKET_MICROSTRUCTURE_PAYLOAD",
+    }
+)
+RUNTIME_COST_CAPTURE_ALLOWED_COST_SOURCE_PREFIX_FAMILIES = {
+    "COINAPI_WSDS": "COINAPI_WSDS_BOOK_DEPTH",
+    "COINAPI_WSDS_BOOK_DEPTH": "COINAPI_WSDS_BOOK_DEPTH",
+    "BINANCE_PUBLIC_BOOK_DEPTH": "BINANCE_PUBLIC_BOOK_DEPTH",
+    "BINANCE_PUBLIC_ORDERBOOK": "BINANCE_PUBLIC_BOOK_DEPTH",
+    "BINANCE_PUBLIC_ORDERBOOK_DEPTH": "BINANCE_PUBLIC_BOOK_DEPTH",
+    "KUCOIN_PUBLIC_BOOK_DEPTH": "KUCOIN_PUBLIC_BOOK_DEPTH",
+    "KUCOIN_PUBLIC_ORDERBOOK": "KUCOIN_PUBLIC_BOOK_DEPTH",
+    "KUCOIN_PUBLIC_ORDERBOOK_DEPTH": "KUCOIN_PUBLIC_BOOK_DEPTH",
+    "V2_TRADE_TERMINAL_ORDERBOOK_PAYLOAD": "V2_TRADE_TERMINAL_ORDERBOOK_PAYLOAD",
+    "V2_TRADE_TERMINAL_ORDERBOOK": "V2_TRADE_TERMINAL_ORDERBOOK_PAYLOAD",
+    "V2_MARKET_MICROSTRUCTURE_PAYLOAD": "V2_MARKET_MICROSTRUCTURE_PAYLOAD",
+    "V2_MARKET_MICROSTRUCTURE": "V2_MARKET_MICROSTRUCTURE_PAYLOAD",
+    "V2_MARKET_ORDERBOOK_TOP_OF_BOOK": "V2_MARKET_MICROSTRUCTURE_PAYLOAD",
+    "V2_MARKET_ORDERBOOK_DEPTH": "V2_MARKET_MICROSTRUCTURE_PAYLOAD",
+}
 DEPTH_PRICE_IMPACT_EVIDENCE_FIELDS = (
     "depth_derived_price_impact_bps",
     "depth_price_impact_bps",
@@ -2512,6 +2540,21 @@ def _runtime_cost_capture_no_order_reason(intent: dict[str, Any]) -> str | None:
     return None
 
 
+def _runtime_cost_capture_source_family(cost_source: Any) -> tuple[str | None, bool]:
+    if cost_source in (None, ""):
+        return None, False
+    source_prefix = str(cost_source).strip().split(":", 1)[0].strip()
+    if not source_prefix:
+        return None, False
+    source_family = RUNTIME_COST_CAPTURE_ALLOWED_COST_SOURCE_PREFIX_FAMILIES.get(
+        source_prefix
+    )
+    return (
+        source_family,
+        source_family in RUNTIME_COST_CAPTURE_ALLOWED_COST_SOURCE_FAMILIES,
+    )
+
+
 def _attach_runtime_cost_capture_contract(
     intent: dict[str, Any],
     market_microstructure: dict[str, Any] | None = None,
@@ -2855,6 +2898,16 @@ def _attach_runtime_cost_capture_contract(
         intent["source_timestamp"] = source_timestamp
 
     temporal_reject_reasons: list[str] = []
+    source_reject_reasons: list[str] = []
+    cost_source_family, cost_source_allowed = _runtime_cost_capture_source_family(
+        cost_source
+    )
+    if cost_source not in (None, ""):
+        if cost_source_family is not None:
+            intent["cost_source_family"] = cost_source_family
+        intent["cost_source_allowed"] = cost_source_allowed
+        if not cost_source_allowed:
+            source_reject_reasons.append("DISALLOWED_COST_SOURCE")
     source_dt = _parse_strategy_time(source_timestamp)
     runtime_decision_timestamp = _first_present(
         intent.get("paper_admission_decision_time"),
@@ -3049,7 +3102,12 @@ def _attach_runtime_cost_capture_contract(
             "expected_funding_bps_fallback",
         )
     )
-    fallback = bool(missing or temporal_reject_reasons or component_fallback)
+    fallback = bool(
+        missing
+        or temporal_reject_reasons
+        or source_reject_reasons
+        or component_fallback
+    )
     intent["runtime_cost_capture_required_fields"] = list(required_fields)
     intent["runtime_cost_capture_missing_fields"] = sorted(set(missing))
     intent["runtime_cost_capture_explained_missing_fields"] = sorted(set(explained_missing_fields))
@@ -3057,6 +3115,7 @@ def _attach_runtime_cost_capture_contract(
     intent["runtime_cost_capture_order_cost_applicable"] = no_order_reason is None
     intent["runtime_cost_capture_no_order_reason"] = no_order_reason
     intent["runtime_cost_capture_temporal_reject_reasons"] = sorted(set(temporal_reject_reasons))
+    intent["runtime_cost_capture_source_reject_reasons"] = sorted(set(source_reject_reasons))
     intent["runtime_cost_capture_source"] = "V2_PAPER_RUNTIME_DECISION_TIME_COST_CAPTURE"
     intent["runtime_cost_capture_status"] = (
         "PRODUCTION_GRADE_COST_CAPTURE"
@@ -3081,6 +3140,8 @@ def _attach_runtime_cost_capture_contract(
             else None
         ),
         "mark_index": intent.get("mark_index_source"),
+        "cost_source_family": intent.get("cost_source_family"),
+        "cost_source_allowed": intent.get("cost_source_allowed"),
     }
 
     allocation = intent.get("adaptive_allocation")
@@ -3139,9 +3200,18 @@ def _paper_policy_owner_open_rejection_reasons(intent: dict[str, Any]) -> list[s
             f"temporal:{reason}"
             for reason in (intent.get("runtime_cost_capture_temporal_reject_reasons") or [])
         ]
+        source = [
+            f"source:{reason}"
+            for reason in (intent.get("runtime_cost_capture_source_reject_reasons") or [])
+        ]
         intent["paper_policy_owner_open_allowed"] = False
         intent["paper_policy_owner_open_block_reason"] = "CHALLENGER_COST_CAPTURE_NOT_PRODUCTION_GRADE"
-        return ["CHALLENGER_COST_CAPTURE_NOT_PRODUCTION_GRADE", *missing, *temporal]
+        return [
+            "CHALLENGER_COST_CAPTURE_NOT_PRODUCTION_GRADE",
+            *missing,
+            *temporal,
+            *source,
+        ]
     intent["paper_policy_owner_open_allowed"] = True
     intent["paper_policy_owner_open_block_reason"] = None
     return []

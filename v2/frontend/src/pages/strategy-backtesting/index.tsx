@@ -439,7 +439,9 @@ export default function BacktestsPage(): JSX.Element {
 
         <div style={{ marginTop: 20, padding: '10px 14px', background: 'var(--bg-panel)', borderRadius: 8, border: '1px solid var(--border)' }}>
           <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>
-            Backtest reads: Redis OHLCV + signal direction · Fees: 0.05% per side · No exchange orders placed · Results TTL 7 days
+            Source: {envelope.source || '/api/v2/backtest/results'} ·
+            {' '}Freshness: {envelope.freshness_status || 'unknown'} ·
+            {' '}Backtest reads: Redis OHLCV + signal direction · Fees: 0.05% per side · No exchange orders placed · Results TTL 7 days
           </p>
         </div>
       </div>

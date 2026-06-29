@@ -2344,6 +2344,8 @@ def test_runtime_cost_capture_contract_marks_complete_production_grade_cost() ->
     assert intent["holding_period_funding_bps"] == 0.5
     assert intent["latency_reserve_bps"] == 0.0
     assert intent["partial_fill_estimate"]["expected_fill_probability"] == 1.0
+    assert intent["cost_source_family"] == "V2_MARKET_MICROSTRUCTURE_PAYLOAD"
+    assert intent["cost_source_allowed"] is True
     assert intent["cost_source_timestamp"] == "2026-06-22T12:59:59.500Z"
     assert intent["cost_evidence_freshness_ms"] == 500.0
     assert intent["runtime_cost_capture_required_fields"] == list(
@@ -2354,6 +2356,7 @@ def test_runtime_cost_capture_contract_marks_complete_production_grade_cost() ->
     assert "expected_funding_bps" in intent["runtime_cost_capture_required_fields"]
     assert "production_grade_cost_flag" in intent["runtime_cost_capture_required_fields"]
     assert intent["runtime_cost_capture_missing_fields"] == []
+    assert intent["runtime_cost_capture_source_reject_reasons"] == []
     assert intent["fallback_cost_flag"] is False
     assert intent["fallback"] is False
     assert intent["production_grade_cost_flag"] is True
@@ -2369,6 +2372,85 @@ def test_runtime_cost_capture_contract_marks_complete_production_grade_cost() ->
     assert rows[0]["predicted_direction"] == "long"
     assert rows[0]["production_grade_cost_flag"] is True
     assert rows[0]["routes_to_live"] is False
+
+
+@pytest.mark.parametrize(
+    ("source", "family"),
+    [
+        ("COINAPI_WSDS:book_depth:BANKUSDT", "COINAPI_WSDS_BOOK_DEPTH"),
+        ("BINANCE_PUBLIC_BOOK_DEPTH:BANKUSDT", "BINANCE_PUBLIC_BOOK_DEPTH"),
+        ("KUCOIN_PUBLIC_ORDERBOOK_DEPTH:BANKUSDT", "KUCOIN_PUBLIC_BOOK_DEPTH"),
+        ("V2_TRADE_TERMINAL_ORDERBOOK_PAYLOAD", "V2_TRADE_TERMINAL_ORDERBOOK_PAYLOAD"),
+        (
+            "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:v2:market:orderbook:BANKUSDT",
+            "V2_MARKET_MICROSTRUCTURE_PAYLOAD",
+        ),
+    ],
+)
+def test_runtime_cost_capture_source_family_allows_approved_sources(
+    source: str,
+    family: str,
+) -> None:
+    actual_family, allowed = paper_loop._runtime_cost_capture_source_family(  # noqa: SLF001
+        source
+    )
+
+    assert actual_family == family
+    assert allowed is True
+
+
+def test_runtime_cost_capture_rejects_disallowed_cost_source_family() -> None:
+    intent = {
+        "symbol": "BANKUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "strategy_id": "trend_follow",
+        "decision_time": "2026-06-22T13:00:00.000Z",
+        "feature_cutoff": "2026-06-22T12:45:00.000Z",
+        "available_at": "2026-06-22T12:59:58.000Z",
+        "notional_usdt": 250.0,
+        "gross_notional_usd": 250.0,
+        "allocated_margin_usd": 125.0,
+        "recommended_leverage": 2.0,
+        "recommended_margin_mode": "isolated_paper_simulated",
+        "observed_bid": 99.99,
+        "observed_ask": 100.01,
+        "observed_spread_bps": 2.0,
+        "top_book_bid_depth_usd": 10000.0,
+        "top_book_ask_depth_usd": 12000.0,
+        "market_depth_usd": 10000.0,
+        "depth_derived_price_impact_bps": 0.0,
+        "maker_taker_assumption": "taker",
+        "maker_taker_probability": 1.0,
+        "fee_bps": 4.0,
+        "fee_bps_source": "CONFIGURED_PAPER_FEE_SCHEDULE",
+        "expected_slippage_bps": 0.8,
+        "expected_funding_bps": 0.5,
+        "latency_reserve_bps": 0.0,
+        "mark_index_divergence_bps": 0.0,
+        "cost_source": "LEGACY_PAPER_RUNTIME_FAKE_COST",
+        "cost_source_timestamp": "2026-06-22T12:59:59.500Z",
+        "adaptive_allocation": {},
+    }
+
+    paper_loop._attach_runtime_cost_capture_contract(  # noqa: SLF001
+        intent,
+        {},
+        signal={"policy_fingerprint": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT},
+        prediction={"model_source": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA"},
+    )
+    reasons = paper_loop._paper_policy_owner_open_rejection_reasons(intent)  # noqa: SLF001
+
+    assert intent["cost_source_allowed"] is False
+    assert "cost_source_family" not in intent
+    assert intent["runtime_cost_capture_missing_fields"] == []
+    assert intent["runtime_cost_capture_source_reject_reasons"] == [
+        "DISALLOWED_COST_SOURCE"
+    ]
+    assert intent["production_grade_cost_flag"] is False
+    assert intent["fallback_cost_flag"] is True
+    assert "source:DISALLOWED_COST_SOURCE" in reasons
+    assert intent["paper_policy_owner_open_allowed"] is False
 
 
 def test_runtime_cost_capture_rejects_orderbook_timestamp_after_feature_decision() -> None:
