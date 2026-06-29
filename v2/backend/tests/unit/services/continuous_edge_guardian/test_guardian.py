@@ -1471,14 +1471,35 @@ def test_trajectory_status_consumes_adaptive_feasibility_without_ready_claim(tmp
                 "horizon_years": 5.0,
                 "target_equity_usd": 10_000_000.0,
                 "required_daily_return": 0.00379224,
+                "required_daily_log_return": 0.003,
                 "observed_daily_log_return": 0.0,
                 "observed_cagr": 0.0,
                 "observed_growth_evidence": {
+                    "current_log_growth_gap_vs_required": 6.0,
+                    "best_projected_horizon_log_growth_if_window_repeated": 1.8,
                     "observed_growth_classification": "OBSERVED_GROWTH_BELOW_REQUIRED",
                     "window_evidence": [
-                        {"window": "1d", "observed_window_return": 0.001},
-                        {"window": "7d", "observed_window_return": 0.002},
-                        {"window": "30d", "observed_window_return": -0.003},
+                        {
+                            "window": "1d",
+                            "closed_trade_count": 10,
+                            "observed_window_return": 0.001,
+                            "observed_window_log_growth": 0.0009995,
+                            "projected_horizon_log_growth_if_window_repeated": 1.8,
+                        },
+                        {
+                            "window": "7d",
+                            "closed_trade_count": 10,
+                            "observed_window_return": 0.002,
+                            "observed_window_log_growth": 0.001998,
+                            "projected_horizon_log_growth_if_window_repeated": 0.52,
+                        },
+                        {
+                            "window": "30d",
+                            "closed_trade_count": 10,
+                            "observed_window_return": -0.003,
+                            "observed_window_log_growth": -0.0030045,
+                            "projected_horizon_log_growth_if_window_repeated": -0.04,
+                        },
                     ],
                 },
             },
@@ -1503,13 +1524,20 @@ def test_trajectory_status_consumes_adaptive_feasibility_without_ready_claim(tmp
     assert trajectory["required_capital"] == 10_000_000.0
     assert trajectory["required_edge"] == 0.00379224
     assert trajectory["required_edge_unit"] == "daily_geometric_return"
+    assert trajectory["lower_confidence_bound_growth_rate"] is not None
+    assert trajectory["lower_confidence_bound_growth_rate_unit"] == "daily_log_return"
+    assert trajectory["drawdown_adjusted_growth_rate"] is not None
+    assert trajectory["drawdown_adjusted_growth_rate_unit"] == "daily_log_return"
+    assert trajectory["days_ahead_or_behind_target"] == -2000.0
     assert trajectory["source_status"] == (
         "NO_GO_1000X_FEASIBILITY_REQUIRES_OUT_OF_SAMPLE_LIVE_GRADE_REVERIFY"
     )
     assert trajectory["source_classification"] == "UNSUPPORTED_DEPENDENCY_GATES_NOT_PASSED"
     assert trajectory["source_observed_growth_classification"] == "OBSERVED_GROWTH_BELOW_REQUIRED"
     assert "actual_1d_return" not in trajectory["missing_trajectory_evidence_fields"]
-    assert "lower_confidence_bound_growth_rate" in trajectory["missing_trajectory_evidence_fields"]
+    assert "lower_confidence_bound_growth_rate" not in trajectory["missing_trajectory_evidence_fields"]
+    assert "drawdown_adjusted_growth_rate" not in trajectory["missing_trajectory_evidence_fields"]
+    assert "days_ahead_or_behind_target" not in trajectory["missing_trajectory_evidence_fields"]
     assert trajectory["guaranteed_profit_claim"] is False
     assert trajectory["leverage_increase_allowed_because_behind"] is False
     assert (

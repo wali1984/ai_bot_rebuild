@@ -921,6 +921,32 @@ def trajectory_window_returns(adaptive_feasibility: Mapping[str, Any]) -> dict[s
     return returns
 
 
+def trajectory_projected_horizon_growth_values(
+    adaptive_feasibility: Mapping[str, Any],
+) -> list[float]:
+    evidence = mapping_or_empty(adaptive_feasibility.get("observed_growth_evidence"))
+    values: list[float] = []
+    for row in all_mapping_rows(evidence.get("window_evidence")):
+        projected = finite_float(row.get("projected_horizon_log_growth_if_window_repeated"))
+        closed_trade_count = integer_count(row.get("closed_trade_count"))
+        if projected is not None and closed_trade_count > 0:
+            values.append(projected)
+    return values
+
+
+def trajectory_observed_window_log_growth_values(
+    adaptive_feasibility: Mapping[str, Any],
+) -> list[float]:
+    evidence = mapping_or_empty(adaptive_feasibility.get("observed_growth_evidence"))
+    values: list[float] = []
+    for row in all_mapping_rows(evidence.get("window_evidence")):
+        observed = finite_float(row.get("observed_window_log_growth"))
+        closed_trade_count = integer_count(row.get("closed_trade_count"))
+        if observed is not None and closed_trade_count > 0:
+            values.append(observed)
+    return values
+
+
 def quantile(values: list[float], q: float) -> float | None:
     if not values:
         return None
@@ -3511,7 +3537,19 @@ def build_trajectory_status(
     months = horizon_years * 12.0
     required_daily = target_multiple ** (1.0 / days) - 1.0
     required_monthly = target_multiple ** (1.0 / months) - 1.0
+    required_log_growth = math.log(max(1.0, target_multiple))
+    required_daily_log_return = finite_float(
+        adaptive_feasibility.get("required_daily_log_return")
+    )
+    if required_daily_log_return is None and days > 0.0:
+        required_daily_log_return = required_log_growth / days
     window_returns = trajectory_window_returns(adaptive_feasibility)
+    projected_horizon_growth_values = trajectory_projected_horizon_growth_values(
+        adaptive_feasibility
+    )
+    observed_window_log_growth_values = trajectory_observed_window_log_growth_values(
+        adaptive_feasibility
+    )
     required_edge = finite_float(
         first_present(
             adaptive_feasibility.get("required_daily_return"),
@@ -3528,6 +3566,12 @@ def build_trajectory_status(
             ),
         )
     )
+    if lower_confidence_bound_growth_rate is None and projected_horizon_growth_values:
+        lower_confidence_horizon_growth = mean_lower_confidence_bound(
+            projected_horizon_growth_values
+        )
+        if lower_confidence_horizon_growth is not None and days > 0.0:
+            lower_confidence_bound_growth_rate = lower_confidence_horizon_growth / days
     drawdown_adjusted_growth_rate = finite_float(
         first_present(
             adaptive_feasibility.get("drawdown_adjusted_growth_rate"),
@@ -3536,6 +3580,19 @@ def build_trajectory_status(
             ),
         )
     )
+    if drawdown_adjusted_growth_rate is None and projected_horizon_growth_values:
+        best_projected_horizon_growth = finite_float(
+            mapping_or_empty(adaptive_feasibility.get("observed_growth_evidence")).get(
+                "best_projected_horizon_log_growth_if_window_repeated"
+            )
+        )
+        if best_projected_horizon_growth is None:
+            best_projected_horizon_growth = max(projected_horizon_growth_values)
+        drawdown_penalty = max_drawdown(observed_window_log_growth_values)
+        if days > 0.0:
+            drawdown_adjusted_growth_rate = (
+                best_projected_horizon_growth - drawdown_penalty
+            ) / days
     days_ahead_or_behind_target = finite_float(
         first_present(
             adaptive_feasibility.get("days_ahead_or_behind_target"),
@@ -3544,6 +3601,20 @@ def build_trajectory_status(
             ),
         )
     )
+    if days_ahead_or_behind_target is None and required_daily_log_return:
+        growth_gap = finite_float(
+            mapping_or_empty(adaptive_feasibility.get("observed_growth_evidence")).get(
+                "current_log_growth_gap_vs_required"
+            )
+        )
+        if growth_gap is None:
+            growth_gap = finite_float(
+                mapping_or_empty(adaptive_feasibility.get("observed_growth_evidence")).get(
+                    "best_projected_log_growth_gap_vs_required"
+                )
+            )
+        if growth_gap is not None:
+            days_ahead_or_behind_target = -growth_gap / required_daily_log_return
     required_capital = finite_float(
         first_present(
             adaptive_feasibility.get("target_equity_usd"),
@@ -3577,8 +3648,25 @@ def build_trajectory_status(
         "actual_30d_return": window_returns.get("30d"),
         "actual_90d_return": window_returns.get("90d"),
         "lower_confidence_bound_growth_rate": lower_confidence_bound_growth_rate,
+        "lower_confidence_bound_growth_rate_unit": "daily_log_return",
+        "lower_confidence_bound_growth_rate_method": (
+            "95pct_lcb_of_observed_projected_horizon_log_growth_windows_div_horizon_days"
+            if projected_horizon_growth_values
+            else None
+        ),
         "drawdown_adjusted_growth_rate": drawdown_adjusted_growth_rate,
+        "drawdown_adjusted_growth_rate_unit": "daily_log_return",
+        "drawdown_adjusted_growth_rate_method": (
+            "best_projected_horizon_log_growth_minus_observed_window_drawdown_div_horizon_days"
+            if projected_horizon_growth_values
+            else None
+        ),
         "days_ahead_or_behind_target": days_ahead_or_behind_target,
+        "days_ahead_or_behind_target_method": (
+            "negative_log_growth_gap_div_required_daily_log_return"
+            if days_ahead_or_behind_target is not None
+            else None
+        ),
         "required_capital": required_capital,
         "required_edge": required_edge,
         "required_edge_unit": "daily_geometric_return",
