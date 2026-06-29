@@ -181,6 +181,31 @@ UNATTRIBUTED_PRE_CUTOVER_CANDIDATE_ID = "unattributed_pre_owner_cutover"
 UNATTRIBUTED_PRE_CUTOVER_POLICY_FINGERPRINT = "UNATTRIBUTED_PRE_OWNER_CUTOVER"
 UNATTRIBUTED_PRE_CUTOVER_MODEL_SOURCE = "unknown_pre_owner_cutover"
 CHALLENGER_B_GRADE_PAPER_CANARY = "CHALLENGER_B_GRADE_PAPER_CANARY"
+CHALLENGER_B_GRADE_CANARY_IDENTITY_FIELDS = (
+    "challenger_canary_id",
+    "challenger_canary_profile",
+    "paper_canary_profile",
+)
+CHALLENGER_B_GRADE_CANARY_BINDING_FIELDS = (
+    *CHALLENGER_B_GRADE_CANARY_IDENTITY_FIELDS,
+    "paper_canary_adaptive_sizing_required",
+    "paper_canary_fixed_notional_allowed",
+    "paper_canary_live_routing_allowed",
+    "paper_only",
+    "routes_to_live",
+    "places_real_order",
+    "live_order",
+    "test_order",
+    "counts_as_a_grade_evidence",
+    "a_grade_promotion_allowed",
+)
+CHALLENGER_B_GRADE_CANARY_BINDING_STATUS_FIELDS = (
+    "challenger_canary_binding_status",
+    "challenger_canary_binding_source",
+    "challenger_canary_binding_fields",
+    "challenger_canary_binding_backfilled_fields",
+    "challenger_canary_binding_mismatched_fields",
+)
 NON_EXECUTABLE_PAPER_TIERS = {
     PAPER_TIER_SHADOW_ONLY,
     PAPER_TIER_NO_TRADE,
@@ -2836,6 +2861,7 @@ IMMUTABLE_ACCEPTED_FILL_FIELDS = (
 PERSISTENT_ACCEPTED_FILL_METADATA_FIELDS = (
     *RUNTIME_COST_CAPTURE_CONTRACT_FIELDS,
     *PAPER_OWNER_ATTRIBUTION_METADATA_FIELDS,
+    *CHALLENGER_B_GRADE_CANARY_BINDING_STATUS_FIELDS,
     "adaptive_capital_policy_version",
     "policy_activated_at",
     "paper_opportunity_tier",
@@ -3755,7 +3781,10 @@ def _accepted_fill_from_open_position(row: dict[str, Any]) -> dict[str, Any]:
     item.setdefault("fill_price_immutable", True)
     item.setdefault("paper_only", True)
     item.setdefault("places_real_order", False)
-    return item
+    return _bind_challenger_b_grade_canary_metadata(
+        item,
+        binding_source="OPEN_POSITION_REPLAY",
+    )
 
 
 def _accepted_fill_rows_from_open_positions(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -3902,7 +3931,10 @@ def _merge_persistent_accepted_fills(existing: dict[str, dict], current: list[di
     """
     merged: dict[str, dict] = {}
     for identity, row in existing.items():
-        persisted = dict(row)
+        persisted = _bind_challenger_b_grade_canary_metadata(
+            dict(row),
+            binding_source="EXISTING_ACCEPTED_FILL_REPLAY",
+        )
         persisted.setdefault("fill_id", identity)
         persisted.setdefault("ledger_row_id", identity)
         persisted["paper_fill_persistence_status"] = "EXISTING_FILL_CARRIED_FORWARD"
@@ -3910,7 +3942,10 @@ def _merge_persistent_accepted_fills(existing: dict[str, dict], current: list[di
 
     for row in current:
         identity = _accepted_fill_identity(row)
-        incoming = dict(row)
+        incoming = _bind_challenger_b_grade_canary_metadata(
+            dict(row),
+            binding_source="CURRENT_ACCEPTED_FILL",
+        )
         incoming.setdefault("fill_id", identity)
         incoming.setdefault("ledger_row_id", identity)
         incoming.setdefault("mark_price_at_fill", incoming.get("fill_price"))
@@ -3924,6 +3959,10 @@ def _merge_persistent_accepted_fills(existing: dict[str, dict], current: list[di
                 preserved=preserved,
                 prior=prior,
             )
+            preserved = _bind_challenger_b_grade_canary_metadata(
+                preserved,
+                binding_source="MERGED_ACCEPTED_FILL",
+            )
             preserved["fill_price_immutable"] = True
             preserved["paper_fill_persistence_status"] = "EXISTING_FILL_IMMUTABLE_FIELDS_PRESERVED"
             preserved["original_fill_utc"] = _first_present(prior.get("original_fill_utc"), prior.get("fill_price_utc"))
@@ -3932,6 +3971,10 @@ def _merge_persistent_accepted_fills(existing: dict[str, dict], current: list[di
             preserved["latest_price_utc"] = incoming.get("latest_price_utc")
             merged[identity] = preserved
         else:
+            incoming = _bind_challenger_b_grade_canary_metadata(
+                incoming,
+                binding_source="NEW_ACCEPTED_FILL_RECORDED",
+            )
             incoming["fill_price_immutable"] = True
             incoming["paper_fill_persistence_status"] = "NEW_ACCEPTED_FILL_RECORDED"
             incoming["original_fill_utc"] = incoming.get("fill_price_utc")
@@ -8350,6 +8393,7 @@ def _paper_b_grade_lifecycle_canary_row(row: dict[str, Any]) -> bool:
     return (
         row.get("paper_opportunity_tier") == PAPER_TIER_B_GRADE_EXPLORATION
         and _paper_forward_canary_challenger_owned(row)
+        and _paper_challenger_b_grade_canary_identity_bound(row)
         and row.get("paper_fill_allowed") is True
         and row.get("paper_only") is True
         and not _paper_forward_canary_live_route_unsafe(row)
@@ -8395,12 +8439,14 @@ def _paper_b_grade_canary_supply_status(
         "score_below_threshold": 0,
         "expected_edge_below_cost": 0,
         "production_grade_cost_missing": 0,
+        "challenger_owner_missing": 0,
         "liquidity_failed": 0,
         "integrity_failed": 0,
         "risk_failed": 0,
         "orchestrator_failed": 0,
         "strategy_failed": 0,
         "allocator_failed": 0,
+        "canary_identity_missing": 0,
         "distribution_drift": 0,
         "point_in_time_long_short_unavailable": 0,
         "unsafe_live_route_flags": 0,
@@ -8409,6 +8455,7 @@ def _paper_b_grade_canary_supply_status(
         "score_threshold_pass_rows": 0,
         "expected_edge_after_cost_favorable_rows": 0,
         "production_grade_cost_rows": 0,
+        "challenger_owner_rows": 0,
         "liquidity_pass_rows": 0,
         "integrity_pass_rows": 0,
         "risk_gateway_decision_rows": 0,
@@ -8416,6 +8463,7 @@ def _paper_b_grade_canary_supply_status(
         "orchestrator_rows": 0,
         "strategy_entry_evidence_rows": 0,
         "allocator_pre_tier_size_rows": 0,
+        "canary_identity_bound_rows": 0,
         "long_short_point_in_time_rows": 0,
         "paper_only_safety_rows": 0,
     }
@@ -8425,6 +8473,7 @@ def _paper_b_grade_canary_supply_status(
         score_pass = score is not None and score >= B_GRADE_EXPLORATION_MIN_CONFIDENCE
         edge_pass = _paper_canary_edge_favorable(row)
         production_cost_pass = row.get("production_grade_cost_flag") is True
+        challenger_owner_pass = _paper_forward_canary_challenger_owned(row)
         liquidity_pass = _paper_canary_liquidity_pass(row)
         integrity_pass = _paper_canary_integrity_pass(row)
         risk_gateway_decision = bool(row.get("risk_decision_id"))
@@ -8436,6 +8485,7 @@ def _paper_b_grade_canary_supply_status(
         )
         strategy_pass = not strategy_reasons
         allocator_pass = _paper_canary_pre_tier_allocator_pass(row)
+        canary_identity_bound = _paper_challenger_b_grade_canary_identity_bound(row)
         long_short_status = str(row.get("long_short_ratio_status") or "")
         long_short_pass = (
             long_short_status == "V2_LONG_SHORT_RATIO_ATTACHED"
@@ -8456,6 +8506,7 @@ def _paper_b_grade_canary_supply_status(
         predicate_counts["score_threshold_pass_rows"] += int(score_pass)
         predicate_counts["expected_edge_after_cost_favorable_rows"] += int(edge_pass)
         predicate_counts["production_grade_cost_rows"] += int(production_cost_pass)
+        predicate_counts["challenger_owner_rows"] += int(challenger_owner_pass)
         predicate_counts["liquidity_pass_rows"] += int(liquidity_pass)
         predicate_counts["integrity_pass_rows"] += int(integrity_pass)
         predicate_counts["risk_gateway_decision_rows"] += int(risk_gateway_decision)
@@ -8463,6 +8514,7 @@ def _paper_b_grade_canary_supply_status(
         predicate_counts["orchestrator_rows"] += int(orchestrator_pass)
         predicate_counts["strategy_entry_evidence_rows"] += int(strategy_pass)
         predicate_counts["allocator_pre_tier_size_rows"] += int(allocator_pass)
+        predicate_counts["canary_identity_bound_rows"] += int(canary_identity_bound)
         predicate_counts["long_short_point_in_time_rows"] += int(long_short_pass)
         predicate_counts["paper_only_safety_rows"] += int(paper_only_safety)
 
@@ -8472,6 +8524,8 @@ def _paper_b_grade_canary_supply_status(
             root_causes["expected_edge_below_cost"] += 1
         if not production_cost_pass:
             root_causes["production_grade_cost_missing"] += 1
+        if not challenger_owner_pass:
+            root_causes["challenger_owner_missing"] += 1
         if not liquidity_pass:
             root_causes["liquidity_failed"] += 1
         if not integrity_pass:
@@ -8484,6 +8538,8 @@ def _paper_b_grade_canary_supply_status(
             root_causes["strategy_failed"] += 1
         if not allocator_pass:
             root_causes["allocator_failed"] += 1
+        if _paper_b_grade_canary_binding_eligible(row) and not canary_identity_bound:
+            root_causes["canary_identity_missing"] += 1
         drift_reasons = row.get("paper_signal_temporal_rejection_reasons") or []
         if row.get("distribution_drift") or any("DRIFT" in str(reason).upper() for reason in drift_reasons):
             root_causes["distribution_drift"] += 1
@@ -8497,12 +8553,14 @@ def _paper_b_grade_canary_supply_status(
                 score_pass,
                 edge_pass,
                 production_cost_pass,
+                challenger_owner_pass,
                 liquidity_pass,
                 integrity_pass,
                 risk_pass,
                 orchestrator_pass,
                 strategy_pass,
                 allocator_pass,
+                canary_identity_bound,
                 paper_only_safety,
             )
         )
@@ -8513,16 +8571,31 @@ def _paper_b_grade_canary_supply_status(
                 score_pass,
                 edge_pass,
                 production_cost_pass,
+                challenger_owner_pass,
                 liquidity_pass,
                 integrity_pass,
                 risk_pass,
                 orchestrator_pass,
                 allocator_pass,
+                canary_identity_bound,
                 paper_only_safety,
             )
         ) and not strategy_pass:
             near_miss_strategy_rows.append(row)
 
+    canary_binding_eligible_rows = [
+        row
+        for row in rows + accepted_rows + open_position_rows + closed_rows
+        if _paper_b_grade_canary_binding_eligible(row)
+    ]
+    canary_binding_identity_bound_rows = [
+        row
+        for row in canary_binding_eligible_rows
+        if _paper_challenger_b_grade_canary_identity_bound(row)
+    ]
+    canary_binding_missing_rows = (
+        len(canary_binding_eligible_rows) - len(canary_binding_identity_bound_rows)
+    )
     lifecycle_accepted_rows = [
         row for row in accepted_rows if _paper_b_grade_lifecycle_canary_row(row)
     ]
@@ -8569,6 +8642,9 @@ def _paper_b_grade_canary_supply_status(
         "lifecycle_accepted_canary_rows": len(lifecycle_accepted_rows),
         "lifecycle_open_canary_rows": len(lifecycle_open_rows),
         "lifecycle_closed_canary_outcome_rows": len(lifecycle_closed_outcome_rows),
+        "canary_binding_eligible_rows": len(canary_binding_eligible_rows),
+        "canary_binding_identity_bound_rows": len(canary_binding_identity_bound_rows),
+        "canary_binding_missing_rows": canary_binding_missing_rows,
         "near_miss_strategy_blocked_rows": len(near_miss_strategy_rows),
         "predicate_counts": predicate_counts,
         "root_cause_counts": root_causes,
@@ -8586,11 +8662,13 @@ def _paper_b_grade_canary_supply_status(
             "canary_candidates_gt_zero": combined_canary_candidates > 0,
             "canary_intents_gt_zero": combined_canary_intents > 0,
             "canary_pending_rows_gt_zero": combined_canary_pending_rows > 0,
+            "canary_identity_preserved": canary_binding_missing_rows == 0,
         },
         "current_cycle_pass_conditions": {
             "canary_candidates_gt_zero": len(predicate_rows) > 0,
             "canary_intents_gt_zero": len(canary_intent_rows) > 0,
             "canary_pending_rows_gt_zero": len(canary_pending_rows) > 0,
+            "canary_identity_preserved": root_causes["canary_identity_missing"] == 0,
         },
         "sample_canary_candidates": _compact_rows_for_state(
             _sample_rows(predicate_rows or lifecycle_accepted_rows, 10)
@@ -9690,6 +9768,92 @@ def _paper_forward_canary_live_route_unsafe(row: dict[str, Any]) -> bool:
     )
 
 
+def _paper_challenger_b_grade_canary_identity_bound(row: dict[str, Any]) -> bool:
+    return all(
+        row.get(field) == CHALLENGER_B_GRADE_PAPER_CANARY
+        for field in CHALLENGER_B_GRADE_CANARY_IDENTITY_FIELDS
+    )
+
+
+def _paper_b_grade_canary_binding_eligible(row: dict[str, Any]) -> bool:
+    return (
+        row.get("paper_opportunity_tier") == PAPER_TIER_B_GRADE_EXPLORATION
+        and _paper_forward_canary_challenger_owned(row)
+        and row.get("paper_only") is True
+        and not _paper_forward_canary_live_route_unsafe(row)
+        and row.get("counts_as_a_grade_evidence") is not True
+        and row.get("paper_canary_fixed_notional_allowed") is not True
+        and row.get("paper_canary_live_routing_allowed") is not True
+        and _paper_forward_canary_production_cost_pass(row)
+    )
+
+
+def _bind_challenger_b_grade_canary_metadata(
+    row: dict[str, Any],
+    *,
+    binding_source: str,
+) -> dict[str, Any]:
+    bound = dict(row)
+    if not _paper_b_grade_canary_binding_eligible(bound):
+        return bound
+
+    mismatched_identity_fields = [
+        field
+        for field in CHALLENGER_B_GRADE_CANARY_IDENTITY_FIELDS
+        if bound.get(field) not in (None, "", CHALLENGER_B_GRADE_PAPER_CANARY)
+    ]
+    if mismatched_identity_fields:
+        bound["challenger_canary_binding_status"] = "BLOCKED_CANARY_IDENTITY_MISMATCH"
+        bound["challenger_canary_binding_mismatched_fields"] = mismatched_identity_fields
+        bound["challenger_canary_binding_source"] = binding_source
+        return bound
+
+    expected_values = {
+        "challenger_canary_id": CHALLENGER_B_GRADE_PAPER_CANARY,
+        "challenger_canary_profile": CHALLENGER_B_GRADE_PAPER_CANARY,
+        "paper_canary_profile": CHALLENGER_B_GRADE_PAPER_CANARY,
+        "paper_canary_adaptive_sizing_required": True,
+        "paper_canary_fixed_notional_allowed": False,
+        "paper_canary_live_routing_allowed": False,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "live_order": False,
+        "test_order": False,
+        "counts_as_a_grade_evidence": False,
+        "a_grade_promotion_allowed": False,
+    }
+    backfilled_fields: list[str] = []
+    for field, expected in expected_values.items():
+        if bound.get(field) != expected:
+            bound[field] = expected
+            backfilled_fields.append(field)
+
+    bound["challenger_canary_binding_status"] = (
+        "BOUND_CHALLENGER_B_GRADE_PAPER_CANARY"
+        if backfilled_fields
+        else "PRESERVED_CHALLENGER_B_GRADE_PAPER_CANARY"
+    )
+    bound["challenger_canary_binding_source"] = binding_source
+    bound["challenger_canary_binding_fields"] = list(
+        CHALLENGER_B_GRADE_CANARY_BINDING_FIELDS
+    )
+    bound["challenger_canary_binding_backfilled_fields"] = backfilled_fields
+    return bound
+
+
+def _bind_challenger_b_grade_canary_metadata_rows(
+    rows: list[dict[str, Any]],
+    *,
+    binding_source: str,
+) -> list[dict[str, Any]]:
+    return [
+        _bind_challenger_b_grade_canary_metadata(row, binding_source=binding_source)
+        for row in rows
+        if isinstance(row, dict)
+    ]
+
+
 def _paper_forward_canary_liquidation_reasons(row: dict[str, Any]) -> list[str]:
     reasons: list[str] = []
     if any(
@@ -9762,6 +9926,8 @@ def _paper_forward_canary_row_rejection_reasons(row: dict[str, Any]) -> list[str
         reasons.append("NOT_B_GRADE_EXPLORATION_PAPER")
     if not _paper_forward_canary_challenger_owned(row):
         reasons.append("NOT_CHALLENGER_V2_POLICY")
+    if not _paper_challenger_b_grade_canary_identity_bound(row):
+        reasons.append("MISSING_CHALLENGER_B_GRADE_PAPER_CANARY_IDENTITY")
     if row.get("paper_only") is not True:
         reasons.append("NOT_PAPER_ONLY")
     if _paper_forward_canary_live_route_unsafe(row):
@@ -9787,6 +9953,11 @@ FORWARD_CANARY_SAMPLE_FIELDS = (
     "paper_policy_owner",
     "candidate_id",
     "policy_fingerprint",
+    "challenger_canary_id",
+    "challenger_canary_profile",
+    "paper_canary_profile",
+    "challenger_canary_binding_status",
+    "challenger_canary_binding_source",
     "paper_only",
     "routes_to_live",
     "places_real_order",
@@ -14071,7 +14242,10 @@ def run_once() -> dict:
         feature_snapshots_by_id=accepted_feature_snapshots_by_id,
         require_feature_snapshot_deref=True,
     )
-    accepted_for_ledger = _normalize_paper_owner_attribution_rows(accepted_for_ledger)
+    accepted_for_ledger = _bind_challenger_b_grade_canary_metadata_rows(
+        _normalize_paper_owner_attribution_rows(accepted_for_ledger),
+        binding_source="POST_LINEAGE_BACKFILL_ACCEPTED_FILL",
+    )
     accepted_for_ledger, accepted, post_backfill_churn_blocked = (
         _paper_filter_post_backfill_current_churn_duplicates(
             accepted_for_ledger,
@@ -14119,8 +14293,11 @@ def run_once() -> dict:
     if lifecycle_blocked:
         blocked.extend(lifecycle_blocked)
     current_accepted_ids = {_accepted_fill_identity(row) for row in accepted}
-    accepted_for_ledger = _normalize_paper_owner_attribution_rows(
-        list(lifecycle_result["accepted_open_fills"])
+    accepted_for_ledger = _bind_challenger_b_grade_canary_metadata_rows(
+        _normalize_paper_owner_attribution_rows(
+            list(lifecycle_result["accepted_open_fills"])
+        ),
+        binding_source="POST_LIFECYCLE_ACCEPTED_OPEN_FILL",
     )
     accepted = [
         row
@@ -14506,7 +14683,10 @@ def run_once() -> dict:
         accepted_for_ledger,
     )
     open_position_count_before_filter = len(open_positions)
-    open_positions = filtered_open_positions
+    open_positions = _bind_challenger_b_grade_canary_metadata_rows(
+        filtered_open_positions,
+        binding_source="POST_LIFECYCLE_OPEN_POSITION",
+    )
     lifecycle_result["open_positions"] = open_positions
     lifecycle_result["accepted_open_fills"] = accepted_for_ledger
     if len(open_positions) != open_position_count_before_filter:
@@ -14531,12 +14711,20 @@ def run_once() -> dict:
             row_kind="closed_trades",
         )
     )
+    closes = _bind_challenger_b_grade_canary_metadata_rows(
+        closes,
+        binding_source="CLOSED_TRADE_ENTRY_CONTEXT",
+    )
     outcome_labels, paper_outcome_label_entry_context_backfill_status = (
         _paper_backfill_closed_outcome_entry_context_rows(
             outcome_labels,
             entry_context_by_fill_id=entry_context_by_fill_id,
             row_kind="outcome_labels",
         )
+    )
+    outcome_labels = _bind_challenger_b_grade_canary_metadata_rows(
+        outcome_labels,
+        binding_source="OUTCOME_LABEL_ENTRY_CONTEXT",
     )
     paper_b_grade_canary_supply_status = _paper_b_grade_canary_supply_status(
         intents,

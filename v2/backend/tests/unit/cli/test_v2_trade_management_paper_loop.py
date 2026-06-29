@@ -3318,6 +3318,15 @@ def test_b_grade_canary_supply_status_reports_paper_only_pending_supply(monkeypa
         "gross_notional_usd": 1000.0,
         "risk_budget_usd": 10.0,
         "paper_opportunity_tier": "B_GRADE_EXPLORATION_PAPER",
+        "paper_policy_owner": "challenger_v2",
+        "candidate_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
+        "policy_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
+        "policy_fingerprint": (
+            "83d35e31eea385da1a283b8efab3102ac292be2904724d11777f2b7a32e68630"
+        ),
+        "challenger_canary_id": "CHALLENGER_B_GRADE_PAPER_CANARY",
+        "challenger_canary_profile": "CHALLENGER_B_GRADE_PAPER_CANARY",
+        "paper_canary_profile": "CHALLENGER_B_GRADE_PAPER_CANARY",
         "paper_fill_allowed": True,
         "paper_only": True,
         "routes_to_live": False,
@@ -3344,6 +3353,7 @@ def test_b_grade_canary_supply_status_reports_paper_only_pending_supply(monkeypa
         "canary_candidates_gt_zero": True,
         "canary_intents_gt_zero": True,
         "canary_pending_rows_gt_zero": True,
+        "canary_identity_preserved": True,
     }
     assert status["predicate_counts"]["risk_gateway_decision_rows"] == 1
     assert status["predicate_counts"]["risk_pass_rows"] == 1
@@ -3364,6 +3374,15 @@ def test_b_grade_canary_supply_status_keeps_no_trade_strategy_blocked(monkeypatc
         "orchestrator_decision_id": "dec-2",
         "pre_paper_tier_block_gross_notional_usd": 187.0,
         "pre_paper_tier_block_risk_budget_usd": 0.75,
+        "paper_policy_owner": "challenger_v2",
+        "candidate_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
+        "policy_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
+        "policy_fingerprint": (
+            "83d35e31eea385da1a283b8efab3102ac292be2904724d11777f2b7a32e68630"
+        ),
+        "challenger_canary_id": "CHALLENGER_B_GRADE_PAPER_CANARY",
+        "challenger_canary_profile": "CHALLENGER_B_GRADE_PAPER_CANARY",
+        "paper_canary_profile": "CHALLENGER_B_GRADE_PAPER_CANARY",
         "paper_opportunity_tier": "NO_TRADE",
         "paper_opportunity_tier_reason": "LIFECYCLE_OR_NO_TRADE_STRATEGY_NOT_ENTRY_EVIDENCE",
         "paper_fill_allowed": False,
@@ -3408,6 +3427,15 @@ def test_b_grade_canary_supply_status_treats_short_negative_edge_as_favorable() 
         "orchestrator_decision_id": "dec-3",
         "gross_notional_usd": 200.0,
         "risk_budget_usd": 1.0,
+        "paper_policy_owner": "challenger_v2",
+        "candidate_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
+        "policy_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
+        "policy_fingerprint": (
+            "83d35e31eea385da1a283b8efab3102ac292be2904724d11777f2b7a32e68630"
+        ),
+        "challenger_canary_id": "CHALLENGER_B_GRADE_PAPER_CANARY",
+        "challenger_canary_profile": "CHALLENGER_B_GRADE_PAPER_CANARY",
+        "paper_canary_profile": "CHALLENGER_B_GRADE_PAPER_CANARY",
         "paper_opportunity_tier": "NO_TRADE",
         "paper_fill_allowed": False,
         "paper_only": True,
@@ -3474,6 +3502,13 @@ def test_b_grade_canary_supply_status_counts_lifecycle_supply_when_current_cycle
         "paper_opportunity_tier": "B_GRADE_EXPLORATION_PAPER",
         "paper_policy_owner": "challenger_v2",
         "candidate_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
+        "policy_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
+        "policy_fingerprint": (
+            "83d35e31eea385da1a283b8efab3102ac292be2904724d11777f2b7a32e68630"
+        ),
+        "challenger_canary_id": "CHALLENGER_B_GRADE_PAPER_CANARY",
+        "challenger_canary_profile": "CHALLENGER_B_GRADE_PAPER_CANARY",
+        "paper_canary_profile": "CHALLENGER_B_GRADE_PAPER_CANARY",
         "paper_fill_allowed": True,
         "paper_only": True,
         "routes_to_live": False,
@@ -3513,12 +3548,64 @@ def test_b_grade_canary_supply_status_counts_lifecycle_supply_when_current_cycle
         "canary_candidates_gt_zero": True,
         "canary_intents_gt_zero": True,
         "canary_pending_rows_gt_zero": True,
+        "canary_identity_preserved": True,
     }
     assert status["current_cycle_pass_conditions"]["canary_pending_rows_gt_zero"] is False
     assert status["root_cause_counts"]["strategy_failed"] == 1
     assert status["routes_to_live"] is False
     assert status["places_real_order"] is False
     assert status["counts_as_a_grade_evidence"] is False
+
+
+def test_open_position_replay_binds_missing_b_grade_canary_identity() -> None:
+    row = {
+        "position_id": "paper_pos_AGTUSDT",
+        "symbol": "AGTUSDT",
+        "timeframe": "4h",
+        "side": "short",
+        "paper_opportunity_tier": "B_GRADE_EXPLORATION_PAPER",
+        "paper_policy_owner": "challenger_v2",
+        "candidate_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
+        "policy_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
+        "policy_fingerprint": (
+            "83d35e31eea385da1a283b8efab3102ac292be2904724d11777f2b7a32e68630"
+        ),
+        "confidence_calibrated": 0.66,
+        "expected_move_after_cost_bps": -40.0,
+        "production_grade_cost_flag": True,
+        "runtime_cost_capture_status": "PRODUCTION_GRADE_COST_CAPTURE",
+        "valid_for_paper": True,
+        "risk_decision_id": "rd-open",
+        "orchestrator_decision_id": "dec-open",
+        "paper_fill_allowed": True,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_a_grade_evidence": False,
+        "adaptive_capital_policy_version": "ADAPTIVE_CAPITAL_ALLOCATOR_V1",
+        "gross_notional_usd": 100.0,
+        "risk_budget_usd": 1.0,
+        "quantity": 2.0,
+        "entry_price": 50.0,
+        "fill_price": 50.0,
+    }
+
+    replayed = paper_loop._accepted_fill_from_open_position(row)  # noqa: SLF001
+
+    assert replayed["challenger_canary_id"] == "CHALLENGER_B_GRADE_PAPER_CANARY"
+    assert replayed["challenger_canary_profile"] == "CHALLENGER_B_GRADE_PAPER_CANARY"
+    assert replayed["paper_canary_profile"] == "CHALLENGER_B_GRADE_PAPER_CANARY"
+    assert replayed["paper_canary_adaptive_sizing_required"] is True
+    assert replayed["paper_canary_fixed_notional_allowed"] is False
+    assert replayed["paper_canary_live_routing_allowed"] is False
+    assert replayed["routes_to_live"] is False
+    assert replayed["places_real_order"] is False
+    assert replayed["counts_as_a_grade_evidence"] is False
+    assert replayed["challenger_canary_binding_status"] == (
+        "BOUND_CHALLENGER_B_GRADE_PAPER_CANARY"
+    )
+    assert "challenger_canary_id" in replayed["challenger_canary_binding_backfilled_fields"]
+    assert paper_loop._paper_b_grade_lifecycle_canary_row(replayed) is True  # noqa: SLF001
 
 
 def test_a_grade_gate_burndown_tracks_live_counts_and_guardian_block(monkeypatch) -> None:
@@ -3551,11 +3638,13 @@ def test_a_grade_gate_burndown_tracks_live_counts_and_guardian_block(monkeypatch
             "canary_candidates_gt_zero": True,
             "canary_intents_gt_zero": True,
             "canary_pending_rows_gt_zero": True,
+            "canary_identity_preserved": True,
         },
         "current_cycle_pass_conditions": {
             "canary_candidates_gt_zero": False,
             "canary_intents_gt_zero": False,
             "canary_pending_rows_gt_zero": False,
+            "canary_identity_preserved": True,
         },
         "current_cycle_canary_candidates": 0,
         "current_cycle_canary_intents": 0,
@@ -3869,6 +3958,12 @@ def _forward_canary_closed_row(symbol: str, side: str, **overrides) -> dict:
         "policy_fingerprint": (
             "83d35e31eea385da1a283b8efab3102ac292be2904724d11777f2b7a32e68630"
         ),
+        "challenger_canary_id": "CHALLENGER_B_GRADE_PAPER_CANARY",
+        "challenger_canary_profile": "CHALLENGER_B_GRADE_PAPER_CANARY",
+        "paper_canary_profile": "CHALLENGER_B_GRADE_PAPER_CANARY",
+        "paper_canary_adaptive_sizing_required": True,
+        "paper_canary_fixed_notional_allowed": False,
+        "paper_canary_live_routing_allowed": False,
         "paper_only": True,
         "routes_to_live": False,
         "places_real_order": False,
@@ -3967,6 +4062,30 @@ def test_forward_canary_evidence_status_reports_incomplete_runtime_evidence(monk
     assert status["routes_to_live"] is False
     assert status["places_real_order"] is False
     assert status["counts_as_a_grade_evidence"] is False
+
+
+def test_forward_canary_evidence_rejects_missing_canary_identity(monkeypatch) -> None:
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-27T23:20:30Z")
+    missing_identity = _forward_canary_closed_row(
+        "ARXUSDT",
+        "short",
+        challenger_canary_id=None,
+        challenger_canary_profile=None,
+        paper_canary_profile=None,
+    )
+
+    status = paper_loop._paper_forward_canary_evidence_status(  # noqa: SLF001
+        closed_rows=[missing_identity],
+        accepted_rows=[missing_identity],
+    )
+
+    assert status["valid_forward_canary_economic_outcomes"] == 0
+    assert status["rows_rejected_by_reason"] == {
+        "MISSING_CHALLENGER_B_GRADE_PAPER_CANARY_IDENTITY": 1
+    }
+    assert status["sample_rejected_forward_canary_outcomes"][0]["forward_canary_rejection_reasons"] == [
+        "MISSING_CHALLENGER_B_GRADE_PAPER_CANARY_IDENTITY"
+    ]
 
 
 def test_forward_canary_evidence_status_passes_only_complete_paper_canary_set(monkeypatch) -> None:
