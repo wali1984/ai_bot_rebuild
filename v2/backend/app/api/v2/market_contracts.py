@@ -10042,6 +10042,67 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                 )
                 paper_forward_canary_evidence_status.setdefault("source", f"redis:{forward_canary_key}")
                 paper_forward_canary_evidence_status.setdefault("available", True)
+                required_symbol_count = _first_integer(
+                    0,
+                    paper_forward_canary_evidence_status.get("required_symbol_count"),
+                    paper_forward_canary_evidence_status.get("required_initial_symbols"),
+                    paper_forward_canary_evidence_status.get("minimum_required_symbol_count"),
+                )
+                if required_symbol_count:
+                    paper_forward_canary_evidence_status["required_symbol_count"] = (
+                        required_symbol_count
+                    )
+                    paper_forward_canary_evidence_status["required_initial_symbols"] = (
+                        required_symbol_count
+                    )
+                    paper_forward_canary_evidence_status[
+                        "minimum_required_symbol_count"
+                    ] = required_symbol_count
+                valid_side_counts = paper_forward_canary_evidence_status.get(
+                    "valid_side_counts"
+                )
+                side_counts = paper_forward_canary_evidence_status.get("side_counts")
+                if not isinstance(side_counts, dict) and isinstance(valid_side_counts, dict):
+                    paper_forward_canary_evidence_status["side_counts"] = valid_side_counts
+                elif not isinstance(valid_side_counts, dict) and isinstance(side_counts, dict):
+                    paper_forward_canary_evidence_status["valid_side_counts"] = side_counts
+                shortfalls = paper_forward_canary_evidence_status.get(
+                    "forward_canary_shortfalls"
+                )
+                if not isinstance(shortfalls, dict):
+                    required_outcomes = _first_integer(
+                        0,
+                        paper_forward_canary_evidence_status.get(
+                            "required_forward_canary_economic_outcomes"
+                        ),
+                    )
+                    valid_outcomes = _first_integer(
+                        0,
+                        paper_forward_canary_evidence_status.get(
+                            "valid_forward_canary_economic_outcomes"
+                        ),
+                        paper_forward_canary_evidence_status.get(
+                            "post_cutover_valid_forward_canary_economic_outcomes"
+                        ),
+                    )
+                    valid_symbols = _first_integer(
+                        0,
+                        paper_forward_canary_evidence_status.get("valid_symbol_count"),
+                    )
+                    counts = paper_forward_canary_evidence_status.get(
+                        "valid_side_counts"
+                    )
+                    counts = counts if isinstance(counts, dict) else {}
+                    paper_forward_canary_evidence_status["forward_canary_shortfalls"] = {
+                        "valid_forward_canary_economic_outcomes": max(
+                            0, required_outcomes - valid_outcomes
+                        ),
+                        "valid_symbol_count": max(
+                            0, required_symbol_count - valid_symbols
+                        ),
+                        "long_outcomes": max(0, 1 - _first_integer(0, counts.get("long"))),
+                        "short_outcomes": max(0, 1 - _first_integer(0, counts.get("short"))),
+                    }
             else:
                 paper_forward_canary_evidence_status = {
                     "schema_version": "paper_forward_canary_evidence_status_v1",

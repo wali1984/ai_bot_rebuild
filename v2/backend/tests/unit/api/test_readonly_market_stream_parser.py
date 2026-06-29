@@ -694,6 +694,7 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
             "places_real_order": False,
             "counts_as_a_grade_evidence": False,
             "required_forward_canary_economic_outcomes": 100,
+            "required_initial_symbols": 20,
             "archived_b_grade_challenger_closed_outcome_rows": 1099,
             "b_grade_challenger_closed_outcome_rows": 20,
             "pre_cutover_b_grade_challenger_closed_outcome_rows": 1079,
@@ -827,8 +828,18 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
     assert forward_canary["b_grade_challenger_closed_outcome_rows"] == 20
     assert forward_canary["pre_cutover_b_grade_challenger_closed_outcome_rows"] == 1079
     assert forward_canary["post_cutover_valid_forward_canary_economic_outcomes"] == 20
+    assert forward_canary["required_symbol_count"] == 20
+    assert forward_canary["required_initial_symbols"] == 20
+    assert forward_canary["minimum_required_symbol_count"] == 20
     assert forward_canary["valid_symbol_count"] == 11
     assert forward_canary["valid_side_counts"] == {"long": 2, "short": 18}
+    assert forward_canary["side_counts"] == {"long": 2, "short": 18}
+    assert forward_canary["forward_canary_shortfalls"] == {
+        "valid_forward_canary_economic_outcomes": 80,
+        "valid_symbol_count": 9,
+        "long_outcomes": 0,
+        "short_outcomes": 0,
+    }
     assert forward_canary["production_grade_cost_coverage"] == 1.0
     assert forward_canary["cutover_completed_at"] == "2026-06-29T03:57:38.333Z"
     assert forward_canary["counts_as_a_grade_evidence"] is False

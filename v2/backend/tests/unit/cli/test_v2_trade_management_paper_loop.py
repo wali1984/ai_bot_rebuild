@@ -4390,11 +4390,17 @@ def test_forward_canary_evidence_status_reports_incomplete_runtime_evidence(monk
     assert status["source_closed_trade_rows"] == 3
     assert status["b_grade_challenger_closed_outcome_rows"] == 3
     assert status["valid_forward_canary_economic_outcomes"] == 1
+    assert status["required_forward_canary_economic_outcomes"] == 100
+    assert status["required_symbol_count"] == 20
+    assert status["required_initial_symbols"] == 20
+    assert status["minimum_required_symbol_count"] == 20
     assert status["production_grade_cost_closed_outcome_rows"] == 2
     assert status["production_grade_cost_coverage"] == pytest.approx(2 / 3)
     assert status["accepted_b_grade_canary_rows"] == 2
     assert status["accepted_b_grade_production_grade_cost_rows"] == 2
     assert status["valid_side_counts"] == {"long": 0, "short": 1}
+    assert status["side_counts"] == {"long": 0, "short": 1}
+    assert status["required_side_counts"] == {"long": 1, "short": 1}
     assert status["source_side_counts"] == {"long": 1, "short": 2}
     assert status["unsafe_live_route_rows"] == 1
     assert status["rows_rejected_by_reason"] == {
@@ -4403,6 +4409,23 @@ def test_forward_canary_evidence_status_reports_incomplete_runtime_evidence(monk
     }
     assert status["pass_conditions"]["valid_forward_canary_outcomes_gte_100"] is False
     assert status["pass_conditions"]["production_grade_cost_coverage_gte_95pct"] is False
+    assert status["failed_pass_conditions"] == [
+        "long_outcomes_gt_zero",
+        "no_live_route_flags",
+        "production_grade_cost_coverage_gte_95pct",
+        "valid_forward_canary_outcomes_gte_100",
+        "valid_symbol_count_gte_20",
+    ]
+    assert status["forward_canary_shortfalls"]["valid_forward_canary_economic_outcomes"] == 99
+    assert status["forward_canary_shortfalls"]["valid_symbol_count"] == 19
+    assert status["forward_canary_shortfalls"]["long_outcomes"] == 1
+    assert status["forward_canary_shortfalls"]["short_outcomes"] == 0
+    assert status["failed_forward_canary_blocker_details"]["valid_symbol_count_gte_20"] == {
+        "actual": 1,
+        "required": 20,
+        "remaining": 19,
+        "passed": False,
+    }
     assert status["routes_to_live"] is False
     assert status["places_real_order"] is False
     assert status["counts_as_a_grade_evidence"] is False
@@ -4450,8 +4473,14 @@ def test_forward_canary_evidence_status_passes_only_complete_paper_canary_set(mo
 
     assert status["status"] == "FORWARD_CANARY_EVIDENCE_REQUIREMENTS_MET"
     assert status["valid_forward_canary_economic_outcomes"] == 100
+    assert status["required_symbol_count"] == 20
     assert status["valid_symbol_count"] == 20
     assert status["valid_side_counts"] == {"long": 50, "short": 50}
+    assert status["side_counts"] == {"long": 50, "short": 50}
+    assert status["forward_canary_shortfalls"]["valid_forward_canary_economic_outcomes"] == 0
+    assert status["forward_canary_shortfalls"]["valid_symbol_count"] == 0
+    assert status["failed_pass_conditions"] == []
+    assert status["failed_forward_canary_blocker_details"] == {}
     assert status["production_grade_cost_coverage"] == 1.0
     assert status["accounting_mismatch_rows"] == 0
     assert status["liquidation_rows"] == 0
@@ -4502,11 +4531,21 @@ def test_forward_canary_evidence_status_requires_post_cutover_outcomes(monkeypat
     assert status["cutover_marker_valid"] is True
     assert status["valid_forward_canary_economic_outcomes"] == 2
     assert status["post_cutover_valid_forward_canary_economic_outcomes"] == 2
+    assert status["required_symbol_count"] == 20
     assert status["valid_symbol_count"] == 2
     assert status["valid_side_counts"] == {"long": 1, "short": 1}
+    assert status["side_counts"] == {"long": 1, "short": 1}
     assert status["production_grade_cost_coverage"] == 1.0
     assert status["pass_conditions"]["valid_forward_canary_outcomes_gte_100"] is False
     assert status["pass_conditions"]["valid_symbol_count_gte_20"] is False
+    assert status["forward_canary_shortfalls"]["valid_forward_canary_economic_outcomes"] == 98
+    assert status["forward_canary_shortfalls"]["valid_symbol_count"] == 18
+    assert status["failed_forward_canary_blocker_details"]["valid_symbol_count_gte_20"] == {
+        "actual": 2,
+        "required": 20,
+        "remaining": 18,
+        "passed": False,
+    }
     assert status["counts_as_a_grade_evidence"] is False
 
 

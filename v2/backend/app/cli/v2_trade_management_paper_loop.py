@@ -10565,6 +10565,7 @@ def _paper_forward_canary_evidence_status(
             if _normalized_directional_side(_first_present(row.get("side"), row.get("action"))) == "short"
         ),
     }
+    required_side_counts = {"long": 1, "short": 1}
     production_cost_coverage = (
         len(production_cost_rows) / len(evidence_rows)
         if evidence_rows
@@ -10598,6 +10599,81 @@ def _paper_forward_canary_evidence_status(
         "no_point_in_time_violation": point_in_time_invalid_rows == 0,
         "no_live_route_flags": unsafe_live_route_rows == 0,
     }
+    forward_canary_shortfalls = {
+        "valid_forward_canary_economic_outcomes": max(
+            0, FORWARD_CANARY_REQUIRED_ECONOMIC_OUTCOMES - len(valid_rows)
+        ),
+        "valid_symbol_count": max(
+            0, FORWARD_CANARY_REQUIRED_SYMBOLS - len(valid_symbols)
+        ),
+        "long_outcomes": max(
+            0, required_side_counts["long"] - valid_side_counts["long"]
+        ),
+        "short_outcomes": max(
+            0, required_side_counts["short"] - valid_side_counts["short"]
+        ),
+        "production_grade_cost_coverage_bps": max(
+            0.0, (0.95 - production_cost_coverage) * 10_000.0
+        ),
+        "accounting_mismatch_rows": accounting_mismatch_rows,
+        "liquidation_rows": liquidation_rows,
+        "point_in_time_invalid_rows": point_in_time_invalid_rows,
+        "unsafe_live_route_rows": unsafe_live_route_rows,
+    }
+    forward_canary_blocker_details = {
+        "valid_forward_canary_outcomes_gte_100": {
+            "actual": len(valid_rows),
+            "required": FORWARD_CANARY_REQUIRED_ECONOMIC_OUTCOMES,
+            "remaining": forward_canary_shortfalls["valid_forward_canary_economic_outcomes"],
+            "passed": pass_conditions["valid_forward_canary_outcomes_gte_100"],
+        },
+        "valid_symbol_count_gte_20": {
+            "actual": len(valid_symbols),
+            "required": FORWARD_CANARY_REQUIRED_SYMBOLS,
+            "remaining": forward_canary_shortfalls["valid_symbol_count"],
+            "passed": pass_conditions["valid_symbol_count_gte_20"],
+        },
+        "long_outcomes_gt_zero": {
+            "actual": valid_side_counts["long"],
+            "required": required_side_counts["long"],
+            "remaining": forward_canary_shortfalls["long_outcomes"],
+            "passed": pass_conditions["long_outcomes_gt_zero"],
+        },
+        "short_outcomes_gt_zero": {
+            "actual": valid_side_counts["short"],
+            "required": required_side_counts["short"],
+            "remaining": forward_canary_shortfalls["short_outcomes"],
+            "passed": pass_conditions["short_outcomes_gt_zero"],
+        },
+        "production_grade_cost_coverage_gte_95pct": {
+            "actual": production_cost_coverage,
+            "required": 0.95,
+            "remaining_bps": forward_canary_shortfalls[
+                "production_grade_cost_coverage_bps"
+            ],
+            "passed": pass_conditions["production_grade_cost_coverage_gte_95pct"],
+        },
+        "no_accounting_mismatch": {
+            "actual": accounting_mismatch_rows,
+            "required": 0,
+            "passed": pass_conditions["no_accounting_mismatch"],
+        },
+        "no_liquidation": {
+            "actual": liquidation_rows,
+            "required": 0,
+            "passed": pass_conditions["no_liquidation"],
+        },
+        "no_point_in_time_violation": {
+            "actual": point_in_time_invalid_rows,
+            "required": 0,
+            "passed": pass_conditions["no_point_in_time_violation"],
+        },
+        "no_live_route_flags": {
+            "actual": unsafe_live_route_rows,
+            "required": 0,
+            "passed": pass_conditions["no_live_route_flags"],
+        },
+    }
     if cutover_completed_at not in (None, "") and not cutover_marker_valid:
         status = "BLOCKED_FORWARD_CANARY_CUTOVER_MARKER_INVALID"
     elif all(pass_conditions.values()):
@@ -10616,6 +10692,9 @@ def _paper_forward_canary_evidence_status(
         "live_path_changed": False,
         "required_forward_canary_economic_outcomes": FORWARD_CANARY_REQUIRED_ECONOMIC_OUTCOMES,
         "required_initial_symbols": FORWARD_CANARY_REQUIRED_SYMBOLS,
+        "required_symbol_count": FORWARD_CANARY_REQUIRED_SYMBOLS,
+        "minimum_required_symbol_count": FORWARD_CANARY_REQUIRED_SYMBOLS,
+        "required_side_counts": required_side_counts,
         "source_closed_trade_rows": len(source_closed_rows),
         "source_accepted_rows": len(source_accepted_rows),
         "archived_b_grade_challenger_closed_outcome_rows": len(b_grade_closed_rows),
@@ -10633,6 +10712,7 @@ def _paper_forward_canary_evidence_status(
         "valid_symbol_count": len(valid_symbols),
         "source_symbol_count": len(source_symbols),
         "valid_side_counts": valid_side_counts,
+        "side_counts": valid_side_counts,
         "source_side_counts": source_side_counts,
         "accounting_mismatch_rows": accounting_mismatch_rows,
         "liquidation_rows": liquidation_rows,
@@ -10640,6 +10720,16 @@ def _paper_forward_canary_evidence_status(
         "unsafe_live_route_rows": unsafe_live_route_rows,
         "rows_rejected_by_reason": rows_rejected_by_reason,
         "pass_conditions": pass_conditions,
+        "failed_pass_conditions": sorted(
+            key for key, passed in pass_conditions.items() if not passed
+        ),
+        "forward_canary_shortfalls": forward_canary_shortfalls,
+        "forward_canary_blocker_details": forward_canary_blocker_details,
+        "failed_forward_canary_blocker_details": {
+            key: detail
+            for key, detail in forward_canary_blocker_details.items()
+            if not detail.get("passed")
+        },
         "sample_valid_forward_canary_outcomes": _paper_forward_canary_compact_sample(
             _sample_rows(valid_rows, 10)
         ),
