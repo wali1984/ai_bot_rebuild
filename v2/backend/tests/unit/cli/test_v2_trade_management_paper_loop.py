@@ -3139,6 +3139,15 @@ def test_adaptive_threshold_runtime_status_counts_b_grade_floor_blocks() -> None
             "fee_bps": 4.0,
             "depth_utilization_pct": 0.01,
             "long_short_ratio_status": "V2_LONG_SHORT_RATIO_ATTACHED",
+            "paper_drawdown_recovery_guard": {
+                "adaptive_confidence_policy": {
+                    "threshold_id": "paper_drawdown_recovery_min_confidence",
+                    "static_floor": 0.65,
+                    "dynamic_floor": 0.65,
+                    "threshold_lowering_to_force_trades": False,
+                    "never_below_static": True,
+                },
+            },
             "paper_only": True,
             "routes_to_live": False,
             "places_real_order": False,
@@ -3155,6 +3164,15 @@ def test_adaptive_threshold_runtime_status_counts_b_grade_floor_blocks() -> None
             "fee_bps": 4.0,
             "depth_utilization_pct": 0.40,
             "long_short_ratio_status": "REJECTED_LONG_SHORT_AVAILABLE_AFTER_DECISION",
+            "paper_drawdown_recovery_guard": {
+                "adaptive_confidence_policy": {
+                    "threshold_id": "paper_drawdown_recovery_min_confidence",
+                    "static_floor": 0.65,
+                    "dynamic_floor": 0.72,
+                    "threshold_lowering_to_force_trades": False,
+                    "never_below_static": True,
+                },
+            },
             "paper_only": True,
             "routes_to_live": False,
             "places_real_order": False,
@@ -3164,10 +3182,13 @@ def test_adaptive_threshold_runtime_status_counts_b_grade_floor_blocks() -> None
     status = paper_loop._paper_adaptive_threshold_runtime_status(rows)  # noqa: SLF001
 
     assert status["status"] == (
-        "PARTIAL_B_GRADE_CONFIDENCE_FLOOR_AND_SIGNAL_STALENESS_ADAPTIVE_FAIL_CLOSED_"
+        "PARTIAL_B_GRADE_SIGNAL_STALE_AND_DRAWDOWN_RECOVERY_ADAPTIVE_FAIL_CLOSED_"
         "STATIC_THRESHOLDS_REMAIN"
     )
-    assert status["adaptive_threshold_id"] == "b_grade_confidence_floor,paper_signal_stale_seconds"
+    assert status["adaptive_threshold_id"] == (
+        "b_grade_confidence_floor,paper_signal_stale_seconds,"
+        "paper_drawdown_recovery_min_confidence"
+    )
     assert status["evaluated_rows"] == 2
     assert status["static_floor_pass_rows"] == 2
     assert status["adaptive_floor_pass_rows"] == 1
@@ -3178,7 +3199,15 @@ def test_adaptive_threshold_runtime_status_counts_b_grade_floor_blocks() -> None
     assert status["pass_conditions"]["adaptive_signal_stale_threshold_never_above_static"] is True
     assert status["adaptive_signal_stale_threshold"]["evaluated_rows"] == 2
     assert status["adaptive_signal_stale_threshold"]["adaptive_stricter_than_static_rows"] == 1
+    assert status["adaptive_drawdown_recovery_confidence_floor"]["evaluated_rows"] == 2
+    assert status["adaptive_drawdown_recovery_confidence_floor"]["dynamic_never_below_static_rows"] == 2
+    assert status["adaptive_drawdown_recovery_confidence_floor"]["dynamic_tightened_rows"] == 1
     assert "paper_signal_stale_seconds" not in status["remaining_static_threshold_blockers"]
+    assert "paper_drawdown_recovery_min_confidence" not in status["remaining_static_threshold_blockers"]
+    assert (
+        status["pass_conditions"]["adaptive_drawdown_recovery_threshold_never_below_static"]
+        is True
+    )
     assert status["pass_conditions"]["ready_allowed"] is False
     assert status["routes_to_live"] is False
     assert status["places_real_order"] is False

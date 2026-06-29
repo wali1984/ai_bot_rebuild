@@ -1433,6 +1433,8 @@ def test_paper_drawdown_recovery_allows_clean_minority_side_reduce_size() -> Non
     assert "long" in recovered["allowed_actions"]
     assert recovered["size_multiplier"] == paper.PAPER_DRAWDOWN_RECOVERY_SIZE_MULTIPLIER
     assert paper.PAPER_DRAWDOWN_RECOVERY_REASON in recovered["reason_codes"]
+    assert guard["dynamic_minimum_confidence"] == paper.PAPER_DRAWDOWN_RECOVERY_MIN_CONFIDENCE
+    assert guard["adaptive_confidence_policy"]["never_below_static"] is True
 
 
 def test_paper_drawdown_recovery_allows_clean_short_downside_edge() -> None:
@@ -1473,6 +1475,45 @@ def test_paper_drawdown_recovery_allows_clean_short_downside_edge() -> None:
     assert recovered["selected_mode"] == "reduce_size_mode"
     assert recovered["action_mask"]["short"] is True
     assert "short" in recovered["allowed_actions"]
+
+
+def test_paper_drawdown_recovery_tightens_confidence_floor_under_severe_drawdown() -> None:
+    paper = importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
+    ledger = {
+        "closed_trades": [
+            {"side": "short", "strategy_selected_mode": "trend_mode"}
+            for _ in range(60)
+        ],
+        "open_positions": [],
+    }
+    router = {
+        "selected_mode": "no_trade_mode",
+        "allowed_actions": ["hold"],
+        "action_mask": {"hold": True, "long": False, "short": False, "close": False},
+        "size_multiplier": 1.0,
+        "block_reason": "DRAWDOWN_LIMIT_BLOCK",
+        "reason_codes": ["DRAWDOWN_LIMIT_BLOCK"],
+        "regime_labels": ["no_trade"],
+        "explanation": {"current_drawdown_bps": 1000.0},
+    }
+
+    unchanged, guard = paper._paper_drawdown_recovery_router_result(  # noqa: SLF001
+        existing_ledger=ledger,
+        strategy_router=router,
+        candidate_side="long",
+        current_position_state="FLAT",
+        paper_fill_allowed_upstream=True,
+        expected_move_after_cost_bps=25.0,
+        confidence_calibrated=0.76,
+        live_gate="blocked_human_only",
+    )
+
+    assert unchanged == router
+    assert guard["allowed"] is False
+    assert guard["block_reason"] == "CONFIDENCE_BELOW_PAPER_RECOVERY_FLOOR"
+    assert guard["dynamic_minimum_confidence"] > paper.PAPER_DRAWDOWN_RECOVERY_MIN_CONFIDENCE
+    assert guard["adaptive_confidence_policy"]["threshold_lowering_to_force_trades"] is False
+    assert guard["adaptive_confidence_policy"]["never_below_static"] is True
 
 
 def test_paper_drawdown_recovery_blocks_same_side_open_position() -> None:

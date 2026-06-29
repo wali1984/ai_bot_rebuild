@@ -91,6 +91,10 @@ STRATEGY_MODE_COLLAPSE_MAJOR_MODE_SHARE = 0.80
 PAPER_DRAWDOWN_RECOVERY_GUARD_NAME = "PAPER_ONLY_DRAWDOWN_RECOVERY_ADMISSION_GUARD"
 PAPER_DRAWDOWN_RECOVERY_REASON = "PAPER_DRAWDOWN_RECOVERY_MINORITY_SIDE_REDUCE_SIZE"
 PAPER_DRAWDOWN_RECOVERY_MIN_CONFIDENCE = 0.65
+PAPER_DRAWDOWN_RECOVERY_MAX_CONFIDENCE = 0.80
+PAPER_DRAWDOWN_RECOVERY_DRAWDOWN_TIGHTEN_START_BPS = 300.0
+PAPER_DRAWDOWN_RECOVERY_DRAWDOWN_TIGHTEN_FULL_BPS = 1000.0
+PAPER_DRAWDOWN_RECOVERY_WEAK_EDGE_BPS = 20.0
 PAPER_DRAWDOWN_RECOVERY_SIZE_MULTIPLIER = 0.25
 PAPER_RUNTIME_EVIDENCE_BLOCK_REASON = "PAPER_RUNTIME_EVIDENCE_BLOCKED"
 MISSING_THESIS_TIMEFRAME_BLOCK_REASON = "MISSING_THESIS_TIMEFRAME"
@@ -8619,6 +8623,10 @@ def _paper_adaptive_threshold_runtime_status(rows: list[dict[str, Any]]) -> dict
     signal_stale_never_above_static_rows = 0
     signal_stale_stricter_rows = 0
     signal_stale_threshold_values: list[int] = []
+    drawdown_recovery_policy_rows = 0
+    drawdown_recovery_never_below_static_rows = 0
+    drawdown_recovery_tightened_rows = 0
+    drawdown_recovery_floor_values: list[float] = []
     for row in rows:
         stale_policy = row.get("paper_signal_adaptive_stale_policy")
         if not isinstance(stale_policy, dict):
@@ -8634,6 +8642,25 @@ def _paper_adaptive_threshold_runtime_status(rows: list[dict[str, Any]]) -> dict
             signal_stale_stricter_rows += int(
                 adaptive_stale_seconds < static_stale_seconds
             )
+        drawdown_guard = row.get("paper_drawdown_recovery_guard")
+        drawdown_policy = (
+            drawdown_guard.get("adaptive_confidence_policy")
+            if isinstance(drawdown_guard, dict)
+            else None
+        )
+        if isinstance(drawdown_policy, dict):
+            drawdown_recovery_policy_rows += 1
+            dynamic_floor = _coerce_float(drawdown_policy.get("dynamic_floor"))
+            static_floor = _coerce_float(drawdown_policy.get("static_floor"))
+            if dynamic_floor is not None:
+                drawdown_recovery_floor_values.append(dynamic_floor)
+                if static_floor is not None:
+                    drawdown_recovery_never_below_static_rows += int(
+                        dynamic_floor >= static_floor
+                    )
+                    drawdown_recovery_tightened_rows += int(
+                        dynamic_floor > static_floor
+                    )
 
         confidence = _paper_canary_score(row)
         if confidence is None:
@@ -8697,14 +8724,29 @@ def _paper_adaptive_threshold_runtime_status(rows: list[dict[str, Any]]) -> dict
     floor_avg = sum(floor_values) / len(floor_values) if floor_values else None
     stale_min = min(signal_stale_threshold_values) if signal_stale_threshold_values else None
     stale_max = max(signal_stale_threshold_values) if signal_stale_threshold_values else None
+    drawdown_recovery_floor_min = (
+        min(drawdown_recovery_floor_values)
+        if drawdown_recovery_floor_values
+        else None
+    )
+    drawdown_recovery_floor_max = (
+        max(drawdown_recovery_floor_values)
+        if drawdown_recovery_floor_values
+        else None
+    )
     return {
         "schema_version": "paper_adaptive_threshold_runtime_status_v1",
         "status": (
-            "PARTIAL_B_GRADE_CONFIDENCE_FLOOR_AND_SIGNAL_STALENESS_ADAPTIVE_FAIL_CLOSED_"
+            "PARTIAL_B_GRADE_SIGNAL_STALE_AND_DRAWDOWN_RECOVERY_ADAPTIVE_FAIL_CLOSED_"
             "STATIC_THRESHOLDS_REMAIN"
         ),
-        "adaptive_threshold_id": "b_grade_confidence_floor,paper_signal_stale_seconds",
-        "adaptive_threshold_scope": "paper_only_b_grade_exploration_admission_and_signal_freshness",
+        "adaptive_threshold_id": (
+            "b_grade_confidence_floor,paper_signal_stale_seconds,"
+            "paper_drawdown_recovery_min_confidence"
+        ),
+        "adaptive_threshold_scope": (
+            "paper_only_b_grade_exploration_signal_freshness_and_drawdown_recovery"
+        ),
         "runtime_behavior_changed": True,
         "strategy_or_risk_logic_changed": False,
         "paper_admission_changed": True,
@@ -8736,10 +8778,29 @@ def _paper_adaptive_threshold_runtime_status(rows: list[dict[str, Any]]) -> dict
             "threshold_lowering_to_force_trades": False,
             "mode": "TIMEFRAME_CONTEXTUAL_FAIL_CLOSED_NEVER_ABOVE_STATIC",
         },
+        "adaptive_drawdown_recovery_confidence_floor": {
+            "threshold_id": "paper_drawdown_recovery_min_confidence",
+            "static_floor": PAPER_DRAWDOWN_RECOVERY_MIN_CONFIDENCE,
+            "operator_max_floor": PAPER_DRAWDOWN_RECOVERY_MAX_CONFIDENCE,
+            "evaluated_rows": drawdown_recovery_policy_rows,
+            "dynamic_never_below_static_rows": drawdown_recovery_never_below_static_rows,
+            "dynamic_tightened_rows": drawdown_recovery_tightened_rows,
+            "dynamic_floor_min": (
+                round(drawdown_recovery_floor_min, 8)
+                if drawdown_recovery_floor_min is not None
+                else None
+            ),
+            "dynamic_floor_max": (
+                round(drawdown_recovery_floor_max, 8)
+                if drawdown_recovery_floor_max is not None
+                else None
+            ),
+            "threshold_lowering_to_force_trades": False,
+            "mode": "DRAWDOWN_AND_EDGE_CONTEXTUAL_FAIL_CLOSED_NEVER_BELOW_STATIC",
+        },
         "remaining_static_threshold_blockers": [
             "directional_collapse_guard",
             "strategy_mode_collapse_guard",
-            "paper_drawdown_recovery_min_confidence",
             "standalone_1m_gate",
             "audit_blocked_allowed_entry_timeframes",
             "outcome_memory_degradation_thresholds",
@@ -8753,6 +8814,10 @@ def _paper_adaptive_threshold_runtime_status(rows: list[dict[str, Any]]) -> dict
             "adaptive_signal_stale_threshold_evaluated_rows_gt_zero": signal_stale_policy_rows > 0,
             "adaptive_signal_stale_threshold_never_above_static": (
                 signal_stale_never_above_static_rows == signal_stale_policy_rows
+            ),
+            "adaptive_drawdown_recovery_threshold_never_below_static": (
+                drawdown_recovery_policy_rows == 0
+                or drawdown_recovery_never_below_static_rows == drawdown_recovery_policy_rows
             ),
             "threshold_not_lowered_to_force_trades": True,
             "paper_only": True,
@@ -9779,6 +9844,68 @@ def _paper_strategy_mode_collapse_guard(
     return status
 
 
+def _paper_drawdown_recovery_confidence_policy(
+    *,
+    strategy_router: dict[str, Any],
+    expected_move_after_cost_bps: float | None,
+) -> dict[str, Any]:
+    """Return a fail-closed contextual confidence floor for paper recovery fills."""
+    explanation = strategy_router.get("explanation")
+    explanation = explanation if isinstance(explanation, dict) else {}
+    drawdown_bps = _coerce_float(
+        _first_present(
+            explanation.get("current_drawdown_bps"),
+            explanation.get("portfolio_drawdown_bps"),
+            strategy_router.get("current_drawdown_bps"),
+        )
+    )
+    edge_bps = abs(float(expected_move_after_cost_bps or 0.0))
+    drawdown_pressure = 0.0
+    if drawdown_bps is not None:
+        span = (
+            PAPER_DRAWDOWN_RECOVERY_DRAWDOWN_TIGHTEN_FULL_BPS
+            - PAPER_DRAWDOWN_RECOVERY_DRAWDOWN_TIGHTEN_START_BPS
+        )
+        if span > 0.0:
+            drawdown_pressure = _clamp_float(
+                (
+                    max(0.0, drawdown_bps)
+                    - PAPER_DRAWDOWN_RECOVERY_DRAWDOWN_TIGHTEN_START_BPS
+                )
+                / span,
+                0.0,
+                1.0,
+            )
+    weak_edge_pressure = _clamp_float(
+        (PAPER_DRAWDOWN_RECOVERY_WEAK_EDGE_BPS - edge_bps)
+        / PAPER_DRAWDOWN_RECOVERY_WEAK_EDGE_BPS,
+        0.0,
+        1.0,
+    )
+    dynamic_floor = _clamp_float(
+        PAPER_DRAWDOWN_RECOVERY_MIN_CONFIDENCE
+        + 0.12 * drawdown_pressure
+        + 0.03 * weak_edge_pressure,
+        PAPER_DRAWDOWN_RECOVERY_MIN_CONFIDENCE,
+        PAPER_DRAWDOWN_RECOVERY_MAX_CONFIDENCE,
+    )
+    return {
+        "threshold_id": "paper_drawdown_recovery_min_confidence",
+        "mode": "DRAWDOWN_AND_EDGE_CONTEXTUAL_FAIL_CLOSED_NEVER_BELOW_STATIC",
+        "static_floor": PAPER_DRAWDOWN_RECOVERY_MIN_CONFIDENCE,
+        "dynamic_floor": round(dynamic_floor, 8),
+        "operator_max_floor": PAPER_DRAWDOWN_RECOVERY_MAX_CONFIDENCE,
+        "drawdown_bps": drawdown_bps,
+        "drawdown_tighten_start_bps": PAPER_DRAWDOWN_RECOVERY_DRAWDOWN_TIGHTEN_START_BPS,
+        "drawdown_tighten_full_bps": PAPER_DRAWDOWN_RECOVERY_DRAWDOWN_TIGHTEN_FULL_BPS,
+        "weak_edge_bps": PAPER_DRAWDOWN_RECOVERY_WEAK_EDGE_BPS,
+        "drawdown_pressure": round(drawdown_pressure, 8),
+        "weak_edge_pressure": round(weak_edge_pressure, 8),
+        "threshold_lowering_to_force_trades": False,
+        "never_below_static": dynamic_floor >= PAPER_DRAWDOWN_RECOVERY_MIN_CONFIDENCE,
+    }
+
+
 def _paper_drawdown_recovery_router_result(
     *,
     existing_ledger: dict[str, Any],
@@ -9801,6 +9928,10 @@ def _paper_drawdown_recovery_router_result(
     directional_guard = _paper_directional_collapse_guard(existing_ledger, side)
     current_state = str(current_position_state or "UNKNOWN").upper()
     reason_codes = {str(reason) for reason in strategy_router.get("reason_codes") or []}
+    confidence_policy = _paper_drawdown_recovery_confidence_policy(
+        strategy_router=strategy_router,
+        expected_move_after_cost_bps=expected_move_after_cost_bps,
+    )
     status: dict[str, Any] = {
         "guard": PAPER_DRAWDOWN_RECOVERY_GUARD_NAME,
         "paper_only": True,
@@ -9815,6 +9946,9 @@ def _paper_drawdown_recovery_router_result(
         "expected_move_after_cost_bps": expected_move_after_cost_bps,
         "confidence_calibrated": confidence_calibrated,
         "minimum_confidence": PAPER_DRAWDOWN_RECOVERY_MIN_CONFIDENCE,
+        "maximum_confidence": PAPER_DRAWDOWN_RECOVERY_MAX_CONFIDENCE,
+        "dynamic_minimum_confidence": confidence_policy["dynamic_floor"],
+        "adaptive_confidence_policy": confidence_policy,
         "live_gate": live_gate,
         "directional_guard": directional_guard,
     }
@@ -9850,7 +9984,7 @@ def _paper_drawdown_recovery_router_result(
     if not status["expected_move_after_cost_favorable_for_side"]:
         status["block_reason"] = "EXPECTED_MOVE_AFTER_COST_NOT_FAVORABLE_FOR_SIDE"
         return strategy_router, status
-    if confidence_calibrated is None or confidence_calibrated < PAPER_DRAWDOWN_RECOVERY_MIN_CONFIDENCE:
+    if confidence_calibrated is None or confidence_calibrated < confidence_policy["dynamic_floor"]:
         status["block_reason"] = "CONFIDENCE_BELOW_PAPER_RECOVERY_FLOOR"
         return strategy_router, status
 
@@ -13442,12 +13576,51 @@ def run_once() -> dict:
         "sample_evaluations": strategy_mode_guard_evaluations[:25],
         "generated_utc": _utc_iso(),
     }
+    drawdown_recovery_confidence_policies = [
+        row.get("adaptive_confidence_policy")
+        for row in drawdown_recovery_guard_evaluations
+        if isinstance(row.get("adaptive_confidence_policy"), dict)
+    ]
+    drawdown_recovery_dynamic_floors = [
+        _coerce_float(policy.get("dynamic_floor"))
+        for policy in drawdown_recovery_confidence_policies
+    ]
+    drawdown_recovery_dynamic_floors = [
+        floor for floor in drawdown_recovery_dynamic_floors if floor is not None
+    ]
     paper_drawdown_recovery_guard_status = {
         "guard": PAPER_DRAWDOWN_RECOVERY_GUARD_NAME,
         "enabled": True,
         "paper_only": True,
         "live_path_changed": False,
         "minimum_confidence": PAPER_DRAWDOWN_RECOVERY_MIN_CONFIDENCE,
+        "maximum_confidence": PAPER_DRAWDOWN_RECOVERY_MAX_CONFIDENCE,
+        "adaptive_confidence_floor_status": {
+            "threshold_id": "paper_drawdown_recovery_min_confidence",
+            "mode": "DRAWDOWN_AND_EDGE_CONTEXTUAL_FAIL_CLOSED_NEVER_BELOW_STATIC",
+            "evaluated_rows": len(drawdown_recovery_confidence_policies),
+            "dynamic_floor_min": (
+                round(min(drawdown_recovery_dynamic_floors), 8)
+                if drawdown_recovery_dynamic_floors
+                else None
+            ),
+            "dynamic_floor_max": (
+                round(max(drawdown_recovery_dynamic_floors), 8)
+                if drawdown_recovery_dynamic_floors
+                else None
+            ),
+            "dynamic_floor_never_below_static_rows": sum(
+                1
+                for floor in drawdown_recovery_dynamic_floors
+                if floor >= PAPER_DRAWDOWN_RECOVERY_MIN_CONFIDENCE
+            ),
+            "dynamic_floor_tightened_rows": sum(
+                1
+                for floor in drawdown_recovery_dynamic_floors
+                if floor > PAPER_DRAWDOWN_RECOVERY_MIN_CONFIDENCE
+            ),
+            "threshold_lowering_to_force_trades": False,
+        },
         "recovery_size_multiplier": PAPER_DRAWDOWN_RECOVERY_SIZE_MULTIPLIER,
         "evaluated_intent_count": len(drawdown_recovery_guard_evaluations),
         "eligible_recovery_count": sum(
