@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -111,6 +112,294 @@ def _redis_lrange_json(r: Any, key: str, start: int = 0, end: int = -1) -> list[
 
 def _paper_heartbeat(r: Any) -> dict[str, Any]:
     return _redis_get_json(r, "v2:paper:heartbeat") or {}
+
+
+def _as_object(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _operator_runtime_json(relative: str) -> dict[str, Any] | None:
+    operator_runtime_dir = os.getenv("V2_OPERATOR_RUNTIME_STATIC_DIR")
+    candidates: list[Path] = []
+    if operator_runtime_dir:
+        candidates.append(Path(operator_runtime_dir) / relative)
+    candidates.append(Path("v2/frontend/public/operator_runtime") / relative)
+    try:
+        candidates.append(
+            Path(__file__).resolve().parents[4]
+            / "frontend"
+            / "public"
+            / "operator_runtime"
+            / relative
+        )
+    except IndexError:
+        pass
+    for candidate in candidates:
+        try:
+            if candidate.exists():
+                data = json.loads(candidate.read_text(encoding="utf-8"))
+                return data if isinstance(data, dict) else None
+        except Exception:
+            continue
+    return None
+
+
+def _first_int(*values: Any, default: int = 0) -> int:
+    for value in values:
+        if value is None or value == "":
+            continue
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            continue
+    return default
+
+
+def _project_fields(payload: dict[str, Any], fields: tuple[str, ...]) -> dict[str, Any]:
+    return {field: payload.get(field) for field in fields if field in payload}
+
+
+def _mobile_runtime_truth_from_redis(
+    r: Any | None,
+    hb: dict[str, Any],
+) -> dict[str, Any]:
+    trade_management_status = (
+        _redis_get_json(r, "v2:paper:trade_management:status") if r else None
+    ) or {}
+    runtime_admission_status = _as_object(
+        trade_management_status.get("paper_runtime_admission_status")
+    )
+    runtime_cost_status = _as_object(
+        trade_management_status.get("paper_runtime_cost_capture_status")
+    )
+
+    a_grade_status = (
+        _redis_get_json(r, "v2:paper:a_grade_gate_burndown_status") if r else None
+    ) or _as_object(trade_management_status.get("paper_a_grade_gate_burndown_status"))
+    forward_canary_status = (
+        _redis_get_json(r, "v2:paper:forward_canary_evidence_status") if r else None
+    ) or _as_object(
+        trade_management_status.get("paper_forward_canary_evidence_status")
+    ) or _as_object(hb.get("paper_forward_canary_evidence_status"))
+
+    a_grade_predicates = _as_object(a_grade_status.get("predicate_counts"))
+    intent_rows = _first_int(
+        runtime_cost_status.get("paper_intent_rows"),
+        runtime_admission_status.get("intents_built"),
+        a_grade_status.get("prediction_rows"),
+    )
+    order_applicable_rows = _first_int(
+        runtime_cost_status.get("order_cost_applicable_rows"),
+        intent_rows,
+    )
+    production_grade_cost_rows = _first_int(
+        runtime_cost_status.get("production_grade_cost_rows"),
+        a_grade_status.get("production_grade_cost_rows"),
+        a_grade_predicates.get("production_grade_cost_rows"),
+    )
+    production_grade_cost_order_applicable_rows = _first_int(
+        runtime_cost_status.get("production_grade_cost_order_applicable_rows"),
+        min(production_grade_cost_rows, order_applicable_rows),
+    )
+    production_grade_cost_total_row_coverage = _optional_float(
+        runtime_cost_status.get("production_grade_cost_total_row_coverage")
+    )
+    if production_grade_cost_total_row_coverage is None:
+        production_grade_cost_total_row_coverage = (
+            production_grade_cost_rows / intent_rows if intent_rows else 0.0
+        )
+    production_grade_cost_coverage = _optional_float(
+        runtime_cost_status.get("production_grade_cost_coverage")
+    )
+    if production_grade_cost_coverage is None:
+        production_grade_cost_coverage = (
+            production_grade_cost_order_applicable_rows / order_applicable_rows
+            if order_applicable_rows
+            else 0.0
+        )
+
+    if a_grade_status:
+        a_grade_status = dict(a_grade_status)
+        a_grade_status.setdefault("source", "redis:v2:paper:a_grade_gate_burndown_status")
+        a_grade_status.setdefault("available", True)
+        a_grade_rows = _first_int(
+            a_grade_status.get("A_grade_rows"),
+            a_grade_status.get("a_grade_rows"),
+        )
+        near_a_grade_rows = _first_int(
+            a_grade_status.get("near_A_grade_rows"),
+            a_grade_status.get("near_a_grade_rows"),
+        )
+        a_grade_status["A_grade_rows"] = a_grade_rows
+        a_grade_status["a_grade_rows"] = a_grade_rows
+        a_grade_status["near_A_grade_rows"] = near_a_grade_rows
+        a_grade_status["near_a_grade_rows"] = near_a_grade_rows
+    else:
+        a_grade_status = {
+            "schema_version": "paper_a_grade_gate_burndown_status_v1",
+            "status": "A_GRADE_GATE_BURNDOWN_STATUS_UNAVAILABLE",
+            "source": "redis:v2:paper:a_grade_gate_burndown_status",
+            "available": False,
+            "A_grade_rows": 0,
+            "a_grade_rows": 0,
+            "near_A_grade_rows": 0,
+            "near_a_grade_rows": 0,
+        }
+
+    if forward_canary_status:
+        forward_canary_status = dict(forward_canary_status)
+        forward_canary_status.setdefault(
+            "source", "redis:v2:paper:forward_canary_evidence_status"
+        )
+        forward_canary_status.setdefault("available", True)
+    else:
+        forward_canary_status = {
+            "schema_version": "paper_forward_canary_evidence_status_v1",
+            "status": "FORWARD_CANARY_EVIDENCE_STATUS_UNAVAILABLE",
+            "source": "redis:v2:paper:forward_canary_evidence_status",
+            "available": False,
+            "counts_as_a_grade_evidence": False,
+            "valid_forward_canary_economic_outcomes": 0,
+            "post_cutover_valid_forward_canary_economic_outcomes": 0,
+        }
+
+    trajectory_rel = "v2_continuous_edge_guardian/latest/one_thousand_x_trajectory_status.json"
+    trajectory_status = _operator_runtime_json(trajectory_rel) or {}
+    if trajectory_status:
+        trajectory_status = dict(trajectory_status)
+        trajectory_status.setdefault("source", f"operator_runtime/{trajectory_rel}")
+        trajectory_status.setdefault("available", True)
+        trajectory_status.setdefault("guaranteed_profit_claim", False)
+        trajectory_status.setdefault("leverage_increase_allowed_because_behind", False)
+    else:
+        trajectory_status = {
+            "schema_version": "one_thousand_x_trajectory_status_v1",
+            "status": "ONE_THOUSAND_X_TRAJECTORY_STATUS_UNAVAILABLE",
+            "current_status": "INSUFFICIENT_EVIDENCE",
+            "source": f"operator_runtime/{trajectory_rel}",
+            "available": False,
+            "guaranteed_profit_claim": False,
+            "leverage_increase_allowed_because_behind": False,
+        }
+
+    return {
+        "production_grade_cost_rows": production_grade_cost_rows,
+        "production_grade_cost_order_applicable_rows": (
+            production_grade_cost_order_applicable_rows
+        ),
+        "production_grade_cost_coverage": production_grade_cost_coverage,
+        "production_grade_cost_total_row_coverage": (
+            production_grade_cost_total_row_coverage
+        ),
+        "production_grade_cost_coverage_basis": str(
+            runtime_cost_status.get("production_grade_cost_coverage_basis") or ""
+        ),
+        "unexplained_missing_cost_rows": _first_int(
+            runtime_cost_status.get("unexplained_missing_cost_rows")
+        ),
+        "routes_to_live_rows": _first_int(runtime_cost_status.get("routes_to_live_rows")),
+        "places_real_order_rows": _first_int(
+            runtime_cost_status.get("places_real_order_rows")
+        ),
+        "paper_runtime_cost_capture_status": _project_fields(
+            {
+                **runtime_cost_status,
+                "production_grade_cost_coverage": production_grade_cost_coverage,
+                "production_grade_cost_total_row_coverage": (
+                    production_grade_cost_total_row_coverage
+                ),
+            },
+            (
+                "schema_version",
+                "source",
+                "paper_intent_rows",
+                "order_cost_applicable_rows",
+                "production_grade_cost_rows",
+                "production_grade_cost_order_applicable_rows",
+                "production_grade_cost_coverage",
+                "production_grade_cost_coverage_basis",
+                "production_grade_cost_total_row_coverage",
+                "unexplained_missing_cost_rows",
+                "no_order_missing_cost_rows",
+                "paper_fill_allowed_rows",
+                "routes_to_live_rows",
+                "places_real_order_rows",
+                "paper_only",
+                "routes_to_live",
+                "places_real_order",
+            ),
+        ),
+        "paper_a_grade_gate_burndown_status": _project_fields(
+            a_grade_status,
+            (
+                "schema_version",
+                "source",
+                "available",
+                "generated_utc",
+                "status",
+                "A_grade_rows",
+                "a_grade_rows",
+                "near_A_grade_rows",
+                "near_a_grade_rows",
+                "closest_gap_reason",
+                "root_cause_counts",
+                "predicate_counts",
+                "dominant_current_runtime_reasons",
+                "source_rows",
+                "pass_conditions",
+                "guardian_status",
+                "guardian_new_entries_allowed",
+                "guardian_block_all_new_a_grade_entries",
+            ),
+        ),
+        "paper_forward_canary_evidence_status": _project_fields(
+            forward_canary_status,
+            (
+                "schema_version",
+                "source",
+                "available",
+                "generated_utc",
+                "status",
+                "valid_forward_canary_economic_outcomes",
+                "post_cutover_valid_forward_canary_economic_outcomes",
+                "required_forward_canary_economic_outcomes",
+                "valid_symbol_count",
+                "required_symbol_count",
+                "valid_side_counts",
+                "side_counts",
+                "forward_canary_shortfalls",
+                "failed_forward_canary_blocker_details",
+                "production_grade_cost_coverage",
+                "counts_as_a_grade_evidence",
+                "paper_only",
+                "routes_to_live",
+                "places_real_order",
+            ),
+        ),
+        "one_thousand_x_trajectory_runtime_status": _project_fields(
+            trajectory_status,
+            (
+                "schema_version",
+                "source",
+                "available",
+                "generated_utc",
+                "status",
+                "current_status",
+                "required_daily_geometric_return",
+                "required_monthly_geometric_return",
+                "actual_1d_return",
+                "actual_7d_return",
+                "actual_30d_return",
+                "drawdown_adjusted_growth_rate",
+                "lower_confidence_bound_growth_rate",
+                "days_ahead_or_behind_target",
+                "required_edge",
+                "required_capital",
+                "guaranteed_profit_claim",
+                "leverage_increase_allowed_because_behind",
+            ),
+        ),
+    }
 
 
 def _trainer_status_from_redis(r: Any) -> dict[str, Any]:
@@ -811,6 +1100,7 @@ async def get_mobile_paper_summary(
     outcome_labels = _safe_int(hb.get("outcome_label_count"))
     feedback_consumable = _safe_int(hb.get("trainer_feedback_consumable_row_count"))
     feedback_quarantined = _safe_int(hb.get("trainer_feedback_quarantined_row_count"))
+    runtime_truth = _mobile_runtime_truth_from_redis(r, hb)
 
     win_rate: float | None = None
     if closed_count > 0:
@@ -839,6 +1129,7 @@ async def get_mobile_paper_summary(
             "paper_only": bool(hb.get("paper_only", True)),
             "routes_to_live": bool(hb.get("routes_to_live", False)),
             "places_real_order": bool(hb.get("places_real_order", False)),
+            **runtime_truth,
         },
         "positions": {
             "open_count": open_count,

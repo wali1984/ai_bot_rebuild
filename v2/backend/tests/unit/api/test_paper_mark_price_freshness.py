@@ -361,6 +361,65 @@ class TestPriceSourceSelection:
                 "closed_trade_count": 3,
                 "realized_pnl_usd": 12.5,
                 "classification": "RUNNING",
+                "paper_policy_owner": "challenger_v2",
+                "model_source": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA",
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+            },
+            "v2:paper:trade_management:status": {
+                "paper_runtime_cost_capture_status": {
+                    "schema_version": "v2_paper_runtime_cost_capture_summary_v1",
+                    "source": "v2_trade_management_paper_loop:intents",
+                    "paper_intent_rows": 10,
+                    "order_cost_applicable_rows": 8,
+                    "production_grade_cost_rows": 10,
+                    "production_grade_cost_order_applicable_rows": 8,
+                    "production_grade_cost_coverage": 1.0,
+                    "production_grade_cost_coverage_basis": "order_applicable_rows",
+                    "production_grade_cost_total_row_coverage": 1.0,
+                    "unexplained_missing_cost_rows": 0,
+                    "routes_to_live_rows": 0,
+                    "places_real_order_rows": 0,
+                    "paper_only": True,
+                    "routes_to_live": False,
+                    "places_real_order": False,
+                },
+                "paper_runtime_admission_status": {"intents_built": 10},
+            },
+            "v2:paper:a_grade_gate_burndown_status": {
+                "schema_version": "paper_a_grade_gate_burndown_status_v1",
+                "status": "A_GRADE_GATE_ACTIVE_BLOCKED_SOURCE_OWNED",
+                "A_grade_rows": 0,
+                "near_A_grade_rows": 6,
+                "closest_gap_reason": "guardian_halted",
+                "root_cause_counts": {"guardian_halted": 10},
+                "predicate_counts": {"production_grade_cost_rows": 10},
+                "pass_conditions": {
+                    "A_grade_rows_gt_zero": False,
+                    "source_owned_zero_supply_root_cause_mapped": True,
+                    "ready_allowed": False,
+                },
+            },
+            "v2:paper:forward_canary_evidence_status": {
+                "schema_version": "paper_forward_canary_evidence_status_v1",
+                "status": "BLOCKED_FORWARD_CANARY_EVIDENCE_INCOMPLETE",
+                "valid_forward_canary_economic_outcomes": 46,
+                "post_cutover_valid_forward_canary_economic_outcomes": 46,
+                "required_forward_canary_economic_outcomes": 100,
+                "valid_symbol_count": 20,
+                "required_symbol_count": 20,
+                "valid_side_counts": {"long": 28, "short": 18},
+                "forward_canary_shortfalls": {
+                    "valid_forward_canary_economic_outcomes": 54,
+                    "valid_symbol_count": 0,
+                    "long_outcomes": 0,
+                    "short_outcomes": 0,
+                },
+                "counts_as_a_grade_evidence": False,
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
             },
             "v2:risk:active_profile": {"fields": {"max_leverage": 10}},
             "v2:paper:positions": [{
@@ -389,9 +448,31 @@ class TestPriceSourceSelection:
             },
         })
         monkeypatch.setattr(mobile, "get_redis", lambda: fake)
+        monkeypatch.setattr(
+            mobile,
+            "_operator_runtime_json",
+            lambda relative: {
+                "schema_version": "one_thousand_x_trajectory_status_v1",
+                "status": "INSUFFICIENT_EVIDENCE",
+                "current_status": "INSUFFICIENT_EVIDENCE",
+                "required_daily_geometric_return": 0.003792243814971563,
+                "required_monthly_geometric_return": 0.12201845430196334,
+                "actual_1d_return": 0.0,
+                "actual_7d_return": 0.0,
+                "actual_30d_return": 0.0,
+                "drawdown_adjusted_growth_rate": 0.0,
+                "lower_confidence_bound_growth_rate": 0.0,
+                "days_ahead_or_behind_target": -1814.4667829543546,
+                "required_edge": 0.00379224,
+                "required_capital": 10_000_000.0,
+                "guaranteed_profit_claim": False,
+                "leverage_increase_allowed_because_behind": False,
+            },
+        )
 
         payload = await mobile.get_mobile_paper_summary()
         preview = payload["positions"]["positions_preview"][0]
+        loop = payload["loop"]
 
         assert payload["positions"]["open_count"] == 1
         assert preview["entry_price"] == 60000.0
@@ -403,6 +484,44 @@ class TestPriceSourceSelection:
         assert payload["position_pricing"]["missing_mark_price_count"] == 0
         assert payload["position_pricing"]["unrealized_pnl_usd"] == pytest.approx(20.0)
         assert payload["pnl"]["unrealized_usd"] == pytest.approx(20.0)
+        assert loop["paper_policy_owner"] == "challenger_v2"
+        assert loop["model_source"] == "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA"
+        assert loop["paper_only"] is True
+        assert loop["routes_to_live"] is False
+        assert loop["places_real_order"] is False
+        assert loop["production_grade_cost_coverage"] == 1.0
+        assert loop["unexplained_missing_cost_rows"] == 0
+        assert loop["routes_to_live_rows"] == 0
+        assert loop["places_real_order_rows"] == 0
+        assert (
+            loop["paper_runtime_cost_capture_status"]["production_grade_cost_rows"]
+            == 10
+        )
+        assert (
+            loop["paper_forward_canary_evidence_status"]["status"]
+            == "BLOCKED_FORWARD_CANARY_EVIDENCE_INCOMPLETE"
+        )
+        assert (
+            loop["paper_forward_canary_evidence_status"][
+                "valid_forward_canary_economic_outcomes"
+            ]
+            == 46
+        )
+        assert loop["paper_a_grade_gate_burndown_status"]["A_grade_rows"] == 0
+        assert (
+            loop["paper_a_grade_gate_burndown_status"]["closest_gap_reason"]
+            == "guardian_halted"
+        )
+        assert (
+            loop["one_thousand_x_trajectory_runtime_status"]["current_status"]
+            == "INSUFFICIENT_EVIDENCE"
+        )
+        assert (
+            loop["one_thousand_x_trajectory_runtime_status"][
+                "guaranteed_profit_claim"
+            ]
+            is False
+        )
 
 
 # ---------------------------------------------------------------------------
