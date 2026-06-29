@@ -6635,6 +6635,54 @@ def _paper_adaptive_sizing_runtime_status(
         for row in published_rows
         if str(row.get("allocator_decision") or "").startswith("BLOCK_")
     )
+    a_grade_rows = [
+        row
+        for row in published_rows
+        if str(
+            _first_present(row.get("source_tier"), row.get("paper_opportunity_tier"))
+            or ""
+        ).strip().upper()
+        == PAPER_TIER_A_GRADE_EXECUTION
+    ]
+    allocator_pass_not_a_grade_rows = [
+        row
+        for row in published_rows
+        if row.get("allocator_decision") in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
+        and str(
+            _first_present(row.get("source_tier"), row.get("paper_opportunity_tier"))
+            or ""
+        ).strip().upper()
+        != PAPER_TIER_A_GRADE_EXECUTION
+    ]
+    guardian_status_counts = _count_values(published_rows, "guardian_status")
+    guardian_status = None
+    non_missing_guardian_statuses = [
+        status for status in guardian_status_counts if status != "missing"
+    ]
+    if len(non_missing_guardian_statuses) == 1:
+        guardian_status = non_missing_guardian_statuses[0]
+    guardian_allowed_values = {
+        row.get("guardian_new_entries_allowed")
+        for row in published_rows
+        if row.get("guardian_new_entries_allowed") is not None
+    }
+    guardian_new_entries_allowed = (
+        next(iter(guardian_allowed_values))
+        if len(guardian_allowed_values) == 1
+        else None
+    )
+    source_tier_counts = _count_values(published_rows, "source_tier")
+    source_tier_a_grade_execution_rows = source_tier_counts.get(
+        PAPER_TIER_A_GRADE_EXECUTION,
+        0,
+    )
+    runtime_status_api_blockers: list[str] = []
+    if not a_grade_rows:
+        runtime_status_api_blockers.append("A_GRADE_SUPPLY_ZERO")
+    if source_tier_a_grade_execution_rows <= 0:
+        runtime_status_api_blockers.append("SOURCE_TIER_A_GRADE_EXECUTION_ZERO")
+    if guardian_new_entries_allowed is False:
+        runtime_status_api_blockers.append("GUARDIAN_NEW_ENTRIES_DISABLED")
     return {
         "allocator": "V2_ADAPTIVE_AI_CAPITAL_ALLOCATOR",
         "fixed_runtime_notional_removed": True,
@@ -6649,7 +6697,21 @@ def _paper_adaptive_sizing_runtime_status(
         "candidate_allocations_future_labels_used_as_features": False,
         "allocator_decision_counts": _count_values(published_rows, "allocator_decision"),
         "accepted_allocation_count": accepted_count,
+        "allocator_pass_rows": accepted_count,
         "blocked_allocation_count": blocked_count,
+        "a_grade_rows": len(a_grade_rows),
+        "A_grade_rows": len(a_grade_rows),
+        "near_a_grade_rows": len(allocator_pass_not_a_grade_rows),
+        "near_A_grade_rows": len(allocator_pass_not_a_grade_rows),
+        "source_tier_counts": source_tier_counts,
+        "source_tier_a_grade_execution_rows": source_tier_a_grade_execution_rows,
+        "guardian_status": guardian_status,
+        "guardian_status_counts": guardian_status_counts,
+        "guardian_new_entries_allowed": guardian_new_entries_allowed,
+        "runtime_status_api_blockers": runtime_status_api_blockers,
+        "source_tier_or_guardian_blocked_allocator_pass_rows": len(
+            allocator_pass_not_a_grade_rows
+        ),
         "unclassified_allocation_publication_block_count": sum(
             1
             for row in published_rows

@@ -61,7 +61,22 @@ def test_paper_adaptive_sizing_runtime_status_exposes_full_candidate_allocations
             allocator_decision=(
                 "ALLOW_WITH_SIZE" if index % 2 == 0 else "BLOCK_LOW_CONFIDENCE"
             ),
-            paper_opportunity_tier="B_GRADE_EXPLORATION_PAPER",
+            paper_opportunity_tier=(
+                "B_GRADE_EXPLORATION_PAPER" if index % 2 == 0 else "NO_TRADE"
+            ),
+            source_tier=(
+                "B_GRADE_EXPLORATION_PAPER" if index % 2 == 0 else "NO_TRADE"
+            ),
+            policy_tier=(
+                "B_GRADE_EXPLORATION_PAPER" if index % 2 == 0 else "NO_TRADE"
+            ),
+            capital_class=(
+                "B_GRADE_EXPLORATION_FRACTIONAL_BUDGET"
+                if index % 2 == 0
+                else "NO_TRADE_ZERO_SIZE"
+            ),
+            guardian_status="A_GRADE_HALTED_PERFORMANCE",
+            guardian_new_entries_allowed=False,
         )
         for index in range(30)
     ]
@@ -87,10 +102,29 @@ def test_paper_adaptive_sizing_runtime_status_exposes_full_candidate_allocations
     assert len(status["sample_allocations"]) == 25
     assert status["sample_allocations"] == status["candidate_allocations"][:25]
     assert status["accepted_allocation_count"] == 15
+    assert status["allocator_pass_rows"] == 15
     assert status["blocked_allocation_count"] == 15
+    assert status["a_grade_rows"] == 0
+    assert status["A_grade_rows"] == 0
+    assert status["near_a_grade_rows"] == 15
+    assert status["near_A_grade_rows"] == 15
+    assert status["source_tier_counts"] == {
+        "B_GRADE_EXPLORATION_PAPER": 15,
+        "NO_TRADE": 15,
+    }
+    assert status["source_tier_a_grade_execution_rows"] == 0
+    assert status["guardian_status"] == "A_GRADE_HALTED_PERFORMANCE"
+    assert status["guardian_status_counts"] == {"A_GRADE_HALTED_PERFORMANCE": 30}
+    assert status["guardian_new_entries_allowed"] is False
+    assert status["source_tier_or_guardian_blocked_allocator_pass_rows"] == 15
+    assert status["runtime_status_api_blockers"] == [
+        "A_GRADE_SUPPLY_ZERO",
+        "SOURCE_TIER_A_GRADE_EXECUTION_ZERO",
+        "GUARDIAN_NEW_ENTRIES_DISABLED",
+    ]
     assert status["allocator_decision_counts"] == {
         "ALLOW_WITH_SIZE": 15,
-        "BLOCK_LOW_CONFIDENCE": 15,
+        "BLOCK_NON_EXECUTABLE_PAPER_TIER": 15,
     }
     assert status["paper_only"] is True
     assert status["places_real_order"] is False
