@@ -1101,11 +1101,24 @@ async def test_paper_runtime_status_exposes_mixed_case_a_grade_burndown(
             "candidate_rows": 7,
             "A_grade_rows": 0,
             "near_A_grade_rows": 2,
+            "closest_gap_reason": "BASE_A_GRADE_PREDICATES_PRESENT_BUT_SOURCE_TIER_OR_GUARDIAN_NOT_A_GRADE_READY",
             "source_tier_a_grade_execution_rows": 0,
             "predicate_counts": {
                 "allocator_pass_rows": 0,
                 "production_grade_cost_rows": 7,
                 "risk_pass_rows": 0,
+            },
+            "root_cause_counts": {
+                "allocator_failed": 7,
+                "guardian_halted": 7,
+                "production_grade_cost_missing": 0,
+            },
+            "dominant_current_runtime_reasons": {
+                "CONTINUOUS_EDGE_GUARDIAN_A_GRADE_HALTED": 7,
+            },
+            "source_rows": {
+                "intent_rows": 7,
+                "accepted_rows": 0,
             },
             "guardian_gate_status": {
                 "status": "A_GRADE_HALTED_PERFORMANCE",
@@ -1147,7 +1160,34 @@ async def test_paper_runtime_status_exposes_mixed_case_a_grade_burndown(
     assert burndown["guardian_failure_reason_count"] == 1
     assert burndown["sample_near_a_grade_rows_count"] == 1
     assert "sample_near_a_grade_rows" not in burndown
-    assert any(blocker["id"] == "A_GRADE_SUPPLY_ZERO" for blocker in payload["blockers"])
+    a_grade_blocker = next(
+        blocker
+        for blocker in payload["blockers"]
+        if blocker["id"] == "A_GRADE_SUPPLY_ZERO"
+    )
+    assert a_grade_blocker["status"] == "A_GRADE_GATE_STATUS_UNAVAILABLE"
+    assert a_grade_blocker["A_grade_rows"] == 0
+    assert a_grade_blocker["a_grade_rows"] == 0
+    assert a_grade_blocker["near_A_grade_rows"] == 2
+    assert a_grade_blocker["near_a_grade_rows"] == 2
+    assert a_grade_blocker["closest_gap_reason"] == (
+        "BASE_A_GRADE_PREDICATES_PRESENT_BUT_SOURCE_TIER_OR_GUARDIAN_NOT_A_GRADE_READY"
+    )
+    assert a_grade_blocker["predicate_counts"]["production_grade_cost_rows"] == 7
+    assert a_grade_blocker["root_cause_counts"]["guardian_halted"] == 7
+    assert a_grade_blocker["dominant_current_runtime_reasons"] == {
+        "CONTINUOUS_EDGE_GUARDIAN_A_GRADE_HALTED": 7,
+    }
+    assert a_grade_blocker["source_rows"] == {
+        "intent_rows": 7,
+        "accepted_rows": 0,
+    }
+    assert a_grade_blocker["guardian_status"] == "A_GRADE_HALTED_PERFORMANCE"
+    assert a_grade_blocker["guardian_new_entries_allowed"] is False
+    assert a_grade_blocker["guardian_block_all_new_a_grade_entries"] is True
+    assert a_grade_blocker["guardian_failure_reason_count"] == 1
+    assert a_grade_blocker["source_tier_a_grade_execution_rows"] == 0
+    assert a_grade_blocker["pass_conditions"]["A_grade_rows_gt_zero"] is False
     assert "v2:paper:intents" not in client.get_calls
 
 

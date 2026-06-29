@@ -9735,6 +9735,24 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                         "guardian_failure_reason_count",
                         len(failure_reasons) if isinstance(failure_reasons, list) else 0,
                     )
+                pass_conditions = a_grade_gate_status.get("pass_conditions")
+                if not isinstance(pass_conditions, dict):
+                    root_cause_counts = a_grade_gate_status.get("root_cause_counts")
+                    root_cause_counts = (
+                        root_cause_counts if isinstance(root_cause_counts, dict) else {}
+                    )
+                    a_grade_gate_status["pass_conditions"] = {
+                        "A_grade_rows_gt_zero": a_grade_rows > 0,
+                        "source_owned_zero_supply_root_cause_mapped": bool(
+                            a_grade_gate_status.get("closest_gap_reason")
+                            or root_cause_counts
+                        ),
+                        "a_grade_new_entries_allowed": (
+                            a_grade_gate_status.get("guardian_new_entries_allowed")
+                            is True
+                        ),
+                        "ready_allowed": False,
+                    }
             else:
                 a_grade_rows = 0
                 near_a_grade_rows = 0
@@ -10341,14 +10359,45 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                         "severity": "runtime_blocker",
                         "detail": "Paper A-grade burndown reports zero A-grade rows; guardian/source-tier status remains authoritative.",
                         "source": a_grade_gate_status.get("source") or f"redis:{a_grade_gate_key}",
+                        "status": a_grade_gate_status.get("status")
+                        or "A_GRADE_GATE_STATUS_UNAVAILABLE",
+                        "A_grade_rows": a_grade_rows,
+                        "a_grade_rows": a_grade_rows,
+                        "near_A_grade_rows": near_a_grade_rows,
                         "near_a_grade_rows": near_a_grade_rows,
+                        "closest_gap_reason": a_grade_gate_status.get(
+                            "closest_gap_reason"
+                        ),
+                        "predicate_counts": a_grade_gate_status.get(
+                            "predicate_counts"
+                        )
+                        or {},
+                        "root_cause_counts": a_grade_gate_status.get(
+                            "root_cause_counts"
+                        )
+                        or {},
+                        "dominant_current_runtime_reasons": a_grade_gate_status.get(
+                            "dominant_current_runtime_reasons"
+                        )
+                        or {},
+                        "source_rows": a_grade_gate_status.get("source_rows") or {},
                         "guardian_status": a_grade_gate_status.get("guardian_status"),
                         "guardian_new_entries_allowed": a_grade_gate_status.get(
                             "guardian_new_entries_allowed"
                         ),
+                        "guardian_block_all_new_a_grade_entries": (
+                            a_grade_gate_status.get(
+                                "guardian_block_all_new_a_grade_entries"
+                            )
+                        ),
+                        "guardian_failure_reason_count": a_grade_gate_status.get(
+                            "guardian_failure_reason_count"
+                        ),
                         "source_tier_a_grade_execution_rows": (
                             source_tier_a_grade_execution_rows
                         ),
+                        "pass_conditions": a_grade_gate_status.get("pass_conditions")
+                        or {},
                     }
                 )
 
