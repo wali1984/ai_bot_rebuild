@@ -281,6 +281,10 @@ class ContinuousEdgeGuardianPaths:
         return self.adaptive_dir / "out_of_sample_realtime_paper_reverify_rows.jsonl"
 
     @property
+    def one_thousand_x_feasibility_path(self) -> Path:
+        return self.adaptive_dir / "one_thousand_x_feasibility_status.json"
+
+    @property
     def paper_adaptive_sizing_path(self) -> Path:
         return self.paper_trade_management_dir / "paper_adaptive_sizing_runtime_status.json"
 
@@ -904,6 +908,17 @@ def max_drawdown(values: list[float]) -> float:
         peak = max(peak, equity)
         worst = min(worst, equity - peak)
     return abs(worst)
+
+
+def trajectory_window_returns(adaptive_feasibility: Mapping[str, Any]) -> dict[str, float]:
+    evidence = mapping_or_empty(adaptive_feasibility.get("observed_growth_evidence"))
+    returns: dict[str, float] = {}
+    for row in all_mapping_rows(evidence.get("window_evidence")):
+        window = str(row.get("window") or "").strip().lower()
+        observed = finite_float(row.get("observed_window_return"))
+        if window and observed is not None:
+            returns[window] = observed
+    return returns
 
 
 def quantile(values: list[float], q: float) -> float | None:
@@ -3477,11 +3492,79 @@ def build_trajectory_status(
     target_multiple: float = 1000.0,
     horizon_years: float = 5.0,
     dependency_ready: bool = False,
+    adaptive_feasibility_status: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    adaptive_feasibility = mapping_or_empty(adaptive_feasibility_status)
+    source_target_multiple = finite_float(
+        first_present(
+            adaptive_feasibility.get("target_multiple"),
+            adaptive_feasibility.get("required_growth_multiple"),
+        )
+    )
+    if source_target_multiple is not None:
+        target_multiple = source_target_multiple
+    source_horizon_years = finite_float(adaptive_feasibility.get("horizon_years"))
+    if source_horizon_years is not None and source_horizon_years > 0.0:
+        horizon_years = source_horizon_years
+
     days = horizon_years * 365.0
     months = horizon_years * 12.0
     required_daily = target_multiple ** (1.0 / days) - 1.0
     required_monthly = target_multiple ** (1.0 / months) - 1.0
+    window_returns = trajectory_window_returns(adaptive_feasibility)
+    required_edge = finite_float(
+        first_present(
+            adaptive_feasibility.get("required_daily_return"),
+            adaptive_feasibility.get("required_daily_geometric_return"),
+        )
+    )
+    if required_edge is None:
+        required_edge = required_daily
+    lower_confidence_bound_growth_rate = finite_float(
+        first_present(
+            adaptive_feasibility.get("lower_confidence_bound_growth_rate"),
+            mapping_or_empty(adaptive_feasibility.get("observed_growth_evidence")).get(
+                "lower_confidence_bound_growth_rate"
+            ),
+        )
+    )
+    drawdown_adjusted_growth_rate = finite_float(
+        first_present(
+            adaptive_feasibility.get("drawdown_adjusted_growth_rate"),
+            mapping_or_empty(adaptive_feasibility.get("observed_growth_evidence")).get(
+                "drawdown_adjusted_growth_rate"
+            ),
+        )
+    )
+    days_ahead_or_behind_target = finite_float(
+        first_present(
+            adaptive_feasibility.get("days_ahead_or_behind_target"),
+            mapping_or_empty(adaptive_feasibility.get("observed_growth_evidence")).get(
+                "days_ahead_or_behind_target"
+            ),
+        )
+    )
+    required_capital = finite_float(
+        first_present(
+            adaptive_feasibility.get("target_equity_usd"),
+            adaptive_feasibility.get("required_capital"),
+        )
+    )
+    missing_evidence_fields = [
+        field
+        for field, value in (
+            ("actual_1d_return", window_returns.get("1d")),
+            ("actual_7d_return", window_returns.get("7d")),
+            ("actual_30d_return", window_returns.get("30d")),
+            ("lower_confidence_bound_growth_rate", lower_confidence_bound_growth_rate),
+            ("drawdown_adjusted_growth_rate", drawdown_adjusted_growth_rate),
+            ("days_ahead_or_behind_target", days_ahead_or_behind_target),
+            ("required_capital", required_capital),
+            ("required_edge", required_edge),
+        )
+        if value is None
+    ]
+    status = "ON_1000X_TRAJECTORY" if dependency_ready else "INSUFFICIENT_EVIDENCE"
     return {
         "schema_version": SCHEMA_VERSION,
         "generated_utc": generated_utc,
@@ -3489,16 +3572,34 @@ def build_trajectory_status(
         "target_horizon_years": horizon_years,
         "required_daily_geometric_return": required_daily,
         "required_monthly_geometric_return": required_monthly,
-        "actual_1d_return": None,
-        "actual_7d_return": None,
-        "actual_30d_return": None,
-        "actual_90d_return": None,
-        "lower_confidence_bound_growth_rate": None,
-        "drawdown_adjusted_growth_rate": None,
-        "days_ahead_or_behind_target": None,
-        "required_capital": None,
-        "required_edge": None,
-        "status": "ON_1000X_TRAJECTORY" if dependency_ready else "INSUFFICIENT_EVIDENCE",
+        "actual_1d_return": window_returns.get("1d"),
+        "actual_7d_return": window_returns.get("7d"),
+        "actual_30d_return": window_returns.get("30d"),
+        "actual_90d_return": window_returns.get("90d"),
+        "lower_confidence_bound_growth_rate": lower_confidence_bound_growth_rate,
+        "drawdown_adjusted_growth_rate": drawdown_adjusted_growth_rate,
+        "days_ahead_or_behind_target": days_ahead_or_behind_target,
+        "required_capital": required_capital,
+        "required_edge": required_edge,
+        "required_edge_unit": "daily_geometric_return",
+        "current_status": status,
+        "status": status,
+        "trajectory_evidence_source": (
+            "operator_runtime/v2_adaptive_capital_productivity/latest/"
+            "one_thousand_x_feasibility_status.json"
+            if adaptive_feasibility
+            else None
+        ),
+        "source_status": adaptive_feasibility.get("status"),
+        "source_classification": adaptive_feasibility.get("classification"),
+        "source_observed_growth_classification": mapping_or_empty(
+            adaptive_feasibility.get("observed_growth_evidence")
+        ).get("observed_growth_classification"),
+        "observed_daily_log_return": finite_float(
+            adaptive_feasibility.get("observed_daily_log_return")
+        ),
+        "observed_cagr": finite_float(adaptive_feasibility.get("observed_cagr")),
+        "missing_trajectory_evidence_fields": missing_evidence_fields,
         "leverage_increase_allowed_because_behind": False,
         "guaranteed_profit_claim": False,
     }
@@ -3546,6 +3647,7 @@ def build_guardian_payloads(
     trainer_quality = read_json(paths.trainer_dir / "trainer_accuracy_calibration_runtime_status.json", {})
     trainer_feedback_payload = read_json(paths.trainer_feedback_outcomes_path, {})
     trainer_feedback_rows = all_mapping_rows(mapping_or_empty(trainer_feedback_payload).get("trainer_feedback_outcomes"))
+    one_thousand_x_feasibility = read_json(paths.one_thousand_x_feasibility_path, {})
     paper_sizing = read_json(paths.paper_adaptive_sizing_path, {})
     paper_b_grade_quality = read_json(paths.paper_b_grade_model_quality_path, {})
     if not isinstance(paper_b_grade_quality, Mapping) or not paper_b_grade_quality:
@@ -3588,7 +3690,11 @@ def build_guardian_payloads(
     all_failures = holdout_failures + realtime_failures
     guardian_status = guardian_status_from_failures(realtime_metrics, realtime_failures)
     edge_ready = not holdout_failures and not realtime_failures
-    trajectory = build_trajectory_status(generated_utc=generated_utc, dependency_ready=edge_ready)
+    trajectory = build_trajectory_status(
+        generated_utc=generated_utc,
+        dependency_ready=edge_ready,
+        adaptive_feasibility_status=mapping_or_empty(one_thousand_x_feasibility),
+    )
     capital_allocation = build_capital_allocation_snapshot(
         paper_sizing=paper_sizing,
         edge_ready=edge_ready,
@@ -3905,6 +4011,7 @@ def build_guardian_payloads(
                 "window_candidate_audit": str(paths.holdout_window_candidate_audit_path),
             },
             "realtime_rows_source": str(paths.realtime_rows_path),
+            "one_thousand_x_feasibility_source": str(paths.one_thousand_x_feasibility_path),
             "realtime_acquisition_sources": {
                 "existing_reverify_rows": str(paths.realtime_rows_path),
                 "paper_candidate_snapshots": [

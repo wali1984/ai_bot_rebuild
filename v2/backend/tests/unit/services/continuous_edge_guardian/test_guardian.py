@@ -1459,6 +1459,69 @@ def test_no_trade_and_hedge_legs_not_counted_as_wins() -> None:
     assert metrics["after_cost_expectancy_bps"] == 40.0
 
 
+def test_trajectory_status_consumes_adaptive_feasibility_without_ready_claim(tmp_path: Path) -> None:
+    paths = ContinuousEdgeGuardianPaths(repo_root=tmp_path)
+    paths.adaptive_dir.mkdir(parents=True, exist_ok=True)
+    paths.one_thousand_x_feasibility_path.write_text(
+        json.dumps(
+            {
+                "status": "NO_GO_1000X_FEASIBILITY_REQUIRES_OUT_OF_SAMPLE_LIVE_GRADE_REVERIFY",
+                "classification": "UNSUPPORTED_DEPENDENCY_GATES_NOT_PASSED",
+                "target_multiple": 1000.0,
+                "horizon_years": 5.0,
+                "target_equity_usd": 10_000_000.0,
+                "required_daily_return": 0.00379224,
+                "observed_daily_log_return": 0.0,
+                "observed_cagr": 0.0,
+                "observed_growth_evidence": {
+                    "observed_growth_classification": "OBSERVED_GROWTH_BELOW_REQUIRED",
+                    "window_evidence": [
+                        {"window": "1d", "observed_window_return": 0.001},
+                        {"window": "7d", "observed_window_return": 0.002},
+                        {"window": "30d", "observed_window_return": -0.003},
+                    ],
+                },
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+
+    payloads = build_guardian_payloads(
+        paths=paths,
+        holdout_rows=[],
+        realtime_rows=[],
+        generated_utc="2026-06-22T16:00:00Z",
+    )
+
+    trajectory = payloads["one_thousand_x_trajectory_status.json"]
+    assert trajectory["status"] == "INSUFFICIENT_EVIDENCE"
+    assert trajectory["current_status"] == "INSUFFICIENT_EVIDENCE"
+    assert trajectory["actual_1d_return"] == 0.001
+    assert trajectory["actual_7d_return"] == 0.002
+    assert trajectory["actual_30d_return"] == -0.003
+    assert trajectory["required_capital"] == 10_000_000.0
+    assert trajectory["required_edge"] == 0.00379224
+    assert trajectory["required_edge_unit"] == "daily_geometric_return"
+    assert trajectory["source_status"] == (
+        "NO_GO_1000X_FEASIBILITY_REQUIRES_OUT_OF_SAMPLE_LIVE_GRADE_REVERIFY"
+    )
+    assert trajectory["source_classification"] == "UNSUPPORTED_DEPENDENCY_GATES_NOT_PASSED"
+    assert trajectory["source_observed_growth_classification"] == "OBSERVED_GROWTH_BELOW_REQUIRED"
+    assert "actual_1d_return" not in trajectory["missing_trajectory_evidence_fields"]
+    assert "lower_confidence_bound_growth_rate" in trajectory["missing_trajectory_evidence_fields"]
+    assert trajectory["guaranteed_profit_claim"] is False
+    assert trajectory["leverage_increase_allowed_because_behind"] is False
+    assert (
+        payloads["continuous_edge_guardian_status.json"]["trajectory_status"]["actual_30d_return"]
+        == -0.003
+    )
+    assert (
+        payloads["EVIDENCE_MANIFEST.json"]["one_thousand_x_feasibility_source"]
+        == str(paths.one_thousand_x_feasibility_path)
+    )
+
+
 def test_antigaming_flags_future_leakage_fallback_costs_post_outcome_selection(tmp_path: Path) -> None:
     row = _row(
         1,
