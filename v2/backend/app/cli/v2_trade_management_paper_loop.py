@@ -244,6 +244,7 @@ RUNTIME_COST_CAPTURE_CONTRACT_FIELDS = (
     "fee_schedule",
     "fee_bps",
     "fee_bps_source",
+    "fee_bps_readonly_schedule",
     "fee_bps_configured_schedule",
     "funding_rate",
     "funding_interval_seconds",
@@ -334,6 +335,45 @@ PAPER_ONLY_LABEL_COLLECTION_PRIORITY_FIELDS = (
     "paper_only_label_collection_priority_sample_count_deficit_to_minimum",
     "paper_only_label_collection_priority_closed_economic_outcome_count",
     "paper_only_label_collection_priority_source_generated_utc",
+)
+PAPER_STANDALONE_1M_ELIGIBILITY_FIELDS = (
+    "paper_standalone_1m_eligibility",
+    "paper_standalone_1m_eligibility_blocked",
+    "paper_standalone_1m_eligibility_blockers",
+)
+LONG_SHORT_RATIO_CONTEXT_FIELDS = (
+    "long_short_ratio",
+    "long_account_ratio",
+    "short_account_ratio",
+    "long_short_period",
+    "long_short_source",
+    "long_short_event_time",
+    "long_short_available_at",
+    "long_short_captured_at",
+    "long_short_decision_time",
+    "long_short_ratio_status",
+    "long_short_ratio_decision_effect",
+    "rejected_long_short_period",
+    "rejected_long_short_source",
+    "rejected_long_short_event_time",
+    "rejected_long_short_available_at",
+    "rejected_long_short_captured_at",
+    "rejected_long_short_decision_time",
+)
+PAPER_SOURCE_TIER_GUARDIAN_CONTEXT_FIELDS = (
+    "source_tier",
+    "policy_tier",
+    "capital_class",
+    "pre_guardian_source_tier",
+    "pre_guardian_policy_tier",
+    "guardian_status",
+    "guardian_new_entries_allowed",
+    "guardian_block_reasons",
+    "guardian_allowed_runtime_actions",
+    "continuous_edge_guardian_status",
+    "continuous_edge_guardian_new_entries_allowed",
+    "continuous_edge_guardian_block_reasons",
+    "continuous_edge_guardian_allowed_runtime_actions",
 )
 B_GRADE_EXPLORATION_SCALABLE_ALLOCATION_FIELDS = (
     "target_notional_usdt",
@@ -639,6 +679,9 @@ _FEEDBACK_ENTRY_CONTEXT_FIELDS: tuple[str, ...] = (
     "paper_only_label_collection_priority_sample_count_deficit_to_minimum",
     "paper_only_label_collection_priority_closed_economic_outcome_count",
     "paper_only_label_collection_priority_source_generated_utc",
+    *PAPER_STANDALONE_1M_ELIGIBILITY_FIELDS,
+    *LONG_SHORT_RATIO_CONTEXT_FIELDS,
+    *PAPER_SOURCE_TIER_GUARDIAN_CONTEXT_FIELDS,
     "selector_policy_fingerprint",
     "frozen_selector_fingerprint",
     "candidate_selected_before_outcome",
@@ -2452,6 +2495,7 @@ def _attach_runtime_cost_capture_contract(
             "fee_bps": fee_bps,
             "source": fee_source,
             "maker_taker_assumption": intent.get("maker_taker_assumption"),
+            "readonly_schedule": bool(intent.get("fee_bps_readonly_schedule")),
             "configured_schedule": bool(intent.get("fee_bps_configured_schedule")),
         }
 
@@ -2799,6 +2843,9 @@ PERSISTENT_ACCEPTED_FILL_METADATA_FIELDS = (
     "paper_only_label_collection_priority_sample_count_deficit_to_minimum",
     "paper_only_label_collection_priority_closed_economic_outcome_count",
     "paper_only_label_collection_priority_source_generated_utc",
+    *PAPER_STANDALONE_1M_ELIGIBILITY_FIELDS,
+    *LONG_SHORT_RATIO_CONTEXT_FIELDS,
+    *PAPER_SOURCE_TIER_GUARDIAN_CONTEXT_FIELDS,
     "pre_non_executable_paper_tier",
     "pre_non_executable_paper_tier_reason",
     "non_executable_paper_tier_block_reason",
@@ -2987,6 +3034,7 @@ CANDIDATE_ALLOCATION_PUBLICATION_INTENT_FIELDS = tuple(
             "fee_bps",
             "fee_bps_source",
             "fee_bps_fallback",
+            "fee_bps_readonly_schedule",
             "fee_bps_configured_schedule",
             "fee_bps_unavailable_reason",
             "expected_funding_bps",
@@ -3087,6 +3135,7 @@ COMPACT_ACCEPTED_FILL_FIELDS = tuple(
             "expected_slippage_source",
             "fee_bps",
             "fee_bps_source",
+            "fee_bps_readonly_schedule",
             "fee_bps_configured_schedule",
             "bid_depth_usd",
             "ask_depth_usd",
@@ -3280,6 +3329,7 @@ COMPACT_ACCEPTED_FILL_ALLOCATION_FIELDS = tuple(
             "take_profit_reference",
             "capital_allocation_reason",
             "paper_opportunity_tier",
+            *PAPER_SOURCE_TIER_GUARDIAN_CONTEXT_FIELDS,
             "risk_budget_fraction_of_normal_adaptive",
             "observed_spread_bps",
             "entry_spread_bps",
@@ -4579,6 +4629,7 @@ def _apply_paper_standalone_1m_gate(intent: dict[str, Any], gate: dict[str, Any]
     blockers = [str(reason) for reason in gate.get("blockers") or [] if reason]
     intent["paper_fill_allowed"] = False
     intent["paper_standalone_1m_eligibility_blocked"] = True
+    intent["paper_standalone_1m_eligibility_blockers"] = blockers
     intent["paper_fill_block_reason"] = intent.get("paper_fill_block_reason") or PAPER_STANDALONE_1M_GATE_BLOCK_REASON
     intent["paper_fill_gate_block_reasons"] = sorted(set(
         list(intent.get("paper_fill_gate_block_reasons") or []) + blockers
@@ -6697,6 +6748,25 @@ def _read_continuous_edge_guardian_gate(r) -> dict[str, Any]:
     return decoded if isinstance(decoded, dict) else {}
 
 
+def _continuous_edge_guardian_gate_context(gate: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(gate, dict) or not gate:
+        return {}
+    context: dict[str, Any] = {}
+    if gate.get("status") not in (None, ""):
+        context["continuous_edge_guardian_status"] = gate.get("status")
+    if gate.get("a_grade_new_entries_allowed") is not None:
+        context["continuous_edge_guardian_new_entries_allowed"] = gate.get(
+            "a_grade_new_entries_allowed"
+        )
+    if gate.get("failure_reasons") not in (None, ""):
+        context["continuous_edge_guardian_block_reasons"] = gate.get("failure_reasons")
+    if gate.get("allowed_runtime_actions") not in (None, ""):
+        context["continuous_edge_guardian_allowed_runtime_actions"] = gate.get(
+            "allowed_runtime_actions"
+        )
+    return context
+
+
 def _apply_continuous_edge_guardian_gate(
     classification: dict[str, Any],
     gate: dict[str, Any] | None,
@@ -6721,11 +6791,65 @@ def _apply_continuous_edge_guardian_gate(
     blocked["paper_opportunity_tier_reason"] = "CONTINUOUS_EDGE_GUARDIAN_A_GRADE_HALTED"
     blocked["paper_fill_allowed_source"] = "CONTINUOUS_EDGE_GUARDIAN_BLOCKED_NEW_A_GRADE_ENTRIES"
     blocked["continuous_edge_guardian_status"] = gate.get("status")
+    blocked["continuous_edge_guardian_new_entries_allowed"] = gate.get(
+        "a_grade_new_entries_allowed"
+    )
     blocked["continuous_edge_guardian_block_reasons"] = gate.get("failure_reasons") or []
-    blocked["continuous_edge_guardian_allowed_runtime_actions"] = gate.get("allowed_runtime_actions") or ["reduce", "close"]
+    blocked["continuous_edge_guardian_allowed_runtime_actions"] = (
+        gate.get("allowed_runtime_actions") or ["reduce", "close"]
+    )
     blocked["paper_only"] = True
     blocked["places_real_order"] = False
     return blocked
+
+
+def _paper_capital_class_for_tier(tier: Any) -> str | None:
+    normalized = str(tier or "").strip().upper()
+    if normalized == PAPER_TIER_A_GRADE_EXECUTION:
+        return "A_GRADE_EXECUTION_FULL_BUDGET"
+    if normalized == PAPER_TIER_B_GRADE_EXPLORATION:
+        return "B_GRADE_EXPLORATION_FRACTIONAL_BUDGET"
+    if normalized == PAPER_TIER_SHADOW_ONLY:
+        return "SHADOW_ONLY_ZERO_SIZE"
+    if normalized == PAPER_TIER_NO_TRADE:
+        return "NO_TRADE_ZERO_SIZE"
+    return None
+
+
+def _paper_source_tier_guardian_context(classification: dict[str, Any]) -> dict[str, Any]:
+    tier = str(classification.get("paper_opportunity_tier") or "").strip().upper()
+    context: dict[str, Any] = {}
+    if tier in PAPER_OPPORTUNITY_TIERS:
+        context["source_tier"] = tier
+        context["policy_tier"] = tier
+        capital_class = _paper_capital_class_for_tier(tier)
+        if capital_class is not None:
+            context["capital_class"] = capital_class
+
+    pre_guardian_tier = str(
+        classification.get("pre_guardian_paper_opportunity_tier") or ""
+    ).strip().upper()
+    if pre_guardian_tier in PAPER_OPPORTUNITY_TIERS:
+        context["pre_guardian_source_tier"] = pre_guardian_tier
+        context["pre_guardian_policy_tier"] = pre_guardian_tier
+
+    guardian_status = classification.get("continuous_edge_guardian_status")
+    if guardian_status not in (None, ""):
+        context["guardian_status"] = guardian_status
+    guardian_new_entries_allowed = classification.get(
+        "continuous_edge_guardian_new_entries_allowed"
+    )
+    if guardian_new_entries_allowed is not None:
+        context["guardian_new_entries_allowed"] = guardian_new_entries_allowed
+    guardian_block_reasons = classification.get("continuous_edge_guardian_block_reasons")
+    if guardian_block_reasons not in (None, ""):
+        context["guardian_block_reasons"] = guardian_block_reasons
+    guardian_allowed_actions = classification.get(
+        "continuous_edge_guardian_allowed_runtime_actions"
+    )
+    if guardian_allowed_actions not in (None, ""):
+        context["guardian_allowed_runtime_actions"] = guardian_allowed_actions
+    return context
 
 
 def _count_paper_opportunity_tiers(rows: list[dict[str, Any]]) -> dict[str, int]:
@@ -7067,6 +7191,7 @@ def _classify_paper_opportunity_tier(
         "places_real_order": False,
         "strict_paper_fill_allowed_upstream": bool(paper_fill_allowed_upstream),
         "explicit_paper_opportunity_tier": explicit_tier,
+        **_continuous_edge_guardian_gate_context(continuous_edge_guardian_gate),
     }
     b_grade_learning_contract = {
         "counts_as_a_grade_evidence": False,
@@ -7191,6 +7316,10 @@ def _apply_paper_tier_classification(
     allocation: dict[str, Any],
     classification: dict[str, Any],
 ) -> None:
+    classification = {
+        **classification,
+        **_paper_source_tier_guardian_context(classification),
+    }
     for field in (
         "paper_opportunity_tier",
         "paper_opportunity_tier_reason",
@@ -7221,6 +7350,7 @@ def _apply_paper_tier_classification(
         "expected_move_side",
         "lifecycle_or_no_trade_strategy_reasons",
         "no_trade_strategy_reasons",
+        *PAPER_SOURCE_TIER_GUARDIAN_CONTEXT_FIELDS,
         "continuous_edge_guardian_status",
         "continuous_edge_guardian_block_reasons",
         "continuous_edge_guardian_allowed_runtime_actions",
@@ -7251,6 +7381,7 @@ def _apply_paper_tier_classification(
         "b_grade_exploration_floor_context",
         "b_grade_exploration_confidence_floor_pass",
         "b_grade_exploration_budget_formula",
+        *PAPER_SOURCE_TIER_GUARDIAN_CONTEXT_FIELDS,
     ):
         if field in classification:
             model_inputs[field] = classification[field]

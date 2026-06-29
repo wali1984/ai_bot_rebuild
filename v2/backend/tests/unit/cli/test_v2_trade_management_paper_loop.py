@@ -392,9 +392,43 @@ def test_current_cycle_candidate_allocations_publish_intent_runtime_evidence() -
         "runtime_cost_capture_missing_fields": ["observed_bid"],
         "runtime_cost_capture_explained_missing_fields": ["observed_bid"],
         "runtime_cost_capture_unexplained_missing_fields": [],
+        "paper_standalone_1m_eligibility": {
+            "status": "BLOCKED_PAPER_STANDALONE_1M_ELIGIBILITY",
+            "standalone_1m_adaptive_policy": (
+                "FAIL_CLOSED_REQUIRES_DEDICATED_OR_PRIORITY_BUCKET_EVIDENCE"
+            ),
+            "counts_as_a_grade_evidence": False,
+            "a_grade_promotion_allowed": False,
+            "routes_to_live": False,
+            "places_real_order": False,
+        },
+        "paper_standalone_1m_eligibility_blocked": True,
+        "paper_standalone_1m_eligibility_blockers": [
+            paper_loop.PAPER_STANDALONE_1M_BLOCK_REASON
+        ],
         "fee_bps": 4.0,
         "fee_bps_source": "exchange_fee_schedule",
         "fee_bps_fallback": False,
+        "fee_bps_readonly_schedule": False,
+        "long_short_ratio_status": "REJECTED_LONG_SHORT_AVAILABLE_AFTER_DECISION",
+        "long_short_ratio_decision_effect": "REJECTED_PIT_TELEMETRY_ONLY_NO_ADMISSION_CHANGE",
+        "rejected_long_short_period": "5m",
+        "rejected_long_short_source": (
+            "binance_global_long_short_account_ratio:v2:market:long_short:BTCUSDT"
+        ),
+        "rejected_long_short_event_time": "2026-06-22T13:00:00Z",
+        "rejected_long_short_available_at": "2026-06-22T13:00:21Z",
+        "rejected_long_short_captured_at": "2026-06-22T13:00:30Z",
+        "rejected_long_short_decision_time": "2026-06-22T13:00:20Z",
+        "source_tier": "B_GRADE_EXPLORATION_PAPER",
+        "policy_tier": "B_GRADE_EXPLORATION_PAPER",
+        "capital_class": "B_GRADE_EXPLORATION_FRACTIONAL_BUDGET",
+        "guardian_status": "A_GRADE_HALTED_PERFORMANCE",
+        "guardian_new_entries_allowed": False,
+        "guardian_block_reasons": [{"reason": "ROLLING_100_WIN_RATE_BELOW_90P"}],
+        "guardian_allowed_runtime_actions": ["reduce", "close"],
+        "continuous_edge_guardian_status": "A_GRADE_HALTED_PERFORMANCE",
+        "continuous_edge_guardian_new_entries_allowed": False,
         "expected_funding_bps": 1.25,
         "expected_funding_bps_source": "funding_snapshot",
         "expected_funding_bps_fallback": False,
@@ -427,8 +461,41 @@ def test_current_cycle_candidate_allocations_publish_intent_runtime_evidence() -
     assert rows[0]["runtime_cost_capture_missing_fields"] == ["observed_bid"]
     assert rows[0]["runtime_cost_capture_explained_missing_fields"] == ["observed_bid"]
     assert rows[0]["runtime_cost_capture_unexplained_missing_fields"] == []
+    assert rows[0]["paper_standalone_1m_eligibility"]["status"] == (
+        "BLOCKED_PAPER_STANDALONE_1M_ELIGIBILITY"
+    )
+    assert rows[0]["paper_standalone_1m_eligibility"]["standalone_1m_adaptive_policy"] == (
+        "FAIL_CLOSED_REQUIRES_DEDICATED_OR_PRIORITY_BUCKET_EVIDENCE"
+    )
+    assert rows[0]["paper_standalone_1m_eligibility_blocked"] is True
+    assert rows[0]["paper_standalone_1m_eligibility_blockers"] == [
+        paper_loop.PAPER_STANDALONE_1M_BLOCK_REASON
+    ]
     assert rows[0]["fee_bps"] == 4.0
     assert rows[0]["fee_bps_source"] == "exchange_fee_schedule"
+    assert rows[0]["fee_bps_readonly_schedule"] is False
+    assert rows[0]["long_short_ratio_status"] == "REJECTED_LONG_SHORT_AVAILABLE_AFTER_DECISION"
+    assert rows[0]["long_short_ratio_decision_effect"] == (
+        "REJECTED_PIT_TELEMETRY_ONLY_NO_ADMISSION_CHANGE"
+    )
+    assert rows[0]["rejected_long_short_source"] == (
+        "binance_global_long_short_account_ratio:v2:market:long_short:BTCUSDT"
+    )
+    assert rows[0]["rejected_long_short_event_time"] == "2026-06-22T13:00:00Z"
+    assert rows[0]["rejected_long_short_available_at"] == "2026-06-22T13:00:21Z"
+    assert rows[0]["rejected_long_short_captured_at"] == "2026-06-22T13:00:30Z"
+    assert rows[0]["rejected_long_short_decision_time"] == "2026-06-22T13:00:20Z"
+    assert rows[0]["source_tier"] == "B_GRADE_EXPLORATION_PAPER"
+    assert rows[0]["policy_tier"] == "B_GRADE_EXPLORATION_PAPER"
+    assert rows[0]["capital_class"] == "B_GRADE_EXPLORATION_FRACTIONAL_BUDGET"
+    assert rows[0]["guardian_status"] == "A_GRADE_HALTED_PERFORMANCE"
+    assert rows[0]["guardian_new_entries_allowed"] is False
+    assert rows[0]["guardian_block_reasons"] == [
+        {"reason": "ROLLING_100_WIN_RATE_BELOW_90P"}
+    ]
+    assert rows[0]["guardian_allowed_runtime_actions"] == ["reduce", "close"]
+    assert rows[0]["continuous_edge_guardian_status"] == "A_GRADE_HALTED_PERFORMANCE"
+    assert rows[0]["continuous_edge_guardian_new_entries_allowed"] is False
     assert rows[0]["expected_funding_bps_source"] == "funding_snapshot"
     assert rows[0]["latency_ms"] == 125.0
     assert rows[0]["quantity"] == 1.0
@@ -482,6 +549,7 @@ def test_build_allocation_input_uses_configured_paper_fee_schedule_when_missing(
     assert intent["fee_bps_source"] == paper_loop.PAPER_CONFIGURED_FEE_SCHEDULE_SOURCE  # noqa: SLF001
     assert intent["fee_bps_fallback"] is False
     assert intent["fee_bps_for_allocator"] == configured
+    assert intent["fee_bps_readonly_schedule"] is False
     assert intent["fee_bps_configured_schedule"] is True
     assert intent["fee_bps_unavailable_reason"] is None
     assert intent["market_cost_evidence_status"] == "COMPLETE_EXPLICIT_MARKET_COST_EVIDENCE"
@@ -652,6 +720,9 @@ def test_standalone_1m_without_dedicated_bucket_is_shadow_blocked() -> None:
     assert gate["blockers"] == [paper_loop.PAPER_STANDALONE_1M_BLOCK_REASON]
     assert intent["paper_fill_allowed"] is False
     assert intent["paper_standalone_1m_eligibility_blocked"] is True
+    assert intent["paper_standalone_1m_eligibility_blockers"] == [
+        paper_loop.PAPER_STANDALONE_1M_BLOCK_REASON
+    ]
     assert intent["paper_fill_block_reason"] == paper_loop.PAPER_STANDALONE_1M_GATE_BLOCK_REASON
     assert paper_loop.PAPER_STANDALONE_1M_BLOCK_REASON in intent["paper_fill_gate_block_reasons"]
     assert f"standalone_1m_eligibility:{paper_loop.PAPER_STANDALONE_1M_BLOCK_REASON}" in intent[
@@ -1685,6 +1756,9 @@ def test_attach_long_short_ratio_context_rejects_future_available_at() -> None:
     assert "long_short_ratio" not in intent
     assert "long_short_available_at" not in intent
     assert intent["rejected_long_short_period"] == "5m"
+    assert intent["rejected_long_short_source"] == (
+        "binance_global_long_short_account_ratio:v2:market:long_short:BANKUSDT"
+    )
     assert intent["rejected_long_short_event_time"] == "2026-06-22T13:00:00Z"
     assert intent["rejected_long_short_available_at"] == "2026-06-22T13:00:21Z"
     assert intent["rejected_long_short_captured_at"] == "2026-06-22T13:00:30Z"
@@ -1927,6 +2001,7 @@ def test_runtime_cost_capture_contract_marks_complete_production_grade_cost() ->
         "expected_slippage_source": "MODELED_FROM_OBSERVED_ORDERBOOK",
         "fee_bps": 4.0,
         "fee_bps_source": "CONFIGURED_PAPER_FEE_SCHEDULE",
+        "fee_bps_readonly_schedule": False,
         "fee_bps_configured_schedule": True,
         "expected_funding_bps": 0.5,
         "expected_funding_bps_source": "V2_MARKET_FUNDING_PREMIUM_INDEX",
@@ -1990,6 +2065,7 @@ def test_runtime_cost_capture_contract_marks_complete_production_grade_cost() ->
     assert intent["depth_derived_price_impact_bps"] == 0.0
     assert intent["maker_taker_assumption"] == "taker"
     assert intent["fee_schedule"]["fee_bps"] == 4.0
+    assert intent["fee_schedule"]["readonly_schedule"] is False
     assert intent["holding_period_funding_bps"] == 0.5
     assert intent["latency_reserve_bps"] == 0.0
     assert intent["partial_fill_estimate"]["expected_fill_probability"] == 1.0
@@ -3672,6 +3748,7 @@ def test_short_signed_edge_can_be_a_grade_when_strict_gate_allowed() -> None:
 
 
 def test_continuous_edge_guardian_halt_downgrades_new_a_grade_to_shadow_only() -> None:
+    allocation = _allowed_allocation(expected_move_after_cost_bps=12.0)
     classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
         signal={
             "selected_action": "long",
@@ -3683,7 +3760,7 @@ def test_continuous_edge_guardian_halt_downgrades_new_a_grade_to_shadow_only() -
             "confidence_calibrated": 0.80,
             "expected_move_after_cost_bps": 12.0,
         },
-        allocation=_allowed_allocation(expected_move_after_cost_bps=12.0),
+        allocation=allocation,
         integrity_gate={"allowed": True},
         local_trade_gates_pass=True,
         paper_fill_allowed_upstream=True,
@@ -3710,6 +3787,28 @@ def test_continuous_edge_guardian_halt_downgrades_new_a_grade_to_shadow_only() -
     assert classification["continuous_edge_guardian_status"] == "A_GRADE_HALTED_PERFORMANCE"
     assert classification["paper_only"] is True
     assert classification["places_real_order"] is False
+
+    intent: dict[str, object] = {}
+    paper_loop._apply_paper_tier_classification(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        classification=classification,
+    )
+
+    assert intent["source_tier"] == "SHADOW_ONLY"
+    assert intent["policy_tier"] == "SHADOW_ONLY"
+    assert intent["capital_class"] == "SHADOW_ONLY_ZERO_SIZE"
+    assert intent["pre_guardian_source_tier"] == "A_GRADE_EXECUTION_PAPER"
+    assert intent["pre_guardian_policy_tier"] == "A_GRADE_EXECUTION_PAPER"
+    assert intent["guardian_status"] == "A_GRADE_HALTED_PERFORMANCE"
+    assert intent["guardian_new_entries_allowed"] is False
+    assert intent["guardian_block_reasons"] == [
+        {"reason": "ROLLING_100_WIN_RATE_BELOW_90P"}
+    ]
+    assert intent["guardian_allowed_runtime_actions"] == ["reduce", "close"]
+    assert allocation["source_tier"] == "SHADOW_ONLY"
+    assert allocation["model_inputs"]["source_tier"] == "SHADOW_ONLY"
+    assert allocation["model_inputs"]["capital_class"] == "SHADOW_ONLY_ZERO_SIZE"
 
 
 def test_dynamic_positive_edge_below_a_grade_becomes_b_grade_when_exploration_gates_pass() -> None:
@@ -3867,6 +3966,15 @@ def test_priority_bucket_candidate_becomes_paper_only_b_grade_label_collection()
     assert allocation["model_inputs"]["paper_only_label_collection_priority"] is True
     assert allocation["model_inputs"]["a_grade_promotion_allowed"] is False
     assert allocation["model_inputs"]["live_ready_implication"] is False
+    assert intent["source_tier"] == "B_GRADE_EXPLORATION_PAPER"
+    assert intent["policy_tier"] == "B_GRADE_EXPLORATION_PAPER"
+    assert intent["capital_class"] == "B_GRADE_EXPLORATION_FRACTIONAL_BUDGET"
+    assert allocation["source_tier"] == "B_GRADE_EXPLORATION_PAPER"
+    assert allocation["capital_class"] == "B_GRADE_EXPLORATION_FRACTIONAL_BUDGET"
+    assert allocation["model_inputs"]["source_tier"] == "B_GRADE_EXPLORATION_PAPER"
+    assert allocation["model_inputs"]["capital_class"] == (
+        "B_GRADE_EXPLORATION_FRACTIONAL_BUDGET"
+    )
 
 
 def test_size_adjusted_trend_entry_is_not_lifecycle_no_trade() -> None:
