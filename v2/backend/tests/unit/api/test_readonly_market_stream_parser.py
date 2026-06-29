@@ -905,7 +905,23 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
     assert payload["current_signal_lineage"]["lineage_ids"]["prediction_id"] == "pred-test"
     assert payload["current_signal_lineage"]["lineage_ids"]["signal_id"] == "sig-test"
     assert any(blocker["id"] == "B_GRADE_CANARY_SUPPLY_ZERO" for blocker in payload["blockers"])
-    assert any(blocker["id"] == "FORWARD_CANARY_EVIDENCE_NOT_READY" for blocker in payload["blockers"])
+    forward_blocker = next(
+        blocker
+        for blocker in payload["blockers"]
+        if blocker["id"] == "FORWARD_CANARY_EVIDENCE_NOT_READY"
+    )
+    assert forward_blocker["valid_forward_canary_economic_outcomes"] == 20
+    assert forward_blocker["post_cutover_valid_forward_canary_economic_outcomes"] == 20
+    assert forward_blocker["required_forward_canary_economic_outcomes"] == 100
+    assert forward_blocker["valid_symbol_count"] == 11
+    assert forward_blocker["required_symbol_count"] == 20
+    assert forward_blocker["required_initial_symbols"] == 20
+    assert forward_blocker["forward_canary_shortfalls"] == {
+        "valid_forward_canary_economic_outcomes": 80,
+        "valid_symbol_count": 9,
+        "long_outcomes": 0,
+        "short_outcomes": 0,
+    }
     assert "v2:paper:intents" not in client.get_calls
 
 

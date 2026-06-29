@@ -10292,10 +10292,15 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                     {
                         "id": "FORWARD_CANARY_EVIDENCE_NOT_READY",
                         "severity": "runtime_blocker",
-                        "detail": "Post-cutover challenger paper canary economic outcomes are not sufficient for A-grade readiness.",
+                        "detail": "Post-cutover challenger paper canary economic outcomes or symbol coverage are not sufficient for A-grade readiness.",
                         "source": paper_forward_canary_evidence_status.get("source")
                         or f"redis:{forward_canary_key}",
                         "status": forward_canary_status,
+                        "valid_forward_canary_economic_outcomes": (
+                            paper_forward_canary_evidence_status.get(
+                                "valid_forward_canary_economic_outcomes"
+                            )
+                        ),
                         "post_cutover_valid_forward_canary_economic_outcomes": (
                             paper_forward_canary_evidence_status.get(
                                 "post_cutover_valid_forward_canary_economic_outcomes"
@@ -10304,6 +10309,27 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                         "required_forward_canary_economic_outcomes": (
                             paper_forward_canary_evidence_status.get(
                                 "required_forward_canary_economic_outcomes"
+                            )
+                        ),
+                        "valid_symbol_count": paper_forward_canary_evidence_status.get(
+                            "valid_symbol_count"
+                        ),
+                        "required_symbol_count": paper_forward_canary_evidence_status.get(
+                            "required_symbol_count"
+                        ),
+                        "required_initial_symbols": (
+                            paper_forward_canary_evidence_status.get(
+                                "required_initial_symbols"
+                            )
+                        ),
+                        "forward_canary_shortfalls": (
+                            paper_forward_canary_evidence_status.get(
+                                "forward_canary_shortfalls"
+                            )
+                        ),
+                        "failed_forward_canary_blocker_details": (
+                            paper_forward_canary_evidence_status.get(
+                                "failed_forward_canary_blocker_details"
                             )
                         ),
                     }
