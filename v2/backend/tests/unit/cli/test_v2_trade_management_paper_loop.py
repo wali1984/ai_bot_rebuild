@@ -2880,6 +2880,95 @@ def test_b_grade_model_quality_status_computes_metrics_by_context_bucket(monkeyp
     assert all(bucket["counts_as_a_grade_evidence"] is False for bucket in readiness["buckets"])
 
 
+def test_trainer_model_quality_runtime_status_publishes_phase_9_contract(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-22T13:45:00Z")
+    quality = paper_loop._paper_b_grade_model_quality_status([  # noqa: SLF001
+        {
+            "paper_only": True,
+            "paper_opportunity_tier": "B_GRADE_EXPLORATION_PAPER",
+            "calibration_label_purpose": "B_GRADE_EXPLORATION_OUTCOME_LABEL",
+            "symbol": "BTCUSDT",
+            "timeframe": "1m",
+            "selected_action": "long",
+            "strategy_id": "trend",
+            "market_regime_at_entry": "bull",
+            "confidence_calibrated": 0.8,
+            "expected_move_after_cost_bps": 10.0,
+            "realized_net_pnl_bps": 12.0,
+            "directional_outcome": "UP",
+            "action_was_profitable": True,
+        },
+        {
+            "paper_only": True,
+            "paper_opportunity_tier": "B_GRADE_EXPLORATION_PAPER",
+            "calibration_label_purpose": "B_GRADE_EXPLORATION_OUTCOME_LABEL",
+            "symbol": "ETHUSDT",
+            "timeframe": "5m",
+            "selected_action": "short",
+            "strategy_id": "breakout",
+            "market_regime_at_entry": "bear",
+            "confidence_calibrated": 0.7,
+            "expected_move_after_cost_bps": 8.0,
+            "realized_net_pnl_bps": 6.0,
+            "directional_outcome": "DOWN",
+            "action_was_profitable": True,
+        },
+    ])
+    status = paper_loop._paper_trainer_model_quality_runtime_status(  # noqa: SLF001
+        quality,
+        {
+            "checkpoint": {
+                "checkpoint_id": "ckpt-1",
+                "weight_blob_written": True,
+            },
+            "checkpoint_reload_verified": True,
+            "training": {
+                "metrics": {
+                    "trusted_rows_loaded": 42,
+                    "optimizer_steps_last_hour": 7,
+                    "parameter_hash_before": "before",
+                    "parameter_hash_after": "after",
+                    "checkpoint_reload_verified": True,
+                }
+            },
+        },
+    )
+
+    assert status["schema_version"] == "paper_trainer_model_quality_runtime_status_v1"
+    assert status["status"] == "PASSED_CURRENT_MODEL_QUALITY_PUBLISHED_A_GRADE_BLOCKED"
+    assert status["generated_utc"] == "2026-06-22T13:45:00Z"
+    assert status["weights_update"] is True
+    assert status["quality_metrics_current"] is True
+    assert status["trusted_rows_loaded"] == 42
+    assert status["optimizer_steps_last_hour"] == 7
+    assert status["parameter_hash_changed"] is True
+    assert status["checkpoint_written"] is True
+    assert status["checkpoint_reload_verified"] is True
+    assert status["directional_accuracy"] == pytest.approx(1.0)
+    assert status["expected_move_mae_bps"] == pytest.approx(2.0)
+    assert status["Brier"] == pytest.approx(0.065)
+    assert status["ECE"] == pytest.approx(0.25)
+    assert status["false_positive_rate"] == 0.0
+    assert status["after_cost_expectancy_bps"] == pytest.approx(9.0)
+    assert status["pass_conditions"]["accuracy_gt_baseline"] is True
+    assert status["pass_conditions"]["after_cost_expectancy_positive"] is True
+    assert status["accuracy_by_symbol"][0]["symbol"] == "BTCUSDT"
+    assert status["accuracy_by_tf"][0]["timeframe"] == "1m"
+    assert {row["side"] for row in status["accuracy_by_side"]} == {"long", "short"}
+    assert {row["strategy"] for row in status["accuracy_by_strategy"]} == {
+        "breakout",
+        "trend",
+    }
+    assert status["paper_only"] is True
+    assert status["routes_to_live"] is False
+    assert status["places_real_order"] is False
+    assert status["counts_as_a_grade_evidence"] is False
+    assert status["a_grade_promotion_allowed"] is False
+    assert status["ready_allowed"] is False
+
+
 def test_b_grade_bucket_promotion_readiness_never_promotes_learning_only_bucket(
     monkeypatch,
 ) -> None:

@@ -67,6 +67,9 @@ PAPER_FORWARD_CANARY_CUTOVER_MARKER_PATH = (
 PAPER_B_GRADE_BUCKET_PROMOTION_READINESS_STATUS_PATH = (
     TRADE_MANAGEMENT_PUBLIC_DIR / "paper_b_grade_bucket_promotion_readiness_status.json"
 )
+PAPER_TRAINER_MODEL_QUALITY_RUNTIME_STATUS_PATH = (
+    TRADE_MANAGEMENT_PUBLIC_DIR / "trainer_model_quality_runtime_status.json"
+)
 PREDICTION_STALE_SECONDS = 900
 PAPER_SIGNAL_STALE_SECONDS = PREDICTION_STALE_SECONDS
 PAPER_SIGNAL_ADAPTIVE_STALE_OPERATOR_MIN_SECONDS = 120
@@ -5472,6 +5475,238 @@ def _paper_b_grade_model_quality_status(rows: list[dict[str, Any]]) -> dict[str,
             published_buckets
         ),
         "bucket_limit": B_GRADE_MODEL_QUALITY_BUCKET_LIMIT,
+    }
+
+
+def _paper_quality_metric_breakdown(
+    bucket_rows: list[dict[str, Any]],
+    dimension: str,
+) -> list[dict[str, Any]]:
+    grouped: dict[str, dict[str, Any]] = {}
+    for row in bucket_rows:
+        if not isinstance(row, dict):
+            continue
+        key = str(row.get(dimension) or "unknown")
+        acc = grouped.setdefault(
+            key,
+            {
+                dimension: key,
+                "bucket_count": 0,
+                "sample_count": 0,
+                "directional_sample_count": 0,
+                "expected_move_mae_sample_count": 0,
+                "calibration_sample_count": 0,
+                "trade_outcome_counts": {"WIN": 0, "LOSS": 0, "BREAKEVEN": 0},
+                "_directional_accuracy_sum": 0.0,
+                "_expected_move_mae_sum": 0.0,
+                "_brier_sum": 0.0,
+                "_ece_sum": 0.0,
+                "_false_positive_rate_sum": 0.0,
+                "_after_cost_expectancy_sum": 0.0,
+            },
+        )
+        acc["bucket_count"] += 1
+        sample_count = int(_coerce_float(row.get("sample_count")) or 0)
+        directional_count = int(_coerce_float(row.get("directional_sample_count")) or 0)
+        mae_count = int(_coerce_float(row.get("expected_move_mae_sample_count")) or 0)
+        calibration_count = int(_coerce_float(row.get("calibration_sample_count")) or 0)
+        acc["sample_count"] += sample_count
+        acc["directional_sample_count"] += directional_count
+        acc["expected_move_mae_sample_count"] += mae_count
+        acc["calibration_sample_count"] += calibration_count
+        for outcome, count in (row.get("trade_outcome_counts") or {}).items():
+            if outcome in acc["trade_outcome_counts"]:
+                acc["trade_outcome_counts"][outcome] += int(_coerce_float(count) or 0)
+        directional_accuracy = _coerce_float(row.get("directional_accuracy"))
+        if directional_accuracy is not None and directional_count:
+            acc["_directional_accuracy_sum"] += directional_accuracy * directional_count
+        expected_move_mae = _coerce_float(row.get("expected_move_mae"))
+        if expected_move_mae is not None and mae_count:
+            acc["_expected_move_mae_sum"] += expected_move_mae * mae_count
+        brier_score = _coerce_float(row.get("brier_score"))
+        if brier_score is not None and calibration_count:
+            acc["_brier_sum"] += brier_score * calibration_count
+        ece = _coerce_float(row.get("ece"))
+        if ece is not None and calibration_count:
+            acc["_ece_sum"] += ece * calibration_count
+        false_positive_rate = _coerce_float(row.get("false_positive_rate"))
+        if false_positive_rate is not None and directional_count:
+            acc["_false_positive_rate_sum"] += false_positive_rate * directional_count
+        expectancy = _coerce_float(row.get("after_cost_expectancy_bps"))
+        if expectancy is not None and sample_count:
+            acc["_after_cost_expectancy_sum"] += expectancy * sample_count
+
+    rows: list[dict[str, Any]] = []
+    for acc in grouped.values():
+        sample_count = int(acc["sample_count"])
+        directional_count = int(acc["directional_sample_count"])
+        mae_count = int(acc["expected_move_mae_sample_count"])
+        calibration_count = int(acc["calibration_sample_count"])
+        rows.append({
+            dimension: acc[dimension],
+            "bucket_count": acc["bucket_count"],
+            "sample_count": sample_count,
+            "directional_sample_count": directional_count,
+            "directional_accuracy": (
+                acc["_directional_accuracy_sum"] / directional_count
+                if directional_count
+                else None
+            ),
+            "expected_move_mae_bps": (
+                acc["_expected_move_mae_sum"] / mae_count if mae_count else None
+            ),
+            "brier_score": (
+                acc["_brier_sum"] / calibration_count if calibration_count else None
+            ),
+            "ece": acc["_ece_sum"] / calibration_count if calibration_count else None,
+            "false_positive_rate": (
+                acc["_false_positive_rate_sum"] / directional_count
+                if directional_count
+                else None
+            ),
+            "after_cost_expectancy_bps": (
+                acc["_after_cost_expectancy_sum"] / sample_count if sample_count else None
+            ),
+            "trade_outcome_counts": acc["trade_outcome_counts"],
+        })
+    rows.sort(key=lambda row: (-int(row.get("sample_count") or 0), str(row.get(dimension) or "")))
+    return rows
+
+
+def _paper_trainer_model_quality_runtime_status(
+    model_quality_status: dict[str, Any],
+    trainer_metrics: dict[str, Any] | None,
+) -> dict[str, Any]:
+    trainer_metrics = trainer_metrics if isinstance(trainer_metrics, dict) else {}
+    training = trainer_metrics.get("training")
+    training = training if isinstance(training, dict) else {}
+    training_metrics = training.get("metrics")
+    training_metrics = training_metrics if isinstance(training_metrics, dict) else {}
+    checkpoint = trainer_metrics.get("checkpoint")
+    checkpoint = checkpoint if isinstance(checkpoint, dict) else {}
+    checkpoint_reload = trainer_metrics.get("checkpoint_reload")
+    checkpoint_reload = checkpoint_reload if isinstance(checkpoint_reload, dict) else {}
+
+    trusted_rows_loaded = int(
+        _coerce_float(
+            _first_present(
+                training_metrics.get("trusted_rows_loaded"),
+                training.get("trusted_rows_loaded"),
+                training_metrics.get("accepted_training_rows"),
+            )
+        )
+        or 0
+    )
+    optimizer_steps_last_hour = int(
+        _coerce_float(
+            _first_present(
+                training_metrics.get("optimizer_steps_last_hour"),
+                training_metrics.get("optimizer_steps_this_cycle"),
+                training_metrics.get("optimizer_steps_total"),
+            )
+        )
+        or 0
+    )
+    parameter_hash_before = _first_present(
+        training_metrics.get("parameter_hash_before"),
+        training.get("parameter_hash_before"),
+    )
+    parameter_hash_after = _first_present(
+        training_metrics.get("parameter_hash_after"),
+        training.get("parameter_hash_after"),
+    )
+    parameter_hash_changed = bool(training_metrics.get("parameter_hash_changed"))
+    if not parameter_hash_changed and parameter_hash_before and parameter_hash_after:
+        parameter_hash_changed = str(parameter_hash_before) != str(parameter_hash_after)
+    checkpoint_written = bool(
+        _first_present(
+            training_metrics.get("checkpoint_written"),
+            checkpoint.get("weight_blob_written"),
+            checkpoint_reload.get("weight_blob_written"),
+        )
+    )
+    checkpoint_reload_verified = bool(
+        _first_present(
+            training_metrics.get("checkpoint_reload_verified"),
+            trainer_metrics.get("checkpoint_reload_verified"),
+            checkpoint_reload.get("latest_checkpoint_loadable")
+            and checkpoint_reload.get("model_state_restored"),
+        )
+    )
+    weights_update = optimizer_steps_last_hour > 0 and parameter_hash_changed
+
+    bucket_rows = model_quality_status.get(
+        "metrics_by_symbol_timeframe_side_strategy_regime_confidence_bucket"
+    )
+    bucket_rows = bucket_rows if isinstance(bucket_rows, list) else []
+    directional_accuracy = _coerce_float(model_quality_status.get("directional_accuracy"))
+    after_cost_expectancy_bps = _coerce_float(
+        model_quality_status.get("after_cost_expectancy_bps")
+    )
+    quality_metrics_current = (
+        model_quality_status.get("status") == "ACTIVE_B_GRADE_REALIZED_QUALITY_METRICS"
+        and int(_coerce_float(model_quality_status.get("sample_count")) or 0) > 0
+    )
+    accuracy_gt_baseline = directional_accuracy is not None and directional_accuracy > 0.5
+    after_cost_expectancy_positive = (
+        after_cost_expectancy_bps is not None and after_cost_expectancy_bps > 0.0
+    )
+    pass_conditions = {
+        "weights_update": weights_update,
+        "quality_metrics_current": quality_metrics_current,
+        "accuracy_gt_baseline": accuracy_gt_baseline,
+        "after_cost_expectancy_positive": after_cost_expectancy_positive,
+        "checkpoint_written": checkpoint_written,
+        "checkpoint_reload_verified": checkpoint_reload_verified,
+    }
+    status = (
+        "PASSED_CURRENT_MODEL_QUALITY_PUBLISHED_A_GRADE_BLOCKED"
+        if all(pass_conditions.values())
+        else "BLOCKED_MODEL_QUALITY_OR_TRAINER_UPDATE_INCOMPLETE"
+    )
+    return {
+        "schema_version": "paper_trainer_model_quality_runtime_status_v1",
+        "generated_utc": _utc_iso(),
+        "status": status,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_a_grade_evidence": False,
+        "a_grade_promotion_allowed": False,
+        "live_ready_implication": False,
+        "ready_allowed": False,
+        "weights_update": weights_update,
+        "quality_metrics_current": quality_metrics_current,
+        "trusted_rows_loaded": trusted_rows_loaded,
+        "optimizer_steps_last_hour": optimizer_steps_last_hour,
+        "parameter_hash_changed": parameter_hash_changed,
+        "parameter_hash_before": parameter_hash_before,
+        "parameter_hash_after": parameter_hash_after,
+        "checkpoint_written": checkpoint_written,
+        "checkpoint_reload_verified": checkpoint_reload_verified,
+        "checkpoint_id": _first_present(
+            checkpoint.get("checkpoint_id"),
+            checkpoint_reload.get("checkpoint_id"),
+        ),
+        "directional_accuracy": directional_accuracy,
+        "directional_baseline": 0.5,
+        "expected_move_mae_bps": _coerce_float(model_quality_status.get("expected_move_mae")),
+        "Brier": _coerce_float(model_quality_status.get("brier_score")),
+        "brier_score": _coerce_float(model_quality_status.get("brier_score")),
+        "ECE": _coerce_float(model_quality_status.get("ece")),
+        "ece": _coerce_float(model_quality_status.get("ece")),
+        "false_positive_rate": _coerce_float(model_quality_status.get("false_positive_rate")),
+        "after_cost_expectancy_bps": after_cost_expectancy_bps,
+        "accuracy_by_symbol": _paper_quality_metric_breakdown(bucket_rows, "symbol"),
+        "accuracy_by_tf": _paper_quality_metric_breakdown(bucket_rows, "timeframe"),
+        "accuracy_by_side": _paper_quality_metric_breakdown(bucket_rows, "side"),
+        "accuracy_by_strategy": _paper_quality_metric_breakdown(bucket_rows, "strategy"),
+        "pass_conditions": pass_conditions,
+        "source": {
+            "model_quality_status": "paper_b_grade_model_quality_status",
+            "trainer_metrics": "redis:v2:trainer:hybrid_cuda:metrics",
+        },
+        "a_grade_blocker": "B_GRADE_OUTCOMES_ARE_LEARNING_ONLY_NOT_A_GRADE_EVIDENCE",
     }
 
 
@@ -13479,6 +13714,15 @@ def run_once() -> dict:
     paper_b_grade_model_quality_status = _paper_b_grade_model_quality_status(
         trainer_feedback_consumable_rows
     )
+    trainer_cuda_metrics = (
+        _read_json_key(r, "v2:trainer:hybrid_cuda:metrics") if r is not None else {}
+    )
+    paper_trainer_model_quality_runtime_status = (
+        _paper_trainer_model_quality_runtime_status(
+            paper_b_grade_model_quality_status,
+            trainer_cuda_metrics,
+        )
+    )
     paper_b_grade_bucket_promotion_readiness_status = (
         _paper_b_grade_bucket_promotion_readiness_status(
             paper_b_grade_model_quality_status
@@ -13607,6 +13851,9 @@ def run_once() -> dict:
             "trainer_feedback_outcomes": feedback_state_sample,
             "trainer_feedback_outcomes_quarantine": feedback_quarantine_state_sample,
             "paper_b_grade_model_quality_status": paper_b_grade_model_quality_status,
+            "paper_trainer_model_quality_runtime_status": (
+                paper_trainer_model_quality_runtime_status
+            ),
             "paper_b_grade_bucket_promotion_readiness_status": (
                 paper_b_grade_bucket_promotion_readiness_status
             ),
@@ -13754,6 +14001,9 @@ def run_once() -> dict:
                 "paper_b_grade_bucket_promotion_readiness_status": (
                     paper_b_grade_bucket_promotion_readiness_status
                 ),
+                "paper_trainer_model_quality_runtime_status": (
+                    paper_trainer_model_quality_runtime_status
+                ),
                 "paper_audit_entry_gate_status": paper_audit_entry_gate_status,
                 "paper_adaptive_sizing_runtime_status": paper_adaptive_sizing_runtime_status,
                 "risk_envelope_dynamic_budget_status": risk_envelope_dynamic_budget_status,
@@ -13795,6 +14045,15 @@ def run_once() -> dict:
             ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}paper:adaptive_threshold_runtime_status")
+        if _safe_write(
+            r,
+            f"{V2_REDIS_PREFIX}paper:trainer_model_quality_runtime_status",
+            json.dumps(paper_trainer_model_quality_runtime_status),
+            ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
+        ):
+            keys_written.append(
+                f"{V2_REDIS_PREFIX}paper:trainer_model_quality_runtime_status"
+            )
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}paper:forward_canary_evidence_status",
@@ -13868,6 +14127,9 @@ def run_once() -> dict:
         "paper_owner_attribution_status": paper_owner_attribution_status,
         "paper_b_grade_model_quality_status": (
             paper_b_grade_model_quality_status if r is not None else {}
+        ),
+        "paper_trainer_model_quality_runtime_status": (
+            paper_trainer_model_quality_runtime_status if r is not None else {}
         ),
         "paper_b_grade_bucket_promotion_readiness_status": (
             paper_b_grade_bucket_promotion_readiness_status if r is not None else {}
@@ -14045,6 +14307,9 @@ def run_once() -> dict:
                 "paper_b_grade_bucket_promotion_readiness_status": (
                     paper_b_grade_bucket_promotion_readiness_status
                 ),
+                "paper_trainer_model_quality_runtime_status": (
+                    paper_trainer_model_quality_runtime_status
+                ),
                 "generated_utc": _utc_iso(),
                 "paper_only": True,
                 "places_real_order": False,
@@ -14054,6 +14319,10 @@ def run_once() -> dict:
         write_payload(
             paper_b_grade_model_quality_status,
             TRADE_MANAGEMENT_PUBLIC_DIR / "paper_b_grade_model_quality_status.json",
+        )
+        write_payload(
+            paper_trainer_model_quality_runtime_status,
+            PAPER_TRAINER_MODEL_QUALITY_RUNTIME_STATUS_PATH,
         )
         write_payload(
             paper_b_grade_bucket_promotion_readiness_status,
