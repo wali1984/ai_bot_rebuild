@@ -2328,6 +2328,11 @@ def test_runtime_cost_capture_contract_marks_complete_production_grade_cost() ->
     assert intent["predicted_move_bps"] == 20.0
     assert intent["score"] == 0.72
     assert intent["order_size"] == 250.0
+    assert intent["gross_notional_usd"] == 250.0
+    assert intent["allocated_margin_usd"] == 125.0
+    assert intent["recommended_leverage"] == 2.0
+    assert intent["effective_leverage"] == 2.0
+    assert intent["recommended_margin_mode"] == "isolated_paper_simulated"
     assert intent["observed_bid"] == 99.99
     assert intent["observed_ask"] == 100.01
     assert intent["top_book_bid_depth_usd"] == 10000.0
@@ -2341,6 +2346,13 @@ def test_runtime_cost_capture_contract_marks_complete_production_grade_cost() ->
     assert intent["partial_fill_estimate"]["expected_fill_probability"] == 1.0
     assert intent["cost_source_timestamp"] == "2026-06-22T12:59:59.500Z"
     assert intent["cost_evidence_freshness_ms"] == 500.0
+    assert intent["runtime_cost_capture_required_fields"] == list(
+        paper_loop.PHASE2_RUNTIME_COST_CAPTURE_REQUIRED_FIELDS
+    )
+    assert "allocated_margin_usd" in intent["runtime_cost_capture_required_fields"]
+    assert "effective_leverage" in intent["runtime_cost_capture_required_fields"]
+    assert "expected_funding_bps" in intent["runtime_cost_capture_required_fields"]
+    assert "production_grade_cost_flag" in intent["runtime_cost_capture_required_fields"]
     assert intent["runtime_cost_capture_missing_fields"] == []
     assert intent["fallback_cost_flag"] is False
     assert intent["fallback"] is False
@@ -2440,7 +2452,10 @@ def test_runtime_cost_capture_uses_explicit_paper_admission_decision_time() -> N
         "symbol": "BANKUSDT",
         "timeframe": "15m",
         "side": "long",
+        "strategy_id": "trend_follow",
         "decision_time": "2026-06-22T13:00:00.000Z",
+        "feature_cutoff": "2026-06-22T12:45:00.000Z",
+        "available_at": "2026-06-22T12:59:58.000Z",
         "entry_feature_decision_time": "2026-06-22T13:00:00.000Z",
         "paper_admission_decision_time": "2026-06-22T13:05:00.000Z",
         "entry_price_provenance_present": True,
@@ -2529,7 +2544,10 @@ def test_runtime_cost_capture_contract_fallback_rows_do_not_pass_challenger_owne
         "symbol": "BANKUSDT",
         "timeframe": "15m",
         "side": "long",
+        "strategy_id": "no_trade_monitor",
         "decision_time": "2026-06-22T13:00:00.000Z",
+        "feature_cutoff": "2026-06-22T12:45:00.000Z",
+        "available_at": "2026-06-22T12:59:58.000Z",
         "entry_price_provenance_present": True,
         "fill_price": 100.0,
         "fill_price_utc": "2026-06-22T13:00:00.250Z",
@@ -2552,6 +2570,10 @@ def test_runtime_cost_capture_contract_fallback_rows_do_not_pass_challenger_owne
     assert intent["fallback_cost_flag"] is True
     assert intent["production_grade_cost_flag"] is False
     assert "observed_bid" in intent["runtime_cost_capture_missing_fields"]
+    assert "allocated_margin_usd" in intent["runtime_cost_capture_missing_fields"]
+    assert "recommended_leverage" in intent["runtime_cost_capture_missing_fields"]
+    assert "effective_leverage" in intent["runtime_cost_capture_missing_fields"]
+    assert "recommended_margin_mode" in intent["runtime_cost_capture_missing_fields"]
     assert "top_book_bid_depth_usd" in intent["runtime_cost_capture_missing_fields"]
     assert "depth_derived_price_impact_bps" in intent["runtime_cost_capture_missing_fields"]
     assert "cost_source_timestamp" in intent["runtime_cost_capture_missing_fields"]
@@ -2565,7 +2587,10 @@ def test_runtime_cost_capture_marks_zero_size_no_trade_rows_complete_without_tra
         "symbol": "BANKUSDT",
         "timeframe": "15m",
         "side": "long",
+        "strategy_id": "no_trade_monitor",
         "decision_time": "2026-06-22T13:00:00.000Z",
+        "feature_cutoff": "2026-06-22T12:45:00.000Z",
+        "available_at": "2026-06-22T12:59:58.000Z",
         "entry_price_provenance_present": True,
         "entry_price": 100.0,
         "fill_price": 100.0,

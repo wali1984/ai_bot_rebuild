@@ -349,6 +349,49 @@ RUNTIME_COST_CAPTURE_CONTRACT_FIELDS = (
     "live_order",
     "test_order",
 )
+PHASE2_RUNTIME_COST_CAPTURE_REQUIRED_FIELDS = (
+    "candidate_id",
+    "policy_id",
+    "policy_fingerprint",
+    "model_source",
+    "symbol",
+    "timeframe",
+    "side",
+    "strategy_id",
+    "decision_time",
+    "feature_cutoff",
+    "available_at",
+    "order_size",
+    "gross_notional_usd",
+    "allocated_margin_usd",
+    "recommended_leverage",
+    "effective_leverage",
+    "recommended_margin_mode",
+    "observed_bid",
+    "observed_ask",
+    "observed_spread_bps",
+    "top_book_bid_depth_usd",
+    "top_book_ask_depth_usd",
+    "market_depth_usd",
+    "depth_derived_price_impact_bps",
+    "maker_taker_assumption",
+    "maker_taker_probability",
+    "fee_bps",
+    "expected_slippage_bps",
+    "expected_funding_bps",
+    "latency_reserve_bps",
+    "partial_fill_estimate",
+    "mark_index_divergence_bps",
+    "cost_source",
+    "cost_source_timestamp",
+    "cost_evidence_freshness_ms",
+    "fallback_cost_flag",
+    "production_grade_cost_flag",
+)
+PHASE2_RUNTIME_COST_CAPTURE_DERIVED_FLAG_FIELDS = (
+    "fallback_cost_flag",
+    "production_grade_cost_flag",
+)
 DEPTH_PRICE_IMPACT_EVIDENCE_FIELDS = (
     "depth_derived_price_impact_bps",
     "depth_price_impact_bps",
@@ -2480,6 +2523,11 @@ def _attach_runtime_cost_capture_contract(
     market_microstructure = market_microstructure if isinstance(market_microstructure, dict) else {}
     signal = signal if isinstance(signal, dict) else {}
     prediction = prediction if isinstance(prediction, dict) else {}
+    allocation_context = (
+        intent.get("adaptive_allocation")
+        if isinstance(intent.get("adaptive_allocation"), dict)
+        else {}
+    )
 
     candidate_id = _first_present(
         intent.get("candidate_id"),
@@ -2825,6 +2873,86 @@ def _attach_runtime_cost_capture_contract(
         intent["model_decision_time"] = decision_timestamp
     if runtime_decision_timestamp is not None:
         intent["runtime_cost_capture_decision_time"] = runtime_decision_timestamp
+        intent.setdefault("decision_time", runtime_decision_timestamp)
+    if intent.get("feature_cutoff") in (None, ""):
+        feature_cutoff = _first_present(
+            intent.get("entry_feature_cutoff"),
+            intent.get("feature_cutoff"),
+            intent.get("mtf_feature_cutoff"),
+            prediction.get("feature_cutoff"),
+            signal.get("feature_cutoff"),
+        )
+        if feature_cutoff not in (None, ""):
+            intent["feature_cutoff"] = feature_cutoff
+    if intent.get("available_at") in (None, ""):
+        available_at = _first_present(
+            intent.get("entry_feature_available_at"),
+            intent.get("available_at"),
+            intent.get("generated_at"),
+            intent.get("generated_utc"),
+            prediction.get("available_at"),
+            signal.get("available_at"),
+        )
+        if available_at not in (None, ""):
+            intent["available_at"] = available_at
+    if intent.get("strategy_id") in (None, ""):
+        strategy_id = _first_present(
+            intent.get("strategy_selected_mode"),
+            intent.get("strategy_family"),
+            allocation_context.get("strategy_id"),
+            allocation_context.get("strategy"),
+            prediction.get("strategy_id"),
+            signal.get("strategy_id"),
+        )
+        if strategy_id not in (None, ""):
+            intent["strategy_id"] = strategy_id
+    if order_size is not None:
+        intent.setdefault("gross_notional_usd", order_size)
+    allocated_margin = _coerce_float(
+        _first_present(
+            intent.get("allocated_margin_usd"),
+            intent.get("selected_allocated_margin_usd"),
+            allocation_context.get("allocated_margin_usd"),
+            allocation_context.get("selected_allocated_margin_usd"),
+        )
+    )
+    recommended_leverage = _coerce_float(
+        _first_present(
+            intent.get("recommended_leverage"),
+            allocation_context.get("recommended_leverage"),
+            allocation_context.get("leverage_target"),
+        )
+    )
+    effective_leverage = _coerce_float(
+        _first_present(
+            intent.get("effective_leverage"),
+            allocation_context.get("effective_leverage"),
+            recommended_leverage,
+        )
+    )
+    recommended_margin_mode = _first_present(
+        intent.get("recommended_margin_mode"),
+        intent.get("selected_margin_mode"),
+        allocation_context.get("recommended_margin_mode"),
+        allocation_context.get("selected_margin_mode"),
+        allocation_context.get("margin_mode"),
+    )
+    if no_order_reason is not None:
+        allocated_margin = 0.0 if allocated_margin is None else allocated_margin
+        recommended_leverage = 0.0 if recommended_leverage is None else recommended_leverage
+        effective_leverage = 0.0 if effective_leverage is None else effective_leverage
+        recommended_margin_mode = _first_present(
+            recommended_margin_mode,
+            "paper_no_order_no_margin",
+        )
+    if allocated_margin is not None:
+        intent["allocated_margin_usd"] = abs(float(allocated_margin))
+    if recommended_leverage is not None:
+        intent["recommended_leverage"] = float(recommended_leverage)
+    if effective_leverage is not None:
+        intent["effective_leverage"] = float(effective_leverage)
+    if recommended_margin_mode not in (None, ""):
+        intent["recommended_margin_mode"] = str(recommended_margin_mode)
 
     expected_slippage_bps = _coerce_float(intent.get("expected_slippage_bps"))
     estimated_cost_components = [
@@ -2843,39 +2971,33 @@ def _attach_runtime_cost_capture_contract(
         intent["estimated_production_cost_bps"] = estimated_production_cost_bps
         intent["estimated_production_cost"] = estimated_production_cost_bps
 
-    required_fields = (
-        "observed_bid",
-        "observed_ask",
-        "observed_spread_bps",
-        "order_size",
-        "top_book_bid_depth_usd",
-        "top_book_ask_depth_usd",
-        "market_depth_usd",
-        "depth_derived_price_impact_bps",
-        "maker_taker_assumption",
-        "maker_taker_probability",
-        "fee_schedule",
-        "fee_bps",
-        "funding_rate",
-        "holding_period_funding_bps",
-        "expected_slippage_bps",
-        "latency_reserve_bps",
-        "partial_fill_estimate",
-        "mark_index_divergence_bps",
-        "cost_source",
-        "cost_source_timestamp",
-        "cost_evidence_freshness_ms",
+    required_fields = PHASE2_RUNTIME_COST_CAPTURE_REQUIRED_FIELDS
+    validation_required_fields = tuple(
+        field
+        for field in required_fields
+        if field not in PHASE2_RUNTIME_COST_CAPTURE_DERIVED_FLAG_FIELDS
     )
     positive_fields = {
         "observed_bid",
         "observed_ask",
         "order_size",
+        "gross_notional_usd",
+        "allocated_margin_usd",
+        "recommended_leverage",
+        "effective_leverage",
         "top_book_bid_depth_usd",
         "top_book_ask_depth_usd",
         "market_depth_usd",
     }
+    no_order_zero_allowed_fields = {
+        "order_size",
+        "gross_notional_usd",
+        "allocated_margin_usd",
+        "recommended_leverage",
+        "effective_leverage",
+    }
     missing: list[str] = []
-    for field in required_fields:
+    for field in validation_required_fields:
         value = intent.get(field)
         if field == "fee_schedule":
             if not isinstance(value, dict) or _coerce_float(value.get("fee_bps")) is None or not value.get("source"):
@@ -2887,7 +3009,11 @@ def _attach_runtime_cost_capture_contract(
             continue
         numeric = _coerce_float(value)
         if field in positive_fields:
-            if field == "order_size" and no_order_reason is not None and numeric == 0.0:
+            if (
+                field in no_order_zero_allowed_fields
+                and no_order_reason is not None
+                and numeric == 0.0
+            ):
                 continue
             if numeric is None or numeric <= 0.0:
                 missing.append(field)
@@ -2896,8 +3022,7 @@ def _attach_runtime_cost_capture_contract(
             "depth_derived_price_impact_bps",
             "maker_taker_probability",
             "fee_bps",
-            "funding_rate",
-            "holding_period_funding_bps",
+            "expected_funding_bps",
             "expected_slippage_bps",
             "latency_reserve_bps",
             "mark_index_divergence_bps",
