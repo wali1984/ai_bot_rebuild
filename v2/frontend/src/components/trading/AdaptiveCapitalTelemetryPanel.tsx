@@ -81,6 +81,23 @@ interface PaperRuntimeBlocker {
   pass_conditions?: Record<string, boolean> | null;
 }
 
+interface PaperTrainerModelQualityStatus {
+  status?: string | null;
+  weights_update?: boolean | null;
+  quality_metrics_current?: boolean | null;
+  trusted_rows_loaded?: number | null;
+  optimizer_steps_last_hour?: number | null;
+  parameter_hash_changed?: boolean | null;
+  checkpoint_written?: boolean | null;
+  checkpoint_reload_verified?: boolean | null;
+  directional_accuracy?: number | null;
+  directional_baseline?: number | null;
+  after_cost_expectancy_bps?: number | null;
+  a_grade_promotion_allowed?: boolean | null;
+  routes_to_live?: boolean | null;
+  places_real_order?: boolean | null;
+}
+
 interface PaperRuntimeStatusPayload {
   runtime?: string | null;
   runtime_state?: string | null;
@@ -152,6 +169,8 @@ interface PaperRuntimeStatusPayload {
       guardian_block_all_new_a_grade_entries?: boolean | null;
       pass_conditions?: Record<string, boolean> | null;
     } | null;
+    paper_trainer_model_quality_runtime_status?: PaperTrainerModelQualityStatus | null;
+    trainer_model_quality_runtime_status?: PaperTrainerModelQualityStatus | null;
   } | null;
 }
 
@@ -709,6 +728,9 @@ export function AdaptiveCapitalTelemetryPanel({
   const paperChurn = paperLoop?.paper_churn_equity_bleed_governor_status ?? null;
   const paperForwardCanary = paperLoop?.paper_forward_canary_evidence_status ?? null;
   const paperAgrade = paperLoop?.paper_a_grade_gate_burndown_status ?? null;
+  const paperTrainerQuality = paperLoop?.paper_trainer_model_quality_runtime_status
+    ?? paperLoop?.trainer_model_quality_runtime_status
+    ?? null;
   const forwardOutcomes = forwardCanaryBlocker?.valid_forward_canary_economic_outcomes
     ?? paperForwardCanary?.valid_forward_canary_economic_outcomes;
   const requiredForwardOutcomes = forwardCanaryBlocker?.required_forward_canary_economic_outcomes
@@ -762,6 +784,16 @@ export function AdaptiveCapitalTelemetryPanel({
   const aGradeSourceTierRows = aGradeSupplyBlocker?.source_tier_a_grade_execution_rows
     ?? paperAgrade?.source_tier_a_grade_execution_rows
     ?? null;
+  const trainerAccuracyBeatsBaseline = typeof paperTrainerQuality?.directional_accuracy === 'number'
+    && typeof paperTrainerQuality?.directional_baseline === 'number'
+    && paperTrainerQuality.directional_accuracy > paperTrainerQuality.directional_baseline;
+  const trainerEdgePositive = (paperTrainerQuality?.after_cost_expectancy_bps ?? Number.NEGATIVE_INFINITY) > 0;
+  const trainerQualityPassing = String(paperTrainerQuality?.status ?? '').startsWith('PASSED_')
+    && paperTrainerQuality?.weights_update === true
+    && paperTrainerQuality?.quality_metrics_current === true
+    && paperTrainerQuality?.checkpoint_reload_verified === true
+    && trainerAccuracyBeatsBaseline
+    && trainerEdgePositive;
   const view = resolveTelemetry(payload);
   const capital = view.capital;
   const policy = view.policy;
@@ -886,6 +918,26 @@ export function AdaptiveCapitalTelemetryPanel({
           label="Trainer Learning"
           value={guardianTruth?.online_learning_status ?? (guardianTruth?.WEIGHTS_UPDATING ? 'WEIGHTS_UPDATING' : 'CONNECTING')}
           color={guardianTruth?.WEIGHTS_UPDATING ? 'var(--buy,#10b981)' : '#f59e0b'}
+        />
+        <HeaderMetric
+          label="Trainer Quality"
+          value={paperTrainerQuality?.status ?? 'CONNECTING'}
+          color={trainerQualityPassing ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
+          label="Trainer Edge"
+          value={formatAdaptiveBps(paperTrainerQuality?.after_cost_expectancy_bps)}
+          color={trainerEdgePositive ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
+          label="Trainer Acc/Base"
+          value={`${formatAdaptivePercent(paperTrainerQuality?.directional_accuracy)} / ${formatAdaptivePercent(paperTrainerQuality?.directional_baseline)}`}
+          color={trainerAccuracyBeatsBaseline ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
+          label="Trainer Reload"
+          value={`${paperTrainerQuality?.checkpoint_reload_verified ? 'VERIFIED' : 'BLOCKED'} / ${countText(paperTrainerQuality?.optimizer_steps_last_hour)} steps`}
+          color={paperTrainerQuality?.checkpoint_reload_verified ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
         />
         <HeaderMetric
           label="A-grade Gate"
