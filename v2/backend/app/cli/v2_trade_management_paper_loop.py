@@ -10176,6 +10176,30 @@ def _paper_churn_equity_bleed_governor_status(
     }
 
 
+def _paper_a_grade_gap_source_owner(
+    reason: str | None,
+    *,
+    guardian_halted: bool,
+    near_a_grade_rows_present: bool,
+) -> str:
+    if guardian_halted or (reason and "GUARDIAN" in reason.upper()):
+        return "continuous_edge_guardian"
+    if near_a_grade_rows_present:
+        return "continuous_edge_guardian"
+    upper_reason = str(reason or "").upper()
+    if any(token in upper_reason for token in ("STRATEGY", "LIFECYCLE", "NO_TRADE")):
+        return "strategy_router"
+    if "ALLOCATOR" in upper_reason or "CAPITAL" in upper_reason:
+        return "adaptive_capital_allocator"
+    if "RISK" in upper_reason:
+        return "risk_gateway"
+    if any(token in upper_reason for token in ("SPREAD", "SLIPPAGE", "LIQUIDITY", "COST")):
+        return "runtime_cost_liquidity_capture"
+    if "INTEGRITY" in upper_reason:
+        return "market_integrity_gate"
+    return "v2_trade_management_paper_loop"
+
+
 def _paper_a_grade_gate_burndown_status(
     rows: list[dict[str, Any]],
     *,
@@ -10324,6 +10348,11 @@ def _paper_a_grade_gate_burndown_status(
         closest_gap_reason = str(top_guardian_reason.get("reason") or "GUARDIAN_GATE_BLOCKED")
     else:
         closest_gap_reason = "NO_A_GRADE_RUNTIME_SUPPLY"
+    closest_gap_source_owner = _paper_a_grade_gap_source_owner(
+        closest_gap_reason,
+        guardian_halted=guardian_halted,
+        near_a_grade_rows_present=bool(near_a_grade_rows),
+    )
 
     strategy_brain = guardian_status.get("strategy_brain_status")
     strategy_brain = strategy_brain if isinstance(strategy_brain, dict) else {}
@@ -10399,10 +10428,24 @@ def _paper_a_grade_gate_burndown_status(
             "short_outcomes": performance.get("short_outcomes"),
         },
         "closest_gap_reason": closest_gap_reason,
+        "closest_gap_source_owner": closest_gap_source_owner,
+        "zero_supply_source_owner": closest_gap_source_owner,
+        "source_owned_zero_supply_root_cause": {
+            "reason": closest_gap_reason,
+            "source_owner": closest_gap_source_owner,
+            "guardian_halted": guardian_halted,
+            "near_a_grade_rows_present": bool(near_a_grade_rows),
+            "top_current_runtime_reason": top_current_reason,
+            "top_guardian_reason": (
+                top_guardian_reason.get("reason")
+                if isinstance(top_guardian_reason, dict)
+                else None
+            ),
+        },
         "pass_conditions": {
             "A_grade_rows_gt_zero": len(a_grade_rows) > 0,
             "source_owned_zero_supply_root_cause_mapped": bool(
-                root_causes or guardian_reasons or dominant_current_reasons
+                closest_gap_reason and closest_gap_source_owner
             ),
             "a_grade_new_entries_allowed": guardian_gate.get("a_grade_new_entries_allowed") is True,
             "ready_allowed": False,

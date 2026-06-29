@@ -4238,6 +4238,16 @@ def test_a_grade_gate_burndown_tracks_live_counts_and_guardian_block(monkeypatch
     assert status["open_b_grade_lifecycle_rows"] == 1
     assert status["closed_b_grade_lifecycle_outcome_rows"] == 33
     assert status["guardian_gate_status"]["a_grade_new_entries_allowed"] is False
+    assert status["closest_gap_source_owner"] == "continuous_edge_guardian"
+    assert status["zero_supply_source_owner"] == "continuous_edge_guardian"
+    assert status["source_owned_zero_supply_root_cause"] == {
+        "reason": "LIFECYCLE_OR_NO_TRADE_STRATEGY_NOT_ENTRY_EVIDENCE",
+        "source_owner": "continuous_edge_guardian",
+        "guardian_halted": True,
+        "near_a_grade_rows_present": False,
+        "top_current_runtime_reason": "LIFECYCLE_OR_NO_TRADE_STRATEGY_NOT_ENTRY_EVIDENCE",
+        "top_guardian_reason": "INSUFFICIENT_REALTIME_A_GRADE_CLOSED_ECONOMIC_TRADES",
+    }
     assert status["pass_conditions"] == {
         "A_grade_rows_gt_zero": False,
         "source_owned_zero_supply_root_cause_mapped": True,
