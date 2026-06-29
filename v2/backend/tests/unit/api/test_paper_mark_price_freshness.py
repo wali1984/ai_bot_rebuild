@@ -416,6 +416,18 @@ class TestPriceSourceSelection:
                     "long_outcomes": 0,
                     "short_outcomes": 0,
                 },
+                "pass_conditions": {
+                    "valid_forward_canary_outcomes_gte_100": False,
+                    "valid_symbol_count_gte_20": True,
+                    "long_outcomes_gt_zero": True,
+                    "short_outcomes_gt_zero": True,
+                    "production_grade_cost_coverage_gte_95pct": True,
+                    "no_accounting_mismatch": True,
+                    "no_liquidation": True,
+                    "no_point_in_time_violation": True,
+                    "no_live_route_flags": True,
+                },
+                "non_counting_reasons": {"OUTCOME_COUNT_BELOW_100": 54},
                 "counts_as_a_grade_evidence": False,
                 "paper_only": True,
                 "routes_to_live": False,
@@ -507,6 +519,21 @@ class TestPriceSourceSelection:
             ]
             == 46
         )
+        assert (
+            loop["paper_forward_canary_evidence_status"]["pass_conditions"][
+                "valid_forward_canary_outcomes_gte_100"
+            ]
+            is False
+        )
+        assert (
+            loop["paper_forward_canary_evidence_status"]["pass_conditions"][
+                "production_grade_cost_coverage_gte_95pct"
+            ]
+            is True
+        )
+        assert loop["paper_forward_canary_evidence_status"][
+            "non_counting_reasons"
+        ] == {"OUTCOME_COUNT_BELOW_100": 54}
         assert loop["paper_a_grade_gate_burndown_status"]["A_grade_rows"] == 0
         assert (
             loop["paper_a_grade_gate_burndown_status"]["closest_gap_reason"]

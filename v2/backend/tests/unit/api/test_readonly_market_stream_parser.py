@@ -739,6 +739,18 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
             "valid_symbol_count": 11,
             "valid_side_counts": {"long": 2, "short": 18},
             "production_grade_cost_coverage": 1.0,
+            "pass_conditions": {
+                "valid_forward_canary_outcomes_gte_100": False,
+                "valid_symbol_count_gte_20": False,
+                "long_outcomes_gt_zero": True,
+                "short_outcomes_gt_zero": True,
+                "production_grade_cost_coverage_gte_95pct": True,
+                "no_accounting_mismatch": True,
+                "no_liquidation": True,
+                "no_point_in_time_violation": True,
+                "no_live_route_flags": True,
+            },
+            "non_counting_reasons": {"OUTCOME_COUNT_BELOW_100": 80},
             "cutover_completed_at": "2026-06-29T03:57:38.333Z",
             "sample_valid_forward_canary_outcomes": [
                 {"symbol": "BTCUSDT", "realized_pnl_bps": 12.5},
@@ -924,6 +936,20 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
         "short_outcomes": 0,
     }
     assert forward_canary["production_grade_cost_coverage"] == 1.0
+    assert forward_canary["pass_conditions"] == {
+        "valid_forward_canary_outcomes_gte_100": False,
+        "valid_symbol_count_gte_20": False,
+        "long_outcomes_gt_zero": True,
+        "short_outcomes_gt_zero": True,
+        "production_grade_cost_coverage_gte_95pct": True,
+        "no_accounting_mismatch": True,
+        "no_liquidation": True,
+        "no_point_in_time_violation": True,
+        "no_live_route_flags": True,
+    }
+    assert forward_canary["non_counting_reasons"] == {
+        "OUTCOME_COUNT_BELOW_100": 80,
+    }
     assert forward_canary["cutover_completed_at"] == "2026-06-29T03:57:38.333Z"
     assert forward_canary["counts_as_a_grade_evidence"] is False
     assert forward_canary["sample_rows_omitted_from_api"] is True
@@ -965,6 +991,7 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
     assert forward_blocker["post_cutover_valid_forward_canary_economic_outcomes"] == 20
     assert forward_blocker["required_forward_canary_economic_outcomes"] == 100
     assert forward_blocker["valid_symbol_count"] == 11
+    assert forward_blocker["valid_side_counts"] == {"long": 2, "short": 18}
     assert forward_blocker["required_symbol_count"] == 20
     assert forward_blocker["required_initial_symbols"] == 20
     assert forward_blocker["forward_canary_shortfalls"] == {
@@ -972,6 +999,21 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
         "valid_symbol_count": 9,
         "long_outcomes": 0,
         "short_outcomes": 0,
+    }
+    assert forward_blocker["production_grade_cost_coverage"] == 1.0
+    assert forward_blocker["pass_conditions"] == {
+        "valid_forward_canary_outcomes_gte_100": False,
+        "valid_symbol_count_gte_20": False,
+        "long_outcomes_gt_zero": True,
+        "short_outcomes_gt_zero": True,
+        "production_grade_cost_coverage_gte_95pct": True,
+        "no_accounting_mismatch": True,
+        "no_liquidation": True,
+        "no_point_in_time_violation": True,
+        "no_live_route_flags": True,
+    }
+    assert forward_blocker["non_counting_reasons"] == {
+        "OUTCOME_COUNT_BELOW_100": 80,
     }
     trajectory_blocker = next(
         blocker

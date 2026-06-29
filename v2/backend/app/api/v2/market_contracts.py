@@ -10367,6 +10367,9 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                         "valid_symbol_count": paper_forward_canary_evidence_status.get(
                             "valid_symbol_count"
                         ),
+                        "valid_side_counts": paper_forward_canary_evidence_status.get(
+                            "valid_side_counts"
+                        ),
                         "required_symbol_count": paper_forward_canary_evidence_status.get(
                             "required_symbol_count"
                         ),
@@ -10384,6 +10387,21 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                             paper_forward_canary_evidence_status.get(
                                 "failed_forward_canary_blocker_details"
                             )
+                        ),
+                        "production_grade_cost_coverage": (
+                            paper_forward_canary_evidence_status.get(
+                                "production_grade_cost_coverage"
+                            )
+                        ),
+                        "pass_conditions": paper_forward_canary_evidence_status.get(
+                            "pass_conditions"
+                        )
+                        or {},
+                        "non_counting_reasons": (
+                            paper_forward_canary_evidence_status.get(
+                                "non_counting_reasons"
+                            )
+                            or {}
                         ),
                     }
                 )

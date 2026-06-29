@@ -370,6 +370,8 @@ def _mobile_runtime_truth_from_redis(
                 "forward_canary_shortfalls",
                 "failed_forward_canary_blocker_details",
                 "production_grade_cost_coverage",
+                "pass_conditions",
+                "non_counting_reasons",
                 "counts_as_a_grade_evidence",
                 "paper_only",
                 "routes_to_live",
