@@ -664,6 +664,7 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
     assert loop["order_cost_applicable_rows"] == 2
     assert loop["production_grade_cost_order_applicable_rows"] == 1
     assert loop["production_grade_cost_coverage"] == pytest.approx(1 / 2)
+    assert loop["production_grade_cost_coverage_basis"] == "order_applicable_rows"
     assert loop["production_grade_cost_total_row_coverage"] == pytest.approx(1 / 3)
     assert loop["no_order_explained_rows"] == 1
     assert loop["no_order_missing_cost_rows"] == 1
@@ -775,10 +776,164 @@ async def test_paper_runtime_status_preserves_explicit_zero_cost_counts(
     assert loop["production_grade_cost_rows"] == 0
     assert loop["production_grade_cost_order_applicable_rows"] == 0
     assert loop["production_grade_cost_coverage"] == 0.0
+    assert loop["production_grade_cost_coverage_basis"] == (
+        "all_intent_rows_no_order_applicable"
+    )
     assert loop["production_grade_cost_total_row_coverage"] == 0.0
     assert loop["paper_fill_allowed_rows"] == 0
     assert loop["routes_to_live_rows"] == 0
     assert loop["places_real_order_rows"] == 0
+    assert "v2:paper:intents" not in client.get_calls
+
+
+@pytest.mark.asyncio
+async def test_paper_runtime_status_repairs_zero_denominator_cost_coverage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    values = {
+        "v2:paper:heartbeat": {
+            "worker_id": "v2_trade_management_paper_loop",
+            "heartbeat_generated_at": "2026-06-27T20:50:00Z",
+            "cycle_state": "COMPLETED_CYCLE",
+            "paper_policy_owner": "challenger_v2",
+            "writes_legacy_redis": False,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        },
+        "v2:paper:trade_management:status": {
+            "paper_runtime_admission_status": {
+                "intents_built": 3,
+                "accepted_count": 0,
+            },
+            "paper_runtime_cost_capture_status": {
+                "paper_intent_rows": 3,
+                "order_cost_applicable_rows": 0,
+                "production_grade_cost_rows": 2,
+                "production_grade_cost_order_applicable_rows": 0,
+                "production_grade_cost_coverage": 0.0,
+                "production_grade_cost_total_row_coverage": 2 / 3,
+                "no_order_explained_rows": 3,
+                "no_order_missing_cost_rows": 1,
+                "unexplained_missing_cost_rows": 0,
+                "paper_fill_allowed_rows": 0,
+                "routes_to_live_rows": 0,
+                "places_real_order_rows": 0,
+            },
+        },
+        "v2:paper:b_grade_canary_supply_status": {
+            "schema_version": "paper_b_grade_canary_supply_status_v1",
+            "status": "B_GRADE_CANARY_PENDING_SUPPLY_PRESENT",
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "counts_as_a_grade_evidence": False,
+        },
+    }
+    client = _FakeRedis(values)
+    monkeypatch.setattr(market_contracts, "get_redis", lambda: client)
+    monkeypatch.setattr(market_contracts, "_utc_now", lambda: "2026-06-27T20:50:10Z")
+
+    payload = await market_contracts.get_paper_runtime_status(actor=None)
+
+    loop = payload["paper_loop"]
+    assert loop["order_cost_applicable_rows"] == 0
+    assert loop["production_grade_cost_rows"] == 2
+    assert loop["production_grade_cost_coverage"] == pytest.approx(2 / 3)
+    assert loop["production_grade_cost_coverage_basis"] == (
+        "all_intent_rows_no_order_applicable_api_repaired"
+    )
+    assert loop["production_grade_cost_total_row_coverage"] == pytest.approx(2 / 3)
+
+
+@pytest.mark.asyncio
+async def test_paper_runtime_status_exposes_mixed_case_a_grade_burndown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    values = {
+        "v2:paper:heartbeat": {
+            "worker_id": "v2_trade_management_paper_loop",
+            "heartbeat_generated_at": "2026-06-27T20:50:00Z",
+            "cycle_state": "COMPLETED_CYCLE",
+            "paper_policy_owner": "challenger_v2",
+            "writes_legacy_redis": False,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        },
+        "v2:paper:trade_management:status": {
+            "paper_runtime_admission_status": {
+                "intents_built": 7,
+                "accepted_count": 0,
+            },
+            "paper_runtime_cost_capture_status": {
+                "paper_intent_rows": 7,
+                "order_cost_applicable_rows": 7,
+                "production_grade_cost_rows": 7,
+                "production_grade_cost_order_applicable_rows": 7,
+                "production_grade_cost_coverage": 1.0,
+                "production_grade_cost_total_row_coverage": 1.0,
+                "paper_fill_allowed_rows": 0,
+                "routes_to_live_rows": 0,
+                "places_real_order_rows": 0,
+            },
+            "paper_a_grade_gate_burndown_status": {
+                "A_grade_rows": 9,
+                "near_A_grade_rows": 9,
+            },
+        },
+        "v2:paper:a_grade_gate_burndown_status": {
+            "schema_version": "paper_a_grade_gate_burndown_status_v1",
+            "candidate_rows": 7,
+            "A_grade_rows": 0,
+            "near_A_grade_rows": 2,
+            "source_tier_a_grade_execution_rows": 0,
+            "predicate_counts": {
+                "allocator_pass_rows": 0,
+                "production_grade_cost_rows": 7,
+                "risk_pass_rows": 0,
+            },
+            "guardian_gate_status": {
+                "status": "A_GRADE_HALTED_PERFORMANCE",
+                "a_grade_new_entries_allowed": False,
+                "block_all_new_a_grade_entries": True,
+                "failure_reasons": [
+                    {
+                        "reason": "INSUFFICIENT_REALTIME_A_GRADE_CLOSED_ECONOMIC_TRADES",
+                        "observed": 0,
+                        "required": 1000,
+                    },
+                ],
+            },
+            "sample_near_a_grade_rows": [{"prediction_id": "pred-near"}],
+        },
+    }
+    client = _FakeRedis(values)
+    monkeypatch.setattr(market_contracts, "get_redis", lambda: client)
+    monkeypatch.setattr(market_contracts, "_utc_now", lambda: "2026-06-27T20:50:10Z")
+
+    payload = await market_contracts.get_paper_runtime_status(actor=None)
+
+    loop = payload["paper_loop"]
+    assert loop["a_grade_rows"] == 0
+    assert loop["near_a_grade_rows"] == 2
+    assert loop["source_tier_a_grade_execution_rows"] == 0
+    assert loop["guardian_status"] == "A_GRADE_HALTED_PERFORMANCE"
+    assert loop["guardian_new_entries_allowed"] is False
+    assert loop["guardian_block_all_new_a_grade_entries"] is True
+    assert loop["a_grade_predicate_counts"]["allocator_pass_rows"] == 0
+
+    burndown = loop["paper_a_grade_gate_burndown_status"]
+    assert burndown["source"] == "redis:v2:paper:a_grade_gate_burndown_status"
+    assert burndown["available"] is True
+    assert burndown["A_grade_rows"] == 0
+    assert burndown["a_grade_rows"] == 0
+    assert burndown["near_A_grade_rows"] == 2
+    assert burndown["near_a_grade_rows"] == 2
+    assert burndown["guardian_failure_reason_count"] == 1
+    assert burndown["sample_near_a_grade_rows_count"] == 1
+    assert "sample_near_a_grade_rows" not in burndown
+    assert any(blocker["id"] == "A_GRADE_SUPPLY_ZERO" for blocker in payload["blockers"])
     assert "v2:paper:intents" not in client.get_calls
 
 

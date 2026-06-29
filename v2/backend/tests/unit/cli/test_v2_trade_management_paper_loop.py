@@ -476,6 +476,80 @@ def test_build_allocation_input_uses_configured_paper_fee_schedule_when_missing(
     assert "MISSING_FEES" not in (intent.get("market_cost_evidence_missing_fields") or [])
 
 
+def test_build_allocation_input_uses_readonly_fee_schedule_before_configured_default() -> None:
+    intent = {
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "side": "long",
+        "entry_price": 100.0,
+        "confidence_calibrated": 0.8,
+        "expected_move_after_cost_bps": 14.0,
+        "market_state_integrity_score": 92.0,
+    }
+    allocation_input = paper_loop._build_allocation_input(  # noqa: SLF001
+        intent=intent,
+        signal={
+            "timeframe": "1m",
+            "price_target": 100.0,
+            "expected_funding_bps": 0.5,
+        },
+        prediction={"features": {}},
+        portfolio_context={
+            "equity": 10000.0,
+            "available_margin": 9000.0,
+            "wallet_balance": 10000.0,
+            "drawdown_bps": 0.0,
+        },
+        symbol_exposures={},
+        total_exposure=0.0,
+        market_microstructure={
+            "bid_ask_spread_bps": 1.2,
+            "source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK",
+            "orderbook_depth_usd": 100000.0,
+            "orderbook_depth_source": "orderbook_top5",
+        },
+        fee_schedule_context={
+            "source": "READ_ONLY_FEE_SCHEDULE_REDIS:v2:account:fee_schedule:BTCUSDT",
+            "taker_fee_rate": "0.00035",
+        },
+    )
+
+    assert allocation_input.fee_bps == pytest.approx(3.5)
+    assert intent["fee_bps"] == pytest.approx(3.5)
+    assert intent["fee_bps_source"] == (
+        "READ_ONLY_FEE_SCHEDULE_REDIS:v2:account:fee_schedule:BTCUSDT."
+        "taker_fee_rate:rate_to_bps"
+    )
+    assert intent["fee_bps_fallback"] is False
+    assert intent["fee_bps_readonly_schedule"] is True
+    assert intent["fee_bps_configured_schedule"] is False
+    assert intent["fee_bps_for_allocator"] == pytest.approx(3.5)
+    assert intent["market_cost_evidence_status"] == "COMPLETE_EXPLICIT_MARKET_COST_EVIDENCE"
+
+
+def test_read_readonly_fee_schedule_context_uses_symbol_specific_redis_payload() -> None:
+    redis_client = _FakeRedis(
+        {
+            "v2:account:fee_schedule:BTCUSDT": {
+                "symbol": "BTCUSDT",
+                "taker_fee_bps": 3.25,
+                "maker_fee_bps": 1.0,
+            }
+        }
+    )
+
+    context = paper_loop._read_readonly_fee_schedule_context(  # noqa: SLF001
+        redis_client,
+        symbol="BTCUSDT",
+    )
+
+    assert context["source"] == "READ_ONLY_FEE_SCHEDULE_REDIS:v2:account:fee_schedule:BTCUSDT"
+    assert paper_loop._fee_bps_from_readonly_schedule(context) == (  # noqa: SLF001
+        3.25,
+        "READ_ONLY_FEE_SCHEDULE_REDIS:v2:account:fee_schedule:BTCUSDT.taker_fee_bps",
+    )
+
+
 def test_read_v2_feature_snapshot_missing_timeframe_does_not_default_to_1m() -> None:
     class FakeRedis:
         def __init__(self) -> None:
@@ -1204,12 +1278,64 @@ def test_paper_runtime_cost_capture_summary_counts_order_applicable_rows() -> No
     assert summary["production_grade_cost_rows"] == 1
     assert summary["production_grade_cost_order_applicable_rows"] == 1
     assert summary["production_grade_cost_coverage"] == 0.5
+    assert summary["production_grade_cost_coverage_basis"] == "order_applicable_rows"
     assert summary["production_grade_cost_total_row_coverage"] == 1 / 3
     assert summary["no_order_explained_rows"] == 1
     assert summary["unexplained_missing_cost_rows"] == 1
     assert summary["no_order_missing_cost_rows"] == 1
     assert summary["paper_fill_allowed_rows"] == 1
     assert summary["places_real_order"] is False
+
+
+def test_paper_runtime_cost_capture_summary_uses_total_coverage_when_no_order_applicable() -> None:
+    rows = [
+        {
+            "runtime_cost_capture_order_cost_applicable": False,
+            "production_grade_cost_flag": True,
+            "runtime_cost_capture_missing_fields": ["order_size"],
+        },
+        {
+            "runtime_cost_capture_order_cost_applicable": False,
+            "production_grade_cost_evidence": True,
+            "runtime_cost_capture_missing_fields": ["order_size"],
+        },
+        {
+            "runtime_cost_capture_order_cost_applicable": False,
+            "runtime_cost_capture_missing_fields": ["order_size"],
+        },
+    ]
+
+    summary = paper_loop._paper_runtime_cost_capture_summary(rows)  # noqa: SLF001
+
+    assert summary["paper_intent_rows"] == 3
+    assert summary["order_cost_applicable_rows"] == 0
+    assert summary["production_grade_cost_rows"] == 2
+    assert summary["production_grade_cost_order_applicable_rows"] == 0
+    assert summary["production_grade_cost_coverage"] == pytest.approx(2 / 3)
+    assert summary["production_grade_cost_coverage_basis"] == (
+        "all_intent_rows_no_order_applicable"
+    )
+    assert summary["production_grade_cost_total_row_coverage"] == pytest.approx(2 / 3)
+    assert summary["unexplained_missing_cost_rows"] == 0
+    assert summary["no_order_missing_cost_rows"] == 3
+
+
+def test_paper_runtime_cost_capture_summary_preserves_true_zero_without_cost_rows() -> None:
+    rows = [
+        {
+            "runtime_cost_capture_order_cost_applicable": False,
+            "runtime_cost_capture_missing_fields": ["order_size"],
+        },
+    ]
+
+    summary = paper_loop._paper_runtime_cost_capture_summary(rows)  # noqa: SLF001
+
+    assert summary["production_grade_cost_rows"] == 0
+    assert summary["production_grade_cost_coverage"] == 0.0
+    assert summary["production_grade_cost_coverage_basis"] == (
+        "all_intent_rows_no_order_applicable"
+    )
+    assert summary["production_grade_cost_total_row_coverage"] == 0.0
 
 
 def test_feedback_context_fallback_preserves_pre_outcome_candidate_provenance() -> None:

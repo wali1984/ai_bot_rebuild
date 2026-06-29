@@ -395,6 +395,86 @@ def _configured_paper_fee_bps() -> float:
     return float(AllocationInput.__dataclass_fields__["fee_bps"].default)
 
 
+def _fee_bps_from_readonly_schedule(
+    schedule: dict[str, Any] | None,
+) -> tuple[float | None, str | None]:
+    if not isinstance(schedule, dict):
+        return None, None
+    source = str(
+        _first_present(
+            schedule.get("source"),
+            schedule.get("redis_key"),
+            schedule.get("fee_schedule_source"),
+            "READ_ONLY_FEE_SCHEDULE",
+        )
+    )
+    for key in (
+        "taker_fee_bps",
+        "fee_bps",
+        "expected_fee_bps",
+        "actual_fee_bps",
+        "commission_bps",
+    ):
+        parsed = _coerce_float(schedule.get(key))
+        if parsed is not None:
+            return parsed, f"{source}.{key}"
+    for key in ("taker_fee_rate", "fee_rate", "commission_rate"):
+        parsed = _coerce_float(schedule.get(key))
+        if parsed is not None:
+            return parsed * 10000.0, f"{source}.{key}:rate_to_bps"
+    return None, None
+
+
+def _read_readonly_fee_schedule_context(
+    redis_client: Any | None,
+    *,
+    symbol: str,
+) -> dict[str, Any]:
+    if redis_client is None:
+        return {}
+    sym = str(symbol or "").upper().strip()
+    keys = [
+        f"{V2_REDIS_PREFIX}account:fee_schedule:{sym}",
+        f"{V2_REDIS_PREFIX}exchange:fee_schedule:{sym}",
+        f"{V2_REDIS_PREFIX}market:fee_schedule:{sym}",
+        f"{V2_REDIS_PREFIX}fee_schedule:{sym}",
+        f"{V2_REDIS_PREFIX}account:fee_schedule",
+        f"{V2_REDIS_PREFIX}exchange:fee_schedule",
+        f"{V2_REDIS_PREFIX}market:fee_schedule",
+        f"{V2_REDIS_PREFIX}fee_schedule",
+    ]
+    for key in keys:
+        if not sym and key.endswith(":"):
+            continue
+        try:
+            raw = redis_client.get(key)
+        except Exception:  # noqa: BLE001
+            continue
+        if not raw:
+            continue
+        try:
+            decoded = json.loads(raw)
+        except (TypeError, json.JSONDecodeError):
+            continue
+        candidates: list[dict[str, Any]] = []
+        if isinstance(decoded, dict):
+            if isinstance(decoded.get(sym), dict):
+                candidates.append(decoded[sym])
+            for container_key in ("symbols", "fees", "fee_schedules", "data"):
+                container = decoded.get(container_key)
+                if isinstance(container, dict) and isinstance(container.get(sym), dict):
+                    candidates.append(container[sym])
+            candidates.append(decoded)
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                continue
+            payload = dict(candidate)
+            payload.setdefault("source", f"READ_ONLY_FEE_SCHEDULE_REDIS:{key}")
+            if _fee_bps_from_readonly_schedule(payload)[0] is not None:
+                return payload
+    return {}
+
+
 def _build_trainer_feedback_rows(
     *,
     close_events: list[dict[str, Any]],
@@ -3409,11 +3489,12 @@ def _paper_runtime_cost_capture_summary(rows: list[dict[str, Any]]) -> dict[str,
         if intent_rows
         else 0.0
     )
-    cost_coverage = (
-        production_grade_cost_order_applicable_rows / len(order_applicable_rows)
-        if order_applicable_rows
-        else 0.0
-    )
+    if order_applicable_rows:
+        cost_coverage = production_grade_cost_order_applicable_rows / len(order_applicable_rows)
+        cost_coverage_basis = "order_applicable_rows"
+    else:
+        cost_coverage = total_row_cost_coverage
+        cost_coverage_basis = "all_intent_rows_no_order_applicable"
     return {
         "schema_version": "v2_paper_runtime_cost_capture_summary_v1",
         "source": "v2_trade_management_paper_loop:intents",
@@ -3422,6 +3503,7 @@ def _paper_runtime_cost_capture_summary(rows: list[dict[str, Any]]) -> dict[str,
         "production_grade_cost_rows": production_grade_cost_rows,
         "production_grade_cost_order_applicable_rows": production_grade_cost_order_applicable_rows,
         "production_grade_cost_coverage": cost_coverage,
+        "production_grade_cost_coverage_basis": cost_coverage_basis,
         "production_grade_cost_total_row_coverage": total_row_cost_coverage,
         "no_order_explained_rows": no_order_explained_rows,
         "unexplained_missing_cost_rows": unexplained_missing_cost_rows,
@@ -11459,6 +11541,7 @@ def _build_allocation_input(
     total_exposure: float,
     market_microstructure: dict[str, Any] | None = None,
     correlation_contexts_by_symbol: dict[str, dict[str, Any]] | None = None,
+    fee_schedule_context: dict[str, Any] | None = None,
 ):
     from v2.backend.app.services.adaptive_capital_allocator import AllocationInput
 
@@ -11651,17 +11734,25 @@ def _build_allocation_input(
         ("market_microstructure", market_microstructure),
         keys=("actual_fee_bps", "fee_bps", "taker_fee_bps", "expected_fee_bps"),
     )
+    readonly_fee_bps, readonly_fee_source = _fee_bps_from_readonly_schedule(
+        fee_schedule_context,
+    )
     if fee_bps is None:
-        # Use the configured paper fee schedule as a production-grade input when
-        # the signal / prediction / market data does not carry explicit fee evidence.
-        # This matches the committed baseline behavior (alloc-input always provides
-        # a concrete fee value so the runtime evidence gate does not false-block).
-        fee_bps = _configured_paper_fee_bps()
-        fee_source = PAPER_CONFIGURED_FEE_SCHEDULE_SOURCE
+        if readonly_fee_bps is not None:
+            fee_bps = readonly_fee_bps
+            fee_source = readonly_fee_source
+            intent["fee_bps_readonly_schedule"] = True
+            intent["fee_bps_configured_schedule"] = False
+        else:
+            # Use the configured paper fee schedule when no explicit/read-only
+            # venue or account fee evidence is available.
+            fee_bps = _configured_paper_fee_bps()
+            fee_source = PAPER_CONFIGURED_FEE_SCHEDULE_SOURCE
+            intent["fee_bps_readonly_schedule"] = False
+            intent["fee_bps_configured_schedule"] = True
         intent["fee_bps"] = fee_bps
         intent["fee_bps_source"] = fee_source
         intent["fee_bps_fallback"] = False
-        intent["fee_bps_configured_schedule"] = True
         intent["fee_bps_for_allocator"] = fee_bps
         intent["fee_bps_unavailable_reason"] = None
     else:
@@ -11669,6 +11760,7 @@ def _build_allocation_input(
         intent["fee_bps_source"] = fee_source
         intent["fee_bps_fallback"] = False
         intent["fee_bps_configured_schedule"] = False
+        intent["fee_bps_readonly_schedule"] = False
         intent["fee_bps_for_allocator"] = fee_bps
         intent["fee_bps_unavailable_reason"] = None
     expected_funding_bps, expected_funding_source = _first_numeric_field_from(
@@ -12309,6 +12401,10 @@ def run_once() -> dict:
         market_microstructure = _read_v2_orderbook_microstructure(r, symbol)
         long_short_evidence = _read_v2_long_short_ratio_evidence(r, symbol)
         _attach_long_short_ratio_context(intent, long_short_evidence)
+        fee_schedule_context = _read_readonly_fee_schedule_context(
+            r,
+            symbol=symbol,
+        )
         allocation_input = _build_allocation_input(
             intent=intent,
             signal=s,
@@ -12318,6 +12414,7 @@ def run_once() -> dict:
             total_exposure=total_exposure,
             market_microstructure=market_microstructure,
             correlation_contexts_by_symbol=correlation_contexts_by_symbol,
+            fee_schedule_context=fee_schedule_context,
         )
         allocation = allocate_paper_candidate(allocation_input)
         allocation_payload = allocation.to_payload()

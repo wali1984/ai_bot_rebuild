@@ -92,9 +92,11 @@ PAPER_ACTIVITY_LAST_NON_EMPTY_POSITIONS: dict[str, Any] = {
     "updated_at": None,
 }
 PAPER_RUNTIME_STATUS_SAMPLE_KEYS = {
+    "sample_a_grade_rows",
     "sample_canary_candidates",
     "sample_canary_pending_rows",
     "sample_lifecycle_closed_canary_outcomes",
+    "sample_near_a_grade_rows",
     "sample_near_miss_strategy_blocked_rows",
     "sample_rejected_forward_canary_outcomes",
     "sample_valid_forward_canary_outcomes",
@@ -9663,16 +9665,6 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                 if isinstance(trade_management_status.get("paper_runtime_cost_capture_status"), dict)
                 else {}
             )
-            a_grade_gate_status = (
-                trade_management_status.get("paper_a_grade_gate_burndown_status")
-                if isinstance(trade_management_status.get("paper_a_grade_gate_burndown_status"), dict)
-                else {}
-            )
-            a_grade_predicates = (
-                a_grade_gate_status.get("predicate_counts")
-                if isinstance(a_grade_gate_status.get("predicate_counts"), dict)
-                else {}
-            )
 
             def _first_integer(default: int, *values: Any) -> int:
                 for value in values:
@@ -9680,6 +9672,92 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                     if parsed is not None:
                         return int(parsed)
                 return int(default)
+
+            a_grade_gate_key = "v2:paper:a_grade_gate_burndown_status"
+            try:
+                a_grade_gate_raw = client.get(a_grade_gate_key)
+            except Exception:
+                a_grade_gate_raw = None
+            a_grade_gate_status = _json_object_from_redis_raw(a_grade_gate_raw)
+            a_grade_gate_source = f"redis:{a_grade_gate_key}" if a_grade_gate_status else ""
+            if not a_grade_gate_status:
+                fallback_a_grade_gate = trade_management_status.get("paper_a_grade_gate_burndown_status")
+                if isinstance(fallback_a_grade_gate, dict):
+                    a_grade_gate_status = fallback_a_grade_gate
+                    a_grade_gate_source = (
+                        "redis:v2:paper:trade_management:status.paper_a_grade_gate_burndown_status"
+                    )
+            if a_grade_gate_status:
+                a_grade_gate_status = _compact_paper_runtime_contract(a_grade_gate_status)
+                a_grade_gate_status.setdefault("source", a_grade_gate_source)
+                a_grade_gate_status.setdefault("available", True)
+                a_grade_rows = _first_integer(
+                    0,
+                    a_grade_gate_status.get("A_grade_rows"),
+                    a_grade_gate_status.get("a_grade_rows"),
+                )
+                near_a_grade_rows = _first_integer(
+                    0,
+                    a_grade_gate_status.get("near_A_grade_rows"),
+                    a_grade_gate_status.get("near_a_grade_rows"),
+                )
+                source_tier_a_grade_execution_rows = _first_integer(
+                    0,
+                    a_grade_gate_status.get("source_tier_a_grade_execution_rows"),
+                    a_grade_gate_status.get("source_tier_A_grade_execution_rows"),
+                )
+                a_grade_gate_status["A_grade_rows"] = a_grade_rows
+                a_grade_gate_status["a_grade_rows"] = a_grade_rows
+                a_grade_gate_status["near_A_grade_rows"] = near_a_grade_rows
+                a_grade_gate_status["near_a_grade_rows"] = near_a_grade_rows
+                a_grade_gate_status["source_tier_a_grade_execution_rows"] = (
+                    source_tier_a_grade_execution_rows
+                )
+                guardian_gate_status = (
+                    a_grade_gate_status.get("guardian_gate_status")
+                    if isinstance(a_grade_gate_status.get("guardian_gate_status"), dict)
+                    else {}
+                )
+                if guardian_gate_status:
+                    failure_reasons = guardian_gate_status.get("failure_reasons")
+                    a_grade_gate_status.setdefault("guardian_status", guardian_gate_status.get("status"))
+                    a_grade_gate_status.setdefault(
+                        "guardian_new_entries_allowed",
+                        guardian_gate_status.get("a_grade_new_entries_allowed"),
+                    )
+                    a_grade_gate_status.setdefault(
+                        "guardian_block_all_new_a_grade_entries",
+                        guardian_gate_status.get("block_all_new_a_grade_entries"),
+                    )
+                    a_grade_gate_status.setdefault(
+                        "guardian_failure_reason_count",
+                        len(failure_reasons) if isinstance(failure_reasons, list) else 0,
+                    )
+            else:
+                a_grade_rows = 0
+                near_a_grade_rows = 0
+                source_tier_a_grade_execution_rows = 0
+                a_grade_gate_status = {
+                    "schema_version": "paper_a_grade_gate_burndown_status_v1",
+                    "status": "A_GRADE_GATE_BURNDOWN_STATUS_UNAVAILABLE",
+                    "source": f"redis:{a_grade_gate_key}",
+                    "available": False,
+                    "paper_only": True,
+                    "routes_to_live": False,
+                    "places_real_order": False,
+                    "A_grade_rows": 0,
+                    "a_grade_rows": 0,
+                    "near_A_grade_rows": 0,
+                    "near_a_grade_rows": 0,
+                    "source_tier_a_grade_execution_rows": 0,
+                    "predicate_counts": {},
+                    "generated_at": now,
+                }
+            a_grade_predicates = (
+                a_grade_gate_status.get("predicate_counts")
+                if isinstance(a_grade_gate_status.get("predicate_counts"), dict)
+                else {}
+            )
 
             intent_rows = _first_integer(
                 0,
@@ -9732,6 +9810,22 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                     production_grade_cost_order_applicable_rows / order_applicable_rows
                     if order_applicable_rows
                     else 0.0
+                )
+            cost_coverage_basis = str(
+                runtime_cost_capture_status.get("production_grade_cost_coverage_basis") or ""
+            )
+            if (
+                order_applicable_rows == 0
+                and intent_rows > 0
+                and total_row_cost_coverage > cost_coverage
+            ):
+                cost_coverage = total_row_cost_coverage
+                cost_coverage_basis = "all_intent_rows_no_order_applicable_api_repaired"
+            if not cost_coverage_basis:
+                cost_coverage_basis = (
+                    "order_applicable_rows"
+                    if order_applicable_rows
+                    else "all_intent_rows_no_order_applicable"
                 )
 
             latest_signal, latest_sig_ts = _latest_signal_from_bounded_keys(client)
@@ -9878,6 +9972,23 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                         ),
                     }
                 )
+            if a_grade_gate_status.get("available") is True and a_grade_rows <= 0:
+                blockers.append(
+                    {
+                        "id": "A_GRADE_SUPPLY_ZERO",
+                        "severity": "runtime_blocker",
+                        "detail": "Paper A-grade burndown reports zero A-grade rows; guardian/source-tier status remains authoritative.",
+                        "source": a_grade_gate_status.get("source") or f"redis:{a_grade_gate_key}",
+                        "near_a_grade_rows": near_a_grade_rows,
+                        "guardian_status": a_grade_gate_status.get("guardian_status"),
+                        "guardian_new_entries_allowed": a_grade_gate_status.get(
+                            "guardian_new_entries_allowed"
+                        ),
+                        "source_tier_a_grade_execution_rows": (
+                            source_tier_a_grade_execution_rows
+                        ),
+                    }
+                )
 
             lineage_ids: dict[str, Any] = {}
             if latest_signal:
@@ -9964,6 +10075,7 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                     "production_grade_cost_rows": production_grade_cost_rows,
                     "production_grade_cost_order_applicable_rows": production_grade_cost_order_applicable_rows,
                     "production_grade_cost_coverage": cost_coverage,
+                    "production_grade_cost_coverage_basis": cost_coverage_basis,
                     "production_grade_cost_total_row_coverage": total_row_cost_coverage,
                     "no_order_explained_rows": no_order_explained_rows,
                     "unexplained_missing_cost_rows": unexplained_missing_cost_rows,
@@ -9971,6 +10083,18 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                     "paper_fill_allowed_rows": paper_fill_allowed_rows,
                     "routes_to_live_rows": routes_to_live_rows,
                     "places_real_order_rows": places_real_order_rows,
+                    "a_grade_rows": a_grade_rows,
+                    "near_a_grade_rows": near_a_grade_rows,
+                    "source_tier_a_grade_execution_rows": source_tier_a_grade_execution_rows,
+                    "guardian_status": a_grade_gate_status.get("guardian_status"),
+                    "guardian_new_entries_allowed": a_grade_gate_status.get(
+                        "guardian_new_entries_allowed"
+                    ),
+                    "guardian_block_all_new_a_grade_entries": a_grade_gate_status.get(
+                        "guardian_block_all_new_a_grade_entries"
+                    ),
+                    "a_grade_predicate_counts": a_grade_predicates,
+                    "paper_a_grade_gate_burndown_status": a_grade_gate_status,
                     "b_grade_canary_supply_status": b_grade_canary_supply_status,
                     "paper_forward_canary_evidence_status": paper_forward_canary_evidence_status,
                 },
