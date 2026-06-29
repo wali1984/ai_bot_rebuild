@@ -84,6 +84,7 @@ DIRECTIONAL_COLLAPSE_BLOCK_REASON = "DIRECTIONAL_COLLAPSE_RUNTIME_GUARD_BLOCKED"
 DIRECTIONAL_COLLAPSE_MIN_CLOSED_TRADES = 50
 DIRECTIONAL_COLLAPSE_MIN_SIDE_TRADES = 50
 DIRECTIONAL_COLLAPSE_MAJOR_SIDE_SHARE = 0.90
+DIRECTIONAL_COLLAPSE_ADAPTIVE_MAX_SHARE_TIGHTENING = 0.05
 STRATEGY_MODE_COLLAPSE_GUARD_NAME = "PAPER_ONLY_STRATEGY_MODE_COLLAPSE_GUARD"
 STRATEGY_MODE_COLLAPSE_BLOCK_REASON = "STRATEGY_MODE_COLLAPSE_RUNTIME_GUARD_BLOCKED"
 STRATEGY_MODE_COLLAPSE_MIN_CLOSED_TRADES = 50
@@ -8631,7 +8632,50 @@ def _paper_adaptive_threshold_runtime_status(rows: list[dict[str, Any]]) -> dict
     drawdown_recovery_never_below_static_rows = 0
     drawdown_recovery_tightened_rows = 0
     drawdown_recovery_floor_values: list[float] = []
+    directional_policy_rows = 0
+    directional_never_looser_rows = 0
+    directional_tightened_rows = 0
+    directional_adaptive_min_side_values: list[int] = []
+    directional_adaptive_share_values: list[float] = []
     for row in rows:
+        directional_guard = row.get("paper_directional_collapse_guard")
+        directional_policy = (
+            directional_guard.get("adaptive_policy")
+            if isinstance(directional_guard, dict)
+            else None
+        )
+        if isinstance(directional_policy, dict):
+            directional_policy_rows += 1
+            directional_never_looser_rows += int(
+                directional_policy.get("adaptive_never_looser_than_static") is True
+            )
+            adaptive_min_side = _coerce_float(
+                directional_policy.get("adaptive_minimum_side_trades")
+            )
+            static_min_side = _coerce_float(
+                directional_policy.get("static_minimum_side_trades")
+            )
+            adaptive_share = _coerce_float(
+                directional_policy.get("adaptive_major_side_share_threshold")
+            )
+            static_share = _coerce_float(
+                directional_policy.get("static_major_side_share_threshold")
+            )
+            if adaptive_min_side is not None:
+                directional_adaptive_min_side_values.append(int(adaptive_min_side))
+            if adaptive_share is not None:
+                directional_adaptive_share_values.append(adaptive_share)
+            if (
+                adaptive_min_side is not None
+                and static_min_side is not None
+                and adaptive_min_side > static_min_side
+            ) or (
+                adaptive_share is not None
+                and static_share is not None
+                and adaptive_share < static_share
+            ):
+                directional_tightened_rows += 1
+
         stale_policy = row.get("paper_signal_adaptive_stale_policy")
         if not isinstance(stale_policy, dict):
             stale_policy = _paper_signal_adaptive_stale_policy(row)
@@ -8738,6 +8782,45 @@ def _paper_adaptive_threshold_runtime_status(rows: list[dict[str, Any]]) -> dict
         if drawdown_recovery_floor_values
         else None
     )
+    directional_adaptive_min_side_min = (
+        min(directional_adaptive_min_side_values)
+        if directional_adaptive_min_side_values
+        else None
+    )
+    directional_adaptive_min_side_max = (
+        max(directional_adaptive_min_side_values)
+        if directional_adaptive_min_side_values
+        else None
+    )
+    directional_adaptive_share_min = (
+        min(directional_adaptive_share_values)
+        if directional_adaptive_share_values
+        else None
+    )
+    directional_adaptive_share_max = (
+        max(directional_adaptive_share_values)
+        if directional_adaptive_share_values
+        else None
+    )
+    remaining_static_threshold_blockers = [
+        "directional_collapse_guard",
+        "strategy_mode_collapse_guard",
+        "standalone_1m_gate",
+        "audit_blocked_allowed_entry_timeframes",
+        "outcome_memory_degradation_thresholds",
+        "leverage_recommendation_tiers",
+        "alpha_liquidity_risk_config",
+        "microstructure_toxicity_threshold",
+    ]
+    if (
+        directional_policy_rows > 0
+        and directional_never_looser_rows == directional_policy_rows
+    ):
+        remaining_static_threshold_blockers = [
+            blocker
+            for blocker in remaining_static_threshold_blockers
+            if blocker != "directional_collapse_guard"
+        ]
     return {
         "schema_version": "paper_adaptive_threshold_runtime_status_v1",
         "status": (
@@ -8746,7 +8829,7 @@ def _paper_adaptive_threshold_runtime_status(rows: list[dict[str, Any]]) -> dict
         ),
         "adaptive_threshold_id": (
             "b_grade_confidence_floor,paper_signal_stale_seconds,"
-            "paper_drawdown_recovery_min_confidence"
+            "paper_drawdown_recovery_min_confidence,directional_collapse_guard"
         ),
         "adaptive_threshold_scope": (
             "paper_only_b_grade_exploration_signal_freshness_and_drawdown_recovery"
@@ -8802,16 +8885,30 @@ def _paper_adaptive_threshold_runtime_status(rows: list[dict[str, Any]]) -> dict
             "threshold_lowering_to_force_trades": False,
             "mode": "DRAWDOWN_AND_EDGE_CONTEXTUAL_FAIL_CLOSED_NEVER_BELOW_STATIC",
         },
-        "remaining_static_threshold_blockers": [
-            "directional_collapse_guard",
-            "strategy_mode_collapse_guard",
-            "standalone_1m_gate",
-            "audit_blocked_allowed_entry_timeframes",
-            "outcome_memory_degradation_thresholds",
-            "leverage_recommendation_tiers",
-            "alpha_liquidity_risk_config",
-            "microstructure_toxicity_threshold",
-        ],
+        "adaptive_directional_collapse_guard": {
+            "threshold_id": "directional_collapse_guard",
+            "static_minimum_closed_trades": DIRECTIONAL_COLLAPSE_MIN_CLOSED_TRADES,
+            "static_minimum_side_trades": DIRECTIONAL_COLLAPSE_MIN_SIDE_TRADES,
+            "static_major_side_share_threshold": DIRECTIONAL_COLLAPSE_MAJOR_SIDE_SHARE,
+            "evaluated_rows": directional_policy_rows,
+            "adaptive_never_looser_than_static_rows": directional_never_looser_rows,
+            "adaptive_tightened_rows": directional_tightened_rows,
+            "adaptive_minimum_side_trades_min": directional_adaptive_min_side_min,
+            "adaptive_minimum_side_trades_max": directional_adaptive_min_side_max,
+            "adaptive_major_side_share_threshold_min": (
+                round(directional_adaptive_share_min, 8)
+                if directional_adaptive_share_min is not None
+                else None
+            ),
+            "adaptive_major_side_share_threshold_max": (
+                round(directional_adaptive_share_max, 8)
+                if directional_adaptive_share_max is not None
+                else None
+            ),
+            "threshold_lowering_to_force_trades": False,
+            "mode": "SAMPLE_SIZE_CONTEXTUAL_FAIL_CLOSED_NEVER_LOOSER_THAN_STATIC",
+        },
+        "remaining_static_threshold_blockers": remaining_static_threshold_blockers,
         "pass_conditions": {
             "adaptive_floor_evaluated_rows_gt_zero": evaluated_rows > 0,
             "adaptive_floor_never_below_static": never_below_static_rows == evaluated_rows,
@@ -8822,6 +8919,13 @@ def _paper_adaptive_threshold_runtime_status(rows: list[dict[str, Any]]) -> dict
             "adaptive_drawdown_recovery_threshold_never_below_static": (
                 drawdown_recovery_policy_rows == 0
                 or drawdown_recovery_never_below_static_rows == drawdown_recovery_policy_rows
+            ),
+            "adaptive_directional_collapse_guard_evaluated_rows_gt_zero": (
+                directional_policy_rows > 0
+            ),
+            "adaptive_directional_collapse_guard_never_looser_than_static": (
+                directional_policy_rows > 0
+                and directional_never_looser_rows == directional_policy_rows
             ),
             "threshold_not_lowered_to_force_trades": True,
             "paper_only": True,
@@ -10119,6 +10223,54 @@ def _closed_trade_side_counts(existing_ledger: dict[str, Any]) -> dict[str, int]
     return counts
 
 
+def _paper_directional_collapse_adaptive_policy(
+    *,
+    total: int,
+    majority_share: float | None,
+) -> dict[str, Any]:
+    sample_pressure = 0.0
+    if total >= DIRECTIONAL_COLLAPSE_MIN_CLOSED_TRADES:
+        sample_pressure = min(
+            1.0,
+            max(
+                0.0,
+                (total - DIRECTIONAL_COLLAPSE_MIN_CLOSED_TRADES)
+                / max(1.0, DIRECTIONAL_COLLAPSE_MIN_CLOSED_TRADES * 9.0),
+            ),
+        )
+    share_tightening = (
+        DIRECTIONAL_COLLAPSE_ADAPTIVE_MAX_SHARE_TIGHTENING * sample_pressure
+    )
+    adaptive_major_side_share = max(
+        0.50,
+        DIRECTIONAL_COLLAPSE_MAJOR_SIDE_SHARE - share_tightening,
+    )
+    adaptive_min_side_trades = max(
+        DIRECTIONAL_COLLAPSE_MIN_SIDE_TRADES,
+        int(math.ceil(total * max(0.0, 1.0 - adaptive_major_side_share))),
+    )
+    adaptive_min_closed_trades = DIRECTIONAL_COLLAPSE_MIN_CLOSED_TRADES
+    return {
+        "threshold_id": "directional_collapse_guard",
+        "mode": "SAMPLE_SIZE_CONTEXTUAL_FAIL_CLOSED_NEVER_LOOSER_THAN_STATIC",
+        "static_minimum_closed_trades": DIRECTIONAL_COLLAPSE_MIN_CLOSED_TRADES,
+        "adaptive_minimum_closed_trades": adaptive_min_closed_trades,
+        "static_minimum_side_trades": DIRECTIONAL_COLLAPSE_MIN_SIDE_TRADES,
+        "adaptive_minimum_side_trades": adaptive_min_side_trades,
+        "static_major_side_share_threshold": DIRECTIONAL_COLLAPSE_MAJOR_SIDE_SHARE,
+        "adaptive_major_side_share_threshold": round(adaptive_major_side_share, 8),
+        "sample_pressure": round(sample_pressure, 8),
+        "share_tightening": round(share_tightening, 8),
+        "majority_side_share": majority_share,
+        "adaptive_never_looser_than_static": (
+            adaptive_min_closed_trades >= DIRECTIONAL_COLLAPSE_MIN_CLOSED_TRADES
+            and adaptive_min_side_trades >= DIRECTIONAL_COLLAPSE_MIN_SIDE_TRADES
+            and adaptive_major_side_share <= DIRECTIONAL_COLLAPSE_MAJOR_SIDE_SHARE
+        ),
+        "threshold_lowering_to_force_trades": False,
+    }
+
+
 def _paper_directional_collapse_guard(existing_ledger: dict[str, Any], candidate_side: Any) -> dict[str, Any]:
     side = _normalized_directional_side(candidate_side)
     counts = _closed_trade_side_counts(existing_ledger)
@@ -10128,6 +10280,10 @@ def _paper_directional_collapse_guard(existing_ledger: dict[str, Any], candidate
     majority_count = counts[majority_side]
     minority_count = counts[minority_side]
     majority_share = (majority_count / total) if total else None
+    adaptive_policy = _paper_directional_collapse_adaptive_policy(
+        total=total,
+        majority_share=majority_share,
+    )
     status = {
         "guard": DIRECTIONAL_COLLAPSE_GUARD_NAME,
         "candidate_side": side,
@@ -10141,19 +10297,35 @@ def _paper_directional_collapse_guard(existing_ledger: dict[str, Any], candidate
         "minority_side": minority_side if total else None,
         "minimum_closed_trades": DIRECTIONAL_COLLAPSE_MIN_CLOSED_TRADES,
         "minimum_side_trades": DIRECTIONAL_COLLAPSE_MIN_SIDE_TRADES,
+        "major_side_share_threshold": DIRECTIONAL_COLLAPSE_MAJOR_SIDE_SHARE,
+        "adaptive_policy": adaptive_policy,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
     }
     if side is None:
         status["allowed"] = False
         status["block_reason"] = "CANDIDATE_SIDE_INVALID"
         return status
-    if total < DIRECTIONAL_COLLAPSE_MIN_CLOSED_TRADES:
+    adaptive_min_closed_trades = int(
+        adaptive_policy["adaptive_minimum_closed_trades"]
+    )
+    if total < adaptive_min_closed_trades:
         status["sample_status"] = "INSUFFICIENT_CLOSED_TRADE_SAMPLE"
         return status
-    collapsed = (
+    static_collapsed = (
         minority_count < DIRECTIONAL_COLLAPSE_MIN_SIDE_TRADES
         and majority_share is not None
         and majority_share >= DIRECTIONAL_COLLAPSE_MAJOR_SIDE_SHARE
     )
+    adaptive_collapsed = (
+        minority_count < int(adaptive_policy["adaptive_minimum_side_trades"])
+        and majority_share is not None
+        and majority_share >= float(adaptive_policy["adaptive_major_side_share_threshold"])
+    )
+    collapsed = static_collapsed or adaptive_collapsed
+    status["static_directional_collapse_detected"] = static_collapsed
+    status["adaptive_directional_collapse_detected"] = adaptive_collapsed
     status["directional_collapse_detected"] = collapsed
     if collapsed and side == majority_side:
         status["allowed"] = False

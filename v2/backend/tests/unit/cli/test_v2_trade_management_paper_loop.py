@@ -3187,7 +3187,7 @@ def test_adaptive_threshold_runtime_status_counts_b_grade_floor_blocks() -> None
     )
     assert status["adaptive_threshold_id"] == (
         "b_grade_confidence_floor,paper_signal_stale_seconds,"
-        "paper_drawdown_recovery_min_confidence"
+        "paper_drawdown_recovery_min_confidence,directional_collapse_guard"
     )
     assert status["evaluated_rows"] == 2
     assert status["static_floor_pass_rows"] == 2
@@ -3202,8 +3202,10 @@ def test_adaptive_threshold_runtime_status_counts_b_grade_floor_blocks() -> None
     assert status["adaptive_drawdown_recovery_confidence_floor"]["evaluated_rows"] == 2
     assert status["adaptive_drawdown_recovery_confidence_floor"]["dynamic_never_below_static_rows"] == 2
     assert status["adaptive_drawdown_recovery_confidence_floor"]["dynamic_tightened_rows"] == 1
+    assert status["adaptive_directional_collapse_guard"]["evaluated_rows"] == 0
     assert "paper_signal_stale_seconds" not in status["remaining_static_threshold_blockers"]
     assert "paper_drawdown_recovery_min_confidence" not in status["remaining_static_threshold_blockers"]
+    assert "directional_collapse_guard" in status["remaining_static_threshold_blockers"]
     assert (
         status["pass_conditions"]["adaptive_drawdown_recovery_threshold_never_below_static"]
         is True
@@ -3212,6 +3214,91 @@ def test_adaptive_threshold_runtime_status_counts_b_grade_floor_blocks() -> None
     assert status["routes_to_live"] is False
     assert status["places_real_order"] is False
     assert status["counts_as_a_grade_evidence"] is False
+
+
+def test_adaptive_directional_collapse_guard_tightens_large_one_sided_samples() -> None:
+    ledger = {
+        "closed_trades": (
+            [{"side": "short"} for _ in range(540)]
+            + [{"side": "long"} for _ in range(60)]
+        )
+    }
+
+    short_guard = paper_loop._paper_directional_collapse_guard(ledger, "short")  # noqa: SLF001
+    long_guard = paper_loop._paper_directional_collapse_guard(ledger, "long")  # noqa: SLF001
+
+    assert short_guard["static_directional_collapse_detected"] is False
+    assert short_guard["adaptive_directional_collapse_detected"] is True
+    assert short_guard["directional_collapse_detected"] is True
+    assert short_guard["allowed"] is False
+    assert short_guard["block_reason"] == paper_loop.DIRECTIONAL_COLLAPSE_BLOCK_REASON
+    adaptive_policy = short_guard["adaptive_policy"]
+    assert adaptive_policy["adaptive_never_looser_than_static"] is True
+    assert adaptive_policy["adaptive_minimum_side_trades"] >= (
+        paper_loop.DIRECTIONAL_COLLAPSE_MIN_SIDE_TRADES
+    )
+    assert adaptive_policy["adaptive_major_side_share_threshold"] <= (
+        paper_loop.DIRECTIONAL_COLLAPSE_MAJOR_SIDE_SHARE
+    )
+    assert adaptive_policy["threshold_lowering_to_force_trades"] is False
+    assert long_guard["allowed"] is True
+    assert long_guard["adaptive_directional_collapse_detected"] is True
+
+
+def test_adaptive_threshold_runtime_status_removes_directional_static_blocker_when_guard_adaptive() -> None:
+    ledger = {
+        "closed_trades": (
+            [{"side": "short"} for _ in range(540)]
+            + [{"side": "long"} for _ in range(60)]
+        )
+    }
+    rows = [
+        {
+            "symbol": "DIRUSDT",
+            "timeframe": "15m",
+            "side": "short",
+            "paper_opportunity_tier": "B_GRADE_EXPLORATION_PAPER",
+            "confidence_calibrated": 0.71,
+            "expected_move_after_cost_bps": 20.0,
+            "actual_observed_spread_entry_bps": 1.0,
+            "expected_slippage_bps": 1.0,
+            "fee_bps": 4.0,
+            "depth_utilization_pct": 0.01,
+            "long_short_ratio_status": "V2_LONG_SHORT_RATIO_ATTACHED",
+            "paper_directional_collapse_guard": paper_loop._paper_directional_collapse_guard(  # noqa: SLF001
+                ledger,
+                "short",
+            ),
+            "paper_drawdown_recovery_guard": {
+                "adaptive_confidence_policy": {
+                    "threshold_id": "paper_drawdown_recovery_min_confidence",
+                    "static_floor": 0.65,
+                    "dynamic_floor": 0.65,
+                    "threshold_lowering_to_force_trades": False,
+                    "never_below_static": True,
+                },
+            },
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        }
+    ]
+
+    status = paper_loop._paper_adaptive_threshold_runtime_status(rows)  # noqa: SLF001
+
+    directional = status["adaptive_directional_collapse_guard"]
+    assert directional["evaluated_rows"] == 1
+    assert directional["adaptive_never_looser_than_static_rows"] == 1
+    assert directional["adaptive_tightened_rows"] == 1
+    assert status["pass_conditions"]["adaptive_directional_collapse_guard_evaluated_rows_gt_zero"] is True
+    assert (
+        status["pass_conditions"]["adaptive_directional_collapse_guard_never_looser_than_static"]
+        is True
+    )
+    assert "directional_collapse_guard" not in status["remaining_static_threshold_blockers"]
+    assert status["threshold_lowering_to_force_trades"] is False
+    assert status["routes_to_live"] is False
+    assert status["places_real_order"] is False
 
 
 def test_b_grade_canary_supply_status_reports_paper_only_pending_supply(monkeypatch) -> None:
