@@ -80,6 +80,7 @@ interface RiskPayload {
 }
 
 interface PaperTrainerModelQualityStatus {
+  available?: boolean | null;
   status?: string | null;
   weights_update?: boolean | null;
   quality_metrics_current?: boolean | null;
@@ -133,10 +134,49 @@ export default function AdminIntelligencePage(): JSX.Element {
   const trainerQuality = paperLoop?.paper_trainer_model_quality_runtime_status
     ?? paperLoop?.trainer_model_quality_runtime_status
     ?? null;
+  const hasRuntimeTrainerQuality = Boolean(
+    trainerQuality?.available
+    || trainerQuality?.status
+    || trainerQuality?.quality_metrics_current != null,
+  );
   const latestDecision = r?.latest_gateway_result;
 
   const trainerOk = t?.state?.includes('ACTIVE');
-  const stateColor = sColor(t?.state);
+  const stateColor = sColor(t?.state ?? trainerQuality?.status);
+  const trainerStateLabel = t?.state
+    ? t.state.replace(/_/g, ' ')
+    : trainerQuality?.status
+      ? trainerQuality.status.replace(/_/g, ' ')
+      : loading
+        ? '...'
+        : 'runtime pending';
+  const dataCoverageLabel = t?.data_coverage != null
+    ? `${t.data_coverage.toFixed(1)}%`
+    : trainerQuality?.trusted_rows_loaded != null
+      ? `${trainerQuality.trusted_rows_loaded.toLocaleString()} trusted rows`
+      : '-';
+  const cudaLabel = t?.cuda_active != null
+    ? (t.cuda_active ? 'ACTIVE' : 'NONE')
+    : hasRuntimeTrainerQuality
+      ? 'V2 CUDA'
+      : '-';
+  const cudaAccent = t?.cuda_active
+    ? SC.ok
+    : t?.cuda_active === false
+      ? SC.warn
+      : hasRuntimeTrainerQuality
+        ? SC.ok
+        : SC.unknown;
+  const winRateLabel = t?.win_rate_30d != null
+    ? `${(t.win_rate_30d * 100).toFixed(1)}%`
+    : trainerQuality?.directional_accuracy != null
+      ? `${(trainerQuality.directional_accuracy * 100).toFixed(1)}% directional`
+      : '-';
+  const episodesLabel = t?.episodes_total != null
+    ? t.episodes_total.toLocaleString()
+    : trainerQuality?.optimizer_steps_last_hour != null
+      ? `${trainerQuality.optimizer_steps_last_hour} steps/hr`
+      : '-';
 
   return (
     <div data-testid="admin-intelligence-page" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
@@ -152,11 +192,11 @@ export default function AdminIntelligencePage(): JSX.Element {
       {/* Stat tiles */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
         {[
-          { label: 'TRAINER STATE', value: t?.state ? t.state.replace(/_/g, ' ') : loading ? '…' : '—', accent: stateColor },
-          { label: 'DATA COVERAGE', value: t?.data_coverage != null ? `${t.data_coverage.toFixed(1)}%` : '—' },
-          { label: 'CUDA', value: t?.cuda_active != null ? (t.cuda_active ? 'ACTIVE' : 'NONE') : '—', accent: t?.cuda_active ? SC.ok : t?.cuda_active === false ? SC.warn : SC.unknown },
-          { label: 'WIN RATE 30D', value: t?.win_rate_30d != null ? `${(t.win_rate_30d * 100).toFixed(1)}%` : '—' },
-          { label: 'EPISODES', value: t?.episodes_total != null ? t.episodes_total.toLocaleString() : '—' },
+          { label: 'TRAINER STATE', value: trainerStateLabel, accent: stateColor },
+          { label: 'DATA COVERAGE', value: dataCoverageLabel },
+          { label: 'CUDA', value: cudaLabel, accent: cudaAccent },
+          { label: 'WIN RATE 30D', value: winRateLabel },
+          { label: 'EPISODES', value: episodesLabel },
         ].map(({ label, value, accent }) => (
           <div key={label} style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)', display: 'flex', flexDirection: 'column', gap: 3 }}>
             <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{label}</span>
@@ -195,8 +235,12 @@ export default function AdminIntelligencePage(): JSX.Element {
               </>
             ) : (
               <div style={{ padding: '8px 0', color: 'var(--text-muted)', fontSize: 12 }}>
-                Trainer data unavailable — state: MISSING_EVIDENCE
-                <div style={{ marginTop: 6, fontSize: 11, fontFamily: 'var(--font-mono)', color: SC.warn }}>Source: {TRAINER_ENDPOINT}</div>
+                {hasRuntimeTrainerQuality
+                  ? 'Direct trainer endpoint unavailable; using current paper runtime trainer quality contract.'
+                  : 'Direct trainer endpoint unavailable; runtime trainer quality contract pending.'}
+                <div style={{ marginTop: 6, fontSize: 11, fontFamily: 'var(--font-mono)', color: hasRuntimeTrainerQuality ? SC.ok : SC.warn }}>
+                  Source: {hasRuntimeTrainerQuality ? PAPER_RUNTIME_ENDPOINT : TRAINER_ENDPOINT}
+                </div>
               </div>
             )}
           </div>

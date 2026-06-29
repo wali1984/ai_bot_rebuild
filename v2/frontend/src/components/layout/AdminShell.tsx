@@ -74,6 +74,7 @@ function GlobalHealthStrip({ counts, freshMs }: { counts: HealthCounts; freshMs:
   return (
     <div
       data-testid="admin-health-strip"
+      data-live-gate-status="blocked_human_only"
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -104,7 +105,14 @@ function GlobalHealthStrip({ counts, freshMs }: { counts: HealthCounts; freshMs:
         </>
       )}
       <span style={{ color: 'var(--line-strong)', marginLeft: 4 }}>|</span>
-      <span style={{ color: 'var(--error)', fontWeight: 700 }}>EXECUTION BLOCKED</span>
+      <span
+        data-testid="live-block-banner"
+        style={{ color: 'var(--error)', fontWeight: 700 }}
+      >
+        LIVE TRADING: BLOCKED · blocked_human_only
+      </span>
+      <span style={{ color: 'var(--line-strong)' }}>|</span>
+      <span style={{ color: 'var(--text-muted)' }}>source admin-overview</span>
       {freshMs !== null && (
         <>
           <span style={{ color: 'var(--line-strong)' }}>|</span>
