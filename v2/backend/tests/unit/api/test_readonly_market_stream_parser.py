@@ -573,6 +573,38 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
                 "places_real_order_rows": 0,
             },
         },
+        "v2:paper:active_runtime_owner_status": {
+            "schema_version": "paper_active_runtime_owner_status_v1",
+            "status": "PASS_ACTIVE_RUNTIME_OWNER_VALIDATION",
+            "active_new_entry_owner": "v2_trade_management_paper_loop",
+            "canonical_paper_writer_count": 1,
+            "forbidden_entry_process_count": 0,
+            "duplicate_paper_writer_count": 0,
+            "paper_online_runtime_active": False,
+            "paper_online_runtime_enabled": False,
+            "old_policy_new_entry_writer_active": False,
+            "toy_momentum_entry_writer_active": False,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "pass_conditions": {
+                "canonical_paper_writer_count_eq_1": True,
+                "forbidden_entry_process_count_zero": True,
+                "duplicate_paper_writer_count_zero": True,
+                "paper_online_runtime_active_false": True,
+                "paper_online_runtime_enabled_false": True,
+                "active_new_entry_owner_is_v2_trade_management_paper_loop": True,
+            },
+            "active_process_rows": [
+                {
+                    "pid": 101,
+                    "command": "python -m v2.backend.app.cli.v2_trade_management_paper_loop",
+                    "canonical_paper_loop": True,
+                    "forbidden_runtime_markers": [],
+                    "canonical_service_scope": True,
+                }
+            ],
+        },
         "v2:paper:b_grade_canary_supply_status": {
             "schema_version": "paper_b_grade_canary_supply_status_v1",
             "status": "BLOCKED_ZERO_B_GRADE_CANARY_SUPPLY",
@@ -680,6 +712,17 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
     assert owner_status["status"] == "PASS_CURRENT_RUNTIME_OWNER_ATTRIBUTION_NO_ACCEPTED_FILLS"
     assert owner_status["current_runtime_row_count"] == 3
     assert owner_status["current_runtime_owner_contract_passed"] is True
+    active_owner = loop["paper_active_runtime_owner_status"]
+    assert active_owner["source"] == "redis:v2:paper:active_runtime_owner_status"
+    assert active_owner["available"] is True
+    assert active_owner["status"] == "PASS_ACTIVE_RUNTIME_OWNER_VALIDATION"
+    assert active_owner["active_new_entry_owner"] == "v2_trade_management_paper_loop"
+    assert active_owner["canonical_paper_writer_count"] == 1
+    assert active_owner["forbidden_entry_process_count"] == 0
+    assert active_owner["duplicate_paper_writer_count"] == 0
+    assert active_owner["paper_online_runtime_active"] is False
+    assert active_owner["toy_momentum_entry_writer_active"] is False
+    assert active_owner["active_process_rows"][0]["canonical_service_scope"] is True
     assert loop["production_grade_cost_rows"] == 1
     assert loop["order_cost_applicable_rows"] == 2
     assert loop["production_grade_cost_order_applicable_rows"] == 1

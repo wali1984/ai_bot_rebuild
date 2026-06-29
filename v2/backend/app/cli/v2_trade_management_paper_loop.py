@@ -172,6 +172,21 @@ CHALLENGER_V2_FROZEN_CANDIDATE_ID = "challenger_v2_338f76bd071ba8ddfadb5d38"
 CHALLENGER_V2_PREVIOUS_ACTIVE_CUDA_CANDIDATE_ID = "challenger_v2_cuda_c4b8fb1ed12aabcb87224723"
 CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID = "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e"
 CHALLENGER_V2_MODEL_SOURCE = "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA"
+CANONICAL_PAPER_RUNTIME_PROCESS_MARKER = "v2.backend.app.cli.v2_trade_management_paper_loop"
+CANONICAL_PAPER_RUNTIME_SERVICE_NAME = "ai-bot-v2-trade-management-paper-loop.service"
+FORBIDDEN_PAPER_RUNTIME_PROCESS_MARKERS = {
+    "paper_online_runtime": ("paper_online_runtime_active", "paper_online_runtime"),
+    "paper_online_runtime.py": ("paper_online_runtime_active", "paper_online_runtime.py"),
+    "toy_momentum": ("toy_momentum_entry_writer_active", "toy_momentum"),
+    "momentum_wrapper": ("toy_momentum_entry_writer_active", "momentum_wrapper"),
+}
+PROCESS_INSPECTION_COMMANDS = {
+    "grep",
+    "jq",
+    "pgrep",
+    "redis-cli",
+    "rg",
+}
 PAPER_POLICY_OWNER_CHALLENGER_V2 = "challenger_v2"
 PAPER_POLICY_OWNER_OLD_POLICY = "old_policy"
 PAPER_POLICY_OWNER_SHADOW_ONLY = "shadow_only"
@@ -1066,6 +1081,187 @@ def _paper_runtime_owner_identity() -> dict[str, Any]:
         "frozen_selector_fingerprint": OUT_OF_SAMPLE_REVERIFY_SELECTOR_POLICY_FINGERPRINT,
         "model_source": CHALLENGER_V2_MODEL_SOURCE,
         "current_allowed_paper_owner": PAPER_POLICY_OWNER_CHALLENGER_V2,
+    }
+
+
+def _read_proc_cmdline(proc_dir: Path) -> tuple[list[str], str] | None:
+    try:
+        raw = (proc_dir / "cmdline").read_bytes()
+    except OSError:
+        return None
+    if not raw:
+        return None
+    argv = [
+        part.decode("utf-8", errors="replace")
+        for part in raw.split(b"\0")
+        if part
+    ]
+    command = " ".join(argv).strip()
+    if not command:
+        return None
+    return argv, command
+
+
+def _read_proc_text(proc_dir: Path, filename: str) -> str:
+    try:
+        return (proc_dir / filename).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
+def _is_process_inspection_command(argv: list[str], command: str) -> bool:
+    if not argv:
+        return False
+    executable = Path(argv[0]).name
+    if executable in PROCESS_INSPECTION_COMMANDS:
+        return True
+    if executable in {"bash", "sh"} and len(argv) >= 3 and argv[1] == "-c":
+        script = argv[2]
+        return any(
+            token in script
+            for token in (
+                " jq ",
+                " jq\t",
+                "redis-cli ",
+                "pgrep ",
+                " rg ",
+                "grep ",
+            )
+        )
+    return False
+
+
+def _paper_runtime_process_rows(proc_root: Path = Path("/proc")) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    try:
+        proc_entries = list(proc_root.iterdir())
+    except OSError:
+        return rows
+    for proc_dir in proc_entries:
+        if not proc_dir.name.isdigit():
+            continue
+        cmdline = _read_proc_cmdline(proc_dir)
+        if cmdline is None:
+            continue
+        argv, command = cmdline
+        if _is_process_inspection_command(argv, command):
+            continue
+        command_lower = command.lower()
+        canonical = CANONICAL_PAPER_RUNTIME_PROCESS_MARKER in command
+        matched_forbidden = sorted(
+            marker
+            for marker in FORBIDDEN_PAPER_RUNTIME_PROCESS_MARKERS
+            if marker in command_lower
+        )
+        if not canonical and not matched_forbidden:
+            continue
+        cgroup = _read_proc_text(proc_dir, "cgroup")
+        rows.append(
+            {
+                "pid": int(proc_dir.name),
+                "command": command,
+                "canonical_paper_loop": canonical,
+                "forbidden_runtime_markers": matched_forbidden,
+                "canonical_service_scope": (
+                    CANONICAL_PAPER_RUNTIME_SERVICE_NAME in cgroup
+                ),
+            }
+        )
+    return sorted(rows, key=lambda row: int(row["pid"]))
+
+
+def _user_systemd_service_enabled(service_name: str) -> bool:
+    search_roots = [
+        Path.home() / ".config/systemd/user",
+        Path("/etc/systemd/user"),
+        Path("/usr/lib/systemd/user"),
+    ]
+    for root in search_roots:
+        try:
+            wants_paths = list(root.glob(f"*.wants/{service_name}"))
+        except OSError:
+            wants_paths = []
+        if any(path.exists() for path in wants_paths):
+            return True
+    return False
+
+
+def _paper_active_runtime_owner_status(
+    proc_root: Path = Path("/proc"),
+) -> dict[str, Any]:
+    rows = _paper_runtime_process_rows(proc_root)
+    canonical_rows = [row for row in rows if row["canonical_paper_loop"] is True]
+    forbidden_rows = [row for row in rows if row["forbidden_runtime_markers"]]
+    forbidden_flags = {
+        flag: any(marker in row["forbidden_runtime_markers"] for row in rows)
+        for marker, (flag, _label) in FORBIDDEN_PAPER_RUNTIME_PROCESS_MARKERS.items()
+    }
+    paper_online_runtime_active = any(
+        marker.startswith("paper_online_runtime")
+        for row in forbidden_rows
+        for marker in row["forbidden_runtime_markers"]
+    )
+    toy_momentum_entry_writer_active = any(
+        marker in {"toy_momentum", "momentum_wrapper"}
+        for row in forbidden_rows
+        for marker in row["forbidden_runtime_markers"]
+    )
+    canonical_paper_writer_count = len(canonical_rows)
+    forbidden_entry_process_count = len(forbidden_rows)
+    duplicate_paper_writer_count = (
+        max(0, canonical_paper_writer_count - 1) + forbidden_entry_process_count
+    )
+    paper_online_runtime_enabled = _user_systemd_service_enabled(
+        "ai-bot-v2-paper-online-runtime.service"
+    )
+    canonical_paper_runtime_enabled = _user_systemd_service_enabled(
+        CANONICAL_PAPER_RUNTIME_SERVICE_NAME
+    )
+    active_new_entry_owner = (
+        "v2_trade_management_paper_loop"
+        if canonical_paper_writer_count == 1 and forbidden_entry_process_count == 0
+        else "BLOCKED_AMBIGUOUS_OR_FORBIDDEN_PAPER_RUNTIME_OWNER"
+    )
+    pass_conditions = {
+        "canonical_paper_writer_count_eq_1": canonical_paper_writer_count == 1,
+        "forbidden_entry_process_count_zero": forbidden_entry_process_count == 0,
+        "duplicate_paper_writer_count_zero": duplicate_paper_writer_count == 0,
+        "paper_online_runtime_active_false": not paper_online_runtime_active,
+        "paper_online_runtime_enabled_false": not paper_online_runtime_enabled,
+        "canonical_paper_runtime_enabled_true": canonical_paper_runtime_enabled,
+        "toy_momentum_entry_writer_active_false": not toy_momentum_entry_writer_active,
+        "active_new_entry_owner_is_v2_trade_management_paper_loop": (
+            active_new_entry_owner == "v2_trade_management_paper_loop"
+        ),
+    }
+    status = (
+        "PASS_ACTIVE_RUNTIME_OWNER_VALIDATION"
+        if all(pass_conditions.values())
+        else "BLOCKED_ACTIVE_RUNTIME_OWNER_VALIDATION"
+    )
+    return {
+        "schema_version": "paper_active_runtime_owner_status_v1",
+        "status": status,
+        "generated_utc": _utc_iso(),
+        "active_new_entry_owner": active_new_entry_owner,
+        "canonical_process_marker": CANONICAL_PAPER_RUNTIME_PROCESS_MARKER,
+        "canonical_service_name": CANONICAL_PAPER_RUNTIME_SERVICE_NAME,
+        "canonical_paper_writer_count": canonical_paper_writer_count,
+        "forbidden_entry_process_count": forbidden_entry_process_count,
+        "duplicate_paper_writer_count": duplicate_paper_writer_count,
+        "paper_online_runtime_active": paper_online_runtime_active,
+        "paper_online_runtime_enabled": paper_online_runtime_enabled,
+        "old_policy_new_entry_writer_active": forbidden_entry_process_count > 0,
+        "toy_momentum_entry_writer_active": toy_momentum_entry_writer_active,
+        "canonical_paper_runtime_enabled": canonical_paper_runtime_enabled,
+        "forbidden_marker_flags": forbidden_flags,
+        "active_process_rows": rows[:20],
+        "active_process_row_count": len(rows),
+        "pass_conditions": pass_conditions,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "writes_legacy_redis": False,
     }
 
 
@@ -13277,11 +13473,13 @@ def run_once() -> dict:
     from v2.backend.app.services.adaptive_capital_allocator import allocate_paper_candidate
     started = _utc_iso()
     runtime_now = datetime.now(timezone.utc)
+    paper_active_runtime_owner_status = _paper_active_runtime_owner_status()
     r = _connect_redis()
     _write_paper_runtime_heartbeat(
         r,
         started_at=started,
         cycle_state="RUNNING_CYCLE",
+        extra={"paper_active_runtime_owner_status": paper_active_runtime_owner_status},
     )
     continuous_edge_guardian_gate = _read_continuous_edge_guardian_gate(r)
     continuous_edge_guardian_status = _read_json_key(
@@ -15085,6 +15283,7 @@ def run_once() -> dict:
                 "paper_audit_entry_gate_status": paper_audit_entry_gate_status,
                 "paper_adaptive_sizing_runtime_status": paper_adaptive_sizing_runtime_status,
                 "risk_envelope_dynamic_budget_status": risk_envelope_dynamic_budget_status,
+                "paper_active_runtime_owner_status": paper_active_runtime_owner_status,
                 "cycle_state": "COMPLETED_CYCLE",
                 "heartbeat_ttl_seconds": PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
                 **_paper_runtime_owner_identity(),
@@ -15102,6 +15301,15 @@ def run_once() -> dict:
             ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}paper:trade_management:status")
+        if _safe_write(
+            r,
+            f"{V2_REDIS_PREFIX}paper:active_runtime_owner_status",
+            json.dumps(paper_active_runtime_owner_status),
+            ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
+        ):
+            keys_written.append(
+                f"{V2_REDIS_PREFIX}paper:active_runtime_owner_status"
+            )
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}paper:b_grade_canary_supply_status",
@@ -15212,6 +15420,7 @@ def run_once() -> dict:
         "model_source": CHALLENGER_V2_MODEL_SOURCE,
         "current_allowed_paper_owner": PAPER_POLICY_OWNER_CHALLENGER_V2,
         "paper_owner_attribution_status": paper_owner_attribution_status,
+        "paper_active_runtime_owner_status": paper_active_runtime_owner_status,
         "paper_b_grade_model_quality_status": (
             paper_b_grade_model_quality_status if r is not None else {}
         ),
@@ -15472,6 +15681,10 @@ def run_once() -> dict:
         write_payload(
             paper_owner_attribution_status,
             TRADE_MANAGEMENT_PUBLIC_DIR / "paper_owner_attribution_status.json",
+        )
+        write_payload(
+            paper_active_runtime_owner_status,
+            TRADE_MANAGEMENT_PUBLIC_DIR / "paper_active_runtime_owner_status.json",
         )
         write_payload(
             risk_envelope_dynamic_budget_status,

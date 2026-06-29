@@ -1162,6 +1162,135 @@ def test_write_payload_atomically_replaces_invalid_json(tmp_path) -> None:
     assert not list(tmp_path.glob("*.tmp"))
 
 
+def _write_fake_proc(
+    proc_root,
+    pid: int,
+    argv: list[str],
+    *,
+    cgroup: str = "",
+) -> None:
+    proc_dir = proc_root / str(pid)
+    proc_dir.mkdir(parents=True)
+    proc_dir.joinpath("cmdline").write_bytes(
+        b"\0".join(arg.encode() for arg in argv) + b"\0"
+    )
+    proc_dir.joinpath("cgroup").write_text(cgroup, encoding="utf-8")
+
+
+def test_paper_active_runtime_owner_status_passes_single_canonical_writer(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-29T10:20:00Z")
+    monkeypatch.setattr(
+        paper_loop,
+        "_user_systemd_service_enabled",
+        lambda service_name: (
+            service_name == paper_loop.CANONICAL_PAPER_RUNTIME_SERVICE_NAME
+        ),
+    )
+    proc_root = tmp_path / "proc"
+    proc_root.mkdir()
+    _write_fake_proc(
+        proc_root,
+        101,
+        [
+            "/repo/.venv/bin/python3",
+            "-m",
+            "v2.backend.app.cli.v2_trade_management_paper_loop",
+            "--loop",
+        ],
+        cgroup="0::/user.slice/app.slice/ai-bot-v2-trade-management-paper-loop.service",
+    )
+    _write_fake_proc(
+        proc_root,
+        102,
+        ["rg", "paper_online_runtime|v2_trade_management_paper_loop"],
+    )
+    _write_fake_proc(
+        proc_root,
+        103,
+        [
+            "/bin/bash",
+            "-c",
+            "sleep 75; redis-cli GET v2:paper:active_runtime_owner_status | "
+            "jq '{paper_online_runtime_active,toy_momentum_entry_writer_active}'",
+        ],
+    )
+
+    status = paper_loop._paper_active_runtime_owner_status(proc_root)  # noqa: SLF001
+
+    assert status["status"] == "PASS_ACTIVE_RUNTIME_OWNER_VALIDATION"
+    assert status["canonical_paper_writer_count"] == 1
+    assert status["forbidden_entry_process_count"] == 0
+    assert status["duplicate_paper_writer_count"] == 0
+    assert status["active_new_entry_owner"] == "v2_trade_management_paper_loop"
+    assert status["paper_online_runtime_active"] is False
+    assert status["paper_online_runtime_enabled"] is False
+    assert status["canonical_paper_runtime_enabled"] is True
+    assert status["active_process_rows"][0]["canonical_service_scope"] is True
+    assert all(status["pass_conditions"].values())
+
+
+def test_paper_active_runtime_owner_status_blocks_duplicate_or_forbidden_writer(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-29T10:21:00Z")
+    monkeypatch.setattr(
+        paper_loop,
+        "_user_systemd_service_enabled",
+        lambda _service_name: True,
+    )
+    proc_root = tmp_path / "proc"
+    proc_root.mkdir()
+    _write_fake_proc(
+        proc_root,
+        101,
+        [
+            "/repo/.venv/bin/python3",
+            "-m",
+            "v2.backend.app.cli.v2_trade_management_paper_loop",
+        ],
+    )
+    _write_fake_proc(
+        proc_root,
+        202,
+        [
+            "/repo/.venv/bin/python3",
+            "-m",
+            "v2.backend.app.cli.v2_trade_management_paper_loop",
+        ],
+    )
+    _write_fake_proc(
+        proc_root,
+        303,
+        ["/repo/.venv/bin/python3", "-m", "v2.backend.app.cli.paper_online_runtime"],
+    )
+    _write_fake_proc(
+        proc_root,
+        404,
+        ["/repo/.venv/bin/python3", "-m", "toy_momentum_wrapper"],
+    )
+
+    status = paper_loop._paper_active_runtime_owner_status(proc_root)  # noqa: SLF001
+
+    assert status["status"] == "BLOCKED_ACTIVE_RUNTIME_OWNER_VALIDATION"
+    assert status["canonical_paper_writer_count"] == 2
+    assert status["forbidden_entry_process_count"] == 2
+    assert status["duplicate_paper_writer_count"] == 3
+    assert (
+        status["active_new_entry_owner"]
+        == "BLOCKED_AMBIGUOUS_OR_FORBIDDEN_PAPER_RUNTIME_OWNER"
+    )
+    assert status["paper_online_runtime_active"] is True
+    assert status["paper_online_runtime_enabled"] is True
+    assert status["toy_momentum_entry_writer_active"] is True
+    assert status["pass_conditions"]["canonical_paper_writer_count_eq_1"] is False
+    assert status["pass_conditions"]["forbidden_entry_process_count_zero"] is False
+    assert status["pass_conditions"]["paper_online_runtime_enabled_false"] is False
+
+
 def _completed_controlled_one_shot_status(**overrides):
     payload = {
         "classification": "V2_TRADE_MANAGEMENT_PAPER_PRODUCTION_OK",

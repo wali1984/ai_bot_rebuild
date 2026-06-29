@@ -9845,6 +9845,55 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
             risk_hb_raw = client.get("v2:risk:gateway:heartbeat")
             risk_hb: dict[str, Any] = json.loads(risk_hb_raw) if risk_hb_raw else {}
 
+            active_runtime_owner_key = "v2:paper:active_runtime_owner_status"
+            try:
+                active_runtime_owner_raw = client.get(active_runtime_owner_key)
+            except Exception:
+                active_runtime_owner_raw = None
+            paper_active_runtime_owner_status = _json_object_from_redis_raw(
+                active_runtime_owner_raw
+            )
+            if not paper_active_runtime_owner_status:
+                fallback_active_owner = trade_management_status.get(
+                    "paper_active_runtime_owner_status"
+                )
+                if isinstance(fallback_active_owner, dict):
+                    paper_active_runtime_owner_status = fallback_active_owner
+            if not paper_active_runtime_owner_status:
+                fallback_active_owner = hb.get("paper_active_runtime_owner_status")
+                if isinstance(fallback_active_owner, dict):
+                    paper_active_runtime_owner_status = fallback_active_owner
+            if paper_active_runtime_owner_status:
+                paper_active_runtime_owner_status = _compact_paper_runtime_contract(
+                    paper_active_runtime_owner_status
+                )
+                paper_active_runtime_owner_status.setdefault(
+                    "source", f"redis:{active_runtime_owner_key}"
+                )
+                paper_active_runtime_owner_status.setdefault("available", True)
+            else:
+                paper_active_runtime_owner_status = {
+                    "schema_version": "paper_active_runtime_owner_status_v1",
+                    "status": "PAPER_ACTIVE_RUNTIME_OWNER_STATUS_UNAVAILABLE",
+                    "source": f"redis:{active_runtime_owner_key}",
+                    "available": False,
+                    "active_new_entry_owner": "UNKNOWN",
+                    "canonical_paper_writer_count": 0,
+                    "forbidden_entry_process_count": None,
+                    "duplicate_paper_writer_count": None,
+                    "paper_online_runtime_active": None,
+                    "paper_online_runtime_enabled": None,
+                    "old_policy_new_entry_writer_active": None,
+                    "toy_momentum_entry_writer_active": None,
+                    "paper_only": True,
+                    "routes_to_live": False,
+                    "places_real_order": False,
+                    "generated_at": now,
+                }
+            active_runtime_owner_contract_status = str(
+                paper_active_runtime_owner_status.get("status") or ""
+            )
+
             b_grade_canary_supply_key = "v2:paper:b_grade_canary_supply_status"
             try:
                 b_grade_canary_supply_raw = client.get(b_grade_canary_supply_key)
@@ -9971,6 +10020,47 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                     "detail": "Live order routing remains blocked_human_only.",
                 },
             ]
+            if (
+                active_runtime_owner_contract_status
+                == "PAPER_ACTIVE_RUNTIME_OWNER_STATUS_UNAVAILABLE"
+            ):
+                blockers.append(
+                    {
+                        "id": "PAPER_ACTIVE_RUNTIME_OWNER_STATUS_UNAVAILABLE",
+                        "severity": "missing_runtime_contract",
+                        "detail": "Active paper runtime has not published the process/service owner validation contract.",
+                        "source": f"redis:{active_runtime_owner_key}",
+                    }
+                )
+            elif (
+                active_runtime_owner_contract_status
+                != "PASS_ACTIVE_RUNTIME_OWNER_VALIDATION"
+            ):
+                blockers.append(
+                    {
+                        "id": "PAPER_ACTIVE_RUNTIME_OWNER_VALIDATION_BLOCKED",
+                        "severity": "runtime_blocker",
+                        "detail": "Active process/service validation does not prove a single canonical paper writer with forbidden legacy paper writers absent.",
+                        "source": paper_active_runtime_owner_status.get("source")
+                        or f"redis:{active_runtime_owner_key}",
+                        "status": active_runtime_owner_contract_status,
+                        "canonical_paper_writer_count": (
+                            paper_active_runtime_owner_status.get(
+                                "canonical_paper_writer_count"
+                            )
+                        ),
+                        "forbidden_entry_process_count": (
+                            paper_active_runtime_owner_status.get(
+                                "forbidden_entry_process_count"
+                            )
+                        ),
+                        "duplicate_paper_writer_count": (
+                            paper_active_runtime_owner_status.get(
+                                "duplicate_paper_writer_count"
+                            )
+                        ),
+                    }
+                )
             if b_grade_canary_status == "BLOCKED_ZERO_B_GRADE_CANARY_SUPPLY":
                 blockers.append(
                     {
@@ -10112,6 +10202,7 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                     "routes_to_live": hb.get("routes_to_live"),
                     "places_real_order": hb.get("places_real_order"),
                     "paper_owner_attribution_status": hb.get("paper_owner_attribution_status"),
+                    "paper_active_runtime_owner_status": paper_active_runtime_owner_status,
                     "last_tick_at": hb_ts or now,
                     "paper_event_count": paper_event_count,
                     "last_paper_event_count": paper_event_count,
