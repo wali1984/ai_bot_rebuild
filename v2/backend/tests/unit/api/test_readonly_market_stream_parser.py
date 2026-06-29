@@ -605,6 +605,40 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
                 }
             ],
         },
+        "v2:paper:policy_owner_handoff_runtime_proof": {
+            "schema_version": "paper_policy_owner_handoff_runtime_proof_v1",
+            "status": "PASSED_PAPER_POLICY_OWNER_HANDOFF_RUNTIME_PROOF",
+            "paper_new_entry_owner": "challenger_v2",
+            "current_allowed_paper_owner": "challenger_v2",
+            "paper_policy_owner": "challenger_v2",
+            "new_old_policy_entry_count": 0,
+            "new_challenger_candidate_count": 3,
+            "new_challenger_intent_count": 3,
+            "new_challenger_accepted_fill_count": 1,
+            "persistent_challenger_accepted_fill_count": 5,
+            "challenger_closed_outcome_count": 2,
+            "challenger_outcome_label_count": 2,
+            "challenger_identity_missing_lifecycle_rows": 0,
+            "challenger_identity_preserved_to_outcome": True,
+            "shadow_economic_fill_count": 0,
+            "fallback_challenger_fill_count": 0,
+            "routes_to_live_rows": 0,
+            "places_real_order_rows": 0,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "pass_conditions": {
+                "paper_new_entry_owner_is_challenger_v2": True,
+                "new_old_policy_entry_count_zero": True,
+                "new_challenger_candidate_count_gt_zero": True,
+                "new_challenger_intent_count_gt_zero": True,
+                "challenger_identity_preserved_to_outcome": True,
+                "shadow_rows_never_become_economic_fills": True,
+                "fallback_rows_cannot_be_challenger_canary_fills": True,
+                "routes_to_live_rows_zero": True,
+                "places_real_order_rows_zero": True,
+            },
+        },
         "v2:paper:b_grade_canary_supply_status": {
             "schema_version": "paper_b_grade_canary_supply_status_v1",
             "status": "BLOCKED_ZERO_B_GRADE_CANARY_SUPPLY",
@@ -723,6 +757,20 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
     assert active_owner["paper_online_runtime_active"] is False
     assert active_owner["toy_momentum_entry_writer_active"] is False
     assert active_owner["active_process_rows"][0]["canonical_service_scope"] is True
+    handoff = loop["paper_policy_owner_handoff_runtime_proof"]
+    assert handoff["source"] == "redis:v2:paper:policy_owner_handoff_runtime_proof"
+    assert handoff["available"] is True
+    assert handoff["status"] == "PASSED_PAPER_POLICY_OWNER_HANDOFF_RUNTIME_PROOF"
+    assert handoff["paper_new_entry_owner"] == "challenger_v2"
+    assert handoff["new_old_policy_entry_count"] == 0
+    assert handoff["new_challenger_candidate_count"] == 3
+    assert handoff["new_challenger_intent_count"] == 3
+    assert handoff["challenger_identity_preserved_to_outcome"] is True
+    assert handoff["pass_conditions"]["new_old_policy_entry_count_zero"] is True
+    assert loop["old_policy_new_entry_count"] == 0
+    assert loop["new_challenger_candidate_count"] == 3
+    assert loop["new_challenger_intent_count"] == 3
+    assert loop["challenger_identity_preserved_to_outcome"] is True
     assert loop["production_grade_cost_rows"] == 1
     assert loop["order_cost_applicable_rows"] == 2
     assert loop["production_grade_cost_order_applicable_rows"] == 1

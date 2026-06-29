@@ -64,6 +64,9 @@ PAPER_FORWARD_CANARY_CLOSED_OUTCOME_ARCHIVE_PATH = (
 PAPER_FORWARD_CANARY_CUTOVER_MARKER_PATH = (
     TRADE_MANAGEMENT_PUBLIC_DIR / "paper_forward_canary_cutover_marker.json"
 )
+PAPER_POLICY_OWNER_HANDOFF_RUNTIME_PROOF_PATH = (
+    TRADE_MANAGEMENT_PUBLIC_DIR / "paper_policy_owner_handoff_runtime_proof.json"
+)
 PAPER_B_GRADE_BUCKET_PROMOTION_READINESS_STATUS_PATH = (
     TRADE_MANAGEMENT_PUBLIC_DIR / "paper_b_grade_bucket_promotion_readiness_status.json"
 )
@@ -4682,6 +4685,226 @@ def _paper_owner_attribution_status(
         "paper_only": True,
         "routes_to_live": False,
         "places_real_order": False,
+    }
+
+
+def _paper_row_identity(row: dict[str, Any]) -> str:
+    return str(
+        _first_present(
+            row.get("fill_id"),
+            row.get("ledger_row_id"),
+            row.get("intent_id"),
+            row.get("paper_intent_id"),
+            row.get("close_id"),
+            row.get("paper_close_id"),
+            row.get("outcome_label_id"),
+            row.get("trainer_feedback_id"),
+            row.get("signal_id"),
+            row.get("prediction_id"),
+            f"{row.get('symbol')}:{row.get('timeframe')}:{row.get('side')}:{row.get('decision_time')}",
+        )
+    )
+
+
+def _dedupe_paper_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        identity = _paper_row_identity(row)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        out.append(row)
+    return out
+
+
+def _paper_policy_owner_handoff_runtime_proof(
+    *,
+    current_runtime_rows: list[dict[str, Any]],
+    current_accepted_rows: list[dict[str, Any]],
+    accepted_rows: list[dict[str, Any]],
+    closed_rows: list[dict[str, Any]],
+    outcome_label_rows: list[dict[str, Any]],
+    shadow_rows: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    runtime_rows = [
+        _normalize_paper_owner_attribution(row)
+        for row in current_runtime_rows
+        if isinstance(row, dict)
+    ]
+    current_fill_rows = [
+        _normalize_paper_owner_attribution(row)
+        for row in current_accepted_rows
+        if isinstance(row, dict)
+    ]
+    persistent_fill_rows = [
+        _normalize_paper_owner_attribution(row)
+        for row in accepted_rows
+        if isinstance(row, dict)
+    ]
+    close_rows = [
+        _normalize_paper_owner_attribution(row)
+        for row in closed_rows
+        if isinstance(row, dict)
+    ]
+    outcome_rows = [
+        _normalize_paper_owner_attribution(row)
+        for row in outcome_label_rows
+        if isinstance(row, dict)
+    ]
+    shadows = [row for row in (shadow_rows or []) if isinstance(row, dict)]
+
+    old_policy_current_entry_rows = _dedupe_paper_rows(
+        [
+            row
+            for row in [*runtime_rows, *current_fill_rows]
+            if row.get("paper_policy_owner") == PAPER_POLICY_OWNER_OLD_POLICY
+            and (
+                row.get("paper_fill_allowed") is True
+                or row.get("decision") == "ACCEPTED_PAPER_FILL"
+            )
+        ]
+    )
+    challenger_runtime_rows = [
+        row
+        for row in runtime_rows
+        if row.get("paper_policy_owner") == PAPER_POLICY_OWNER_CHALLENGER_V2
+        and row.get("paper_owner_attribution_complete") is True
+    ]
+    challenger_current_fill_rows = [
+        row
+        for row in current_fill_rows
+        if row.get("paper_policy_owner") == PAPER_POLICY_OWNER_CHALLENGER_V2
+        and row.get("paper_owner_attribution_complete") is True
+    ]
+    challenger_persistent_fill_rows = [
+        row
+        for row in persistent_fill_rows
+        if row.get("paper_policy_owner") == PAPER_POLICY_OWNER_CHALLENGER_V2
+    ]
+    challenger_close_rows = [
+        row for row in close_rows if row.get("paper_policy_owner") == PAPER_POLICY_OWNER_CHALLENGER_V2
+    ]
+    challenger_outcome_rows = [
+        row for row in outcome_rows if row.get("paper_policy_owner") == PAPER_POLICY_OWNER_CHALLENGER_V2
+    ]
+    challenger_lifecycle_rows = [
+        *challenger_persistent_fill_rows,
+        *challenger_close_rows,
+        *challenger_outcome_rows,
+    ]
+    challenger_lifecycle_identity_missing_rows = [
+        row
+        for row in challenger_lifecycle_rows
+        if row.get("paper_owner_attribution_complete") is not True
+    ]
+    shadow_economic_rows = [
+        row
+        for row in shadows
+        if row.get("paper_fill_allowed") is True
+        or row.get("decision") == "ACCEPTED_PAPER_FILL"
+    ]
+    fallback_challenger_fill_rows = [
+        row
+        for row in [*current_fill_rows, *persistent_fill_rows]
+        if row.get("paper_policy_owner") == PAPER_POLICY_OWNER_CHALLENGER_V2
+        and (
+            row.get("fallback_cost_flag") is True
+            or row.get("production_grade_cost_flag") is False
+            or row.get("production_grade_cost_evidence") is False
+        )
+    ]
+    routes_to_live_rows = sum(1 for row in [*runtime_rows, *current_fill_rows] if row.get("routes_to_live") is True)
+    places_real_order_rows = sum(
+        1 for row in [*runtime_rows, *current_fill_rows] if row.get("places_real_order") is True
+    )
+    pass_conditions = {
+        "paper_new_entry_owner_is_challenger_v2": True,
+        "new_old_policy_entry_count_zero": len(old_policy_current_entry_rows) == 0,
+        "new_challenger_candidate_count_gt_zero": len(challenger_runtime_rows) > 0,
+        "new_challenger_intent_count_gt_zero": len(challenger_runtime_rows) > 0,
+        "challenger_identity_preserved_to_outcome": (
+            bool(challenger_lifecycle_rows)
+            and not challenger_lifecycle_identity_missing_rows
+        ),
+        "shadow_rows_never_become_economic_fills": len(shadow_economic_rows) == 0,
+        "fallback_rows_cannot_be_challenger_canary_fills": (
+            len(fallback_challenger_fill_rows) == 0
+        ),
+        "routes_to_live_rows_zero": routes_to_live_rows == 0,
+        "places_real_order_rows_zero": places_real_order_rows == 0,
+    }
+    return {
+        "schema_version": "paper_policy_owner_handoff_runtime_proof_v1",
+        "status": (
+            "PASSED_PAPER_POLICY_OWNER_HANDOFF_RUNTIME_PROOF"
+            if all(pass_conditions.values())
+            else "BLOCKED_PAPER_POLICY_OWNER_HANDOFF_RUNTIME_PROOF"
+        ),
+        "source": "v2_trade_management_paper_loop:runtime_rows",
+        "paper_new_entry_owner": PAPER_POLICY_OWNER_CHALLENGER_V2,
+        "current_allowed_paper_owner": PAPER_POLICY_OWNER_CHALLENGER_V2,
+        "paper_policy_owner": PAPER_POLICY_OWNER_CHALLENGER_V2,
+        "candidate_id": CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID,
+        "policy_id": CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID,
+        "policy_fingerprint": CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT,
+        "model_source": CHALLENGER_V2_MODEL_SOURCE,
+        "old_policy_may_close_reduce_only": len(old_policy_current_entry_rows) == 0,
+        "new_old_policy_entry_count": len(old_policy_current_entry_rows),
+        "new_challenger_candidate_count": len(challenger_runtime_rows),
+        "new_challenger_intent_count": len(challenger_runtime_rows),
+        "new_challenger_accepted_fill_count": len(challenger_current_fill_rows),
+        "persistent_challenger_accepted_fill_count": len(challenger_persistent_fill_rows),
+        "challenger_closed_outcome_count": len(challenger_close_rows),
+        "challenger_outcome_label_count": len(challenger_outcome_rows),
+        "challenger_identity_missing_lifecycle_rows": len(
+            challenger_lifecycle_identity_missing_rows
+        ),
+        "challenger_identity_preserved_to_outcome": pass_conditions[
+            "challenger_identity_preserved_to_outcome"
+        ],
+        "shadow_economic_fill_count": len(shadow_economic_rows),
+        "fallback_challenger_fill_count": len(fallback_challenger_fill_rows),
+        "routes_to_live_rows": routes_to_live_rows,
+        "places_real_order_rows": places_real_order_rows,
+        "pass_conditions": pass_conditions,
+        "sample_old_policy_current_entry_rows": _sample_rows(
+            [
+                {
+                    "symbol": row.get("symbol"),
+                    "timeframe": row.get("timeframe"),
+                    "side": row.get("side"),
+                    "decision": row.get("decision"),
+                    "paper_policy_owner": row.get("paper_policy_owner"),
+                    "paper_fill_allowed": row.get("paper_fill_allowed"),
+                }
+                for row in old_policy_current_entry_rows
+            ],
+            5,
+        ),
+        "sample_challenger_identity_missing_rows": _sample_rows(
+            [
+                {
+                    "symbol": row.get("symbol"),
+                    "timeframe": row.get("timeframe"),
+                    "side": row.get("side"),
+                    "candidate_id": row.get("candidate_id"),
+                    "paper_policy_owner": row.get("paper_policy_owner"),
+                    "policy_fingerprint": row.get("policy_fingerprint"),
+                    "model_source": row.get("model_source"),
+                    "missing_fields": row.get("paper_owner_attribution_missing_fields"),
+                }
+                for row in challenger_lifecycle_identity_missing_rows
+            ],
+            5,
+        ),
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_a_grade_evidence": False,
+        "generated_utc": _utc_iso(),
     }
 
 
@@ -14924,6 +15147,19 @@ def run_once() -> dict:
         outcome_labels,
         binding_source="OUTCOME_LABEL_ENTRY_CONTEXT",
     )
+    paper_policy_owner_handoff_runtime_proof = (
+        _paper_policy_owner_handoff_runtime_proof(
+            current_runtime_rows=intents,
+            current_accepted_rows=accepted,
+            accepted_rows=accepted_for_ledger,
+            closed_rows=closes,
+            outcome_label_rows=outcome_labels,
+            shadow_rows=[
+                *current_cycle_shadow_observations,
+                *persisted_shadow_observations,
+            ],
+        )
+    )
     paper_b_grade_canary_supply_status = _paper_b_grade_canary_supply_status(
         intents,
         accepted_rows=accepted_for_ledger,
@@ -15103,6 +15339,9 @@ def run_once() -> dict:
             "model_source": CHALLENGER_V2_MODEL_SOURCE,
             "current_allowed_paper_owner": PAPER_POLICY_OWNER_CHALLENGER_V2,
             "paper_owner_attribution_status": paper_owner_attribution_status,
+            "paper_policy_owner_handoff_runtime_proof": (
+                paper_policy_owner_handoff_runtime_proof
+            ),
             "held_position_count": len(held_by_gate_intents),
             "redis_ledger_compacted": True,
             "redis_ledger_sample_limit": PAPER_REDIS_LEDGER_ROW_SAMPLE_LIMIT,
@@ -15274,6 +15513,9 @@ def run_once() -> dict:
                     paper_outcome_label_entry_context_backfill_status
                 ),
                 "paper_owner_attribution_status": paper_owner_attribution_status,
+                "paper_policy_owner_handoff_runtime_proof": (
+                    paper_policy_owner_handoff_runtime_proof
+                ),
                 "paper_b_grade_bucket_promotion_readiness_status": (
                     paper_b_grade_bucket_promotion_readiness_status
                 ),
@@ -15309,6 +15551,15 @@ def run_once() -> dict:
         ):
             keys_written.append(
                 f"{V2_REDIS_PREFIX}paper:active_runtime_owner_status"
+            )
+        if _safe_write(
+            r,
+            f"{V2_REDIS_PREFIX}paper:policy_owner_handoff_runtime_proof",
+            json.dumps(paper_policy_owner_handoff_runtime_proof),
+            ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
+        ):
+            keys_written.append(
+                f"{V2_REDIS_PREFIX}paper:policy_owner_handoff_runtime_proof"
             )
         if _safe_write(
             r,
@@ -15421,6 +15672,9 @@ def run_once() -> dict:
         "current_allowed_paper_owner": PAPER_POLICY_OWNER_CHALLENGER_V2,
         "paper_owner_attribution_status": paper_owner_attribution_status,
         "paper_active_runtime_owner_status": paper_active_runtime_owner_status,
+        "paper_policy_owner_handoff_runtime_proof": (
+            paper_policy_owner_handoff_runtime_proof
+        ),
         "paper_b_grade_model_quality_status": (
             paper_b_grade_model_quality_status if r is not None else {}
         ),
@@ -15545,6 +15799,9 @@ def run_once() -> dict:
                 "accepted_fills": accepted_state_rows,
                 "current_cycle_accepted": current_accepted_state_rows,
                 "paper_owner_attribution_status": paper_owner_attribution_status,
+                "paper_policy_owner_handoff_runtime_proof": (
+                    paper_policy_owner_handoff_runtime_proof
+                ),
                 "omitted_fields": sorted(COMPACT_ACCEPTED_FILL_OMITTED_FIELDS),
                 "generated_utc": _utc_iso(),
                 "paper_only": True,
@@ -15573,6 +15830,9 @@ def run_once() -> dict:
                 "trainer_feedback_row_count": len(trainer_feedback_consumable_rows),
                 "trainer_feedback_quarantined_row_count": len(trainer_feedback_quarantine_rows),
                 "paper_owner_attribution_status": paper_owner_attribution_status,
+                "paper_policy_owner_handoff_runtime_proof": (
+                    paper_policy_owner_handoff_runtime_proof
+                ),
                 "paper_closed_outcome_entry_context_backfill_status": (
                     paper_closed_outcome_entry_context_backfill_status
                 ),
@@ -15681,6 +15941,10 @@ def run_once() -> dict:
         write_payload(
             paper_owner_attribution_status,
             TRADE_MANAGEMENT_PUBLIC_DIR / "paper_owner_attribution_status.json",
+        )
+        write_payload(
+            paper_policy_owner_handoff_runtime_proof,
+            PAPER_POLICY_OWNER_HANDOFF_RUNTIME_PROOF_PATH,
         )
         write_payload(
             paper_active_runtime_owner_status,

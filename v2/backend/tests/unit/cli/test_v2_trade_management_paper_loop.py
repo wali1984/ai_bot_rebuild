@@ -2895,6 +2895,114 @@ def test_owner_attribution_status_validates_current_runtime_rows_without_current
     }
 
 
+def test_paper_policy_owner_handoff_runtime_proof_passes_current_challenger_path() -> None:
+    current_intent = {
+        "intent_id": "intent-current",
+        "symbol": "ETHUSDT",
+        "timeframe": "1h",
+        "side": "short",
+        "candidate_id": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID,
+        "policy_id": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID,
+        "paper_policy_owner": paper_loop.PAPER_POLICY_OWNER_CHALLENGER_V2,
+        "policy_fingerprint": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT,
+        "model_source": paper_loop.CHALLENGER_V2_MODEL_SOURCE,
+        "paper_fill_allowed": True,
+        "production_grade_cost_flag": True,
+        "production_grade_cost_evidence": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    fill = {
+        **current_intent,
+        "fill_id": "fill-current",
+        "decision": "ACCEPTED_PAPER_FILL",
+    }
+    close = {
+        **fill,
+        "close_id": "close-current",
+        "paper_fill_allowed": False,
+    }
+    outcome = {
+        **fill,
+        "outcome_label_id": "outcome-current",
+        "paper_fill_allowed": False,
+    }
+
+    proof = paper_loop._paper_policy_owner_handoff_runtime_proof(  # noqa: SLF001
+        current_runtime_rows=[current_intent],
+        current_accepted_rows=[fill],
+        accepted_rows=[fill],
+        closed_rows=[close],
+        outcome_label_rows=[outcome],
+        shadow_rows=[{"paper_fill_allowed": False, "decision": "SHADOW_ONLY"}],
+    )
+
+    assert proof["status"] == "PASSED_PAPER_POLICY_OWNER_HANDOFF_RUNTIME_PROOF"
+    assert proof["paper_new_entry_owner"] == paper_loop.PAPER_POLICY_OWNER_CHALLENGER_V2
+    assert proof["new_old_policy_entry_count"] == 0
+    assert proof["new_challenger_candidate_count"] == 1
+    assert proof["new_challenger_intent_count"] == 1
+    assert proof["new_challenger_accepted_fill_count"] == 1
+    assert proof["challenger_identity_preserved_to_outcome"] is True
+    assert proof["shadow_economic_fill_count"] == 0
+    assert proof["fallback_challenger_fill_count"] == 0
+    assert all(proof["pass_conditions"].values())
+
+
+def test_paper_policy_owner_handoff_runtime_proof_blocks_old_policy_or_missing_identity() -> None:
+    old_policy_intent = {
+        "intent_id": "intent-old",
+        "symbol": "BTCUSDT",
+        "timeframe": "5m",
+        "side": "long",
+        "paper_policy_owner": paper_loop.PAPER_POLICY_OWNER_OLD_POLICY,
+        "paper_fill_allowed": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    challenger_intent = {
+        "intent_id": "intent-challenger",
+        "symbol": "ETHUSDT",
+        "timeframe": "1h",
+        "side": "short",
+        "candidate_id": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID,
+        "policy_id": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID,
+        "paper_policy_owner": paper_loop.PAPER_POLICY_OWNER_CHALLENGER_V2,
+        "policy_fingerprint": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT,
+        "model_source": paper_loop.CHALLENGER_V2_MODEL_SOURCE,
+        "paper_fill_allowed": True,
+        "production_grade_cost_flag": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    incomplete_challenger_close = {
+        "close_id": "close-missing-identity",
+        "symbol": "ETHUSDT",
+        "timeframe": "1h",
+        "side": "short",
+        "paper_policy_owner": paper_loop.PAPER_POLICY_OWNER_CHALLENGER_V2,
+    }
+
+    proof = paper_loop._paper_policy_owner_handoff_runtime_proof(  # noqa: SLF001
+        current_runtime_rows=[old_policy_intent, challenger_intent],
+        current_accepted_rows=[],
+        accepted_rows=[],
+        closed_rows=[incomplete_challenger_close],
+        outcome_label_rows=[],
+        shadow_rows=[{"decision": "ACCEPTED_PAPER_FILL", "paper_fill_allowed": True}],
+    )
+
+    assert proof["status"] == "BLOCKED_PAPER_POLICY_OWNER_HANDOFF_RUNTIME_PROOF"
+    assert proof["new_old_policy_entry_count"] == 1
+    assert proof["new_challenger_candidate_count"] == 1
+    assert proof["challenger_identity_missing_lifecycle_rows"] == 1
+    assert proof["challenger_identity_preserved_to_outcome"] is False
+    assert proof["shadow_economic_fill_count"] == 1
+    assert proof["pass_conditions"]["new_old_policy_entry_count_zero"] is False
+    assert proof["pass_conditions"]["challenger_identity_preserved_to_outcome"] is False
+    assert proof["pass_conditions"]["shadow_rows_never_become_economic_fills"] is False
+
+
 def test_runtime_market_evidence_requires_execution_evidence_fields() -> None:
     base_intent = {
         "entry_price_provenance_present": True,

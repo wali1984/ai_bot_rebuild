@@ -9894,6 +9894,54 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                 paper_active_runtime_owner_status.get("status") or ""
             )
 
+            policy_owner_handoff_key = "v2:paper:policy_owner_handoff_runtime_proof"
+            try:
+                policy_owner_handoff_raw = client.get(policy_owner_handoff_key)
+            except Exception:
+                policy_owner_handoff_raw = None
+            paper_policy_owner_handoff_runtime_proof = _json_object_from_redis_raw(
+                policy_owner_handoff_raw
+            )
+            if not paper_policy_owner_handoff_runtime_proof:
+                fallback_policy_owner_handoff = trade_management_status.get(
+                    "paper_policy_owner_handoff_runtime_proof"
+                )
+                if isinstance(fallback_policy_owner_handoff, dict):
+                    paper_policy_owner_handoff_runtime_proof = fallback_policy_owner_handoff
+            if not paper_policy_owner_handoff_runtime_proof:
+                fallback_policy_owner_handoff = hb.get(
+                    "paper_policy_owner_handoff_runtime_proof"
+                )
+                if isinstance(fallback_policy_owner_handoff, dict):
+                    paper_policy_owner_handoff_runtime_proof = fallback_policy_owner_handoff
+            if paper_policy_owner_handoff_runtime_proof:
+                paper_policy_owner_handoff_runtime_proof = _compact_paper_runtime_contract(
+                    paper_policy_owner_handoff_runtime_proof
+                )
+                paper_policy_owner_handoff_runtime_proof.setdefault(
+                    "source", f"redis:{policy_owner_handoff_key}"
+                )
+                paper_policy_owner_handoff_runtime_proof.setdefault("available", True)
+            else:
+                paper_policy_owner_handoff_runtime_proof = {
+                    "schema_version": "paper_policy_owner_handoff_runtime_proof_v1",
+                    "status": "PAPER_POLICY_OWNER_HANDOFF_RUNTIME_PROOF_UNAVAILABLE",
+                    "source": f"redis:{policy_owner_handoff_key}",
+                    "available": False,
+                    "paper_new_entry_owner": "UNKNOWN",
+                    "new_old_policy_entry_count": None,
+                    "new_challenger_candidate_count": 0,
+                    "new_challenger_intent_count": 0,
+                    "challenger_identity_preserved_to_outcome": False,
+                    "paper_only": True,
+                    "routes_to_live": False,
+                    "places_real_order": False,
+                    "generated_at": now,
+                }
+            policy_owner_handoff_status = str(
+                paper_policy_owner_handoff_runtime_proof.get("status") or ""
+            )
+
             b_grade_canary_supply_key = "v2:paper:b_grade_canary_supply_status"
             try:
                 b_grade_canary_supply_raw = client.get(b_grade_canary_supply_key)
@@ -10061,6 +10109,49 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                         ),
                     }
                 )
+            if (
+                policy_owner_handoff_status
+                == "PAPER_POLICY_OWNER_HANDOFF_RUNTIME_PROOF_UNAVAILABLE"
+            ):
+                blockers.append(
+                    {
+                        "id": "PAPER_POLICY_OWNER_HANDOFF_RUNTIME_PROOF_UNAVAILABLE",
+                        "severity": "missing_runtime_contract",
+                        "detail": "Active paper runtime has not published the challenger handoff proof.",
+                        "source": f"redis:{policy_owner_handoff_key}",
+                    }
+                )
+            elif (
+                policy_owner_handoff_status
+                != "PASSED_PAPER_POLICY_OWNER_HANDOFF_RUNTIME_PROOF"
+            ):
+                blockers.append(
+                    {
+                        "id": "PAPER_POLICY_OWNER_HANDOFF_RUNTIME_PROOF_BLOCKED",
+                        "severity": "runtime_blocker",
+                        "detail": "Active paper runtime does not prove old policy opens are blocked and challenger identity is preserved.",
+                        "source": (
+                            paper_policy_owner_handoff_runtime_proof.get("source")
+                            or f"redis:{policy_owner_handoff_key}"
+                        ),
+                        "status": policy_owner_handoff_status,
+                        "new_old_policy_entry_count": (
+                            paper_policy_owner_handoff_runtime_proof.get(
+                                "new_old_policy_entry_count"
+                            )
+                        ),
+                        "new_challenger_candidate_count": (
+                            paper_policy_owner_handoff_runtime_proof.get(
+                                "new_challenger_candidate_count"
+                            )
+                        ),
+                        "new_challenger_intent_count": (
+                            paper_policy_owner_handoff_runtime_proof.get(
+                                "new_challenger_intent_count"
+                            )
+                        ),
+                    }
+                )
             if b_grade_canary_status == "BLOCKED_ZERO_B_GRADE_CANARY_SUPPLY":
                 blockers.append(
                     {
@@ -10203,6 +10294,29 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                     "places_real_order": hb.get("places_real_order"),
                     "paper_owner_attribution_status": hb.get("paper_owner_attribution_status"),
                     "paper_active_runtime_owner_status": paper_active_runtime_owner_status,
+                    "paper_policy_owner_handoff_runtime_proof": (
+                        paper_policy_owner_handoff_runtime_proof
+                    ),
+                    "old_policy_new_entry_count": (
+                        paper_policy_owner_handoff_runtime_proof.get(
+                            "new_old_policy_entry_count"
+                        )
+                    ),
+                    "new_challenger_candidate_count": (
+                        paper_policy_owner_handoff_runtime_proof.get(
+                            "new_challenger_candidate_count"
+                        )
+                    ),
+                    "new_challenger_intent_count": (
+                        paper_policy_owner_handoff_runtime_proof.get(
+                            "new_challenger_intent_count"
+                        )
+                    ),
+                    "challenger_identity_preserved_to_outcome": (
+                        paper_policy_owner_handoff_runtime_proof.get(
+                            "challenger_identity_preserved_to_outcome"
+                        )
+                    ),
                     "last_tick_at": hb_ts or now,
                     "paper_event_count": paper_event_count,
                     "last_paper_event_count": paper_event_count,
