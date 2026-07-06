@@ -26,6 +26,9 @@ interface TickerRow {
   volume_24h?: number | null;
   turnover_24h?: number | null;
   trade_count_24h?: number | null;
+  funding_rate?: number | null;
+  open_interest?: number | null;
+  long_short_ratio?: number | null;
 }
 
 interface MarketOverviewData {
@@ -180,6 +183,7 @@ export default function MarketsPage(): JSX.Element {
   const losers = useMemo(() => allTickers.filter((r) => (r.change_24h ?? 0) < 0).length, [allTickers]);
   const totalTurnover = useMemo(() => allTickers.reduce((s, r) => s + (r.turnover_24h ?? 0), 0), [allTickers]);
   const hasPriceData = allTickers.some((r) => r.last_price != null);
+  const hasDerivativesData = allTickers.some((r) => r.funding_rate != null || r.open_interest != null);
   const canonicalBtcMarket = selectMarketBySymbol(traderSnapshot, 'BTCUSDT') ?? {};
   const canonicalMarketMetric = (fieldId: string) => selectMarketMetric(traderSnapshot, canonicalBtcMarket, fieldId);
 
@@ -511,6 +515,21 @@ export default function MarketsPage(): JSX.Element {
                     onSort={handleSort}
                   />
                 )}
+                {hasDerivativesData && (
+                  <th style={{ padding: '10px 12px', textAlign: 'right', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', whiteSpace: 'nowrap', background: 'var(--bg-elevated)', position: 'sticky', top: 0, zIndex: 1, borderBottom: '1px solid var(--border)' }}>
+                    Funding
+                  </th>
+                )}
+                {hasDerivativesData && (
+                  <th style={{ padding: '10px 12px', textAlign: 'right', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', whiteSpace: 'nowrap', background: 'var(--bg-elevated)', position: 'sticky', top: 0, zIndex: 1, borderBottom: '1px solid var(--border)' }}>
+                    Open Int.
+                  </th>
+                )}
+                {hasDerivativesData && (
+                  <th style={{ padding: '10px 12px', textAlign: 'right', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', whiteSpace: 'nowrap', background: 'var(--bg-elevated)', position: 'sticky', top: 0, zIndex: 1, borderBottom: '1px solid var(--border)' }}>
+                    L / S
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -617,6 +636,33 @@ export default function MarketsPage(): JSX.Element {
                         }}
                       >
                         {fmtCompact(row.volume_24h)}
+                      </td>
+                    )}
+                    {hasDerivativesData && (
+                      <td
+                        style={{
+                          padding: '10px 12px',
+                          textAlign: 'right',
+                          fontSize: 11.5,
+                          color:
+                            row.funding_rate == null
+                              ? 'var(--text-muted)'
+                              : row.funding_rate >= 0
+                              ? 'var(--buy, #10b981)'
+                              : 'var(--sell, #ef4444)',
+                        }}
+                      >
+                        {row.funding_rate != null ? `${(row.funding_rate * 100).toFixed(4)}%` : '—'}
+                      </td>
+                    )}
+                    {hasDerivativesData && (
+                      <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: 11.5, color: 'var(--text-secondary)' }}>
+                        {row.open_interest != null ? row.open_interest.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—'}
+                      </td>
+                    )}
+                    {hasDerivativesData && (
+                      <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: 11.5, color: 'var(--text-secondary)' }}>
+                        {row.long_short_ratio != null ? row.long_short_ratio.toFixed(2) : '—'}
                       </td>
                     )}
                   </tr>

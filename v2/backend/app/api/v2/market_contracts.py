@@ -3219,6 +3219,55 @@ def _symbol_from_payload(symbol: str | None, terminal: dict[str, Any] | None) ->
     return "BTCUSDT"
 
 
+def _enrich_overview_rows_from_redis(ticker_rows: list[dict[str, Any]]) -> None:
+    """Merge ingestor-published funding/OI/long-short into overview rows.
+
+    Reads only symbols the native ingestors already track (bounded pipeline
+    read), so the overview table can show derivatives columns without any
+    extra exchange calls. Rows without Redis data keep None values.
+    """
+    redis_client = get_redis()
+    if redis_client is None or not ticker_rows:
+        return
+    try:
+        tracked: set[str] = set()
+        for key in redis_client.scan_iter(match="v2:market:funding:*", count=500):
+            name = key.decode() if isinstance(key, bytes) else str(key)
+            tracked.add(name.rsplit(":", 1)[-1])
+            if len(tracked) >= 256:
+                break
+        rows_by_symbol = {row["symbol"]: row for row in ticker_rows if row["symbol"] in tracked}
+        if not rows_by_symbol:
+            return
+        ordered_symbols = list(rows_by_symbol)
+        pipe = redis_client.pipeline()
+        for symbol in ordered_symbols:
+            pipe.get(f"v2:market:funding:{symbol}")
+            pipe.get(f"v2:market:open_interest:{symbol}")
+            pipe.get(f"v2:market:long_short:{symbol}")
+        results = pipe.execute()
+        for index, symbol in enumerate(ordered_symbols):
+            row = rows_by_symbol[symbol]
+            funding_raw, oi_raw, ls_raw = results[index * 3 : index * 3 + 3]
+            try:
+                funding = json.loads(funding_raw) if funding_raw else None
+                if isinstance(funding, dict):
+                    row["funding_rate"] = _float(funding.get("lastFundingRate"))
+                    row["mark_price"] = _float(funding.get("markPrice"))
+                oi = json.loads(oi_raw) if oi_raw else None
+                if isinstance(oi, dict):
+                    row["open_interest"] = _float(oi.get("openInterest"))
+                long_short = json.loads(ls_raw) if ls_raw else None
+                if isinstance(long_short, dict):
+                    row["long_short_ratio"] = _float(
+                        long_short.get("long_short_ratio") or long_short.get("longShortRatio")
+                    )
+            except (TypeError, ValueError):
+                continue
+    except Exception:
+        return
+
+
 @router.get("/market/overview")
 async def get_market_overview() -> dict[str, Any]:
     endpoint = "/api/v2/market/overview"
@@ -3245,6 +3294,7 @@ async def get_market_overview() -> dict[str, Any]:
             key=lambda item: item["symbol"],
         )
         symbols = [row["symbol"] for row in ticker_rows]
+        _enrich_overview_rows_from_redis(ticker_rows)
         ticker_missing = [
             "tickers"
             for row in ticker_rows

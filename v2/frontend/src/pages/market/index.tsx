@@ -29,6 +29,7 @@ import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { useTraderSnapshot } from '../../hooks/useTraderSnapshot';
 import { CanonicalMetricValue } from '../../components/data/CanonicalMetric';
 import { selectMarketBySymbol, selectMarketMetric } from '../../selectors/marketSelectors';
+import { SymbolIntelSection } from './intelPanels';
 import type {
   ApiV2Envelope,
   MarketCandlesData,
@@ -951,6 +952,9 @@ export default function MarketPage(): JSX.Element {
             <Stat label="Open interest history" value={`${derivatives?.open_interest_history?.length ?? 0} rows`} />
           </div>
         </div>
+
+        {/* Symbol intelligence: microstructure, whale walls, alt-data, HTF, cross-venue */}
+        {safeSymbol && <SymbolIntelSection symbol={safeSymbol} />}
 
         {/* Source / Evidence */}
         <div className="mdc-panel" data-testid="market-evidence-section">
