@@ -352,6 +352,20 @@ export default function MarketsPage(): JSX.Element {
             )}
           </button>
         ))}
+        <Link
+          to="/markets/ingestors"
+          style={{
+            padding: '10px 14px',
+            borderBottom: '2px solid transparent',
+            color: 'var(--text-muted)',
+            fontSize: 13,
+            textDecoration: 'none',
+            whiteSpace: 'nowrap',
+            marginBottom: -1,
+          }}
+        >
+          Ingestors ↗
+        </Link>
         <div style={{ flex: 1 }} />
         <input
           type="text"

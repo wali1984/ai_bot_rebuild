@@ -34,6 +34,7 @@ from app.api.v2 import (
     public_status,
     replay,
     status_contracts,
+    system_metrics,
     trainer,
     trader_snapshot,
 )
@@ -59,5 +60,6 @@ router.include_router(monitoring_contracts.router)
 router.include_router(hourly_monitor.router)
 router.include_router(mobile.router)
 router.include_router(trader_snapshot.router)
+router.include_router(system_metrics.router)
 
 __all__ = ["router"]

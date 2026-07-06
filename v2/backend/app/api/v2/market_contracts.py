@@ -19,6 +19,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -75,8 +76,12 @@ MARKET_STREAM_TELEMETRY: dict[str, dict[str, Any]] = {}
 MARKET_STREAM_TELEMETRY_LOCK = threading.Lock()
 READONLY_RESOURCE_HTTP_TIMEOUT_SECONDS = float(os.environ.get("ALPHAFORGE_READONLY_RESOURCE_HTTP_TIMEOUT_SECONDS", "1.5"))
 BINANCE_PUBLIC_CACHE_TTL_SECONDS = float(os.environ.get("ALPHAFORGE_BINANCE_PUBLIC_CACHE_TTL_SECONDS", "5"))
+BINANCE_PUBLIC_CACHE_STALE_MAX_SECONDS = float(
+    os.environ.get("ALPHAFORGE_BINANCE_PUBLIC_CACHE_STALE_MAX_SECONDS", "60")
+)
 BINANCE_PUBLIC_JSON_CACHE_LOCK = threading.Lock()
 BINANCE_PUBLIC_JSON_CACHE: dict[str, tuple[float, Any, str]] = {}
+_BINANCE_REFRESH_IN_FLIGHT: set[str] = set()
 READONLY_RESOURCE_RESOLVE_TIMEOUT_SECONDS = float(os.environ.get("ALPHAFORGE_READONLY_RESOURCE_RESOLVE_TIMEOUT_SECONDS", "2.5"))
 WEBSOCKET_DISCONNECT_POLL_SECONDS = float(os.environ.get("ALPHAFORGE_WEBSOCKET_DISCONNECT_POLL_SECONDS", "0.25"))
 SIGNALS_MATRIX_CACHE_TTL_SECONDS = float(os.environ.get("ALPHAFORGE_SIGNALS_MATRIX_CACHE_TTL_SECONDS", "2"))
@@ -1045,16 +1050,7 @@ def _market_stream_alert(telemetry: dict[str, Any]) -> dict[str, Any]:
     return market_stream_alert_from_telemetry(telemetry)
 
 
-def _binance_public_json(path: str, params: dict[str, Any]) -> tuple[Any | None, str, str | None]:
-    query = urllib.parse.urlencode({key: value for key, value in params.items() if value is not None})
-    url = f"{BINANCE_FAPI_BASE}{path}" + (f"?{query}" if query else "")
-    cache_key = f"{path}?{query}"
-    now = time.monotonic()
-    if BINANCE_PUBLIC_CACHE_TTL_SECONDS > 0:
-        with BINANCE_PUBLIC_JSON_CACHE_LOCK:
-            cached = BINANCE_PUBLIC_JSON_CACHE.get(cache_key)
-            if cached is not None and now - cached[0] <= BINANCE_PUBLIC_CACHE_TTL_SECONDS:
-                return cached[1], cached[2], None
+def _binance_fetch_and_cache(url: str, cache_key: str) -> tuple[Any | None, str, str | None]:
     request = urllib.request.Request(
         url,
         headers={"User-Agent": "alphaforge-v2-public-market-readonly/1.0"},
@@ -1069,6 +1065,39 @@ def _binance_public_json(path: str, params: dict[str, Any]) -> tuple[Any | None,
         return payload, url, None
     except Exception as exc:
         return None, url, f"Binance public market source unavailable: {type(exc).__name__}"
+    finally:
+        with BINANCE_PUBLIC_JSON_CACHE_LOCK:
+            _BINANCE_REFRESH_IN_FLIGHT.discard(cache_key)
+
+
+def _binance_public_json(path: str, params: dict[str, Any]) -> tuple[Any | None, str, str | None]:
+    query = urllib.parse.urlencode({key: value for key, value in params.items() if value is not None})
+    url = f"{BINANCE_FAPI_BASE}{path}" + (f"?{query}" if query else "")
+    cache_key = f"{path}?{query}"
+    now = time.monotonic()
+    if BINANCE_PUBLIC_CACHE_TTL_SECONDS > 0:
+        with BINANCE_PUBLIC_JSON_CACHE_LOCK:
+            cached = BINANCE_PUBLIC_JSON_CACHE.get(cache_key)
+            if cached is not None:
+                age = now - cached[0]
+                if age <= BINANCE_PUBLIC_CACHE_TTL_SECONDS:
+                    return cached[1], cached[2], None
+                # Stale-while-revalidate: serve the stale snapshot immediately
+                # and refresh in the background, so request latency never
+                # blocks on the upstream exchange once the cache is warm.
+                if age <= BINANCE_PUBLIC_CACHE_STALE_MAX_SECONDS:
+                    if cache_key not in _BINANCE_REFRESH_IN_FLIGHT:
+                        _BINANCE_REFRESH_IN_FLIGHT.add(cache_key)
+                        threading.Thread(
+                            target=_binance_fetch_and_cache,
+                            args=(url, cache_key),
+                            name=f"binance-swr:{path}",
+                            daemon=True,
+                        ).start()
+                    return cached[1], cached[2], None
+    with BINANCE_PUBLIC_JSON_CACHE_LOCK:
+        _BINANCE_REFRESH_IN_FLIGHT.add(cache_key)
+    return _binance_fetch_and_cache(url, cache_key)
 
 
 async def _binance_public_json_async(path: str, params: dict[str, Any]) -> tuple[Any | None, str, str | None]:
@@ -1487,9 +1516,13 @@ def _binance_market_snapshot(symbol: str) -> tuple[dict[str, Any] | None, list[s
     safe_symbol = _safe_symbol(symbol)
     warnings: list[str] = []
     sources: list[str] = []
-    ticker, ticker_source, ticker_warning = _binance_public_json("/fapi/v1/ticker/24hr", {"symbol": safe_symbol})
-    premium, premium_source, premium_warning = _binance_public_json("/fapi/v1/premiumIndex", {"symbol": safe_symbol})
-    oi, oi_source, oi_warning = _binance_public_json("/fapi/v1/openInterest", {"symbol": safe_symbol})
+    with ThreadPoolExecutor(max_workers=3, thread_name_prefix="binance-snapshot") as pool:
+        ticker_future = pool.submit(_binance_public_json, "/fapi/v1/ticker/24hr", {"symbol": safe_symbol})
+        premium_future = pool.submit(_binance_public_json, "/fapi/v1/premiumIndex", {"symbol": safe_symbol})
+        oi_future = pool.submit(_binance_public_json, "/fapi/v1/openInterest", {"symbol": safe_symbol})
+        ticker, ticker_source, ticker_warning = ticker_future.result()
+        premium, premium_source, premium_warning = premium_future.result()
+        oi, oi_source, oi_warning = oi_future.result()
     sources.extend([ticker_source, premium_source, oi_source])
     warnings.extend([warning for warning in (ticker_warning, premium_warning, oi_warning) if warning])
     if not isinstance(ticker, dict) or _float(ticker.get("lastPrice")) is None:
@@ -2903,6 +2936,87 @@ def _paper_account(actor: UserRecord | None = None) -> dict[str, Any] | None:
     if actor is None:
         return None
     return account if _payload_matches_actor(paper, actor) else None
+
+
+def _runtime_canonical_paper_account(client: Any | None) -> dict[str, Any]:
+    portfolio: dict[str, Any] = {}
+    session: dict[str, Any] = {}
+    ledger: dict[str, Any] = {}
+    if client is not None:
+        for key, target in (
+            ("v2:portfolio:state", portfolio),
+            ("v2:paper:session", session),
+            ("v2:paper:ledger", ledger),
+        ):
+            try:
+                payload = _json_object_from_redis_raw(client.get(key))
+            except Exception:
+                payload = None
+            if isinstance(payload, dict):
+                target.update(payload)
+
+    starting_equity = _float(
+        session.get("starting_equity_usd")
+        or portfolio.get("starting_equity_usd")
+        or portfolio.get("initial_capital")
+        or ledger.get("starting_equity_usd")
+        or ledger.get("initial_capital")
+    )
+    equity = _float(portfolio.get("equity"))
+    realized_pnl = _float(
+        portfolio.get("realized_pnl_usd")
+        or portfolio.get("realized_pnl")
+        or ledger.get("realized_pnl_usd")
+        or 0.0
+    )
+    unrealized_pnl = _float(
+        portfolio.get("unrealized_pnl_usd")
+        or portfolio.get("unrealized_pnl")
+        or ledger.get("unrealized_pnl_usd")
+        or 0.0
+    )
+    open_positions = _integer(
+        portfolio.get("open_positions_count")
+        or ledger.get("open_position_count")
+        or len(ledger.get("open_positions") or [])
+    )
+    closed_trades = _integer(
+        portfolio.get("closed_trade_count")
+        or portfolio.get("closed_positions_count")
+        or ledger.get("closed_trade_count")
+    )
+    paper_session_id = (
+        session.get("paper_session_id")
+        or portfolio.get("paper_session_id")
+        or ledger.get("paper_session_id")
+        or session.get("session_id")
+        or portfolio.get("session_id")
+        or ledger.get("session_id")
+    )
+    return {
+        "currency": "USDT",
+        "paper_session_id": paper_session_id,
+        "starting_equity": starting_equity,
+        "starting_equity_usd": starting_equity,
+        "initial_capital": starting_equity,
+        "equity": equity,
+        "realized_pnl": realized_pnl,
+        "realized_pnl_usd": realized_pnl,
+        "unrealized_pnl": unrealized_pnl,
+        "unrealized_pnl_usd": unrealized_pnl,
+        "open_position_count": open_positions or 0,
+        "closed_trade_count": closed_trades or 0,
+        "position_source": "redis:v2:portfolio:state",
+        "source": "redis:v2:portfolio:state+v2:paper:session+v2:paper:ledger",
+        "account_scope": "PAPER_SIM_ACCOUNT",
+        "paper_or_live": "paper",
+        "contains_simulated_positions": True,
+        "contains_live_positions": False,
+        "contains_quarantined_positions": False,
+        "equity_trusted": portfolio.get("equity_trusted", True),
+        "pnl_trusted": portfolio.get("pnl_trusted", True),
+        "reason_if_untrusted": portfolio.get("reason_if_untrusted"),
+    }
 
 
 def _repository_account(actor: UserRecord | None) -> TraderPaperAccount | None:
@@ -4542,10 +4656,31 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
         # Use portfolio_state as primary source when repo has no real PnL activity
         _repo_realized_pnl = _float(realized_pnl)
         _repo_has_pnl = _repo_realized_pnl is not None and abs(_repo_realized_pnl) > 0.01
+        _paper_initial_capital = (
+            _float(portfolio_state.get("starting_equity_usd"))
+            or _float(portfolio_state.get("initial_capital"))
+            or _float(redis_hb.get("starting_equity_usd"))
+            or _float(redis_hb.get("initial_capital"))
+            or PAPER_INITIAL_CAPITAL
+        )
+        _paper_session_id = (
+            portfolio_state.get("paper_session_id")
+            or portfolio_state.get("session_id")
+            or redis_hb.get("paper_session_id")
+            or redis_hb.get("session_id")
+        )
+        def _first_not_none(*values: Any) -> Any:
+            for value in values:
+                if value is not None:
+                    return value
+            return None
         if not _repo_has_pnl and portfolio_state:
             _ps_equity = _float(portfolio_state.get("equity"))
             _ps_rpnl = _float(portfolio_state.get("realized_pnl_usd"))
-            _ps_upnl = _float(portfolio_state.get("unrealized_pnl_usd")) or _float(portfolio_state.get("net_unrealized_pnl"))
+            _ps_upnl = _first_not_none(
+                _float(portfolio_state.get("unrealized_pnl_usd")),
+                _float(portfolio_state.get("net_unrealized_pnl")),
+            )
             if _ps_equity is not None:
                 equity = _ps_equity
                 realized_pnl = _ps_rpnl
@@ -4553,25 +4688,20 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
         elif equity is None and redis_hb:
             realized_pnl = realized_pnl if realized_pnl is not None else _float(redis_hb.get("realized_pnl_usd"))
             unrealized_pnl = unrealized_pnl if unrealized_pnl is not None else _float(redis_hb.get("unrealized_pnl_usd"))
-            equity = round(PAPER_INITIAL_CAPITAL + (realized_pnl or 0) + (unrealized_pnl or 0), 4)
+            equity = round(_paper_initial_capital + (realized_pnl or 0) + (unrealized_pnl or 0), 4)
         if position_metrics is not None:
             unrealized_pnl = position_metrics.get("unrealized_pnl_usd")
             should_synthesize_equity = (
                 equity is None
                 or (
                     _float(portfolio_state.get("equity")) is None
-                    and repository_equity == PAPER_INITIAL_CAPITAL
+                    and repository_equity == _paper_initial_capital
                     and not _repo_has_pnl
                 )
             )
             if should_synthesize_equity:
                 base_realized_for_equity = realized_pnl if realized_pnl is not None else _float(redis_hb.get("realized_pnl_usd")) or 0.0
-                equity = round(PAPER_INITIAL_CAPITAL + base_realized_for_equity + (unrealized_pnl or 0.0), 4)
-        def _first_not_none(*values: Any) -> Any:
-            for value in values:
-                if value is not None:
-                    return value
-            return None
+                equity = round(_paper_initial_capital + base_realized_for_equity + (unrealized_pnl or 0.0), 4)
         _open_count = (
             _first_not_none(
                 _integer(portfolio_state.get("open_positions_count")),
@@ -4593,7 +4723,10 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
             "equity": equity,
             "paper_equity": equity,
             "paper_balance": equity,
-            "paper_initial_capital": PAPER_INITIAL_CAPITAL,
+            "paper_initial_capital": _paper_initial_capital,
+            "initial_capital": _paper_initial_capital,
+            "starting_equity_usd": _paper_initial_capital,
+            "paper_session_id": _paper_session_id,
             "realized_pnl": _clamp_pnl(realized_pnl),
             "unrealized_pnl": _clamp_pnl(unrealized_pnl),
             "open_position_count": _open_count,
@@ -4604,7 +4737,19 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
             "mode": "paper",
             "trader_id": repository_account.get("trader_id"),
             "paper_account_id": repository_account.get("paper_account_id"),
-            "account_scope": "authenticated_trader",
+            "account_scope": portfolio_state.get("account_scope") or "PAPER_SIM_ACCOUNT",
+            "source_type": portfolio_state.get("source_type") or portfolio_state_source_type or "paper_sim_repository",
+            "paper_or_live": "paper",
+            "contains_simulated_positions": True,
+            "contains_live_positions": False,
+            "contains_quarantined_positions": bool(portfolio_state.get("contains_quarantined_positions")),
+            "equity_trusted": portfolio_state.get("equity_trusted") is not False,
+            "pnl_trusted": portfolio_state.get("pnl_trusted") is not False,
+            "reason_if_untrusted": portfolio_state.get("reason_if_untrusted"),
+            "invalid_admission_accepted_excluded": portfolio_state.get("invalid_admission_accepted_excluded"),
+            "invalid_admission_closed_trades_excluded": portfolio_state.get("invalid_admission_closed_trades_excluded"),
+            "raw_equity_including_invalid_admissions_usd": portfolio_state.get("raw_equity_including_invalid_admissions_usd"),
+            "clean_session_valid_equity_usd": portfolio_state.get("clean_session_valid_equity_usd"),
             "account_specific": True,
         }
         missing = [
@@ -4692,27 +4837,55 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
             pub_portfolio_state,
             actor,
         )
-    # Prefer canonical Redis portfolio state for PnL and equity
-    base_realized = (
-        _float(pub_portfolio_state.get("realized_pnl_usd"))
-        or _float(account.get("realized_pnl") if scoped_paper and isinstance(account, dict) else None)
-        or _float(portfolio_data.get("realized_pnl_usd") if scoped_portfolio else None)
-        or _float(redis_hb_public.get("realized_pnl_usd"))
+    def _first_public_not_none(*values: Any) -> Any:
+        for value in values:
+            if value is not None:
+                return value
+        return None
+
+    # Prefer canonical Redis portfolio state for PnL and equity. Use explicit
+    # None checks so valid clean-session 0.0 PnL does not fall through to raw
+    # heartbeat or legacy payload values.
+    base_realized = _first_public_not_none(
+        _float(pub_portfolio_state.get("realized_pnl_usd")),
+        _float(account.get("realized_pnl") if scoped_paper and isinstance(account, dict) else None),
+        _float(portfolio_data.get("realized_pnl_usd") if scoped_portfolio else None),
+        _float(redis_hb_public.get("realized_pnl_usd")),
     )
-    base_unrealized = (
-        _float(pub_portfolio_state.get("unrealized_pnl_usd"))
-        or _float(account.get("unrealized_pnl") if scoped_paper and isinstance(account, dict) else None)
-        or _float(portfolio_data.get("net_unrealized_pnl") if scoped_portfolio else None)
-        or _float(redis_hb_public.get("unrealized_pnl_usd"))
+    base_unrealized = _first_public_not_none(
+        _float(pub_portfolio_state.get("unrealized_pnl_usd")),
+        _float(pub_portfolio_state.get("net_unrealized_pnl")),
+        _float(account.get("unrealized_pnl") if scoped_paper and isinstance(account, dict) else None),
+        _float(portfolio_data.get("net_unrealized_pnl") if scoped_portfolio else None),
+        _float(redis_hb_public.get("unrealized_pnl_usd")),
+    )
+    _public_initial_capital = (
+        _float(pub_portfolio_state.get("starting_equity_usd"))
+        or _float(pub_portfolio_state.get("initial_capital"))
+        or _float(redis_hb_public.get("starting_equity_usd"))
+        or _float(redis_hb_public.get("initial_capital"))
+        or PAPER_INITIAL_CAPITAL
+    )
+    _public_session_id = (
+        pub_portfolio_state.get("paper_session_id")
+        or pub_portfolio_state.get("session_id")
+        or redis_hb_public.get("paper_session_id")
+        or redis_hb_public.get("session_id")
     )
     base_equity = (
         _float(pub_portfolio_state.get("equity"))
         or _float(account.get("equity") if scoped_paper and isinstance(account, dict) else None)
         or _float(portfolio_data.get("equity") if scoped_portfolio else None)
-        or round(PAPER_INITIAL_CAPITAL + (base_realized or 0) + (base_unrealized or 0), 4)
+        or round(_public_initial_capital + (base_realized or 0) + (base_unrealized or 0), 4)
     )
-    _ps_open_count = pub_portfolio_state.get("open_positions_count")
-    _ps_closed_count = pub_portfolio_state.get("closed_positions_count")
+    _ps_open_count = _first_public_not_none(
+        _integer(pub_portfolio_state.get("open_positions_count")),
+        _integer(pub_portfolio_state.get("open_position_count")),
+    )
+    _ps_closed_count = _first_public_not_none(
+        _integer(pub_portfolio_state.get("closed_trade_count")),
+        _integer(pub_portfolio_state.get("closed_positions_count")),
+    )
     _clamp = lambda v: round(v, 4) if v is not None and abs(v) >= 0.001 else (0.0 if v is not None else None)
     data = {
         "equity": base_equity,
@@ -4720,15 +4893,40 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
         "paper_balance": base_equity,
         "realized_pnl": _clamp(base_realized),
         "unrealized_pnl": _clamp(base_unrealized),
-        "paper_initial_capital": PAPER_INITIAL_CAPITAL,
-        "open_position_count": _ps_open_count or redis_hb_public.get("open_position_count") or len(positions),
-        "closed_trade_count": _ps_closed_count or redis_hb_public.get("closed_trade_count"),
-        "total_open_notional": _float(pub_portfolio_state.get("open_position_notional")) or _float(redis_hb_public.get("total_open_notional")),
+        "paper_initial_capital": _public_initial_capital,
+        "initial_capital": _public_initial_capital,
+        "starting_equity_usd": _public_initial_capital,
+        "paper_session_id": _public_session_id,
+        "open_position_count": _first_public_not_none(
+            _ps_open_count,
+            _integer(redis_hb_public.get("open_position_count")),
+            len(positions),
+        ),
+        "closed_trade_count": _first_public_not_none(
+            _ps_closed_count,
+            _integer(redis_hb_public.get("closed_trade_count")),
+        ),
+        "total_open_notional": _first_public_not_none(
+            _float(pub_portfolio_state.get("open_position_notional")),
+            _float(redis_hb_public.get("total_open_notional")),
+        ),
         "positions": positions,
         "mode": "paper",
         "trader_id": actor.get("trader_id") if actor else None,
         "paper_account_id": actor.get("paper_account_id") if actor else None,
-        "account_scope": "authenticated_trader" if actor else "public_read_only",
+        "account_scope": pub_portfolio_state.get("account_scope") or "PAPER_SIM_ACCOUNT",
+        "source_type": pub_portfolio_state.get("source_type") or ("redis_live" if pub_portfolio_state_from_redis else "static_payload"),
+        "paper_or_live": "paper",
+        "contains_simulated_positions": True,
+        "contains_live_positions": False,
+        "contains_quarantined_positions": bool(pub_portfolio_state.get("contains_quarantined_positions")),
+        "equity_trusted": pub_portfolio_state.get("equity_trusted") is not False,
+        "pnl_trusted": pub_portfolio_state.get("pnl_trusted") is not False,
+        "reason_if_untrusted": pub_portfolio_state.get("reason_if_untrusted"),
+        "invalid_admission_accepted_excluded": pub_portfolio_state.get("invalid_admission_accepted_excluded"),
+        "invalid_admission_closed_trades_excluded": pub_portfolio_state.get("invalid_admission_closed_trades_excluded"),
+        "raw_equity_including_invalid_admissions_usd": pub_portfolio_state.get("raw_equity_including_invalid_admissions_usd"),
+        "clean_session_valid_equity_usd": pub_portfolio_state.get("clean_session_valid_equity_usd"),
         "account_specific": bool(scoped_paper or scoped_portfolio),
         "portfolio_source": "redis:v2:portfolio:state" if pub_portfolio_state_from_redis else portfolio_source,
         "portfolio_source_type": "redis_live" if pub_portfolio_state_from_redis else "static_payload",
@@ -4834,6 +5032,98 @@ async def get_account_readiness(actor: UserRecord | None = Depends(optional_auth
             "No exchange state was read or mutated",
         ],
         mode="paper",
+        trader_context=_trader_context(actor),
+    )
+
+
+@router.get("/account/summary")
+async def get_account_summary(actor: UserRecord | None = Depends(optional_auth)) -> dict[str, Any]:
+    endpoint = "/api/v2/account/summary"
+    portfolio_response = await get_portfolio(actor)
+    portfolio_data = portfolio_response.get("data") if isinstance(portfolio_response.get("data"), dict) else {}
+    data = {
+        "account_scope": portfolio_data.get("account_scope") or "PAPER_SIM_ACCOUNT",
+        "source_type": portfolio_data.get("source_type") or portfolio_response.get("source_type") or "paper_sim_portfolio",
+        "paper_or_live": "paper",
+        "contains_simulated_positions": True,
+        "contains_live_positions": False,
+        "contains_quarantined_positions": bool(portfolio_data.get("contains_quarantined_positions")),
+        "equity_trusted": portfolio_data.get("equity_trusted") is not False,
+        "pnl_trusted": portfolio_data.get("pnl_trusted") is not False,
+        "reason_if_untrusted": portfolio_data.get("reason_if_untrusted"),
+        "equity": portfolio_data.get("equity"),
+        "paper_equity": portfolio_data.get("paper_equity"),
+        "paper_session_id": portfolio_data.get("paper_session_id"),
+        "initial_capital": portfolio_data.get("initial_capital")
+        or portfolio_data.get("paper_initial_capital"),
+        "starting_equity_usd": portfolio_data.get("starting_equity_usd")
+        or portfolio_data.get("paper_initial_capital"),
+        "paper_initial_capital": portfolio_data.get("paper_initial_capital"),
+        "realized_pnl": portfolio_data.get("realized_pnl"),
+        "unrealized_pnl": portfolio_data.get("unrealized_pnl"),
+        "open_position_count": portfolio_data.get("open_position_count"),
+        "closed_trade_count": portfolio_data.get("closed_trade_count"),
+        "live_gate": "blocked_human_only",
+        "places_real_order": False,
+        "routes_to_live": False,
+    }
+    return _base_response(
+        endpoint=endpoint,
+        data=data,
+        source=str(portfolio_response.get("source") or "/api/v2/portfolio"),
+        source_type=portfolio_response.get("source_type") or "paper_sim_portfolio",
+        timestamp=portfolio_response.get("timestamp") or _utc_now(),
+        missing_fields=list(portfolio_response.get("missing_fields") or []),
+        warnings=[
+            "Account summary is paper simulation scope, not a live signed exchange account",
+            "Live trading remains disabled",
+            *list(portfolio_response.get("warnings") or []),
+        ],
+        mode="paper",
+        trader_context=_trader_context(actor),
+    )
+
+
+@router.get("/live/readiness")
+async def get_live_readiness_summary(actor: UserRecord | None = Depends(optional_auth)) -> dict[str, Any]:
+    endpoint = "/api/v2/live/readiness"
+    try:
+        from app.services.live_readiness import derive_gates  # noqa: PLC0415
+
+        gates = derive_gates(get_redis())
+    except Exception as exc:
+        gates = []
+        warning = f"Live readiness gate derivation unavailable: {exc}"
+    else:
+        warning = "Live readiness gates are read-only and live remains blocked"
+    data = {
+        "account_scope": "LIVE_BINANCE_SIGNED_ACCOUNT",
+        "source_type": "live_readiness_read_only_gate",
+        "paper_or_live": "live",
+        "contains_simulated_positions": False,
+        "contains_live_positions": False,
+        "contains_quarantined_positions": False,
+        "equity_trusted": False,
+        "pnl_trusted": False,
+        "reason_if_untrusted": "LIVE_SIGNED_ACCOUNT_EQUITY_NOT_MIXED_WITH_PAPER_POSITIONS",
+        "live_gate": "blocked_human_only",
+        "places_real_order": False,
+        "routes_to_live": False,
+        "gates": gates,
+    }
+    return _base_response(
+        endpoint=endpoint,
+        data=data,
+        source="app.services.live_readiness.derive_gates",
+        source_type="computed",
+        timestamp=_utc_now(),
+        missing_fields=[] if gates else ["live_readiness_gates"],
+        warnings=[
+            warning,
+            "No exchange state was mutated",
+            "Paper portfolio positions are not mixed into live account truth",
+        ],
+        mode="read_only",
         trader_context=_trader_context(actor),
     )
 
@@ -8205,7 +8495,9 @@ async def get_risk_status() -> dict[str, Any]:
     recent_decisions = _parse_redis_list_or_json(decisions_raw)
 
     missing: list[str] = []
-    if not gateway_latest:
+    # An empty latest-decision payload with a live heartbeat means the gateway
+    # is alive but has produced no recent winners — not an offline gateway.
+    if not gateway_latest and heartbeat is None:
         missing.append("risk_gateway_latest")
     if active_profile is None:
         missing.append("risk_active_profile")
@@ -9627,6 +9919,66 @@ async def get_paper_status(actor: UserRecord | None = Depends(optional_auth)) ->
     )
 
 
+def _paper_a_plus_runtime_truth_block(client: Any) -> dict[str, Any]:
+    """A+ goal Phase 12: session performance, entry freeze, A+ gate, trainer
+    learning and real-trader readiness truth shared by web routes."""
+
+    def _get(key: str) -> dict[str, Any]:
+        try:
+            raw = client.get(key)
+            parsed = json.loads(raw) if raw else None
+            return parsed if isinstance(parsed, dict) else {}
+        except Exception:
+            return {}
+
+    governor = _get("v2:paper:performance_governor_status")
+    halt = _get("v2:paper:new_entry_emergency_halt_status")
+    freeze = _get("v2:paper:entry_freeze")
+    a_plus = _get("v2:paper:a_plus_gate:status")
+    trainer = _get("v2:trainer:hybrid_cuda:status")
+    rejected = a_plus.get("rejected_reason_matrix")
+    top_blockers = list(freeze.get("future_gate_blockers") or [])
+    for reason in halt.get("halt_reasons") or []:
+        if reason not in top_blockers:
+            top_blockers.append(reason)
+    return {
+        "performance": {
+            "profit_factor": governor.get("profit_factor"),
+            "notional_weighted_expectancy_bps": governor.get("notional_weighted_expectancy_bps"),
+            "win_rate": governor.get("win_rate"),
+            "closed_outcome_count": governor.get("closed_outcome_count"),
+            "governor_state": governor.get("state"),
+        },
+        "entry_freeze": {
+            "new_entries_allowed": halt.get("new_entries_allowed"),
+            "halt_reasons": halt.get("halt_reasons"),
+            "future_gate_blockers": freeze.get("future_gate_blockers"),
+            "allow_close": halt.get("allow_close"),
+            "allow_reduce": halt.get("allow_reduce"),
+        },
+        "a_plus_gate": {
+            "evaluated_candidates": a_plus.get("evaluated_candidates"),
+            "a_plus_candidates": a_plus.get("a_plus_candidates"),
+            "rejected_reason_matrix": dict(list(rejected.items())[:8]) if isinstance(rejected, dict) else None,
+            "gate_is_hard_entry_condition": a_plus.get("gate_is_hard_entry_condition"),
+        },
+        "trainer_learning": {
+            "effective_trainer_mode": trainer.get("effective_trainer_mode"),
+            "online_learning_status": trainer.get("online_learning_status"),
+            "last_successful_weight_update_at": trainer.get("last_successful_weight_update_at"),
+            "checkpoint_id": trainer.get("checkpoint_id"),
+        },
+        "real_trader_readiness": {
+            "live_gate": "blocked_human_only",
+            "operator_flip_required": True,
+            "order_submitted": False,
+            "test_order_submitted": False,
+            "live_ready": False,
+        },
+        "top_blockers": top_blockers[:6],
+    }
+
+
 @router.get("/paper/runtime-status")
 async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_auth)) -> dict[str, Any]:
     """Real-time paper runtime status synthesized from Redis — replaces stale static file."""
@@ -9665,6 +10017,11 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
             runtime_cost_capture_status = (
                 trade_management_status.get("paper_runtime_cost_capture_status")
                 if isinstance(trade_management_status.get("paper_runtime_cost_capture_status"), dict)
+                else {}
+            )
+            paper_entry_freeze = (
+                trade_management_status.get("paper_entry_freeze")
+                if isinstance(trade_management_status.get("paper_entry_freeze"), dict)
                 else {}
             )
 
@@ -10562,6 +10919,18 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                 "generated_at": now,
                 "runtime": hb.get("worker_id", "v2_trade_management_paper_loop"),
                 "runtime_state": runtime_state,
+                # A+ goal Phase 12: session performance / freeze / A+ gate /
+                # trainer learning / real-trader readiness truth for the web.
+                **_paper_a_plus_runtime_truth_block(client),
+                "account_scope": "PAPER_SIM_ACCOUNT",
+                "source_type": "paper_runtime_redis_live",
+                "paper_or_live": "paper",
+                "contains_simulated_positions": True,
+                "contains_live_positions": False,
+                "contains_quarantined_positions": False,
+                "equity_trusted": False,
+                "pnl_trusted": False,
+                "reason_if_untrusted": "PAPER_RUNTIME_STATUS_IS_OPERATIONAL_HEALTH_NOT_PORTFOLIO_EQUITY_TRUTH",
                 "live_gate_status": "blocked_human_only",
                 "mode": "paper",
                 "continuous_loop_available": heartbeat_fresh,
@@ -10596,6 +10965,11 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                     "paper_only": hb.get("paper_only"),
                     "routes_to_live": hb.get("routes_to_live"),
                     "places_real_order": hb.get("places_real_order"),
+                    "paper_entry_freeze": paper_entry_freeze,
+                    "paper_new_entries_halted": (
+                        paper_entry_freeze.get("paper_new_entries_halted") is True
+                        or paper_entry_freeze.get("new_entries_allowed") is False
+                    ),
                     "paper_owner_attribution_status": hb.get("paper_owner_attribution_status"),
                     "paper_active_runtime_owner_status": paper_active_runtime_owner_status,
                     "paper_policy_owner_handoff_runtime_proof": (
@@ -10668,15 +11042,7 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                         one_thousand_x_trajectory_status
                     ),
                 },
-                "paper_account": {
-                    "currency": "USDT",
-                    "starting_equity": 10000.0,
-                    "equity": 10000.0,
-                    "realized_pnl": 0.0,
-                    "unrealized_pnl": 0.0,
-                    "open_position_count": 0,
-                    "position_source": "v2:paper:positions",
-                },
+                "paper_account": _runtime_canonical_paper_account(client),
                 "trainer_prediction": {
                     "prediction_id": latest_signal.get("prediction_id"),
                     "feature_snapshot_id": latest_signal.get("feature_snapshot_id"),
@@ -10741,6 +11107,15 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                 "generated_at": _utc_now(),
                 "runtime": "v2_trade_management_paper_loop",
                 "runtime_state": "PAPER_RUNTIME_EVIDENCE_ERROR",
+                "account_scope": "PAPER_SIM_ACCOUNT",
+                "source_type": "paper_runtime_error",
+                "paper_or_live": "paper",
+                "contains_simulated_positions": True,
+                "contains_live_positions": False,
+                "contains_quarantined_positions": False,
+                "equity_trusted": False,
+                "pnl_trusted": False,
+                "reason_if_untrusted": "PAPER_RUNTIME_STATUS_UNAVAILABLE",
                 "live_gate_status": "blocked_human_only",
                 "mode": "paper",
                 "error": str(exc),

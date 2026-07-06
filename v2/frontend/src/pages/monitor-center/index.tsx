@@ -2,6 +2,7 @@ import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { FreshnessBadge } from '../../components/data/FreshnessBadge';
 import { SourceBadge } from '../../components/data/SourceBadge';
 import { LoadingSkeleton } from '../../components/ui/LoadingSkeleton';
+import { SystemResourcesPanel } from '../../components/system/SystemResourcesPanel';
 import meta from './meta';
 import rbac from './rbac';
 import route from './route';
@@ -69,6 +70,12 @@ export default function MonitorCenterPage(): JSX.Element {
         <KV label="Unavailable" value={surfaces.loading ? '…' : String(sData?.unavailable ?? '—')} color={sData?.unavailable ? 'var(--sell)' : 'var(--text-muted)'} />
         <KV label="Active Streams" value={streams.loading ? '…' : String(stData?.active ?? '—')} color="var(--buy)" />
         <KV label="Build" value={build.loading ? '…' : (bData?.status ?? '—')} color={bData?.status === 'built' ? 'var(--buy)' : 'var(--sell)'} />
+      </div>
+
+      {/* System resources: host + GPU utilisation, realtime over WebSocket */}
+      <div style={{ padding: '20px 24px 0' }}>
+        <h2 style={{ margin: '0 0 10px', fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>System Resources</h2>
+        <SystemResourcesPanel />
       </div>
 
       {/* Page / Route coverage */}

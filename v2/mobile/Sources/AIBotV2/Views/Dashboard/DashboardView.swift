@@ -4,6 +4,8 @@ struct DashboardView: View {
     @Environment(AuthManager.self) private var auth
     @Environment(AppState.self) private var appState
     @State private var vm = DashboardViewModel()
+    @State private var pnlSeries = RollingSeries(capacity: 80)
+    @State private var gpuSeries = RollingSeries(capacity: 80)
 
     var body: some View {
         NavigationStack {
@@ -39,6 +41,12 @@ struct DashboardView: View {
         }
         .onAppear { vm.startAutoRefresh(token: auth.currentToken(), baseURL: appState.baseURL) }
         .onDisappear { vm.stopAutoRefresh() }
+        .onChange(of: vm.dashboard?.paper.total_pnl) { _, newValue in
+            if let newValue { pnlSeries.append(newValue) }
+        }
+        .onChange(of: vm.dashboard?.gpu.utilization_pct) { _, newValue in
+            if let newValue { gpuSeries.append(newValue) }
+        }
     }
 
     // MARK: - Stream bar
@@ -174,38 +182,51 @@ struct DashboardView: View {
     }
 
     private func pnlSection(_ paper: PaperState) -> some View {
-        VStack(spacing: 0) {
-            SectionHeader(title: "PnL Summary", accent: NerVyx.buy, trailing: "REALTIME")
-                .padding(.bottom, 12)
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("TOTAL PnL")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(NerVyx.textMuted)
-                        .tracking(0.6)
-                    Text(String(format: "%@$%.2f", paper.total_pnl >= 0 ? "+" : "", paper.total_pnl))
-                        .font(.system(size: 28, weight: .bold, design: .monospaced))
-                        .foregroundStyle(NerVyx.pnlColor(paper.total_pnl))
-                }
+        let pnlColor = NerVyx.pnlColor(paper.total_pnl)
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                SectionHeader(title: "Portfolio PnL", accent: pnlColor, trailing: nil)
                 Spacer()
-                VStack(alignment: .trailing, spacing: 6) {
-                    DataRow(
-                        label: "Realized",
-                        value: String(format: "$%.2f", paper.realized_pnl_usd),
-                        valueColor: NerVyx.pnlColor(paper.realized_pnl_usd),
-                        mono: true
-                    )
-                    DataRow(
-                        label: "Unrealized",
-                        value: String(format: "$%.2f", paper.unrealized_pnl_usd),
-                        valueColor: NerVyx.pnlColor(paper.unrealized_pnl_usd),
-                        mono: true
-                    )
+                HStack(spacing: 5) {
+                    LivePulse(color: pnlColor)
+                    Text("LIVE")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(pnlColor)
+                        .tracking(1.0)
                 }
-                .frame(width: 160)
+            }
+            Text(String(format: "%@$%.2f", paper.total_pnl >= 0 ? "+" : "", paper.total_pnl))
+                .font(.system(size: 38, weight: .heavy, design: .monospaced))
+                .foregroundStyle(pnlColor)
+                .contentTransition(.numericText())
+            HStack(spacing: 8) {
+                NerVyxBadge(
+                    text: String(format: "REALIZED %@$%.2f", paper.realized_pnl_usd >= 0 ? "+" : "", paper.realized_pnl_usd),
+                    color: NerVyx.pnlColor(paper.realized_pnl_usd),
+                    small: true
+                )
+                NerVyxBadge(
+                    text: String(format: "UNREALIZED %@$%.2f", paper.unrealized_pnl_usd >= 0 ? "+" : "", paper.unrealized_pnl_usd),
+                    color: NerVyx.pnlColor(paper.unrealized_pnl_usd),
+                    small: true
+                )
+                Spacer()
+            }
+            if pnlSeries.values.count > 1 {
+                Sparkline(values: pnlSeries.values, color: pnlColor)
+                    .frame(height: 56)
             }
         }
-        .nerVyxCard(accent: NerVyx.borderSubtle)
+        .padding(16)
+        .background(
+            LinearGradient(
+                colors: [NerVyx.panelElevated, NerVyx.panel],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(pnlColor.opacity(0.35), lineWidth: 1))
     }
 
     private func capitalQuickStats(_ paper: PaperState) -> some View {
@@ -278,21 +299,20 @@ struct DashboardView: View {
                     accent: NerVyx.borderStrong
                 )
             }
-            HStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 4) {
-                    DataRow(label: "Signals seen", value: "\(paper.signals_seen)")
-                    DataRow(label: "Accepted", value: "\(paper.intents_accepted)", valueColor: NerVyx.buy)
-                    DataRow(label: "Blocked", value: "\(paper.intents_blocked)", valueColor: NerVyx.sell)
-                }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text("Acceptance")
-                        .font(.system(size: 10))
-                        .foregroundStyle(NerVyx.textMuted)
-                    Text(String(format: "%.0f%%", paper.acceptanceRate))
-                        .font(.system(size: 20, weight: .bold, design: .monospaced))
-                        .foregroundStyle(paper.acceptanceRate > 50 ? NerVyx.buy : NerVyx.warning)
-                }
+            HStack(spacing: 16) {
+                MiniBarChart(entries: [
+                    .init(label: "SEEN", value: Double(paper.signals_seen), color: NerVyx.paper),
+                    .init(label: "ACCEPTED", value: Double(paper.intents_accepted), color: NerVyx.buy),
+                    .init(label: "BLOCKED", value: Double(paper.intents_blocked), color: NerVyx.sell),
+                ])
+                .frame(maxWidth: .infinity)
+                RingGauge(
+                    value: paper.acceptanceRate / 100,
+                    label: "ACCEPTANCE",
+                    centerText: String(format: "%.0f%%", paper.acceptanceRate),
+                    color: paper.acceptanceRate > 50 ? NerVyx.buy : NerVyx.warning,
+                    size: 74
+                )
             }
         }
         .nerVyxCard(accent: NerVyx.paper.opacity(0.3))
@@ -343,30 +363,38 @@ struct DashboardView: View {
     }
 
     private func gpuSection(_ gpu: GPUState) -> some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
             SectionHeader(title: "GPU · \(gpu.displayName)", accent: NerVyx.inference)
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("UTILIZATION")
+            HStack(spacing: 18) {
+                RingGauge(
+                    value: gpu.utilization_pct / 100,
+                    label: "UTILIZATION",
+                    centerText: "\(Int(gpu.utilization_pct))%",
+                    color: gpu.utilization_pct > 80 ? NerVyx.warning : NerVyx.inference
+                )
+                RingGauge(
+                    value: gpu.vramPercent / 100,
+                    label: "VRAM",
+                    centerText: String(format: "%.1fG", gpu.vramUsedGB),
+                    color: gpu.vramPercent > 85 ? NerVyx.warning : NerVyx.signal
+                )
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("UTIL TREND")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(NerVyx.textMuted)
                         .tracking(0.6)
-                    Text("\(Int(gpu.utilization_pct))%")
-                        .font(.system(size: 22, weight: .bold, design: .monospaced))
-                        .foregroundStyle(gpu.utilization_pct > 80 ? NerVyx.warning : NerVyx.inference)
-                    ConfidenceBar(value: gpu.utilization_pct / 100)
-                }
-                .frame(maxWidth: .infinity)
-                Divider().background(NerVyx.borderSubtle)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("VRAM")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(NerVyx.textMuted)
-                        .tracking(0.6)
-                    Text(String(format: "%.1f / %.1f GB", gpu.vramUsedGB, gpu.vramTotalGB))
-                        .font(.system(size: 15, weight: .bold, design: .monospaced))
-                        .foregroundStyle(gpu.vramPercent > 85 ? NerVyx.warning : NerVyx.signal)
-                    ConfidenceBar(value: gpu.vramPercent / 100)
+                    if gpuSeries.values.count > 1 {
+                        Sparkline(values: gpuSeries.values, color: NerVyx.inference)
+                            .frame(height: 52)
+                    } else {
+                        Text("collecting…")
+                            .font(.system(size: 11))
+                            .foregroundStyle(NerVyx.textMuted)
+                            .frame(maxWidth: .infinity, minHeight: 52)
+                    }
+                    Text(String(format: "%.1f / %.1f GB VRAM", gpu.vramUsedGB, gpu.vramTotalGB))
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(NerVyx.textSecondary)
                 }
                 .frame(maxWidth: .infinity)
             }

@@ -288,6 +288,16 @@ import ingestorsMeta from './ingestors/meta';
 import ingestorsRbac from './ingestors/rbac';
 import ingestorsRoute from './ingestors/route';
 
+import OrderbookRuntimeTruthPage from './orderbook-runtime-truth';
+import orderbookRuntimeTruthMeta from './orderbook-runtime-truth/meta';
+import orderbookRuntimeTruthRbac from './orderbook-runtime-truth/rbac';
+import orderbookRuntimeTruthRoute from './orderbook-runtime-truth/route';
+
+import MicrostructureTrustPage from './microstructure-trust';
+import microstructureTrustMeta from './microstructure-trust/meta';
+import microstructureTrustRbac from './microstructure-trust/rbac';
+import microstructureTrustRoute from './microstructure-trust/route';
+
 import LiquidationBridgePage from './liquidation-bridge';
 import liquidationBridgeMeta from './liquidation-bridge/meta';
 import liquidationBridgeRbac from './liquidation-bridge/rbac';
@@ -309,6 +319,11 @@ import MarketsPage from './markets';
 import marketsMeta from './markets/meta';
 import marketsRbac from './markets/rbac';
 import marketsRoute from './markets/route';
+
+import MarketsIngestorsPage from './markets-ingestors';
+import marketsIngestorsMeta from './markets-ingestors/meta';
+import marketsIngestorsRbac from './markets-ingestors/rbac';
+import marketsIngestorsRoute from './markets-ingestors/route';
 
 import ProChartPage from './pro-chart';
 import proChartMeta from './pro-chart/meta';
@@ -420,9 +435,12 @@ const RAW_PAGES: ReadonlyArray<PageModule> = [
   { meta: executiveStatusMeta, rbac: executiveStatusRbac, route: executiveStatusRoute, Component: ExecutiveStatusPage },
   { meta: historyMeta, rbac: historyRbac, route: historyRoute, Component: HistoryPage },
   { meta: ingestorsMeta, rbac: ingestorsRbac, route: ingestorsRoute, Component: IngestorsPage },
+  { meta: orderbookRuntimeTruthMeta, rbac: orderbookRuntimeTruthRbac, route: orderbookRuntimeTruthRoute, Component: OrderbookRuntimeTruthPage },
+  { meta: microstructureTrustMeta, rbac: microstructureTrustRbac, route: microstructureTrustRoute, Component: MicrostructureTrustPage },
   { meta: liquidationBridgeMeta, rbac: liquidationBridgeRbac, route: liquidationBridgeRoute, Component: LiquidationBridgePage },
   { meta: logsErrorsMeta, rbac: logsErrorsRbac, route: logsErrorsRoute, Component: LogsErrorsPage },
   { meta: marketMeta, rbac: marketRbac, route: marketRoute, Component: MarketPage },
+  { meta: marketsIngestorsMeta, rbac: marketsIngestorsRbac, route: marketsIngestorsRoute, Component: MarketsIngestorsPage },
   { meta: marketsMeta, rbac: marketsRbac, route: marketsRoute, Component: MarketsPage },
   { meta: proChartMeta, rbac: proChartRbac, route: proChartRoute, Component: ProChartPage },
   { meta: publicLandingV2Meta, rbac: publicLandingV2Rbac, route: publicLandingV2Route, Component: PublicLandingV2Page },

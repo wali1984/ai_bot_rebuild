@@ -42,6 +42,9 @@ LIVE_GATE_STATUS = LIVE_GATE_BLOCKED
 PUBLIC_WORKER_ID = "v2_risk_gateway_runtime_worker"
 LOOP_WORKER_ID = "v2_risk_gateway_live_loop"
 REPO_ROOT = Path(__file__).resolve().parents[4]
+_MICROSTRUCTURE_SHADOW_BLOCK_THRESHOLD = 0.45
+_MICROSTRUCTURE_SWEEP_BLOCK_THRESHOLD = 0.75
+_MICROSTRUCTURE_BLOCK_ACTIONS = {"NO_TRADE", "SHADOW_ONLY", "CLOSE_OR_REDUCE_ONLY"}
 PUBLIC_STATUS_FILE = (
     REPO_ROOT
     / "v2/frontend/public/operator_runtime/v2_risk_gateway_runtime_worker/latest"
@@ -82,6 +85,21 @@ _TRUST_ENVELOPE_FIELDS = (
     "replay_snapshot_key",
     "replay_snapshot_write_success",
     "trust_gate_result",
+    "microstructure_trust_score",
+    "orderbook_trust_score",
+    "orderbook_trust_tier",
+    "microstructure_action",
+    "orderbook_latency_ms",
+    "book_sequence_gap",
+    "book_depth_persistence_score",
+    "book_cancel_pressure_score",
+    "trade_tape_confirmation_score",
+    "cross_venue_confirmation_score",
+    "liquidation_zone_risk_score",
+    "sweep_risk_score",
+    "microstructure_gate_allows_a_grade",
+    "risk_microstructure_reject_reasons",
+    "source_availability",
 )
 
 
@@ -178,6 +196,59 @@ def _copy_trust_envelope_fields(source: dict[str, Any]) -> dict[str, Any]:
     if isinstance(source_hashes, dict) and source_hashes:
         out["source_hashes"] = dict(source_hashes)
     return out
+
+
+def _microstructure_contexts(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    contexts = [payload]
+    for key in ("microstructure_context", "market_microstructure", "microstructure"):
+        value = payload.get(key)
+        if isinstance(value, dict):
+            contexts.append(value)
+    return contexts
+
+
+def _microstructure_value(payload: dict[str, Any], *keys: str) -> Any:
+    for context in _microstructure_contexts(payload):
+        for key in keys:
+            value = context.get(key)
+            if value not in (None, ""):
+                return value
+    return None
+
+
+def _finite_or_none(value: Any) -> float | None:
+    if value in (None, "") or isinstance(value, bool):
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed == parsed and parsed not in (float("inf"), float("-inf")) else None
+
+
+def _truthy_microstructure_flag(value: Any) -> bool:
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
+def _microstructure_reject_reasons(payload: dict[str, Any]) -> list[str]:
+    reasons: list[str] = []
+    action = str(_microstructure_value(payload, "microstructure_action") or "").upper()
+    if action in _MICROSTRUCTURE_BLOCK_ACTIONS:
+        reasons.append(f"MICROSTRUCTURE_ACTION_{action}")
+    trust_score = _finite_or_none(
+        _microstructure_value(payload, "microstructure_trust_score", "orderbook_trust_score")
+    )
+    if trust_score is not None and trust_score < _MICROSTRUCTURE_SHADOW_BLOCK_THRESHOLD:
+        reasons.append("MICROSTRUCTURE_TRUST_SCORE_UNTRUSTED")
+    sequence_gap = _microstructure_value(payload, "book_sequence_gap", "sequence_gap_flag")
+    if _truthy_microstructure_flag(sequence_gap):
+        reasons.append("MICROSTRUCTURE_SEQUENCE_GAP")
+    sweep_risk = _finite_or_none(_microstructure_value(payload, "sweep_risk_score", "sweep_risk"))
+    if sweep_risk is not None and sweep_risk >= _MICROSTRUCTURE_SWEEP_BLOCK_THRESHOLD:
+        reasons.append("MICROSTRUCTURE_SWEEP_RISK_BLOCK")
+    return sorted(set(reasons))
 
 
 def _enrich_risk_payload(
@@ -332,6 +403,43 @@ def _write_status_files(payload: dict[str, Any]) -> None:
         path.write_text(json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n")
 
 
+_RISK_PROFILE_PROPOSAL_FILE = (
+    REPO_ROOT
+    / "v2/frontend/public/v2_exchange_filter_risk_profile_alignment_and_min_order_execution/latest"
+    / "executable_minimum_conservative_risk_profile_proposal.json"
+)
+
+
+def _active_risk_profile_payload() -> dict[str, Any] | None:
+    """Build the v2:risk:active_profile payload from the operator risk-profile artifact.
+
+    Contract consumed by /api/v2/risk/status and the trader snapshot risk
+    section: {profile_id, profile_name, fields{}}.
+    """
+    try:
+        proposal = json.loads(_RISK_PROFILE_PROPOSAL_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    profile = proposal.get("profile")
+    if not isinstance(profile, dict):
+        return None
+    fields = profile.get("risk_fields")
+    if not isinstance(fields, dict):
+        return None
+    return {
+        "profile_id": profile.get("profile_id") or "conservative_min_executable",
+        "profile_name": profile.get("profile_name") or "conservative_min_executable",
+        "fields": {
+            **fields,
+            "live_trading_enabled": False,
+            "operator_acceptance_required": proposal.get("operator_acceptance_required", True),
+        },
+        "source_artifact": str(_RISK_PROFILE_PROPOSAL_FILE.relative_to(REPO_ROOT)),
+        "published_by": LOOP_WORKER_ID,
+        "published_at": _utc_iso(),
+    }
+
+
 def run_once(*, ttl_seconds: int = 300) -> dict[str, Any]:
     started = _utc_iso()
     client = _connect_redis()
@@ -348,14 +456,20 @@ def run_once(*, ttl_seconds: int = 300) -> dict[str, Any]:
     for winner in winners:
         if not isinstance(winner, dict):
             continue
+        microstructure_reject_reasons = _microstructure_reject_reasons(winner)
+        winner_for_payload = dict(winner)
+        winner_for_payload["risk_microstructure_reject_reasons"] = microstructure_reject_reasons
         try:
-            decision = _winner_to_decision(winner, now_ms=now)
+            decision = _winner_to_decision(winner_for_payload, now_ms=now)
             risk = evaluator(
                 decision=decision,
                 trust_gate_result=TrustGateResult(
                     accepted=False,
                     severity="reject",
-                    reject_reasons=("live_trading_disabled", "market_state_envelope_missing"),
+                    reject_reasons=tuple(
+                        ["live_trading_disabled", "market_state_envelope_missing"]
+                        + microstructure_reject_reasons
+                    ),
                     warnings=(),
                     data_quality_score=0.0,
                     future_leak_detected=False,
@@ -372,15 +486,26 @@ def run_once(*, ttl_seconds: int = 300) -> dict[str, Any]:
             _enrich_risk_payload(
                 risk_record=risk,
                 decision=decision,
-                winner=winner,
+                winner=winner_for_payload,
             )
         )
     keys_written: list[str] = []
     if client is not None:
-        for key, body in (
+        active_profile = _active_risk_profile_payload()
+        # When this cycle produced no winners, refresh the previous latest
+        # decision instead of clobbering it with {} — an alive gateway with no
+        # new winners is not an offline gateway.
+        latest_payload: Any = risk_payloads[-1] if risk_payloads else None
+        if latest_payload is None:
+            previous_latest = _read_json_key(client, f"{V2_REDIS_PREFIX}risk:gateway:latest")
+            latest_payload = previous_latest if isinstance(previous_latest, dict) and previous_latest else {}
+        writes: list[tuple[str, Any]] = [
             (f"{V2_REDIS_PREFIX}risk:gateway:decisions", risk_payloads),
-            (f"{V2_REDIS_PREFIX}risk:gateway:latest", risk_payloads[-1] if risk_payloads else {}),
-        ):
+            (f"{V2_REDIS_PREFIX}risk:gateway:latest", latest_payload),
+        ]
+        if active_profile is not None:
+            writes.append((f"{V2_REDIS_PREFIX}risk:active_profile", active_profile))
+        for key, body in writes:
             if _safe_set_v2(client, key, body, ex=ttl_seconds):
                 keys_written.append(key)
     status = _status_from_records(

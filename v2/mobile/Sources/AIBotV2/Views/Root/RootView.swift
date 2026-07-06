@@ -61,6 +61,7 @@ struct iPhoneLayout: View {
                 .tabItem { Label("More", systemImage: "ellipsis.circle") }
                 .tag(AppTab.monitor)
         }
+        .tint(NerVyx.signal)
     }
 }
 
@@ -106,6 +107,7 @@ struct iPadLayout: View {
         } detail: {
             detailView(for: appState.selectedTab)
         }
+        .tint(NerVyx.signal)
     }
 
     @ViewBuilder
