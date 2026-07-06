@@ -3,6 +3,7 @@ import { BarChart3, BookOpen, Activity, ListChecks, FileText, Wifi } from 'lucid
 import { useTradeTerminal } from '../../hooks/useTradeTerminal';
 import { useTraderSnapshot } from '../../hooks/useTraderSnapshot';
 import { CanonicalMetricValue } from '../data/CanonicalMetric';
+import { LivePnlStrip } from './LivePnlStrip';
 import { MarketDepthPanel } from './MarketDepthPanel';
 import { OrderBookPanel } from './OrderBookPanel';
 import { PaperOrderTicket } from './PaperOrderTicket';
@@ -82,6 +83,19 @@ export function TradeTerminal(): JSX.Element {
           {state.market.lastPrice ? `${state.symbol} $${state.market.lastPrice.toFixed(2)}` : state.symbol}
         </span>
       </div>
+
+      {/* Live PnL trend - accumulates from the same paper stream as the strip below */}
+      <LivePnlStrip
+        totalPnl={
+          paper?.realized_pnl_usd != null || paper?.unrealized_pnl_usd != null
+            ? (paper?.realized_pnl_usd ?? 0) + (paper?.unrealized_pnl_usd ?? 0)
+            : null
+        }
+        realizedPnl={paper?.realized_pnl_usd ?? null}
+        unrealizedPnl={paper?.unrealized_pnl_usd ?? null}
+        openNotional={paper?.total_open_notional ?? null}
+        connected={state.paper.connected}
+      />
 
       {/* Account KPI strip - canonical trader snapshot source */}
       <section className="trade-account-strip" aria-label="Account status">

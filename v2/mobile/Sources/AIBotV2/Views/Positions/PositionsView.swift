@@ -53,6 +53,7 @@ struct PositionsView: View {
     @Environment(AppState.self) private var appState
     @State private var vm = PositionsViewModel()
     @State private var selectedLane: PositionLane = .open
+    @State private var pnlSeries = RollingSeries(capacity: 80)
 
     var body: some View {
         NavigationStack {
@@ -90,6 +91,9 @@ struct PositionsView: View {
         .task { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) }
         .onAppear { vm.startAutoRefresh(token: auth.currentToken(), baseURL: appState.baseURL) }
         .onDisappear { vm.stopAutoRefresh() }
+        .onChange(of: vm.summary?.total_pnl_usd) { _, newValue in
+            if let newValue { pnlSeries.append(newValue) }
+        }
     }
 
     private var hasPositionRows: Bool {
@@ -270,6 +274,10 @@ struct PositionsView: View {
                 }
                 Spacer()
                     NerVyxBadge(text: "MARKS LIVE", color: NerVyx.signal)
+            }
+            if pnlSeries.values.count > 1 {
+                Sparkline(values: pnlSeries.values, color: NerVyx.pnlColor(s.total_pnl_usd))
+                    .frame(height: 44)
             }
         }
         .nerVyxElevatedCard(accent: NerVyx.pnlColor(s.total_pnl_usd))
