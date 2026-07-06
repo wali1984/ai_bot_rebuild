@@ -20,7 +20,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
 from fastapi import FastAPI
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.services.backend_shutdown import cancel_and_wait_for_registered_tasks, reset_shutdown_signal
@@ -227,14 +227,27 @@ def _register_spa(app: FastAPI) -> None:
             return FileResponse(manifest_file, media_type="application/manifest+json")
 
     if os.path.isfile(index_html):
+        # Serve the SPA shell from memory: FileResponse waits on the shared
+        # anyio threadpool, which market-data calls can saturate, turning a
+        # 1ms index.html into multi-second TTFB. The shell is tiny and only
+        # changes on deploy (process restart), so cache the bytes once.
+        index_bytes = open(index_html, "rb").read()
+        index_mtime = os.path.getmtime(index_html)
+
         @app.get("/{full_path:path}", include_in_schema=False)
         async def serve_spa(full_path: str):
+            nonlocal index_bytes, index_mtime
             requested_file = _safe_dist_file_path(full_path)
             if requested_file:
                 return FileResponse(requested_file)
-            if not os.path.isfile(index_html):
+            try:
+                current_mtime = os.path.getmtime(index_html)
+            except OSError:
                 return PlainTextResponse("Frontend build is temporarily unavailable.", status_code=503)
-            return FileResponse(index_html, media_type="text/html")
+            if current_mtime != index_mtime:
+                index_bytes = open(index_html, "rb").read()
+                index_mtime = current_mtime
+            return HTMLResponse(index_bytes)
 
 
 def _safe_dist_file_path(full_path: str) -> str | None:
@@ -254,6 +267,17 @@ def _safe_dist_file_path(full_path: str) -> str | None:
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
     reset_shutdown_signal()
+    # Market-data endpoints run blocking HTTP fetches in the shared anyio
+    # threadpool (default 40 tokens); WS resource streams + SWR refreshes can
+    # exhaust it and stall every other threadpool user. Raise the ceiling.
+    try:
+        import anyio.to_thread
+
+        anyio.to_thread.current_default_thread_limiter().total_tokens = int(
+            os.environ.get("V2_THREADPOOL_TOKENS", "120")
+        )
+    except Exception:
+        pass
     try:
         yield
     finally:
