@@ -57,7 +57,7 @@ def _age_seconds(payload: Any) -> float | None:
         return None
     now = datetime.now(UTC)
     best: float | None = None
-    for key in ("generated_at", "generated_utc", "fetched_utc", "available_at", "decision_time", "updated_at", "as_of"):
+    for key in ("generated_at", "generated_utc", "fetched_utc", "available_at", "decision_time", "updated_at", "as_of", "finished_at", "started_at"):
         value = payload.get(key)
         if isinstance(value, str) and len(value) >= 19:
             try:
@@ -83,6 +83,57 @@ def _section(payload: Any, source_key: str) -> dict[str, Any]:
         "source_key": source_key,
         "age_seconds": _age_seconds(payload),
         "present": payload is not None,
+    }
+
+
+@router.get("/symbols/universe")
+async def get_symbols_universe() -> dict[str, Any]:
+    """Symbol universe truth: ingestor-tracked symbols + dynamic discovery state."""
+    endpoint = "/api/v2/symbols/universe"
+    now = _utc_now()
+    base = {
+        "source": "redis:v2:market:ingestor:heartbeat + v2:symbol_universe:*",
+        "source_type": "redis_live",
+        "endpoint": endpoint,
+        "timestamp": now,
+        "received_at": now,
+        "lag_ms": 0,
+        "mode": "read_only",
+    }
+    r = get_redis()
+    if r is None:
+        return {**base, "data": None, "source_type": "unavailable", "stale": True,
+                "missing_fields": ["redis"], "warnings": ["Redis unavailable"]}
+    heartbeat = _get_json(r, "v2:market:ingestor:heartbeat") or {}
+    discovery = _get_json(r, "v2:symbol_universe:dynamic_discovery_status") or {}
+    discovered = _get_json(r, "v2:symbol_universe:dynamic_discovered_symbols")
+    tracked = heartbeat.get("symbols") if isinstance(heartbeat.get("symbols"), list) else []
+    discovered_list = discovered if isinstance(discovered, list) else (
+        discovered.get("symbols") if isinstance(discovered, dict) and isinstance(discovered.get("symbols"), list) else []
+    )
+    missing = []
+    if not tracked:
+        missing.append("tracked_symbols")
+    return {
+        **base,
+        "data": {
+            "tracked_symbols": tracked,
+            "tracked_count": len(tracked),
+            "tracked_heartbeat_age_seconds": _age_seconds(heartbeat),
+            "discovered_symbols": discovered_list,
+            "discovered_count": len(discovered_list),
+            "discovery_status": {
+                key: discovery.get(key)
+                for key in (
+                    "generated_utc", "dynamic_symbol_count", "external_discovered_symbol_count",
+                    "binance_usdm_status", "coingecko_status", "coinglass_status", "surf_status",
+                )
+                if key in discovery
+            },
+        },
+        "stale": not tracked,
+        "missing_fields": missing,
+        "warnings": [],
     }
 
 
