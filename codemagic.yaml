@@ -48,6 +48,14 @@ workflows:
       - name: Generate Xcode project from project.yml
         script: |
           cd $PACKAGE_PATH
+          # Auto-increment CFBundleVersion: Codemagic's BUILD_NUMBER is
+          # monotonic per app; +20 offset keeps it above every historical
+          # manually-numbered TestFlight upload (last manual was 8).
+          if [ -n "${BUILD_NUMBER:-}" ]; then
+            CM_BUNDLE_VERSION=$((BUILD_NUMBER + 20))
+            sed -i '' "s/CURRENT_PROJECT_VERSION: \"[0-9]*\"/CURRENT_PROJECT_VERSION: \"$CM_BUNDLE_VERSION\"/" project.yml
+            echo "CFBundleVersion set to $CM_BUNDLE_VERSION (BUILD_NUMBER=$BUILD_NUMBER)"
+          fi
           xcodegen generate
           echo "Generated project:"
           ls -la AIBotV2.xcodeproj/
