@@ -1,8 +1,0 @@
-{
-  "closed_trade_count": 1,
-  "goal_status": "INSUFFICIENT_SAMPLE_FOR_10K_TARGET",
-  "guaranteed_profit": false,
-  "monthly_target_net_usdt": 10000,
-  "net_pnl_after_costs": 1.9388,
-  "reason": "runtime alpha chain validates feedback mechanics, but sample is not sufficient for 10k/month feasibility"
-}
