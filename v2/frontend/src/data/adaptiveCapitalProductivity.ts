@@ -478,6 +478,13 @@ export interface ContinuousEdgeGuardianStatus {
   trajectory_status?: {
     status?: string;
     current_status?: string | null;
+    trajectory_status?: string | null;
+    blocker?: string | null;
+    trajectory_status_detail?: string | null;
+    calibration_status?: string | null;
+    target_multiple?: number | null;
+    target_horizon_days?: number | null;
+    required_daily_return_pct?: number | null;
     required_daily_geometric_return?: number | null;
     required_monthly_geometric_return?: number | null;
     actual_1d_return?: number | null;
@@ -486,6 +493,14 @@ export interface ContinuousEdgeGuardianStatus {
     lower_confidence_bound_growth_rate?: number | null;
     drawdown_adjusted_growth_rate?: number | null;
     days_ahead_or_behind_target?: number | null;
+    projection_days?: number | null;
+    A_plus_rows?: number | null;
+    B_grade_rows?: number | null;
+    current_A_plus_daily_return_pct?: number | null;
+    current_B_grade_daily_return_pct?: number | null;
+    current_actual_daily_return_pct?: number | null;
+    B_grade_counts_as_1000x_proof?: boolean | null;
+    required_operator_text?: string[] | null;
     required_edge?: number | null;
     required_capital?: number | null;
     missing_trajectory_evidence_fields?: string[];

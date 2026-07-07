@@ -173,5 +173,6 @@
   "github.copilot.chat.getChangedFilesTool.enabled": false,
   "git.statusDecorationColors": false,
   "git.untrackedChanges": "hidden",
-  "scm.statusLimit": 500
+  "scm.statusLimit": 500,
+  "chatgpt.openOnStartup": true
 }

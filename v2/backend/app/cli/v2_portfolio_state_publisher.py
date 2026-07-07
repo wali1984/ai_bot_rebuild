@@ -29,6 +29,11 @@ PAYLOAD_PATH = REPO_ROOT / (
     "v2/frontend/public/operator_runtime/v2_portfolio_state/latest/"
     "v2_portfolio_state.json"
 )
+PAPER_ACCEPTED_FILLS_STATE_PATH = REPO_ROOT / (
+    "v2/frontend/public/operator_runtime/v2_paper_trade_management/latest/"
+    "paper_accepted_fills_state.json"
+)
+INVALID_ADMISSION_REASON = "P0_ENTRY_GATE_BLOCKED_NOT_EXPLORATION_RELAXABLE"
 
 PAPER_INITIAL_CAPITAL = 10_000.0
 EST = timezone(timedelta(hours=-4))
@@ -81,6 +86,27 @@ def _coerce_float(val: Any) -> float | None:
     if num != num or num in (float("inf"), float("-inf")):
         return None
     return num
+
+
+def _session_initial_capital(
+    previous_portfolio_state: dict[str, Any],
+    ledger: dict[str, Any] | None = None,
+    paper_session_state: dict[str, Any] | None = None,
+) -> float:
+    ledger = ledger or {}
+    paper_session_state = paper_session_state or {}
+    for candidate in (
+        paper_session_state.get("starting_equity_usd"),
+        paper_session_state.get("initial_capital"),
+        ledger.get("starting_equity_usd"),
+        ledger.get("initial_capital"),
+        previous_portfolio_state.get("starting_equity_usd"),
+        previous_portfolio_state.get("initial_capital"),
+    ):
+        parsed = _coerce_float(candidate)
+        if parsed is not None and parsed > 0:
+            return parsed
+    return PAPER_INITIAL_CAPITAL
 
 
 def _redis_json(r, key: str) -> Any | None:
@@ -146,6 +172,113 @@ def _dedupe_closed_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         seen.add(ident)
         out.append(row)
     return out
+
+
+def _decode_json(raw: Any) -> Any:
+    if raw in (None, ""):
+        return None
+    if isinstance(raw, (dict, list)):
+        return raw
+    try:
+        return json.loads(raw)
+    except Exception:
+        return None
+
+
+def _as_dict_rows(payload: Any, *, keys: tuple[str, ...]) -> list[dict[str, Any]]:
+    payload = _decode_json(payload)
+    if isinstance(payload, list):
+        return [dict(row) for row in payload if isinstance(row, dict)]
+    if isinstance(payload, dict):
+        rows: list[dict[str, Any]] = []
+        for key in keys:
+            value = payload.get(key)
+            if isinstance(value, list):
+                rows.extend(dict(row) for row in value if isinstance(row, dict))
+        return rows
+    return []
+
+
+def _accepted_fill_state_path(ledger: dict[str, Any]) -> Path | None:
+    source = ledger.get("accepted_fill_state_source")
+    if not source:
+        return None
+    path = Path(str(source))
+    if not path.is_absolute():
+        path = REPO_ROOT / path
+    return path
+
+
+def _read_accepted_fill_state_rows(ledger: dict[str, Any]) -> list[dict[str, Any]]:
+    path = _accepted_fill_state_path(ledger)
+    if path is None:
+        return []
+    try:
+        payload = path.read_text(encoding="utf-8")
+    except Exception:
+        return []
+    return _as_dict_rows(payload, keys=("accepted_fills", "rows"))
+
+
+def _row_lineage_ids(row: dict[str, Any]) -> set[str]:
+    ids: set[str] = set()
+    for field in (
+        "fill_id",
+        "ledger_row_id",
+        "paper_trade_id",
+        "entry_fill_id",
+        "source_fill_id",
+        "intent_id",
+        "source_intent_id",
+        "signal_id",
+        "entry_signal_id",
+        "prediction_id",
+        "source_prediction_id",
+        "entry_prediction_id",
+        "decision_id",
+        "entry_decision_id",
+        "risk_decision_id",
+        "orchestrator_decision_id",
+        "allocation_id",
+    ):
+        value = row.get(field)
+        if value not in (None, ""):
+            ids.add(str(value))
+    for field in (
+        "source_fill_ids",
+        "source_prediction_ids",
+        "entry_fill_ids",
+        "lineage_ids",
+        "related_fill_ids",
+    ):
+        values = row.get(field)
+        if isinstance(values, list):
+            ids.update(str(value) for value in values if value not in (None, ""))
+    return ids
+
+
+def _invalid_admission_source_ids(accepted_rows: list[dict[str, Any]]) -> set[str]:
+    invalid_ids: set[str] = set()
+    for row in accepted_rows:
+        if row.get("entry_gate_block_reasons"):
+            invalid_ids.update(_row_lineage_ids(row))
+    return invalid_ids
+
+
+def _split_invalid_admission_rows(
+    rows: list[dict[str, Any]],
+    invalid_source_ids: set[str],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    if not invalid_source_ids:
+        return list(rows), []
+    valid: list[dict[str, Any]] = []
+    invalid: list[dict[str, Any]] = []
+    for row in rows:
+        if _row_lineage_ids(row) & invalid_source_ids:
+            invalid.append(row)
+        else:
+            valid.append(row)
+    return valid, invalid
 
 
 def _read_v2_market_price(r: Any, symbol: str) -> tuple[float | None, str, str | None]:
@@ -302,6 +435,8 @@ def run_once(write_redis: bool = True) -> dict:
     accounting: dict[str, Any] = {}
     active_accepted_fill_total = 0
     accepted_closed_filter_count = 0
+    accepted_authoritative_open_suppressed_count = 0
+    ledger_authoritative_no_open_positions = False
     accepted_closed_filter_sample: list[dict[str, Any]] = []
     paper_zero_pnl_reason: str | None = None
     last_fill_utc = None
@@ -309,6 +444,19 @@ def run_once(write_redis: bool = True) -> dict:
     live_symbols: list[str] = []
     trader_execution_enabled = False
     previous_portfolio_state: dict[str, Any] = {}
+    paper_session_state: dict[str, Any] = {}
+    current_ledger_payload: dict[str, Any] = {}
+    quarantined_invalid_positions: list[dict[str, Any]] = []
+    quarantined_invalid_closed_trades: list[dict[str, Any]] = []
+    invalid_admission_accepted_rows: list[dict[str, Any]] = []
+    invalid_admission_closed_rows: list[dict[str, Any]] = []
+    invalid_admission_standalone_closed_rows: list[dict[str, Any]] = []
+    accepted_fill_state_rows: list[dict[str, Any]] = []
+    accepted_count_rows: list[dict[str, Any]] = []
+    raw_accepted_fill_total = 0
+    raw_closed_position_count = 0
+    invalid_admission_source_id_count = 0
+    session_initial_capital = PAPER_INITIAL_CAPITAL
 
     if r:
         history_symbols_tracked = len(list(r.scan_iter(match="v2:paper:position_history:*", count=500)))
@@ -320,32 +468,87 @@ def run_once(write_redis: bool = True) -> dict:
             trader_execution_enabled = bool(live_state.get("trader_execution_enabled", trader_execution_enabled))
         if isinstance(trader_state, dict):
             trader_execution_enabled = bool(trader_state.get("trader_execution_enabled", trader_execution_enabled))
+        session_state = _redis_json(r, "v2:paper:session")
+        if isinstance(session_state, dict):
+            paper_session_state = session_state
+            session_initial_capital = _session_initial_capital(
+                previous_portfolio_state,
+                paper_session_state=paper_session_state,
+            )
         prior_state = _redis_json(r, "v2:portfolio:state")
         if isinstance(prior_state, dict):
             previous_portfolio_state = prior_state
+            session_initial_capital = _session_initial_capital(
+                previous_portfolio_state,
+                paper_session_state=paper_session_state,
+            )
+        quarantined_invalid_positions = [
+            dict(row)
+            for row in _as_list(_redis_json(r, "v2:paper:quarantine:invalid_positions"))
+            if isinstance(row, dict)
+        ]
+        quarantined_invalid_closed_trades = [
+            dict(row)
+            for row in _as_list(_redis_json(r, "v2:paper:quarantine:invalid_closed_trades"))
+            if isinstance(row, dict)
+        ]
         ledger = _redis_json(r, "v2:paper:ledger")
         standalone_closed = _redis_json(r, "v2:paper:closed_trades")
         standalone_closed_rows = [
             dict(row) for row in _as_list(standalone_closed) if isinstance(row, dict)
         ]
         if isinstance(ledger, dict):
+            current_ledger_payload = ledger
+            session_initial_capital = _session_initial_capital(
+                previous_portfolio_state,
+                ledger,
+                paper_session_state,
+            )
             ledger_generated_utc = ledger.get("generated_utc")
-            accepted_rows = _dedupe_rows([dict(row) for row in _as_list(ledger.get("accepted")) if isinstance(row, dict)])
+            accepted_rows_raw = _dedupe_rows([dict(row) for row in _as_list(ledger.get("accepted")) if isinstance(row, dict)])
+            accepted_fill_state_rows = _dedupe_rows(_read_accepted_fill_state_rows(ledger))
+            accepted_count_rows = accepted_fill_state_rows or accepted_rows_raw
+            invalid_admission_source_ids = _invalid_admission_source_ids(
+                accepted_count_rows + accepted_rows_raw
+            )
+            invalid_admission_source_id_count = len(invalid_admission_source_ids)
+            accepted_rows, invalid_admission_accepted_rows = _split_invalid_admission_rows(
+                accepted_count_rows,
+                invalid_admission_source_ids,
+            )
             shadow_rows = [dict(row) for row in _as_list(ledger.get("shadow_observations")) if isinstance(row, dict)]
             held_rows = [dict(row) for row in _as_list(ledger.get("held_by_paper_fill_gate")) if isinstance(row, dict)]
-            closed_rows = _dedupe_closed_rows([
+            ledger_closed_rows = _dedupe_closed_rows([
                 dict(row)
                 for source in ("closed", "closed_positions", "closed_trades", "closes", "realized", "realized_fills")
                 for row in _as_list(ledger.get(source))
                 if isinstance(row, dict)
-            ] + standalone_closed_rows)
+            ])
+            closed_rows_raw = (
+                _dedupe_closed_rows(standalone_closed_rows)
+                if standalone_closed_rows
+                else ledger_closed_rows
+            )
+            closed_rows, invalid_admission_closed_rows = _split_invalid_admission_rows(
+                closed_rows_raw,
+                invalid_admission_source_ids,
+            )
+            (
+                standalone_closed_rows,
+                invalid_admission_standalone_closed_rows,
+            ) = _split_invalid_admission_rows(
+                standalone_closed_rows,
+                invalid_admission_source_ids,
+            )
             blocked_total = int(_safe_float(ledger.get("blocked_count"), 0))
+            raw_accepted_fill_total = len(accepted_count_rows)
+            raw_closed_position_count = len(closed_rows_raw)
             accepted_total = len(accepted_rows)
             accepted_fill_total = len(accepted_rows)
             shadow_total = int(_safe_float(ledger.get("shadow_observation_count"), len(shadow_rows)))
             held_total = int(_safe_float(ledger.get("held_by_paper_fill_gate_count"), len(held_rows)))
             ledger_count_fields_match_payload = (
-                int(_safe_float(ledger.get("accepted_count"), len(accepted_rows))) == len(accepted_rows)
+                int(_safe_float(ledger.get("accepted_count"), len(accepted_count_rows))) == len(accepted_count_rows)
                 and int(_safe_float(ledger.get("shadow_observation_count"), len(shadow_rows))) == len(shadow_rows)
                 and int(_safe_float(ledger.get("held_by_paper_fill_gate_count"), len(held_rows))) == len(held_rows)
             )
@@ -356,16 +559,39 @@ def run_once(write_redis: bool = True) -> dict:
                     continue
                 px, source, _generated = _read_v2_market_price(r, sym)
                 mark_prices[sym] = (px, source, None)
+            ledger_open_rows = [
+                dict(row)
+                for row in _as_list(ledger.get("open_positions"))
+                if isinstance(row, dict)
+            ]
+            ledger_positions_by_symbol = ledger.get("positions_by_symbol")
+            ledger_open_count = _coerce_float(
+                ledger.get("open_position_count")
+                if ledger.get("open_position_count") is not None
+                else ledger.get("accepted_position_count")
+            )
+            ledger_authoritative_no_open_positions = (
+                ledger_open_count == 0.0
+                and ("open_position_count" in ledger or "accepted_position_count" in ledger)
+                and not ledger_open_rows
+                and not bool(ledger_positions_by_symbol)
+            )
+            accounting_accepted_rows = [] if ledger_authoritative_no_open_positions else accepted_rows
             accounting = build_accounting_state(
-                accepted_rows,
+                accounting_accepted_rows,
                 closed_rows,
                 mark_prices,
-                initial_capital=PAPER_INITIAL_CAPITAL,
+                initial_capital=session_initial_capital,
             )
             accounting_inventory = list(accounting.get("inventory") or [])
             positions_by_symbol = list(accounting.get("positions_by_symbol") or [])
             active_accepted_fill_total = int(_safe_float(accounting.get("active_accepted_fill_count"), len(accepted_rows)))
             accepted_closed_filter_count = int(_safe_float(accounting.get("accepted_closed_filter_count"), 0))
+            if ledger_authoritative_no_open_positions:
+                accepted_authoritative_open_suppressed_count = max(
+                    0,
+                    len(accepted_rows) - accepted_closed_filter_count,
+                )
             accepted_closed_filter_sample = list(accounting.get("accepted_closed_filter_sample") or [])
             economic_fill_total = int(_safe_float(accounting.get("economic_fill_count"), 0))
             non_economic_fill_total = int(_safe_float(accounting.get("non_economic_fill_count"), 0))
@@ -468,7 +694,7 @@ def run_once(write_redis: bool = True) -> dict:
                 [],
                 closed_rows,
                 {},
-                initial_capital=PAPER_INITIAL_CAPITAL,
+                initial_capital=session_initial_capital,
             )
             paper_zero_pnl_reason = accounting.get("zero_pnl_reason")
 
@@ -478,9 +704,18 @@ def run_once(write_redis: bool = True) -> dict:
     open_positions = [p for p in positions if p.get("open_position") is True]
     closed_position_count = len(closed_rows)
     realized_pnl_usd = _safe_float(accounting.get("realized_pnl"), _sum_closed_realized(closed_rows))
-    cash_balance = PAPER_INITIAL_CAPITAL + realized_pnl_usd
+    cash_balance = session_initial_capital + realized_pnl_usd
     equity = cash_balance + unrealized_pnl_usd
     total_pnl_usd = realized_pnl_usd + unrealized_pnl_usd
+    invalid_admission_realized_pnl_usd = _sum_closed_realized(invalid_admission_closed_rows)
+    raw_realized_pnl_including_invalid_admissions = (
+        realized_pnl_usd + invalid_admission_realized_pnl_usd
+    )
+    raw_equity_including_invalid_admissions = (
+        session_initial_capital
+        + raw_realized_pnl_including_invalid_admissions
+        + unrealized_pnl_usd
+    )
     previous_high_water = _coerce_float(
         previous_portfolio_state.get("equity_high_water_mark")
         or previous_portfolio_state.get("high_water_mark")
@@ -489,7 +724,7 @@ def run_once(write_redis: bool = True) -> dict:
     previous_open_positions = int(_safe_float(previous_portfolio_state.get("open_positions_count"), 0))
     reset_stale_high_water = accepted_closed_filter_count > 0 and previous_open_positions > 0
     carried_high_water = None if reset_stale_high_water else previous_high_water
-    equity_high_water_mark = max(PAPER_INITIAL_CAPITAL, carried_high_water or PAPER_INITIAL_CAPITAL, equity)
+    equity_high_water_mark = max(session_initial_capital, carried_high_water or session_initial_capital, equity)
     current_drawdown_usd = max(0.0, equity_high_water_mark - equity)
     current_drawdown_bps = (
         current_drawdown_usd / equity_high_water_mark * 10000.0
@@ -498,7 +733,7 @@ def run_once(write_redis: bool = True) -> dict:
     )
     equity_reconciliation_difference = _safe_float(
         accounting.get("equity_reconciliation_difference"),
-        equity - (PAPER_INITIAL_CAPITAL + realized_pnl_usd + unrealized_pnl_usd),
+        equity - (session_initial_capital + realized_pnl_usd + unrealized_pnl_usd),
     )
     # When the standalone v2:paper:closed_trades list is populated, derive
     # closed_ledger_net_pnl from it exclusively — it is the same source the G08
@@ -515,7 +750,10 @@ def run_once(write_redis: bool = True) -> dict:
         else _safe_float(accounting.get("closed_ledger_net_pnl"), _sum_closed_realized(closed_rows))
     )
     portfolio_realized_matches_closed_ledger = abs(realized_pnl_usd - closed_ledger_net_pnl) <= 0.01
-    if accepted_fill_total == 0:
+    if accepted_fill_total == 0 and invalid_admission_accepted_rows:
+        classification = "PORTFOLIO_STATE_CURRENT_PAPER_LEDGER_INVALID_ADMISSIONS_EXCLUDED"
+        paper_equity_reason = "INVALID_ADMISSION_ROWS_EXCLUDED_FROM_CLEAN_SESSION_EQUITY"
+    elif accepted_fill_total == 0:
         classification = "PORTFOLIO_STATE_CURRENT_PAPER_LEDGER_NO_ACCEPTED_FILLS"
         paper_equity_reason = "NO_ACCEPTED_PAPER_FILL_IN_CURRENT_V2_LEDGER"
     elif active_accepted_fill_total == 0 and closed_rows:
@@ -534,6 +772,8 @@ def run_once(write_redis: bool = True) -> dict:
     order_counters = {
         "paper_accepted_intent_count": accepted_total,
         "paper_accepted_fill_count": accepted_fill_total,
+        "paper_accepted_fill_raw_count": raw_accepted_fill_total,
+        "paper_invalid_admission_accepted_count": len(invalid_admission_accepted_rows),
         "paper_economic_fill_count": economic_fill_total,
         "paper_non_economic_fill_count": non_economic_fill_total,
         "paper_held_intent_count": held_total,
@@ -541,17 +781,64 @@ def run_once(write_redis: bool = True) -> dict:
         "paper_shadow_observation_count": shadow_total,
         "paper_open_position_count": len(open_positions),
         "paper_closed_position_count": closed_position_count,
+        "paper_closed_position_raw_count": raw_closed_position_count,
+        "paper_invalid_admission_closed_count": len(invalid_admission_closed_rows),
         "live_order_count": 0,
         "test_order_count": 0,
         "exchange_order_mutation_count": 0,
     }
+    quarantined_invalid_row_count = (
+        len(quarantined_invalid_positions)
+        + len(quarantined_invalid_closed_trades)
+        + len(invalid_admission_accepted_rows)
+        + len(invalid_admission_closed_rows)
+    )
+    contains_quarantined_positions = bool(pnl_blockers or quarantined_invalid_row_count)
     portfolio_state = {
         "schema_version": "v2_native_portfolio_state_v2",
         "classification": classification,
         "generated_utc": now_utc,
         "generated_est": now_est,
         "account_mode": "paper_shadow_only",
-        "initial_capital": PAPER_INITIAL_CAPITAL,
+        "account_scope": "PAPER_SIM_ACCOUNT",
+        "source_type": "paper_sim_recomputed_from_v2_ledger",
+        "paper_or_live": "paper",
+        "contains_simulated_positions": True,
+        "contains_live_positions": False,
+        "contains_quarantined_positions": contains_quarantined_positions,
+        "equity_trusted": not bool(pnl_blockers),
+        "pnl_trusted": not bool(pnl_blockers),
+        "reason_if_untrusted": (
+            "INVALID_OR_NON_ECONOMIC_PAPER_ROWS_EXCLUDED_FROM_EQUITY"
+            if pnl_blockers
+            else None
+        ),
+        "quarantined_invalid_position_count": (
+            len(pnl_blockers)
+            + len(quarantined_invalid_positions)
+            + len(invalid_admission_accepted_rows)
+        ),
+        "quarantined_invalid_closed_trade_count": (
+            len(quarantined_invalid_closed_trades)
+            + len(invalid_admission_closed_rows)
+        ),
+        "quarantined_invalid_row_count": quarantined_invalid_row_count,
+        "quarantine_keys": {
+            "invalid_positions": "v2:paper:quarantine:invalid_positions",
+            "invalid_closed_trades": "v2:paper:quarantine:invalid_closed_trades",
+        },
+        "initial_capital": session_initial_capital,
+        "starting_equity_usd": session_initial_capital,
+        "reset_session_id": (
+            paper_session_state.get("reset_session_id")
+            or current_ledger_payload.get("reset_session_id")
+            or previous_portfolio_state.get("reset_session_id")
+        ),
+        "paper_session_id": (
+            paper_session_state.get("paper_session_id")
+            or current_ledger_payload.get("paper_session_id")
+            or previous_portfolio_state.get("paper_session_id")
+        ),
         "trader_execution_enabled": trader_execution_enabled,
         "live_gate_status": live_gate_status,
         "live_symbols": live_symbols,
@@ -565,14 +852,38 @@ def run_once(write_redis: bool = True) -> dict:
         "shadow_observation_total": shadow_total,
         "accepted_intent_total": accepted_total,
         "accepted_fill_total": accepted_fill_total,
+        "accepted_fill_raw_total": raw_accepted_fill_total,
+        "accepted_fill_state_row_count": len(accepted_fill_state_rows),
+        "accepted_fill_state_source": (
+            str(_accepted_fill_state_path(current_ledger_payload).relative_to(REPO_ROOT))
+            if _accepted_fill_state_path(current_ledger_payload) is not None
+            and _accepted_fill_state_path(current_ledger_payload).is_relative_to(REPO_ROOT)
+            else (
+                str(_accepted_fill_state_path(current_ledger_payload))
+                if _accepted_fill_state_path(current_ledger_payload) is not None
+                else None
+            )
+        ),
+        "invalid_admission_source_id_count": invalid_admission_source_id_count,
+        "invalid_admission_exclusion_reason": INVALID_ADMISSION_REASON,
+        "invalid_admission_accepted_excluded": len(invalid_admission_accepted_rows),
+        "invalid_admission_closed_trades_excluded": len(invalid_admission_closed_rows),
+        "invalid_admission_standalone_closed_trades_excluded": len(
+            invalid_admission_standalone_closed_rows
+        ),
         "active_accepted_fill_total": active_accepted_fill_total,
         "accepted_fills_suppressed_by_closed_ledger_count": accepted_closed_filter_count,
+        "accepted_fills_suppressed_by_authoritative_open_ledger_count": (
+            accepted_authoritative_open_suppressed_count
+        ),
+        "ledger_authoritative_no_open_positions": ledger_authoritative_no_open_positions,
         "economic_fill_total": economic_fill_total,
         "non_economic_fill_total": non_economic_fill_total,
         "held_by_paper_fill_gate_total": held_total,
         "blocked_total": blocked_total,
         "open_positions_count": len(open_positions),
         "closed_positions_count": closed_position_count,
+        "closed_positions_raw_count": raw_closed_position_count,
         "order_counters": order_counters,
         "order_counters_source": "v2:paper:ledger + v2:paper:closed_trades",
         "realized_pnl_usd": round(realized_pnl_usd, 8),
@@ -582,6 +893,17 @@ def run_once(write_redis: bool = True) -> dict:
         "open_position_notional": round(open_position_notional, 8),
         "equity": round(equity, 8),
         "current_session_equity": round(equity, 8),
+        "clean_session_valid_equity_usd": round(equity, 8),
+        "clean_session_valid_realized_pnl_usd": round(realized_pnl_usd, 8),
+        "clean_session_valid_unrealized_pnl_usd": round(unrealized_pnl_usd, 8),
+        "raw_realized_pnl_including_invalid_admissions_usd": round(
+            raw_realized_pnl_including_invalid_admissions,
+            8,
+        ),
+        "raw_equity_including_invalid_admissions_usd": round(
+            raw_equity_including_invalid_admissions,
+            8,
+        ),
         "equity_high_water_mark": round(equity_high_water_mark, 8),
         "equity_high_water_mark_reset_reason": (
             "RESET_STALE_HIGH_WATER_AFTER_CLOSED_LEDGER_SUPPRESSED_PHANTOM_OPEN_INVENTORY"
@@ -604,7 +926,7 @@ def run_once(write_redis: bool = True) -> dict:
         "cumulative_realized_pnl": round(realized_pnl_usd, 8),
         "session_realized_pnl": round(_safe_float(accounting.get("session_realized_pnl"), realized_pnl_usd), 8),
         "lifetime_realized_pnl": round(_safe_float(accounting.get("lifetime_realized_pnl"), realized_pnl_usd), 8),
-        "equity_change_since_last": round(equity - PAPER_INITIAL_CAPITAL, 8),
+        "equity_change_since_last": round(equity - session_initial_capital, 8),
         "last_fill_utc": last_fill_utc,
         "last_equity_update_utc": now_utc,
         "last_equity_update_est": now_est,
@@ -630,7 +952,8 @@ def run_once(write_redis: bool = True) -> dict:
             "public_payload": _path_label(PAYLOAD_PATH),
         },
         "ledger_to_portfolio_status": (
-            "FILL_TO_POSITION_PIPE_BROKEN" if accepted_fill_total > 0 and economic_fill_total == 0
+            "LEDGER_TO_PORTFOLIO_CLOSED_ONLY" if active_accepted_fill_total == 0 and closed_rows
+            else "FILL_TO_POSITION_PIPE_BROKEN" if accepted_fill_total > 0 and economic_fill_total == 0
             else "BROKEN_LEDGER_TO_PORTFOLIO_PIPE" if accepted_fill_total > 0 and len(open_positions) == 0
             else "NO_OPEN_PAPER_POSITION" if accepted_fill_total == 0
             else "LEDGER_TO_PORTFOLIO_PIPE_OK"

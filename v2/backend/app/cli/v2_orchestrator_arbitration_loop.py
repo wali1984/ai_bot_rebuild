@@ -309,6 +309,10 @@ def _prediction_to_proposal_and_signal(p: dict) -> tuple[dict, dict] | None:
 _HPPM_MIN_CONFIDENCE_CALIBRATED = 0.60
 _HPPM_MIN_EXPECTED_MOVE_AFTER_COST_BPS = 5.0
 _HPPM_MIN_DATA_COVERAGE_PCT = 80.0
+_MICROSTRUCTURE_SHADOW_BLOCK_THRESHOLD = 0.45
+_MICROSTRUCTURE_MIN_A_GRADE_TRUST_SCORE = 0.65
+_MICROSTRUCTURE_SWEEP_BLOCK_THRESHOLD = 0.75
+_MICROSTRUCTURE_BLOCK_ACTIONS = {"NO_TRADE", "SHADOW_ONLY", "CLOSE_OR_REDUCE_ONLY"}
 
 _TRUST_ENVELOPE_FIELDS = (
     "decision_id",
@@ -332,6 +336,21 @@ _TRUST_ENVELOPE_FIELDS = (
     "replay_snapshot_key",
     "replay_snapshot_write_success",
     "trust_gate_result",
+    "microstructure_trust_score",
+    "orderbook_trust_score",
+    "orderbook_trust_tier",
+    "microstructure_action",
+    "orderbook_latency_ms",
+    "book_sequence_gap",
+    "book_depth_persistence_score",
+    "book_cancel_pressure_score",
+    "trade_tape_confirmation_score",
+    "cross_venue_confirmation_score",
+    "liquidation_zone_risk_score",
+    "sweep_risk_score",
+    "microstructure_gate_allows_a_grade",
+    "orchestrator_microstructure_block_reasons",
+    "source_availability",
 )
 
 
@@ -351,6 +370,93 @@ def _copy_trust_envelope_fields(source: dict[str, Any]) -> dict[str, Any]:
     if isinstance(source_hashes, dict) and source_hashes:
         out["source_hashes"] = dict(source_hashes)
     return out
+
+
+def _first_present(*values: Any) -> Any:
+    for value in values:
+        if value not in (None, ""):
+            return value
+    return None
+
+
+def _microstructure_contexts(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    contexts = [payload]
+    for key in ("microstructure_context", "market_microstructure", "microstructure"):
+        value = payload.get(key)
+        if isinstance(value, dict):
+            contexts.append(value)
+    return contexts
+
+
+def _microstructure_value(payload: dict[str, Any], *keys: str) -> Any:
+    for context in _microstructure_contexts(payload):
+        for key in keys:
+            value = context.get(key)
+            if value not in (None, ""):
+                return value
+    return None
+
+
+def _truthy_microstructure_flag(value: Any) -> bool:
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
+def _microstructure_float(payload: dict[str, Any], *keys: str) -> float | None:
+    value = _microstructure_value(payload, *keys)
+    if value in (None, "") or isinstance(value, bool):
+        return None
+    parsed = _finite_float(value, default=None)
+    return parsed if parsed is not None else None
+
+
+def _microstructure_block_reasons(payload: dict[str, Any]) -> list[str]:
+    reasons: list[str] = []
+    action = str(_microstructure_value(payload, "microstructure_action") or "").upper()
+    if action in _MICROSTRUCTURE_BLOCK_ACTIONS:
+        reasons.append(f"MICROSTRUCTURE_ACTION_{action}")
+
+    trust_score = _microstructure_float(
+        payload,
+        "microstructure_trust_score",
+        "orderbook_trust_score",
+    )
+    adaptive_minimum = _microstructure_float(
+        payload,
+        "microstructure_adaptive_minimum",
+        "adaptive_minimum",
+    )
+    if adaptive_minimum is None:
+        adaptive_minimum = _MICROSTRUCTURE_MIN_A_GRADE_TRUST_SCORE
+    if trust_score is not None and trust_score < _MICROSTRUCTURE_SHADOW_BLOCK_THRESHOLD:
+        reasons.append("MICROSTRUCTURE_TRUST_SCORE_UNTRUSTED")
+
+    sequence_gap = _microstructure_value(payload, "book_sequence_gap", "sequence_gap_flag")
+    if _truthy_microstructure_flag(sequence_gap):
+        reasons.append("MICROSTRUCTURE_SEQUENCE_GAP")
+
+    sweep_risk = _microstructure_float(payload, "sweep_risk_score", "sweep_risk")
+    if sweep_risk is not None and sweep_risk >= _MICROSTRUCTURE_SWEEP_BLOCK_THRESHOLD:
+        reasons.append("MICROSTRUCTURE_SWEEP_RISK_BLOCK")
+
+    grade = str(
+        _first_present(
+            payload.get("candidate_grade"),
+            payload.get("quality_grade"),
+            payload.get("paper_grade"),
+        )
+        or ""
+    ).upper()
+    claims_a_grade = grade.startswith("A") or payload.get("a_grade_candidate") is True
+    if claims_a_grade and (
+        trust_score is None
+        or trust_score < adaptive_minimum
+        or action not in {"ALLOW", "REDUCE_SIZE"}
+    ):
+        reasons.append("MICROSTRUCTURE_A_GRADE_TRUST_MISSING_OR_LOW")
+
+    return sorted(set(reasons))
 
 
 def _high_precision_paper_mode_active() -> bool:
@@ -423,19 +529,26 @@ def run_once() -> dict:
             if not integrity.get("valid_for_orchestrator")
             else []
         )
+        microstructure_block_reasons = _microstructure_block_reasons(p)
         # Only gate out predictions that are EXPLICITLY set to False by an
         # upstream publisher. Missing / None means the publisher hasn't
         # annotated this prediction yet; in that case fall through to the
         # market-state integrity check which is the authoritative quality gate.
         gate_explicitly_blocked = p.get("paper_fill_allowed") is False
-        if gate_explicitly_blocked or integrity_block_reasons:
+        if gate_explicitly_blocked or integrity_block_reasons or microstructure_block_reasons:
             # Gate blocked this prediction; do not arbitrate, but surface
             # block reasons so downstream consumers can diagnose.
             reasons = list(p.get("paper_fill_gate_block_reasons") or [])
             reasons.extend(integrity_block_reasons)
             reasons.extend(integrity.get("reject_reasons") or [])
+            reasons.extend(microstructure_block_reasons)
             if gate_explicitly_blocked and not integrity_block_reasons:
                 reasons.append("PAPER_FILL_ALLOWED_EXPLICITLY_FALSE")
+            risk_state = "NOT_ROUTED_TO_RISK_GATEWAY_BECAUSE_PAPER_FILL_GATE_BLOCKED"
+            decision = "HELD_BY_PAPER_FILL_GATE"
+            if microstructure_block_reasons and not gate_explicitly_blocked and not integrity_block_reasons:
+                risk_state = "NOT_ROUTED_TO_RISK_GATEWAY_BECAUSE_MICROSTRUCTURE_TRUST_BLOCKED"
+                decision = "HELD_BY_MICROSTRUCTURE_TRUST_GATE"
             held_by_gate.append({
                 "symbol": p.get("symbol"),
                 "timeframe": p.get("timeframe"),
@@ -443,7 +556,7 @@ def run_once() -> dict:
                 "signal_id": f"held_signal_{p.get('prediction_id')}",
                 "orchestrator_decision_id": f"held_decision_{p.get('prediction_id')}",
                 "risk_decision_id": None,
-                "risk_state": "NOT_ROUTED_TO_RISK_GATEWAY_BECAUSE_PAPER_FILL_GATE_BLOCKED",
+                "risk_state": risk_state,
                 "feature_snapshot_id": p.get("feature_snapshot_id"),
                 "selected_action": p.get("selected_action"),
                 "expected_move_after_cost_bps": p.get("expected_move_after_cost_bps"),
@@ -462,11 +575,13 @@ def run_once() -> dict:
                 "checkpoint_weight_status": p.get("checkpoint_weight_status"),
                 "paper_fill_gate_status": p.get("paper_fill_gate_status"),
                 "paper_fill_gate_block_reasons": sorted(set(str(reason) for reason in reasons if reason)),
+                "orchestrator_microstructure_block_reasons": microstructure_block_reasons,
                 "checkpoint_blocker": p.get("checkpoint_blocker"),
-                "decision": "HELD_BY_PAPER_FILL_GATE",
+                "decision": decision,
                 "places_real_order": False,
                 "generated_utc": p.get("generated_utc"),
             })
+            held_by_gate[-1].update(_copy_trust_envelope_fields(p))
             continue
 
         # High-precision paper mode gate (item 6): apply additional quality

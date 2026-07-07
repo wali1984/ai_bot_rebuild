@@ -3,6 +3,10 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from v2.backend.app.services.paper_trade_management.position_validity import (
+    validate_closed_trade,
+)
+
 
 REQUIRED_FEEDBACK_FIELDS: tuple[str, ...] = (
     "prediction_id",
@@ -212,6 +216,93 @@ STATIC_SPREAD_PLACEHOLDER_SOURCES: frozenset[str] = frozenset(
     }
 )
 
+DEFAULT_CONTEXT_SOURCES: frozenset[str] = frozenset(
+    {
+        "V2_FEEDBACK_ENRICHMENT_DEFAULT_LIQUIDITY",
+        "V2_FEEDBACK_ENRICHMENT_DEFAULT_LIQUIDATION",
+        "V2_FEEDBACK_ENRICHMENT_DEFAULT_MICROSTRUCTURE",
+        "V2_FEEDBACK_ENRICHMENT_DEFAULT_OI_FUNDING",
+        "V2_FEEDBACK_ENRICHMENT_DEFAULT_PUBLIC_INTEL",
+    }
+)
+
+PREMIUM_CONTEXT_SOURCE = "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS"
+
+_LIQUIDITY_CONTEXT_VALUE_FIELDS: tuple[str, ...] = (
+    "liquidity_score",
+    "orderbook_depth_usd",
+    "bid_depth_usd",
+    "ask_depth_usd",
+    "depth_imbalance",
+    "whale_bid_wall_notional_usd",
+    "whale_ask_wall_notional_usd",
+    "nearest_bid_wall_distance_bps",
+    "nearest_ask_wall_distance_bps",
+)
+
+_LIQUIDATION_CONTEXT_VALUE_FIELDS: tuple[str, ...] = (
+    "nearest_liquidation_level_above",
+    "nearest_liquidation_level_below",
+    "liquidation_long_distance_pct",
+    "liquidation_short_distance_pct",
+    "liquidation_sweep_target_long_distance_bps",
+    "liquidation_sweep_target_short_distance_bps",
+    "liquidation_cascade_risk",
+    "liquidation_pressure_direction",
+    "liquidation_levels_count_long",
+    "liquidation_levels_count_short",
+    "liquidation_zones_count_long",
+    "liquidation_zones_count_short",
+    "liquidation_long_strength",
+    "liquidation_short_strength",
+    "liquidation_volume",
+)
+
+_MICROSTRUCTURE_CONTEXT_VALUE_FIELDS: tuple[str, ...] = (
+    "bid_ask_spread_bps",
+    "spread_bps",
+    "ob_spread_bps",
+    "micro_price",
+    "orderbook_imbalance",
+    "depth_imbalance",
+    "bid_depth_usd",
+    "ask_depth_usd",
+    "orderbook_depth_usd",
+)
+
+_OI_FUNDING_CONTEXT_VALUE_FIELDS: tuple[str, ...] = (
+    "funding_rate",
+    "expected_funding_bps",
+    "funding_bps",
+    "open_interest",
+    "oi_change_pct",
+    "open_interest_change_pct",
+    "long_short_ratio",
+    "long_account_ratio",
+    "short_account_ratio",
+)
+
+_PUBLIC_INTEL_CONTEXT_VALUE_FIELDS: tuple[str, ...] = (
+    "public_intel_score",
+    "news_attention_score",
+    "news_sentiment_score",
+    "sentiment_score",
+    "fear_greed_score",
+    "market_breadth_score",
+    "social_momentum_score",
+    "social_volume_velocity",
+)
+
+_PREMIUM_CONTEXT_REQUIREMENTS: tuple[tuple[str, tuple[str, ...], str, bool], ...] = (
+    ("liquidity_context", _LIQUIDITY_CONTEXT_VALUE_FIELDS, "LIQUIDITY", True),
+    ("liquidity_zone_context", _LIQUIDITY_CONTEXT_VALUE_FIELDS, "LIQUIDITY_ZONE", True),
+    ("liquidation_distance_context", _LIQUIDATION_CONTEXT_VALUE_FIELDS, "LIQUIDATION", True),
+    ("liquidation_context", _LIQUIDATION_CONTEXT_VALUE_FIELDS, "LIQUIDATION", True),
+    ("microstructure_context", _MICROSTRUCTURE_CONTEXT_VALUE_FIELDS, "MICROSTRUCTURE", True),
+    ("oi_funding_context", _OI_FUNDING_CONTEXT_VALUE_FIELDS, "OI_FUNDING", True),
+    ("public_intel_context", _PUBLIC_INTEL_CONTEXT_VALUE_FIELDS, "PUBLIC_INTEL", False),
+)
+
 
 def _first_present(*values: Any) -> Any:
     for value in values:
@@ -236,6 +327,195 @@ def _coerce_float(value: Any) -> float | None:
 
 def _mapping(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
+
+
+def _context_source(context: dict[str, Any]) -> str:
+    return str(context.get("source") or "").strip()
+
+
+def _context_is_default_placeholder(context: Any) -> bool:
+    if not isinstance(context, dict) or not context:
+        return True
+    source = _context_source(context)
+    if source in DEFAULT_CONTEXT_SOURCES:
+        return True
+    return str(context.get("status") or "").strip().lower() in {"not_provided", "missing_silent_default"}
+
+
+def _context_has_real_values(context: Any, value_fields: tuple[str, ...]) -> bool:
+    if not isinstance(context, dict):
+        return False
+    for field in value_fields:
+        if _coerce_float(context.get(field)) is not None:
+            return True
+    return False
+
+
+def _context_has_explicit_missing_mask(context: Any) -> bool:
+    if not isinstance(context, dict):
+        return False
+    if context.get("missing_mask_applied") is True:
+        return True
+    for field in ("missing_feature_names", "missing_features", "unavailable_reason", "missing_reason"):
+        value = context.get(field)
+        if value not in (None, "", [], {}):
+            return True
+    return False
+
+
+def _snapshot_features(snapshot: Any) -> dict[str, Any]:
+    if not isinstance(snapshot, dict):
+        return {}
+    features = snapshot.get("features")
+    return features if isinstance(features, dict) else {}
+
+
+def _snapshot_missing_features(snapshot: Any, *tokens: str) -> list[str]:
+    if not isinstance(snapshot, dict):
+        return []
+    raw_missing = snapshot.get("missing_feature_flags")
+    if not isinstance(raw_missing, list):
+        return []
+    lowered = tuple(token.lower() for token in tokens)
+    return [
+        str(item)
+        for item in raw_missing
+        if any(token in str(item).lower() for token in lowered)
+    ]
+
+
+def _snapshot_context(
+    *,
+    snapshot: Any,
+    fields: tuple[str, ...],
+    context_type: str,
+    missing_tokens: tuple[str, ...],
+) -> dict[str, Any]:
+    features = _snapshot_features(snapshot)
+    values = {field: features.get(field) for field in fields if features.get(field) is not None}
+    missing = _snapshot_missing_features(snapshot, *missing_tokens)
+    if not values and not missing:
+        missing = list(fields)
+    context: dict[str, Any] = {
+        "source": PREMIUM_CONTEXT_SOURCE,
+        "context_type": context_type,
+        "feature_snapshot_id": snapshot.get("feature_snapshot_id") if isinstance(snapshot, dict) else None,
+        "available_at": snapshot.get("available_at") if isinstance(snapshot, dict) else None,
+        "feature_cutoff": snapshot.get("feature_cutoff") if isinstance(snapshot, dict) else None,
+        "feature_freshness_state": snapshot.get("feature_freshness_state") if isinstance(snapshot, dict) else None,
+        "source_categories": snapshot.get("categories_present") if isinstance(snapshot, dict) else None,
+        "external_sources_present": snapshot.get("external_v2_sources_present") if isinstance(snapshot, dict) else None,
+        "missing_feature_names": missing,
+        "missing_mask_applied": bool(missing),
+    }
+    context.update(values)
+    if values:
+        context["status"] = "provided_by_entry_feature_snapshot"
+    else:
+        context["status"] = "explicitly_missing_from_entry_feature_snapshot" if missing else "not_provided"
+        context.setdefault("unavailable_reason", f"MISSING_{context_type}_FEATURES")
+    return {key: value for key, value in context.items() if value not in (None, "", [], {})}
+
+
+def _premium_contexts_from_entry_snapshot(snapshot: Any) -> dict[str, dict[str, Any]]:
+    features = _snapshot_features(snapshot)
+    if not features:
+        return {}
+    liquidity = _snapshot_context(
+        snapshot=snapshot,
+        fields=_LIQUIDITY_CONTEXT_VALUE_FIELDS,
+        context_type="LIQUIDITY",
+        missing_tokens=("liquid", "depth", "wall", "orderbook"),
+    )
+    liquidation = _snapshot_context(
+        snapshot=snapshot,
+        fields=_LIQUIDATION_CONTEXT_VALUE_FIELDS,
+        context_type="LIQUIDATION",
+        missing_tokens=("liquidation", "liq"),
+    )
+    microstructure = _snapshot_context(
+        snapshot=snapshot,
+        fields=_MICROSTRUCTURE_CONTEXT_VALUE_FIELDS,
+        context_type="MICROSTRUCTURE",
+        missing_tokens=("microstructure", "orderbook", "spread", "depth"),
+    )
+    oi_funding = _snapshot_context(
+        snapshot=snapshot,
+        fields=_OI_FUNDING_CONTEXT_VALUE_FIELDS,
+        context_type="OI_FUNDING",
+        missing_tokens=("funding", "open_interest", "long_short", "oi_"),
+    )
+    public_intel = _snapshot_context(
+        snapshot=snapshot,
+        fields=_PUBLIC_INTEL_CONTEXT_VALUE_FIELDS,
+        context_type="PUBLIC_INTEL",
+        missing_tokens=("public", "news", "sentiment", "breadth", "social", "fear_greed"),
+    )
+    return {
+        "liquidity_context": liquidity,
+        "liquidity_zone_context": liquidity,
+        "liquidation_distance_context": liquidation,
+        "liquidation_context": liquidation,
+        "microstructure_context": microstructure,
+        "oi_funding_context": oi_funding,
+        "public_intel_context": public_intel,
+    }
+
+
+def _merge_premium_contexts_from_snapshot(row: dict[str, Any]) -> None:
+    snapshot = _first_present(
+        row.get("entry_feature_snapshot") if isinstance(row.get("entry_feature_snapshot"), dict) else None,
+        row.get("feature_snapshot") if isinstance(row.get("feature_snapshot"), dict) else None,
+    )
+    contexts = _premium_contexts_from_entry_snapshot(snapshot)
+    if not contexts:
+        row["premium_ingestor_context_status"] = "ENTRY_FEATURE_SNAPSHOT_CONTEXT_UNAVAILABLE"
+        return
+    sources: dict[str, str] = {}
+    missing_contexts: list[str] = []
+    for field, value_fields, _label, _required_real_values in _PREMIUM_CONTEXT_REQUIREMENTS:
+        candidate = contexts.get(field)
+        current = row.get(field)
+        if _context_is_default_placeholder(current) or not _context_has_real_values(current, value_fields):
+            if candidate:
+                row[field] = candidate
+        context = row.get(field)
+        if _context_has_real_values(context, value_fields):
+            sources[field] = _context_source(context)
+        elif _context_has_explicit_missing_mask(context):
+            sources[field] = f"{_context_source(context)}:explicit_missing_mask"
+        else:
+            missing_contexts.append(field)
+    row["premium_ingestor_context_sources"] = sources
+    row["premium_ingestor_missing_contexts"] = sorted(set(missing_contexts))
+    row["premium_ingestor_context_status"] = (
+        "PREMIUM_CONTEXT_READY"
+        if not missing_contexts
+        else "PREMIUM_CONTEXT_PARTIAL_WITH_EXPLICIT_MASKS"
+    )
+    liquidation = row.get("liquidation_distance_context")
+    row["liquidation_engine_context_status"] = (
+        "LIQUIDATION_ENGINE_CONTEXT_READY"
+        if _context_has_real_values(liquidation, _LIQUIDATION_CONTEXT_VALUE_FIELDS)
+        else "LIQUIDATION_ENGINE_CONTEXT_MISSING"
+    )
+
+
+def _premium_ingestor_rejection_reasons(row: dict[str, Any]) -> list[str]:
+    reasons: list[str] = []
+    for field, value_fields, label, required_real_values in _PREMIUM_CONTEXT_REQUIREMENTS:
+        context = row.get(field)
+        if _context_is_default_placeholder(context):
+            reasons.append(f"MISSING_PREMIUM_INGESTOR_{label}_CONTEXT")
+            continue
+        has_values = _context_has_real_values(context, value_fields)
+        if has_values:
+            continue
+        if required_real_values:
+            reasons.append(f"MISSING_PREMIUM_INGESTOR_{label}_VALUES")
+        elif not _context_has_explicit_missing_mask(context):
+            reasons.append(f"MISSING_PREMIUM_INGESTOR_{label}_MASK")
+    return sorted(set(reasons))
 
 
 def _first_number(*values: Any) -> float | None:
@@ -470,6 +750,7 @@ def audit_quality_rejection_reasons(row: dict[str, Any]) -> list[str]:
     exit_reason = str(_first_present(row.get("exit_reason"), row.get("close_reason")) or "").upper()
     if "TRAILING" in exit_reason and not row.get("trailing_stop_history"):
         reasons.append("MISSING_TRAILING_STOP_HISTORY_FOR_TRAILING_EXIT")
+    reasons.extend(_premium_ingestor_rejection_reasons(row))
     return reasons
 
 
@@ -857,6 +1138,35 @@ def build_strategy_hedge_exit_feedback(
             close_event.get("lineage_backfilled_from_prediction_id"),
             outcome_label.get("lineage_backfilled_from_prediction_id"),
         ),
+        "source_quarantine_reason": _first_present(
+            close_event.get("quarantine_reason"),
+            outcome_label.get("quarantine_reason"),
+            close_event.get("reason_if_untrusted"),
+            outcome_label.get("reason_if_untrusted"),
+        ),
+        "source_quarantine_reasons": _first_present(
+            close_event.get("quarantine_reasons"),
+            outcome_label.get("quarantine_reasons"),
+            close_event.get("quarantine_rejection_reasons"),
+            outcome_label.get("quarantine_rejection_reasons"),
+        ),
+        "account_scope": _first_present(close_event.get("account_scope"), outcome_label.get("account_scope")),
+        "position_validity_status": _first_present(
+            close_event.get("position_validity_status"),
+            outcome_label.get("position_validity_status"),
+            close_event.get("validity_status"),
+            outcome_label.get("validity_status"),
+        ),
+        "source_fill_ids": _first_present(
+            close_event.get("source_fill_ids"),
+            outcome_label.get("source_fill_ids"),
+        ),
+        "entry_fill_id": _first_present(
+            close_event.get("entry_fill_id"),
+            outcome_label.get("entry_fill_id"),
+            close_event.get("fill_id"),
+            outcome_label.get("fill_id"),
+        ),
         "paper_only": True,
         "places_real_order": False,
     }
@@ -880,6 +1190,7 @@ def build_strategy_hedge_exit_feedback(
         ):
             if row.get(latency_field) in (None, ""):
                 row[latency_field] = latency_value
+    _merge_premium_contexts_from_snapshot(row)
     row["major_move_context"] = _first_present(
         close_event.get("major_move_context"),
         outcome_label.get("major_move_context"),
@@ -938,8 +1249,11 @@ def build_strategy_hedge_exit_feedback(
     missing_classes = sorted({MISSING_FEEDBACK_CLASS_BY_FIELD.get(field, "schema_mismatch") for field in missing})
     audit_quality_reasons = audit_quality_rejection_reasons(row)
     trust_reasons = _trust_envelope_rejection_reasons(row)
+    closed_trade_validity = validate_closed_trade(row)
+    closed_trade_reasons = list(closed_trade_validity.get("reasons") or [])
     audit_quality_classes = [f"audit_quality:{reason.lower()}" for reason in audit_quality_reasons]
     trust_classes = [f"trust:{reason.lower()}" for reason in trust_reasons]
+    closed_trade_classes = [f"closed_trade_validity:{reason.lower()}" for reason in closed_trade_reasons]
     stale_lineage = _is_pre_remediation_stale_lineage(row, missing)
     if stale_lineage:
         missing_classes = ["stale_lineage"]
@@ -956,14 +1270,23 @@ def build_strategy_hedge_exit_feedback(
     row["audit_quality_contract_version"] = "paper_closed_trade_audit_quality_v1"
     row["audit_quality_rejection_reasons"] = audit_quality_reasons
     row["trust_envelope_rejection_reasons"] = trust_reasons
-    row["trainer_consumable"] = not missing and not audit_quality_reasons and not trust_reasons
+    row["closed_trade_validity_status"] = closed_trade_validity.get("status")
+    row["closed_trade_validity_rejection_reasons"] = closed_trade_reasons
+    row["trainer_consumable"] = (
+        not missing
+        and not audit_quality_reasons
+        and not trust_reasons
+        and not closed_trade_reasons
+    )
     row["missing_feedback_fields"] = missing
     row["missing_trust_fields"] = [
         reason.removeprefix("MISSING_TRUST_").lower()
         for reason in trust_reasons
         if reason.startswith("MISSING_TRUST_")
     ]
-    row["missing_feedback_classifications"] = sorted(set(missing_classes + audit_quality_classes + trust_classes))
+    row["missing_feedback_classifications"] = sorted(
+        set(missing_classes + audit_quality_classes + trust_classes + closed_trade_classes)
+    )
     row["quarantine_reason"] = (
         "NONE"
         if not row["missing_feedback_classifications"]
@@ -973,6 +1296,65 @@ def build_strategy_hedge_exit_feedback(
             else ",".join(row["missing_feedback_classifications"])
         )
     )
+    apply_trainer_feedback_field_contract(row)
+    return row
+
+
+TRAINER_FEEDBACK_CONTRACT_FIELDS = (
+    "paper_session_id",
+    "prediction_id",
+    "feature_snapshot_id",
+    "mtf_snapshot_id",
+    "feature_cutoff",
+    "available_at",
+    "decision_time",
+    "side",
+    "action",
+    "strategy_id",
+    "expected_move_after_cost_bps",
+    "realized_pnl_bps",
+    "realized_pnl_usd",
+    "fees",
+    "slippage",
+    "funding",
+    "mfe",
+    "mae",
+    "exit_reason",
+    "outcome_label",
+)
+
+
+def apply_trainer_feedback_field_contract(row: dict[str, Any]) -> dict[str, Any]:
+    """Guarantee the canonical trainer-consumable field names exist on a row.
+
+    Values are aliases of evidence already carried by the row; no value is
+    fabricated. Missing evidence stays None so contract checks can fail loudly.
+    """
+    action = row.get("action") or row.get("selected_action") or row.get("side")
+    if row.get("side") in (None, ""):
+        normalized = str(action or "").strip().upper()
+        row["side"] = normalized if normalized in {"LONG", "SHORT"} else (normalized or None)
+    if row.get("realized_pnl_usd") is None:
+        row["realized_pnl_usd"] = _first_present(
+            row.get("realized_net_pnl_usd"),
+            row.get("realized_pnl_usdt"),
+        )
+    if row.get("mfe") is None:
+        row["mfe"] = _first_present(row.get("MFE"), row.get("mfe_bps"))
+    if row.get("mae") is None:
+        row["mae"] = _first_present(row.get("MAE"), row.get("mae_bps"))
+    if row.get("outcome_label") in (None, ""):
+        row["outcome_label"] = _first_present(
+            row.get("trade_outcome"),
+            row.get("directional_outcome"),
+            row.get("outcome_label_id"),
+        )
+    missing_contract_fields = [
+        name for name in TRAINER_FEEDBACK_CONTRACT_FIELDS if row.get(name) in (None, "")
+    ]
+    row["trainer_feedback_contract_version"] = "trainer_feedback_field_contract_v1"
+    row["trainer_feedback_contract_missing_fields"] = missing_contract_fields
+    row["trainer_feedback_contract_complete"] = not missing_contract_fields
     return row
 
 
@@ -1023,7 +1405,22 @@ def feedback_status(rows: list[dict[str, Any]]) -> dict[str, Any]:
                 }
             )
         },
+        "closed_trade_validity_rejection_counts": {
+            reason: sum(
+                1
+                for row in rows
+                if reason in (row.get("closed_trade_validity_rejection_reasons") or [])
+            )
+            for reason in sorted(
+                {
+                    str(reason)
+                    for row in rows
+                    for reason in (row.get("closed_trade_validity_rejection_reasons") or [])
+                }
+            )
+        },
         "audit_quality_clean_rows": sum(1 for row in rows if not row.get("audit_quality_rejection_reasons")),
+        "closed_trade_validity_clean_rows": sum(1 for row in rows if not row.get("closed_trade_validity_rejection_reasons")),
         "trainer_consumable_rows": sum(1 for row in rows if row.get("trainer_consumable") is True),
     }
 

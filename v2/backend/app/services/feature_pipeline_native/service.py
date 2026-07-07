@@ -283,6 +283,47 @@ def _atr_pct(ohlcv: list[dict[str, float]], period: int = 14) -> float | None:
     return atr / last_close
 
 
+def _atr_pct_series(
+    ohlcv: list[dict[str, float]],
+    period: int = 14,
+) -> list[float]:
+    if len(ohlcv) < period + 1:
+        return []
+    trs: list[float] = []
+    for i in range(1, len(ohlcv)):
+        h = float(ohlcv[i]["high"])
+        l = float(ohlcv[i]["low"])
+        pc = float(ohlcv[i - 1]["close"])
+        trs.append(max(h - l, abs(h - pc), abs(l - pc)))
+    out: list[float] = []
+    for end in range(period, len(trs) + 1):
+        close = float(ohlcv[end]["close"])
+        if close <= 0.0:
+            continue
+        out.append((sum(trs[end - period:end]) / period) / close)
+    return out
+
+
+def _percentile_rank(values: list[float], current: float) -> float | None:
+    if not values:
+        return None
+    below = sum(1 for value in values if value < current)
+    equal = sum(1 for value in values if value == current)
+    return max(0.0, min(1.0, (below + 0.5 * equal) / len(values)))
+
+
+def _atr_percentile(
+    ohlcv: list[dict[str, float]],
+    *,
+    period: int = 14,
+    min_samples: int = 20,
+) -> float | None:
+    series = _atr_pct_series(ohlcv, period=period)
+    if len(series) < min_samples:
+        return None
+    return _percentile_rank(series, series[-1])
+
+
 def _bb_width_pct(closes: list[float], period: int = 20, k: float = 2.0) -> float | None:
     if len(closes) < period:
         return None
@@ -363,6 +404,10 @@ def compute_feature_snapshot(inputs: NativeFeatureInputs, *,
             features["true_range_pct"] = atr if atr is not None else None
             if atr is None:
                 missing.append("ohlcv_true_range")
+            atr_percentile = _atr_percentile(list(inputs.ohlcv_window))
+            features["atr_percentile"] = atr_percentile
+            if atr_percentile is None:
+                missing.append("ohlcv_atr_percentile")
             if len(closes) >= 2 and closes[-2] > 0:
                 features["gap_pct"] = (opens[-1] - closes[-2]) / closes[-2]
             else:
@@ -371,7 +416,13 @@ def compute_feature_snapshot(inputs: NativeFeatureInputs, *,
         except Exception:
             missing.append("ohlcv_derived_exception")
     else:
-        missing.extend(["ohlcv_returns", "ohlcv_range_body", "ohlcv_true_range", "ohlcv_gap"])
+        missing.extend([
+            "ohlcv_returns",
+            "ohlcv_range_body",
+            "ohlcv_true_range",
+            "ohlcv_atr_percentile",
+            "ohlcv_gap",
+        ])
     if _freshness(inputs.ohlcv_window_age_seconds, max_fresh=ohlcv_max_age_seconds) == "STALE":
         stale.append("ohlcv_window")
 

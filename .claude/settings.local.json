@@ -19,7 +19,10 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/src/main.tsx)",
       "Bash(python3 \"/home/wali/Desktop/AI BOT REBUILD/scripts/verify_claude_guardian_completion.py\")",
       "Bash(python3 -c ' *)",
-      "Bash(sudo cp \"/home/wali/Desktop/AI BOT REBUILD/scripts/verify_claude_guardian_completion.py\" /usr/local/lib/ai-bot-guardian/verify_claude_guardian_completion.py)"
+      "Bash(sudo cp \"/home/wali/Desktop/AI BOT REBUILD/scripts/verify_claude_guardian_completion.py\" /usr/local/lib/ai-bot-guardian/verify_claude_guardian_completion.py)",
+      "Bash(sqlite3 -readonly ~/.config/Code/User/globalStorage/state.vscdb \"SELECT key, length\\(value\\) FROM ItemTable WHERE key LIKE '%chatgpt%' OR key LIKE '%codex%';\")",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)"
     ],
     "deny": [
       "Read(./legacy_reference/.env)",

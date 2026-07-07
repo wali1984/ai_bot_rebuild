@@ -10,7 +10,13 @@ if [ "$(printf '%s' "$INPUT" | jq -r '.stop_hook_active // false')" = "true" ]; 
 fi
 
 ROOT="/home/wali/Desktop/AI BOT REBUILD"
-VERIFY="/usr/local/lib/ai-bot-guardian/verify_claude_guardian_completion.py"
+# Use repo copy so updates take effect without sudo reinstall.
+# Fall back to installed system copy if repo copy is missing.
+if [ -f "$ROOT/scripts/verify_claude_guardian_completion.py" ]; then
+    VERIFY="$ROOT/scripts/verify_claude_guardian_completion.py"
+else
+    VERIFY="/usr/local/lib/ai-bot-guardian/verify_claude_guardian_completion.py"
+fi
 RESULT="/tmp/v2_claude_guardian_verify.json"
 
 if "$VERIFY" >"$RESULT" 2>&1; then

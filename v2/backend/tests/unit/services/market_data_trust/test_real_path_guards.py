@@ -138,6 +138,20 @@ def _seed_loader(
         "v2:altdata:whale_walls:symbol:BTCUSDT",
         json.dumps({"whale_wall_score": 0.8, "whale_bid_pressure_score": 0.85}),
     )
+    client.set(
+        "v2:altdata:santiment:symbol:BTCUSDT",
+        json.dumps(
+            {
+                "santiment_social_volume_score": 0.74,
+                "santiment_sentiment_score": 0.4,
+                "santiment_whale_activity_score": 0.62,
+                "santiment_exchange_inflow_risk_score": 0.64,
+                "santiment_supply_on_exchanges_score": 0.87,
+                "santiment_exchange_inflow": 2_500_000,
+                "santiment_percent_of_total_supply_on_exchanges": 13,
+            }
+        ),
+    )
     client.set("v2:altdata:lunarcrush:symbol:BTCUSDT", json.dumps({"score": 0.5}))
     client.set("v2:altdata:nansen:symbol:BTCUSDT", json.dumps({"presence": 1.0}))
     client.set(
@@ -153,6 +167,13 @@ def _seed_loader(
                 "aicoin_order_flow_score": 0.2,
                 "whale_wall_score": 0.8,
                 "whale_bid_pressure_score": 0.85,
+                "santiment_social_volume_score": 0.74,
+                "santiment_sentiment_score": 0.4,
+                "santiment_whale_activity_score": 0.62,
+                "santiment_exchange_inflow_risk_score": 0.64,
+                "santiment_supply_on_exchanges_score": 0.87,
+                "provider_available": {"santiment": True},
+                "input_presence": {"santiment": True},
             }
         ),
     )
@@ -375,6 +396,21 @@ def test_data_loader_trusted_only_filters_future_masa_cutoff() -> None:
     assert example.row_classification == "MARKET_STATE_REJECTED"
     assert "MASA_FEATURE_CUTOFF_AFTER_DECISION_TIME" in (example.trust_row or {}).get("reject_reasons", [])
     assert trusted == []
+
+
+def test_data_loader_tensor_consumes_santiment_altdata() -> None:
+    client = _MemoryClient()
+    _seed_loader(client)
+    loader = V2HybridTrainerDataLoader(io=V2OnlyJsonIO(client=client))
+
+    example = loader.build_example(symbol="BTCUSDT", timeframe="1m")
+    values = dict(zip(example.tensor.feature_names, example.tensor.values))
+
+    assert values["santiment_social_volume_score"] == 0.74
+    assert values["santiment_sentiment_score"] == 0.4
+    assert values["santiment_exchange_inflow_risk_score"] == 0.64
+    assert values["santiment_supply_on_exchanges_score"] == 0.87
+    assert "v2:altdata:santiment:symbol:BTCUSDT" in example.payload_keys
 
 
 def test_data_loader_trusted_only_filters_backfilled_live_example() -> None:

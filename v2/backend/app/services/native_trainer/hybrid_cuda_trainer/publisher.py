@@ -120,6 +120,101 @@ REQUIRED_PREDICTION_FIELDS = (
     "valid_for_paper",
 )
 
+PREMIUM_CONTEXT_SOURCE = "V2_HYBRID_CUDA_TRAINER_ENTRY_FEATURES"
+_LIQUIDITY_CONTEXT_VALUE_FIELDS: tuple[str, ...] = (
+    "liquidity_score",
+    "orderbook_depth_usd",
+    "depth_total_usd",
+    "depth_usd",
+    "bid_depth_usd",
+    "ask_depth_usd",
+    "depth_imbalance",
+    "whale_bid_wall_notional_usd",
+    "whale_ask_wall_notional_usd",
+    "whale_total_wall_notional_usd",
+    "nearest_bid_wall_distance_bps",
+    "nearest_ask_wall_distance_bps",
+)
+_LIQUIDATION_CONTEXT_VALUE_FIELDS: tuple[str, ...] = (
+    "nearest_liquidation_level_above",
+    "nearest_liquidation_level_below",
+    "liquidation_long_level",
+    "liquidation_short_level",
+    "liquidation_distance_pct",
+    "liquidation_long_distance_pct",
+    "liquidation_short_distance_pct",
+    "liquidation_sweep_target_long_distance_bps",
+    "liquidation_sweep_target_short_distance_bps",
+    "liquidation_cascade_risk",
+    "liquidation_pressure_direction",
+    "liquidation_levels_count_long",
+    "liquidation_levels_count_short",
+    "liquidation_zones_count_long",
+    "liquidation_zones_count_short",
+    "liquidation_long_strength",
+    "liquidation_short_strength",
+    "liquidation_strength",
+    "liquidation_volume",
+    "last_liq_bps_24h",
+    "aicoin_liquidation_score",
+)
+_MICROSTRUCTURE_CONTEXT_VALUE_FIELDS: tuple[str, ...] = (
+    "bid_ask_spread_bps",
+    "spread_bps",
+    "ob_spread_bps",
+    "micro_price",
+    "orderbook_imbalance",
+    "depth_imbalance",
+    "tape_imbalance",
+    "order_flow_imbalance",
+    "depth_vs_tape_divergence",
+    "bid_depth_usd",
+    "ask_depth_usd",
+    "orderbook_depth_usd",
+)
+_OI_FUNDING_CONTEXT_VALUE_FIELDS: tuple[str, ...] = (
+    "funding_rate",
+    "expected_funding_bps",
+    "funding_bps",
+    "open_interest",
+    "oi_change_pct",
+    "open_interest_change_pct",
+    "long_short_ratio",
+    "long_account_ratio",
+    "short_account_ratio",
+    "aicoin_open_interest_score",
+)
+_PUBLIC_INTEL_CONTEXT_VALUE_FIELDS: tuple[str, ...] = (
+    "public_intel_score",
+    "news_attention_score",
+    "news_sentiment_score",
+    "sentiment_score",
+    "fear_greed_score",
+    "fear_greed_context",
+    "market_breadth_score",
+    "social_momentum_score",
+    "social_volume_velocity",
+    "defillama_score",
+    "defillama_liquidity_score",
+    "defillama_tvl_momentum_score",
+    "coingecko_liquidity_score",
+    "coingecko_momentum_score",
+    "surf_score",
+    "surf_market_price_signal_score",
+    "aicoin_news_attention_score",
+    "aicoin_market_activity_score",
+    "aicoin_signal_score",
+)
+_PREMIUM_CONTEXT_REQUIREMENTS: tuple[tuple[str, tuple[str, ...], str, bool], ...] = (
+    ("liquidity_context", _LIQUIDITY_CONTEXT_VALUE_FIELDS, "LIQUIDITY", True),
+    ("liquidity_zone_context", _LIQUIDITY_CONTEXT_VALUE_FIELDS, "LIQUIDITY_ZONE", True),
+    ("liquidation_distance_context", _LIQUIDATION_CONTEXT_VALUE_FIELDS, "LIQUIDATION", True),
+    ("liquidation_context", _LIQUIDATION_CONTEXT_VALUE_FIELDS, "LIQUIDATION", True),
+    ("microstructure_context", _MICROSTRUCTURE_CONTEXT_VALUE_FIELDS, "MICROSTRUCTURE", True),
+    ("oi_funding_context", _OI_FUNDING_CONTEXT_VALUE_FIELDS, "OI_FUNDING", True),
+    ("public_intel_context", _PUBLIC_INTEL_CONTEXT_VALUE_FIELDS, "PUBLIC_INTEL", False),
+)
+
 EXPLICIT_MARKET_STATE_TRUST_FIELDS = (
     "feature_cutoff",
     "decision_cutoff",
@@ -176,6 +271,78 @@ def direction_from_action(action: str) -> str:
     if action == "short":
         return PREDICTION_DIRECTION_SHORT
     return PREDICTION_DIRECTION_FLAT
+
+
+def action_policy_diagnostics(
+    *,
+    selected_action: str,
+    action_probabilities: Any,
+    expected_move_bps: Any,
+    round_trip_cost_bps: float,
+    min_edge_after_cost_bps: float,
+) -> dict[str, Any]:
+    probabilities = list(action_probabilities or [])
+    probability_by_action: dict[str, float] = {}
+    for index, label in enumerate(ACTION_LABELS):
+        value = probabilities[index] if index < len(probabilities) else None
+        number = _finite_float(value)
+        if number is not None:
+            probability_by_action[str(label)] = number
+
+    normalized_action = str(selected_action or "hold").strip().lower()
+    selected_probability = probability_by_action.get(normalized_action)
+    opening_candidates = {
+        action: probability_by_action.get(action, 0.0)
+        for action in ("hold", "long", "short")
+    }
+    opening_argmax_action = max(
+        opening_candidates,
+        key=lambda action: (opening_candidates[action], -ACTION_LABELS.index(action)),
+    )
+    expected_move = _finite_float(expected_move_bps)
+    cost = abs(float(round_trip_cost_bps))
+    min_edge = abs(float(min_edge_after_cost_bps))
+    counterfactual_action: str | None = None
+    counterfactual_after_cost: float | None = None
+    if expected_move is not None:
+        long_after_cost = expected_move - cost
+        short_after_cost = expected_move + cost
+        if long_after_cost >= min_edge:
+            counterfactual_action = "long"
+            counterfactual_after_cost = long_after_cost
+        elif short_after_cost <= -min_edge:
+            counterfactual_action = "short"
+            counterfactual_after_cost = short_after_cost
+
+    counterfactual_probability = (
+        probability_by_action.get(counterfactual_action)
+        if counterfactual_action is not None
+        else None
+    )
+    selected_vs_counterfactual_gap = (
+        selected_probability - counterfactual_probability
+        if selected_probability is not None and counterfactual_probability is not None
+        else None
+    )
+    selected_hold_with_directional_edge = (
+        normalized_action == "hold" and counterfactual_action in {"long", "short"}
+    )
+    return {
+        "action_probability_by_label": probability_by_action,
+        "opening_policy_argmax_action": opening_argmax_action,
+        "opening_policy_argmax_probability": opening_candidates.get(opening_argmax_action),
+        "selected_action_probability": selected_probability,
+        "counterfactual_directional_action_from_expected_move": counterfactual_action,
+        "counterfactual_directional_expected_move_after_cost_bps": counterfactual_after_cost,
+        "counterfactual_directional_action_probability": counterfactual_probability,
+        "selected_vs_counterfactual_directional_action_probability_gap": selected_vs_counterfactual_gap,
+        "selected_hold_with_directional_edge_after_cost": selected_hold_with_directional_edge,
+        "selected_hold_directional_edge_diagnostic_reason": (
+            "EXPECTED_MOVE_DIRECTIONAL_EDGE_BLOCKED_BY_SELECTED_HOLD"
+            if selected_hold_with_directional_edge
+            else None
+        ),
+    }
 
 
 def _has_explicit_market_state_trust_evidence(row: dict[str, Any]) -> bool:
@@ -420,6 +587,178 @@ def _trusted_replay_snapshot(
     return build_replay_snapshot(decision_id=str(decision_id), prediction=prediction), reasons
 
 
+def _finite_float(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number == number else None
+
+
+def _entry_feature_values(example: TrainingExample, trust_row: dict[str, Any]) -> dict[str, Any]:
+    values = dict(zip(example.tensor.feature_names, example.tensor.values))
+    if isinstance(trust_row.get("features"), dict):
+        values.update(trust_row["features"])
+    return values
+
+
+def _missing_features_for_tokens(example: TrainingExample, trust_row: dict[str, Any], *tokens: str) -> list[str]:
+    raw_missing = list(example.tensor.missing_feature_names)
+    if isinstance(trust_row.get("missing_feature_names"), list):
+        raw_missing.extend(str(item) for item in trust_row["missing_feature_names"])
+    lowered = tuple(token.lower() for token in tokens)
+    return sorted(
+        {
+            str(item)
+            for item in raw_missing
+            if any(token in str(item).lower() for token in lowered)
+        }
+    )
+
+
+def _premium_context_from_features(
+    *,
+    example: TrainingExample,
+    trust_row: dict[str, Any],
+    feature_values: dict[str, Any],
+    fields: tuple[str, ...],
+    context_type: str,
+    missing_tokens: tuple[str, ...],
+) -> dict[str, Any]:
+    values = {field: feature_values.get(field) for field in fields if feature_values.get(field) is not None}
+    missing = _missing_features_for_tokens(example, trust_row, *missing_tokens)
+    if not values and not missing:
+        missing = list(fields)
+    context: dict[str, Any] = {
+        "source": PREMIUM_CONTEXT_SOURCE,
+        "context_type": context_type,
+        "feature_snapshot_id": example.tensor.feature_snapshot_id,
+        "available_at": trust_row.get("available_at") or trust_row.get("source_available_time"),
+        "feature_cutoff": trust_row.get("feature_cutoff") or trust_row.get("decision_cutoff"),
+        "feature_freshness_state": trust_row.get("feature_freshness_state"),
+        "missing_feature_names": missing,
+        "missing_mask_applied": bool(missing),
+    }
+    context.update(values)
+    if any(_finite_float(value) is not None for value in values.values()):
+        context["status"] = "provided_by_entry_features"
+    else:
+        context["status"] = "explicitly_missing_from_entry_features"
+        context["unavailable_reason"] = f"MISSING_{context_type}_FEATURES"
+    return {key: value for key, value in context.items() if value not in (None, "", [], {})}
+
+
+def _prediction_premium_contexts(example: TrainingExample, trust_row: dict[str, Any]) -> dict[str, Any]:
+    feature_values = _entry_feature_values(example, trust_row)
+    contexts = {
+        "liquidity_context": _premium_context_from_features(
+            example=example,
+            trust_row=trust_row,
+            feature_values=feature_values,
+            fields=_LIQUIDITY_CONTEXT_VALUE_FIELDS,
+            context_type="LIQUIDITY",
+            missing_tokens=("liquid", "depth", "wall", "orderbook"),
+        ),
+        "liquidity_zone_context": _premium_context_from_features(
+            example=example,
+            trust_row=trust_row,
+            feature_values=feature_values,
+            fields=_LIQUIDITY_CONTEXT_VALUE_FIELDS,
+            context_type="LIQUIDITY_ZONE",
+            missing_tokens=("liquid", "depth", "wall", "orderbook"),
+        ),
+        "liquidation_distance_context": _premium_context_from_features(
+            example=example,
+            trust_row=trust_row,
+            feature_values=feature_values,
+            fields=_LIQUIDATION_CONTEXT_VALUE_FIELDS,
+            context_type="LIQUIDATION",
+            missing_tokens=("liquidation", "liq", "aicoin_liquidation"),
+        ),
+        "liquidation_context": _premium_context_from_features(
+            example=example,
+            trust_row=trust_row,
+            feature_values=feature_values,
+            fields=_LIQUIDATION_CONTEXT_VALUE_FIELDS,
+            context_type="LIQUIDATION",
+            missing_tokens=("liquidation", "liq", "aicoin_liquidation"),
+        ),
+        "microstructure_context": _premium_context_from_features(
+            example=example,
+            trust_row=trust_row,
+            feature_values=feature_values,
+            fields=_MICROSTRUCTURE_CONTEXT_VALUE_FIELDS,
+            context_type="MICROSTRUCTURE",
+            missing_tokens=("microstructure", "orderbook", "spread", "depth", "tape", "flow"),
+        ),
+        "oi_funding_context": _premium_context_from_features(
+            example=example,
+            trust_row=trust_row,
+            feature_values=feature_values,
+            fields=_OI_FUNDING_CONTEXT_VALUE_FIELDS,
+            context_type="OI_FUNDING",
+            missing_tokens=("funding", "open_interest", "long_short", "oi_"),
+        ),
+        "public_intel_context": _premium_context_from_features(
+            example=example,
+            trust_row=trust_row,
+            feature_values=feature_values,
+            fields=_PUBLIC_INTEL_CONTEXT_VALUE_FIELDS,
+            context_type="PUBLIC_INTEL",
+            missing_tokens=("public", "news", "sentiment", "breadth", "social", "fear_greed", "aicoin"),
+        ),
+    }
+    sources: dict[str, str] = {}
+    missing_contexts: list[str] = []
+    compact_features: dict[str, Any] = {}
+    for field, value_fields, _label, required_real_values in _PREMIUM_CONTEXT_REQUIREMENTS:
+        context = contexts[field]
+        has_values = any(_finite_float(context.get(name)) is not None for name in value_fields)
+        if has_values:
+            sources[field] = str(context.get("source") or PREMIUM_CONTEXT_SOURCE)
+            compact_features.update({name: context[name] for name in value_fields if context.get(name) is not None})
+        elif context.get("missing_mask_applied") is True:
+            sources[field] = f"{context.get('source') or PREMIUM_CONTEXT_SOURCE}:explicit_missing_mask"
+            if required_real_values:
+                missing_contexts.append(field)
+        else:
+            missing_contexts.append(field)
+    liquidation_context = contexts["liquidation_distance_context"]
+    liquidation_ready = any(
+        _finite_float(liquidation_context.get(name)) is not None
+        for name in _LIQUIDATION_CONTEXT_VALUE_FIELDS
+    )
+    snapshot = {
+        "feature_snapshot_id": example.tensor.feature_snapshot_id,
+        "symbol": example.symbol,
+        "timeframe": example.timeframe,
+        "features": compact_features,
+        "feature_cutoff": trust_row.get("feature_cutoff") or trust_row.get("decision_cutoff"),
+        "available_at": trust_row.get("available_at") or trust_row.get("source_available_time"),
+        "generated_at": trust_row.get("generated_at") or trust_row.get("created_at"),
+        "feature_freshness_state": trust_row.get("feature_freshness_state"),
+        "missing_feature_flags": list(example.tensor.missing_feature_names),
+        "source": PREMIUM_CONTEXT_SOURCE,
+    }
+    return {
+        **contexts,
+        "entry_feature_snapshot_id": example.tensor.feature_snapshot_id,
+        "entry_feature_snapshot": {key: value for key, value in snapshot.items() if value not in (None, "", [], {})},
+        "premium_ingestor_context_sources": sources,
+        "premium_ingestor_missing_contexts": sorted(set(missing_contexts)),
+        "premium_ingestor_context_status": (
+            "PREMIUM_CONTEXT_READY"
+            if not missing_contexts
+            else "PREMIUM_CONTEXT_PARTIAL_WITH_EXPLICIT_MASKS"
+        ),
+        "liquidation_engine_context_status": (
+            "LIQUIDATION_ENGINE_CONTEXT_READY" if liquidation_ready else "LIQUIDATION_ENGINE_CONTEXT_MISSING"
+        ),
+    }
+
+
 def build_prediction_payload(
     *,
     example: TrainingExample,
@@ -468,8 +807,16 @@ def build_prediction_payload(
         block_reasons.append("expected_move_after_cost_direction_mismatch")
     if abs(expected_after_cost) < min_edge_after_cost_bps:
         block_reasons.append("expected_move_after_cost_below_threshold")
+    action_diagnostics = action_policy_diagnostics(
+        selected_action=selected_action,
+        action_probabilities=model_output.action_probabilities,
+        expected_move_bps=model_output.expected_move_bps,
+        round_trip_cost_bps=round_trip_cost_bps,
+        min_edge_after_cost_bps=min_edge_after_cost_bps,
+    )
     integrity = _market_state_fields_from_example(example, prediction_id)
     trust_row = dict(example.trust_row or {})
+    premium_contexts = _prediction_premium_contexts(example, trust_row)
     trust_reject_reasons = [str(reason) for reason in (trust_row.get("reject_reasons") or []) if str(reason)]
     feature_hash = trust_row.get("feature_vector_hash") or tensor.tensor_id
     timestamp_source_hash_material = {
@@ -537,6 +884,7 @@ def build_prediction_payload(
         "selected_action_index": model_output.selected_action_index,
         "action_labels": list(ACTION_LABELS),
         "action_probabilities": list(model_output.action_probabilities),
+        **action_diagnostics,
         "expected_move_bps": model_output.expected_move_bps,
         "expected_move_after_cost_bps": expected_after_cost,
         "confidence_raw": model_output.confidence_raw,
@@ -562,13 +910,34 @@ def build_prediction_payload(
         "feature_vector_hash": feature_hash,
         "source_hashes": source_hashes,
         "data_coverage_percent": tensor.data_coverage_percent,
-        "missing_feature_count": len(tensor.missing_feature_names),
-        "stale_feature_count": len(tensor.stale_feature_names),
-        "missing_feature_names": list(tensor.missing_feature_names),
-        "stale_feature_names": list(tensor.stale_feature_names),
+        "missing_feature_count": (
+            trust_row.get("missing_feature_count")
+            if trust_row.get("missing_feature_lineage_source") == "feature_snapshot_decision_time_flags"
+            else len(tensor.missing_feature_names)
+        ),
+        "stale_feature_count": (
+            trust_row.get("stale_feature_count")
+            if trust_row.get("missing_feature_lineage_source") == "feature_snapshot_decision_time_flags"
+            else len(tensor.stale_feature_names)
+        ),
+        "missing_feature_names": (
+            list(trust_row.get("missing_feature_names") or [])
+            if trust_row.get("missing_feature_lineage_source") == "feature_snapshot_decision_time_flags"
+            else list(tensor.missing_feature_names)
+        ),
+        "stale_feature_names": (
+            list(trust_row.get("stale_feature_names") or [])
+            if trust_row.get("missing_feature_lineage_source") == "feature_snapshot_decision_time_flags"
+            else list(tensor.stale_feature_names)
+        ),
+        "missing_feature_lineage_source": trust_row.get("missing_feature_lineage_source")
+        or "tensor_reconstruction_masks",
+        "tensor_unreconstructed_feature_names": list(tensor.missing_feature_names),
+        "tensor_unreconstructed_feature_count": len(tensor.missing_feature_names),
         "source_availability_vector": list(tensor.source_availability_vector),
         "feature_names": list(tensor.feature_names),
         "source_labels": list(tensor.source_labels),
+        **premium_contexts,
         "trainer_source": TRAINER_SOURCE,
         "model_source": MODEL_SOURCE,
         "model_version": MODEL_SOURCE,
@@ -678,7 +1047,7 @@ class V2HybridPredictionPublisher:
         archive_record = build_archive_record_from_prediction_payload(payload)
         if archive_record is not None:
             try:
-                archived = append_snapshot(archive_record)
+                archived = append_snapshot(archive_record, update_checksum_manifest=False)
                 payload["durable_feature_snapshot_archive_write_success"] = True
                 payload["durable_feature_snapshot_archive_snapshot_id"] = archived.snapshot_id
                 payload["durable_feature_snapshot_archive_content_sha256"] = archived.content_sha256

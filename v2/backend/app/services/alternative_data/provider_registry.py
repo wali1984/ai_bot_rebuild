@@ -14,9 +14,14 @@ from typing import Any, Iterable
 
 SCHEMA_VERSION = "v2_alternative_data_provider_registry_scaffold_v1"
 DEFAULT_VAULT_PATH = Path(".local_secrets/alternative_data.env")
+DEFAULT_LAYERED_PRESENCE_PATHS = (
+    Path("v2/.env.local"),
+    Path(".local_secrets/live_credentials.env"),
+)
 ALLOWED_PROVIDER_IDS = (
     "nansen",
     "lunarcrush",
+    "santiment",
     "coingecko",
     "coinglass",
     "surf",
@@ -110,6 +115,20 @@ def provider_definitions() -> tuple[ProviderDefinition, ...]:
             paid_daily_budget=50000,
             paid_cache_ttl_seconds=60,
             paid_per_symbol_cooldown_seconds=30,
+        ),
+        ProviderDefinition(
+            id="santiment",
+            layer="on_chain_social_sentiment",
+            default_state="ENABLED_PRO_PLAN_BACKGROUND_REDIS_PRODUCER",
+            credential_env_var="SANTIMENT_API_KEY",
+            free_rate_limit_per_minute=None,
+            free_daily_budget=None,
+            free_cache_ttl_seconds=None,
+            free_per_symbol_cooldown_seconds=None,
+            paid_rate_limit_per_minute=100,
+            paid_daily_budget=80_000,
+            paid_cache_ttl_seconds=300,
+            paid_per_symbol_cooldown_seconds=300,
         ),
         ProviderDefinition(
             id="coingecko",
@@ -288,10 +307,14 @@ def _env_assignment_names(path: Path) -> dict[str, bool]:
 def redacted_key_presence(
     *,
     vault_path: Path = DEFAULT_VAULT_PATH,
+    extra_paths: Iterable[Path] = DEFAULT_LAYERED_PRESENCE_PATHS,
     env: dict[str, str] | None = None,
     watched: Iterable[str] = (
         "NANSEN_API_KEY",
         "LUNARCRUSH_API_KEY",
+        "SANTIMENT_API_KEY",
+        "SANBASE_API_KEY",
+        "SANTIMENT_PRO_API_KEY",
         "COINGECKO_API_KEY",
         "COINGLASS_API_KEY",
         "ASKSURF_API_KEY",
@@ -307,7 +330,9 @@ def redacted_key_presence(
     ),
 ) -> dict[str, bool]:
     process_env = {} if env is None else env
-    vault_presence = _env_assignment_names(vault_path)
+    vault_presence: dict[str, bool] = {}
+    for path in (vault_path, *tuple(extra_paths)):
+        vault_presence.update(_env_assignment_names(Path(path)))
     result: dict[str, bool] = {}
     for name in watched:
         result[name] = bool(process_env.get(name)) or bool(vault_presence.get(name))
@@ -366,13 +391,14 @@ def dashboard_contracts() -> tuple[dict[str, Any], ...]:
         {**base, "id": "funding_open_interest_intelligence", "title": "Funding / Open Interest Intelligence", "rank": 5},
         {**base, "id": "nansen_smart_money_flow", "title": "Nansen Smart Money Flow", "rank": 6},
         {**base, "id": "lunarcrush_social_momentum", "title": "LunarCrush Social Momentum", "rank": 7},
-        {**base, "id": "arkham_entity_watchlist_future", "title": "Arkham Entity Watchlist Future", "rank": 8, "future_only_no_integration_today": True},
-        {**base, "id": "v2_symbol_universe_altdata_ranking", "title": "V2 Symbol Universe Alt-Data Ranking", "rank": 9},
+        {**base, "id": "santiment_onchain_social_state", "title": "Santiment On-Chain / Social State", "rank": 8},
+        {**base, "id": "arkham_entity_watchlist_future", "title": "Arkham Entity Watchlist Future", "rank": 9, "future_only_no_integration_today": True},
+        {**base, "id": "v2_symbol_universe_altdata_ranking", "title": "V2 Symbol Universe Alt-Data Ranking", "rank": 10},
         {
             **base,
             "id": "v2_trainer_risk_decision_overlay",
             "title": "V2 Trainer / Risk Decision Overlay",
-            "rank": 10,
+            "rank": 11,
             "altdata_may_not_override_strict_paper_fill_gate": True,
             "altdata_may_not_authorize_live_or_canary": True,
             "altdata_may_not_place_orders": True,

@@ -3516,11 +3516,16 @@ def build_trajectory_status(
     *,
     generated_utc: str,
     target_multiple: float = 1000.0,
-    horizon_years: float = 5.0,
+    target_horizon_days: float = 90.0,
     dependency_ready: bool = False,
     adaptive_feasibility_status: Mapping[str, Any] | None = None,
+    realtime_metrics: Mapping[str, Any] | None = None,
+    paper_b_grade_quality_status: Mapping[str, Any] | None = None,
+    performance_halted: bool = False,
 ) -> dict[str, Any]:
     adaptive_feasibility = mapping_or_empty(adaptive_feasibility_status)
+    realtime = mapping_or_empty(realtime_metrics)
+    paper_b_grade_quality = mapping_or_empty(paper_b_grade_quality_status)
     source_target_multiple = finite_float(
         first_present(
             adaptive_feasibility.get("target_multiple"),
@@ -3529,12 +3534,18 @@ def build_trajectory_status(
     )
     if source_target_multiple is not None:
         target_multiple = source_target_multiple
-    source_horizon_years = finite_float(adaptive_feasibility.get("horizon_years"))
-    if source_horizon_years is not None and source_horizon_years > 0.0:
-        horizon_years = source_horizon_years
+    source_horizon_days = finite_float(
+        first_present(
+            adaptive_feasibility.get("target_horizon_days"),
+            adaptive_feasibility.get("horizon_days"),
+        )
+    )
+    if source_horizon_days is not None and source_horizon_days > 0.0:
+        target_horizon_days = source_horizon_days
 
-    days = horizon_years * 365.0
-    months = horizon_years * 12.0
+    days = target_horizon_days
+    horizon_years = days / 365.0
+    months = days / (365.0 / 12.0)
     required_daily = target_multiple ** (1.0 / days) - 1.0
     required_monthly = target_multiple ** (1.0 / months) - 1.0
     required_log_growth = math.log(max(1.0, target_multiple))
@@ -3550,14 +3561,7 @@ def build_trajectory_status(
     observed_window_log_growth_values = trajectory_observed_window_log_growth_values(
         adaptive_feasibility
     )
-    required_edge = finite_float(
-        first_present(
-            adaptive_feasibility.get("required_daily_return"),
-            adaptive_feasibility.get("required_daily_geometric_return"),
-        )
-    )
-    if required_edge is None:
-        required_edge = required_daily
+    required_edge = required_daily
     lower_confidence_bound_growth_rate = finite_float(
         first_present(
             adaptive_feasibility.get("lower_confidence_bound_growth_rate"),
@@ -3615,6 +3619,82 @@ def build_trajectory_status(
             )
         if growth_gap is not None:
             days_ahead_or_behind_target = -growth_gap / required_daily_log_return
+    a_plus_rows = int(
+        finite_float(
+            first_present(
+                realtime.get("closed_economic_trade_count"),
+                realtime.get("trade_count"),
+                realtime.get("row_count"),
+            )
+        )
+        or 0
+    )
+    b_grade_rows = int(
+        finite_float(
+            first_present(
+                paper_b_grade_quality.get("b_grade_closed_outcome_count"),
+                paper_b_grade_quality.get("closed_outcome_count"),
+            )
+        )
+        or 0
+    )
+    observed_daily_log_return = finite_float(adaptive_feasibility.get("observed_daily_log_return"))
+    source_daily_return_pct = (
+        math.expm1(observed_daily_log_return) * 100.0
+        if observed_daily_log_return is not None
+        else None
+    )
+    a_plus_expectancy_bps = finite_float(realtime.get("after_cost_expectancy_bps"))
+    b_grade_expectancy_bps = finite_float(paper_b_grade_quality.get("after_cost_expectancy_bps"))
+    current_a_plus_daily_return_pct = (
+        source_daily_return_pct
+        if a_plus_rows > 0 and source_daily_return_pct is not None
+        else (a_plus_expectancy_bps / 100.0 if a_plus_rows > 0 and a_plus_expectancy_bps is not None else None)
+    )
+    current_b_grade_daily_return_pct = (
+        b_grade_expectancy_bps / 100.0 if b_grade_expectancy_bps is not None else None
+    )
+    current_actual_daily_return_pct = (
+        current_a_plus_daily_return_pct
+        if a_plus_rows > 0
+        else current_b_grade_daily_return_pct
+    )
+    required_daily_return_pct = required_daily * 100.0
+    projection_days = None
+    if current_a_plus_daily_return_pct is not None and current_a_plus_daily_return_pct > 0.0:
+        projection_days = math.log(target_multiple) / math.log1p(
+            current_a_plus_daily_return_pct / 100.0
+        )
+        if math.isfinite(projection_days):
+            days_ahead_or_behind_target = days - projection_days
+        else:
+            projection_days = None
+    calibration_status = "CALIBRATION_ONLY" if b_grade_rows > 0 and a_plus_rows <= 0 else None
+    if performance_halted:
+        status = "HALTED_PERFORMANCE"
+        blocker = "HALTED_PERFORMANCE"
+        detail = "HALTED_PERFORMANCE"
+    elif a_plus_rows <= 0:
+        status = "NO_A_PLUS_SUPPLY"
+        blocker = "A_PLUS_EVIDENCE_NOT_STARTED"
+        detail = (
+            "CALIBRATION_ONLY_NOT_TRAJECTORY_EVIDENCE"
+            if b_grade_rows > 0
+            else "A_PLUS_EVIDENCE_NOT_STARTED"
+        )
+        projection_days = None
+        days_ahead_or_behind_target = None
+    elif (
+        current_a_plus_daily_return_pct is None
+        or current_a_plus_daily_return_pct < required_daily_return_pct
+    ):
+        status = "BEHIND_90D_TARGET"
+        blocker = "BEHIND_90D_TARGET"
+        detail = "A_PLUS_DAILY_RETURN_BELOW_90D_TARGET"
+    else:
+        status = "ON_TRACK_90D_A_PLUS_EVIDENCE"
+        blocker = None
+        detail = "A_PLUS_EVIDENCE_ON_90D_TARGET"
     required_capital = finite_float(
         first_present(
             adaptive_feasibility.get("target_equity_usd"),
@@ -3632,15 +3712,19 @@ def build_trajectory_status(
             ("days_ahead_or_behind_target", days_ahead_or_behind_target),
             ("required_capital", required_capital),
             ("required_edge", required_edge),
+            ("A_plus_rows", a_plus_rows if a_plus_rows > 0 else None),
         )
         if value is None
     ]
-    status = "ON_1000X_TRAJECTORY" if dependency_ready else "INSUFFICIENT_EVIDENCE"
     return {
         "schema_version": SCHEMA_VERSION,
+        "runtime_schema_version": "one_thousand_x_90_day_trajectory_runtime_status_v1",
         "generated_utc": generated_utc,
+        "target_multiple": target_multiple,
         "target_equity_multiple": target_multiple,
+        "target_horizon_days": target_horizon_days,
         "target_horizon_years": horizon_years,
+        "required_daily_return_pct": round(required_daily_return_pct, 2),
         "required_daily_geometric_return": required_daily,
         "required_monthly_geometric_return": required_monthly,
         "actual_1d_return": window_returns.get("1d"),
@@ -3667,11 +3751,38 @@ def build_trajectory_status(
             if days_ahead_or_behind_target is not None
             else None
         ),
+        "projection_days": projection_days,
+        "projection_days_informational_only": status != "ON_TRACK_90D_A_PLUS_EVIDENCE",
         "required_capital": required_capital,
         "required_edge": required_edge,
         "required_edge_unit": "daily_geometric_return",
+        "trajectory_status": status,
         "current_status": status,
         "status": status,
+        "blocker": blocker,
+        "trajectory_status_detail": detail,
+        "calibration_status": calibration_status,
+        "target_multiple_1000": target_multiple,
+        "target_horizon_days_90": target_horizon_days,
+        "current_A_plus_daily_return_pct": current_a_plus_daily_return_pct,
+        "current_B_grade_daily_return_pct": current_b_grade_daily_return_pct,
+        "current_actual_daily_return_pct": current_actual_daily_return_pct,
+        "A_plus_rows": a_plus_rows,
+        "B_grade_rows": b_grade_rows,
+        "allowed_trajectory_statuses": [
+            "NO_A_PLUS_SUPPLY",
+            "CALIBRATION_ONLY",
+            "BEHIND_90D_TARGET",
+            "ON_TRACK_90D_A_PLUS_EVIDENCE",
+            "HALTED_PERFORMANCE",
+        ],
+        "B_grade_counts_as_1000x_proof": False,
+        "trainer_edge_or_accuracy_counts_as_1000x_proof": False,
+        "required_operator_text": [
+            "Target requires ~7.98% compounded daily.",
+            f"Current A+ evidence: {a_plus_rows}.",
+            "B-grade exploration does not count as 1000x proof.",
+        ],
         "trajectory_evidence_source": (
             "operator_runtime/v2_adaptive_capital_productivity/latest/"
             "one_thousand_x_feasibility_status.json"
@@ -3690,6 +3801,40 @@ def build_trajectory_status(
         "missing_trajectory_evidence_fields": missing_evidence_fields,
         "leverage_increase_allowed_because_behind": False,
         "guaranteed_profit_claim": False,
+        "dependency_ready": dependency_ready,
+    }
+
+
+def build_1000x_truth_status(
+    *,
+    surface: str,
+    trajectory: Mapping[str, Any],
+    generated_utc: str,
+) -> dict[str, Any]:
+    return {
+        "schema_version": "surface_1000x_truth_status_v1",
+        "surface": surface,
+        "generated_utc": generated_utc,
+        "trajectory_status": trajectory.get("trajectory_status") or trajectory.get("status"),
+        "blocker": trajectory.get("blocker"),
+        "target_multiple": trajectory.get("target_multiple"),
+        "target_horizon_days": trajectory.get("target_horizon_days"),
+        "required_daily_return_pct": trajectory.get("required_daily_return_pct"),
+        "projection_days": trajectory.get("projection_days"),
+        "A_plus_rows": trajectory.get("A_plus_rows"),
+        "B_grade_rows": trajectory.get("B_grade_rows"),
+        "current_A_plus_daily_return_pct": trajectory.get("current_A_plus_daily_return_pct"),
+        "current_B_grade_daily_return_pct": trajectory.get("current_B_grade_daily_return_pct"),
+        "B_grade_counts_as_1000x_proof": False,
+        "ready_claim_allowed": False,
+        "required_operator_text": list(trajectory.get("required_operator_text") or [
+            "Target requires ~7.98% compounded daily.",
+            "Current A+ evidence: 0.",
+            "B-grade exploration does not count as 1000x proof.",
+        ]),
+        "places_real_order": False,
+        "routes_to_live": False,
+        "live_path_changed": False,
     }
 
 
@@ -3782,6 +3927,9 @@ def build_guardian_payloads(
         generated_utc=generated_utc,
         dependency_ready=edge_ready,
         adaptive_feasibility_status=mapping_or_empty(one_thousand_x_feasibility),
+        realtime_metrics=realtime_metrics,
+        paper_b_grade_quality_status=paper_b_grade_quality,
+        performance_halted=False,
     )
     capital_allocation = build_capital_allocation_snapshot(
         paper_sizing=paper_sizing,
@@ -3980,9 +4128,23 @@ def build_guardian_payloads(
             [{"reason": "ANTI_METRIC_GAMING_STATUS_BLOCKED", "observed": anti_gaming["status"], "required": "PASSED"}]
             if anti_gaming["status"] != "PASSED" else []
         ),
-        {"reason": "1000X_TRAJECTORY_NOT_PROVEN", "observed": trajectory["status"], "required": "ON_1000X_TRAJECTORY"},
+        *(
+            [{
+                "reason": "1000X_TRAJECTORY_NOT_PROVEN",
+                "observed": trajectory["status"],
+                "required": "ON_TRACK_90D_A_PLUS_EVIDENCE",
+                "blocker": trajectory.get("blocker"),
+            }]
+            if trajectory["status"] != "ON_TRACK_90D_A_PLUS_EVIDENCE" else []
+        ),
     ]
-    go_no_go = READY_MARKER if execution_ready and anti_gaming["status"] == "PASSED" and trajectory["status"] == "ON_1000X_TRAJECTORY" else BLOCKED_MARKER
+    go_no_go = (
+        READY_MARKER
+        if execution_ready
+        and anti_gaming["status"] == "PASSED"
+        and trajectory["status"] == "ON_TRACK_90D_A_PLUS_EVIDENCE"
+        else BLOCKED_MARKER
+    )
 
     status = {
         "schema_version": SCHEMA_VERSION,
@@ -4028,6 +4190,16 @@ def build_guardian_payloads(
             "guaranteed_profit_or_1000x_claim_allowed": False,
         },
     }
+    website_1000x_truth_status = build_1000x_truth_status(
+        surface="website",
+        trajectory=trajectory,
+        generated_utc=generated_utc,
+    )
+    ios_1000x_truth_status = build_1000x_truth_status(
+        surface="ios",
+        trajectory=trajectory,
+        generated_utc=generated_utc,
+    )
 
     payloads = {
         "GOAL_LOCK.json": build_goal_lock(started_utc),
@@ -4089,6 +4261,9 @@ def build_guardian_payloads(
                 "strategy_brain_status.json",
                 "zero_liquidation_status.json",
                 "one_thousand_x_trajectory_status.json",
+                "one_thousand_x_90_day_trajectory_runtime_status.json",
+                "website_1000x_truth_status.json",
+                "ios_1000x_truth_status.json",
             ],
             "holdout_rows_source": str(paths.holdout_rows_path),
             "holdout_acquisition_sources": {
@@ -4175,6 +4350,9 @@ def build_guardian_payloads(
         "strategy_brain_status.json": strategy_brain,
         "zero_liquidation_status.json": zero_liquidation,
         "one_thousand_x_trajectory_status.json": trajectory,
+        "one_thousand_x_90_day_trajectory_runtime_status.json": trajectory,
+        "website_1000x_truth_status.json": website_1000x_truth_status,
+        "ios_1000x_truth_status.json": ios_1000x_truth_status,
         "operator_dashboard_payload.json": {
             "schema_version": SCHEMA_VERSION,
             "generated_utc": generated_utc,

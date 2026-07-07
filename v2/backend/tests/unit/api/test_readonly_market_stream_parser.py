@@ -786,19 +786,32 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
         ):
             return {
                 "schema_version": "one_thousand_x_trajectory_status_v1",
-                "status": "INSUFFICIENT_EVIDENCE",
-                "current_status": "INSUFFICIENT_EVIDENCE",
-                "required_daily_geometric_return": 0.003792243814971563,
-                "required_monthly_geometric_return": 0.12201845430196334,
+                "status": "NO_A_PLUS_SUPPLY",
+                "current_status": "NO_A_PLUS_SUPPLY",
+                "trajectory_status": "NO_A_PLUS_SUPPLY",
+                "blocker": "A_PLUS_EVIDENCE_NOT_STARTED",
+                "target_multiple": 1000.0,
+                "target_horizon_days": 90.0,
+                "required_daily_return_pct": 7.98,
+                "required_daily_geometric_return": 0.07977516232770955,
+                "required_monthly_geometric_return": 9.32497215000986,
                 "actual_1d_return": 0.0,
                 "actual_7d_return": 0.0,
                 "actual_30d_return": 0.0,
                 "drawdown_adjusted_growth_rate": 0.0,
                 "lower_confidence_bound_growth_rate": 0.0,
-                "days_ahead_or_behind_target": -1814.4667829543546,
-                "required_edge": 0.00379224,
+                "days_ahead_or_behind_target": None,
+                "projection_days": None,
+                "A_plus_rows": 0,
+                "B_grade_rows": 4,
+                "required_edge": 0.07977516232770955,
                 "required_capital": 10_000_000.0,
                 "missing_trajectory_evidence_fields": [],
+                "required_operator_text": [
+                    "Target requires ~7.98% compounded daily.",
+                    "Current A+ evidence: 0.",
+                    "B-grade exploration does not count as 1000x proof.",
+                ],
                 "guaranteed_profit_claim": False,
                 "leverage_increase_allowed_because_behind": False,
             }, "unit-test-trajectory"
@@ -961,21 +974,20 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
         "one_thousand_x_trajectory_status.json"
     )
     assert trajectory["available"] is True
-    assert trajectory["status"] == "INSUFFICIENT_EVIDENCE"
-    assert trajectory["current_status"] == "INSUFFICIENT_EVIDENCE"
+    assert trajectory["status"] == "NO_A_PLUS_SUPPLY"
+    assert trajectory["current_status"] == "NO_A_PLUS_SUPPLY"
+    assert trajectory["trajectory_status"] == "NO_A_PLUS_SUPPLY"
+    assert trajectory["required_daily_return_pct"] == 7.98
     assert trajectory["required_daily_geometric_return"] == pytest.approx(
-        0.003792243814971563
-    )
-    assert trajectory["required_monthly_geometric_return"] == pytest.approx(
-        0.12201845430196334
+        0.07977516232770955
     )
     assert trajectory["actual_1d_return"] == 0.0
     assert trajectory["actual_7d_return"] == 0.0
     assert trajectory["actual_30d_return"] == 0.0
-    assert trajectory["days_ahead_or_behind_target"] == pytest.approx(
-        -1814.4667829543546
-    )
-    assert trajectory["required_edge"] == pytest.approx(0.00379224)
+    assert trajectory["days_ahead_or_behind_target"] is None
+    assert trajectory["projection_days"] is None
+    assert trajectory["A_plus_rows"] == 0
+    assert trajectory["required_edge"] == pytest.approx(0.07977516232770955)
     assert trajectory["required_capital"] == pytest.approx(10_000_000.0)
     assert trajectory["guaranteed_profit_claim"] is False
     assert trajectory["leverage_increase_allowed_because_behind"] is False
@@ -1020,25 +1032,134 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
         for blocker in payload["blockers"]
         if blocker["id"] == "ONE_THOUSAND_X_TRAJECTORY_NOT_READY"
     )
-    assert trajectory_blocker["status"] == "INSUFFICIENT_EVIDENCE"
+    assert trajectory_blocker["status"] == "NO_A_PLUS_SUPPLY"
+    assert trajectory_blocker["blocker"] == "A_PLUS_EVIDENCE_NOT_STARTED"
+    assert trajectory_blocker["required_daily_return_pct"] == 7.98
     assert trajectory_blocker["required_daily_geometric_return"] == pytest.approx(
-        0.003792243814971563
-    )
-    assert trajectory_blocker["required_monthly_geometric_return"] == pytest.approx(
-        0.12201845430196334
+        0.07977516232770955
     )
     assert trajectory_blocker["actual_1d_return"] == 0.0
     assert trajectory_blocker["actual_7d_return"] == 0.0
     assert trajectory_blocker["actual_30d_return"] == 0.0
-    assert trajectory_blocker["days_ahead_or_behind_target"] == pytest.approx(
-        -1814.4667829543546
-    )
-    assert trajectory_blocker["required_edge"] == pytest.approx(0.00379224)
+    assert trajectory_blocker["days_ahead_or_behind_target"] is None
+    assert trajectory_blocker["projection_days"] is None
+    assert trajectory_blocker["A_plus_rows"] == 0
+    assert trajectory_blocker["required_edge"] == pytest.approx(0.07977516232770955)
     assert trajectory_blocker["required_capital"] == pytest.approx(10_000_000.0)
     assert trajectory_blocker["missing_trajectory_evidence_fields"] == []
     assert trajectory_blocker["guaranteed_profit_claim"] is False
     assert trajectory_blocker["leverage_increase_allowed_because_behind"] is False
     assert "v2:paper:intents" not in client.get_calls
+
+
+@pytest.mark.asyncio
+async def test_paper_runtime_status_uses_canonical_3000_portfolio_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    values = {
+        "v2:paper:heartbeat": {
+            "worker_id": "v2_trade_management_paper_loop",
+            "heartbeat_generated_at": "2026-07-05T22:30:00Z",
+            "cycle_state": "COMPLETED_CYCLE",
+            "writes_legacy_redis": False,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        },
+        "v2:paper:session": {
+            "paper_session_id": "paper_3000_final_pre_live_20260705T024432Z",
+            "starting_equity_usd": 3000.0,
+        },
+        "v2:portfolio:state": {
+            "paper_session_id": "paper_3000_final_pre_live_20260705T024432Z",
+            "initial_capital": 3000.0,
+            "starting_equity_usd": 3000.0,
+            "equity": 3000.0,
+            "realized_pnl_usd": 0.0,
+            "unrealized_pnl_usd": 0.0,
+            "open_positions_count": 0,
+            "open_position_notional": 0.0,
+            "closed_trade_count": 0,
+            "equity_trusted": True,
+            "pnl_trusted": True,
+        },
+        "v2:paper:ledger": {
+            "paper_session_id": "paper_3000_final_pre_live_20260705T024432Z",
+            "initial_capital": 3000.0,
+            "starting_equity_usd": 3000.0,
+            "accepted_count": 0,
+            "open_position_count": 0,
+            "closed_trade_count": 0,
+            "live_gate": "blocked_human_only",
+            "places_real_order": False,
+        },
+    }
+    client = _FakeRedis(values)
+    monkeypatch.setattr(market_contracts, "get_redis", lambda: client)
+    monkeypatch.setattr(market_contracts, "_utc_now", lambda: "2026-07-05T22:30:10Z")
+    monkeypatch.setattr(market_contracts, "_read_json", lambda _relative: (None, "unit-test-missing"))
+
+    payload = await market_contracts.get_paper_runtime_status(actor=None)
+
+    account = payload["paper_account"]
+    assert account["paper_session_id"] == "paper_3000_final_pre_live_20260705T024432Z"
+    assert account["starting_equity"] == 3000.0
+    assert account["initial_capital"] == 3000.0
+    assert account["equity"] == 3000.0
+    assert account["realized_pnl"] == 0.0
+    assert account["unrealized_pnl"] == 0.0
+    assert account["open_position_count"] == 0
+    assert account["closed_trade_count"] == 0
+    assert account["source"] == "redis:v2:portfolio:state+v2:paper:session+v2:paper:ledger"
+    assert "10000.0" not in json.dumps(account)
+
+
+@pytest.mark.asyncio
+async def test_portfolio_uses_clean_session_initial_capital_from_redis(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    values = {
+        "v2:portfolio:state": {
+            "paper_session_id": "paper_3000_final_pre_live_20260705T024432Z",
+            "initial_capital": 3000.0,
+            "starting_equity_usd": 3000.0,
+            "equity": 3000.0,
+            "realized_pnl_usd": 0.0,
+            "unrealized_pnl_usd": 0.0,
+            "open_positions_count": 0,
+            "open_position_notional": 0.0,
+            "closed_trade_count": 0,
+            "equity_trusted": True,
+            "pnl_trusted": True,
+        },
+        "v2:paper:positions": [],
+        "v2:paper:heartbeat": {
+            "starting_equity_usd": 10000.0,
+            "closed_trade_count": 12,
+            "realized_pnl_usd": -0.9539,
+            "unrealized_pnl_usd": 1.2991,
+            "total_open_notional": 1114.8,
+        },
+    }
+    client = _FakeRedis(values)
+    monkeypatch.setattr(market_contracts, "get_redis", lambda: client)
+    monkeypatch.setattr(market_contracts, "_paper_payload", lambda: ({}, "unit-test-paper"))
+    monkeypatch.setattr(market_contracts, "_portfolio_payload", lambda: ({}, "unit-test-portfolio"))
+
+    payload = await market_contracts.get_portfolio(actor=None)
+
+    data = payload["data"]
+    assert data["paper_session_id"] == "paper_3000_final_pre_live_20260705T024432Z"
+    assert data["equity"] == 3000.0
+    assert data["paper_initial_capital"] == 3000.0
+    assert data["initial_capital"] == 3000.0
+    assert data["starting_equity_usd"] == 3000.0
+    assert data["realized_pnl"] == 0.0
+    assert data["unrealized_pnl"] == 0.0
+    assert data["total_open_notional"] == 0.0
+    assert data["open_position_count"] == 0
+    assert data["closed_trade_count"] == 0
+    assert "10000.0" not in json.dumps(data)
 
 
 @pytest.mark.asyncio

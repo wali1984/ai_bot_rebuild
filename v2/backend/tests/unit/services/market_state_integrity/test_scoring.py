@@ -114,6 +114,130 @@ def test_missing_liquidity_zone_fields_are_masked_optional_context() -> None:
     assert score.source_lineage["optional_missing_features_masked"] is True
 
 
+def test_missing_realized_slippage_error_is_masked_as_outcome_only_context() -> None:
+    row = {
+        "symbol": "SOLUSDT",
+        "timeframe": "1m",
+        "feature_snapshot_id": "fs-current-realized-slippage",
+        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "feature_freshness_state": "CURRENT",
+        "trainer_consumable": True,
+        "candle_closed_confirmed": True,
+        "candle_open_time": "2026-06-14T18:00:00Z",
+        "candle_close_time": "2026-06-14T18:01:00Z",
+        "source_event_time_est": "2026-06-14T18:01:00Z",
+        "source_received_time_est": "2026-06-14T18:01:01Z",
+        "decision_time_est": "2026-06-14T18:01:01Z",
+        "missing_feature_count": 1,
+        "missing_feature_names": ["realized_slippage_error"],
+        "features": {
+            "open": 65.19,
+            "high": 65.22,
+            "low": 65.1,
+            "close": 65.1,
+        },
+    }
+
+    score = score_market_state(row)
+
+    assert "MISSING_CRITICAL_FEATURE_FAMILY" not in score.reject_reasons
+    assert score.source_lineage["optional_missing_features_masked"] is True
+
+
+def test_missing_realized_slippage_error_does_not_mask_missing_required_context() -> None:
+    row = {
+        "symbol": "SOLUSDT",
+        "timeframe": "1m",
+        "feature_snapshot_id": "fs-current-realized-slippage-plus-required",
+        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "feature_freshness_state": "CURRENT",
+        "trainer_consumable": True,
+        "candle_closed_confirmed": True,
+        "candle_open_time": "2026-06-14T18:00:00Z",
+        "candle_close_time": "2026-06-14T18:01:00Z",
+        "source_event_time_est": "2026-06-14T18:01:00Z",
+        "source_received_time_est": "2026-06-14T18:01:01Z",
+        "decision_time_est": "2026-06-14T18:01:01Z",
+        "missing_feature_count": 2,
+        "missing_feature_names": ["realized_slippage_error", "close"],
+        "features": {
+            "open": 65.19,
+            "high": 65.22,
+            "low": 65.1,
+            "close": 65.1,
+        },
+    }
+
+    score = score_market_state(row)
+
+    assert "MISSING_CRITICAL_FEATURE_FAMILY" in score.reject_reasons
+    assert score.source_lineage["optional_missing_features_masked"] is False
+
+
+def test_missing_mask_false_values_override_stale_missing_count_false_positive() -> None:
+    generated = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    row = {
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "feature_snapshot_id": "fs-mask-clean",
+        "generated_at": generated,
+        "feature_freshness_state": "CURRENT",
+        "candle_closed_confirmed": True,
+        "candle_open_time": generated,
+        "candle_close_time": generated,
+        "source_event_time_est": generated,
+        "source_received_time_est": generated,
+        "decision_time_est": generated,
+        "missing_feature_count": 192,
+        "missing_mask": {"open": False, "high": False, "low": False, "close": False},
+        "source_availability": {"ohlcv": True, "orderbook": True},
+        "features": {
+            "open": 100.0,
+            "high": 101.0,
+            "low": 99.0,
+            "close": 100.5,
+        },
+    }
+
+    score = score_market_state(row)
+
+    assert "MISSING_CRITICAL_FEATURE_FAMILY" not in score.reject_reasons
+    assert score.source_lineage["missing_feature_count"] == 0
+    assert score.source_lineage["missing_mask"]["close"] is False
+    assert score.source_lineage["source_availability"] == {"ohlcv": True, "orderbook": True}
+
+
+def test_missing_mask_true_values_still_block_actual_missing_features() -> None:
+    generated = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    row = {
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "feature_snapshot_id": "fs-mask-missing",
+        "generated_at": generated,
+        "feature_freshness_state": "CURRENT",
+        "candle_closed_confirmed": True,
+        "candle_open_time": generated,
+        "candle_close_time": generated,
+        "source_event_time_est": generated,
+        "source_received_time_est": generated,
+        "decision_time_est": generated,
+        "missing_feature_count": 0,
+        "missing_mask": {"open": False, "close": True},
+        "features": {
+            "open": 100.0,
+            "high": 101.0,
+            "low": 99.0,
+            "close": 100.5,
+        },
+    }
+
+    score = score_market_state(row)
+
+    assert "MISSING_CRITICAL_FEATURE_FAMILY" in score.reject_reasons
+    assert score.source_lineage["missing_feature_count"] == 1
+    assert score.source_lineage["missing_feature_names"] == ["close"]
+
+
 def test_current_feature_snapshot_missing_core_ohlc_still_rejects_training() -> None:
     row = {
         "symbol": "CAKEUSDT",

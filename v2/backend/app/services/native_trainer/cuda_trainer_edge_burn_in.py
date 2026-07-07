@@ -43,6 +43,30 @@ ALLOWED_RECOMMENDATIONS = (
 )
 DEFAULT_ROUND_TRIP_COST_BPS = 12.0
 MIN_OUTCOME_SAMPLE_GUARD = 30
+PREDICTION_CONTEXT_FIELDS: tuple[str, ...] = (
+    "entry_feature_snapshot_id",
+    "entry_feature_snapshot",
+    "feature_snapshot_id",
+    "feature_snapshot",
+    "mtf_snapshot_id",
+    "feature_cutoff",
+    "available_at",
+    "decision_time",
+    "market_regime",
+    "market_regime_at_entry",
+    "major_move_context",
+    "liquidity_context",
+    "liquidity_zone_context",
+    "liquidation_distance_context",
+    "liquidation_context",
+    "microstructure_context",
+    "oi_funding_context",
+    "public_intel_context",
+    "premium_ingestor_context_status",
+    "premium_ingestor_context_sources",
+    "premium_ingestor_missing_contexts",
+    "liquidation_engine_context_status",
+)
 
 
 @dataclass(frozen=True)
@@ -337,6 +361,20 @@ def _lineage_by_prediction(source: Mapping[str, Any]) -> dict[str, dict[str, Any
     return out
 
 
+def _prediction_entry_context(prediction: Mapping[str, Any]) -> dict[str, Any]:
+    """Carry only entry-time context fields into outcome rows.
+
+    Future windows are attached separately by this burn-in pass; context fields
+    here must come from the original prediction payload and remain PIT-safe.
+    """
+    context: dict[str, Any] = {}
+    for field in PREDICTION_CONTEXT_FIELDS:
+        value = prediction.get(field)
+        if value not in (None, "", [], {}):
+            context[field] = value
+    return context
+
+
 def _label_outcome(prediction: Mapping[str, Any], lineage: Mapping[str, Any], outcome_5m: Mapping[str, Any]) -> str:
     after_cost = _float(outcome_5m.get("after_cost_return_bps"))
     if after_cost is None:
@@ -407,6 +445,7 @@ def build_outcome_rows(source: Mapping[str, Any], timeline_provider: TimelinePro
                 "data_coverage_percent": prediction.get("data_coverage_percent"),
                 "missing_feature_count": prediction.get("missing_feature_count"),
                 "stale_feature_count": prediction.get("stale_feature_count"),
+                **_prediction_entry_context(prediction),
                 "outcome_windows": windows,
                 "primary_outcome_window": "5m",
                 "realized_after_cost_return_bps": windows["5m"].get("after_cost_return_bps"),

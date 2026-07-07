@@ -26,12 +26,179 @@ from v2.backend.app.services.feature_pipeline_and_ta.service import (
     _atr as _ta_atr,
     _orderbook_imbalance as _ta_orderbook_imbalance,
 )
+from v2.backend.app.services.adaptive_capital_allocator.contracts import AllocationInput
 
 V2_REDIS_PREFIX = "v2:"
 DEFAULT_TF = "1m"
 DEFAULT_TIMEFRAMES = ("1m", "5m", "15m", "1h", "4h")
 FEATURE_LATEST_TTL_SECONDS = 600
 FEATURE_SNAPSHOT_ARCHIVE_TTL_SECONDS = 24 * 60 * 60  # 24h; 30d caused Redis OOM at 370K keys
+CONFIGURED_FEE_BPS_SOURCE = (
+    "CONFIGURED_PAPER_FEE_SCHEDULE:"
+    "adaptive_capital_allocator.AllocationInput.fee_bps"
+)
+DIRECT_ORDERBOOK_ALIASES = (
+    ("ob_best_bid", ("ob_best_bid", "best_bid", "bid")),
+    ("ob_best_ask", ("ob_best_ask", "best_ask", "ask")),
+    ("ob_mid_price", ("ob_mid_price", "bid_ask_mid", "mid", "mid_price")),
+    ("bid_ask_mid", ("bid_ask_mid", "mid", "mid_price")),
+    ("best_bid_size", ("best_bid_size", "bid_size")),
+    ("best_ask_size", ("best_ask_size", "ask_size")),
+    ("ob_spread_bps", ("ob_spread_bps", "spread_bps", "bid_ask_spread_bps")),
+    ("spread_bps", ("spread_bps", "bid_ask_spread_bps", "ob_spread_bps")),
+    ("orderbook_spread_bps", ("orderbook_spread_bps", "spread_bps", "bid_ask_spread_bps")),
+    ("ob_imbalance", ("ob_imbalance", "orderbook_imbalance", "depth_imbalance")),
+    ("orderbook_depth_imbalance", ("orderbook_depth_imbalance", "depth_imbalance", "orderbook_imbalance")),
+    ("orderbook_depth_usd", ("orderbook_depth_usd", "depth_total_usd", "depth_usd")),
+    ("depth_total_usd", ("depth_total_usd", "orderbook_depth_usd", "depth_usd")),
+    ("depth_usd", ("depth_usd", "depth_total_usd", "orderbook_depth_usd")),
+    ("depth_5_bid_usd", ("depth_5_bid_usd",)),
+    ("depth_5_ask_usd", ("depth_5_ask_usd",)),
+    ("depth_20_bid_usd", ("depth_20_bid_usd",)),
+    ("depth_20_ask_usd", ("depth_20_ask_usd",)),
+    ("depth_slope", ("depth_slope",)),
+    ("estimated_price_impact_bps", ("estimated_price_impact_bps", "price_impact_bps")),
+    ("update_age_ms", ("update_age_ms",)),
+    ("sequence_gap_flag", ("sequence_gap_flag", "sequence_gap")),
+    ("source_latency_ms", ("source_latency_ms", "feed_speed_ms")),
+    ("microstructure_liquidity_depth", ("microstructure_liquidity_depth", "depth_total_usd", "orderbook_depth_usd")),
+    ("microprice", ("microprice", "bid_ask_mid", "mid", "mid_price")),
+)
+MICROSTRUCTURE_FEATURE_FIELDS = (
+    "microstructure_trust_score",
+    "orderbook_trust_score",
+    "feed_latency_ms",
+    "orderbook_latency_ms",
+    "spread_instability",
+    "depth_persistence",
+    "book_depth_persistence_score",
+    "cancel_pressure",
+    "book_cancel_pressure_score",
+    "book_trade_divergence",
+    "cross_venue_confirmation",
+    "cross_venue_confirmation_score",
+    "sweep_risk",
+    "sweep_risk_score",
+    "post_sweep_reversal_probability",
+    "realized_slippage_error",
+    "liquidation_cascade_risk",
+    "liquidation_zone_risk_score",
+)
+ALTDATA_SYMBOL_SCORE_FIELDS = (
+    "altdata_symbol_score",
+    "provider_availability_score",
+    "altdata_freshness_score",
+    "coingecko_discovery_score",
+    "coingecko_liquidity_score",
+    "coingecko_momentum_score",
+    "surf_market_price_signal_score",
+    "coinglass_derivatives_score",
+    "public_intel_score",
+    "defillama_liquidity_score",
+    "defillama_tvl_momentum_score",
+    "fear_greed_score",
+    "btc_mempool_pressure_score",
+    "news_attention_score",
+    "news_sentiment_score",
+    "whale_wall_score",
+    "whale_bid_pressure_score",
+    "whale_ask_pressure_score",
+    "whale_wall_imbalance_score",
+    "whale_wall_count_score",
+    "whale_wall_event_count",
+    "whale_bid_wall_notional_usd",
+    "whale_ask_wall_notional_usd",
+    "whale_total_wall_notional_usd",
+    "nearest_bid_wall_distance_bps",
+    "nearest_ask_wall_distance_bps",
+    "aicoin_market_activity_score",
+    "aicoin_coin_profile_score",
+    "aicoin_order_flow_score",
+    "aicoin_whale_order_score",
+    "aicoin_signal_score",
+    "aicoin_drop_radar_score",
+    "aicoin_airdrop_score",
+    "aicoin_liquidation_score",
+    "aicoin_open_interest_score",
+    "aicoin_news_attention_score",
+    "santiment_social_volume_score",
+    "santiment_whale_activity_score",
+    "santiment_sentiment_score",
+    "santiment_onchain_activity_score",
+    "santiment_dev_activity_score",
+    "santiment_exchange_inflow_risk_score",
+    "santiment_supply_on_exchanges_score",
+    "santiment_social_volume_total",
+    "santiment_sentiment_positive_total",
+    "santiment_sentiment_negative_total",
+    "santiment_whale_transaction_count_1m",
+    "santiment_whale_transaction_count_100k_usd_to_inf",
+    "santiment_exchange_inflow",
+    "santiment_percent_of_total_supply_on_exchanges",
+    "santiment_active_addresses_24h",
+    "santiment_transaction_volume",
+    "santiment_dev_activity",
+)
+PUBLIC_INTEL_FEATURE_FIELDS = (
+    "public_intel_score",
+    "defillama_liquidity_score",
+    "defillama_tvl_momentum_score",
+    "fear_greed_score",
+    "btc_mempool_pressure_score",
+    "news_attention_score",
+    "news_sentiment_score",
+)
+AICOIN_SCORE_COMPONENT_FIELDS = (
+    "aicoin_market_activity_score",
+    "aicoin_coin_profile_score",
+    "aicoin_order_flow_score",
+    "aicoin_whale_order_score",
+    "aicoin_signal_score",
+    "aicoin_drop_radar_score",
+    "aicoin_airdrop_score",
+    "aicoin_liquidation_score",
+    "aicoin_open_interest_score",
+    "aicoin_news_attention_score",
+)
+WHALE_WALL_FEATURE_FIELDS = (
+    "whale_wall_score",
+    "whale_bid_pressure_score",
+    "whale_ask_pressure_score",
+    "whale_wall_imbalance_score",
+    "whale_wall_count_score",
+    "whale_wall_event_count",
+    "whale_bid_wall_notional_usd",
+    "whale_ask_wall_notional_usd",
+    "whale_total_wall_notional_usd",
+    "nearest_bid_wall_distance_bps",
+    "nearest_ask_wall_distance_bps",
+)
+SANTIMENT_FEATURE_FIELDS = (
+    "santiment_social_volume_score",
+    "santiment_whale_activity_score",
+    "santiment_sentiment_score",
+    "santiment_onchain_activity_score",
+    "santiment_dev_activity_score",
+    "santiment_exchange_inflow_risk_score",
+    "santiment_supply_on_exchanges_score",
+    "santiment_social_volume_total",
+    "santiment_sentiment_positive_total",
+    "santiment_sentiment_negative_total",
+    "santiment_whale_transaction_count_1m",
+    "santiment_whale_transaction_count_100k_usd_to_inf",
+    "santiment_exchange_inflow",
+    "santiment_percent_of_total_supply_on_exchanges",
+    "santiment_active_addresses_24h",
+    "santiment_transaction_volume",
+    "santiment_dev_activity",
+)
+DERIVED_ALTDATA_ALIASES = (
+    ("coingecko_score", ("coingecko_score", "coingecko_discovery_score")),
+    ("surf_score", ("surf_score", "surf_market_price_signal_score")),
+    ("defillama_score", ("defillama_score", "defillama_liquidity_score")),
+    ("fear_greed_context", ("fear_greed_context", "fear_greed_score")),
+    ("mempool_context", ("mempool_context", "btc_mempool_pressure_score")),
+)
 REPO_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_PAYLOAD_PATH = (
     REPO_ROOT
@@ -246,14 +413,22 @@ def _closed_klines(klines: list | None, *, decision_ms: int) -> tuple[list, list
 def _read_orderbook(r, symbol: str) -> dict | None:
     if r is None:
         return None
-    raw = r.get(f"{V2_REDIS_PREFIX}market:orderbook:{symbol}")
-    if not raw:
-        return None
-    try:
-        data = json.loads(raw)
-        return data if isinstance(data, dict) else None
-    except (ValueError, TypeError):
-        return None
+    for key in (
+        f"{V2_REDIS_PREFIX}market:orderbook:{symbol}",
+        f"{V2_REDIS_PREFIX}market:orderbook:binance:{symbol}",
+        f"{V2_REDIS_PREFIX}orderbook:features:binance:{symbol}",
+        f"{V2_REDIS_PREFIX}orderbook:features:kucoin:{symbol}",
+    ):
+        raw = r.get(key)
+        if not raw:
+            continue
+        try:
+            data = json.loads(raw)
+        except (ValueError, TypeError):
+            continue
+        if isinstance(data, dict):
+            return data
+    return None
 
 
 def _read_oi_hist(r, symbol: str) -> list | None:
@@ -360,10 +535,191 @@ def _merge_numeric_features(target: dict, source: dict | None, *, prefix: str | 
     return merged
 
 
+def _merge_selected_numeric_features(target: dict, source: dict | None, fields: tuple[str, ...]) -> int:
+    if not isinstance(source, dict):
+        return 0
+    merged = 0
+    for name in fields:
+        if target.get(name) is not None:
+            continue
+        value = _coerce_numeric(source.get(name))
+        if value is None:
+            continue
+        target[name] = value
+        merged += 1
+    return merged
+
+
+def _merge_numeric_aliases(target: dict, source: dict | None, aliases: tuple[tuple[str, tuple[str, ...]], ...]) -> int:
+    if not isinstance(source, dict):
+        return 0
+    merged = 0
+    for out_name, source_names in aliases:
+        if target.get(out_name) is not None:
+            continue
+        for source_name in source_names:
+            value = _coerce_numeric(source.get(source_name))
+            if value is None:
+                continue
+            target[out_name] = value
+            merged += 1
+            break
+    return merged
+
+
+def _derive_mean_feature(target: dict, out_name: str, component_fields: tuple[str, ...]) -> int:
+    if target.get(out_name) is not None:
+        return 0
+    values = [
+        float(value)
+        for value in (_coerce_numeric(target.get(name)) for name in component_fields)
+        if value is not None
+    ]
+    if not values:
+        return 0
+    target[out_name] = sum(values) / len(values)
+    return 1
+
+
+def _read_first_json_key(r, *keys: str) -> tuple[dict | None, str | None]:
+    for key in keys:
+        value = _read_json_key(r, key)
+        if isinstance(value, dict):
+            return value, key
+    return None, None
+
+
+def _provider_payload_decision_fresh(payload: dict, *, max_age_seconds: int = 1_800) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    stale_flags = payload.get("stale_feature_flags")
+    if isinstance(stale_flags, list) and stale_flags:
+        return False
+    age = _coerce_numeric(payload.get("provider_freshness_seconds"))
+    if age is None:
+        return True
+    return float(age) <= float(max_age_seconds)
+
+
+_DIRECTION_CODES = {"UP": 1.0, "DOWN": -1.0, "FLAT": 0.0, "UNKNOWN": 0.0}
+_RSI_ZONE_CODES = {"OVERSOLD": -2.0, "BEARISH": -1.0, "NEUTRAL": 0.0, "BULLISH": 1.0, "OVERBOUGHT": 2.0}
+_MACD_STATE_CODES = {
+    "BEARISH": -2.0,
+    "BEARISH_FADING": -1.0,
+    "NEUTRAL": 0.0,
+    "BULLISH_FADING": 1.0,
+    "BULLISH": 2.0,
+}
+_DELTA_TREND_CODES = {"FALLING": -1.0, "FLAT": 0.0, "RISING": 1.0}
+_REGIME_ONE_HOT_FIELDS = {
+    "TRENDING_UP": "regime_trending_up",
+    "TRENDING_DOWN": "regime_trending_down",
+    "RANGING": "regime_ranging",
+    "VOLATILE_EXPANSION": "regime_volatile_expansion",
+    "LIQUIDITY_SWEEP": "regime_liquidity_sweep",
+    "FAKEOUT_RISK": "regime_fakeout_risk",
+    "NO_TRADE": "regime_no_trade",
+}
+
+
+def _encoded(mapping: dict, value) -> float | None:
+    if value is None:
+        return None
+    return mapping.get(str(value).strip().upper())
+
+
+def _merge_a_plus_context_features(r, symbol: str, timeframe: str, features: dict) -> tuple[int, list[str]]:
+    """A+ goal Phases 4/5/6: HTF + cross-asset + regime + trade-tape context.
+
+    Merging here puts these fields into the decision-time snapshot, so trainer
+    tensors, risk/orchestrator envelopes, and replay archives all carry the
+    higher-timeframe and order-flow picture with point-in-time lineage.
+    """
+    sources_present: list[str] = []
+    fields_merged = 0
+
+    htf = _read_json_key(r, f"v2:context:htf:{symbol}")
+    if isinstance(htf, dict):
+        merged = _merge_numeric_features(
+            features,
+            {k: v for k, v in htf.items() if k.startswith(("htf_", "mtf_"))},
+        )
+        merged += _merge_numeric_features(
+            features,
+            {
+                "htf_4h_trend_code": _encoded(_DIRECTION_CODES, htf.get("htf_4h_trend")),
+                "htf_1d_ema_direction_code": _encoded(_DIRECTION_CODES, htf.get("htf_1d_ema_direction")),
+                "htf_4h_rsi_zone_code": _encoded(_RSI_ZONE_CODES, htf.get("htf_4h_rsi_zone")),
+                "htf_1d_rsi_zone_code": _encoded(_RSI_ZONE_CODES, htf.get("htf_1d_rsi_zone")),
+                "htf_4h_macd_state_code": _encoded(_MACD_STATE_CODES, htf.get("htf_4h_macd_state")),
+            },
+        )
+        if merged:
+            fields_merged += merged
+            sources_present.append("v2:context:htf")
+
+    cross_asset = _read_json_key(r, "v2:context:cross_asset")
+    if isinstance(cross_asset, dict):
+        merged = _merge_numeric_features(
+            features,
+            {
+                "cross_btc_rsi_4h": cross_asset.get("btc_rsi_4h"),
+                "cross_btc_ret_4h_pct": cross_asset.get("btc_ret_4h_pct"),
+                "cross_btc_direction_1h_code": _encoded(_DIRECTION_CODES, cross_asset.get("btc_direction_1h")),
+                "cross_btc_direction_4h_code": _encoded(_DIRECTION_CODES, cross_asset.get("btc_direction_4h")),
+                "cross_eth_btc_direction_4h_code": _encoded(_DIRECTION_CODES, cross_asset.get("eth_btc_direction_4h")),
+                "cross_risk_off_proxy": 1.0 if cross_asset.get("risk_off_proxy") is True else 0.0,
+            },
+        )
+        if merged:
+            fields_merged += merged
+            sources_present.append("v2:context:cross_asset")
+
+    regime_gate = _read_json_key(r, f"v2:regime:gate:{symbol}:{timeframe}")
+    if isinstance(regime_gate, dict):
+        regime_label = str(regime_gate.get("regime") or "").strip().upper()
+        one_hot = {
+            field: (1.0 if label == regime_label else 0.0)
+            for label, field in _REGIME_ONE_HOT_FIELDS.items()
+        }
+        one_hot["regime_confidence"] = regime_gate.get("confidence")
+        merged = _merge_numeric_features(features, one_hot)
+        if merged:
+            fields_merged += merged
+            sources_present.append("v2:regime:gate")
+
+    tape = _read_json_key(r, f"v2:market:trade_tape_features:{symbol}")
+    if isinstance(tape, dict):
+        merged = _merge_numeric_features(
+            features,
+            {
+                "taker_buy_pct_1m": tape.get("taker_buy_pct_1m"),
+                "tape_delta_1m_usd": tape.get("delta_1m"),
+                "tape_cumulative_delta_trend_code": _encoded(
+                    _DELTA_TREND_CODES, tape.get("cumulative_delta_trend_5m")
+                ),
+                "tape_large_trade_flag": 1.0 if tape.get("large_trade_flag") else 0.0,
+                "aggressive_buy_volume": tape.get("aggressive_buy_volume"),
+                "aggressive_sell_volume": tape.get("aggressive_sell_volume"),
+                "tape_volume_acceleration": tape.get("volume_acceleration"),
+                "trade_tape_confirmation_score": tape.get("trade_tape_confirmation_score"),
+            },
+        )
+        if merged:
+            fields_merged += merged
+            sources_present.append("v2:market:trade_tape_features")
+
+    return fields_merged, sources_present
+
+
 def _merge_external_v2_features(r, symbol: str, timeframe: str, features: dict) -> dict:
     """Merge real V2 feature surfaces into the live feature mirror."""
     sources_present: list[str] = []
     fields_merged = 0
+
+    a_plus_merged, a_plus_sources = _merge_a_plus_context_features(r, symbol, timeframe, features)
+    fields_merged += a_plus_merged
+    sources_present.extend(a_plus_sources)
 
     ta_full = _read_json_key(r, f"v2:features:ta_full:{symbol}:{timeframe}")
     if isinstance(ta_full, dict):
@@ -381,6 +737,21 @@ def _merge_external_v2_features(r, symbol: str, timeframe: str, features: dict) 
     if isinstance(unified, dict):
         fields_merged += _merge_numeric_features(features, unified)
         sources_present.append("v2:unified_features")
+
+    direct_orderbook, direct_orderbook_key = _read_first_json_key(
+        r,
+        f"v2:orderbook:features:binance:{symbol}",
+        f"v2:orderbook:features:kucoin:{symbol}",
+        f"v2:market:orderbook:{symbol}",
+        f"v2:market:orderbook:binance:{symbol}",
+    )
+    if isinstance(direct_orderbook, dict):
+        fields_merged += _merge_numeric_aliases(features, direct_orderbook, DIRECT_ORDERBOOK_ALIASES)
+        sources_present.append(
+            "v2:orderbook:features"
+            if direct_orderbook_key and "orderbook:features" in direct_orderbook_key
+            else "v2:market:orderbook"
+        )
 
     wsds = _read_json_key(r, f"v2:market:coinapi:wsds:{symbol}")
     if isinstance(wsds, dict):
@@ -406,6 +777,90 @@ def _merge_external_v2_features(r, symbol: str, timeframe: str, features: dict) 
         if merged:
             fields_merged += merged
             sources_present.append("v2:features:microfeat")
+
+    microstructure_sources = (
+        ("v2:microstructure:trust_score", f"v2:microstructure:trust_score:{symbol}:{timeframe}"),
+        ("v2:microstructure:feed_quality", f"v2:microstructure:feed_quality:binance:{symbol}"),
+        ("v2:microstructure:adversarial_features", f"v2:microstructure:adversarial_features:binance:{symbol}"),
+        ("v2:microstructure:trade_tape_confirmation", f"v2:microstructure:trade_tape_confirmation:{symbol}"),
+        ("v2:microstructure:cross_venue_confirmation", f"v2:microstructure:cross_venue_confirmation:{symbol}"),
+        ("v2:microstructure:sweep_risk", f"v2:microstructure:sweep_risk:{symbol}:{timeframe}"),
+    )
+    for source_label, key in microstructure_sources:
+        payload = _read_json_key(r, key)
+        if not isinstance(payload, dict):
+            continue
+        fields_merged += _merge_selected_numeric_features(features, payload, MICROSTRUCTURE_FEATURE_FIELDS)
+        fields_merged += _merge_numeric_aliases(
+            features,
+            payload,
+            (
+                ("microstructure_trust_score", ("microstructure_trust_score", "orderbook_trust_score")),
+                ("feed_latency_ms", ("feed_latency_ms", "orderbook_latency_ms", "latency_ms", "local_latency_ms")),
+                ("spread_instability", ("spread_instability", "spread_expansion_rate")),
+                ("depth_persistence", ("depth_persistence", "book_depth_persistence_score", "depth_persistence_ms")),
+                ("cancel_pressure", ("cancel_pressure", "book_cancel_pressure_score", "cancel_burst_score")),
+                ("book_trade_divergence", ("book_trade_divergence", "book_trade_divergence_score")),
+                ("depth_vs_tape_divergence", ("depth_vs_tape_divergence", "book_trade_divergence_score")),
+                ("cross_venue_confirmation", ("cross_venue_confirmation", "cross_venue_confirmation_score")),
+                ("sweep_risk", ("sweep_risk", "sweep_risk_score")),
+                ("liquidation_cascade_risk", ("liquidation_cascade_risk", "liquidation_zone_risk_score")),
+                ("tape_imbalance", ("tape_imbalance", "trade_imbalance")),
+                ("order_flow_imbalance", ("order_flow_imbalance", "trade_imbalance")),
+            ),
+        )
+        sources_present.append(source_label)
+
+    symbol_score = _read_json_key(r, f"v2:altdata:symbol_score:{symbol}")
+    if isinstance(symbol_score, dict):
+        fields_merged += _merge_selected_numeric_features(features, symbol_score, ALTDATA_SYMBOL_SCORE_FIELDS)
+        fields_merged += _merge_numeric_aliases(features, symbol_score, DERIVED_ALTDATA_ALIASES)
+        sources_present.append("v2:altdata:symbol_score")
+
+    public_intel = _read_json_key(r, f"v2:altdata:public_intel:symbol:{symbol}")
+    if isinstance(public_intel, dict):
+        fields_merged += _merge_selected_numeric_features(features, public_intel, PUBLIC_INTEL_FEATURE_FIELDS)
+        fields_merged += _merge_numeric_aliases(features, public_intel, DERIVED_ALTDATA_ALIASES)
+        sources_present.append("v2:altdata:public_intel")
+
+    aicoin = _read_json_key(r, f"v2:altdata:aicoin:symbol:{symbol}")
+    if isinstance(aicoin, dict):
+        fields_merged += _merge_selected_numeric_features(features, aicoin, AICOIN_SCORE_COMPONENT_FIELDS)
+        fields_merged += _merge_numeric_aliases(features, aicoin, (("aicoin_score", ("score", "aicoin_score")),))
+        sources_present.append("v2:altdata:aicoin")
+
+    whale_walls = _read_json_key(r, f"v2:altdata:whale_walls:symbol:{symbol}")
+    if isinstance(whale_walls, dict):
+        fields_merged += _merge_selected_numeric_features(features, whale_walls, WHALE_WALL_FEATURE_FIELDS)
+        sources_present.append("v2:altdata:whale_walls")
+
+    santiment = _read_json_key(r, f"v2:altdata:santiment:symbol:{symbol}")
+    if isinstance(santiment, dict):
+        if _provider_payload_decision_fresh(santiment):
+            fields_merged += _merge_selected_numeric_features(features, santiment, SANTIMENT_FEATURE_FIELDS)
+            sources_present.append("v2:altdata:santiment")
+        else:
+            sources_present.append("v2:altdata:santiment_stale_skipped")
+
+    lunarcrush = _read_json_key(r, f"v2:altdata:lunarcrush:symbol:{symbol}")
+    if isinstance(lunarcrush, dict):
+        fields_merged += _merge_numeric_aliases(features, lunarcrush, (("lunarcrush_score", ("score", "lunarcrush_score")),))
+        sources_present.append("v2:altdata:lunarcrush")
+
+    nansen = _read_json_key(r, f"v2:altdata:nansen:symbol:{symbol}")
+    if isinstance(nansen, dict):
+        fields_merged += _merge_numeric_aliases(
+            features,
+            nansen,
+            (
+                ("nansen_score", ("score", "nansen_score", "presence", "nansen_presence")),
+                ("nansen_presence", ("presence", "nansen_presence")),
+            ),
+        )
+        sources_present.append("v2:altdata:nansen")
+
+    fields_merged += _merge_numeric_aliases(features, features, DERIVED_ALTDATA_ALIASES)
+    fields_merged += _derive_mean_feature(features, "aicoin_score", AICOIN_SCORE_COMPONENT_FIELDS)
 
     return {
         "sources_present": sorted(set(sources_present)),
@@ -475,6 +930,53 @@ def _klines_to_ohlc_series(klines: list) -> tuple[list[float], list[float], list
     return opens, highs, lows, closes
 
 
+def _atr_pct_series_from_ohlc(
+    highs: list[float],
+    lows: list[float],
+    closes: list[float],
+    *,
+    period: int = 14,
+) -> list[float]:
+    if len(highs) < period + 1 or len(lows) < period + 1 or len(closes) < period + 1:
+        return []
+    limit = min(len(highs), len(lows), len(closes))
+    trs: list[float] = []
+    for i in range(1, limit):
+        high = float(highs[i])
+        low = float(lows[i])
+        previous_close = float(closes[i - 1])
+        trs.append(max(high - low, abs(high - previous_close), abs(low - previous_close)))
+    out: list[float] = []
+    for end in range(period, len(trs) + 1):
+        close = float(closes[end])
+        if close <= 0.0:
+            continue
+        out.append((sum(trs[end - period:end]) / period) / close)
+    return out
+
+
+def _percentile_rank(values: list[float], current: float) -> float | None:
+    if not values:
+        return None
+    below = sum(1 for value in values if value < current)
+    equal = sum(1 for value in values if value == current)
+    return max(0.0, min(1.0, (below + 0.5 * equal) / len(values)))
+
+
+def _atr_percentile_from_ohlc(
+    highs: list[float],
+    lows: list[float],
+    closes: list[float],
+    *,
+    period: int = 14,
+    min_samples: int = 20,
+) -> float | None:
+    series = _atr_pct_series_from_ohlc(highs, lows, closes, period=period)
+    if len(series) < min_samples:
+        return None
+    return _percentile_rank(series, series[-1])
+
+
 def _f(x, default: float = 0.0) -> float:
     try:
         return float(x)
@@ -488,6 +990,34 @@ def _first_numeric(*values) -> float | None:
         if parsed is not None:
             return float(parsed)
     return None
+
+
+def _first_numeric_field(*items: tuple[str, object]) -> tuple[float | None, str | None]:
+    for source, value in items:
+        parsed = _coerce_numeric(value)
+        if parsed is not None:
+            return float(parsed), source
+    return None, None
+
+
+def _configured_fee_bps() -> float:
+    return float(AllocationInput.__dataclass_fields__["fee_bps"].default)
+
+
+def _model_expected_slippage_bps(
+    *,
+    spread_bps: float,
+    volatility_bps: float | None = None,
+    liquidity_score: float | None = None,
+) -> float:
+    volatility_component = max(0.0, float(volatility_bps or 0.0)) * 0.015
+    modeled = max(0.25, abs(float(spread_bps)) * 0.50 + volatility_component)
+    if liquidity_score is not None:
+        if liquidity_score < 0.25:
+            modeled *= 2.0
+        elif liquidity_score < 0.50:
+            modeled *= 1.4
+    return round(min(50.0, modeled), 6)
 
 
 def _top_depth_notional_usd(levels, *, depth: int = 5) -> float | None:
@@ -531,6 +1061,11 @@ def _features_from_market(market: dict) -> dict:
     gap_pct = (open_p - prev_close) / prev_close if prev_close > 0 else 0.0
     raw_funding_rate = _first_numeric(f.get("lastFundingRate"), f.get("fundingRate"))
     funding_rate = raw_funding_rate if raw_funding_rate is not None else 0.0
+    open_interest = _first_numeric(
+        oi.get("open_interest"),
+        oi.get("openInterest"),
+        oi.get("sumOpenInterest"),
+    )
     mark_price = _coerce_numeric(f.get("markPrice") or f.get("mark_price") or last)
     index_price = _coerce_numeric(f.get("indexPrice") or f.get("index_price") or last)
     basis_pct = None
@@ -557,6 +1092,8 @@ def _features_from_market(market: dict) -> dict:
     latest_kline = klines[-1] if isinstance(klines, list) and klines else None
     k_open = k_high = k_low = k_close = k_volume = k_quote_volume = None
     k_num_trades = k_taker_buy_base = k_taker_buy_quote = None
+    k_taker_sell_base = k_taker_sell_quote = None
+    taker_buy_ratio = taker_sell_ratio = None
     if isinstance(latest_kline, dict):
         k_open = _coerce_numeric(latest_kline.get("open"))
         k_high = _coerce_numeric(latest_kline.get("high"))
@@ -577,6 +1114,13 @@ def _features_from_market(market: dict) -> dict:
         k_num_trades = _coerce_numeric(latest_kline[8])
         k_taker_buy_base = _coerce_numeric(latest_kline[9])
         k_taker_buy_quote = _coerce_numeric(latest_kline[10])
+    if k_volume is not None and k_taker_buy_base is not None:
+        k_taker_sell_base = max(0.0, float(k_volume) - float(k_taker_buy_base))
+        if float(k_volume) > 0.0:
+            taker_buy_ratio = float(k_taker_buy_base) / float(k_volume)
+            taker_sell_ratio = k_taker_sell_base / float(k_volume)
+    if k_quote_volume is not None and k_taker_buy_quote is not None:
+        k_taker_sell_quote = max(0.0, float(k_quote_volume) - float(k_taker_buy_quote))
 
     rsi_14 = _ta_rsi(closes, 14) if closes else None
     macd_line, macd_signal_v, macd_hist = (None, None, None)
@@ -586,6 +1130,11 @@ def _features_from_market(market: dict) -> dict:
     ema_26 = _ta_ema(closes, 26) if closes else None
     sma_20 = _ta_sma(closes, 20) if closes else None
     atr_14 = _ta_atr(highs, lows, closes, 14) if (highs and lows and closes) else None
+    atr_percentile = (
+        _atr_percentile_from_ohlc(highs, lows, closes)
+        if (highs and lows and closes)
+        else None
+    )
 
     # Bollinger band width (sigma over 20-period closes / mean) — only
     # if we have at least 20 closes; otherwise None.
@@ -684,26 +1233,35 @@ def _features_from_market(market: dict) -> dict:
         )
         if orderbook_depth_usd is None and bid_depth_usd is not None and ask_depth_usd is not None:
             orderbook_depth_usd = min(bid_depth_usd, ask_depth_usd)
-    fee_bps = _first_numeric(
-        market.get("fee_bps"),
-        market.get("taker_fee_bps"),
-        market.get("expected_fee_bps"),
-        t.get("fee_bps"),
-        t.get("taker_fee_bps"),
-        orderbook.get("fee_bps") if isinstance(orderbook, dict) else None,
-        orderbook.get("taker_fee_bps") if isinstance(orderbook, dict) else None,
+    fee_bps, fee_bps_source = _first_numeric_field(
+        ("market.fee_bps", market.get("fee_bps")),
+        ("market.taker_fee_bps", market.get("taker_fee_bps")),
+        ("market.expected_fee_bps", market.get("expected_fee_bps")),
+        ("ticker_24hr.fee_bps", t.get("fee_bps")),
+        ("ticker_24hr.taker_fee_bps", t.get("taker_fee_bps")),
+        ("orderbook.fee_bps", orderbook.get("fee_bps") if isinstance(orderbook, dict) else None),
+        ("orderbook.taker_fee_bps", orderbook.get("taker_fee_bps") if isinstance(orderbook, dict) else None),
     )
-    expected_slippage_bps = _first_numeric(
-        market.get("expected_slippage_bps"),
-        market.get("actual_observed_slippage_bps"),
-        market.get("actual_slippage_bps"),
-        market.get("realized_slippage_bps"),
-        market.get("slippage_bps"),
-        t.get("expected_slippage_bps"),
-        t.get("slippage_bps"),
-        orderbook.get("expected_slippage_bps") if isinstance(orderbook, dict) else None,
-        orderbook.get("slippage_bps") if isinstance(orderbook, dict) else None,
+    if fee_bps is None:
+        fee_bps = _configured_fee_bps()
+        fee_bps_source = CONFIGURED_FEE_BPS_SOURCE
+    expected_slippage_bps, expected_slippage_source = _first_numeric_field(
+        ("market.expected_slippage_bps", market.get("expected_slippage_bps")),
+        ("market.actual_observed_slippage_bps", market.get("actual_observed_slippage_bps")),
+        ("market.actual_slippage_bps", market.get("actual_slippage_bps")),
+        ("market.realized_slippage_bps", market.get("realized_slippage_bps")),
+        ("market.slippage_bps", market.get("slippage_bps")),
+        ("ticker_24hr.expected_slippage_bps", t.get("expected_slippage_bps")),
+        ("ticker_24hr.slippage_bps", t.get("slippage_bps")),
+        (
+            "orderbook.expected_slippage_bps",
+            orderbook.get("expected_slippage_bps") if isinstance(orderbook, dict) else None,
+        ),
+        ("orderbook.slippage_bps", orderbook.get("slippage_bps") if isinstance(orderbook, dict) else None),
     )
+    if expected_slippage_bps is None and bid_ask_spread_bps is not None:
+        expected_slippage_bps = _model_expected_slippage_bps(spread_bps=bid_ask_spread_bps)
+        expected_slippage_source = "MODELED_FROM_OBSERVED_SPREAD_VOLATILITY_LIQUIDITY(bid_ask_spread_bps)"
     expected_funding_bps = _first_numeric(
         market.get("expected_funding_bps"),
         market.get("funding_bps"),
@@ -742,6 +1300,7 @@ def _features_from_market(market: dict) -> dict:
         "macd_signal": macd_signal_v,
         "macd_hist": macd_hist,
         "atr_14": atr_14,
+        "atr_percentile": atr_percentile,
         "bb_width_pct": bb_width_pct,
         "htf_ret_pct": htf_ret_pct,
         "htf_rsi_14": htf_rsi_14,
@@ -751,15 +1310,22 @@ def _features_from_market(market: dict) -> dict:
         "ask_depth_usd": ask_depth_usd,
         "orderbook_depth_usd": orderbook_depth_usd,
         "fee_bps": fee_bps,
+        "_fee_bps_source": fee_bps_source,
         "expected_slippage_bps": expected_slippage_bps,
+        "_expected_slippage_source": expected_slippage_source,
         "expected_funding_bps": expected_funding_bps,
         "depth_imbalance": depth_imbalance,
         "micro_price": last,
         "toxicity_proxy": toxicity_proxy,
         "funding_rate": funding_rate,
+        "open_interest": open_interest,
         "long_short_ratio": long_short_ratio,
         "long_account_ratio": long_account_ratio,
         "short_account_ratio": short_account_ratio,
+        "taker_sell_base_vol": k_taker_sell_base,
+        "taker_sell_quote_vol": k_taker_sell_quote,
+        "taker_buy_ratio": taker_buy_ratio,
+        "taker_sell_ratio": taker_sell_ratio,
         "oi_change_pct": oi_change_pct,
         "last_liq_bps_24h": last_liq_bps_24h,
         "paper_position_present": 0,
@@ -798,6 +1364,15 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
         m["_liq_notional_24h"] = _read_liq_notional_24h(r, sym)
         feats = _features_from_market(m)
         external = _merge_external_v2_features(r, sym, timeframe, feats)
+        market_cost_sources = {
+            "fee_bps": feats.pop("_fee_bps_source", None),
+            "expected_slippage_bps": feats.pop("_expected_slippage_source", None),
+        }
+        market_cost_missing_fields = [
+            field
+            for field in ("fee_bps", "expected_slippage_bps", "expected_funding_bps")
+            if feats.get(field) is None
+        ]
         missing_feature_flags = sorted(k for k, v in feats.items() if v is None)
         candle_open_time = None
         candle_close_time = None
@@ -871,6 +1446,15 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
             "source_ohlcv_key": f"v2:market:ohlcv_closed:binance:{sym}:{timeframe}",
             "external_v2_sources_present": external["sources_present"],
             "external_v2_feature_fields_merged": external["fields_merged"],
+            "market_cost_evidence_source_fields": {
+                key: value for key, value in market_cost_sources.items() if value
+            },
+            "market_cost_evidence_missing_fields": market_cost_missing_fields,
+            "market_cost_evidence_status": (
+                "COMPLETE_MARKET_COST_EVIDENCE"
+                if not market_cost_missing_fields
+                else "PARTIAL_MARKET_COST_EVIDENCE"
+            ),
             "live_gate": "blocked_human_only",
             "live_symbols": [],
             "ohlcv_history_present": bool(closed_klines),

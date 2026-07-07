@@ -234,6 +234,72 @@ def test_prediction_row_uses_available_at_as_audited_prediction_timestamp() -> N
     assert row["prediction_temporal_block_reasons"] == []
 
 
+def test_prediction_row_uses_exact_feature_snapshot_masks_for_missing_lineage() -> None:
+    available_at = _utc_now_minus(30)
+    prediction = _paper_ready_prediction_from_available_at("BTCUSDT", "1m", available_at=available_at)
+    prediction.update(
+        {
+            "missing_feature_count": 192,
+            "missing_feature_names": ["close"],
+            "market_state_integrity_score": 87.5,
+            "market_state_reject_reasons": ["MISSING_CRITICAL_FEATURE_FAMILY"],
+            "market_state_score_components": {
+                "data_freshness_score": 100.0,
+                "candle_completion_score": 100.0,
+                "tf_alignment_score": 100.0,
+                "missing_data_score": 0.0,
+                "source_disagreement_score": 100.0,
+                "latency_score": 100.0,
+                "backfill_score": 100.0,
+                "execution_fill_quality_score": 100.0,
+            },
+        }
+    )
+    feature_payload = {
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "feature_snapshot_id": prediction["feature_snapshot_id"],
+        "missing_feature_count": 192,
+        "missing_mask": {"open": False, "high": False, "low": False, "close": False},
+        "stale_mask": {"open": False, "close": False},
+        "source_availability": {"ohlcv": True, "orderbook": True},
+        "features": {
+            "open": 100.0,
+            "high": 101.0,
+            "low": 99.0,
+            "close": 100.5,
+        },
+    }
+
+    row = svc.build_prediction_row(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        prediction=prediction,
+        price_payload={"ticker_24hr": {"lastPrice": "100.0"}},
+        feature_payload=feature_payload,
+        stale_seconds=900,
+    )
+    signal = svc.build_signal_from_row(
+        row,
+        existing_signal={
+            "risk_decision_id": "risk_1",
+            "orchestrator_decision_id": "orch_1",
+            "paper_intent_id": "intent_1",
+            "paper_ledger_id": "ledger_1",
+        },
+    )
+
+    assert row["missing_feature_count"] == 0
+    assert row["missing_feature_names"] == []
+    assert row["missing_mask"]["close"] is False
+    assert row["source_availability"] == {"ohlcv": True, "orderbook": True}
+    assert "MISSING_CRITICAL_FEATURE_FAMILY" not in row["market_state_reject_reasons"]
+    assert row["paper_fill_allowed"] is True
+    assert signal["missing_feature_count"] == 0
+    assert signal["missing_mask"]["close"] is False
+    assert signal["source_availability"] == {"ohlcv": True, "orderbook": True}
+
+
 def test_prediction_row_preserves_trust_envelope_and_normalizes_epoch_cutoff() -> None:
     now = svc.dt.datetime.now(svc.dt.timezone.utc)
     decision = (now - svc.dt.timedelta(seconds=30)).isoformat(timespec="seconds").replace("+00:00", "Z")
@@ -788,6 +854,24 @@ def test_current_hold_prediction_is_not_paper_actionable() -> None:
         available_at=available_at,
         action="hold",
     )
+    prediction["expected_move_bps"] = -42.0
+    prediction["expected_move_after_cost_bps"] = 0.0
+    prediction.update(
+        {
+            "action_probability_by_label": {"hold": 0.250001, "long": 0.05, "short": 0.25},
+            "opening_policy_argmax_action": "hold",
+            "opening_policy_argmax_probability": 0.250001,
+            "selected_action_probability": 0.250001,
+            "counterfactual_directional_action_from_expected_move": "short",
+            "counterfactual_directional_expected_move_after_cost_bps": -30.0,
+            "counterfactual_directional_action_probability": 0.25,
+            "selected_vs_counterfactual_directional_action_probability_gap": 0.000001,
+            "selected_hold_with_directional_edge_after_cost": True,
+            "selected_hold_directional_edge_diagnostic_reason": (
+                "EXPECTED_MOVE_DIRECTIONAL_EDGE_BLOCKED_BY_SELECTED_HOLD"
+            ),
+        }
+    )
 
     row = svc.build_prediction_row(
         symbol="BTCUSDT",
@@ -802,6 +886,40 @@ def test_current_hold_prediction_is_not_paper_actionable() -> None:
     assert row["paper_fill_allowed"] is False
     assert row["routes_to_orchestrator"] is False
     assert "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION" in row["paper_fill_gate_block_reasons"]
+    assert row["selected_action_expected_move_bps_sign"] == "negative"
+    assert row["hold_action_with_directional_expected_move_bps"] is True
+    assert row["hold_action_directional_expected_move_bps"] == -42.0
+    assert row["expected_move_after_cost_zeroed_by_hold_action"] is True
+    assert (
+        row["paper_non_actionable_diagnostic_reason"]
+        == "HOLD_ACTION_WITH_DIRECTIONAL_EXPECTED_MOVE_ZERO_AFTER_COST_EDGE"
+    )
+    assert row["opening_policy_argmax_action"] == "hold"
+    assert row["counterfactual_directional_action_from_expected_move"] == "short"
+    assert row["counterfactual_directional_expected_move_after_cost_bps"] == -30.0
+    assert row["selected_hold_with_directional_edge_after_cost"] is True
+    assert (
+        row["selected_hold_directional_edge_diagnostic_reason"]
+        == "EXPECTED_MOVE_DIRECTIONAL_EDGE_BLOCKED_BY_SELECTED_HOLD"
+    )
+
+    signal = svc.build_signal_from_row(row)
+    assert signal["selected_action_expected_move_bps_sign"] == "negative"
+    assert signal["hold_action_with_directional_expected_move_bps"] is True
+    assert signal["hold_action_directional_expected_move_bps"] == -42.0
+    assert signal["expected_move_after_cost_zeroed_by_hold_action"] is True
+    assert (
+        signal["paper_non_actionable_diagnostic_reason"]
+        == "HOLD_ACTION_WITH_DIRECTIONAL_EXPECTED_MOVE_ZERO_AFTER_COST_EDGE"
+    )
+    assert signal["opening_policy_argmax_action"] == "hold"
+    assert signal["counterfactual_directional_action_from_expected_move"] == "short"
+    assert signal["counterfactual_directional_expected_move_after_cost_bps"] == -30.0
+    assert signal["selected_hold_with_directional_edge_after_cost"] is True
+    assert (
+        signal["selected_hold_directional_edge_diagnostic_reason"]
+        == "EXPECTED_MOVE_DIRECTIONAL_EDGE_BLOCKED_BY_SELECTED_HOLD"
+    )
 
 
 def test_stale_allowed_long_prediction_is_not_paper_actionable() -> None:
@@ -1671,6 +1789,13 @@ def test_cuda_prediction_status_exposes_grid_and_actionability_truth() -> None:
             "status": "PRESENT_CURRENT",
             "trainer_source": svc.TRAINER_SOURCE_REQUIRED,
             "model_source": svc.MODEL_SOURCE_REQUIRED,
+            "selected_action": "hold",
+            "expected_move_bps": -12.0,
+            "expected_move_after_cost_bps": 0.0,
+            "selected_hold_with_directional_edge_after_cost": True,
+            "selected_hold_directional_edge_diagnostic_reason": (
+                "EXPECTED_MOVE_DIRECTIONAL_EDGE_BLOCKED_BY_SELECTED_HOLD"
+            ),
             "paper_fill_allowed": False,
             "paper_fill_gate_block_reasons": ["confidence_below_threshold", "data_coverage_below_threshold"],
         },
@@ -1704,6 +1829,15 @@ def test_cuda_prediction_status_exposes_grid_and_actionability_truth() -> None:
     assert status["top_prediction_paper_gate_block_reasons"] == {
         "confidence_below_threshold": 1,
         "data_coverage_below_threshold": 1,
+    }
+    assert status["selected_action_expected_move_bps_sign_counts"] == {
+        "hold:negative": 1,
+    }
+    assert status["hold_with_directional_expected_move_bps_count"] == 1
+    assert status["hold_zero_after_cost_with_directional_expected_move_bps_count"] == 1
+    assert status["selected_hold_with_directional_edge_after_cost_count"] == 1
+    assert status["selected_hold_directional_edge_reason_counts"] == {
+        "EXPECTED_MOVE_DIRECTIONAL_EDGE_BLOCKED_BY_SELECTED_HOLD": 1,
     }
     repaired = svc.normalize_cuda_prediction_status_counts(
         {

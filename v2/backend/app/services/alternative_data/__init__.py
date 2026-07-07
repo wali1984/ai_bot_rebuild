@@ -1,6 +1,5 @@
 """V2 alternative-data scaffold package.
 
-Plan-only/paper-shadow support code. Provider clients are not
-implemented here.
+Paper-shadow support code plus guarded provider clients that write only
+V2-prefixed alternative-data keys.
 """
-

@@ -9,6 +9,7 @@ Covers:
 """
 from __future__ import annotations
 
+import json
 import time
 from datetime import UTC, datetime
 from typing import Any
@@ -465,18 +466,31 @@ class TestPriceSourceSelection:
             "_operator_runtime_json",
             lambda relative: {
                 "schema_version": "one_thousand_x_trajectory_status_v1",
-                "status": "INSUFFICIENT_EVIDENCE",
-                "current_status": "INSUFFICIENT_EVIDENCE",
-                "required_daily_geometric_return": 0.003792243814971563,
-                "required_monthly_geometric_return": 0.12201845430196334,
+                "status": "NO_A_PLUS_SUPPLY",
+                "current_status": "NO_A_PLUS_SUPPLY",
+                "trajectory_status": "NO_A_PLUS_SUPPLY",
+                "blocker": "A_PLUS_EVIDENCE_NOT_STARTED",
+                "target_multiple": 1000.0,
+                "target_horizon_days": 90.0,
+                "required_daily_return_pct": 7.98,
+                "required_daily_geometric_return": 0.07977516232770955,
+                "required_monthly_geometric_return": 9.32497215000986,
                 "actual_1d_return": 0.0,
                 "actual_7d_return": 0.0,
                 "actual_30d_return": 0.0,
                 "drawdown_adjusted_growth_rate": 0.0,
                 "lower_confidence_bound_growth_rate": 0.0,
-                "days_ahead_or_behind_target": -1814.4667829543546,
-                "required_edge": 0.00379224,
+                "days_ahead_or_behind_target": None,
+                "projection_days": None,
+                "A_plus_rows": 0,
+                "B_grade_rows": 4,
+                "required_edge": 0.07977516232770955,
                 "required_capital": 10_000_000.0,
+                "required_operator_text": [
+                    "Target requires ~7.98% compounded daily.",
+                    "Current A+ evidence: 0.",
+                    "B-grade exploration does not count as 1000x proof.",
+                ],
                 "guaranteed_profit_claim": False,
                 "leverage_increase_allowed_because_behind": False,
             },
@@ -541,7 +555,15 @@ class TestPriceSourceSelection:
         )
         assert (
             loop["one_thousand_x_trajectory_runtime_status"]["current_status"]
-            == "INSUFFICIENT_EVIDENCE"
+            == "NO_A_PLUS_SUPPLY"
+        )
+        assert (
+            loop["one_thousand_x_trajectory_runtime_status"]["required_daily_return_pct"]
+            == 7.98
+        )
+        assert (
+            loop["one_thousand_x_trajectory_runtime_status"]["projection_days"]
+            is None
         )
         assert (
             loop["one_thousand_x_trajectory_runtime_status"][
@@ -549,6 +571,59 @@ class TestPriceSourceSelection:
             ]
             is False
         )
+
+    async def test_mobile_summary_alias_uses_clean_session_portfolio_state(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import app.api.v2.mobile as mobile
+
+        fake = _MobilePaperSummaryFakeRedis({
+            "v2:paper:heartbeat": {
+                "closed_trade_count": 12,
+                "realized_pnl_usd": 77.0,
+                "unrealized_pnl_usd": 33.0,
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+            },
+            "v2:paper:session": {
+                "paper_session_id": "paper_3000_final_pre_live_20260705T024432Z",
+                "starting_equity_usd": 3000.0,
+            },
+            "v2:portfolio:state": {
+                "paper_session_id": "paper_3000_final_pre_live_20260705T024432Z",
+                "initial_capital": 3000.0,
+                "starting_equity_usd": 3000.0,
+                "equity": 3000.0,
+                "realized_pnl_usd": 0.0,
+                "unrealized_pnl_usd": 0.0,
+                "open_positions_count": 0,
+                "closed_trade_count": 0,
+                "equity_trusted": True,
+                "pnl_trusted": True,
+            },
+            "v2:paper:ledger": {
+                "paper_session_id": "paper_3000_final_pre_live_20260705T024432Z",
+                "initial_capital": 3000.0,
+                "starting_equity_usd": 3000.0,
+                "open_position_count": 0,
+                "closed_trade_count": 0,
+            },
+            "v2:paper:positions": [],
+        })
+        monkeypatch.setattr(mobile, "get_redis", lambda: fake)
+        monkeypatch.setattr(mobile, "_operator_runtime_json", lambda _relative: None)
+
+        payload = await mobile.get_mobile_summary()
+
+        assert payload["paper_session_id"] == "paper_3000_final_pre_live_20260705T024432Z"
+        assert payload["equity"] == 3000.0
+        assert payload["paper_initial_capital"] == 3000.0
+        assert payload["realized_pnl_usd"] == 0.0
+        assert payload["unrealized_pnl_usd"] == 0.0
+        assert payload["open_position_count"] == 0
+        assert payload["closed_trade_count"] == 0
+        assert payload["positions"]["open_count"] == 0
+        assert payload["positions"]["closed_count"] == 0
+        assert "10000.0" not in json.dumps(payload)
 
 
 # ---------------------------------------------------------------------------

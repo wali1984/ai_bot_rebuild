@@ -48,6 +48,10 @@ def test_risk_gateway_live_loop_stamps_v2_risk_decisions(monkeypatch, tmp_path):
             "source_hashes": {"feature_vector_hash": "hash_feat"},
             "winner_confidence_calibrated": 0.81,
             "winner_freshness_seconds": 5.0,
+            "microstructure_trust_score": 0.2,
+            "orderbook_trust_score": 0.2,
+            "microstructure_action": "NO_TRADE",
+            "sweep_risk_score": 0.8,
         }],
     })
     monkeypatch.setattr(worker, "_connect_redis", lambda: client)
@@ -79,6 +83,11 @@ def test_risk_gateway_live_loop_stamps_v2_risk_decisions(monkeypatch, tmp_path):
     assert risk_row["model_version"] == "model_v1"
     assert risk_row["checkpoint_id"] == "ckpt_v1"
     assert risk_row["source_hashes"] == {"feature_vector_hash": "hash_feat"}
+    assert risk_row["risk_microstructure_reject_reasons"] == [
+        "MICROSTRUCTURE_ACTION_NO_TRADE",
+        "MICROSTRUCTURE_SWEEP_RISK_BLOCK",
+        "MICROSTRUCTURE_TRUST_SCORE_UNTRUSTED",
+    ]
     assert json.loads((tmp_path / "public.json").read_text())["worker_id"] == "v2_risk_gateway_runtime_worker"
     replay = get_decision_replay("dec_pred_1")
     assert replay is not None

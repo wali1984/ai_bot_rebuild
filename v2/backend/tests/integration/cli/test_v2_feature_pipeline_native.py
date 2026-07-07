@@ -83,6 +83,8 @@ def test_compute_with_full_inputs_emits_features_and_categories() -> None:
     assert snap.features.get("ema_26") is not None
     assert snap.features.get("macd") is not None
     assert snap.features.get("bb_width_pct") is not None
+    assert snap.features.get("atr_percentile") is not None
+    assert 0.0 <= snap.features["atr_percentile"] <= 1.0
     assert snap.features.get("bid_ask_spread_bps") is not None
     assert snap.features.get("funding_rate") is not None
     assert snap.features.get("oi_change_pct") is not None
@@ -96,6 +98,7 @@ def test_missing_inputs_produce_explicit_missing_flags_not_fabrication() -> None
     assert "ohlcv_returns" in snap.missing_feature_flags
     assert "ohlcv_range_body" in snap.missing_feature_flags
     assert "ohlcv_true_range" in snap.missing_feature_flags
+    assert "ohlcv_atr_percentile" in snap.missing_feature_flags
     assert "bid_ask_spread_bps" in snap.missing_feature_flags
     assert "funding_rate" in snap.missing_feature_flags
     # paper_position_present is always emitted as 0/1

@@ -35,6 +35,12 @@ OUTCOME_OBSERVER_REL = Path(
 EXPLANATION_REL = Path(
     "operator_runtime/v2_prediction_signal_explanations/latest/prediction_signal_explanations.json"
 )
+PAPER_FEEDBACK_REL = Path(
+    "operator_runtime/v2_paper_trade_management/latest/trainer_feedback_outcomes.json"
+)
+BUCKET_QUARANTINE_REL = Path(
+    "operator_runtime/v2_paper_trade_management/latest/bucket_quarantine_status.json"
+)
 
 CONFIDENCE_BUCKETS = (
     (0.50, 0.52),
@@ -60,6 +66,8 @@ class ConfidenceActionabilityPaths:
     portfolio_path: Path
     outcome_observer_path: Path
     explanation_path: Path
+    paper_feedback_path: Path
+    bucket_quarantine_path: Path
 
 
 @dataclass(frozen=True)
@@ -82,6 +90,8 @@ def default_paths(repo_root: Path) -> ConfidenceActionabilityPaths:
         portfolio_path=public_root / PORTFOLIO_REL,
         outcome_observer_path=public_root / OUTCOME_OBSERVER_REL,
         explanation_path=public_root / EXPLANATION_REL,
+        paper_feedback_path=public_root / PAPER_FEEDBACK_REL,
+        bucket_quarantine_path=public_root / BUCKET_QUARANTINE_REL,
     )
 
 
@@ -138,6 +148,72 @@ def _bucket(confidence: float | None) -> str:
     if confidence < CONFIDENCE_BUCKETS[0][0]:
         return f"below-{CONFIDENCE_BUCKETS[0][0]:.3f}"
     return f"{CONFIDENCE_BUCKETS[-1][1]:.3f}-plus"
+
+
+def _first_present(*values: Any) -> Any:
+    for value in values:
+        if value not in (None, ""):
+            return value
+    return None
+
+
+def _known_bucket_value(value: Any) -> bool:
+    text = str(value or "").strip()
+    return bool(text) and text.upper() != "UNKNOWN"
+
+
+def _row_side(row: Mapping[str, Any]) -> str:
+    return str(
+        _first_present(row.get("selected_action"), row.get("action"), row.get("side"))
+        or "UNKNOWN"
+    ).lower()
+
+
+def _row_regime(row: Mapping[str, Any]) -> str:
+    return str(
+        _first_present(
+            row.get("market_regime"),
+            row.get("market_regime_at_entry"),
+            row.get("strategy_market_regime"),
+        )
+        or "UNKNOWN"
+    )
+
+
+def _row_strategy(row: Mapping[str, Any]) -> str:
+    return str(
+        _first_present(
+            row.get("strategy_mode"),
+            row.get("strategy_canonical_mode"),
+            row.get("strategy_id"),
+            row.get("strategy_family"),
+            row.get("strategy_subtype"),
+            row.get("strategy_selected_mode"),
+            row.get("strategy_router_selected_mode"),
+        )
+        or "UNKNOWN"
+    )
+
+
+def _loss_quarantine_candidate_keys(row: Mapping[str, Any]) -> set[str]:
+    symbol = str(row.get("symbol") or "UNKNOWN").upper()
+    timeframe = str(row.get("timeframe") or "UNKNOWN")
+    side = _row_side(row)
+    strategy = _row_strategy(row)
+    regime = _row_regime(row)
+    confidence_bucket = _bucket(_float(row.get("confidence_calibrated")))
+    keys = {f"{symbol}|{timeframe}|{strategy}|{regime}"}
+    if _known_bucket_value(side):
+        keys.add(f"side:{side}")
+    if _known_bucket_value(regime):
+        keys.add(f"regime:{regime}")
+    if _known_bucket_value(timeframe):
+        keys.add(f"timeframe:{timeframe}")
+    if _known_bucket_value(strategy) and _known_bucket_value(regime):
+        keys.add(f"strategy_regime:{strategy}|{regime}")
+    if _known_bucket_value(confidence_bucket) and _known_bucket_value(regime):
+        keys.add(f"confidence_regime:{confidence_bucket}|{regime}")
+    return keys
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -414,13 +490,25 @@ def build_paper_actionability_candidate_recovery(
     predictions: list[dict[str, Any]],
     *,
     generated_est: str,
+    blocked_bucket_keys: set[str] | None = None,
 ) -> dict[str, Any]:
+    blocked_bucket_keys = blocked_bucket_keys or set()
     under_confident = [row for row in predictions if _is_under_confident_candidate(row)]
+    loss_quarantined_under_confident = [
+        row
+        for row in under_confident
+        if _loss_quarantine_candidate_keys(row) & blocked_bucket_keys
+    ]
+    under_confident_after_loss_adjustment = [
+        row
+        for row in under_confident
+        if not (_loss_quarantine_candidate_keys(row) & blocked_bucket_keys)
+    ]
     weak_rows = [row for row in predictions if not _is_paper_allowed(row) and not _is_under_confident_candidate(row)]
     weak_reason_counts = Counter(reason for row in weak_rows for reason in _weak_reasons(row))
 
     ranked = sorted(
-        under_confident,
+        under_confident_after_loss_adjustment,
         key=lambda row: (
             _float(row.get("expected_move_after_cost_bps")) or -9999.0,
             _float(row.get("confidence_calibrated")) or 0.0,
@@ -441,6 +529,9 @@ def build_paper_actionability_candidate_recovery(
             "paper_fill_gate_block_reasons": _block_reasons(row),
             "recovery_classification": "UNDER_CONFIDENT_PAPER_ONLY_CANDIDATE",
             "allowed_scope": "paper_simulation_only",
+            "loss_quarantine_matched_bucket_keys": sorted(
+                _loss_quarantine_candidate_keys(row) & blocked_bucket_keys
+            ),
         }
         for row in ranked[:100]
     ]
@@ -454,12 +545,96 @@ def build_paper_actionability_candidate_recovery(
             1 for row in predictions if "confidence_below_threshold" in _block_reasons(row)
         ),
         "under_confident_candidate_count": len(under_confident),
+        "loss_quarantine_filtered_under_confident_candidate_count": len(
+            loss_quarantined_under_confident
+        ),
+        "actionable_after_loss_adjustment_candidate_count": len(
+            under_confident_after_loss_adjustment
+        ),
+        "active_loss_quarantine_bucket_keys": sorted(blocked_bucket_keys),
         "genuinely_weak_or_invalid_block_count": len(weak_rows),
         "weak_or_invalid_reason_counts": dict(weak_reason_counts.most_common()),
         "candidate_rows_sample": sample,
         "action": "SIMULATE_PAPER_ONLY_THRESHOLD_CHANGE_DO_NOT_APPLY_TO_LIVE",
         "live_threshold_changed": False,
         "paper_threshold_changed": False,
+    }
+
+
+def _paper_feedback_rows(source: Mapping[str, Any]) -> list[dict[str, Any]]:
+    rows = source.get("trainer_feedback_outcomes")
+    if isinstance(rows, list):
+        return [_as_dict(row) for row in rows]
+    return []
+
+
+def build_loss_adjusted_paper_actionability_status(
+    predictions: list[dict[str, Any]],
+    paper_feedback_payload: Mapping[str, Any],
+    bucket_quarantine_status: Mapping[str, Any],
+    *,
+    generated_est: str,
+) -> dict[str, Any]:
+    blocked_bucket_keys = {
+        str(key)
+        for key in _as_list(bucket_quarantine_status.get("blocked_bucket_keys"))
+        if str(key)
+    }
+    feedback_rows = _paper_feedback_rows(paper_feedback_payload)
+    matched_prediction_rows: list[dict[str, Any]] = []
+    matched_under_confident_count = 0
+    for row in predictions:
+        matched = sorted(_loss_quarantine_candidate_keys(row) & blocked_bucket_keys)
+        if not matched:
+            continue
+        matched_under_confident_count += int(_is_under_confident_candidate(row))
+        matched_prediction_rows.append(
+            {
+                "prediction_id": row.get("prediction_id"),
+                "symbol": row.get("symbol"),
+                "timeframe": row.get("timeframe"),
+                "selected_action": row.get("selected_action"),
+                "confidence_calibrated": row.get("confidence_calibrated"),
+                "expected_move_after_cost_bps": row.get(
+                    "expected_move_after_cost_bps"
+                ),
+                "paper_fill_allowed_before_loss_adjustment": _is_paper_allowed(row),
+                "paper_actionability_after_loss_adjustment": False,
+                "loss_adjustment_reason": "CURRENT_PAPER_LOSS_BUCKET_QUARANTINE",
+                "matched_loss_quarantine_bucket_keys": matched,
+            }
+        )
+    high_confidence_feedback_losses = [
+        row
+        for row in feedback_rows
+        if (_float(row.get("confidence_calibrated")) or 0.0) >= 0.55
+        and row.get("action_was_profitable") is False
+    ]
+    return {
+        "schema_version": f"{SCHEMA_VERSION}_loss_adjusted_actionability",
+        "generated_est": generated_est,
+        "status": (
+            "LOSS_ADJUSTED_ACTIONABILITY_ACTIVE"
+            if blocked_bucket_keys
+            else "NO_ACTIVE_LOSS_QUARANTINE_KEYS"
+        ),
+        "paper_only": True,
+        "runtime_thresholds_changed": False,
+        "paper_threshold_changed": False,
+        "live_threshold_changed": False,
+        "live_risk_changed": False,
+        "paper_feedback_generated_utc": paper_feedback_payload.get("generated_utc"),
+        "bucket_quarantine_generated_utc": bucket_quarantine_status.get(
+            "generated_utc"
+        ),
+        "bucket_quarantine_status": bucket_quarantine_status.get("status"),
+        "active_loss_quarantine_bucket_keys": sorted(blocked_bucket_keys),
+        "active_loss_quarantine_bucket_key_count": len(blocked_bucket_keys),
+        "paper_feedback_outcome_rows": len(feedback_rows),
+        "high_confidence_feedback_loss_rows": len(high_confidence_feedback_losses),
+        "loss_adjusted_prediction_count": len(matched_prediction_rows),
+        "loss_adjusted_under_confident_candidate_count": matched_under_confident_count,
+        "sample_loss_adjusted_predictions": matched_prediction_rows[:100],
     }
 
 
@@ -656,6 +831,9 @@ def build_operator_dashboard_payload(
     recovery = _as_dict(artifacts.get("paper_actionability_candidate_recovery.json"))
     proposal = _as_dict(artifacts.get("calibrated_confidence_threshold_proposal.json"))
     simulation = _as_dict(artifacts.get("paper_only_threshold_simulation.json"))
+    loss_adjusted = _as_dict(
+        artifacts.get("loss_adjusted_paper_actionability_status.json")
+    )
     current_simulation = next(
         (
             _as_dict(item)
@@ -676,6 +854,15 @@ def build_operator_dashboard_payload(
                 "confidence_below_threshold"
             ),
             "under_confident_candidate_count": recovery.get("under_confident_candidate_count"),
+            "actionable_after_loss_adjustment_candidate_count": recovery.get(
+                "actionable_after_loss_adjustment_candidate_count"
+            ),
+            "loss_quarantine_filtered_under_confident_candidate_count": recovery.get(
+                "loss_quarantine_filtered_under_confident_candidate_count"
+            ),
+            "loss_adjusted_prediction_count": loss_adjusted.get(
+                "loss_adjusted_prediction_count"
+            ),
             "recommended_paper_only_threshold": _as_dict(
                 proposal.get("recommended_paper_only_trial")
             ).get("paper_confidence_threshold"),
@@ -722,8 +909,17 @@ def build_confidence_actionability(
     outcome_observer: Mapping[str, Any],
     explanation_payload: Mapping[str, Any],
     generated_est: str,
+    paper_feedback_payload: Mapping[str, Any] | None = None,
+    bucket_quarantine_status: Mapping[str, Any] | None = None,
 ) -> ConfidenceActionabilityResult:
     predictions = _prediction_rows(prediction_source)
+    paper_feedback_payload = _as_dict(paper_feedback_payload)
+    bucket_quarantine_status = _as_dict(bucket_quarantine_status)
+    blocked_bucket_keys = {
+        str(key)
+        for key in _as_list(bucket_quarantine_status.get("blocked_bucket_keys"))
+        if str(key)
+    }
     distribution = build_confidence_gate_block_distribution(
         predictions,
         generated_est=generated_est,
@@ -735,7 +931,17 @@ def build_confidence_actionability(
         portfolio,
         generated_est=generated_est,
     )
-    recovery = build_paper_actionability_candidate_recovery(predictions, generated_est=generated_est)
+    recovery = build_paper_actionability_candidate_recovery(
+        predictions,
+        generated_est=generated_est,
+        blocked_bucket_keys=blocked_bucket_keys,
+    )
+    loss_adjusted = build_loss_adjusted_paper_actionability_status(
+        predictions,
+        paper_feedback_payload,
+        bucket_quarantine_status,
+        generated_est=generated_est,
+    )
     simulation = build_paper_only_threshold_simulation(predictions, generated_est=generated_est)
     proposal = build_calibrated_confidence_threshold_proposal(
         distribution,
@@ -761,6 +967,7 @@ def build_confidence_actionability(
         "confidence_gate_block_distribution.json": distribution,
         "confidence_bucket_outcome_analysis.json": outcome_analysis,
         "paper_actionability_candidate_recovery.json": recovery,
+        "loss_adjusted_paper_actionability_status.json": loss_adjusted,
         "calibrated_confidence_threshold_proposal.json": proposal,
         "paper_only_threshold_simulation.json": simulation,
         "post_calibration_paper_monitor_status.json": monitor,
@@ -811,6 +1018,8 @@ Prediction rows: `{summary.get("prediction_rows")}`
 Paper-allowed prediction rows: `{summary.get("paper_fill_allowed_prediction_rows")}`
 Confidence-blocked rows: `{summary.get("confidence_blocked_rows")}`
 Under-confident paper-only candidates: `{recovery.get("under_confident_candidate_count")}`
+Actionable after loss adjustment: `{recovery.get("actionable_after_loss_adjustment_candidate_count")}`
+Loss-quarantine filtered candidates: `{recovery.get("loss_quarantine_filtered_under_confident_candidate_count")}`
 Recommended paper-only trial threshold: `{threshold}`
 Current allowed clean positive-edge overlap: `{summary.get("current_allowed_clean_positive_edge_overlap")}`
 Paper threshold auto-applied: `False`
@@ -887,6 +1096,8 @@ def run_confidence_actionability(
         outcome_observer=_read_json(paths.outcome_observer_path),
         explanation_payload=_read_json(paths.explanation_path),
         generated_est=generated_est,
+        paper_feedback_payload=_read_json(paths.paper_feedback_path),
+        bucket_quarantine_status=_read_json(paths.bucket_quarantine_path),
     )
     return write_confidence_actionability_artifacts(
         paths=paths,

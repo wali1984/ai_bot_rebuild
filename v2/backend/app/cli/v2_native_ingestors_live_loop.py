@@ -86,6 +86,7 @@ def _write_symbol_bundle(r: Any, sym: str, bundle: dict, keys_written: list[str]
     klines_by_timeframe = bundle.get("klines_by_timeframe") or {}
     orderbook = bundle.get("orderbook")
     oi_hist = bundle.get("open_interest_hist")
+    fetched_utc = _utc_iso()
     payload = {
         "symbol": sym,
         "source": "binance_public_rest",
@@ -93,7 +94,7 @@ def _write_symbol_bundle(r: Any, sym: str, bundle: dict, keys_written: list[str]
         "funding": funding,
         "open_interest": oi,
         "long_short": long_short,
-        "fetched_utc": _utc_iso(),
+        "fetched_utc": fetched_utc,
         "live_gate": "blocked_human_only",
         "live_symbols": [],
     }
@@ -110,6 +111,21 @@ def _write_symbol_bundle(r: Any, sym: str, bundle: dict, keys_written: list[str]
         if rows is not None:
             writes.append((f"{V2_REDIS_PREFIX}market:ohlcv:binance:{sym}:{timeframe}", rows))
     if orderbook is not None:
+        orderbook = {
+            **orderbook,
+            "symbol": sym,
+            "source": "binance_public_rest_depth_snapshot",
+            "exchange": "binance",
+            "transaction_time": orderbook.get("transaction_time") or fetched_utc,
+            "received_at": orderbook.get("received_at") or fetched_utc,
+            "available_at": orderbook.get("available_at") or fetched_utc,
+            "fetched_utc": orderbook.get("fetched_utc") or fetched_utc,
+            "event_time": orderbook.get("event_time"),
+            "event_time_missing_reason": (
+                orderbook.get("event_time_missing_reason")
+                or "BINANCE_REST_DEPTH_SNAPSHOT_HAS_NO_EXCHANGE_EVENT_TIME"
+            ),
+        }
         writes.extend(
             [
                 (f"{V2_REDIS_PREFIX}market:orderbook:{sym}", orderbook),

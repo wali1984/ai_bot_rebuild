@@ -50,6 +50,8 @@ def _paths(tmp_path: Path) -> ConfidenceActionabilityPaths:
         portfolio_path=public / "operator_runtime/v2_portfolio_state/latest/v2_portfolio_state.json",
         outcome_observer_path=public / "operator_runtime/paper_shadow_outcome_observer/latest/paper_shadow_outcome_observer_status.json",
         explanation_path=public / "operator_runtime/v2_prediction_signal_explanations/latest/prediction_signal_explanations.json",
+        paper_feedback_path=public / "operator_runtime/v2_paper_trade_management/latest/trainer_feedback_outcomes.json",
+        bucket_quarantine_path=public / "operator_runtime/v2_paper_trade_management/latest/bucket_quarantine_status.json",
     )
 
 
@@ -146,6 +148,7 @@ def test_confidence_actionability_builds_paper_only_safe_artifacts(tmp_path: Pat
         "confidence_gate_block_distribution.json",
         "confidence_bucket_outcome_analysis.json",
         "paper_actionability_candidate_recovery.json",
+        "loss_adjusted_paper_actionability_status.json",
         "calibrated_confidence_threshold_proposal.json",
         "paper_only_threshold_simulation.json",
         "post_calibration_paper_monitor_status.json",
@@ -156,8 +159,11 @@ def test_confidence_actionability_builds_paper_only_safe_artifacts(tmp_path: Pat
     dashboard = json.loads((public_dir / "operator_dashboard_payload.json").read_text(encoding="utf-8"))
     proposal = json.loads((public_dir / "calibrated_confidence_threshold_proposal.json").read_text(encoding="utf-8"))
     recovery = json.loads((public_dir / "paper_actionability_candidate_recovery.json").read_text(encoding="utf-8"))
+    loss_adjusted = json.loads((public_dir / "loss_adjusted_paper_actionability_status.json").read_text(encoding="utf-8"))
 
     assert dashboard["summary"]["under_confident_candidate_count"] == 1
+    assert dashboard["summary"]["actionable_after_loss_adjustment_candidate_count"] == 1
+    assert dashboard["summary"]["loss_quarantine_filtered_under_confident_candidate_count"] == 0
     assert dashboard["summary"]["current_allowed_clean_positive_edge_overlap"] == 1
     assert dashboard["summary"]["paper_threshold_auto_applied"] is False
     assert dashboard["summary"]["live_threshold_changed"] is False
@@ -166,6 +172,60 @@ def test_confidence_actionability_builds_paper_only_safe_artifacts(tmp_path: Pat
     assert proposal["paper_runtime_threshold_change"] == "NO_AUTO_CHANGE"
     assert recovery["paper_threshold_changed"] is False
     assert recovery["live_threshold_changed"] is False
+    assert loss_adjusted["runtime_thresholds_changed"] is False
+    assert loss_adjusted["live_threshold_changed"] is False
+
+
+def test_confidence_actionability_filters_recovery_candidates_in_loss_quarantine() -> None:
+    prediction_source, runtime_truth, portfolio, outcome, explanation = _source_payloads()
+    prediction_source["prediction_rows"][2] = {
+        **prediction_source["prediction_rows"][2],
+        "selected_action": "short",
+        "timeframe": "15m",
+        "market_regime": "TREND",
+        "strategy_id": "trend_mode",
+    }
+    paper_feedback = {
+        "generated_utc": "2026-07-06T01:54:26Z",
+        "trainer_feedback_outcomes": [
+            {
+                "symbol": "BTCUSDT",
+                "timeframe": "15m",
+                "selected_action": "short",
+                "confidence_calibrated": 0.62,
+                "action_was_profitable": False,
+            }
+        ],
+    }
+    bucket_quarantine = {
+        "status": "ACTIVE_WITH_QUARANTINES",
+        "generated_utc": "2026-07-06T01:54:19Z",
+        "blocked_bucket_keys": ["side:short", "timeframe:15m"],
+    }
+
+    result = build_confidence_actionability(
+        prediction_source=prediction_source,
+        runtime_truth=runtime_truth,
+        portfolio=portfolio,
+        outcome_observer=outcome,
+        explanation_payload=explanation,
+        paper_feedback_payload=paper_feedback,
+        bucket_quarantine_status=bucket_quarantine,
+        generated_est="2026-06-10T14:00:00-04:00",
+    )
+
+    recovery = result.artifacts["paper_actionability_candidate_recovery.json"]
+    loss_adjusted = result.artifacts["loss_adjusted_paper_actionability_status.json"]
+    dashboard = result.artifacts["operator_dashboard_payload.json"]
+
+    assert recovery["under_confident_candidate_count"] == 1
+    assert recovery["loss_quarantine_filtered_under_confident_candidate_count"] == 1
+    assert recovery["actionable_after_loss_adjustment_candidate_count"] == 0
+    assert recovery["candidate_rows_sample"] == []
+    assert loss_adjusted["status"] == "LOSS_ADJUSTED_ACTIONABILITY_ACTIVE"
+    assert loss_adjusted["high_confidence_feedback_loss_rows"] == 1
+    assert loss_adjusted["loss_adjusted_under_confident_candidate_count"] == 1
+    assert dashboard["summary"]["actionable_after_loss_adjustment_candidate_count"] == 0
 
 
 def test_confidence_actionability_cli_writes_outputs(tmp_path: Path, capsys) -> None:
@@ -190,4 +250,3 @@ def test_confidence_actionability_cli_writes_outputs(tmp_path: Path, capsys) -> 
     assert stdout["paper_threshold_auto_applied"] is False
     assert stdout["live_threshold_changed"] is False
     assert (paths.public_dir / "operator_dashboard_payload.json").exists()
-

@@ -1516,19 +1516,30 @@ def test_trajectory_status_consumes_adaptive_feasibility_without_ready_claim(tmp
     )
 
     trajectory = payloads["one_thousand_x_trajectory_status.json"]
-    assert trajectory["status"] == "INSUFFICIENT_EVIDENCE"
-    assert trajectory["current_status"] == "INSUFFICIENT_EVIDENCE"
+    assert trajectory["status"] == "NO_A_PLUS_SUPPLY"
+    assert trajectory["current_status"] == "NO_A_PLUS_SUPPLY"
+    assert trajectory["trajectory_status"] == "NO_A_PLUS_SUPPLY"
+    assert trajectory["blocker"] == "A_PLUS_EVIDENCE_NOT_STARTED"
+    assert trajectory["target_horizon_days"] == 90.0
+    assert trajectory["required_daily_return_pct"] == 7.98
+    assert trajectory["A_plus_rows"] == 0
+    assert trajectory["projection_days"] is None
     assert trajectory["actual_1d_return"] == 0.001
     assert trajectory["actual_7d_return"] == 0.002
     assert trajectory["actual_30d_return"] == -0.003
     assert trajectory["required_capital"] == 10_000_000.0
-    assert trajectory["required_edge"] == 0.00379224
+    assert round(trajectory["required_edge"], 8) == 0.07977516
     assert trajectory["required_edge_unit"] == "daily_geometric_return"
     assert trajectory["lower_confidence_bound_growth_rate"] is not None
     assert trajectory["lower_confidence_bound_growth_rate_unit"] == "daily_log_return"
     assert trajectory["drawdown_adjusted_growth_rate"] is not None
     assert trajectory["drawdown_adjusted_growth_rate_unit"] == "daily_log_return"
-    assert trajectory["days_ahead_or_behind_target"] == -2000.0
+    assert trajectory["days_ahead_or_behind_target"] is None
+    assert trajectory["required_operator_text"] == [
+        "Target requires ~7.98% compounded daily.",
+        "Current A+ evidence: 0.",
+        "B-grade exploration does not count as 1000x proof.",
+    ]
     assert trajectory["source_status"] == (
         "NO_GO_1000X_FEASIBILITY_REQUIRES_OUT_OF_SAMPLE_LIVE_GRADE_REVERIFY"
     )
@@ -1537,12 +1548,25 @@ def test_trajectory_status_consumes_adaptive_feasibility_without_ready_claim(tmp
     assert "actual_1d_return" not in trajectory["missing_trajectory_evidence_fields"]
     assert "lower_confidence_bound_growth_rate" not in trajectory["missing_trajectory_evidence_fields"]
     assert "drawdown_adjusted_growth_rate" not in trajectory["missing_trajectory_evidence_fields"]
-    assert "days_ahead_or_behind_target" not in trajectory["missing_trajectory_evidence_fields"]
+    assert "days_ahead_or_behind_target" in trajectory["missing_trajectory_evidence_fields"]
+    assert "A_plus_rows" in trajectory["missing_trajectory_evidence_fields"]
     assert trajectory["guaranteed_profit_claim"] is False
     assert trajectory["leverage_increase_allowed_because_behind"] is False
     assert (
         payloads["continuous_edge_guardian_status.json"]["trajectory_status"]["actual_30d_return"]
         == -0.003
+    )
+    assert (
+        payloads["one_thousand_x_90_day_trajectory_runtime_status.json"]["status"]
+        == "NO_A_PLUS_SUPPLY"
+    )
+    assert (
+        payloads["website_1000x_truth_status.json"]["required_operator_text"][0]
+        == "Target requires ~7.98% compounded daily."
+    )
+    assert (
+        payloads["ios_1000x_truth_status.json"]["B_grade_counts_as_1000x_proof"]
+        is False
     )
     assert (
         payloads["EVIDENCE_MANIFEST.json"]["one_thousand_x_feasibility_source"]

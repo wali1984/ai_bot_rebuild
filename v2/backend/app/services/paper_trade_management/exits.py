@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, Mapping
 
 from .accounting import coerce_float
 from .position_state import PaperNetPosition, seconds_between
@@ -83,9 +83,52 @@ class PaperExitConfig:
     # When atr_bps > 0 in evaluate_exit(), the stop fires at atr_bps * atr_stop_multiplier.
     # Overrides stop_loss_bps when the ATR-derived stop is tighter.
     atr_stop_multiplier: float = 2.0
+    # R29-D4: Wider ATR stop for trend_mode entries. TIER_3_MODEL_REVERSAL_NETTING
+    # has WR=58% on trend SHORT vs TIER_1_ATR_VOLATILITY_STOP WR=0% (148 trades).
+    # Widening from 2.0x to 3.0x gives the model reversal signal more runway to fire
+    # before ATR stop cuts the trade. In cascade markets (post-R29-D2 regime gate),
+    # adverse moves on trend SHORT are more likely to be noise before continuation.
+    # None = use atr_stop_multiplier (backward compatible).
+    atr_stop_multiplier_trend_mode: float | None = 3.0
     # ATR-scaled trailing distance. The effective trailing distance is the
     # wider of trailing_stop_bps and atr_bps * atr_trailing_stop_multiplier.
     atr_trailing_stop_multiplier: float = 1.5
+    # A+ goal Phase 7: MFE breakeven protection. A position whose favorable
+    # excursion reached mfe_breakeven_atr_multiple x ATR (or the bps floor when
+    # ATR is unavailable) must not round-trip into a full ATR-stop loss. Once
+    # armed, retracement back to the cost buffer closes at ~breakeven. This
+    # covers the unprotected MFE band below the adaptive-trailing profit floor
+    # (observed ATR-stop cluster: MFE 25-30bps, trail floor ~42bps, ATR stop
+    # fired at -20 to -27bps).
+    mfe_breakeven_protection_enabled: bool = True
+    mfe_breakeven_atr_multiple: float = 2.0
+    mfe_breakeven_min_mfe_bps: float = 20.0
+    mfe_breakeven_cost_buffer_bps: float = 8.0
+    # A+ goal Phase 7: regime-aware ATR stop scaling applied on top of the
+    # strategy-mode multiplier. VOLATILE_EXPANSION widens the stop so noise
+    # does not cluster ATR losses; RANGING tightens it because adverse moves
+    # in a range are less likely to be noise before continuation.
+    atr_stop_regime_scale: Mapping[str, float] = field(
+        default_factory=lambda: {
+            "VOLATILE_EXPANSION": 1.3,
+            "LIQUIDITY_SWEEP": 1.3,
+            "RANGING": 0.8,
+        }
+    )
+    # A+ goal Phase 8: compressed-volatility floor for the ATR-derived stop.
+    # The 2026-07-05 cluster fired at ~19-21bps because entry ATR was 6.3-7.1bps,
+    # so even the 3.0x trend multiplier sat inside round-trip cost (~11bps) plus
+    # one candle of noise. The effective ATR stop distance is
+    # max(scaled ATR stop, this floor); TIER_0 liquidation-distance and
+    # drawdown-emergency guards remain the catastrophic ceiling.
+    atr_stop_floor_bps: float = 35.0
+    # A+ goal Phase 8: unconditional per-position catastrophic floor. LITUSDT
+    # (2026-07-06 06:57Z) reached MAE 610bps with NO stop armed because
+    # entry_atr_bps was None (ATR stop never evaluated), static stops are
+    # disabled in the active runtime, and drawdown-emergency guards account
+    # equity, not single positions. This floor fires regardless of ATR
+    # availability or static-exit switches; 0 disables (tests only).
+    catastrophic_floor_stop_bps: float = 150.0
     # Phase 7: liquidity-aware TP — skip TP when ob_spread_bps exceeds this limit.
     # Wide spreads indicate poor fill quality; better to hold than take a spread-eaten TP.
     max_ob_spread_bps_for_tp: float = 20.0
@@ -111,6 +154,7 @@ def evaluate_exit(
     account_context: dict[str, Any] | None = None,
     atr_bps: float | None = None,
     ob_spread_bps: float | None = None,
+    regime: str | None = None,
 ) -> dict[str, Any]:
     if mark_price is None or mark_price <= 0:
         return {"should_close": False, "close_reason": None, "tier": None, "blocker": "MARK_PRICE_MISSING"}
@@ -167,9 +211,87 @@ def evaluate_exit(
             "pnl_bps": pnl_bps_value,
             "confidence": confidence,
         }
+    # A+ goal Phase 7: MFE breakeven protection fires before the ATR stop so a
+    # trade that already paid for itself exits near breakeven instead of riding
+    # the full retracement into a TIER_1_ATR_VOLATILITY_STOP loss.
+    if config.mfe_breakeven_protection_enabled:
+        _trailing_already_armed = (
+            bool(position.trailing_stop_history) or position.trailing_activation_price is not None
+        )
+        # Only fire near breakeven as designed: a decay band of 3x the cost
+        # buffer. Deeper losses must fall through to real stops (LITUSDT
+        # regression: this tier mislabelled a -286bps close as "breakeven
+        # protection" because it was the only check that ever fired).
+        _mfe_breakeven_lower_bound = -abs(config.mfe_breakeven_cost_buffer_bps) * 3.0
+        if (
+            not _trailing_already_armed
+            and pnl_bps_value <= config.mfe_breakeven_cost_buffer_bps
+            and pnl_bps_value >= _mfe_breakeven_lower_bound
+        ):
+            _entry = position.avg_entry_price
+            _best = position.best_favorable_price
+            _mfe_bps: float | None = None
+            if _best is not None and _best > 0 and _entry and _entry > 0:
+                if position.side == "long" and _best > _entry:
+                    _mfe_bps = (_best - _entry) / _entry * 10000.0
+                elif position.side == "short" and _best < _entry:
+                    _mfe_bps = (_entry - _best) / _entry * 10000.0
+            _arm_threshold_bps = abs(config.mfe_breakeven_min_mfe_bps)
+            if atr_bps is not None and atr_bps > 0:
+                _arm_threshold_bps = max(_arm_threshold_bps, atr_bps * config.mfe_breakeven_atr_multiple)
+            if _mfe_bps is not None and _mfe_bps >= _arm_threshold_bps:
+                return {
+                    "should_close": True,
+                    "close_reason": "TIER_2_MFE_BREAKEVEN_PROTECTION",
+                    "tier": 2,
+                    "pnl_bps": pnl_bps_value,
+                    "mfe_bps": _mfe_bps,
+                    "mfe_breakeven_arm_threshold_bps": _arm_threshold_bps,
+                    "mfe_breakeven_cost_buffer_bps": config.mfe_breakeven_cost_buffer_bps,
+                    "atr_bps": atr_bps,
+                }
+    # A+ goal Phase 8: when ATR is unavailable the volatility stop can never
+    # arm; with static stops disabled in the active runtime that left NO
+    # working stop (LITUSDT regression). Fall back to the compressed-vol floor
+    # as a fixed stop distance for missing-ATR positions.
+    if (atr_bps is None or atr_bps <= 0) and not config.static_stop_loss_enabled and config.atr_stop_floor_bps > 0:
+        if pnl_bps_value <= -abs(config.atr_stop_floor_bps):
+            return {
+                "should_close": True,
+                "close_reason": "TIER_1_ATR_VOLATILITY_STOP",
+                "tier": 1,
+                "pnl_bps": pnl_bps_value,
+                "atr_bps": atr_bps,
+                "atr_stop_bps": float(config.atr_stop_floor_bps),
+                "atr_stop_multiplier_used": None,
+                "atr_stop_regime": None,
+                "atr_stop_regime_scale_used": None,
+                "atr_stop_floor_applied": True,
+                "atr_stop_floor_bps": config.atr_stop_floor_bps,
+                "atr_missing_floor_fallback": True,
+            }
     # Phase 7: volatility-adjusted stop — ATR-derived stop overrides when tighter.
     if atr_bps is not None and atr_bps > 0:
-        atr_stop = atr_bps * config.atr_stop_multiplier
+        # R29-D4: Use wider multiplier for trend_mode to give model reversal netting runway.
+        _is_trend = (position.strategy_selected_mode or "").lower() == "trend_mode"
+        _atr_mult = (
+            config.atr_stop_multiplier_trend_mode
+            if (_is_trend and config.atr_stop_multiplier_trend_mode is not None)
+            else config.atr_stop_multiplier
+        )
+        # A+ goal Phase 7: regime-aware scale on top of the mode multiplier.
+        _regime_scale = 1.0
+        _regime_key = str(regime or position.market_regime_at_entry or "").upper()
+        if _regime_key:
+            try:
+                _regime_scale = float((config.atr_stop_regime_scale or {}).get(_regime_key, 1.0))
+            except (TypeError, ValueError):
+                _regime_scale = 1.0
+        atr_stop = atr_bps * _atr_mult * _regime_scale
+        _atr_floor_applied = False
+        if config.atr_stop_floor_bps > 0 and atr_stop < config.atr_stop_floor_bps:
+            atr_stop = float(config.atr_stop_floor_bps)
+            _atr_floor_applied = True
         if pnl_bps_value <= -abs(atr_stop):
             return {
                 "should_close": True,
@@ -178,6 +300,11 @@ def evaluate_exit(
                 "pnl_bps": pnl_bps_value,
                 "atr_bps": atr_bps,
                 "atr_stop_bps": atr_stop,
+                "atr_stop_multiplier_used": _atr_mult,
+                "atr_stop_regime": _regime_key or None,
+                "atr_stop_regime_scale_used": _regime_scale,
+                "atr_stop_floor_applied": _atr_floor_applied,
+                "atr_stop_floor_bps": config.atr_stop_floor_bps,
             }
     if config.static_stop_loss_enabled and pnl_bps_value <= -abs(config.stop_loss_bps):
         return {
@@ -185,6 +312,17 @@ def evaluate_exit(
             "close_reason": "TIER_1_STOP_LOSS",
             "tier": 1,
             "pnl_bps": pnl_bps_value,
+        }
+    # A+ goal Phase 8: unconditional catastrophic floor — the backstop when no
+    # tighter stop fired above (LITUSDT regression: entry_atr_bps=None with
+    # static stops disabled left no working stop; MAE reached 610bps).
+    if config.catastrophic_floor_stop_bps > 0 and pnl_bps_value <= -abs(config.catastrophic_floor_stop_bps):
+        return {
+            "should_close": True,
+            "close_reason": "TIER_0_CATASTROPHIC_FLOOR_STOP",
+            "tier": 0,
+            "pnl_bps": pnl_bps_value,
+            "catastrophic_floor_stop_bps": config.catastrophic_floor_stop_bps,
         }
     profit_lock_result: dict[str, Any] | None = None
     profit_lock_deferred_result: dict[str, Any] | None = None

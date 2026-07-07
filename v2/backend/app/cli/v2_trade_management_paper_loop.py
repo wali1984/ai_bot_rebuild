@@ -30,6 +30,7 @@ from v2.backend.app.services.live_gate.runtime_execution_state import (
 from v2.backend.app.services.native_trainer.feedback_enrichment import (
     AUDIT_QUALITY_FEEDBACK_FIELDS,
     REQUIRED_FEEDBACK_FIELDS,
+    apply_trainer_feedback_field_contract,
     audit_quality_rejection_reasons,
     build_strategy_hedge_exit_feedback,
     feedback_status,
@@ -41,13 +42,25 @@ from v2.backend.app.services.strategy_router import (
 from v2.backend.app.services.paper_trade_management.entry_gate import (
     expected_move_after_cost_favorable_for_side,
 )
+from v2.backend.app.services.paper_trade_management.side_performance import (
+    SIDE_PERFORMANCE_REDIS_KEY,
+    build_side_performance,
+)
+from v2.backend.app.services.a_plus_trade_gate import (
+    A_PLUS_GATE_STATUS_REDIS_KEY,
+    evaluate_a_plus_candidate,
+)
 from v2.backend.app.services.paper_trade_management.exits import PAPER_EXIT_POLICY_VERSION
 from v2.backend.app.services.paper_trade_management.position_state import atr_bps_from_payloads
+from v2.backend.app.services.paper_trade_management.position_validity import (
+    validate_paper_fill_write_invariant,
+)
 
 V2_REDIS_PREFIX = "v2:"
 PAPER_SIZING_SOURCE_ADAPTIVE = "V2_ADAPTIVE_AI_CAPITAL_ALLOCATOR"
 TRIAL_STATUS_REDIS_KEY = f"{V2_REDIS_PREFIX}paper:confidence_threshold_trial:status"
 TRIAL_DRAWDOWN_GUARD_REDIS_KEY = f"{V2_REDIS_PREFIX}paper:confidence_threshold_trial:drawdown_guard"
+PAPER_ENTRY_FREEZE_REDIS_KEY = f"{V2_REDIS_PREFIX}paper:entry_freeze"
 DEFAULT_PAYLOAD_PATH = Path(
     "v2/frontend/public/operator_runtime/v2_trade_management_paper/live/latest/v2_trade_management_paper_live_status.json"
 )
@@ -57,6 +70,9 @@ TRADE_MANAGEMENT_PUBLIC_DIR = Path(
     "v2/frontend/public/operator_runtime/v2_paper_trade_management/latest"
 )
 PAPER_ACCEPTED_FILLS_STATE_PATH = TRADE_MANAGEMENT_PUBLIC_DIR / "paper_accepted_fills_state.json"
+PAPER_ACCEPTED_FILLS_QUARANTINE_STATE_PATH = (
+    TRADE_MANAGEMENT_PUBLIC_DIR / "paper_accepted_fills_quarantine_state.json"
+)
 PAPER_LIFECYCLE_STATE_PATH = TRADE_MANAGEMENT_PUBLIC_DIR / "paper_lifecycle_state.json"
 PAPER_FORWARD_CANARY_CLOSED_OUTCOME_ARCHIVE_PATH = (
     TRADE_MANAGEMENT_PUBLIC_DIR / "paper_forward_canary_closed_outcome_archive.json"
@@ -69,6 +85,18 @@ PAPER_POLICY_OWNER_HANDOFF_RUNTIME_PROOF_PATH = (
 )
 PAPER_B_GRADE_BUCKET_PROMOTION_READINESS_STATUS_PATH = (
     TRADE_MANAGEMENT_PUBLIC_DIR / "paper_b_grade_bucket_promotion_readiness_status.json"
+)
+B_GRADE_EXPLORATION_RESUMPTION_STATUS_PATH = (
+    TRADE_MANAGEMENT_PUBLIC_DIR / "b_grade_exploration_resumption_status.json"
+)
+A_PLUS_GATE_REDISTRIBUTION_STATUS_PATH = (
+    TRADE_MANAGEMENT_PUBLIC_DIR / "a_plus_gate_redistribution_status.json"
+)
+A_PLUS_5_TRADE_GATE_RUNTIME_STATUS_PATH = (
+    TRADE_MANAGEMENT_PUBLIC_DIR / "a_plus_5_trade_gate_runtime_status.json"
+)
+B_GRADE_CALIBRATION_SAFETY_STATUS_PATH = (
+    TRADE_MANAGEMENT_PUBLIC_DIR / "b_grade_calibration_safety_status.json"
 )
 PAPER_TRAINER_MODEL_QUALITY_RUNTIME_STATUS_PATH = (
     TRADE_MANAGEMENT_PUBLIC_DIR / "trainer_model_quality_runtime_status.json"
@@ -105,6 +133,37 @@ PAPER_CHURN_EQUITY_BLEED_GOVERNOR_NAME = "PAPER_ONLY_CHURN_EQUITY_BLEED_GOVERNOR
 PAPER_CHURN_EQUITY_BLEED_BLOCK_REASON = "PAPER_CHURN_EQUITY_BLEED_GOVERNOR_BLOCKED"
 PAPER_CHURN_EQUITY_BLEED_RECENT_WINDOW_SECONDS = 60 * 60
 PAPER_CHURN_COST_DRAG_MAX_PCT_OF_TURNOVER = 100.0
+PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCK_REASON = (
+    "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED"
+)
+PAPER_PERFORMANCE_CIRCUIT_BREAKER_HALT_REASON = (
+    "PERFORMANCE_REGRESSION_PF_OR_EXPECTANCY"
+)
+PAPER_HIGH_CONFIDENCE_LOSS_RATE_BOUND = float(
+    os.getenv("PAPER_HIGH_CONFIDENCE_LOSS_RATE_BOUND", "0.40")
+)
+PAPER_HIGH_CONFIDENCE_QUARANTINE_MIN_SCORE = float(
+    os.getenv("PAPER_HIGH_CONFIDENCE_QUARANTINE_MIN_SCORE", "0.55")
+)
+PAPER_ATR_STOP_CLUSTER_MIN_COUNT = int(
+    os.getenv("PAPER_ATR_STOP_CLUSTER_MIN_COUNT", "2")
+)
+PAPER_NEGATIVE_BUCKET_QUARANTINE_MIN_COUNT = int(
+    os.getenv("PAPER_NEGATIVE_BUCKET_QUARANTINE_MIN_COUNT", "2")
+)
+PAPER_PERFORMANCE_CIRCUIT_BREAKER_STATUS_PATH = (
+    TRADE_MANAGEMENT_PUBLIC_DIR / "paper_performance_circuit_breaker_status.json"
+)
+PAPER_BLEED_HALT_STATUS_PATH = TRADE_MANAGEMENT_PUBLIC_DIR / "paper_bleed_halt_status.json"
+PAPER_PERFORMANCE_GOVERNOR_STATUS_PATH = (
+    TRADE_MANAGEMENT_PUBLIC_DIR / "paper_performance_governor_status.json"
+)
+PAPER_NEW_ENTRY_EMERGENCY_HALT_STATUS_PATH = (
+    TRADE_MANAGEMENT_PUBLIC_DIR / "paper_new_entry_emergency_halt_status.json"
+)
+PAPER_BUCKET_QUARANTINE_STATUS_PATH = (
+    TRADE_MANAGEMENT_PUBLIC_DIR / "bucket_quarantine_status.json"
+)
 MISSING_THESIS_TIMEFRAME_BLOCK_REASON = "MISSING_THESIS_TIMEFRAME"
 UNKNOWN_THESIS_TIMEFRAME = "UNKNOWN"
 PAPER_EXECUTION_TIMING_TIMEFRAME = "1m"
@@ -169,8 +228,15 @@ COUNTERFACTUAL_MARKET_COST_REQUIREMENTS = (
 )
 PAPER_TIER_A_GRADE_EXECUTION = "A_GRADE_EXECUTION_PAPER"
 PAPER_TIER_B_GRADE_EXPLORATION = "B_GRADE_EXPLORATION_PAPER"
+B_GRADE_EXPLORATION_OUTCOME_LABEL = "B_GRADE_EXPLORATION_OUTCOME_LABEL"
 PAPER_TIER_SHADOW_ONLY = "SHADOW_ONLY"
 PAPER_TIER_NO_TRADE = "NO_TRADE"
+P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_REASON = (
+    "P0_ENTRY_GATE_BLOCKED_NOT_EXPLORATION_RELAXABLE"
+)
+P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_FEEDBACK_CLASSIFICATION = (
+    "paper_admission:p0_entry_gate_blocked_not_exploration_relaxable"
+)
 CHALLENGER_V2_FROZEN_CANDIDATE_ID = "challenger_v2_338f76bd071ba8ddfadb5d38"
 CHALLENGER_V2_PREVIOUS_ACTIVE_CUDA_CANDIDATE_ID = "challenger_v2_cuda_c4b8fb1ed12aabcb87224723"
 CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID = "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e"
@@ -388,6 +454,16 @@ PHASE2_RUNTIME_COST_CAPTURE_REQUIRED_FIELDS = (
     "cost_source",
     "cost_source_timestamp",
     "cost_evidence_freshness_ms",
+    "microstructure_trust_score",
+    "microstructure_action",
+    "orderbook_trust_tier",
+    "orderbook_latency_ms",
+    "book_sequence_gap",
+    "book_depth_persistence_score",
+    "book_cancel_pressure_score",
+    "trade_tape_confirmation_score",
+    "cross_venue_confirmation_score",
+    "sweep_risk_score",
     "fallback_cost_flag",
     "production_grade_cost_flag",
 )
@@ -645,6 +721,44 @@ def _read_readonly_fee_schedule_context(
     return {}
 
 
+def _pre_trade_fee_context(
+    *,
+    signal: dict[str, Any],
+    prediction: dict[str, Any],
+    fee_schedule_context: dict[str, Any] | None,
+) -> dict[str, Any]:
+    features = prediction.get("features") if isinstance(prediction.get("features"), dict) else {}
+    fee_bps, fee_source = _first_numeric_field_from(
+        ("signal", signal),
+        ("prediction", prediction),
+        ("prediction_features", features),
+        keys=("actual_fee_bps", "fee_bps", "taker_fee_bps", "expected_fee_bps"),
+    )
+    if fee_bps is not None:
+        return {
+            "fee_bps": fee_bps,
+            "fee_bps_source": fee_source,
+            "fee_bps_readonly_schedule": False,
+            "fee_bps_configured_schedule": False,
+        }
+    readonly_fee_bps, readonly_fee_source = _fee_bps_from_readonly_schedule(
+        fee_schedule_context,
+    )
+    if readonly_fee_bps is not None:
+        return {
+            "fee_bps": readonly_fee_bps,
+            "fee_bps_source": readonly_fee_source,
+            "fee_bps_readonly_schedule": True,
+            "fee_bps_configured_schedule": False,
+        }
+    return {
+        "fee_bps": _configured_paper_fee_bps(),
+        "fee_bps_source": PAPER_CONFIGURED_FEE_SCHEDULE_SOURCE,
+        "fee_bps_readonly_schedule": False,
+        "fee_bps_configured_schedule": True,
+    }
+
+
 def _build_trainer_feedback_rows(
     *,
     close_events: list[dict[str, Any]],
@@ -723,7 +837,61 @@ def _build_trainer_feedback_rows(
     return rows
 
 
+def _with_paper_session_metadata(
+    row: dict[str, Any],
+    *,
+    paper_session_id: str | None,
+    starting_equity_usd: float | None,
+) -> dict[str, Any]:
+    enriched = dict(row)
+    if paper_session_id:
+        enriched.setdefault("paper_session_id", paper_session_id)
+        enriched.setdefault("session_id", paper_session_id)
+        enriched.setdefault("reset_session_id", paper_session_id)
+    if starting_equity_usd is not None:
+        enriched.setdefault("starting_equity_usd", starting_equity_usd)
+    enriched.setdefault("paper_only", True)
+    enriched.setdefault("routes_to_live", False)
+    enriched.setdefault("places_real_order", False)
+    return enriched
+
+
+def _with_paper_session_metadata_rows(
+    rows: list[dict[str, Any]],
+    *,
+    paper_session_id: str | None,
+    starting_equity_usd: float | None,
+) -> list[dict[str, Any]]:
+    return [
+        _with_paper_session_metadata(
+            row,
+            paper_session_id=paper_session_id,
+            starting_equity_usd=starting_equity_usd,
+        )
+        for row in rows
+        if isinstance(row, dict)
+    ]
+
+
+STRATEGY_ROUTER_RUNTIME_PROVENANCE_FIELDS = (
+    "strategy_feature_snapshot_status",
+    "strategy_feature_snapshot_id",
+    "strategy_feature_snapshot_available_at",
+    "strategy_feature_snapshot_feature_cutoff",
+    "strategy_feature_snapshot_candle_closed_confirmed",
+    "strategy_feature_snapshot_latest_unclosed_kline_excluded",
+    "strategy_regime_feature_source_map",
+    "strategy_cross_asset_context_status",
+    "strategy_cross_asset_context_source",
+    "strategy_cross_asset_available_symbol_count",
+)
+
+
 _FEEDBACK_ENTRY_CONTEXT_FIELDS: tuple[str, ...] = (
+    "paper_session_id",
+    "session_id",
+    "reset_session_id",
+    "starting_equity_usd",
     "prediction_id",
     "source_prediction_id",
     "entry_prediction_id",
@@ -769,12 +937,25 @@ _FEEDBACK_ENTRY_CONTEXT_FIELDS: tuple[str, ...] = (
     "strategy_id",
     "strategy_family",
     "strategy_subtype",
+    "strategy_mode",
+    "strategy_canonical_mode",
     "strategy_selected_mode",
+    "strategy_router_selected_mode",
+    "strategy_market_regime",
+    "strategy_modes_supported",
+    "strategy_regime_features",
+    "strategy_regime_feature_status",
+    *STRATEGY_ROUTER_RUNTIME_PROVENANCE_FIELDS,
+    "strategy_bucket_key",
+    "strategy_bucket_quarantined",
+    "strategy_bucket_quarantine_reason",
+    "strategy_bucket_performance_state",
     "entry_reason",
     "hedge_state",
     "hedge_reason",
     "drawdown_at_entry",
     "drawdown_bps",
+    "market_regime",
     "market_regime_at_entry",
     "market_regime_at_exit",
     "liquidity_zone_context",
@@ -816,6 +997,10 @@ _FEEDBACK_ENTRY_CONTEXT_FIELDS: tuple[str, ...] = (
     "future_labels_used_as_features",
     "paper_fill_allowed_source",
     "strict_paper_fill_allowed_upstream",
+    "pre_trade_fee_bps",
+    "pre_trade_fee_bps_source",
+    "pre_trade_fee_bps_readonly_schedule",
+    "pre_trade_fee_bps_configured_schedule",
     "b_grade_exploration_budget_cap_applied",
     "risk_budget_fraction_of_normal_adaptive",
     "b_grade_exploration_static_confidence_floor",
@@ -853,6 +1038,203 @@ def _entry_feedback_context_by_fill_id(rows: list[dict[str, Any]]) -> dict[str, 
             if fill_id:
                 indexed.setdefault(str(fill_id), context)
     return indexed
+
+
+_PAPER_ROW_LINEAGE_ID_FIELDS = (
+    "fill_id",
+    "ledger_row_id",
+    "paper_trade_id",
+    "entry_fill_id",
+    "source_fill_id",
+    "intent_id",
+    "source_intent_id",
+    "signal_id",
+    "entry_signal_id",
+    "prediction_id",
+    "source_prediction_id",
+    "entry_prediction_id",
+    "decision_id",
+    "entry_decision_id",
+    "risk_decision_id",
+    "orchestrator_decision_id",
+    "allocation_id",
+)
+_PAPER_ROW_LINEAGE_LIST_FIELDS = (
+    "source_fill_ids",
+    "source_prediction_ids",
+    "entry_fill_ids",
+    "lineage_ids",
+    "related_fill_ids",
+)
+
+
+def _add_paper_row_lineage_value(ids: set[str], value: Any) -> None:
+    if value is None:
+        return
+    if isinstance(value, (list, tuple, set)):
+        for item in value:
+            _add_paper_row_lineage_value(ids, item)
+        return
+    if isinstance(value, dict):
+        return
+    normalized = str(value).strip()
+    if not normalized or normalized.lower() in {"none", "null", "nan"}:
+        return
+    ids.add(normalized)
+
+
+def _paper_row_lineage_ids(row: dict[str, Any]) -> set[str]:
+    ids: set[str] = set()
+    if not isinstance(row, dict):
+        return ids
+    for field in _PAPER_ROW_LINEAGE_ID_FIELDS:
+        _add_paper_row_lineage_value(ids, row.get(field))
+    for field in _PAPER_ROW_LINEAGE_LIST_FIELDS:
+        _add_paper_row_lineage_value(ids, row.get(field))
+    return ids
+
+
+def _invalid_admission_source_ids(rows: list[dict[str, Any]]) -> set[str]:
+    ids: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        if _non_relaxable_entry_gate_reasons(row):
+            ids.update(_paper_row_lineage_ids(row))
+    return ids
+
+
+def _split_invalid_admission_accepted_rows(
+    rows: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+    valid_rows: list[dict[str, Any]] = []
+    quarantined_rows: list[dict[str, Any]] = []
+    quarantined_source_ids: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        reasons = _non_relaxable_entry_gate_reasons(row)
+        if not reasons:
+            valid_rows.append(row)
+            continue
+        quarantined = dict(row)
+        quarantined["accepted_fill_quarantined"] = True
+        quarantined["accepted_fill_quarantine_reason"] = (
+            P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_REASON
+        )
+        quarantined["invalid_admission_quarantine_reason"] = (
+            P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_REASON
+        )
+        quarantined["paper_admission_quarantine_reason"] = (
+            P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_REASON
+        )
+        quarantined["invalid_admission_entry_gate_block_reasons"] = reasons
+        quarantined["trainer_consumable"] = False
+        quarantined["counts_as_production_grade_training_evidence"] = False
+        quarantined["counts_as_a_grade_evidence"] = False
+        quarantined_rows.append(quarantined)
+        quarantined_source_ids.update(_paper_row_lineage_ids(row))
+
+    status = {
+        "schema_version": "v2_invalid_admission_accepted_fill_quarantine_status_v1",
+        "status": (
+            "INVALID_ADMISSION_ACCEPTED_FILLS_QUARANTINED"
+            if quarantined_rows
+            else "NO_INVALID_ADMISSION_ACCEPTED_FILLS"
+        ),
+        "accepted_rows_seen": len(rows),
+        "valid_accepted_rows": len(valid_rows),
+        "invalid_admission_accepted_rows_quarantined": len(quarantined_rows),
+        "invalid_admission_source_id_count": len(quarantined_source_ids),
+        "invalid_admission_source_ids_sample": sorted(quarantined_source_ids)[:50],
+        "quarantine_reason": P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_REASON,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    return valid_rows, quarantined_rows, status
+
+
+def _string_list(value: Any) -> list[str]:
+    if value in (None, "", "NONE"):
+        return []
+    if isinstance(value, str):
+        return [part.strip() for part in value.split(",") if part.strip()]
+    if isinstance(value, (list, tuple, set)):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return [str(value).strip()] if str(value).strip() else []
+
+
+def _quarantine_invalid_admission_feedback_rows(
+    rows: list[dict[str, Any]],
+    invalid_source_ids: set[str],
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    invalid_ids = {str(value).strip() for value in invalid_source_ids if str(value).strip()}
+    quarantined_rows: list[dict[str, Any]] = []
+    matched_source_ids: set[str] = set()
+    quarantined_count = 0
+    for row in rows:
+        if not isinstance(row, dict):
+            quarantined_rows.append(row)
+            continue
+        matches = sorted(_paper_row_lineage_ids(row) & invalid_ids)
+        if not matches:
+            quarantined_rows.append(row)
+            continue
+        enriched = dict(row)
+        reasons = set(_string_list(enriched.get("quarantine_reasons")))
+        existing_reason = enriched.get("quarantine_reason")
+        if existing_reason not in (None, "", "NONE"):
+            reasons.update(_string_list(existing_reason))
+        reasons.add(P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_REASON)
+        missing_classifications = set(
+            _string_list(enriched.get("missing_feedback_classifications"))
+        )
+        missing_classifications.add(
+            P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_FEEDBACK_CLASSIFICATION
+        )
+        enriched.update(
+            {
+                "trainer_consumable": False,
+                "quarantined": True,
+                "quarantine_reason": P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_REASON,
+                "quarantine_reasons": sorted(reasons),
+                "invalid_admission_quarantine_reason": (
+                    P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_REASON
+                ),
+                "paper_admission_quarantine_reason": (
+                    P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_REASON
+                ),
+                "invalid_admission_source_ids_matched": matches,
+                "missing_feedback_classifications": sorted(missing_classifications),
+                "counts_as_production_grade_training_evidence": False,
+                "invalid_admission_trainer_feedback_quarantined": True,
+                "trainer_feedback_quarantine_source": (
+                    "paper_loop_invalid_admission_lineage"
+                ),
+            }
+        )
+        matched_source_ids.update(matches)
+        quarantined_count += 1
+        quarantined_rows.append(enriched)
+    return quarantined_rows, {
+        "status": (
+            "INVALID_ADMISSION_FEEDBACK_QUARANTINED"
+            if quarantined_count
+            else "NO_INVALID_ADMISSION_FEEDBACK_MATCHES"
+        ),
+        "invalid_admission_source_id_count": len(invalid_ids),
+        "invalid_admission_feedback_rows_seen": len(rows),
+        "invalid_admission_feedback_rows_quarantined": quarantined_count,
+        "invalid_admission_feedback_rows_remaining_consumable": sum(
+            1 for row in quarantined_rows if isinstance(row, dict) and row.get("trainer_consumable") is True
+        ),
+        "invalid_admission_source_ids_matched_count": len(matched_source_ids),
+        "quarantine_reason": P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_REASON,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
 
 
 def _source_entry_context_for_close(
@@ -1097,6 +1479,9 @@ def _reconstruct_trust_from_prediction(
     for key, value in envelope.items():
         if value not in (None, "") and (key != "source_hashes" or value):
             enriched[key] = value
+    if isinstance(feature_snapshot, dict) and feature_snapshot:
+        enriched.setdefault("entry_feature_snapshot", feature_snapshot)
+        enriched.setdefault("feature_snapshot", feature_snapshot)
     missing_score_fields = [
         field
         for field in ("confidence_calibrated", "expected_move_after_cost_bps")
@@ -1387,6 +1772,28 @@ def _read_json_key(r, key: str) -> dict:
     return payload if isinstance(payload, dict) else {}
 
 
+def _read_paper_entry_freeze(r) -> dict[str, Any]:
+    payload = _read_json_key(r, PAPER_ENTRY_FREEZE_REDIS_KEY)
+    if not payload:
+        return {
+            "schema_version": "paper_entry_freeze_v1",
+            "paper_new_entries_halted": False,
+            "new_entries_allowed": True,
+            "reason": None,
+            "source": PAPER_ENTRY_FREEZE_REDIS_KEY,
+        }
+    halted = payload.get("paper_new_entries_halted") is True or payload.get("new_entries_allowed") is False
+    return {
+        **payload,
+        "paper_new_entries_halted": halted,
+        "new_entries_allowed": not halted,
+        "source": PAPER_ENTRY_FREEZE_REDIS_KEY,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+
+
 def _read_json_list_key(r, key: str) -> list[dict[str, Any]]:
     if r is None or not key.startswith(V2_REDIS_PREFIX):
         return []
@@ -1653,6 +2060,16 @@ def _iso_from_epoch_ms(value: Any) -> str | None:
         return None
 
 
+def _iso_from_time_value(value: Any) -> str | None:
+    parsed_epoch = _iso_from_epoch_ms(value)
+    if parsed_epoch is not None:
+        return parsed_epoch
+    parsed_dt = _parse_strategy_time(value)
+    if parsed_dt is None:
+        return None
+    return parsed_dt.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
 def _best_level_price(levels: Any) -> float | None:
     if not isinstance(levels, list) or not levels:
         return None
@@ -1724,7 +2141,14 @@ def _read_v2_orderbook_microstructure(r, symbol: str) -> dict[str, Any]:
     if r is None or not symbol:
         return {}
     normalized = str(symbol).upper()
+    trust_evidence = _read_v2_microstructure_trust(r, normalized)
     for key in (
+        f"{V2_REDIS_PREFIX}orderbook:features:binance:{normalized}",
+        f"{V2_REDIS_PREFIX}orderbook:depth:binance:{normalized}",
+        f"{V2_REDIS_PREFIX}orderbook:top:binance:{normalized}",
+        f"{V2_REDIS_PREFIX}orderbook:features:kucoin:{normalized}",
+        f"{V2_REDIS_PREFIX}orderbook:depth:kucoin:{normalized}",
+        f"{V2_REDIS_PREFIX}orderbook:top:kucoin:{normalized}",
         f"{V2_REDIS_PREFIX}market:orderbook:{normalized}",
         f"{V2_REDIS_PREFIX}market:orderbook:binance:{normalized}",
     ):
@@ -1760,24 +2184,82 @@ def _read_v2_orderbook_microstructure(r, symbol: str) -> dict[str, Any]:
         ask_levels_top5 = _top_depth_levels(asks)
         bid_qty = _top_depth_quantity(bids)
         ask_qty = _top_depth_quantity(asks)
-        bid_depth_usd = _top_depth_notional_usd(bids)
-        ask_depth_usd = _top_depth_notional_usd(asks)
+        bid_depth_usd = _coerce_float(
+            _first_present(
+                _top_depth_notional_usd(bids),
+                payload.get("top_book_bid_depth_usd"),
+                payload.get("bid_depth_usd"),
+                payload.get("depth_5_bid_usd"),
+                payload.get("best_bid_depth_usd"),
+            )
+        )
+        ask_depth_usd = _coerce_float(
+            _first_present(
+                _top_depth_notional_usd(asks),
+                payload.get("top_book_ask_depth_usd"),
+                payload.get("ask_depth_usd"),
+                payload.get("depth_5_ask_usd"),
+                payload.get("best_ask_depth_usd"),
+            )
+        )
+        market_depth_usd = _coerce_float(
+            _first_present(
+                payload.get("market_depth_usd"),
+                payload.get("orderbook_depth_usd"),
+                payload.get("microstructure_liquidity_depth"),
+                min(
+                    _coerce_float(payload.get("depth_20_bid_usd")),
+                    _coerce_float(payload.get("depth_20_ask_usd")),
+                )
+                if _coerce_float(payload.get("depth_20_bid_usd")) is not None
+                and _coerce_float(payload.get("depth_20_ask_usd")) is not None
+                else None,
+                min(
+                    _coerce_float(payload.get("depth_50_bid_usd")),
+                    _coerce_float(payload.get("depth_50_ask_usd")),
+                )
+                if _coerce_float(payload.get("depth_50_bid_usd")) is not None
+                and _coerce_float(payload.get("depth_50_ask_usd")) is not None
+                else None,
+            )
+        )
         generic_depth_candidates = [
             value for value in (bid_depth_usd, ask_depth_usd)
             if value is not None and value > 0
         ]
-        top_depth_usd = min(generic_depth_candidates) if generic_depth_candidates else None
+        top_depth_usd = (
+            market_depth_usd
+            if market_depth_usd is not None and market_depth_usd > 0
+            else min(generic_depth_candidates) if generic_depth_candidates else None
+        )
+        depth_source = None
+        if top_depth_usd is not None:
+            depth_source = (
+                f"{key}:precomputed_orderbook_depth_usd"
+                if market_depth_usd is not None and market_depth_usd > 0
+                else f"{key}:top5_notional_usd"
+            )
         imbalance = None
         if bid_qty is not None and ask_qty is not None and (bid_qty + ask_qty) > 0:
             imbalance = (bid_qty - ask_qty) / (bid_qty + ask_qty)
-        available_at = _iso_from_epoch_ms(
-            payload.get("E")
+        available_at = _iso_from_time_value(
+            payload.get("available_at")
+            or payload.get("received_at")
+            or payload.get("generated_at")
+            or payload.get("generated_at_ms")
+            or payload.get("E")
             or payload.get("T")
             or payload.get("time")
             or payload.get("event_time")
-            or payload.get("generated_at_ms")
         )
         captured_at = _utc_iso()
+        depth_impact_bps = _coerce_float(
+            _first_present(
+                payload.get("depth_derived_price_impact_bps"),
+                payload.get("depth_price_impact_bps"),
+                payload.get("estimated_price_impact_bps"),
+            )
+        )
         return {
             "source": f"{ENTRY_SPREAD_SOURCE_V2_ORDERBOOK}:{key}",
             "bid_ask_spread_bps": round(float(spread_bps), 8),
@@ -1792,12 +2274,111 @@ def _read_v2_orderbook_microstructure(r, symbol: str) -> dict[str, Any]:
             "orderbook_depth_usd": round(float(top_depth_usd), 8) if top_depth_usd is not None else None,
             "top_of_book_depth_usd": round(float(top_depth_usd), 8) if top_depth_usd is not None else None,
             "market_depth_usd": round(float(top_depth_usd), 8) if top_depth_usd is not None else None,
-            "orderbook_depth_source": f"{key}:top5_notional_usd" if top_depth_usd is not None else None,
+            "orderbook_depth_source": depth_source,
+            "depth_derived_price_impact_bps": round(float(depth_impact_bps), 8) if depth_impact_bps is not None else None,
+            "depth_price_impact_bps": round(float(depth_impact_bps), 8) if depth_impact_bps is not None else None,
+            "depth_price_impact_source": f"{key}:estimated_price_impact_bps" if depth_impact_bps is not None else None,
+            "depth_price_impact_model": "DIRECT_ORDERBOOK_FEATURE_ESTIMATE" if depth_impact_bps is not None else None,
             "entry_spread_available_at": available_at,
             "entry_spread_captured_at": captured_at,
             "entry_spread_decision_time": captured_at,
+            **trust_evidence,
         }
     return {}
+
+
+def _read_v2_microstructure_trust(
+    r,
+    symbol: str,
+    *,
+    decision_time: Any = None,
+    timeframe: Any = None,
+) -> dict[str, Any]:
+    if r is None or not symbol:
+        return {}
+    normalized = str(symbol).upper()
+    requested_timeframe = str(timeframe or "").strip()
+    timeframe_candidates = [
+        requested_timeframe,
+        "1m",
+        "5m",
+        "15m",
+    ]
+    lookup_timeframes = [
+        item
+        for item in dict.fromkeys(timeframe_candidates)
+        if item in {"1m", "5m", "15m"}
+    ]
+    lookup_keys = [
+        f"{V2_REDIS_PREFIX}microstructure:trust_score:{normalized}:{timeframe}"
+        for timeframe in lookup_timeframes
+    ]
+    decision_dt = _parse_strategy_time(decision_time)
+    rejected_future_payload: dict[str, Any] | None = None
+    for key in lookup_keys:
+        try:
+            raw = r.get(key)
+        except Exception:
+            raw = None
+        if not raw:
+            continue
+        try:
+            payload = json.loads(raw)
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        available_at = _first_present(payload.get("available_at"), payload.get("generated_at"))
+        generated_at = payload.get("generated_at")
+        available_dt = _parse_strategy_time(available_at)
+        generated_dt = _parse_strategy_time(generated_at)
+        if decision_dt is not None and (
+            available_dt is None
+            or available_dt > decision_dt
+            or (generated_dt is not None and generated_dt > decision_dt)
+        ):
+            rejected_future_payload = {
+                "microstructure_trust_source": key,
+                "microstructure_trust_status": "REJECTED_MICROSTRUCTURE_TRUST_AFTER_DECISION",
+                "microstructure_trust_lookup_keys": lookup_keys,
+                "microstructure_available_at": available_at,
+                "microstructure_generated_at": generated_at,
+                "microstructure_trust_decision_time": decision_time,
+                "post_sweep_reversal_probability": None,
+                "fakeout_reversal_probability": None,
+            }
+            continue
+        return {
+            "microstructure_trust_source": key,
+            "microstructure_trust_score": payload.get("microstructure_trust_score"),
+            "microstructure_adaptive_minimum": payload.get("adaptive_minimum"),
+            "orderbook_trust_score": payload.get("orderbook_trust_score"),
+            "orderbook_trust_tier": payload.get("orderbook_trust_tier"),
+            "microstructure_action": payload.get("microstructure_action"),
+            "orderbook_latency_ms": payload.get("orderbook_latency_ms") or payload.get("feed_latency_ms"),
+            "book_sequence_gap": payload.get("book_sequence_gap") if payload.get("book_sequence_gap") is not None else bool(payload.get("sequence_gap_flag")),
+            "book_depth_persistence_score": payload.get("book_depth_persistence_score") or payload.get("depth_persistence"),
+            "book_cancel_pressure_score": payload.get("book_cancel_pressure_score") or payload.get("cancel_pressure"),
+            "trade_tape_confirmation_score": payload.get("trade_tape_confirmation_score"),
+            "cross_venue_confirmation_score": payload.get("cross_venue_confirmation_score") or payload.get("cross_venue_confirmation"),
+            "liquidation_zone_risk_score": payload.get("liquidation_zone_risk_score"),
+            "sweep_risk_score": payload.get("sweep_risk_score") or payload.get("sweep_risk"),
+            "post_sweep_reversal_probability": payload.get("post_sweep_reversal_probability"),
+            "fakeout_reversal_probability": payload.get("post_sweep_reversal_probability"),
+            "microstructure_missing_components": payload.get("missing_components"),
+            "microstructure_decision_time": payload.get("decision_time"),
+            "microstructure_available_at": available_at,
+            "microstructure_generated_at": generated_at,
+            "microstructure_trust_status": "MICROSTRUCTURE_TRUST_SCORE_FOUND",
+            "microstructure_trust_lookup_keys": lookup_keys,
+        }
+    if rejected_future_payload is not None:
+        return rejected_future_payload
+    return {
+        "microstructure_trust_status": "MISSING_MICROSTRUCTURE_TRUST_SCORE",
+        "microstructure_trust_missing_reason": "NO_V2_MICROSTRUCTURE_TRUST_SCORE_REDIS_PAYLOAD",
+        "microstructure_trust_lookup_keys": lookup_keys,
+    }
 
 
 def _read_v2_market_price(r, symbol: str) -> tuple[float | None, str, str | None]:
@@ -2774,6 +3355,29 @@ def _attach_runtime_cost_capture_contract(
         intent.setdefault("orderbook_depth_usd", market_depth)
         intent.setdefault("top_of_book_depth_usd", market_depth)
 
+    for field in (
+        "microstructure_trust_source",
+        "microstructure_trust_score",
+        "microstructure_adaptive_minimum",
+        "orderbook_trust_score",
+        "orderbook_trust_tier",
+        "microstructure_action",
+        "orderbook_latency_ms",
+        "book_sequence_gap",
+        "book_depth_persistence_score",
+        "book_cancel_pressure_score",
+        "trade_tape_confirmation_score",
+        "cross_venue_confirmation_score",
+        "liquidation_zone_risk_score",
+        "sweep_risk_score",
+        "microstructure_missing_components",
+        "microstructure_decision_time",
+        "microstructure_available_at",
+    ):
+        value = _first_present(intent.get(field), market_microstructure.get(field))
+        if value not in (None, ""):
+            intent[field] = value
+
     no_order_reason = _runtime_cost_capture_no_order_reason(intent)
     if no_order_reason is not None and order_size is None:
         order_size = 0.0
@@ -2785,8 +3389,21 @@ def _attach_runtime_cost_capture_contract(
         _first_present(
             intent.get("depth_derived_price_impact_bps"),
             intent.get("depth_price_impact_bps"),
+            market_microstructure.get("depth_derived_price_impact_bps"),
+            market_microstructure.get("depth_price_impact_bps"),
+            market_microstructure.get("estimated_price_impact_bps"),
         )
     )
+    if depth_impact is not None and intent.get("depth_price_impact_source") in (None, ""):
+        intent["depth_price_impact_source"] = _first_present(
+            market_microstructure.get("depth_price_impact_source"),
+            "V2_MARKET_MICROSTRUCTURE_PAYLOAD:depth_price_impact_bps",
+        )
+    if depth_impact is not None and intent.get("depth_price_impact_model") in (None, ""):
+        intent["depth_price_impact_model"] = _first_present(
+            market_microstructure.get("depth_price_impact_model"),
+            "DIRECT_ORDERBOOK_FEATURE_ESTIMATE",
+        )
     if depth_impact is None and no_order_reason is not None:
         depth_impact = 0.0
         intent["depth_price_impact_source"] = "NO_ORDER_ZERO_SIZE_NO_MARKET_IMPACT"
@@ -2922,6 +3539,45 @@ def _attach_runtime_cost_capture_contract(
         intent["cost_evidence_freshness_ms"] = freshness_ms
         if freshness_ms < 0:
             temporal_reject_reasons.append("COST_SOURCE_TIMESTAMP_AFTER_DECISION_TIME")
+        elif _coerce_float(intent.get("orderbook_latency_ms")) is None and cost_source_allowed:
+            intent["orderbook_latency_ms"] = freshness_ms
+            intent["orderbook_latency_source"] = (
+                "DERIVED_FROM_COST_SOURCE_TIMESTAMP_AND_RUNTIME_DECISION_TIME"
+            )
+    microstructure_action = str(intent.get("microstructure_action") or "").upper()
+    microstructure_trust_score = _coerce_float(intent.get("microstructure_trust_score"))
+    microstructure_minimum = _coerce_float(intent.get("microstructure_adaptive_minimum")) or 0.65
+    if no_order_reason is not None and microstructure_trust_score is None:
+        intent["microstructure_trust_score"] = 0.0
+        intent["microstructure_adaptive_minimum"] = microstructure_minimum
+        intent["orderbook_trust_tier"] = "UNTRUSTED_NO_TRADE"
+        intent["microstructure_action"] = "NO_TRADE"
+        intent["orderbook_latency_ms"] = 0.0
+        intent["book_sequence_gap"] = False
+        intent["book_depth_persistence_score"] = 0.0
+        intent["book_cancel_pressure_score"] = 0.0
+        intent["trade_tape_confirmation_score"] = 0.0
+        intent["cross_venue_confirmation_score"] = 0.0
+        intent["sweep_risk_score"] = 0.0
+        intent["microstructure_trust_source"] = "NO_ORDER_ZERO_SIZE_EXPLICIT_NO_TRADE"
+        microstructure_action = "NO_TRADE"
+        microstructure_trust_score = 0.0
+    if no_order_reason is None:
+        if microstructure_action in {"NO_TRADE", "SHADOW_ONLY", "CLOSE_OR_REDUCE_ONLY"}:
+            source_reject_reasons.append(f"MICROSTRUCTURE_ACTION_{microstructure_action}")
+        if microstructure_trust_score is not None and microstructure_trust_score < microstructure_minimum:
+            intent["microstructure_below_adaptive_minimum"] = True
+            if microstructure_action == "REDUCE_SIZE":
+                intent["runtime_cost_capture_microstructure_trust_policy"] = (
+                    "REDUCE_SIZE_BELOW_ADAPTIVE_MINIMUM"
+                )
+            else:
+                source_reject_reasons.append("MICROSTRUCTURE_TRUST_BELOW_ADAPTIVE_MINIMUM")
+    intent["microstructure_gate_allows_a_grade"] = bool(
+        microstructure_trust_score is not None
+        and microstructure_trust_score >= microstructure_minimum
+        and microstructure_action in {"ALLOW", "REDUCE_SIZE"}
+    )
     if decision_timestamp is not None:
         intent["model_decision_time"] = decision_timestamp
     if runtime_decision_timestamp is not None:
@@ -3080,6 +3736,13 @@ def _attach_runtime_cost_capture_contract(
             "latency_reserve_bps",
             "mark_index_divergence_bps",
             "cost_evidence_freshness_ms",
+            "microstructure_trust_score",
+            "orderbook_latency_ms",
+            "book_depth_persistence_score",
+            "book_cancel_pressure_score",
+            "trade_tape_confirmation_score",
+            "cross_venue_confirmation_score",
+            "sweep_risk_score",
         }:
             if numeric is None:
                 missing.append(field)
@@ -3134,6 +3797,9 @@ def _attach_runtime_cost_capture_contract(
         "fee": intent.get("fee_bps_source"),
         "funding": intent.get("expected_funding_bps_source"),
         "latency": intent.get("latency_reserve_source"),
+        "microstructure_trust": intent.get("microstructure_trust_source"),
+        "microstructure_action": intent.get("microstructure_action"),
+        "microstructure_adaptive_minimum": intent.get("microstructure_adaptive_minimum"),
         "partial_fill": (
             intent.get("partial_fill_estimate", {}).get("source")
             if isinstance(intent.get("partial_fill_estimate"), dict)
@@ -3253,6 +3919,10 @@ IMMUTABLE_ACCEPTED_FILL_FIELDS = (
     "paper_sizing_source",
 )
 PERSISTENT_ACCEPTED_FILL_METADATA_FIELDS = (
+    "paper_session_id",
+    "session_id",
+    "reset_session_id",
+    "starting_equity_usd",
     *RUNTIME_COST_CAPTURE_CONTRACT_FIELDS,
     *PAPER_OWNER_ATTRIBUTION_METADATA_FIELDS,
     *CHALLENGER_B_GRADE_CANARY_BINDING_STATUS_FIELDS,
@@ -3445,6 +4115,22 @@ CANDIDATE_ALLOCATION_PUBLICATION_INTENT_FIELDS = tuple(
             "paper_sizing_complete",
             "paper_sizing_source",
             "paper_allocation_block_reason",
+            "allocator_microstructure_block_reason",
+            "allocator_microstructure_reduce_size",
+            "allocator_microstructure_reduce_reason",
+            "allocator_microstructure_trust_gate_status",
+            "allocator_liquidity_score_before_microstructure_trust_gate",
+            "allocator_liquidity_score_after_microstructure",
+            "allocator_liquidity_score_after_microstructure_trust_gate",
+            "microstructure_trust_status",
+            "microstructure_trust_missing_reason",
+            "microstructure_trust_lookup_keys",
+            "microstructure_trust_source",
+            "microstructure_trust_score",
+            "microstructure_adaptive_minimum",
+            "microstructure_action",
+            "orderbook_trust_score",
+            "orderbook_trust_tier",
             "market_cost_evidence_status",
             "market_cost_evidence_missing_fields",
             "market_cost_evidence_source_fields",
@@ -3469,6 +4155,10 @@ CANDIDATE_ALLOCATION_PUBLICATION_INTENT_FIELDS = tuple(
             "fee_bps_readonly_schedule",
             "fee_bps_configured_schedule",
             "fee_bps_unavailable_reason",
+            "pre_trade_fee_bps",
+            "pre_trade_fee_bps_source",
+            "pre_trade_fee_bps_readonly_schedule",
+            "pre_trade_fee_bps_configured_schedule",
             "expected_funding_bps",
             "expected_funding_bps_source",
             "expected_funding_bps_fallback",
@@ -3489,6 +4179,7 @@ CANDIDATE_ALLOCATION_PUBLICATION_INTENT_FIELDS = tuple(
             "candidate_selected_after_outcome",
             "post_outcome_candidate_selection",
             "future_labels_used_as_features",
+            *STRATEGY_ROUTER_RUNTIME_PROVENANCE_FIELDS,
             "paper_only",
             "places_real_order",
             "live_order",
@@ -3513,6 +4204,7 @@ COMPACT_ACCEPTED_FILL_FIELDS = tuple(
             "selected_action",
             "decision",
             "paper_only",
+            "routes_to_live",
             "places_real_order",
             "paper_fill_allowed",
             "paper_fill_allowed_source",
@@ -3569,6 +4261,10 @@ COMPACT_ACCEPTED_FILL_FIELDS = tuple(
             "fee_bps_source",
             "fee_bps_readonly_schedule",
             "fee_bps_configured_schedule",
+            "pre_trade_fee_bps",
+            "pre_trade_fee_bps_source",
+            "pre_trade_fee_bps_readonly_schedule",
+            "pre_trade_fee_bps_configured_schedule",
             "bid_depth_usd",
             "ask_depth_usd",
             "orderbook_depth_usd",
@@ -3595,10 +4291,22 @@ COMPACT_ACCEPTED_FILL_FIELDS = tuple(
             "strategy_id",
             "strategy_family",
             "strategy_subtype",
+            "strategy_mode",
+            "strategy_canonical_mode",
             "strategy_selected_mode",
             "strategy_router_selected_mode",
+            "strategy_market_regime",
+            "strategy_modes_supported",
+            "strategy_regime_features",
+            "strategy_regime_feature_status",
+            *STRATEGY_ROUTER_RUNTIME_PROVENANCE_FIELDS,
+            "strategy_bucket_key",
+            "strategy_bucket_quarantined",
+            "strategy_bucket_quarantine_reason",
+            "strategy_bucket_performance_state",
             "strategy_size_adjustment_mode",
             "strategy_regime_labels",
+            "market_regime",
             "entry_reason",
             "hedge_state",
             "hedge_reason",
@@ -3649,6 +4357,11 @@ COMPACT_ACCEPTED_FILL_FIELDS = tuple(
             "lifecycle_or_no_trade_strategy_reasons",
             "no_trade_strategy_reasons",
             "entry_gate_block_reasons",
+            "accepted_fill_quarantined",
+            "accepted_fill_quarantine_reason",
+            "invalid_admission_quarantine_reason",
+            "paper_admission_quarantine_reason",
+            "invalid_admission_entry_gate_block_reasons",
             "paper_fill_gate_status",
             "paper_fill_gate_block_reasons",
             "paper_fill_block_reason",
@@ -3674,6 +4387,7 @@ COMPACT_ACCEPTED_FILL_ALLOCATION_FIELDS = tuple(
             "adaptive_capital_policy_version",
             "policy_activated_at",
             "paper_only",
+            "routes_to_live",
             "places_real_order",
             "live_order",
             "test_order",
@@ -5864,6 +6578,8 @@ def _paper_quality_context_bucket(row: dict[str, Any]) -> dict[str, str]:
         ).lower(),
         "strategy": str(
             _first_present(
+                row.get("strategy_mode"),
+                row.get("strategy_canonical_mode"),
                 row.get("strategy_id"),
                 row.get("strategy_family"),
                 row.get("strategy_subtype"),
@@ -6873,6 +7589,21 @@ def _attach_paper_only_label_collection_priority(
     return payload
 
 
+def _published_strategy_router_block_reason(row: dict[str, Any]) -> tuple[str | None, str | None]:
+    existing = row.get("strategy_router_block_reason")
+    if existing not in (None, ""):
+        return str(existing), None
+    local_reasons = row.get("local_block_reasons")
+    if not isinstance(local_reasons, list):
+        return None, None
+    for reason in local_reasons:
+        text = str(reason or "")
+        prefix = "strategy_router:"
+        if text.startswith(prefix) and len(text) > len(prefix):
+            return text[len(prefix):], "local_block_reasons"
+    return None, None
+
+
 def _paper_candidate_allocation_publication_row(row: dict[str, Any]) -> dict[str, Any]:
     published = dict(row)
     _normalize_paper_candidate_accounting_publication(published)
@@ -6882,6 +7613,16 @@ def _paper_candidate_allocation_publication_row(row: dict[str, Any]) -> dict[str
     published.setdefault("test_order", False)
     published.setdefault("leverage_mutation", False)
     published.setdefault("margin_mode_mutation", False)
+    router_block_reason, router_block_reason_source = (
+        _published_strategy_router_block_reason(published)
+    )
+    if router_block_reason:
+        published.setdefault("strategy_router_block_reason", router_block_reason)
+        if router_block_reason_source:
+            published.setdefault(
+                "strategy_router_block_reason_source",
+                router_block_reason_source,
+            )
     tier = _explicit_paper_opportunity_tier(published)
     if tier in {PAPER_TIER_A_GRADE_EXECUTION, PAPER_TIER_B_GRADE_EXPLORATION}:
         return published
@@ -7678,6 +8419,14 @@ def _paper_adaptive_sizing_runtime_status(
         runtime_status_api_blockers.append("SOURCE_TIER_A_GRADE_EXECUTION_ZERO")
     if guardian_new_entries_allowed is False:
         runtime_status_api_blockers.append("GUARDIAN_NEW_ENTRIES_DISABLED")
+    microstructure_block_reason_counts = _count_values(
+        published_rows,
+        "allocator_microstructure_block_reason",
+    )
+    microstructure_trust_status_counts = _count_values(
+        published_rows,
+        "microstructure_trust_status",
+    )
     return {
         "allocator": "V2_ADAPTIVE_AI_CAPITAL_ALLOCATOR",
         "fixed_runtime_notional_removed": True,
@@ -7691,6 +8440,55 @@ def _paper_adaptive_sizing_runtime_status(
         "candidate_allocations_selected_before_outcome": True,
         "candidate_allocations_future_labels_used_as_features": False,
         "allocator_decision_counts": _count_values(published_rows, "allocator_decision"),
+        "selected_action_counts": _count_first_present_values(
+            published_rows,
+            ("selected_action", "action", "side"),
+        ),
+        "selected_action_expected_move_bps_sign_counts": (
+            _selected_action_expected_move_sign_counts(published_rows)
+        ),
+        "hold_with_directional_expected_move_bps_count": (
+            _hold_with_directional_expected_move_bps_count(published_rows)
+        ),
+        "hold_zero_after_cost_with_directional_expected_move_bps_count": (
+            _hold_with_directional_expected_move_bps_count(
+                published_rows,
+                require_zero_after_cost=True,
+            )
+        ),
+        "paper_opportunity_tier_counts": _count_first_present_values(
+            published_rows,
+            (
+                "paper_opportunity_tier",
+                "paper_execution_tier",
+                "opportunity_tier",
+                "source_tier",
+            ),
+        ),
+        "paper_opportunity_tier_reason_counts": _count_first_present_values(
+            published_rows,
+            ("paper_opportunity_tier_reason", "paper_allocation_block_reason"),
+        ),
+        "paper_fill_block_reason_counts": _count_values(
+            published_rows,
+            "paper_fill_block_reason",
+        ),
+        "paper_allocation_block_reason_counts": _count_values(
+            published_rows,
+            "paper_allocation_block_reason",
+        ),
+        "strategy_router_selected_mode_counts": _count_values(
+            published_rows,
+            "strategy_router_selected_mode",
+        ),
+        "strategy_router_block_reason_counts": _count_values(
+            published_rows,
+            "strategy_router_block_reason",
+        ),
+        "local_block_reason_counts": _count_list_values(
+            published_rows,
+            "local_block_reasons",
+        ),
         "accepted_allocation_count": accepted_count,
         "allocator_pass_rows": accepted_count,
         "blocked_allocation_count": blocked_count,
@@ -7703,6 +8501,12 @@ def _paper_adaptive_sizing_runtime_status(
         "guardian_status": guardian_status,
         "guardian_status_counts": guardian_status_counts,
         "guardian_new_entries_allowed": guardian_new_entries_allowed,
+        "allocator_microstructure_block_reason_counts": microstructure_block_reason_counts,
+        "microstructure_trust_status_counts": microstructure_trust_status_counts,
+        "missing_microstructure_trust_candidate_count": microstructure_block_reason_counts.get(
+            "MICROSTRUCTURE_TRUST_SCORE_MISSING",
+            0,
+        ),
         "runtime_status_api_blockers": runtime_status_api_blockers,
         "source_tier_or_guardian_blocked_allocator_pass_rows": len(
             allocator_pass_not_a_grade_rows
@@ -7763,6 +8567,65 @@ def _count_first_present_values(
         label = str(value or "missing")
         counts[label] = counts.get(label, 0) + 1
     return dict(sorted(counts.items()))
+
+
+def _expected_move_bps_sign(row: dict[str, Any]) -> str:
+    move = _coerce_float(
+        _first_present(
+            row.get("expected_move_bps"),
+            row.get("predicted_move_bps"),
+            row.get("price_target_bps"),
+        )
+    )
+    if move is None:
+        return "missing"
+    if move > 0.0:
+        return "positive"
+    if move < 0.0:
+        return "negative"
+    return "zero"
+
+
+def _selected_action_expected_move_sign_counts(
+    rows: list[dict[str, Any]],
+) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        action = str(
+            _first_present(row.get("selected_action"), row.get("action"), row.get("side"))
+            or "missing"
+        ).strip().lower() or "missing"
+        sign = _expected_move_bps_sign(row)
+        label = f"{action}:{sign}"
+        counts[label] = counts.get(label, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _hold_with_directional_expected_move_bps_count(
+    rows: list[dict[str, Any]],
+    *,
+    require_zero_after_cost: bool = False,
+) -> int:
+    total = 0
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        action = str(
+            _first_present(row.get("selected_action"), row.get("action"), row.get("side"))
+            or ""
+        ).strip().lower()
+        if action != "hold":
+            continue
+        if _expected_move_bps_sign(row) not in {"positive", "negative"}:
+            continue
+        if require_zero_after_cost:
+            after_cost = _coerce_float(row.get("expected_move_after_cost_bps"))
+            if after_cost != 0.0:
+                continue
+        total += 1
+    return total
 
 
 def _clamp_float(value: float, lower: float, upper: float) -> float:
@@ -8155,6 +9018,8 @@ def _paper_lifecycle_or_no_trade_strategy_reasons(
         intent=intent,
     )
     mode_fields = (
+        "strategy_mode",
+        "strategy_canonical_mode",
         "strategy_selected_mode",
         "strategy_router_selected_mode",
         "strategy_id",
@@ -8166,13 +9031,21 @@ def _paper_lifecycle_or_no_trade_strategy_reasons(
         for source_name, source in (("intent", intent), ("signal", signal)):
             raw = source.get(field)
             normalized = str(raw or "").strip().lower()
-            if normalized in {"no_trade", "no_trade_mode", "no_trade_expert"}:
+            if normalized in {"no_trade", "no_trade_mode", "no_trade_expert"} or "no_trade" in normalized:
                 reasons.append(f"{source_name}.{field}=NO_TRADE")
             elif any(token in normalized for token in ("reduce", "close", "exit")):
                 if (
                     size_adjusted_entry_context
-                    and field in {"strategy_router_selected_mode", "entry_reason"}
-                    and normalized == "reduce_size_mode"
+                    and (
+                        (
+                            field in {"strategy_router_selected_mode", "entry_reason"}
+                            and normalized == "reduce_size_mode"
+                        )
+                        or (
+                            field in {"strategy_mode", "strategy_canonical_mode"}
+                            and normalized == "reduce_only_recovery"
+                        )
+                    )
                 ):
                     continue
                 reasons.append(f"{source_name}.{field}=LIFECYCLE_ACTION")
@@ -8193,6 +9066,15 @@ def _paper_lifecycle_or_no_trade_strategy_reasons(
     tokens = {str(value).strip().upper() for value in label_values if str(value).strip()}
     if "NO_TRADE" in tokens:
         reasons.append("strategy_regime_labels_include_NO_TRADE")
+    return sorted(set(reasons))
+
+
+def _non_relaxable_entry_gate_reasons(intent: dict[str, Any]) -> list[str]:
+    reasons = [
+        str(reason)
+        for reason in intent.get("entry_gate_block_reasons") or []
+        if str(reason).strip()
+    ]
     return sorted(set(reasons))
 
 
@@ -8263,6 +9145,7 @@ def _classify_paper_opportunity_tier(
     lifecycle_or_no_trade_strategy_reasons = (
         _paper_lifecycle_or_no_trade_strategy_reasons(signal=signal, intent=intent)
     )
+    non_relaxable_entry_gate_reasons = _non_relaxable_entry_gate_reasons(intent)
     if integrity_gate.get("allowed") is not True:
         return {
             **base,
@@ -8293,6 +9176,13 @@ def _classify_paper_opportunity_tier(
             ),
             "lifecycle_or_no_trade_strategy_reasons": lifecycle_or_no_trade_strategy_reasons,
             "no_trade_strategy_reasons": lifecycle_or_no_trade_strategy_reasons,
+        }
+    if non_relaxable_entry_gate_reasons:
+        return {
+            **base,
+            "paper_opportunity_tier": PAPER_TIER_NO_TRADE,
+            "paper_opportunity_tier_reason": P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_REASON,
+            "non_relaxable_entry_gate_reasons": non_relaxable_entry_gate_reasons,
         }
     if paper_fill_allowed_upstream and local_trade_gates_pass:
         return _apply_continuous_edge_guardian_gate({
@@ -10176,6 +11066,1242 @@ def _paper_churn_equity_bleed_governor_status(
     }
 
 
+def _paper_performance_first_number(row: dict[str, Any], *fields: str) -> float | None:
+    for field in fields:
+        value = _coerce_float(row.get(field))
+        if value is not None:
+            return value
+    return None
+
+
+def _paper_performance_realized_bps(row: dict[str, Any]) -> float | None:
+    return _paper_performance_first_number(
+        row,
+        "realized_net_pnl_bps",
+        "realized_pnl_bps",
+        "paper_exit_pnl_bps",
+        "net_pnl_bps",
+        "pnl_bps",
+    )
+
+
+def _paper_performance_realized_usd(row: dict[str, Any]) -> float | None:
+    return _paper_performance_first_number(
+        row,
+        "realized_net_pnl_usd",
+        "realized_pnl_usd",
+        "realized_pnl_usdt",
+        "net_pnl_usd",
+        "pnl_usd",
+    )
+
+
+def _paper_performance_notional_usd(row: dict[str, Any]) -> float:
+    return max(
+        0.0,
+        _paper_performance_first_number(
+            row,
+            "gross_notional_usd",
+            "gross_notional",
+            "notional_usd",
+            "notional_usdt",
+            "target_notional_usd",
+            "target_notional_usdt",
+            "order_size_usd",
+            "order_size",
+        )
+        or 0.0,
+    )
+
+
+def _paper_performance_source_rows(
+    closed_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    paper_rows = [
+        row
+        for row in closed_rows
+        if isinstance(row, dict)
+        and row.get("paper_only") is True
+        and _paper_performance_realized_bps(row) is not None
+    ]
+    if paper_rows:
+        return paper_rows
+    return [
+        row
+        for row in closed_rows
+        if isinstance(row, dict) and _paper_performance_realized_bps(row) is not None
+    ]
+
+
+def _paper_performance_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    realized_bps = [
+        value
+        for value in (_paper_performance_realized_bps(row) for row in rows)
+        if value is not None
+    ]
+    positive_bps = sum(value for value in realized_bps if value > 0.0)
+    negative_bps_abs = abs(sum(value for value in realized_bps if value < 0.0))
+    profit_factor, profit_factor_numeric, profit_factor_is_infinite = (
+        _paper_quality_profit_factor_payload(positive_bps, negative_bps_abs)
+    )
+    notional_sum = sum(_paper_performance_notional_usd(row) for row in rows)
+    weighted_sum = sum(
+        (_paper_performance_realized_bps(row) or 0.0)
+        * _paper_performance_notional_usd(row)
+        for row in rows
+        if _paper_performance_realized_bps(row) is not None
+    )
+    usd_values = [
+        value
+        for value in (_paper_performance_realized_usd(row) for row in rows)
+        if value is not None
+    ]
+    return {
+        "closed_outcome_count": len(realized_bps),
+        "profit_factor": profit_factor,
+        "profit_factor_numeric": (
+            profit_factor_numeric
+            if profit_factor_numeric is not None and math.isfinite(profit_factor_numeric)
+            else None
+        ),
+        "profit_factor_is_infinite": profit_factor_is_infinite,
+        "notional_weighted_expectancy_bps": (
+            weighted_sum / notional_sum if notional_sum > 0.0 else (
+                sum(realized_bps) / len(realized_bps) if realized_bps else None
+            )
+        ),
+        "win_rate": (
+            sum(1 for value in realized_bps if value > 0.0) / len(realized_bps)
+            if realized_bps
+            else None
+        ),
+        "realized_pnl_usd": sum(usd_values) if usd_values else None,
+    }
+
+
+def _paper_performance_window_metrics(
+    rows: list[dict[str, Any]],
+    window: int,
+) -> dict[str, Any]:
+    source_rows = rows[-window:] if window > 0 else rows
+    return {"window": window, **_paper_performance_metrics(source_rows)}
+
+
+def _paper_performance_exit_reason(row: dict[str, Any]) -> str:
+    return str(_first_present(row.get("close_reason"), row.get("exit_reason")) or "")
+
+
+def _paper_performance_is_atr_stop(row: dict[str, Any]) -> bool:
+    reason = _paper_performance_exit_reason(row).upper()
+    return "ATR" in reason and "STOP" in reason
+
+
+def _paper_performance_bucket_key(row: dict[str, Any]) -> str:
+    bucket = _paper_quality_context_bucket(row)
+    return "|".join(
+        str(bucket.get(field) or "UNKNOWN")
+        for field in ("symbol", "timeframe", "strategy", "regime")
+    )
+
+
+def _paper_performance_known_bucket_value(value: Any) -> bool:
+    text = str(value or "").strip()
+    return bool(text) and text.upper() != "UNKNOWN"
+
+
+def _paper_performance_quarantine_group_keys(row: dict[str, Any]) -> dict[str, str]:
+    bucket = _paper_quality_context_bucket(row)
+    keys = {
+        _paper_performance_bucket_key(row): "exact_context",
+    }
+    side = str(bucket.get("side") or "").lower()
+    strategy = str(bucket.get("strategy") or "")
+    regime = str(bucket.get("regime") or "")
+    timeframe = str(bucket.get("timeframe") or "")
+    confidence_bucket = str(bucket.get("confidence_bucket") or "")
+    if _paper_performance_known_bucket_value(side):
+        keys[f"side:{side}"] = "side"
+    if _paper_performance_known_bucket_value(regime):
+        keys[f"regime:{regime}"] = "regime"
+    if _paper_performance_known_bucket_value(timeframe):
+        keys[f"timeframe:{timeframe}"] = "timeframe"
+    if (
+        _paper_performance_known_bucket_value(side)
+        and _paper_performance_known_bucket_value(timeframe)
+    ):
+        keys[f"side_timeframe:{side}|{timeframe}"] = "side_timeframe"
+    if (
+        _paper_performance_known_bucket_value(strategy)
+        and _paper_performance_known_bucket_value(regime)
+    ):
+        keys[f"strategy_regime:{strategy}|{regime}"] = "strategy_regime"
+    if (
+        _paper_performance_known_bucket_value(strategy)
+        and _paper_performance_known_bucket_value(side)
+        and _paper_performance_known_bucket_value(timeframe)
+    ):
+        keys[f"strategy_side_timeframe:{strategy}|{side}|{timeframe}"] = (
+            "strategy_side_timeframe"
+        )
+    if (
+        _paper_performance_known_bucket_value(confidence_bucket)
+        and _paper_performance_known_bucket_value(regime)
+    ):
+        keys[f"confidence_regime:{confidence_bucket}|{regime}"] = "confidence_regime"
+    return keys
+
+
+def _paper_performance_candidate_quarantine_keys(row: dict[str, Any]) -> set[str]:
+    return set(_paper_performance_quarantine_group_keys(row))
+
+
+A_PLUS_REDISTRIBUTION_CHECKS = (
+    "side_bucket_positive",
+    "regime_aligned",
+    "trade_tape_confirms",
+    "microstructure_trust_confirms",
+    "allocator_allows",
+    "no_quarantine_bucket",
+)
+
+
+def _is_b_grade_row(row: dict[str, Any]) -> bool:
+    return (
+        str(row.get("paper_opportunity_tier") or "").upper() == PAPER_TIER_B_GRADE_EXPLORATION
+        or str(row.get("calibration_label_purpose") or "").upper()
+        == B_GRADE_EXPLORATION_OUTCOME_LABEL
+    )
+
+
+def _is_a_plus_closed_row(row: dict[str, Any]) -> bool:
+    gate = row.get("a_plus_gate")
+    return (
+        str(row.get("paper_opportunity_tier") or "").upper() == PAPER_TIER_A_GRADE_EXECUTION
+        or row.get("counts_as_a_grade_evidence") is True
+        or row.get("a_plus") is True
+        or (isinstance(gate, dict) and gate.get("a_plus") is True)
+    )
+
+
+def _paper_row_won(row: dict[str, Any]) -> bool:
+    realized = _paper_performance_realized_bps(row)
+    if realized is not None:
+        return realized > 0.0
+    realized_usd = _paper_performance_realized_usd(row)
+    return realized_usd is not None and realized_usd > 0.0
+
+
+def _paper_row_lost(row: dict[str, Any]) -> bool:
+    realized = _paper_performance_realized_bps(row)
+    if realized is not None:
+        return realized <= 0.0
+    realized_usd = _paper_performance_realized_usd(row)
+    return realized_usd is not None and realized_usd <= 0.0
+
+
+def _paper_row_confidence(row: dict[str, Any]) -> float | None:
+    return _coerce_float(
+        _first_present(
+            row.get("confidence_calibrated"),
+            row.get("score"),
+            row.get("selected_action_probability"),
+            row.get("confidence_raw"),
+            row.get("strategy_router_confidence"),
+        )
+    )
+
+
+def _a_plus_gate_redistribution_status(
+    evaluations: list[dict[str, Any]],
+    *,
+    generated_utc: str,
+    paper_session_id: Any,
+) -> dict[str, Any]:
+    failed_check_counts: dict[str, int] = {}
+    check_counts: dict[str, dict[str, int]] = {}
+    failure_reason_counts_by_check: dict[str, dict[str, int]] = {}
+    for row in evaluations:
+        checks = row.get("checks") if isinstance(row.get("checks"), dict) else {}
+        failed_checks = {str(check) for check in row.get("failed_checks") or []}
+        for check_name in set(checks) | failed_checks | set(A_PLUS_REDISTRIBUTION_CHECKS):
+            check_payload = checks.get(check_name) if isinstance(checks, dict) else None
+            bucket = check_counts.setdefault(
+                str(check_name),
+                {"passed": 0, "failed": 0, "missing_evidence": 0},
+            )
+            if check_payload is None and check_name not in failed_checks:
+                continue
+            if isinstance(check_payload, dict) and check_payload.get("passed") is True:
+                bucket["passed"] += 1
+                continue
+            if isinstance(check_payload, dict) and check_payload.get("missing_evidence") is True:
+                bucket["missing_evidence"] += 1
+            if isinstance(check_payload, dict):
+                reason = str(check_payload.get("reason") or "UNSPECIFIED_FAILURE")
+                reason_counts = failure_reason_counts_by_check.setdefault(str(check_name), {})
+                reason_counts[reason] = reason_counts.get(reason, 0) + 1
+            bucket["failed"] += 1
+            failed_check_counts[str(check_name)] = failed_check_counts.get(str(check_name), 0) + 1
+    evaluated = len(evaluations)
+    source_present_100pct_failure_checks = [
+        check
+        for check, counts in sorted(check_counts.items())
+        if evaluated > 0
+        and counts.get("failed") == evaluated
+        and counts.get("missing_evidence") == 0
+    ]
+
+    def _a_plus_safety_reason(reason: str) -> bool:
+        upper = str(reason or "").upper()
+        return upper.startswith(
+            (
+                "ALLOCATOR_BLOCKED",
+                "CANDIDATE_BUCKET_QUARANTINED",
+                "BUCKET_QUARANTINE_STATUS=",
+                "FEATURE_FRESHNESS_",
+                "MISSING_CRITICAL_FEATURES",
+                "STALE_FEATURES",
+                "RISK_ALLOWED=FALSE",
+                "SIDE_GATE_BLOCKED",
+                "SIDE_EXPECTANCY_NOT_POSITIVE",
+                "TRUST_SCORE=",
+                "RUNTIME_COST_CAPTURE_STATUS=",
+            )
+        )
+
+    safety_block_100pct_checks = [
+        check
+        for check in source_present_100pct_failure_checks
+        if failure_reason_counts_by_check.get(check)
+        and all(_a_plus_safety_reason(reason) for reason in failure_reason_counts_by_check[check])
+    ]
+    plumbing_bug_suspected_checks = [
+        check
+        for check in source_present_100pct_failure_checks
+        if check not in safety_block_100pct_checks
+    ]
+    required_check_counts = {
+        check: check_counts.get(check, {"passed": 0, "failed": 0, "missing_evidence": 0})
+        for check in A_PLUS_REDISTRIBUTION_CHECKS
+    }
+    return {
+        "schema_version": "a_plus_gate_redistribution_status_v1",
+        "generated_utc": generated_utc,
+        "paper_session_id": paper_session_id,
+        "evaluated_candidates": evaluated,
+        "a_plus_candidates": sum(1 for row in evaluations if row.get("a_plus") is True),
+        "top_failed_checks": [
+            {"check": check, "count": count}
+            for check, count in sorted(
+                failed_check_counts.items(),
+                key=lambda item: (-item[1], item[0]),
+            )[:12]
+        ],
+        "failed_check_counts": dict(
+            sorted(failed_check_counts.items(), key=lambda item: (-item[1], item[0]))
+        ),
+        "check_counts": check_counts,
+        "failure_reason_counts_by_check": failure_reason_counts_by_check,
+        "source_present_100pct_failure_checks": source_present_100pct_failure_checks,
+        "safety_block_100pct_checks": safety_block_100pct_checks,
+        "required_check_counts": required_check_counts,
+        "side_bucket_positive": required_check_counts["side_bucket_positive"],
+        "regime_aligned": required_check_counts["regime_aligned"],
+        "trade_tape_confirms": required_check_counts["trade_tape_confirms"],
+        "microstructure_trust_confirms": required_check_counts[
+            "microstructure_trust_confirms"
+        ],
+        "allocator_allows": required_check_counts["allocator_allows"],
+        "no_quarantine_bucket": required_check_counts["no_quarantine_bucket"],
+        "plumbing_bug_suspected_checks": plumbing_bug_suspected_checks,
+        "plumbing_bug_rule": (
+            "If one check fails exactly 100% while source data is present, inspect reader/plumbing."
+        ),
+        "known_bad_pattern_detected": all(
+            evaluated > 0 and required_check_counts[check]["failed"] == evaluated
+            for check in (
+                "side_bucket_positive",
+                "regime_aligned",
+                "microstructure_trust_confirms",
+                "allocator_allows",
+            )
+        ),
+        "next_inspection_targets": [
+            "v2/backend/app/services/a_plus_trade_gate/service.py::load_a_plus_context",
+            "v2/backend/app/cli/v2_trade_management_paper_loop.py::_a_plus_context_for",
+            "v2:paper:side_performance",
+            "v2:regime:gate:{symbol}:{timeframe}",
+            "v2:market:trade_tape_features:{symbol}",
+            "v2:microstructure:trust_score:{symbol}:{timeframe}",
+            "v2:microstructure:trust_score:{symbol}:1m",
+            "v2:microstructure:feed_quality:binance:{symbol}",
+        ],
+        "places_real_order": False,
+        "routes_to_live": False,
+        "live_path_changed": False,
+    }
+
+
+def _a_plus_5_trade_gate_runtime_status(
+    closed_rows: list[dict[str, Any]],
+    *,
+    generated_utc: str,
+) -> dict[str, Any]:
+    a_plus_rows = [row for row in closed_rows if _is_a_plus_closed_row(row)]
+    sample_rows = a_plus_rows[:5]
+    metrics = _paper_performance_metrics(sample_rows)
+    wins = sum(1 for row in sample_rows if _paper_row_won(row))
+    losses = [row for row in sample_rows if _paper_row_lost(row)]
+    atr_stop_losses = [row for row in losses if _paper_performance_is_atr_stop(row)]
+    expectancy_bps = _coerce_float(metrics.get("notional_weighted_expectancy_bps"))
+    profit_factor = _coerce_float(metrics.get("profit_factor_numeric"))
+    if atr_stop_losses:
+        status = "BLOCKED_A_PLUS_ATR_STOP_LOSS"
+    elif losses:
+        status = "BLOCKED_A_PLUS_5_TRADE_LOSS"
+    elif len(sample_rows) < 5:
+        status = "WAITING_FOR_5_CLOSED_A_PLUS_TRADES"
+    elif (
+        (metrics.get("profit_factor_is_infinite") is True or (profit_factor is not None and profit_factor > 0.0))
+        and expectancy_bps is not None
+        and expectancy_bps > 0.0
+    ):
+        status = "PASSED_A_PLUS_5_TRADE_GATE"
+    else:
+        status = "BLOCKED_A_PLUS_5_TRADE_EDGE_NON_POSITIVE"
+    return {
+        "schema_version": "a_plus_5_trade_gate_runtime_status_v1",
+        "generated_utc": generated_utc,
+        "status": status,
+        "closed_a_plus_trades_considered": len(sample_rows),
+        "total_closed_a_plus_trades_seen": len(a_plus_rows),
+        "max_closed_a_plus_trades_considered": 5,
+        "required_closed_a_plus_trades": 5,
+        "win_count": wins,
+        "loss_count": len(losses),
+        "requires_5_of_5_wins": True,
+        "profit_factor": metrics.get("profit_factor"),
+        "profit_factor_numeric": metrics.get("profit_factor_numeric"),
+        "expectancy_bps": expectancy_bps,
+        "atr_stop_loss_count": len(atr_stop_losses),
+        "loss_quarantines_bucket": bool(losses),
+        "atr_stop_loss_blocks_further_a_plus_evidence": bool(atr_stop_losses),
+        "blocked_bucket_keys": sorted(
+            {_paper_performance_bucket_key(row) for row in losses}
+        ),
+        "sample_a_plus_closed_trades": _compact_rows_for_state(
+            _sample_rows(sample_rows, 5)
+        ),
+        "places_real_order": False,
+        "routes_to_live": False,
+        "no_live_mutation": True,
+        "live_path_changed": False,
+    }
+
+
+def _b_grade_calibration_safety_status(
+    closed_rows: list[dict[str, Any]],
+    *,
+    churn_status: dict[str, Any] | None,
+    generated_utc: str,
+) -> dict[str, Any]:
+    b_grade_rows = [row for row in closed_rows if _is_b_grade_row(row)]
+    metrics = _paper_performance_metrics(b_grade_rows)
+    closed_count = int(metrics.get("closed_outcome_count") or 0)
+    profit_factor = _coerce_float(metrics.get("profit_factor_numeric"))
+    expectancy_bps = _coerce_float(metrics.get("notional_weighted_expectancy_bps"))
+    high_confidence_losses = [
+        row
+        for row in b_grade_rows
+        if (_paper_row_confidence(row) or 0.0) >= PAPER_HIGH_CONFIDENCE_QUARANTINE_MIN_SCORE
+        and _paper_row_lost(row)
+    ]
+    churn_status = dict(churn_status or {})
+    churn_increased = (
+        churn_status.get("new_entries_allowed") is False
+        or str(churn_status.get("state") or churn_status.get("status") or "").upper()
+        in {"CHURN_HALTED", "COOLDOWN", "SHADOW_ONLY"}
+        or int(churn_status.get("duplicate_new_entries") or 0) > 0
+        or int(churn_status.get("same_candle_reentry_unexplained") or 0) > 0
+    )
+    blockers: list[str] = []
+    if closed_count >= 5 and profit_factor is not None and profit_factor < 1.0:
+        blockers.append("B_GRADE_PROFIT_FACTOR_BELOW_1")
+    if closed_count > 0 and expectancy_bps is not None and expectancy_bps <= 0.0:
+        blockers.append("B_GRADE_EXPECTANCY_NON_POSITIVE")
+    if high_confidence_losses:
+        blockers.append("B_GRADE_HIGH_CONFIDENCE_LOSS")
+    if churn_increased:
+        blockers.append("B_GRADE_CHURN_INCREASED")
+    return {
+        "schema_version": "b_grade_calibration_safety_status_v1",
+        "generated_utc": generated_utc,
+        "status": "HALTED_PERFORMANCE" if blockers else "ACTIVE_CALIBRATION",
+        "new_b_grade_entries_allowed": not blockers,
+        "blockers": sorted(set(blockers)),
+        "b_grade_closed_outcome_count": closed_count,
+        "profit_factor": metrics.get("profit_factor"),
+        "profit_factor_numeric": metrics.get("profit_factor_numeric"),
+        "expectancy_bps": expectancy_bps,
+        "win_rate": metrics.get("win_rate"),
+        "high_confidence_loss_count": len(high_confidence_losses),
+        "churn_status": {
+            "status": churn_status.get("status"),
+            "state": churn_status.get("state"),
+            "new_entries_allowed": churn_status.get("new_entries_allowed"),
+            "duplicate_new_entries": churn_status.get("duplicate_new_entries"),
+            "same_candle_reentry_unexplained": churn_status.get(
+                "same_candle_reentry_unexplained"
+            ),
+        },
+        "sample_high_confidence_losses": _compact_rows_for_state(
+            _sample_rows(high_confidence_losses, 10)
+        ),
+        "paper_only": True,
+        "places_real_order": False,
+        "routes_to_live": False,
+        "live_path_changed": False,
+    }
+
+
+def _apply_b_grade_calibration_safety_halt(
+    intent: dict[str, Any],
+    status: dict[str, Any],
+) -> bool:
+    if intent.get("paper_opportunity_tier") != PAPER_TIER_B_GRADE_EXPLORATION:
+        return False
+    if status.get("new_b_grade_entries_allowed") is not False:
+        return False
+    reason = "B_GRADE_CALIBRATION_SAFETY_HALTED"
+    intent["paper_fill_allowed"] = False
+    intent["paper_tier_local_fill_allowed"] = False
+    intent["paper_fill_block_reason"] = reason
+    intent["b_grade_calibration_safety_status"] = status
+    intent["paper_fill_gate_block_reasons"] = sorted(set(
+        list(intent.get("paper_fill_gate_block_reasons") or []) + [reason]
+    ))
+    intent["local_block_reasons"] = sorted(set(
+        list(intent.get("local_block_reasons") or []) + [reason]
+    ))
+    intent["places_real_order"] = False
+    intent["routes_to_live"] = False
+    intent["counts_as_a_grade_evidence"] = False
+    return True
+
+
+def _b_grade_exploration_resumption_status(
+    *,
+    intents: list[dict[str, Any]],
+    accepted_rows: list[dict[str, Any]],
+    closed_rows: list[dict[str, Any]],
+    trainer_feedback_rows: list[dict[str, Any]],
+    trainer_hybrid_cuda_status: dict[str, Any] | None,
+    b_grade_canary_supply_status: dict[str, Any],
+    previous_status: dict[str, Any] | None,
+    generated_utc: str,
+) -> dict[str, Any]:
+    b_grade_intents = [row for row in intents if _is_b_grade_row(row)]
+    b_grade_accepted = [row for row in accepted_rows if _is_b_grade_row(row)]
+    b_grade_closed = [row for row in closed_rows if _is_b_grade_row(row)]
+    previous_status = dict(previous_status or {})
+    previous_closed = int(previous_status.get("b_grade_closed_outcomes") or 0)
+    previous_feedback = int(previous_status.get("trainer_consumable_feedback_rows") or 0)
+    previous_zero_streak = int(previous_status.get("accepted_fills_zero_cycle_streak") or 0)
+    accepted_zero_streak = previous_zero_streak + 1 if not b_grade_accepted else 0
+    confidence_values = [
+        value
+        for value in (_paper_row_confidence(row) for row in b_grade_intents + b_grade_accepted)
+        if value is not None
+    ]
+    fallback_05_count = sum(1 for value in confidence_values if abs(value - 0.5) <= 1e-9)
+    confidence_moves_off_fallback = any(abs(value - 0.5) > 1e-9 for value in confidence_values)
+    root_cause_counts = dict(b_grade_canary_supply_status.get("root_cause_counts") or {})
+    exact_blocker = None
+    if not b_grade_accepted:
+        if root_cause_counts:
+            exact_blocker = max(root_cause_counts.items(), key=lambda item: item[1])[0]
+        else:
+            exact_blocker = "NO_B_GRADE_ACCEPTED_FILLS"
+    pass_conditions = {
+        "b_grade_intents_gt_zero": len(b_grade_intents) > 0,
+        "accepted_fills_gt_zero_or_exact_blocker_known": bool(b_grade_accepted)
+        or exact_blocker is not None,
+        "b_grade_closed_outcomes_increased": len(b_grade_closed) > previous_closed,
+        "trainer_consumable_feedback_rows_increased": (
+            len(trainer_feedback_rows) > previous_feedback
+        ),
+        "confidence_calibrated_moves_off_0_5_fallback": confidence_moves_off_fallback,
+    }
+    return {
+        "schema_version": "b_grade_exploration_resumption_status_v1",
+        "generated_utc": generated_utc,
+        "status": (
+            "PASSED_B_GRADE_EXPLORATION_RESUMED"
+            if all(pass_conditions.values())
+            else "BLOCKED_B_GRADE_EXPLORATION_RESUMPTION"
+        ),
+        "pass_conditions": pass_conditions,
+        "b_grade_intents": len(b_grade_intents),
+        "b_grade_accepted_fills": len(b_grade_accepted),
+        "b_grade_closed_outcomes": len(b_grade_closed),
+        "b_grade_closed_outcomes_delta": len(b_grade_closed) - previous_closed,
+        "trainer_consumable_feedback_rows": len(trainer_feedback_rows),
+        "trainer_consumable_feedback_rows_delta": (
+            len(trainer_feedback_rows) - previous_feedback
+        ),
+        "confidence_calibrated_distribution": {
+            "count": len(confidence_values),
+            "fallback_0_5_count": fallback_05_count,
+            "moves_off_0_5_fallback": confidence_moves_off_fallback,
+            "min": min(confidence_values) if confidence_values else None,
+            "max": max(confidence_values) if confidence_values else None,
+        },
+        "accepted_fills_zero_cycle_streak": accepted_zero_streak,
+        "patch_required": accepted_zero_streak >= 3,
+        "patch_target": exact_blocker if accepted_zero_streak >= 3 else None,
+        "exact_blocker": exact_blocker,
+        "root_cause_counts": root_cause_counts,
+        "redis_keys_checked": [
+            "v2:paper:intents",
+            "v2:paper:accepted_fills",
+            "v2:paper:closed_trades",
+            "v2:trainer:feedback:outcomes",
+            "v2:trainer:hybrid_cuda:status",
+        ],
+        "trainer_hybrid_cuda_status": trainer_hybrid_cuda_status or {},
+        "sample_b_grade_intents": _compact_rows_for_state(_sample_rows(b_grade_intents, 10)),
+        "sample_b_grade_accepted_fills": _compact_rows_for_state(
+            _sample_rows(b_grade_accepted, 10)
+        ),
+        "paper_only": True,
+        "places_real_order": False,
+        "routes_to_live": False,
+        "live_path_changed": False,
+    }
+
+
+# A+ goal Phase 1/8: bucket quarantine is bucket-scoped by design ("same bad
+# bucket cannot re-enter"). A verified root-cause exit repair makes the GLOBAL
+# escalation recoverable: buckets whose loss evidence all closed BEFORE the
+# repair deployment stay bucket-blocked but stop halting every clean bucket;
+# any loss that closes AFTER the repair (or carries no parseable exit
+# timestamp — fail closed) escalates globally again. Without a valid artifact
+# the original always-escalate behaviour is preserved.
+PAPER_EXIT_REPAIR_DEFAULT_STATUS_PATH = (
+    Path(__file__).resolve().parents[4]
+    / "goal_state/V2_A_PLUS_LIVE_READY_TRAINER_EDGE_REPAIR_AND_ZERO_TOLERANCE_TRADE_GATE"
+    / "atr_stop_cluster_repair_status.json"
+)
+PAPER_EXIT_REPAIR_STATUS_PATH = PAPER_EXIT_REPAIR_DEFAULT_STATUS_PATH
+PAPER_EXIT_REPAIR_LEGACY_STATUS_PATH = (
+    Path(__file__).resolve().parents[4]
+    / "goal_state/V2_FABLE5_FULL_SYSTEM_A_PLUS_LIVE_READY_1000X_MACHINE_COMPLETION"
+    / "atr_stop_cluster_repair_status.json"
+)
+
+
+def _paper_parse_utc(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _paper_verified_exit_repair_deployed_utc() -> datetime | None:
+    paths = [PAPER_EXIT_REPAIR_STATUS_PATH]
+    if PAPER_EXIT_REPAIR_STATUS_PATH == PAPER_EXIT_REPAIR_DEFAULT_STATUS_PATH:
+        paths.append(PAPER_EXIT_REPAIR_LEGACY_STATUS_PATH)
+    for path in paths:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if isinstance(payload, dict) and payload.get("repair_test_passed") is True:
+            deployed = _paper_parse_utc(payload.get("repair_deployed_utc"))
+            if deployed is not None:
+                return deployed
+    return None
+
+
+def _paper_row_exit_utc(row: dict[str, Any]) -> datetime | None:
+    for field in ("exit_price_utc", "exit_time", "close_time", "closed_at", "generated_utc", "generated_at"):
+        parsed = _paper_parse_utc(row.get(field))
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _paper_bucket_has_post_repair_loss(
+    rows: list[dict[str, Any]],
+    repair_deployed: datetime | None,
+) -> bool:
+    """True when any losing row closed at/after the repair or lacks a timestamp."""
+    if repair_deployed is None:
+        return True
+    for row in rows:
+        if (_paper_performance_realized_bps(row) or 0.0) > 0.0:
+            continue
+        exit_utc = _paper_row_exit_utc(row)
+        if exit_utc is None or exit_utc >= repair_deployed:
+            return True
+    return False
+
+
+def _paper_bucket_quarantine_status(
+    closed_rows: list[dict[str, Any]],
+    *,
+    generated_utc: str | None = None,
+) -> dict[str, Any]:
+    source_rows = _paper_performance_source_rows(closed_rows)
+    # A+ goal: bucket-quarantine BLOCKING evidence restarts at the verified
+    # exit-repair point (symmetric: pre-repair wins AND losses excluded from
+    # the blocking view; rows without a parseable exit timestamp fail closed
+    # and stay counted). Buckets whose adverse evidence entirely pre-dates the
+    # repair remain LISTED (state PRE_REPAIR_EVIDENCE_ONLY, non-escalating)
+    # but stop candidate-blocking; any post-repair loss re-blocks its buckets
+    # immediately at the same min counts. Session-level PF/expectancy metrics
+    # are NOT filtered.
+    exit_repair_deployed = _paper_verified_exit_repair_deployed_utc()
+    pre_repair_rows_excluded = 0
+    quarantine_rows: list[dict[str, Any]] = []
+    if exit_repair_deployed is not None:
+        for row in source_rows:
+            exit_utc = _paper_row_exit_utc(row)
+            if exit_utc is not None and exit_utc < exit_repair_deployed:
+                pre_repair_rows_excluded += 1
+                continue
+            quarantine_rows.append(row)
+    else:
+        quarantine_rows = list(source_rows)
+    post_repair_row_ids = {id(row) for row in quarantine_rows}
+    grouped: dict[str, dict[str, Any]] = {}
+    for row in source_rows:
+        for key, group_type in _paper_performance_quarantine_group_keys(row).items():
+            grouped.setdefault(key, {"group_type": group_type, "rows": []})[
+                "rows"
+            ].append(row)
+
+    quarantined: list[dict[str, Any]] = []
+
+    def _bucket_view(rows: list[dict[str, Any]], group_type: str) -> dict[str, Any]:
+        """Quarantine reasons + stats for one bucket over one row view."""
+        high_confidence_rows = [
+            row
+            for row in rows
+            if (_paper_canary_score(row) or 0.0)
+            >= PAPER_HIGH_CONFIDENCE_QUARANTINE_MIN_SCORE
+        ]
+        high_confidence_losses = [
+            row
+            for row in high_confidence_rows
+            if (_paper_performance_realized_bps(row) or 0.0) <= 0.0
+        ]
+        high_confidence_loss_rate = (
+            len(high_confidence_losses) / len(high_confidence_rows)
+            if high_confidence_rows
+            else None
+        )
+        atr_stop_rows = [row for row in rows if _paper_performance_is_atr_stop(row)]
+        losing_atr_stop_rows = [
+            row
+            for row in atr_stop_rows
+            if (_paper_performance_realized_bps(row) or 0.0) <= 0.0
+        ]
+        metrics = _paper_performance_metrics(rows)
+        expectancy_bps = _coerce_float(metrics.get("notional_weighted_expectancy_bps"))
+        profit_factor = _paper_quality_profit_factor_numeric(metrics.get("profit_factor"))
+        closed_outcome_count = int(metrics.get("closed_outcome_count") or 0)
+        reasons: list[str] = []
+        if (
+            high_confidence_loss_rate is not None
+            and len(high_confidence_rows) >= 2
+            and high_confidence_loss_rate > PAPER_HIGH_CONFIDENCE_LOSS_RATE_BOUND
+        ):
+            reasons.append("HIGH_CONFIDENCE_LOSS_RATE_ABOVE_ADAPTIVE_BOUND")
+        if (
+            group_type == "exact_context"
+            and len(losing_atr_stop_rows) >= PAPER_ATR_STOP_CLUSTER_MIN_COUNT
+        ):
+            reasons.append("ATR_STOP_LOSS_CLUSTER")
+        if (
+            group_type in {"side_timeframe", "strategy_side_timeframe"}
+            and len(losing_atr_stop_rows) >= PAPER_ATR_STOP_CLUSTER_MIN_COUNT
+        ):
+            reasons.append(f"ATR_STOP_LOSS_CLUSTER_{group_type.upper()}_BUCKET")
+        if (
+            group_type != "exact_context"
+            and closed_outcome_count >= PAPER_NEGATIVE_BUCKET_QUARANTINE_MIN_COUNT
+            and expectancy_bps is not None
+            and expectancy_bps <= 0.0
+        ):
+            reasons.append(f"NEGATIVE_EXPECTANCY_{group_type.upper()}_BUCKET")
+        if (
+            group_type != "exact_context"
+            and closed_outcome_count >= PAPER_NEGATIVE_BUCKET_QUARANTINE_MIN_COUNT
+            and profit_factor is not None
+            and profit_factor < 1.0
+        ):
+            reasons.append(f"NEGATIVE_PROFIT_FACTOR_{group_type.upper()}_BUCKET")
+        return {
+            "reasons": reasons,
+            "metrics": metrics,
+            "high_confidence_loss_rate": high_confidence_loss_rate,
+            "high_confidence_losses": high_confidence_losses,
+            "high_confidence_rows": high_confidence_rows,
+            "losing_atr_stop_rows": losing_atr_stop_rows,
+        }
+
+    for key, group in grouped.items():
+        all_rows = list(group.get("rows") or [])
+        group_type = str(group.get("group_type") or "exact_context")
+        post_rows = [row for row in all_rows if id(row) in post_repair_row_ids]
+        post_view = _bucket_view(post_rows, group_type)
+        if post_view["reasons"]:
+            view, rows, state, blocking = post_view, post_rows, "QUARANTINED", True
+        else:
+            full_view = _bucket_view(all_rows, group_type)
+            if not full_view["reasons"]:
+                continue
+            view, rows, state, blocking = full_view, all_rows, "PRE_REPAIR_EVIDENCE_ONLY", False
+        high_confidence_rows = view["high_confidence_rows"]
+        high_confidence_losses = view["high_confidence_losses"]
+        high_confidence_loss_rate = view["high_confidence_loss_rate"]
+        losing_atr_stop_rows = view["losing_atr_stop_rows"]
+        metrics = view["metrics"]
+        reasons = list(view["reasons"])
+        quarantined.append({
+            "bucket_key": key,
+            "bucket_type": group_type,
+            "state": state,
+            "candidate_blocking": blocking,
+            "escalates_global_halt": blocking
+            and _paper_bucket_has_post_repair_loss(rows, exit_repair_deployed),
+            "exit_repair_deployed_utc": (
+                exit_repair_deployed.isoformat(timespec="seconds").replace("+00:00", "Z")
+                if exit_repair_deployed
+                else None
+            ),
+            "block_reasons": sorted(set(reasons)),
+            "closed_outcome_count": metrics.get("closed_outcome_count"),
+            "profit_factor": metrics.get("profit_factor"),
+            "notional_weighted_expectancy_bps": metrics.get(
+                "notional_weighted_expectancy_bps"
+            ),
+            "high_confidence_loss_rate": high_confidence_loss_rate,
+            "high_confidence_loss_count": len(high_confidence_losses),
+            "high_confidence_outcome_count": len(high_confidence_rows),
+            "high_confidence_min_score": PAPER_HIGH_CONFIDENCE_QUARANTINE_MIN_SCORE,
+            "adaptive_high_confidence_loss_rate_bound": (
+                PAPER_HIGH_CONFIDENCE_LOSS_RATE_BOUND
+            ),
+            "ATR_stop_loss_count": len(losing_atr_stop_rows),
+            "ATR_stop_cluster_min_count": PAPER_ATR_STOP_CLUSTER_MIN_COUNT,
+            "negative_bucket_min_count": PAPER_NEGATIVE_BUCKET_QUARANTINE_MIN_COUNT,
+            "sample_rows": _compact_rows_for_state(_sample_rows(rows, 5)),
+        })
+    quarantined.sort(
+        key=lambda row: (
+            -int(row.get("ATR_stop_loss_count") or 0),
+            -int(row.get("high_confidence_loss_count") or 0),
+            str(row.get("bucket_key") or ""),
+        )
+    )
+    blocked_bucket_keys = [
+        row["bucket_key"]
+        for row in quarantined
+        if row.get("candidate_blocking") is True
+    ][:B_GRADE_MODEL_QUALITY_BUCKET_LIMIT]
+    return {
+        "schema_version": "bucket_quarantine_status_v1",
+        "status": "ACTIVE_WITH_QUARANTINES" if quarantined else "ACTIVE_NO_QUARANTINES",
+        "enabled": True,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "adaptive_high_confidence_loss_rate_bound": PAPER_HIGH_CONFIDENCE_LOSS_RATE_BOUND,
+        "high_confidence_min_score": PAPER_HIGH_CONFIDENCE_QUARANTINE_MIN_SCORE,
+        "ATR_stop_cluster_min_count": PAPER_ATR_STOP_CLUSTER_MIN_COUNT,
+        "negative_bucket_min_count": PAPER_NEGATIVE_BUCKET_QUARANTINE_MIN_COUNT,
+        "source_closed_rows": len(closed_rows),
+        "governed_closed_rows": len(source_rows),
+        "quarantine_evidence_rows": len(quarantine_rows),
+        "pre_repair_rows_excluded_from_quarantine": pre_repair_rows_excluded,
+        "exit_repair_deployed_utc": (
+            exit_repair_deployed.isoformat(timespec="seconds").replace("+00:00", "Z")
+            if exit_repair_deployed
+            else None
+        ),
+        "quarantined_bucket_count": len(quarantined),
+        # Computed over the FULL quarantined list (quarantined_buckets below is
+        # truncated for display); fail-closed when the repair artifact is
+        # missing or a losing row lacks a parseable exit timestamp.
+        "global_halt_required": any(
+            bucket.get("escalates_global_halt") is not False for bucket in quarantined
+        ),
+        "escalating_bucket_count": sum(
+            1 for bucket in quarantined if bucket.get("escalates_global_halt") is not False
+        ),
+        "exit_repair_deployed_utc": (
+            exit_repair_deployed.isoformat(timespec="seconds").replace("+00:00", "Z")
+            if exit_repair_deployed
+            else None
+        ),
+        "blocked_bucket_keys": blocked_bucket_keys,
+        "quarantined_buckets": quarantined[:B_GRADE_MODEL_QUALITY_BUCKET_LIMIT],
+        "pass_conditions": {
+            "quarantine_prevents_same_bad_bucket_reentry": True,
+            "paper_only": True,
+            "routes_to_live_false": True,
+            "places_real_order_false": True,
+        },
+        "generated_utc": generated_utc or _utc_iso(),
+    }
+
+
+def _paper_first_bootstrap_close_block_status(
+    source_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    bootstrap_rows = [
+        row
+        for row in source_rows
+        if str(row.get("paper_opportunity_tier") or row.get("source_tier") or "").upper()
+        == "A_GRADE_BOOTSTRAP_PAPER"
+    ]
+    first_bootstrap = bootstrap_rows[0] if bootstrap_rows else None
+    first_pnl_bps = (
+        _paper_performance_realized_bps(first_bootstrap)
+        if isinstance(first_bootstrap, dict)
+        else None
+    )
+    blocked = first_pnl_bps is not None and first_pnl_bps < 0.0
+    return {
+        "first_bootstrap_close_seen": first_bootstrap is not None,
+        "first_bootstrap_close_negative": blocked,
+        "first_bootstrap_close_realized_pnl_bps": first_pnl_bps,
+        "bootstrap_reopen_allowed": not blocked,
+        "candidate_policy_change_required": blocked,
+        "root_cause_patch_required": blocked,
+        "block_reason": (
+            "FIRST_BOOTSTRAP_CLOSE_NEGATIVE_POLICY_CHANGE_REQUIRED"
+            if blocked
+            else None
+        ),
+    }
+
+
+def _paper_performance_circuit_breaker_status(
+    closed_rows: list[dict[str, Any]],
+    *,
+    generated_utc: str | None = None,
+) -> dict[str, Any]:
+    source_rows = _paper_performance_source_rows(closed_rows)
+    rolling_25 = _paper_performance_window_metrics(source_rows, 25)
+    rolling_50 = _paper_performance_window_metrics(source_rows, 50)
+    aggregate = _paper_performance_metrics(source_rows)
+    bucket_quarantine = _paper_bucket_quarantine_status(
+        source_rows,
+        generated_utc=generated_utc,
+    )
+    bootstrap_block = _paper_first_bootstrap_close_block_status(source_rows)
+    pf25 = _paper_quality_profit_factor_numeric(rolling_25.get("profit_factor"))
+    ev25 = _coerce_float(rolling_25.get("notional_weighted_expectancy_bps"))
+    pf50 = _paper_quality_profit_factor_numeric(rolling_50.get("profit_factor"))
+    ev50 = _coerce_float(rolling_50.get("notional_weighted_expectancy_bps"))
+    block_reasons: list[str] = []
+    # Rolling window checks require minimum trade count before they can block.
+    # With < 5 trades, any single bad trade produces PF=0 on a 25-trade window,
+    # which would permanently halt a brand-new bootstrap session.
+    _n_src = len(source_rows)
+    if _n_src >= 5 and pf25 is not None and pf25 < 1.0:
+        block_reasons.append("CLOSED_5_PROFIT_FACTOR_BELOW_1")
+    if _n_src >= 5 and ev25 is not None and ev25 <= 0.0:
+        block_reasons.append("CLOSED_5_EXPECTANCY_NON_POSITIVE")
+    if _n_src >= 5 and pf25 is not None and ev25 is not None and pf25 < 1.0 and ev25 <= 0.0:
+        block_reasons.append("ROLLING_25_PF_BELOW_1_AND_EXPECTANCY_NON_POSITIVE")
+    if _n_src >= 10 and pf50 is not None and pf50 < 1.0:
+        block_reasons.append("ROLLING_50_PROFIT_FACTOR_BELOW_1")
+    if _n_src >= 10 and ev50 is not None and ev50 <= 0.0:
+        block_reasons.append("ROLLING_50_EXPECTANCY_NON_POSITIVE")
+    # A+ goal Phase 1/8: quarantine stays bucket-scoped after a verified exit
+    # repair — only buckets with post-repair (or untimestamped, fail-closed)
+    # loss evidence halt the whole book. Pre-repair-only buckets remain in
+    # blocked_bucket_keys so the affected buckets still cannot re-enter.
+    if bucket_quarantine.get("global_halt_required", bucket_quarantine["quarantined_bucket_count"] > 0):
+        block_reasons.append("BUCKET_QUARANTINE_ACTIVE")
+    if bootstrap_block["first_bootstrap_close_negative"]:
+        block_reasons.append("FIRST_BOOTSTRAP_CLOSE_NEGATIVE")
+
+    new_entries_allowed = not block_reasons
+    return {
+        "schema_version": "paper_performance_circuit_breaker_status_v1",
+        "status": "HALTED_PERFORMANCE" if block_reasons else "ACTIVE",
+        "state": "HALTED_PERFORMANCE" if block_reasons else "ACTIVE",
+        "enabled": True,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "live_path_changed": False,
+        "new_entries_allowed": new_entries_allowed,
+        "allow_reduce": True,
+        "allow_close": True,
+        "allow_mark_to_market": True,
+        "allow_feedback_recording": True,
+        "halt_reason": (
+            PAPER_PERFORMANCE_CIRCUIT_BREAKER_HALT_REASON if block_reasons else None
+        ),
+        "block_reasons": sorted(set(block_reasons)),
+        "source_closed_rows": len(closed_rows),
+        "governed_closed_rows": len(source_rows),
+        "rolling_25": rolling_25,
+        "rolling_50": rolling_50,
+        "aggregate": aggregate,
+        "bucket_quarantine_status": bucket_quarantine,
+        "first_bootstrap_close_block_status": bootstrap_block,
+        "blocked_bucket_keys": bucket_quarantine.get("blocked_bucket_keys") or [],
+        "pass_conditions": {
+            "negative_pf_blocks_new_entries": not (
+                (_n_src >= 5 and pf25 is not None and pf25 < 1.0)
+                and new_entries_allowed
+            ),
+            "negative_expectancy_blocks_new_entries": not (
+                (
+                    (_n_src >= 5 and ev25 is not None and ev25 <= 0.0)
+                    or (_n_src >= 10 and ev50 is not None and ev50 <= 0.0)
+                )
+                and new_entries_allowed
+            ),
+            "quarantine_prevents_same_bad_bucket_reentry": True,
+            "no_live_mutation": True,
+            "paper_only": True,
+            "routes_to_live_false": True,
+            "places_real_order_false": True,
+        },
+        "generated_utc": generated_utc or _utc_iso(),
+    }
+
+
+def _paper_bleed_halt_status(
+    performance_circuit_breaker_status: dict[str, Any],
+    *,
+    generated_utc: str | None = None,
+) -> dict[str, Any]:
+    halted = performance_circuit_breaker_status.get("new_entries_allowed") is not True
+    return {
+        "schema_version": "paper_bleed_halt_status_v1",
+        "status": "HALTED" if halted else "ACTIVE",
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "live_path_changed": False,
+        "new_entries_allowed": not halted,
+        "allow_reduce": True,
+        "allow_close": True,
+        "allow_mark_to_market": True,
+        "allow_feedback_recording": True,
+        "halt_reason": performance_circuit_breaker_status.get("halt_reason"),
+        "halt_reasons": performance_circuit_breaker_status.get("block_reasons") or [],
+        "source_state": performance_circuit_breaker_status.get("state"),
+        "generated_utc": generated_utc or _utc_iso(),
+    }
+
+
+def _paper_performance_governor_status_from_circuit_breaker(
+    performance_circuit_breaker_status: dict[str, Any],
+    *,
+    generated_utc: str | None = None,
+) -> dict[str, Any]:
+    aggregate = (
+        performance_circuit_breaker_status.get("aggregate")
+        if isinstance(performance_circuit_breaker_status.get("aggregate"), dict)
+        else {}
+    )
+    block_reasons = list(performance_circuit_breaker_status.get("block_reasons") or [])
+    bucket_quarantine = (
+        performance_circuit_breaker_status.get("bucket_quarantine_status")
+        if isinstance(performance_circuit_breaker_status.get("bucket_quarantine_status"), dict)
+        else {}
+    )
+    blocked_bucket_keys = list(performance_circuit_breaker_status.get("blocked_bucket_keys") or [])
+    pass_conditions = dict(performance_circuit_breaker_status.get("pass_conditions") or {})
+    pass_conditions.update({
+        "governor_active": True,
+        "paper_only": True,
+        "routes_to_live_false": True,
+        "places_real_order_false": True,
+        "mirrors_current_performance_circuit_breaker": True,
+    })
+    return {
+        "schema_version": "paper_performance_governor_status_v2",
+        "source_schema_version": performance_circuit_breaker_status.get("schema_version"),
+        "source_status_path": str(PAPER_PERFORMANCE_CIRCUIT_BREAKER_STATUS_PATH),
+        "status": performance_circuit_breaker_status.get("status"),
+        "state": performance_circuit_breaker_status.get("state"),
+        "state_reasons": sorted(set(str(reason) for reason in block_reasons)),
+        "enabled": performance_circuit_breaker_status.get("enabled") is not False,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "test_order_submitted": False,
+        "exchange_action_taken": False,
+        "live_path_changed": False,
+        "writes_legacy_redis": False,
+        "old_redis_writes": False,
+        "new_entries_allowed": performance_circuit_breaker_status.get("new_entries_allowed") is True,
+        "allow_reduce": performance_circuit_breaker_status.get("allow_reduce") is not False,
+        "allow_close": performance_circuit_breaker_status.get("allow_close") is not False,
+        "allow_mark_to_market": (
+            performance_circuit_breaker_status.get("allow_mark_to_market") is not False
+        ),
+        "allow_feedback_recording": (
+            performance_circuit_breaker_status.get("allow_feedback_recording") is not False
+        ),
+        "halt_reason": performance_circuit_breaker_status.get("halt_reason"),
+        "halt_reasons": sorted(set(str(reason) for reason in block_reasons)),
+        "source_closed_rows": performance_circuit_breaker_status.get("source_closed_rows"),
+        "governed_closed_rows": performance_circuit_breaker_status.get("governed_closed_rows"),
+        "closed_outcome_count": aggregate.get("closed_outcome_count"),
+        "profit_factor": aggregate.get("profit_factor"),
+        "profit_factor_numeric": aggregate.get("profit_factor_numeric"),
+        "profit_factor_is_infinite": aggregate.get("profit_factor_is_infinite"),
+        "notional_weighted_expectancy_bps": aggregate.get(
+            "notional_weighted_expectancy_bps"
+        ),
+        "win_rate": aggregate.get("win_rate"),
+        "realized_pnl_usd": aggregate.get("realized_pnl_usd"),
+        "rolling_25": performance_circuit_breaker_status.get("rolling_25"),
+        "rolling_50": performance_circuit_breaker_status.get("rolling_50"),
+        "bucket_count": bucket_quarantine.get("quarantined_bucket_count", 0),
+        "blocked_bucket_keys": blocked_bucket_keys,
+        "bucket_quarantine_status": bucket_quarantine,
+        "pass_conditions": pass_conditions,
+        "generated_utc": (
+            generated_utc
+            or performance_circuit_breaker_status.get("generated_utc")
+            or _utc_iso()
+        ),
+    }
+
+
+def _paper_new_entry_emergency_halt_status_from_performance(
+    performance_circuit_breaker_status: dict[str, Any],
+    bleed_halt_status: dict[str, Any],
+    *,
+    generated_utc: str | None = None,
+) -> dict[str, Any]:
+    performance_allows = performance_circuit_breaker_status.get("new_entries_allowed") is True
+    bleed_allows = bleed_halt_status.get("new_entries_allowed") is True
+    allow_new_entries = performance_allows and bleed_allows
+    halt_reasons = sorted(set(
+        str(reason)
+        for reason in (
+            list(bleed_halt_status.get("halt_reasons") or [])
+            + list(performance_circuit_breaker_status.get("block_reasons") or [])
+        )
+        if reason
+    ))
+    halt_reason = (
+        bleed_halt_status.get("halt_reason")
+        or performance_circuit_breaker_status.get("halt_reason")
+    )
+    return {
+        "schema_version": "paper_new_entry_emergency_halt_status_v2",
+        "source_schema_versions": {
+            "performance_circuit_breaker": performance_circuit_breaker_status.get(
+                "schema_version"
+            ),
+            "bleed_halt": bleed_halt_status.get("schema_version"),
+        },
+        "source_status_paths": {
+            "performance_circuit_breaker": str(PAPER_PERFORMANCE_CIRCUIT_BREAKER_STATUS_PATH),
+            "bleed_halt": str(PAPER_BLEED_HALT_STATUS_PATH),
+        },
+        "status": "ACTIVE" if allow_new_entries else "HALTED",
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "test_order_submitted": False,
+        "exchange_action_taken": False,
+        "live_path_changed": False,
+        "writes_legacy_redis": False,
+        "old_redis_writes": False,
+        "new_entries_allowed": allow_new_entries,
+        "allow_new_entries": allow_new_entries,
+        "allow_reduce": True,
+        "allow_close": True,
+        "allow_mark_to_market": True,
+        "allow_feedback_recording": True,
+        "halt_reason": None if allow_new_entries else halt_reason,
+        "halt_reasons": [] if allow_new_entries else halt_reasons,
+        "performance_governor_v2_new_entries_allowed": performance_allows,
+        "performance_governor_v2_state": performance_circuit_breaker_status.get("state"),
+        "performance_circuit_breaker_new_entries_allowed": performance_allows,
+        "performance_circuit_breaker_state": performance_circuit_breaker_status.get("state"),
+        "bleed_halt_new_entries_allowed": bleed_allows,
+        "bleed_halt_state": bleed_halt_status.get("status"),
+        "recovery_session_lift_allowed": allow_new_entries,
+        "generated_utc": (
+            generated_utc
+            or bleed_halt_status.get("generated_utc")
+            or performance_circuit_breaker_status.get("generated_utc")
+            or _utc_iso()
+        ),
+    }
+
+
+def _paper_block_new_entry_by_performance_circuit(
+    *,
+    intent: dict[str, Any],
+    allocation: dict[str, Any],
+    performance_circuit_breaker_status: dict[str, Any],
+) -> bool:
+    reasons: list[str] = []
+    if performance_circuit_breaker_status.get("new_entries_allowed") is not True:
+        reasons.append(PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCK_REASON)
+    candidate_bucket_keys = _paper_performance_candidate_quarantine_keys(intent)
+    blocked_bucket_keys = set(
+        performance_circuit_breaker_status.get("blocked_bucket_keys") or []
+    )
+    matched_blocked_bucket_keys = sorted(candidate_bucket_keys & blocked_bucket_keys)
+    if matched_blocked_bucket_keys:
+        reasons.append("PAPER_BUCKET_QUARANTINE_BLOCKED_REENTRY")
+    if not reasons:
+        return False
+    for target in (intent, allocation):
+        target["paper_performance_circuit_breaker_blocked"] = True
+        target["paper_performance_circuit_breaker_block_reasons"] = sorted(set(reasons))
+        target["paper_performance_circuit_breaker_candidate_bucket_keys"] = sorted(
+            candidate_bucket_keys
+        )
+        target["paper_performance_circuit_breaker_matched_blocked_bucket_keys"] = (
+            matched_blocked_bucket_keys
+        )
+        target["paper_fill_allowed"] = False
+        target["paper_tier_local_fill_allowed"] = False
+        target["places_real_order"] = False
+        target["routes_to_live"] = False
+        target["paper_only"] = True
+    allocation["allocator_decision"] = "BLOCK_PAPER_PERFORMANCE_CIRCUIT_BREAKER"
+    allocation["final_size_reason"] = reasons[0]
+    allocation["capital_allocation_reason"] = reasons[0]
+    intent["allocator_decision"] = "BLOCK_PAPER_PERFORMANCE_CIRCUIT_BREAKER"
+    intent["allocator_reason"] = reasons[0]
+    intent["paper_fill_block_reason"] = reasons[0]
+    intent["paper_allocation_block_reason"] = reasons[0]
+    intent["paper_fill_gate_block_reasons"] = sorted(set(
+        list(intent.get("paper_fill_gate_block_reasons") or []) + reasons
+    ))
+    intent["local_block_reasons"] = sorted(set(
+        list(intent.get("local_block_reasons") or [])
+        + [f"paper_performance_circuit_breaker:{reason}" for reason in reasons]
+    ))
+    return True
+
+
 def _paper_a_grade_gap_source_owner(
     reason: str | None,
     *,
@@ -11111,6 +13237,17 @@ def _paper_forward_canary_archive_row_score(row: dict[str, Any]) -> tuple[int, i
     return production_cost, populated_fields
 
 
+def _paper_row_session_id(row: dict[str, Any]) -> str | None:
+    value = _first_present(
+        row.get("paper_session_id"),
+        row.get("session_id"),
+        row.get("reset_session_id"),
+    )
+    if value in (None, ""):
+        return None
+    return str(value)
+
+
 def _read_paper_forward_canary_closed_outcome_archive(
     path: Path | None = None,
 ) -> list[dict[str, Any]]:
@@ -11145,15 +13282,26 @@ def _paper_forward_canary_closed_outcome_archive_status(
     current_closed_rows: list[dict[str, Any]],
     *,
     path: Path | None = None,
+    paper_session_id: str | None = None,
 ) -> dict[str, Any]:
     path = path or PAPER_FORWARD_CANARY_CLOSED_OUTCOME_ARCHIVE_PATH
+    active_session_id = str(paper_session_id) if paper_session_id else None
     existing_rows = _read_paper_forward_canary_closed_outcome_archive(path)
     archive_by_id: dict[str, dict[str, Any]] = {}
     duplicate_rows = 0
     rows_without_identity = 0
+    session_excluded_archived_rows = 0
+    session_excluded_current_rows = 0
 
-    def merge_row(row: dict[str, Any]) -> None:
+    def merge_row(row: dict[str, Any], *, source: str) -> None:
         nonlocal duplicate_rows, rows_without_identity
+        nonlocal session_excluded_archived_rows, session_excluded_current_rows
+        if active_session_id and _paper_row_session_id(row) != active_session_id:
+            if source == "archive":
+                session_excluded_archived_rows += 1
+            else:
+                session_excluded_current_rows += 1
+            return
         if row.get("paper_opportunity_tier") != PAPER_TIER_B_GRADE_EXPLORATION:
             return
         if not _paper_forward_canary_challenger_owned(row):
@@ -11172,10 +13320,10 @@ def _paper_forward_canary_closed_outcome_archive_status(
         archive_by_id[identity] = archived
 
     for row in existing_rows:
-        merge_row(row)
+        merge_row(row, source="archive")
     existing_unique_count = len(archive_by_id)
     for row in current_closed_rows:
-        merge_row(row)
+        merge_row(row, source="current")
 
     archived_rows = sorted(
         archive_by_id.values(),
@@ -11202,6 +13350,10 @@ def _paper_forward_canary_closed_outcome_archive_status(
         "new_archived_closed_outcome_rows": max(0, len(archived_rows) - existing_unique_count),
         "duplicate_closed_outcome_rows": duplicate_rows,
         "rows_without_archive_identity": rows_without_identity,
+        "paper_session_filter_enabled": active_session_id is not None,
+        "paper_session_id": active_session_id,
+        "session_excluded_archived_closed_outcome_rows": session_excluded_archived_rows,
+        "session_excluded_current_closed_rows": session_excluded_current_rows,
         "closed_outcomes": archived_rows,
         "paper_only": True,
         "routes_to_live": False,
@@ -11371,6 +13523,67 @@ def _paper_strategy_size_adjustment_mode(strategy_router: dict[str, Any]) -> str
     if selected_mode == "reduce_size_mode":
         return selected_mode
     return None
+
+
+def _strategy_router_regime_context(strategy_router: dict[str, Any]) -> dict[str, Any]:
+    strategy_mode = strategy_router.get("strategy_mode")
+    market_regime = strategy_router.get("market_regime")
+    return {
+        "strategy_mode": strategy_mode,
+        "strategy_canonical_mode": strategy_mode,
+        "strategy_modes_supported": list(strategy_router.get("strategy_modes_supported") or []),
+        "strategy_market_regime": market_regime,
+        "market_regime": market_regime,
+        "market_regime_at_entry": market_regime,
+        "strategy_regime_features": dict(strategy_router.get("regime_features") or {}),
+        "strategy_regime_feature_status": dict(strategy_router.get("regime_feature_status") or {}),
+        "strategy_bucket_key": dict(strategy_router.get("strategy_bucket_key") or {}),
+        "strategy_bucket_quarantined": strategy_router.get("bucket_quarantined") is True,
+        "strategy_bucket_quarantine_reason": strategy_router.get("bucket_quarantine_reason"),
+        "strategy_bucket_performance_state": dict(
+            strategy_router.get("bucket_performance_state") or {}
+        ),
+        "strategy_feature_snapshot_status": strategy_router.get(
+            "strategy_feature_snapshot_status"
+        ),
+        "strategy_feature_snapshot_id": strategy_router.get("strategy_feature_snapshot_id"),
+        "strategy_feature_snapshot_available_at": strategy_router.get(
+            "strategy_feature_snapshot_available_at"
+        ),
+        "strategy_feature_snapshot_feature_cutoff": strategy_router.get(
+            "strategy_feature_snapshot_feature_cutoff"
+        ),
+        "strategy_feature_snapshot_candle_closed_confirmed": strategy_router.get(
+            "strategy_feature_snapshot_candle_closed_confirmed"
+        ),
+        "strategy_feature_snapshot_latest_unclosed_kline_excluded": strategy_router.get(
+            "strategy_feature_snapshot_latest_unclosed_kline_excluded"
+        ),
+        "strategy_regime_feature_source_map": dict(
+            strategy_router.get("strategy_regime_feature_source_map") or {}
+        ),
+        "strategy_cross_asset_context_status": strategy_router.get(
+            "strategy_cross_asset_context_status"
+        ),
+        "strategy_cross_asset_context_source": strategy_router.get(
+            "strategy_cross_asset_context_source"
+        ),
+        "strategy_cross_asset_available_symbol_count": strategy_router.get(
+            "strategy_cross_asset_available_symbol_count"
+        ),
+        "strategy_paper_loss_quarantine_status": strategy_router.get(
+            "paper_loss_quarantine_status"
+        ),
+        "strategy_paper_loss_quarantine_blocked_bucket_keys": list(
+            strategy_router.get("paper_loss_quarantine_blocked_bucket_keys") or []
+        ),
+        "strategy_paper_loss_quarantine_candidate_bucket_keys": list(
+            strategy_router.get("paper_loss_quarantine_candidate_bucket_keys") or []
+        ),
+        "strategy_paper_loss_quarantine_matched_bucket_keys": list(
+            strategy_router.get("paper_loss_quarantine_matched_bucket_keys") or []
+        ),
+    }
 
 
 def _closed_trade_rows(existing_ledger: dict[str, Any]) -> list[dict[str, Any]]:
@@ -12230,7 +14443,7 @@ def _build_market_state_envelope(
     signal: dict[str, Any],
     prediction: dict[str, Any],
 ) -> dict[str, Any]:
-    return {
+    envelope = {
         "symbol": _first_present(signal.get("symbol"), prediction.get("symbol")),
         "exchange": _first_present(signal.get("exchange"), prediction.get("exchange"), "unknown"),
         "decision_time": _first_present(
@@ -12321,6 +14534,490 @@ def _build_market_state_envelope(
         ),
         "squeeze_evidence_score": _first_present(signal.get("squeeze_evidence_score"), prediction.get("squeeze_evidence_score")),
     }
+    for field in (
+        "trend_strength",
+        "htf_trend_strength",
+        "range_chop_score",
+        "chop_score",
+        "range_score",
+        "volatility_expansion",
+        "atr_percentile",
+        "fakeout_reversal_probability",
+        "cross_asset_btc_eth_sol_regime",
+        "cross_asset_regime",
+        "market_wide_risk",
+        "risk_on_risk_off",
+        "expected_slippage_bps",
+        "microstructure_trust_score",
+        "orderbook_trust_score",
+        "microstructure_action",
+        "sweep_risk",
+        "sweep_risk_score",
+        "cross_venue_confirmation_score",
+        "trade_tape_confirmation_score",
+    ):
+        value = _first_present(signal.get(field), prediction.get(field))
+        if value not in (None, ""):
+            envelope[field] = value
+    for context_field in (
+        "liquidity_context",
+        "liquidation_context",
+        "liquidation_distance_context",
+        "microstructure_context",
+        "oi_funding_context",
+        "public_intel_context",
+    ):
+        value = _first_present(signal.get(context_field), prediction.get(context_field))
+        if isinstance(value, dict):
+            envelope[context_field] = dict(value)
+    return envelope
+
+
+def _feature_snapshot_features(feature_snapshot: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(feature_snapshot, dict):
+        return {}
+    features = feature_snapshot.get("features")
+    return features if isinstance(features, dict) else {}
+
+
+def _strategy_feature_snapshot_number(
+    features: dict[str, Any],
+    *keys: str,
+) -> tuple[float | None, str | None]:
+    for key in keys:
+        value = _coerce_float(features.get(key))
+        if value is not None:
+            return value, key
+    return None, None
+
+
+def _strategy_score01_from_percent(value: float | None) -> float | None:
+    if value is None:
+        return None
+    if value > 1.0:
+        value = value / 100.0
+    return max(0.0, min(1.0, float(value)))
+
+
+def _strategy_snapshot_aggressive_flow(features: dict[str, Any]) -> tuple[float | None, str | None]:
+    taker_quote = _coerce_float(features.get("taker_buy_quote_vol"))
+    quote_volume = _coerce_float(features.get("quote_volume"))
+    if taker_quote is not None and quote_volume is not None and quote_volume > 0.0:
+        return max(-1.0, min(1.0, (taker_quote / quote_volume - 0.5) * 2.0)), "taker_buy_quote_vol/quote_volume"
+    taker_base = _coerce_float(features.get("taker_buy_base_vol"))
+    volume = _coerce_float(features.get("volume"))
+    if taker_base is not None and volume is not None and volume > 0.0:
+        return max(-1.0, min(1.0, (taker_base / volume - 0.5) * 2.0)), "taker_buy_base_vol/volume"
+    return None, None
+
+
+def _strategy_snapshot_nearest_liquidation_bps(features: dict[str, Any]) -> tuple[float | None, str | None]:
+    candidates: list[tuple[float, str]] = []
+    for key in (
+        "liquidation_sweep_target_short_distance_bps",
+        "liquidation_sweep_target_long_distance_bps",
+    ):
+        value = _coerce_float(features.get(key))
+        if value is not None:
+            candidates.append((abs(value), key))
+    if candidates:
+        return min(candidates, key=lambda item: item[0])
+    pct_candidates: list[tuple[float, str]] = []
+    for key in ("liquidation_short_distance_pct", "liquidation_long_distance_pct"):
+        value = _coerce_float(features.get(key))
+        if value is not None:
+            pct_candidates.append((abs(value) * 100.0, key))
+    if pct_candidates:
+        return min(pct_candidates, key=lambda item: item[0])
+    return None, None
+
+
+def _merge_strategy_context(
+    envelope: dict[str, Any],
+    context_name: str,
+    values: dict[str, Any],
+) -> None:
+    clean = {key: value for key, value in values.items() if value not in (None, "", [], {})}
+    if not clean:
+        return
+    existing = envelope.get(context_name)
+    merged = dict(existing) if isinstance(existing, dict) else {}
+    for key, value in clean.items():
+        merged.setdefault(key, value)
+    envelope[context_name] = merged
+
+
+def _attach_strategy_router_feature_snapshot_context(
+    envelope: dict[str, Any],
+    feature_snapshot: dict[str, Any] | None,
+) -> None:
+    features = _feature_snapshot_features(feature_snapshot)
+    if not features:
+        reason = (
+            feature_snapshot.get("unavailable_reason")
+            if isinstance(feature_snapshot, dict)
+            else "MISSING_FEATURE_SNAPSHOT"
+        )
+        envelope["strategy_feature_snapshot_status"] = f"UNAVAILABLE_{reason or 'UNKNOWN'}"
+        return
+
+    envelope["strategy_feature_snapshot_status"] = "ATTACHED_PIT_VALID_FEATURE_SNAPSHOT"
+    for source_field, envelope_field in (
+        ("feature_snapshot_id", "strategy_feature_snapshot_id"),
+        ("available_at", "strategy_feature_snapshot_available_at"),
+        ("feature_cutoff", "strategy_feature_snapshot_feature_cutoff"),
+        ("candle_closed_confirmed", "strategy_feature_snapshot_candle_closed_confirmed"),
+        ("latest_unclosed_kline_excluded", "strategy_feature_snapshot_latest_unclosed_kline_excluded"),
+    ):
+        value = feature_snapshot.get(source_field) if isinstance(feature_snapshot, dict) else None
+        if value not in (None, ""):
+            envelope[envelope_field] = value
+
+    source_map: dict[str, str] = {}
+
+    def set_direct(field: str, value: Any, source: str | None) -> None:
+        if value in (None, "") or envelope.get(field) not in (None, ""):
+            return
+        envelope[field] = value
+        if source:
+            source_map[field] = f"feature_snapshot.{source}"
+
+    adx, adx_key = _strategy_feature_snapshot_number(features, "trend_strength", "ta_ADX", "ta_ADXR")
+    set_direct("trend_strength", _strategy_score01_from_percent(adx), adx_key)
+
+    chop, chop_key = _strategy_feature_snapshot_number(features, "range_chop_score", "chop_score")
+    if chop is None:
+        trend_mode, trend_mode_key = _strategy_feature_snapshot_number(features, "ta_HT_TRENDMODE_integer")
+        if trend_mode is not None:
+            chop = 0.0 if trend_mode >= 1.0 else 1.0
+            chop_key = trend_mode_key
+    set_direct("range_chop_score", _strategy_score01_from_percent(chop), chop_key)
+
+    volatility, volatility_key = _strategy_feature_snapshot_number(
+        features,
+        "volatility_expansion",
+        "true_range_pct",
+        "bb_width_pct",
+        "ta_BB_width_pct",
+        "ta_NATR",
+    )
+    set_direct("volatility_expansion", volatility, volatility_key)
+
+    atr_percentile, atr_percentile_key = _strategy_feature_snapshot_number(
+        features,
+        "atr_percentile",
+    )
+    set_direct("atr_percentile", _strategy_score01_from_percent(atr_percentile), atr_percentile_key)
+
+    funding_bps, funding_key = _strategy_feature_snapshot_number(features, "expected_funding_bps")
+    if funding_bps is None:
+        funding_rate, funding_rate_key = _strategy_feature_snapshot_number(features, "funding_rate")
+        if funding_rate is not None:
+            funding_bps = funding_rate * 10_000.0
+            funding_key = funding_rate_key
+    set_direct("funding_skew", funding_bps, funding_key)
+
+    oi_change, oi_key = _strategy_feature_snapshot_number(features, "oi_change_pct", "open_interest_change_pct")
+    set_direct("open_interest_change", oi_change, oi_key)
+
+    long_short_ratio, long_short_key = _strategy_feature_snapshot_number(features, "long_short_ratio")
+    set_direct("long_short_ratio", long_short_ratio, long_short_key)
+
+    liquidation_bps, liquidation_key = _strategy_snapshot_nearest_liquidation_bps(features)
+    set_direct("liquidation_cluster_proximity", liquidation_bps, liquidation_key)
+
+    depth_imbalance, depth_imbalance_key = _strategy_feature_snapshot_number(features, "depth_imbalance", "orderbook_imbalance")
+    set_direct("orderbook_imbalance", depth_imbalance, depth_imbalance_key)
+
+    aggressive_flow, aggressive_flow_key = _strategy_snapshot_aggressive_flow(features)
+    set_direct("aggressive_flow", aggressive_flow, aggressive_flow_key)
+
+    spread_bps, spread_key = _strategy_feature_snapshot_number(features, "bid_ask_spread_bps", "actual_observed_spread_entry_bps")
+    slippage_bps, slippage_key = _strategy_feature_snapshot_number(features, "expected_slippage_bps")
+    depth_usd, depth_key = _strategy_feature_snapshot_number(features, "orderbook_depth_usd", "bid_depth_usd", "ask_depth_usd")
+    bid_depth, bid_depth_key = _strategy_feature_snapshot_number(features, "bid_depth_usd")
+    ask_depth, ask_depth_key = _strategy_feature_snapshot_number(features, "ask_depth_usd")
+    _merge_strategy_context(
+        envelope,
+        "liquidity_context",
+        {
+            "source": "PIT_VALID_FEATURE_SNAPSHOT",
+            "orderbook_depth_usd": depth_usd,
+            "bid_depth_usd": bid_depth,
+            "ask_depth_usd": ask_depth,
+            "depth_imbalance": depth_imbalance,
+            "source_fields": sorted(
+                key for key in (depth_key, bid_depth_key, ask_depth_key, depth_imbalance_key) if key
+            ),
+        },
+    )
+    _merge_strategy_context(
+        envelope,
+        "liquidation_context",
+        {
+            "source": "PIT_VALID_FEATURE_SNAPSHOT",
+            "liquidation_sweep_target_short_distance_bps": features.get("liquidation_sweep_target_short_distance_bps"),
+            "liquidation_sweep_target_long_distance_bps": features.get("liquidation_sweep_target_long_distance_bps"),
+            "liquidation_short_strength": features.get("liquidation_short_strength"),
+            "liquidation_long_strength": features.get("liquidation_long_strength"),
+            "liquidation_cascade_risk": features.get("liquidation_cascade_risk"),
+            "nearest_distance_bps": liquidation_bps,
+            "source_field": liquidation_key,
+        },
+    )
+    _merge_strategy_context(
+        envelope,
+        "microstructure_context",
+        {
+            "source": "PIT_VALID_FEATURE_SNAPSHOT",
+            "bid_ask_spread_bps": spread_bps,
+            "expected_slippage_bps": slippage_bps,
+            "orderbook_depth_usd": depth_usd,
+            "orderbook_imbalance": depth_imbalance,
+            "depth_imbalance": depth_imbalance,
+            "order_flow_imbalance": aggressive_flow,
+            "source_fields": sorted(
+                key for key in (spread_key, slippage_key, depth_key, depth_imbalance_key, aggressive_flow_key) if key
+            ),
+        },
+    )
+    _merge_strategy_context(
+        envelope,
+        "oi_funding_context",
+        {
+            "source": "PIT_VALID_FEATURE_SNAPSHOT",
+            "funding_bps": funding_bps,
+            "funding_rate": features.get("funding_rate"),
+            "oi_change_pct": oi_change,
+            "long_short_ratio": long_short_ratio,
+            "long_account_ratio": features.get("long_account_ratio"),
+            "short_account_ratio": features.get("short_account_ratio"),
+            "source_fields": sorted(
+                key for key in (funding_key, oi_key, long_short_key) if key
+            ),
+        },
+    )
+    if source_map:
+        envelope["strategy_regime_feature_source_map"] = source_map
+
+
+def _attach_strategy_router_microstructure_context(
+    envelope: dict[str, Any],
+    microstructure_trust: dict[str, Any] | None,
+) -> None:
+    if not isinstance(microstructure_trust, dict) or not microstructure_trust:
+        return
+    source = str(
+        microstructure_trust.get("microstructure_trust_source")
+        or "v2:microstructure:trust_score"
+    )
+    fakeout_probability = _coerce_float(
+        _first_present(
+            microstructure_trust.get("fakeout_reversal_probability"),
+            microstructure_trust.get("post_sweep_reversal_probability"),
+        )
+    )
+    if fakeout_probability is not None and envelope.get("fakeout_reversal_probability") in (None, ""):
+        envelope["fakeout_reversal_probability"] = max(0.0, min(1.0, fakeout_probability))
+        source_map = dict(envelope.get("strategy_regime_feature_source_map") or {})
+        source_map["fakeout_reversal_probability"] = (
+            f"{source}.post_sweep_reversal_probability"
+        )
+        envelope["strategy_regime_feature_source_map"] = source_map
+    for field in (
+        "microstructure_trust_score",
+        "orderbook_trust_score",
+        "microstructure_action",
+        "sweep_risk_score",
+        "trade_tape_confirmation_score",
+        "cross_venue_confirmation_score",
+    ):
+        value = microstructure_trust.get(field)
+        if value not in (None, "") and envelope.get(field) in (None, ""):
+            envelope[field] = value
+    _merge_strategy_context(
+        envelope,
+        "microstructure_context",
+        {
+            "source": source,
+            "microstructure_trust_status": microstructure_trust.get(
+                "microstructure_trust_status"
+            ),
+            "microstructure_trust_score": microstructure_trust.get(
+                "microstructure_trust_score"
+            ),
+            "orderbook_trust_score": microstructure_trust.get("orderbook_trust_score"),
+            "microstructure_action": microstructure_trust.get("microstructure_action"),
+            "sweep_risk": microstructure_trust.get("sweep_risk_score"),
+            "post_sweep_reversal_probability": fakeout_probability,
+            "available_at": microstructure_trust.get("microstructure_available_at"),
+            "generated_at": microstructure_trust.get("microstructure_generated_at"),
+            "decision_time": microstructure_trust.get("microstructure_trust_decision_time"),
+            "source_fields": ["post_sweep_reversal_probability"]
+            if fakeout_probability is not None
+            else [],
+        },
+    )
+
+
+def _strategy_prediction_row_pit_safe(row: dict[str, Any], decision_time: Any) -> bool:
+    decision_dt = _parse_strategy_time(decision_time)
+    available_dt = _parse_strategy_time(
+        _first_present(
+            row.get("available_at"),
+            row.get("generated_utc"),
+            row.get("generated_at"),
+        )
+    )
+    feature_cutoff_dt = _parse_strategy_time(
+        _first_present(row.get("feature_cutoff"), row.get("generated_at"))
+    )
+    return (
+        decision_dt is not None
+        and available_dt is not None
+        and feature_cutoff_dt is not None
+        and available_dt <= decision_dt
+        and feature_cutoff_dt <= decision_dt
+    )
+
+
+def _strategy_prediction_move_bps(row: dict[str, Any]) -> float | None:
+    return _coerce_float(
+        _first_present(
+            row.get("expected_move_after_cost_bps"),
+            row.get("expected_move_bps"),
+            row.get("price_target_bps"),
+        )
+    )
+
+
+def _strategy_cross_asset_prediction_context(
+    *,
+    predictions_by_symbol: dict[str, list[dict[str, Any]]],
+    decision_time: Any,
+    timeframe: Any,
+) -> dict[str, Any]:
+    selected_rows: list[dict[str, Any]] = []
+    timeframe_text = str(timeframe or "").strip()
+    for symbol in ("BTCUSDT", "ETHUSDT", "SOLUSDT"):
+        candidates = [
+            row
+            for row in predictions_by_symbol.get(symbol, [])
+            if isinstance(row, dict)
+            and _strategy_prediction_row_pit_safe(row, decision_time)
+            and _strategy_prediction_move_bps(row) is not None
+        ]
+        if timeframe_text:
+            same_timeframe = [
+                row for row in candidates if str(row.get("timeframe") or "") == timeframe_text
+            ]
+            if same_timeframe:
+                candidates = same_timeframe
+        if not candidates:
+            continue
+        selected_rows.append(
+            max(
+                candidates,
+                key=lambda row: str(
+                    _first_present(
+                        row.get("available_at"),
+                        row.get("generated_utc"),
+                        row.get("generated_at"),
+                    )
+                    or ""
+                ),
+            )
+        )
+    if len(selected_rows) < 2:
+        return {
+            "status": "INSUFFICIENT_PIT_BTC_ETH_SOL_PREDICTION_ROWS",
+            "source": "PIT_PREDICTION_GRID",
+            "available_symbol_count": len(selected_rows),
+        }
+    moves = [_strategy_prediction_move_bps(row) for row in selected_rows]
+    numeric_moves = [move for move in moves if move is not None]
+    positive_count = sum(1 for move in numeric_moves if move > 0.0)
+    negative_count = sum(1 for move in numeric_moves if move < 0.0)
+    neutral_count = len(numeric_moves) - positive_count - negative_count
+    average_move = sum(numeric_moves) / len(numeric_moves)
+    if positive_count >= 2 and average_move > 0.0:
+        regime = "btc_eth_sol_risk_on"
+        market_wide_risk = "risk_on"
+    elif negative_count >= 2 and average_move < 0.0:
+        regime = "btc_eth_sol_risk_off"
+        market_wide_risk = "risk_off"
+    else:
+        regime = "btc_eth_sol_mixed"
+        market_wide_risk = "mixed"
+    market_breadth_score = (positive_count - negative_count) / len(numeric_moves)
+    return {
+        "status": "ATTACHED_PIT_BTC_ETH_SOL_PREDICTION_GRID",
+        "source": "PIT_PREDICTION_GRID",
+        "cross_asset_btc_eth_sol_regime": regime,
+        "market_wide_risk": market_wide_risk,
+        "market_breadth_score": round(float(market_breadth_score), 8),
+        "average_expected_move_after_cost_bps": round(float(average_move), 8),
+        "positive_symbol_count": positive_count,
+        "negative_symbol_count": negative_count,
+        "neutral_symbol_count": neutral_count,
+        "available_symbol_count": len(selected_rows),
+        "timeframe": timeframe_text or None,
+        "decision_time": decision_time,
+        "source_rows": [
+            {
+                "symbol": row.get("symbol"),
+                "timeframe": row.get("timeframe"),
+                "prediction_id": row.get("prediction_id"),
+                "available_at": row.get("available_at"),
+                "feature_cutoff": row.get("feature_cutoff"),
+                "expected_move_after_cost_bps": _strategy_prediction_move_bps(row),
+                "selected_action": row.get("selected_action"),
+            }
+            for row in selected_rows
+        ],
+    }
+
+
+def _attach_strategy_router_cross_asset_context(
+    envelope: dict[str, Any],
+    predictions_by_symbol: dict[str, list[dict[str, Any]]],
+) -> None:
+    context = _strategy_cross_asset_prediction_context(
+        predictions_by_symbol=predictions_by_symbol,
+        decision_time=envelope.get("decision_time"),
+        timeframe=envelope.get("timeframe"),
+    )
+    envelope["strategy_cross_asset_context_status"] = context["status"]
+    envelope["strategy_cross_asset_context_source"] = context["source"]
+    if context["status"] != "ATTACHED_PIT_BTC_ETH_SOL_PREDICTION_GRID":
+        envelope["strategy_cross_asset_available_symbol_count"] = context.get(
+            "available_symbol_count"
+        )
+        return
+    if envelope.get("cross_asset_btc_eth_sol_regime") in (None, ""):
+        envelope["cross_asset_btc_eth_sol_regime"] = context[
+            "cross_asset_btc_eth_sol_regime"
+        ]
+    if envelope.get("market_wide_risk") in (None, ""):
+        envelope["market_wide_risk"] = context["market_wide_risk"]
+    _merge_strategy_context(
+        envelope,
+        "public_intel_context",
+        {
+            "source": context["source"],
+            "cross_asset_btc_eth_sol_regime": context["cross_asset_btc_eth_sol_regime"],
+            "market_wide_risk": context["market_wide_risk"],
+            "market_breadth_score": context["market_breadth_score"],
+            "average_expected_move_after_cost_bps": context[
+                "average_expected_move_after_cost_bps"
+            ],
+            "positive_symbol_count": context["positive_symbol_count"],
+            "negative_symbol_count": context["negative_symbol_count"],
+            "neutral_symbol_count": context["neutral_symbol_count"],
+            "available_symbol_count": context["available_symbol_count"],
+            "source_rows": context["source_rows"],
+        },
+    )
 
 
 def _parse_strategy_time(value: Any) -> datetime | None:
@@ -12606,8 +15303,10 @@ def _build_volatility_liquidity_state(
     *,
     signal: dict[str, Any],
     prediction: dict[str, Any],
+    feature_snapshot: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     features = prediction.get("features") if isinstance(prediction.get("features"), dict) else {}
+    snapshot_features = _feature_snapshot_features(feature_snapshot)
     return {
         "timeframe": _first_present(signal.get("timeframe"), prediction.get("timeframe")),
         "volatility": _first_present(
@@ -12616,16 +15315,50 @@ def _build_volatility_liquidity_state(
             features.get("volatility"),
             features.get("volatility_pct"),
             features.get("true_range_pct"),
+            snapshot_features.get("volatility"),
+            snapshot_features.get("volatility_pct"),
+            snapshot_features.get("true_range_pct"),
+        ),
+        "volatility_expansion": _first_present(
+            prediction.get("volatility_expansion"),
+            features.get("volatility_expansion"),
+            features.get("bb_width_pct"),
+            features.get("ta_BB_width_pct"),
+            snapshot_features.get("volatility_expansion"),
+            snapshot_features.get("bb_width_pct"),
+            snapshot_features.get("ta_BB_width_pct"),
+            snapshot_features.get("true_range_pct"),
+        ),
+        "atr_percentile": _first_present(
+            prediction.get("atr_percentile"),
+            features.get("atr_percentile"),
+            snapshot_features.get("atr_percentile"),
         ),
         "bid_ask_spread_bps": _first_present(
             prediction.get("bid_ask_spread_bps"),
             features.get("bid_ask_spread_bps"),
+            snapshot_features.get("bid_ask_spread_bps"),
+            snapshot_features.get("actual_observed_spread_entry_bps"),
         ),
         "liquidity_score": _first_present(
             prediction.get("coingecko_liquidity_score"),
             prediction.get("defillama_liquidity_score"),
             features.get("coingecko_liquidity_score"),
             features.get("defillama_liquidity_score"),
+            snapshot_features.get("coingecko_liquidity_score"),
+            snapshot_features.get("defillama_liquidity_score"),
+        ),
+        "orderbook_depth_usd": _first_present(
+            prediction.get("orderbook_depth_usd"),
+            features.get("orderbook_depth_usd"),
+            snapshot_features.get("orderbook_depth_usd"),
+            snapshot_features.get("bid_depth_usd"),
+            snapshot_features.get("ask_depth_usd"),
+        ),
+        "expected_slippage_bps": _first_present(
+            prediction.get("expected_slippage_bps"),
+            features.get("expected_slippage_bps"),
+            snapshot_features.get("expected_slippage_bps"),
         ),
     }
 
@@ -13070,9 +15803,18 @@ def _attach_trainer_feedback_entry_context(
     explanation = explanation if isinstance(explanation, dict) else {}
     allocation_inputs = allocation.get("model_inputs")
     allocation_inputs = allocation_inputs if isinstance(allocation_inputs, dict) else {}
+    router_regime_context = _strategy_router_regime_context(strategy_router)
+    for field, value in router_regime_context.items():
+        if value not in (None, "", [], {}):
+            intent.setdefault(field, value)
     regime_labels = list(strategy_router.get("regime_labels") or [])
-    regime = ",".join(str(item) for item in regime_labels) if regime_labels else str(
-        strategy_router.get("selected_mode") or "UNKNOWN_REGIME"
+    regime = str(
+        _first_present(
+            router_regime_context.get("strategy_market_regime"),
+            ",".join(str(item) for item in regime_labels) if regime_labels else None,
+            strategy_router.get("selected_mode"),
+            "UNKNOWN_REGIME",
+        )
     )
     selected_mode = str(strategy_router.get("selected_mode") or "UNKNOWN_STRATEGY")
     audited_entry_mode = str(
@@ -13094,6 +15836,7 @@ def _attach_trainer_feedback_entry_context(
     intent.setdefault("hedge_reason", "NO_HEDGE_CONTEXT")
     intent.setdefault("drawdown_at_entry", portfolio_context["drawdown_bps"])
     intent.setdefault("drawdown_bps", portfolio_context["drawdown_bps"])
+    intent.setdefault("market_regime", regime)
     intent.setdefault("market_regime_at_entry", regime)
     intent.setdefault(
         "liquidity_zone_context",
@@ -13472,10 +16215,23 @@ def _attach_paper_allocation_decision_context(
         "strategy_id",
         "strategy_family",
         "strategy_subtype",
+        "strategy_mode",
+        "strategy_canonical_mode",
         "strategy_selected_mode",
         "strategy_router_selected_mode",
+        "strategy_market_regime",
+        "strategy_modes_supported",
+        "strategy_regime_features",
+        "strategy_regime_feature_status",
+        *STRATEGY_ROUTER_RUNTIME_PROVENANCE_FIELDS,
+        "strategy_bucket_key",
+        "strategy_bucket_quarantined",
+        "strategy_bucket_quarantine_reason",
+        "strategy_bucket_performance_state",
         "strategy_size_adjustment_mode",
         "strategy_regime_labels",
+        "market_regime",
+        "market_regime_at_entry",
         "market_state_id",
         "market_state_integrity_score",
         "valid_for_paper",
@@ -13505,6 +16261,10 @@ def _attach_paper_allocation_decision_context(
         "expected_slippage_source",
         "fee_bps",
         "fee_bps_source",
+        "pre_trade_fee_bps",
+        "pre_trade_fee_bps_source",
+        "pre_trade_fee_bps_readonly_schedule",
+        "pre_trade_fee_bps_configured_schedule",
         "expected_funding_bps",
         "expected_funding_bps_source",
         "funding_rate",
@@ -13646,6 +16406,22 @@ def _attach_paper_sizing(intent: dict[str, Any], allocation: dict[str, Any]) -> 
         "allocator_liquidity_score",
         "allocator_liquidity_score_source",
         "allocator_liquidity_score_reason",
+        "allocator_liquidity_score_before_microstructure_trust_gate",
+        "allocator_liquidity_score_after_microstructure",
+        "allocator_liquidity_score_after_microstructure_trust_gate",
+        "allocator_microstructure_block_reason",
+        "allocator_microstructure_reduce_size",
+        "allocator_microstructure_reduce_reason",
+        "allocator_microstructure_trust_gate_status",
+        "microstructure_trust_status",
+        "microstructure_trust_missing_reason",
+        "microstructure_trust_lookup_keys",
+        "microstructure_trust_source",
+        "microstructure_trust_score",
+        "microstructure_adaptive_minimum",
+        "microstructure_action",
+        "orderbook_trust_score",
+        "orderbook_trust_tier",
         "allocator_regime_score",
         "allocator_regime_score_source",
         "allocator_regime_score_reason",
@@ -13885,6 +16661,68 @@ def _build_allocation_input(
     intent["allocator_liquidity_score"] = round(liquidity, 8)
     intent["allocator_liquidity_score_source"] = liquidity_source
     intent["allocator_liquidity_score_reason"] = liquidity_reason
+    intent["allocator_liquidity_score_before_microstructure_trust_gate"] = round(
+        liquidity,
+        8,
+    )
+    for field in (
+        "microstructure_trust_source",
+        "microstructure_trust_status",
+        "microstructure_trust_missing_reason",
+        "microstructure_trust_lookup_keys",
+        "microstructure_trust_score",
+        "microstructure_adaptive_minimum",
+        "orderbook_trust_score",
+        "orderbook_trust_tier",
+        "microstructure_action",
+        "orderbook_latency_ms",
+        "book_sequence_gap",
+        "book_depth_persistence_score",
+        "book_cancel_pressure_score",
+        "trade_tape_confirmation_score",
+        "cross_venue_confirmation_score",
+        "liquidation_zone_risk_score",
+        "sweep_risk_score",
+        "microstructure_missing_components",
+    ):
+        value = _first_present(intent.get(field), market_microstructure.get(field))
+        if value not in (None, ""):
+            intent[field] = value
+    microstructure_action = str(intent.get("microstructure_action") or "").upper()
+    microstructure_trust_score = _coerce_float(intent.get("microstructure_trust_score"))
+    microstructure_minimum = _coerce_float(intent.get("microstructure_adaptive_minimum")) or 0.65
+    if microstructure_trust_score is None:
+        liquidity = 0.0
+        intent["allocator_microstructure_block_reason"] = "MICROSTRUCTURE_TRUST_SCORE_MISSING"
+        intent["allocator_microstructure_trust_gate_status"] = (
+            "BLOCKED_MISSING_MICROSTRUCTURE_TRUST_SCORE"
+        )
+    elif microstructure_action in {"NO_TRADE", "SHADOW_ONLY", "CLOSE_OR_REDUCE_ONLY"}:
+        liquidity = 0.0
+        intent["allocator_microstructure_block_reason"] = f"MICROSTRUCTURE_ACTION_{microstructure_action}"
+        intent["allocator_microstructure_trust_gate_status"] = (
+            f"BLOCKED_MICROSTRUCTURE_ACTION_{microstructure_action}"
+        )
+    elif microstructure_action == "REDUCE_SIZE" or microstructure_trust_score < microstructure_minimum:
+        liquidity = min(liquidity, 0.35)
+        intent["allocator_microstructure_reduce_size"] = True
+        intent["allocator_microstructure_reduce_reason"] = (
+            "MICROSTRUCTURE_REDUCE_SIZE_ACTION"
+            if microstructure_action == "REDUCE_SIZE"
+            else "MICROSTRUCTURE_TRUST_BELOW_ADAPTIVE_MINIMUM"
+        )
+        intent["allocator_microstructure_trust_gate_status"] = (
+            "REDUCED_BY_MICROSTRUCTURE_TRUST_GATE"
+        )
+    else:
+        intent["allocator_microstructure_trust_gate_status"] = (
+            "PASSED_MICROSTRUCTURE_TRUST_GATE"
+        )
+    intent["allocator_liquidity_score_after_microstructure"] = round(liquidity, 8)
+    intent["allocator_liquidity_score_after_microstructure_trust_gate"] = round(
+        liquidity,
+        8,
+    )
     if intent.get("liquidity_score") in (None, ""):
         intent["liquidity_score"] = round(liquidity, 8)
     slippage, slippage_source = _first_numeric_field_from(
@@ -14134,6 +16972,7 @@ def run_once() -> dict:
     paper_only_label_collection_priority_index = (
         _read_paper_only_label_collection_priority_index()
     )
+    paper_entry_freeze = _read_paper_entry_freeze(r)
     live_context = _live_context(r)
     signals = _read_paper_signals(r)
     held_by_gate = _read_held_by_paper_fill_gate(r)
@@ -14144,16 +16983,55 @@ def run_once() -> dict:
         if row.get("prediction_id")
     }
     predictions_by_symbol = _group_predictions_by_symbol(prediction_rows)
+    paper_session_state = _read_json_key(r, f"{V2_REDIS_PREFIX}paper:session")
+    paper_session_state = paper_session_state if isinstance(paper_session_state, dict) else {}
+    paper_session_id = (
+        paper_session_state.get("paper_session_id")
+        or paper_session_state.get("reset_session_id")
+    )
+    paper_starting_equity_usd = _coerce_float(
+        paper_session_state.get("starting_equity_usd")
+        or paper_session_state.get("initial_capital")
+    )
     existing_ledger = _read_existing_ledger_payload(r)
     existing_accepted = _read_existing_accepted_fills(r)
+    existing_closed_rows = _closed_trade_rows(existing_ledger)
     pre_cycle_churn_equity_bleed_governor_status = (
         _paper_churn_equity_bleed_governor_status(
             accepted_rows=list(existing_accepted.values()),
             open_position_rows=list(existing_accepted.values()),
-            closed_rows=_closed_trade_rows(existing_ledger),
+            closed_rows=existing_closed_rows,
             current_accepted_rows=[],
             generated_utc=started,
         )
+    )
+    pre_cycle_paper_performance_circuit_breaker_status = (
+        _paper_performance_circuit_breaker_status(
+            existing_closed_rows,
+            generated_utc=started,
+        )
+    )
+    pre_cycle_paper_bleed_halt_status = _paper_bleed_halt_status(
+        pre_cycle_paper_performance_circuit_breaker_status,
+        generated_utc=started,
+    )
+    pre_cycle_bucket_quarantine_status = (
+        pre_cycle_paper_performance_circuit_breaker_status[
+            "bucket_quarantine_status"
+        ]
+    )
+    pre_cycle_b_grade_calibration_safety_status = _b_grade_calibration_safety_status(
+        existing_closed_rows,
+        churn_status=pre_cycle_churn_equity_bleed_governor_status,
+        generated_utc=started,
+    )
+    previous_b_grade_exploration_resumption_status = _read_json_file_payload(
+        B_GRADE_EXPLORATION_RESUMPTION_STATUS_PATH,
+        max_bytes=PAPER_STATE_FULL_FILE_READ_MAX_BYTES,
+    )
+    trainer_hybrid_cuda_status = _read_json_key(
+        r,
+        f"{V2_REDIS_PREFIX}trainer:hybrid_cuda:status",
     )
     portfolio_context = _portfolio_equity_context(r)
     symbol_exposures, total_exposure = _open_exposures_from_ledger(existing_ledger)
@@ -14180,6 +17058,54 @@ def run_once() -> dict:
     directional_guard_evaluations: list[dict[str, Any]] = []
     strategy_mode_guard_evaluations: list[dict[str, Any]] = []
     drawdown_recovery_guard_evaluations: list[dict[str, Any]] = []
+    # Phase 8 (A+ zero-tolerance gate): cycle-shared context. Side performance
+    # is rebuilt from the current feedback rows so the first cycle after a
+    # restart does not depend on a previously published key.
+    _a_plus_feedback_rows = _read_json_key(r, f"{V2_REDIS_PREFIX}trainer:feedback:outcomes") or []
+    a_plus_shared_context: dict[str, Any] = {
+        "trainer_metrics": _read_json_key(r, f"{V2_REDIS_PREFIX}trainer:hybrid_cuda:metrics"),
+        "cross_asset": _read_json_key(r, f"{V2_REDIS_PREFIX}context:cross_asset"),
+        "feedback_rows": _a_plus_feedback_rows if isinstance(_a_plus_feedback_rows, list) else [],
+        "side_performance": build_side_performance(
+            _a_plus_feedback_rows if isinstance(_a_plus_feedback_rows, list) else [],
+            paper_session_id=paper_session_id,
+            generated_utc=_utc_iso(),
+        ),
+    }
+    a_plus_scoped_context_cache: dict[tuple[str, str], dict[str, Any]] = {}
+    a_plus_evaluations: list[dict[str, Any]] = []
+
+    def _a_plus_context_for(a_symbol: str, a_timeframe: str) -> dict[str, Any]:
+        cache_key = (a_symbol, a_timeframe)
+        cached = a_plus_scoped_context_cache.get(cache_key)
+        if cached is None:
+            cached = {
+                "regime_decision": _read_json_key(
+                    r, f"{V2_REDIS_PREFIX}regime:gate:{a_symbol}:{a_timeframe}"
+                ),
+                "htf_context": _read_json_key(r, f"{V2_REDIS_PREFIX}context:htf:{a_symbol}"),
+                "trade_tape": _read_json_key(
+                    r, f"{V2_REDIS_PREFIX}market:trade_tape_features:{a_symbol}"
+                ),
+                # Trust scores publish on the 1m grid (feed quality is
+                # timeframe-agnostic); fall back so 5m/15m/1h/4h candidates
+                # are not scored as MICROSTRUCTURE_TRUST_MISSING.
+                "microstructure_trust": (
+                    _read_json_key(
+                        r, f"{V2_REDIS_PREFIX}microstructure:trust_score:{a_symbol}:{a_timeframe}"
+                    )
+                    or _read_json_key(
+                        r, f"{V2_REDIS_PREFIX}microstructure:trust_score:{a_symbol}:1m"
+                    )
+                    or _read_json_key(
+                        r, f"{V2_REDIS_PREFIX}microstructure:feed_quality:binance:{a_symbol}"
+                    )
+                ),
+                **a_plus_shared_context,
+            }
+            a_plus_scoped_context_cache[cache_key] = cached
+        return cached
+
     for s in signals:
         symbol = str(s.get("symbol") or _runtime_default_symbol()).upper()
         side = _first_present(s.get("side"), s.get("action"), s.get("selected_action"), "long")
@@ -14213,7 +17139,48 @@ def run_once() -> dict:
             s.get("action_probability"),
             prediction.get("action_probability"),
         )
+        trust_lineage_source = _trust_lineage_source(s, prediction)
+        trust_envelope = _trust_envelope_from_prediction(trust_lineage_source)
+        trust_feature_snapshot_id = _first_present(
+            trust_envelope.get("feature_snapshot_id"),
+            s.get("feature_snapshot_id"),
+            prediction.get("feature_snapshot_id"),
+        )
         market_state_envelope = _build_market_state_envelope(signal=s, prediction=prediction)
+        strategy_feature_snapshot = _read_v2_feature_snapshot_by_id(
+            r,
+            trust_feature_snapshot_id,
+            decision_time=str(market_state_envelope.get("decision_time") or ""),
+            symbol=symbol,
+            timeframe=paper_thesis_timeframe,
+        )
+        _attach_strategy_router_feature_snapshot_context(
+            market_state_envelope,
+            strategy_feature_snapshot,
+        )
+        strategy_microstructure_trust = _read_v2_microstructure_trust(
+            r,
+            symbol,
+            decision_time=market_state_envelope.get("decision_time"),
+            timeframe=paper_thesis_timeframe,
+        )
+        _attach_strategy_router_microstructure_context(
+            market_state_envelope,
+            strategy_microstructure_trust,
+        )
+        _attach_strategy_router_cross_asset_context(
+            market_state_envelope,
+            predictions_by_symbol,
+        )
+        market_state_envelope["paper_loss_quarantine_status"] = (
+            pre_cycle_bucket_quarantine_status.get("status")
+        )
+        market_state_envelope["paper_loss_quarantine_generated_utc"] = (
+            pre_cycle_bucket_quarantine_status.get("generated_utc")
+        )
+        market_state_envelope["paper_loss_quarantine_blocked_bucket_keys"] = list(
+            pre_cycle_bucket_quarantine_status.get("blocked_bucket_keys") or []
+        )
         symbol_predictions = predictions_by_symbol.get(symbol, [])
         strategy_timeframe_rows = _point_in_time_timeframe_rows(
             market_state_envelope=market_state_envelope,
@@ -14233,6 +17200,7 @@ def run_once() -> dict:
             volatility_liquidity_state=_build_volatility_liquidity_state(
                 signal=s,
                 prediction=prediction,
+                feature_snapshot=strategy_feature_snapshot,
             ),
             data_quality_score=_coerce_float(
                 _first_present(
@@ -14256,25 +17224,34 @@ def run_once() -> dict:
         drawdown_recovery_guard_evaluations.append(drawdown_recovery_guard)
         paper_strategy_selected_mode = _paper_audit_strategy_mode(strategy_router)
         paper_strategy_size_adjustment_mode = _paper_strategy_size_adjustment_mode(strategy_router)
+        strategy_regime_context = _strategy_router_regime_context(strategy_router)
         strategy_trade_allowed = (
             strategy_router["selected_mode"] != "no_trade_mode"
             and strategy_router.get("block_reason") is None
             and str(side).lower() in set(strategy_router.get("allowed_actions") or [])
         )
+        fee_schedule_context = _read_readonly_fee_schedule_context(
+            r,
+            symbol=symbol,
+        )
+        pre_trade_fee_context = _pre_trade_fee_context(
+            signal=s,
+            prediction=prediction,
+            fee_schedule_context=fee_schedule_context,
+        )
+        pre_trade_fee_bps = float(pre_trade_fee_context["fee_bps"])
         # Pre-trade gates
         pre = tm.evaluate_pre_trade(
             seconds_since_last_close=3600,  # paper default: no recent close
-            fee_bps=5.0,
+            fee_bps=pre_trade_fee_bps,
             expected_move_after_cost_bps=em_after,
         )
         fee_gate = evaluate_fee_ratio_gate(
-            fee_bps=5.0,
+            fee_bps=pre_trade_fee_bps,
             expected_move_after_cost_bps=em_after,
             max_ratio=0.5,
         )
         churn = churn_veto(seconds_since_last_close=3600, minimum_hold_seconds=300)
-        trust_lineage_source = _trust_lineage_source(s, prediction)
-        trust_envelope = _trust_envelope_from_prediction(trust_lineage_source)
         trust_decision_id = _first_present(
             trust_envelope.get("decision_id"),
             lineage["orchestrator_decision_id"],
@@ -14284,11 +17261,6 @@ def run_once() -> dict:
             trust_envelope.get("checkpoint_id"),
             s.get("checkpoint_id"),
             prediction.get("checkpoint_id"),
-        )
-        trust_feature_snapshot_id = _first_present(
-            trust_envelope.get("feature_snapshot_id"),
-            s.get("feature_snapshot_id"),
-            prediction.get("feature_snapshot_id"),
         )
         risk_decisions.append({
             "risk_decision_id": lineage["risk_decision_id"],
@@ -14319,10 +17291,19 @@ def run_once() -> dict:
             "pre_trade_allowed": pre["allowed"],
             "fee_gate_allowed": not fee_gate.blocked,
             "fee_gate_reason": fee_gate.reason,
+            "pre_trade_fee_bps": pre_trade_fee_context["fee_bps"],
+            "pre_trade_fee_bps_source": pre_trade_fee_context["fee_bps_source"],
+            "pre_trade_fee_bps_readonly_schedule": (
+                pre_trade_fee_context["fee_bps_readonly_schedule"]
+            ),
+            "pre_trade_fee_bps_configured_schedule": (
+                pre_trade_fee_context["fee_bps_configured_schedule"]
+            ),
             "churn_blocked": churn.blocked,
             "churn_reason": churn.reason,
             "strategy_selected_mode": paper_strategy_selected_mode,
             "strategy_router_selected_mode": strategy_router["selected_mode"],
+            **strategy_regime_context,
             "strategy_size_adjustment_mode": paper_strategy_size_adjustment_mode,
             "strategy_allowed_actions": list(strategy_router["allowed_actions"]),
             "strategy_size_multiplier": strategy_router["size_multiplier"],
@@ -14398,6 +17379,7 @@ def run_once() -> dict:
             "strategy_family": paper_strategy_selected_mode,
             "strategy_subtype": paper_strategy_selected_mode,
             "strategy_router_selected_mode": strategy_router["selected_mode"],
+            **strategy_regime_context,
             "strategy_size_adjustment_mode": paper_strategy_size_adjustment_mode,
             "strategy_allowed_actions": list(strategy_router["allowed_actions"]),
             "strategy_action_mask": dict(strategy_router["action_mask"]),
@@ -14429,6 +17411,14 @@ def run_once() -> dict:
             "strategy_router": strategy_router,
             "pre_trade_allowed": pre["allowed"],
             "fee_gate_allowed": not fee_gate.blocked,
+            "pre_trade_fee_bps": pre_trade_fee_context["fee_bps"],
+            "pre_trade_fee_bps_source": pre_trade_fee_context["fee_bps_source"],
+            "pre_trade_fee_bps_readonly_schedule": (
+                pre_trade_fee_context["fee_bps_readonly_schedule"]
+            ),
+            "pre_trade_fee_bps_configured_schedule": (
+                pre_trade_fee_context["fee_bps_configured_schedule"]
+            ),
             "churn_blocked": churn.blocked,
             "paper_only": True,
             "places_real_order": False,
@@ -14613,10 +17603,6 @@ def run_once() -> dict:
         market_microstructure = _read_v2_orderbook_microstructure(r, symbol)
         long_short_evidence = _read_v2_long_short_ratio_evidence(r, symbol)
         _attach_long_short_ratio_context(intent, long_short_evidence)
-        fee_schedule_context = _read_readonly_fee_schedule_context(
-            r,
-            symbol=symbol,
-        )
         allocation_input = _build_allocation_input(
             intent=intent,
             signal=s,
@@ -14703,6 +17689,25 @@ def run_once() -> dict:
                 intent,
                 churn_equity_bleed_rejection_reasons,
             )
+        intent["paper_performance_circuit_breaker_state"] = (
+            pre_cycle_paper_performance_circuit_breaker_status.get("state")
+        )
+        intent["paper_performance_circuit_breaker_new_entries_allowed"] = (
+            pre_cycle_paper_performance_circuit_breaker_status.get(
+                "new_entries_allowed"
+            )
+            is True
+        )
+        intent["bucket_quarantine_status"] = pre_cycle_bucket_quarantine_status.get(
+            "status"
+        )
+        performance_circuit_rejection = _paper_block_new_entry_by_performance_circuit(
+            intent=intent,
+            allocation=allocation_payload,
+            performance_circuit_breaker_status=(
+                pre_cycle_paper_performance_circuit_breaker_status
+            ),
+        )
         directional_guard = _paper_directional_collapse_guard(existing_ledger, side)
         intent["paper_directional_collapse_guard"] = directional_guard
         directional_guard_evaluations.append(directional_guard)
@@ -14725,6 +17730,7 @@ def run_once() -> dict:
             redis_client=r,
             config=_entry_gate_cfg,
         )
+        intent["side_gate_result"] = _eg.get("side_gate_result") or {}
         if not _eg["allowed"]:
             intent["paper_fill_block_reason"] = "P0_ENTRY_GATE_BLOCKED"
             intent["entry_gate_block_reasons"] = _eg["reasons"]
@@ -14732,12 +17738,57 @@ def run_once() -> dict:
                 list(intent.get("local_block_reasons") or [])
                 + [f"entry_gate:{r}" for r in _eg["reasons"]]
             ))
+        # Phase 8: A+ zero-tolerance gate. Only candidates where trainer
+        # learning, side buckets, regime, HTF, tape, microstructure, risk,
+        # allocator, exit plan, cost evidence, quarantine, and feature
+        # integrity all agree may open paper entries; everything else stays
+        # shadow-only. Fail-closed on any missing evidence.
+        _a_plus_symbol = symbol
+        _a_plus_tf = str(intent.get("timeframe") or "")
+        a_plus_result = evaluate_a_plus_candidate(
+            symbol=_a_plus_symbol,
+            timeframe=_a_plus_tf,
+            side=str(intent.get("side") or ""),
+            strategy_id=str(intent.get("strategy_selected_mode") or ""),
+            confidence_calibrated=_coerce_float(intent.get("confidence_calibrated")),
+            atr_bps=_coerce_float(_first_present(intent.get("entry_atr_bps"), intent.get("atr_bps"))),
+            entry_timeframe_trend=None,
+            prediction_row=prediction_for_entry if isinstance(prediction_for_entry, dict) else None,
+            intent=intent,
+            risk_result={
+                "allowed": bool(lineage.get("risk_decision_id")) and pre["allowed"] is True,
+                "reasons": (
+                    ([] if lineage.get("risk_decision_id") else ["RISK_DECISION_LINEAGE_MISSING"])
+                    + ([] if pre["allowed"] is True else ["PRE_TRADE_GATE_BLOCKED"])
+                ),
+            },
+            allocation=allocation_payload if isinstance(allocation_payload, dict) else None,
+            bucket_quarantine_status=pre_cycle_bucket_quarantine_status,
+            context=_a_plus_context_for(_a_plus_symbol, _a_plus_tf),
+        )
+        intent["a_plus_gate"] = {
+            "a_plus": a_plus_result["a_plus"],
+            "failed_checks": a_plus_result["failed_checks"],
+            "missing_evidence_checks": a_plus_result["missing_evidence_checks"],
+            "passed_check_count": a_plus_result["passed_check_count"],
+            "check_count": a_plus_result["check_count"],
+        }
+        a_plus_evaluations.append(a_plus_result)
+        if not a_plus_result["a_plus"]:
+            intent["paper_fill_block_reason"] = (
+                intent.get("paper_fill_block_reason") or "NOT_A_PLUS_CANDIDATE"
+            )
+            intent["local_block_reasons"] = sorted(set(
+                list(intent.get("local_block_reasons") or [])
+                + [f"a_plus_gate:{check}" for check in a_plus_result["failed_checks"]]
+            ))
         one_minute_strict_local_gate_allowed = (
             one_minute_result["allowed"]
             and one_minute_result.get("paper_only_label_collection_priority_allowed") is not True
         )
         local_trade_gates_pass = (
             _eg["allowed"]
+            and a_plus_result["a_plus"]
             and pre["allowed"]
             and not fee_gate.blocked
             and not churn.blocked
@@ -14750,7 +17801,16 @@ def run_once() -> dict:
             and not paper_signal_temporal_rejection_reasons
             and not runtime_market_evidence_rejection_reasons
             and not churn_equity_bleed_rejection_reasons
+            and not performance_circuit_rejection
         )
+        # OPERATOR DECISION 2026-07-06: the B-grade exploration lane does NOT
+        # require the A+ verdict. Requiring A+ on both paths created a learning
+        # deadlock (fresh model -> calibration fallback 0.5 -> below side
+        # floors -> zero A+ supply -> zero outcomes to learn from). The lane
+        # keeps its own adaptive fail-closed confidence floors, exploration
+        # budget caps, bucket quarantine, catastrophic floor and PF/expectancy
+        # halts; exploration fills stay labeled B-grade and never count as A+
+        # evidence. The main path below stays A+-locked.
         exploration_trade_gates_pass = (
             pre["allowed"]
             and not fee_gate.blocked
@@ -14762,6 +17822,7 @@ def run_once() -> dict:
             and not paper_signal_temporal_rejection_reasons
             and not runtime_market_evidence_rejection_reasons
             and not churn_equity_bleed_rejection_reasons
+            and not performance_circuit_rejection
         )
         if not integrity_gate["allowed"]:
             intent["paper_fill_block_reason"] = "MARKET_STATE_INTEGRITY_PAPER_GATE_BLOCKED"
@@ -14844,6 +17905,9 @@ def run_once() -> dict:
             blocked.append(intent)
             continue
         if intent.get("paper_opportunity_tier") == PAPER_TIER_B_GRADE_EXPLORATION:
+            intent["b_grade_calibration_safety_status"] = (
+                pre_cycle_b_grade_calibration_safety_status
+            )
             _apply_b_grade_exploration_budget_cap(
                 intent=intent,
                 allocation=allocation_payload,
@@ -14863,6 +17927,12 @@ def run_once() -> dict:
                 prediction=prediction_for_entry,
             )
             _attach_paper_allocation_decision_context(intent, allocation_payload)
+            if _apply_b_grade_calibration_safety_halt(
+                intent,
+                pre_cycle_b_grade_calibration_safety_status,
+            ):
+                blocked.append(intent)
+                continue
         post_fill_policy_owner_reasons = _paper_policy_owner_open_rejection_reasons(intent)
         post_fill_market_evidence_rejection_reasons = sorted(set(
             _paper_runtime_market_evidence_rejection_reasons(
@@ -14984,10 +18054,28 @@ def run_once() -> dict:
             )
             blocked.append(intent)
             continue
+        if paper_entry_freeze.get("paper_new_entries_halted") is True:
+            intent["paper_fill_block_reason"] = "PAPER_NEW_ENTRIES_HALTED_BY_PORTFOLIO_TRUTH_FREEZE"
+            intent["paper_entry_freeze"] = paper_entry_freeze
+            intent["paper_fill_allowed"] = False
+            intent["paper_fill_gate_block_reasons"] = sorted(set(
+                list(intent.get("paper_fill_gate_block_reasons") or [])
+                + ["PAPER_NEW_ENTRIES_HALTED_BY_PORTFOLIO_TRUTH_FREEZE"]
+            ))
+            intent["local_block_reasons"] = sorted(set(
+                list(intent.get("local_block_reasons") or [])
+                + ["portfolio_truth_freeze:PAPER_NEW_ENTRIES_HALTED_BY_PORTFOLIO_TRUTH_FREEZE"]
+            ))
+            blocked.append(intent)
+            continue
         # Accepted fill: passes both the local gates AND the
         # strict upstream paper-fill gate (P0.2F). Goes to
         # v2:paper:positions.
-        accepted_intent = dict(intent)
+        accepted_intent = _with_paper_session_metadata(
+            intent,
+            paper_session_id=paper_session_id,
+            starting_equity_usd=paper_starting_equity_usd,
+        )
         accepted_intent["decision"] = "ACCEPTED_PAPER_FILL"
         accepted_intent["entry_price_provenance_observed"] = bool(
             intent.get("entry_price_provenance_present")
@@ -14995,6 +18083,42 @@ def run_once() -> dict:
         accepted_intent["economic_fill_candidate"] = bool(intent.get("paper_sizing_complete"))
         if not accepted_intent["economic_fill_candidate"]:
             accepted_intent["paper_accounting_blocker"] = "PAPER_SIZING_OR_PRICE_INCOMPLETE"
+        write_invariant_status = validate_paper_fill_write_invariant(
+            accepted_intent,
+            mark_price=_coerce_float(
+                _first_present(
+                    accepted_intent.get("fill_price"),
+                    accepted_intent.get("entry_price"),
+                    accepted_intent.get("latest_price"),
+                )
+            ),
+            mark_source=str(
+                _first_present(
+                    accepted_intent.get("fill_price_source"),
+                    accepted_intent.get("entry_price_source"),
+                    accepted_intent.get("latest_price_source"),
+                    "PAPER_ACCEPTED_FILL_WRITE_INVARIANT",
+                )
+            ),
+            mark_age_seconds=0.0,
+        )
+        accepted_intent["paper_fill_write_invariant_status"] = write_invariant_status
+        if write_invariant_status.get("valid") is not True:
+            accepted_intent["paper_fill_block_reason"] = "PAPER_FILL_WRITE_INVARIANT_BLOCKED"
+            accepted_intent["paper_fill_allowed"] = False
+            accepted_intent["paper_fill_gate_block_reasons"] = sorted(set(
+                list(accepted_intent.get("paper_fill_gate_block_reasons") or [])
+                + list(write_invariant_status.get("reasons") or [])
+            ))
+            accepted_intent["local_block_reasons"] = sorted(set(
+                list(accepted_intent.get("local_block_reasons") or [])
+                + [
+                    f"paper_fill_write_invariant:{reason}"
+                    for reason in (write_invariant_status.get("reasons") or [])
+                ]
+            ))
+            blocked.append(accepted_intent)
+            continue
         accepted.append(accepted_intent)
     # Held-by-gate passthrough: record each upstream-blocked symbol as a
     # non-fill intent that carries the strict gate's block reasons. These
@@ -15085,6 +18209,11 @@ def run_once() -> dict:
         feature_snapshots_by_id=accepted_feature_snapshots_by_id,
         require_feature_snapshot_deref=True,
     )
+    accepted_for_ledger = _with_paper_session_metadata_rows(
+        accepted_for_ledger,
+        paper_session_id=paper_session_id,
+        starting_equity_usd=paper_starting_equity_usd,
+    )
     accepted_for_ledger = _bind_challenger_b_grade_canary_metadata_rows(
         _normalize_paper_owner_attribution_rows(accepted_for_ledger),
         binding_source="POST_LINEAGE_BACKFILL_ACCEPTED_FILL",
@@ -15142,6 +18271,11 @@ def run_once() -> dict:
         ),
         binding_source="POST_LIFECYCLE_ACCEPTED_OPEN_FILL",
     )
+    accepted_for_ledger = _with_paper_session_metadata_rows(
+        accepted_for_ledger,
+        paper_session_id=paper_session_id,
+        starting_equity_usd=paper_starting_equity_usd,
+    )
     accepted = [
         row
         for row in accepted_for_ledger
@@ -15157,6 +18291,16 @@ def run_once() -> dict:
         for row in post_lifecycle_churn_blocked:
             row["paper_churn_equity_bleed_block_stage"] = "POST_LIFECYCLE_ACCEPTED_OPEN_FILLS"
         blocked.extend(post_lifecycle_churn_blocked)
+    (
+        valid_accepted_for_ledger,
+        invalid_admission_accepted_rows,
+        invalid_admission_accepted_quarantine_status,
+    ) = _split_invalid_admission_accepted_rows(accepted_for_ledger)
+    (
+        valid_current_accepted,
+        current_invalid_admission_accepted_rows,
+        current_invalid_admission_accepted_quarantine_status,
+    ) = _split_invalid_admission_accepted_rows(accepted)
     current_cycle_shadow_observations = list(shadow_observations)
     persisted_shadow_observations = _merge_shadow_observation_history(
         _read_json_list_key(r, f"{V2_REDIS_PREFIX}paper:shadow_observations"),
@@ -15164,14 +18308,14 @@ def run_once() -> dict:
         now_utc=_utc_iso(),
     )
     strategy_router_report = summarize_strategy_router_performance(
-        accepted_rows=accepted_for_ledger,
+        accepted_rows=valid_accepted_for_ledger,
         blocked_rows=blocked,
         shadow_rows=current_cycle_shadow_observations,
         held_rows=held_by_gate_intents,
     )
     allocation_rows = _current_cycle_candidate_allocation_rows(
         intents=intents,
-        historical_accepted_rows=accepted_for_ledger,
+        historical_accepted_rows=valid_accepted_for_ledger,
         lifecycle_blocked_rows=lifecycle_blocked,
     )
     directional_collapse_guard_status = {
@@ -15347,8 +18491,21 @@ def run_once() -> dict:
         "status": "ACTIVE",
         "paper_only": True,
         "intents_built": len(intents),
-        "accepted_count": len(accepted),
-        "persistent_accepted_fill_count": len(accepted_for_ledger),
+        "accepted_count": len(valid_current_accepted),
+        "accepted_count_raw_before_invalid_admission_filter": len(accepted),
+        "current_cycle_invalid_admission_accepted_quarantine_count": len(
+            current_invalid_admission_accepted_rows
+        ),
+        "persistent_accepted_fill_count": len(valid_accepted_for_ledger),
+        "persistent_accepted_fill_count_raw_before_invalid_admission_filter": len(
+            accepted_for_ledger
+        ),
+        "accepted_invalid_admission_quarantine_count": len(
+            invalid_admission_accepted_rows
+        ),
+        "invalid_admission_accepted_quarantine_status": (
+            invalid_admission_accepted_quarantine_status
+        ),
         "blocked_count": len(blocked),
         "shadow_observation_count": len(current_cycle_shadow_observations),
         "persistent_shadow_observation_count": len(persisted_shadow_observations),
@@ -15421,15 +18578,15 @@ def run_once() -> dict:
     paper_runtime_cost_capture_status = _paper_runtime_cost_capture_summary(intents)
     candidate_cost_field_coverage = _paper_candidate_cost_field_coverage(intents)
     paper_exploration_tier_status = _paper_exploration_tier_status(
-        accepted_rows=accepted_for_ledger,
-        current_accepted_rows=accepted,
+        accepted_rows=valid_accepted_for_ledger,
+        current_accepted_rows=valid_current_accepted,
         blocked_rows=blocked,
         shadow_rows=current_cycle_shadow_observations,
         held_rows=held_by_gate_intents,
     )
     paper_owner_attribution_status = _paper_owner_attribution_status(
-        accepted_for_ledger,
-        current_accepted_rows=accepted,
+        valid_accepted_for_ledger,
+        current_accepted_rows=valid_current_accepted,
         current_runtime_rows=intents,
     )
     paper_audit_entry_gate_status = {
@@ -15524,7 +18681,7 @@ def run_once() -> dict:
     open_positions: list[dict] = list(lifecycle_result["open_positions"])
     filtered_open_positions = _paper_filter_open_positions_to_accepted_rows(
         open_positions,
-        accepted_for_ledger,
+        valid_accepted_for_ledger,
     )
     open_position_count_before_filter = len(open_positions)
     open_positions = _bind_challenger_b_grade_canary_metadata_rows(
@@ -15532,7 +18689,7 @@ def run_once() -> dict:
         binding_source="POST_LIFECYCLE_OPEN_POSITION",
     )
     lifecycle_result["open_positions"] = open_positions
-    lifecycle_result["accepted_open_fills"] = accepted_for_ledger
+    lifecycle_result["accepted_open_fills"] = valid_accepted_for_ledger
     if len(open_positions) != open_position_count_before_filter:
         positions_by_symbol = lifecycle_result.get("positions_by_symbol")
         if isinstance(positions_by_symbol, dict):
@@ -15559,6 +18716,11 @@ def run_once() -> dict:
         closes,
         binding_source="CLOSED_TRADE_ENTRY_CONTEXT",
     )
+    closes = _with_paper_session_metadata_rows(
+        closes,
+        paper_session_id=paper_session_id,
+        starting_equity_usd=paper_starting_equity_usd,
+    )
     outcome_labels, paper_outcome_label_entry_context_backfill_status = (
         _paper_backfill_closed_outcome_entry_context_rows(
             outcome_labels,
@@ -15570,11 +18732,16 @@ def run_once() -> dict:
         outcome_labels,
         binding_source="OUTCOME_LABEL_ENTRY_CONTEXT",
     )
+    outcome_labels = _with_paper_session_metadata_rows(
+        outcome_labels,
+        paper_session_id=paper_session_id,
+        starting_equity_usd=paper_starting_equity_usd,
+    )
     paper_policy_owner_handoff_runtime_proof = (
         _paper_policy_owner_handoff_runtime_proof(
             current_runtime_rows=intents,
-            current_accepted_rows=accepted,
-            accepted_rows=accepted_for_ledger,
+            current_accepted_rows=valid_current_accepted,
+            accepted_rows=valid_accepted_for_ledger,
             closed_rows=closes,
             outcome_label_rows=outcome_labels,
             shadow_rows=[
@@ -15585,13 +18752,13 @@ def run_once() -> dict:
     )
     paper_b_grade_canary_supply_status = _paper_b_grade_canary_supply_status(
         intents,
-        accepted_rows=accepted_for_ledger,
+        accepted_rows=valid_accepted_for_ledger,
         open_position_rows=open_positions,
         closed_rows=closes,
     )
     paper_a_grade_gate_burndown_status = _paper_a_grade_gate_burndown_status(
         intents,
-        accepted_rows=accepted_for_ledger,
+        accepted_rows=valid_accepted_for_ledger,
         open_position_rows=open_positions,
         closed_rows=closes,
         guardian_gate=continuous_edge_guardian_gate,
@@ -15602,13 +18769,37 @@ def run_once() -> dict:
         intents,
     )
     paper_churn_equity_bleed_governor_status = _paper_churn_equity_bleed_governor_status(
-        accepted_rows=accepted_for_ledger,
+        accepted_rows=valid_accepted_for_ledger,
         open_position_rows=open_positions,
         closed_rows=closes,
-        current_accepted_rows=accepted,
+        current_accepted_rows=valid_current_accepted,
         blocked_rows=blocked,
         generated_utc=started,
     )
+    paper_performance_circuit_breaker_status = _paper_performance_circuit_breaker_status(
+        closes,
+        generated_utc=started,
+    )
+    paper_bleed_halt_status = _paper_bleed_halt_status(
+        paper_performance_circuit_breaker_status,
+        generated_utc=started,
+    )
+    paper_performance_governor_status = (
+        _paper_performance_governor_status_from_circuit_breaker(
+            paper_performance_circuit_breaker_status,
+            generated_utc=started,
+        )
+    )
+    paper_new_entry_emergency_halt_status = (
+        _paper_new_entry_emergency_halt_status_from_performance(
+            paper_performance_circuit_breaker_status,
+            paper_bleed_halt_status,
+            generated_utc=started,
+        )
+    )
+    bucket_quarantine_status = paper_performance_circuit_breaker_status[
+        "bucket_quarantine_status"
+    ]
     feedback_lineage_contexts = _lineage_context_by_prediction_id(
         closes,
         outcome_labels,
@@ -15628,6 +18819,23 @@ def run_once() -> dict:
         entry_context_rows=accepted_for_ledger,
         predictions_by_id=predictions_by_id,
         feature_snapshots_by_id=feature_snapshots_by_id,
+    )
+    trainer_feedback_rows = _with_paper_session_metadata_rows(
+        trainer_feedback_rows,
+        paper_session_id=paper_session_id,
+        starting_equity_usd=paper_starting_equity_usd,
+    )
+    # Re-evaluate the canonical field contract now that session metadata is set.
+    trainer_feedback_rows = [
+        apply_trainer_feedback_field_contract(row) for row in trainer_feedback_rows
+    ]
+    invalid_admission_source_ids = _invalid_admission_source_ids(accepted_for_ledger)
+    (
+        trainer_feedback_rows,
+        invalid_admission_feedback_quarantine_status,
+    ) = _quarantine_invalid_admission_feedback_rows(
+        trainer_feedback_rows,
+        invalid_admission_source_ids,
     )
     trainer_feedback_consumable_rows = [
         row for row in trainer_feedback_rows if row.get("trainer_consumable") is True
@@ -15657,8 +18865,37 @@ def run_once() -> dict:
             paper_b_grade_model_quality_status
         )
     )
+    a_plus_gate_redistribution_status = _a_plus_gate_redistribution_status(
+        a_plus_evaluations,
+        generated_utc=started,
+        paper_session_id=paper_session_id,
+    )
+    a_plus_5_trade_gate_runtime_status = _a_plus_5_trade_gate_runtime_status(
+        closes,
+        generated_utc=started,
+    )
+    b_grade_calibration_safety_status = _b_grade_calibration_safety_status(
+        closes,
+        churn_status=paper_churn_equity_bleed_governor_status,
+        generated_utc=started,
+    )
+    b_grade_exploration_resumption_status = _b_grade_exploration_resumption_status(
+        intents=intents,
+        accepted_rows=valid_accepted_for_ledger,
+        closed_rows=closes,
+        trainer_feedback_rows=trainer_feedback_consumable_rows,
+        trainer_hybrid_cuda_status=(
+            trainer_hybrid_cuda_status if isinstance(trainer_hybrid_cuda_status, dict) else {}
+        ),
+        b_grade_canary_supply_status=paper_b_grade_canary_supply_status,
+        previous_status=previous_b_grade_exploration_resumption_status,
+        generated_utc=started,
+    )
     paper_forward_canary_closed_outcome_archive_status = (
-        _paper_forward_canary_closed_outcome_archive_status(closes)
+        _paper_forward_canary_closed_outcome_archive_status(
+            closes,
+            paper_session_id=paper_session_id,
+        )
     )
     paper_forward_canary_cutover_marker = _read_paper_forward_canary_cutover_marker()
     paper_forward_canary_cutover_completed_at = _first_present(
@@ -15667,7 +18904,7 @@ def run_once() -> dict:
     )
     paper_forward_canary_evidence_status = _paper_forward_canary_evidence_status(
         closed_rows=paper_forward_canary_closed_outcome_archive_status["closed_outcomes"],
-        accepted_rows=accepted_for_ledger,
+        accepted_rows=valid_accepted_for_ledger,
         cutover_completed_at=paper_forward_canary_cutover_completed_at,
     )
     if paper_forward_canary_cutover_marker:
@@ -15686,10 +18923,19 @@ def run_once() -> dict:
             "trainer_feedback_rows_ready": len(trainer_feedback_consumable_rows),
             "trainer_feedback_consumable_rows": len(trainer_feedback_consumable_rows),
             "trainer_feedback_quarantined_rows": len(trainer_feedback_quarantine_rows),
+            "invalid_admission_feedback_quarantine_status": (
+                invalid_admission_feedback_quarantine_status
+            ),
         }
     )
-    accepted_state_rows = _compact_rows_for_state(accepted_for_ledger)
-    current_accepted_state_rows = _compact_rows_for_state(accepted)
+    accepted_state_rows = _compact_rows_for_state(valid_accepted_for_ledger)
+    current_accepted_state_rows = _compact_rows_for_state(valid_current_accepted)
+    invalid_admission_accepted_quarantine_state_rows = _compact_rows_for_state(
+        invalid_admission_accepted_rows
+    )
+    current_invalid_admission_accepted_quarantine_state_rows = _compact_rows_for_state(
+        current_invalid_admission_accepted_rows
+    )
     blocked_state_sample = _sample_rows(_compact_rows_for_state(blocked))
     shadow_state_sample = _sample_rows(_compact_rows_for_state(current_cycle_shadow_observations))
     persistent_shadow_state_sample = _sample_rows(
@@ -15703,6 +18949,54 @@ def run_once() -> dict:
         _compact_rows_for_state(trainer_feedback_quarantine_rows)
     )
     if r is not None:
+        # A+ goal Phase 13: publish the zero-tolerance gate verdicts so the
+        # candidate matrix / rejection-reason matrix are operator-visible.
+        a_plus_rows = [
+            {
+                "symbol": row.get("symbol"),
+                "timeframe": row.get("timeframe"),
+                "side": row.get("side"),
+                "strategy_id": row.get("strategy_id"),
+                "bucket_key": row.get("bucket_key"),
+                "a_plus": row.get("a_plus"),
+                "failed_checks": row.get("failed_checks"),
+                "missing_evidence_checks": row.get("missing_evidence_checks"),
+                "passed_check_count": row.get("passed_check_count"),
+                "check_count": row.get("check_count"),
+                "generated_utc": row.get("generated_utc"),
+            }
+            for row in a_plus_evaluations
+        ]
+        a_plus_rejected_reason_counts: dict[str, int] = {}
+        for row in a_plus_evaluations:
+            for check in row.get("failed_checks") or []:
+                a_plus_rejected_reason_counts[str(check)] = (
+                    a_plus_rejected_reason_counts.get(str(check), 0) + 1
+                )
+        a_plus_status_payload = {
+            "schema_version": "v2_paper_a_plus_gate_status_v1",
+            "generated_utc": started,
+            "paper_session_id": paper_session_id,
+            "evaluated_candidates": len(a_plus_evaluations),
+            "a_plus_candidates": sum(1 for row in a_plus_evaluations if row.get("a_plus")),
+            "candidate_matrix": a_plus_rows,
+            "rejected_reason_matrix": dict(
+                sorted(a_plus_rejected_reason_counts.items(), key=lambda item: -item[1])
+            ),
+            "a_plus_gate_redistribution_status": a_plus_gate_redistribution_status,
+            "fail_closed": True,
+            "gate_is_hard_entry_condition": True,
+            "live_gate": LIVE_GATE_BLOCKED,
+            "places_real_order": False,
+            "writes_legacy_redis": False,
+        }
+        if _safe_write(
+            r,
+            A_PLUS_GATE_STATUS_REDIS_KEY,
+            json.dumps(a_plus_status_payload),
+            ex=PAPER_RUNTIME_TRANSIENT_TTL_SECONDS,
+        ):
+            keys_written.append(A_PLUS_GATE_STATUS_REDIS_KEY)
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}paper:intents",
@@ -15734,8 +19028,21 @@ def run_once() -> dict:
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}risk:decisions:latest")
         ledger_payload = {
-            "accepted_count": len(accepted_for_ledger),
-            "current_cycle_accepted_count": len(accepted),
+            "paper_session_id": paper_session_id,
+            "reset_session_id": paper_session_state.get("reset_session_id") or paper_session_id,
+            "starting_equity_usd": paper_starting_equity_usd,
+            "initial_capital": paper_starting_equity_usd,
+            "paper_session_state_source": f"{V2_REDIS_PREFIX}paper:session" if paper_session_id else None,
+            "accepted_count": len(valid_accepted_for_ledger),
+            "accepted_count_raw_before_invalid_admission_filter": len(accepted_for_ledger),
+            "current_cycle_accepted_count": len(valid_current_accepted),
+            "current_cycle_accepted_count_raw_before_invalid_admission_filter": len(accepted),
+            "accepted_invalid_admission_quarantine_count": len(
+                invalid_admission_accepted_rows
+            ),
+            "current_cycle_invalid_admission_accepted_quarantine_count": len(
+                current_invalid_admission_accepted_rows
+            ),
             "blocked_count": len(blocked),
             "held_by_paper_fill_gate_count": len(held_by_gate_intents),
             "shadow_observation_count": len(current_cycle_shadow_observations),
@@ -15753,6 +19060,9 @@ def run_once() -> dict:
                 "trainer_consumable_rows"
             ],
             "trainer_strategy_hedge_feedback_status": trainer_strategy_hedge_feedback_status,
+            "invalid_admission_feedback_quarantine_status": (
+                invalid_admission_feedback_quarantine_status
+            ),
             "candidate_id": CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID,
             "policy_id": CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID,
             "paper_policy_owner": PAPER_POLICY_OWNER_CHALLENGER_V2,
@@ -15769,10 +19079,31 @@ def run_once() -> dict:
             "redis_ledger_compacted": True,
             "redis_ledger_sample_limit": PAPER_REDIS_LEDGER_ROW_SAMPLE_LIMIT,
             "accepted_fill_state_source": str(PAPER_ACCEPTED_FILLS_STATE_PATH),
+            "accepted_fill_quarantine_state_source": str(
+                PAPER_ACCEPTED_FILLS_QUARANTINE_STATE_PATH
+            ),
             "accepted_fill_state_row_count": len(accepted_state_rows),
+            "accepted_fill_state_raw_row_count_before_invalid_admission_filter": len(
+                accepted_for_ledger
+            ),
+            "accepted_fill_quarantine_state_row_count": len(
+                invalid_admission_accepted_quarantine_state_rows
+            ),
+            "invalid_admission_accepted_quarantine_status": (
+                invalid_admission_accepted_quarantine_status
+            ),
+            "current_invalid_admission_accepted_quarantine_status": (
+                current_invalid_admission_accepted_quarantine_status
+            ),
             "accepted_intents": _sample_rows(accepted_state_rows),
             "accepted": _sample_rows(accepted_state_rows),
             "current_cycle_accepted": current_accepted_state_rows,
+            "accepted_invalid_admission_quarantine": _sample_rows(
+                invalid_admission_accepted_quarantine_state_rows
+            ),
+            "current_cycle_accepted_invalid_admission_quarantine": (
+                current_invalid_admission_accepted_quarantine_state_rows
+            ),
             "blocked": blocked_state_sample,
             "held_by_paper_fill_gate": held_state_sample,
             "shadow_observations": shadow_state_sample,
@@ -15819,13 +19150,26 @@ def run_once() -> dict:
             "paper_strategy_mode_collapse_guard_status": strategy_mode_collapse_guard_status,
             "paper_drawdown_recovery_guard_status": paper_drawdown_recovery_guard_status,
             "paper_runtime_admission_status": paper_runtime_admission_status,
+            "paper_entry_freeze": paper_entry_freeze,
+            "paper_new_entries_halted": paper_entry_freeze.get("paper_new_entries_halted") is True,
             "paper_exploration_tier_status": paper_exploration_tier_status,
             "paper_b_grade_canary_supply_status": paper_b_grade_canary_supply_status,
             "paper_a_grade_gate_burndown_status": paper_a_grade_gate_burndown_status,
+            "b_grade_exploration_resumption_status": (
+                b_grade_exploration_resumption_status
+            ),
+            "a_plus_gate_redistribution_status": a_plus_gate_redistribution_status,
+            "a_plus_5_trade_gate_runtime_status": a_plus_5_trade_gate_runtime_status,
+            "b_grade_calibration_safety_status": b_grade_calibration_safety_status,
             "paper_adaptive_threshold_runtime_status": paper_adaptive_threshold_runtime_status,
             "paper_churn_equity_bleed_governor_status": (
                 paper_churn_equity_bleed_governor_status
             ),
+            "paper_performance_circuit_breaker_status": (
+                paper_performance_circuit_breaker_status
+            ),
+            "paper_bleed_halt_status": paper_bleed_halt_status,
+            "bucket_quarantine_status": bucket_quarantine_status,
             "paper_audit_entry_gate_status": paper_audit_entry_gate_status,
             "paper_adaptive_sizing_runtime_status": paper_adaptive_sizing_runtime_status,
             "risk_envelope_dynamic_budget_status": risk_envelope_dynamic_budget_status,
@@ -15877,6 +19221,20 @@ def run_once() -> dict:
             keys_written.append(f"{V2_REDIS_PREFIX}paper:positions")
         if _safe_write(
             r,
+            f"{V2_REDIS_PREFIX}paper:accepted_fills",
+            json.dumps(accepted_state_rows),
+            ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
+        ):
+            keys_written.append(f"{V2_REDIS_PREFIX}paper:accepted_fills")
+        if _safe_write(
+            r,
+            f"{V2_REDIS_PREFIX}paper:accepted_fills:quarantine",
+            json.dumps(invalid_admission_accepted_quarantine_state_rows),
+            ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
+        ):
+            keys_written.append(f"{V2_REDIS_PREFIX}paper:accepted_fills:quarantine")
+        if _safe_write(
+            r,
             f"{V2_REDIS_PREFIX}paper:ledger",
             json.dumps(ledger_payload),
             ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
@@ -15903,6 +19261,18 @@ def run_once() -> dict:
             ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}trainer:feedback:outcomes:quarantine")
+        side_performance_status = build_side_performance(
+            trainer_feedback_consumable_rows,
+            paper_session_id=paper_session_id,
+            generated_utc=_utc_iso(),
+        )
+        if _safe_write(
+            r,
+            SIDE_PERFORMANCE_REDIS_KEY,
+            json.dumps(side_performance_status),
+            ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
+        ):
+            keys_written.append(SIDE_PERFORMANCE_REDIS_KEY)
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}paper:trade_management:status",
@@ -15916,9 +19286,27 @@ def run_once() -> dict:
                 "open_position_count": len(open_positions),
                 "closed_trade_count": len(closes),
                 "outcome_label_count": len(outcome_labels),
-                "persistent_accepted_fill_count": len(accepted_for_ledger),
+                "persistent_accepted_fill_count": len(valid_accepted_for_ledger),
+                "persistent_accepted_fill_count_raw_before_invalid_admission_filter": len(
+                    accepted_for_ledger
+                ),
+                "accepted_invalid_admission_quarantine_count": len(
+                    invalid_admission_accepted_rows
+                ),
+                "invalid_admission_accepted_quarantine_status": (
+                    invalid_admission_accepted_quarantine_status
+                ),
                 "accepted_fill_state_row_count": len(accepted_state_rows),
-                "current_cycle_accepted_count": len(accepted),
+                "accepted_fill_quarantine_state_row_count": len(
+                    invalid_admission_accepted_quarantine_state_rows
+                ),
+                "current_cycle_accepted_count": len(valid_current_accepted),
+                "current_cycle_accepted_count_raw_before_invalid_admission_filter": len(
+                    accepted
+                ),
+                "current_cycle_invalid_admission_accepted_quarantine_count": len(
+                    current_invalid_admission_accepted_rows
+                ),
                 "paper_lifecycle_state_schema_version": "v2_paper_lifecycle_state_v1",
                 "lifecycle_state_path": str(PAPER_LIFECYCLE_STATE_PATH),
                 "production_grade_cost_coverage": (
@@ -15941,6 +19329,8 @@ def run_once() -> dict:
                 "paper_strategy_mode_collapse_guard_status": strategy_mode_collapse_guard_status,
                 "paper_drawdown_recovery_guard_status": paper_drawdown_recovery_guard_status,
                 "paper_runtime_admission_status": paper_runtime_admission_status,
+                "paper_entry_freeze": paper_entry_freeze,
+                "paper_new_entries_halted": paper_entry_freeze.get("paper_new_entries_halted") is True,
                 "paper_runtime_cost_capture_status": paper_runtime_cost_capture_status,
                 "paper_exploration_tier_status": paper_exploration_tier_status,
                 "paper_b_grade_canary_supply_status": paper_b_grade_canary_supply_status,
@@ -15949,6 +19339,11 @@ def run_once() -> dict:
                 "paper_churn_equity_bleed_governor_status": (
                     paper_churn_equity_bleed_governor_status
                 ),
+                "paper_performance_circuit_breaker_status": (
+                    paper_performance_circuit_breaker_status
+                ),
+                "paper_bleed_halt_status": paper_bleed_halt_status,
+                "bucket_quarantine_status": bucket_quarantine_status,
                 "paper_forward_canary_evidence_status": paper_forward_canary_evidence_status,
                 "paper_forward_canary_closed_outcome_archive_status": (
                     paper_forward_canary_closed_outcome_archive_status
@@ -16024,6 +19419,38 @@ def run_once() -> dict:
             keys_written.append(f"{V2_REDIS_PREFIX}paper:a_grade_gate_burndown_status")
         if _safe_write(
             r,
+            f"{V2_REDIS_PREFIX}paper:b_grade_exploration_resumption_status",
+            json.dumps(b_grade_exploration_resumption_status),
+            ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
+        ):
+            keys_written.append(
+                f"{V2_REDIS_PREFIX}paper:b_grade_exploration_resumption_status"
+            )
+        if _safe_write(
+            r,
+            f"{V2_REDIS_PREFIX}paper:a_plus_gate_redistribution_status",
+            json.dumps(a_plus_gate_redistribution_status),
+            ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
+        ):
+            keys_written.append(f"{V2_REDIS_PREFIX}paper:a_plus_gate_redistribution_status")
+        if _safe_write(
+            r,
+            f"{V2_REDIS_PREFIX}paper:a_plus_5_trade_gate_runtime_status",
+            json.dumps(a_plus_5_trade_gate_runtime_status),
+            ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
+        ):
+            keys_written.append(
+                f"{V2_REDIS_PREFIX}paper:a_plus_5_trade_gate_runtime_status"
+            )
+        if _safe_write(
+            r,
+            f"{V2_REDIS_PREFIX}paper:b_grade_calibration_safety_status",
+            json.dumps(b_grade_calibration_safety_status),
+            ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
+        ):
+            keys_written.append(f"{V2_REDIS_PREFIX}paper:b_grade_calibration_safety_status")
+        if _safe_write(
+            r,
             f"{V2_REDIS_PREFIX}paper:adaptive_threshold_runtime_status",
             json.dumps(paper_adaptive_threshold_runtime_status),
             ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
@@ -16038,6 +19465,45 @@ def run_once() -> dict:
             keys_written.append(
                 f"{V2_REDIS_PREFIX}paper:churn_equity_bleed_governor_status"
             )
+        if _safe_write(
+            r,
+            f"{V2_REDIS_PREFIX}paper:performance_circuit_breaker_status",
+            json.dumps(paper_performance_circuit_breaker_status),
+            ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
+        ):
+            keys_written.append(
+                f"{V2_REDIS_PREFIX}paper:performance_circuit_breaker_status"
+            )
+        if _safe_write(
+            r,
+            f"{V2_REDIS_PREFIX}paper:bleed_halt_status",
+            json.dumps(paper_bleed_halt_status),
+            ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
+        ):
+            keys_written.append(f"{V2_REDIS_PREFIX}paper:bleed_halt_status")
+        if _safe_write(
+            r,
+            f"{V2_REDIS_PREFIX}paper:performance_governor_status",
+            json.dumps(paper_performance_governor_status),
+            ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
+        ):
+            keys_written.append(f"{V2_REDIS_PREFIX}paper:performance_governor_status")
+        if _safe_write(
+            r,
+            f"{V2_REDIS_PREFIX}paper:new_entry_emergency_halt_status",
+            json.dumps(paper_new_entry_emergency_halt_status),
+            ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
+        ):
+            keys_written.append(
+                f"{V2_REDIS_PREFIX}paper:new_entry_emergency_halt_status"
+            )
+        if _safe_write(
+            r,
+            f"{V2_REDIS_PREFIX}paper:bucket_quarantine_status",
+            json.dumps(bucket_quarantine_status),
+            ex=PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
+        ):
+            keys_written.append(f"{V2_REDIS_PREFIX}paper:bucket_quarantine_status")
         if _safe_write(
             r,
             f"{V2_REDIS_PREFIX}paper:trainer_model_quality_runtime_status",
@@ -16079,10 +19545,27 @@ def run_once() -> dict:
         "heartbeat_ttl_seconds": PAPER_RUNTIME_HEARTBEAT_TTL_SECONDS,
         "paper_signals_seen": len(signals),
         "intents_built": len(intents),
-        "intents_accepted": len(accepted),
-        "persistent_accepted_fill_count": len(accepted_for_ledger),
+        "intents_accepted": len(valid_current_accepted),
+        "intents_accepted_raw_before_invalid_admission_filter": len(accepted),
+        "current_cycle_invalid_admission_accepted_quarantine_count": len(
+            current_invalid_admission_accepted_rows
+        ),
+        "persistent_accepted_fill_count": len(valid_accepted_for_ledger),
+        "persistent_accepted_fill_count_raw_before_invalid_admission_filter": len(
+            accepted_for_ledger
+        ),
+        "accepted_invalid_admission_quarantine_count": len(invalid_admission_accepted_rows),
+        "invalid_admission_accepted_quarantine_status": (
+            invalid_admission_accepted_quarantine_status
+        ),
         "accepted_fill_state_row_count": len(accepted_state_rows),
+        "accepted_fill_quarantine_state_row_count": len(
+            invalid_admission_accepted_quarantine_state_rows
+        ),
         "accepted_fill_state_path": str(PAPER_ACCEPTED_FILLS_STATE_PATH),
+        "accepted_fill_quarantine_state_path": str(
+            PAPER_ACCEPTED_FILLS_QUARANTINE_STATE_PATH
+        ),
         "lifecycle_state_path": str(PAPER_LIFECYCLE_STATE_PATH),
         "redis_ledger_compacted": True,
         "redis_ledger_sample_limit": PAPER_REDIS_LEDGER_ROW_SAMPLE_LIMIT,
@@ -16108,6 +19591,9 @@ def run_once() -> dict:
         ),
         "trainer_strategy_hedge_feedback_status": (
             trainer_strategy_hedge_feedback_status if r is not None else {}
+        ),
+        "invalid_admission_feedback_quarantine_status": (
+            invalid_admission_feedback_quarantine_status if r is not None else {}
         ),
         "candidate_id": CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID,
         "policy_id": CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID,
@@ -16148,8 +19634,21 @@ def run_once() -> dict:
         "paper_exploration_tier_status": paper_exploration_tier_status,
         "paper_b_grade_canary_supply_status": paper_b_grade_canary_supply_status,
         "paper_a_grade_gate_burndown_status": paper_a_grade_gate_burndown_status,
+        "b_grade_exploration_resumption_status": b_grade_exploration_resumption_status,
+        "a_plus_gate_redistribution_status": a_plus_gate_redistribution_status,
+        "a_plus_5_trade_gate_runtime_status": a_plus_5_trade_gate_runtime_status,
+        "b_grade_calibration_safety_status": b_grade_calibration_safety_status,
         "paper_adaptive_threshold_runtime_status": paper_adaptive_threshold_runtime_status,
         "paper_churn_equity_bleed_governor_status": paper_churn_equity_bleed_governor_status,
+        "paper_performance_circuit_breaker_status": (
+            paper_performance_circuit_breaker_status
+        ),
+        "paper_bleed_halt_status": paper_bleed_halt_status,
+        "paper_performance_governor_status": paper_performance_governor_status,
+        "paper_new_entry_emergency_halt_status": (
+            paper_new_entry_emergency_halt_status
+        ),
+        "bucket_quarantine_status": bucket_quarantine_status,
         "paper_forward_canary_evidence_status": paper_forward_canary_evidence_status,
         "paper_forward_canary_closed_outcome_archive_status": (
             paper_forward_canary_closed_outcome_archive_status
@@ -16243,8 +19742,26 @@ def run_once() -> dict:
                 "accepted_fill_state_schema_version": "v2_compact_accepted_fill_state_v1",
                 "accepted_fill_state_compacted": True,
                 "accepted_fill_state_row_count": len(accepted_state_rows),
+                "accepted_fill_state_raw_row_count_before_invalid_admission_filter": len(
+                    accepted_for_ledger
+                ),
+                "accepted_fill_quarantine_state_row_count": len(
+                    invalid_admission_accepted_quarantine_state_rows
+                ),
+                "accepted_fill_quarantine_state_path": str(
+                    PAPER_ACCEPTED_FILLS_QUARANTINE_STATE_PATH
+                ),
+                "invalid_admission_accepted_quarantine_status": (
+                    invalid_admission_accepted_quarantine_status
+                ),
+                "current_invalid_admission_accepted_quarantine_status": (
+                    current_invalid_admission_accepted_quarantine_status
+                ),
                 "accepted_fills": accepted_state_rows,
                 "current_cycle_accepted": current_accepted_state_rows,
+                "paper_session_id": paper_session_id,
+                "reset_session_id": paper_session_state.get("reset_session_id") or paper_session_id,
+                "starting_equity_usd": paper_starting_equity_usd,
                 "paper_owner_attribution_status": paper_owner_attribution_status,
                 "paper_policy_owner_handoff_runtime_proof": (
                     paper_policy_owner_handoff_runtime_proof
@@ -16259,9 +19776,52 @@ def run_once() -> dict:
         )
         write_payload(
             {
+                "accepted_fill_quarantine_state_schema_version": (
+                    "v2_compact_accepted_fill_quarantine_state_v1"
+                ),
+                "accepted_fill_state_compacted": True,
+                "accepted_fill_state_source": str(PAPER_ACCEPTED_FILLS_STATE_PATH),
+                "accepted_fill_raw_row_count_before_invalid_admission_filter": len(
+                    accepted_for_ledger
+                ),
+                "accepted_fill_valid_row_count": len(accepted_state_rows),
+                "accepted_fill_quarantine_state_row_count": len(
+                    invalid_admission_accepted_quarantine_state_rows
+                ),
+                "accepted_fills_quarantine": (
+                    invalid_admission_accepted_quarantine_state_rows
+                ),
+                "current_cycle_accepted_fills_quarantine": (
+                    current_invalid_admission_accepted_quarantine_state_rows
+                ),
+                "invalid_admission_accepted_quarantine_status": (
+                    invalid_admission_accepted_quarantine_status
+                ),
+                "current_invalid_admission_accepted_quarantine_status": (
+                    current_invalid_admission_accepted_quarantine_status
+                ),
+                "paper_session_id": paper_session_id,
+                "reset_session_id": paper_session_state.get("reset_session_id") or paper_session_id,
+                "starting_equity_usd": paper_starting_equity_usd,
+                "omitted_fields": sorted(COMPACT_ACCEPTED_FILL_OMITTED_FIELDS),
+                "generated_utc": _utc_iso(),
+                "paper_only": True,
+                "places_real_order": False,
+                "writes_legacy_redis": False,
+            },
+            PAPER_ACCEPTED_FILLS_QUARANTINE_STATE_PATH,
+        )
+        write_payload(
+            {
                 "paper_lifecycle_state_schema_version": "v2_paper_lifecycle_state_v1",
                 "accepted_fills": accepted_state_rows,
                 "current_cycle_accepted": current_accepted_state_rows,
+                "accepted_fills_quarantine": (
+                    invalid_admission_accepted_quarantine_state_rows
+                ),
+                "current_cycle_accepted_fills_quarantine": (
+                    current_invalid_admission_accepted_quarantine_state_rows
+                ),
                 "open_positions": open_positions,
                 "positions_by_symbol": lifecycle_result["positions_by_symbol"],
                 "closed_trades": closes,
@@ -16270,12 +19830,30 @@ def run_once() -> dict:
                 "trainer_feedback_outcomes": trainer_feedback_consumable_rows,
                 "trainer_feedback_outcomes_quarantine": trainer_feedback_quarantine_rows,
                 "accepted_count": len(accepted_state_rows),
+                "accepted_count_raw_before_invalid_admission_filter": len(
+                    accepted_for_ledger
+                ),
+                "accepted_invalid_admission_quarantine_count": len(
+                    invalid_admission_accepted_quarantine_state_rows
+                ),
+                "invalid_admission_accepted_quarantine_status": (
+                    invalid_admission_accepted_quarantine_status
+                ),
                 "current_cycle_accepted_count": len(current_accepted_state_rows),
+                "current_cycle_accepted_count_raw_before_invalid_admission_filter": len(
+                    accepted
+                ),
+                "current_cycle_invalid_admission_accepted_quarantine_count": len(
+                    current_invalid_admission_accepted_quarantine_state_rows
+                ),
                 "open_position_count": len(open_positions),
                 "closed_trade_count": len(closes),
                 "outcome_label_count": len(outcome_labels),
                 "trainer_feedback_row_count": len(trainer_feedback_consumable_rows),
                 "trainer_feedback_quarantined_row_count": len(trainer_feedback_quarantine_rows),
+                "paper_session_id": paper_session_id,
+                "reset_session_id": paper_session_state.get("reset_session_id") or paper_session_id,
+                "starting_equity_usd": paper_starting_equity_usd,
                 "paper_owner_attribution_status": paper_owner_attribution_status,
                 "paper_policy_owner_handoff_runtime_proof": (
                     paper_policy_owner_handoff_runtime_proof
@@ -16362,6 +19940,22 @@ def run_once() -> dict:
             TRADE_MANAGEMENT_PUBLIC_DIR / "paper_a_grade_gate_burndown_status.json",
         )
         write_payload(
+            b_grade_exploration_resumption_status,
+            B_GRADE_EXPLORATION_RESUMPTION_STATUS_PATH,
+        )
+        write_payload(
+            a_plus_gate_redistribution_status,
+            A_PLUS_GATE_REDISTRIBUTION_STATUS_PATH,
+        )
+        write_payload(
+            a_plus_5_trade_gate_runtime_status,
+            A_PLUS_5_TRADE_GATE_RUNTIME_STATUS_PATH,
+        )
+        write_payload(
+            b_grade_calibration_safety_status,
+            B_GRADE_CALIBRATION_SAFETY_STATUS_PATH,
+        )
+        write_payload(
             paper_runtime_cost_capture_status,
             TRADE_MANAGEMENT_PUBLIC_DIR / "runtime_production_cost_capture_status.json",
         )
@@ -16376,6 +19970,26 @@ def run_once() -> dict:
         write_payload(
             paper_churn_equity_bleed_governor_status,
             TRADE_MANAGEMENT_PUBLIC_DIR / "paper_churn_equity_bleed_governor_status.json",
+        )
+        write_payload(
+            paper_performance_circuit_breaker_status,
+            PAPER_PERFORMANCE_CIRCUIT_BREAKER_STATUS_PATH,
+        )
+        write_payload(
+            paper_bleed_halt_status,
+            PAPER_BLEED_HALT_STATUS_PATH,
+        )
+        write_payload(
+            paper_performance_governor_status,
+            PAPER_PERFORMANCE_GOVERNOR_STATUS_PATH,
+        )
+        write_payload(
+            paper_new_entry_emergency_halt_status,
+            PAPER_NEW_ENTRY_EMERGENCY_HALT_STATUS_PATH,
+        )
+        write_payload(
+            bucket_quarantine_status,
+            PAPER_BUCKET_QUARANTINE_STATUS_PATH,
         )
         write_payload(
             paper_forward_canary_evidence_status,

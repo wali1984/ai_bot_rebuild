@@ -19,6 +19,7 @@ SUPPORTED_PROVIDERS = (
     "public_intel",
     "aicoin",
     "whale_walls",
+    "santiment",
 )
 DEFAULT_MAX_PROVIDER_AGE_SECONDS = 1_800
 
@@ -398,6 +399,102 @@ def _extract_whale_walls(whale_walls_payload: Mapping[str, Any] | None) -> dict[
     }
 
 
+def _extract_santiment(santiment_payload: Mapping[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(santiment_payload, Mapping):
+        return {
+            "santiment_social_volume_score": None,
+            "santiment_whale_activity_score": None,
+            "santiment_sentiment_score": None,
+            "santiment_onchain_activity_score": None,
+            "santiment_dev_activity_score": None,
+            "santiment_exchange_inflow_risk_score": None,
+            "santiment_supply_on_exchanges_score": None,
+            "santiment_social_volume_total": None,
+            "santiment_sentiment_positive_total": None,
+            "santiment_sentiment_negative_total": None,
+            "santiment_whale_transaction_count_1m": None,
+            "santiment_whale_transaction_count_100k_usd_to_inf": None,
+            "santiment_exchange_inflow": None,
+            "santiment_percent_of_total_supply_on_exchanges": None,
+            "santiment_active_addresses_24h": None,
+            "santiment_transaction_volume": None,
+            "santiment_dev_activity": None,
+        }
+    return {
+        "santiment_social_volume_score": _round_score(
+            _clamp01(score)
+            if (score := _coerce_float(santiment_payload.get("santiment_social_volume_score"))) is not None
+            else None
+        ),
+        "santiment_whale_activity_score": _round_score(
+            _clamp01(score)
+            if (score := _coerce_float(santiment_payload.get("santiment_whale_activity_score"))) is not None
+            else None
+        ),
+        "santiment_sentiment_score": _round_score(
+            _clamp(score, -1.0, 1.0)
+            if (score := _coerce_float(santiment_payload.get("santiment_sentiment_score"))) is not None
+            else None
+        ),
+        "santiment_onchain_activity_score": _round_score(
+            _clamp01(score)
+            if (score := _coerce_float(santiment_payload.get("santiment_onchain_activity_score"))) is not None
+            else None
+        ),
+        "santiment_dev_activity_score": _round_score(
+            _clamp01(score)
+            if (score := _coerce_float(santiment_payload.get("santiment_dev_activity_score"))) is not None
+            else None
+        ),
+        "santiment_exchange_inflow_risk_score": _round_score(
+            _clamp01(score)
+            if (score := _coerce_float(santiment_payload.get("santiment_exchange_inflow_risk_score"))) is not None
+            else None
+        ),
+        "santiment_supply_on_exchanges_score": _round_score(
+            _clamp01(score)
+            if (score := _coerce_float(santiment_payload.get("santiment_supply_on_exchanges_score"))) is not None
+            else None
+        ),
+        "santiment_social_volume_total": _round_score(
+            _coerce_float(santiment_payload.get("santiment_social_volume_total"))
+        ),
+        "santiment_sentiment_positive_total": _round_score(
+            _coerce_float(santiment_payload.get("santiment_sentiment_positive_total"))
+        ),
+        "santiment_sentiment_negative_total": _round_score(
+            _coerce_float(santiment_payload.get("santiment_sentiment_negative_total"))
+        ),
+        "santiment_whale_transaction_count_1m": _round_score(
+            _coerce_float(santiment_payload.get("santiment_whale_transaction_count_1m"))
+        ),
+        "santiment_whale_transaction_count_100k_usd_to_inf": _round_score(
+            _coerce_float(
+                santiment_payload.get(
+                    "santiment_whale_transaction_count_100k_usd_to_inf"
+                )
+            )
+        ),
+        "santiment_exchange_inflow": _round_score(
+            _coerce_float(santiment_payload.get("santiment_exchange_inflow"))
+        ),
+        "santiment_percent_of_total_supply_on_exchanges": _round_score(
+            _coerce_float(
+                santiment_payload.get("santiment_percent_of_total_supply_on_exchanges")
+            )
+        ),
+        "santiment_active_addresses_24h": _round_score(
+            _coerce_float(santiment_payload.get("santiment_active_addresses_24h"))
+        ),
+        "santiment_transaction_volume": _round_score(
+            _coerce_float(santiment_payload.get("santiment_transaction_volume"))
+        ),
+        "santiment_dev_activity": _round_score(
+            _coerce_float(santiment_payload.get("santiment_dev_activity"))
+        ),
+    }
+
+
 def _score_social_velocity(value: float | None) -> float | None:
     if value is None:
         return None
@@ -430,6 +527,7 @@ def build_symbol_score_payload(
     public_intel_payload: Mapping[str, Any] | None = None,
     aicoin_payload: Mapping[str, Any] | None = None,
     whale_walls_payload: Mapping[str, Any] | None = None,
+    santiment_payload: Mapping[str, Any] | None = None,
     market_payloads: Mapping[str, Any] | None = None,
     feature_payloads: Mapping[str, Any] | None = None,
     generated_utc: str | None = None,
@@ -443,7 +541,7 @@ def build_symbol_score_payload(
     Input boundary (Codex regression
     ``SCORING_INPUT_BOUNDARY_INCLUDES_V2_PAPER_AND_RISK_CONTEXT``):
     this function accepts ONLY V2 alt-data provider payloads
-    (Nansen/LunarCrush/CoinGecko/Surf/CoinGlass/PublicIntel/AICoin/WhaleWalls),
+    (Nansen/LunarCrush/CoinGecko/Surf/CoinGlass/PublicIntel/AICoin/WhaleWalls/Santiment),
     ``market_payloads``, and ``feature_payloads``. It must NOT accept
     ``paper_*`` or ``risk_*``
     payloads; the caller must never pass them.
@@ -460,6 +558,7 @@ def build_symbol_score_payload(
     public_intel = _extract_public_intel(public_intel_payload)
     aicoin = _extract_aicoin(aicoin_payload)
     whale_walls = _extract_whale_walls(whale_walls_payload)
+    santiment = _extract_santiment(santiment_payload)
 
     nansen_signal_present = any(value is not None for value in nansen.values())
     lunar_signal_present = any(value is not None for value in lunar.values())
@@ -471,6 +570,11 @@ def build_symbol_score_payload(
     )
     aicoin_signal_present = any(value is not None for value in aicoin.values())
     whale_walls_signal_present = whale_walls["whale_wall_score"] is not None
+    santiment_signal_present = any(
+        value is not None
+        for field, value in santiment.items()
+        if field.endswith("_score")
+    )
 
     nansen_available = nansen_signal_present and _is_provider_available(
         nansen_payload,
@@ -522,6 +626,12 @@ def build_symbol_score_payload(
             generated_utc=now,
             max_provider_age_seconds=max_provider_age_seconds,
         )
+    if isinstance(santiment_payload, Mapping):
+        provider_available["santiment"] = santiment_signal_present and _is_provider_available(
+            santiment_payload,
+            generated_utc=now,
+            max_provider_age_seconds=max_provider_age_seconds,
+        )
     providers_consulted = [
         provider for provider, available in provider_available.items() if available
     ]
@@ -564,6 +674,11 @@ def build_symbol_score_payload(
     whale_walls_age = (
         _payload_age_seconds(whale_walls_payload, now)
         if isinstance(whale_walls_payload, Mapping)
+        else None
+    )
+    santiment_age = (
+        _payload_age_seconds(santiment_payload, now)
+        if isinstance(santiment_payload, Mapping)
         else None
     )
     provider_freshness_scores = {
@@ -612,6 +727,12 @@ def build_symbol_score_payload(
             if provider_available["whale_walls"]
             else 0.0
         )
+    if "santiment" in provider_available:
+        provider_freshness_scores["santiment"] = (
+            _provider_freshness_score(santiment_age, max_provider_age_seconds)
+            if provider_available["santiment"]
+            else 0.0
+        )
     provider_availability_score = sum(provider_available.values()) / max(
         1, len(provider_available)
     )
@@ -632,6 +753,7 @@ def build_symbol_score_payload(
     public_intel_status = _source_status(public_intel_payload)
     aicoin_status = _source_status(aicoin_payload)
     whale_walls_status = _source_status(whale_walls_payload)
+    santiment_status = _source_status(santiment_payload)
     nansen_key_present = (
         bool(nansen_payload.get("key_present"))
         if isinstance(nansen_payload, Mapping)
@@ -669,6 +791,8 @@ def build_symbol_score_payload(
         missing_flags.append(f"aicoin_source_status_{aicoin_status}")
     if isinstance(whale_walls_payload, Mapping) and whale_walls_status not in OK_SOURCE_STATUSES:
         missing_flags.append(f"whale_walls_source_status_{whale_walls_status}")
+    if isinstance(santiment_payload, Mapping) and santiment_status not in OK_SOURCE_STATUSES:
+        missing_flags.append(f"santiment_source_status_{santiment_status}")
 
     for field, value in nansen.items():
         if value is None:
@@ -700,6 +824,10 @@ def build_symbol_score_payload(
         for field, value in whale_walls.items():
             if value is None:
                 missing_flags.append(f"whale_walls_{field}_missing")
+    if isinstance(santiment_payload, Mapping):
+        for field, value in santiment.items():
+            if value is None:
+                missing_flags.append(f"santiment_{field}_missing")
 
     if nansen_age is not None and nansen_age > max_provider_age_seconds:
         stale_flags.append("nansen_payload_stale")
@@ -717,6 +845,8 @@ def build_symbol_score_payload(
         stale_flags.append("aicoin_payload_stale")
     if whale_walls_age is not None and whale_walls_age > max_provider_age_seconds:
         stale_flags.append("whale_walls_payload_stale")
+    if santiment_age is not None and santiment_age > max_provider_age_seconds:
+        stale_flags.append("santiment_payload_stale")
     for provider_name, provider_payload in (
         ("nansen", nansen_payload),
         ("lunarcrush", lunarcrush_payload),
@@ -726,6 +856,7 @@ def build_symbol_score_payload(
         ("public_intel", public_intel_payload),
         ("aicoin", aicoin_payload),
         ("whale_walls", whale_walls_payload),
+        ("santiment", santiment_payload),
     ):
         if isinstance(provider_payload, Mapping):
             for flag in provider_payload.get("stale_feature_flags") or []:
@@ -762,6 +893,25 @@ def build_symbol_score_payload(
         )
     )
     whale_walls_component = whale_walls["whale_wall_score"]
+    santiment_social_component = santiment["santiment_social_volume_score"]
+    santiment_whale_component = santiment["santiment_whale_activity_score"]
+    santiment_sentiment_component = (
+        (santiment["santiment_sentiment_score"] + 1.0) / 2.0
+        if isinstance(santiment["santiment_sentiment_score"], float)
+        else None
+    )
+    santiment_onchain_component = santiment["santiment_onchain_activity_score"]
+    santiment_supply_component = santiment["santiment_supply_on_exchanges_score"]
+    santiment_component = _combine_weighted(
+        (
+            (santiment_social_component, 0.24),
+            (santiment_whale_component, 0.24),
+            (santiment_sentiment_component, 0.20),
+            (santiment_onchain_component, 0.14),
+            (santiment_supply_component, 0.12),
+            (santiment["santiment_dev_activity_score"], 0.10),
+        )
+    )
 
     signal_component = _combine_weighted(
         (
@@ -801,6 +951,12 @@ def build_symbol_score_payload(
                 if provider_available.get("whale_walls")
                 else None,
                 0.07,
+            ),
+            (
+                santiment_component
+                if provider_available.get("santiment")
+                else None,
+                0.12,
             ),
             (altdata_freshness_score if providers_consulted else None, 0.01),
             (provider_availability_score if providers_consulted else None, 0.01),
@@ -910,6 +1066,57 @@ def build_symbol_score_payload(
         "nearest_ask_wall_distance_bps": _round_score(
             whale_walls["nearest_ask_wall_distance_bps"]
         ),
+        "santiment_social_volume_score": _round_score(
+            santiment["santiment_social_volume_score"]
+        ),
+        "santiment_whale_activity_score": _round_score(
+            santiment["santiment_whale_activity_score"]
+        ),
+        "santiment_sentiment_score": _round_score(
+            santiment["santiment_sentiment_score"]
+        ),
+        "santiment_onchain_activity_score": _round_score(
+            santiment["santiment_onchain_activity_score"]
+        ),
+        "santiment_dev_activity_score": _round_score(
+            santiment["santiment_dev_activity_score"]
+        ),
+        "santiment_exchange_inflow_risk_score": _round_score(
+            santiment["santiment_exchange_inflow_risk_score"]
+        ),
+        "santiment_supply_on_exchanges_score": _round_score(
+            santiment["santiment_supply_on_exchanges_score"]
+        ),
+        "santiment_social_volume_total": _round_score(
+            santiment["santiment_social_volume_total"]
+        ),
+        "santiment_sentiment_positive_total": _round_score(
+            santiment["santiment_sentiment_positive_total"]
+        ),
+        "santiment_sentiment_negative_total": _round_score(
+            santiment["santiment_sentiment_negative_total"]
+        ),
+        "santiment_whale_transaction_count_1m": _round_score(
+            santiment["santiment_whale_transaction_count_1m"]
+        ),
+        "santiment_whale_transaction_count_100k_usd_to_inf": _round_score(
+            santiment["santiment_whale_transaction_count_100k_usd_to_inf"]
+        ),
+        "santiment_exchange_inflow": _round_score(
+            santiment["santiment_exchange_inflow"]
+        ),
+        "santiment_percent_of_total_supply_on_exchanges": _round_score(
+            santiment["santiment_percent_of_total_supply_on_exchanges"]
+        ),
+        "santiment_active_addresses_24h": _round_score(
+            santiment["santiment_active_addresses_24h"]
+        ),
+        "santiment_transaction_volume": _round_score(
+            santiment["santiment_transaction_volume"]
+        ),
+        "santiment_dev_activity": _round_score(
+            santiment["santiment_dev_activity"]
+        ),
         "altdata_freshness_score": _round_score(altdata_freshness_score),
         "provider_availability_score": _round_score(provider_availability_score),
         "provider_available": provider_available,
@@ -922,6 +1129,7 @@ def build_symbol_score_payload(
             **({"public_intel": public_intel_status} if isinstance(public_intel_payload, Mapping) else {}),
             **({"aicoin": aicoin_status} if isinstance(aicoin_payload, Mapping) else {}),
             **({"whale_walls": whale_walls_status} if isinstance(whale_walls_payload, Mapping) else {}),
+            **({"santiment": santiment_status} if isinstance(santiment_payload, Mapping) else {}),
         },
         "provider_age_seconds": {
             "nansen": nansen_age,
@@ -932,6 +1140,7 @@ def build_symbol_score_payload(
             **({"public_intel": public_intel_age} if isinstance(public_intel_payload, Mapping) else {}),
             **({"aicoin": aicoin_age} if isinstance(aicoin_payload, Mapping) else {}),
             **({"whale_walls": whale_walls_age} if isinstance(whale_walls_payload, Mapping) else {}),
+            **({"santiment": santiment_age} if isinstance(santiment_payload, Mapping) else {}),
         },
         "providers_consulted": providers_consulted,
         "missing_signal": bool(missing_flags),
@@ -967,6 +1176,7 @@ def build_symbol_score_payload(
             "public_intel": isinstance(public_intel_payload, Mapping),
             "aicoin": isinstance(aicoin_payload, Mapping),
             "whale_walls": isinstance(whale_walls_payload, Mapping),
+            "santiment": isinstance(santiment_payload, Mapping),
             "market": bool(market_payloads),
             "features": bool(feature_payloads),
         },

@@ -38,6 +38,12 @@ def main(argv: list[str] | None = None) -> int:
                 "under_confident_candidate_count": dashboard.get("summary", {}).get(
                     "under_confident_candidate_count"
                 ),
+                "actionable_after_loss_adjustment_candidate_count": dashboard.get("summary", {}).get(
+                    "actionable_after_loss_adjustment_candidate_count"
+                ),
+                "loss_quarantine_filtered_under_confident_candidate_count": dashboard.get("summary", {}).get(
+                    "loss_quarantine_filtered_under_confident_candidate_count"
+                ),
                 "paper_threshold_auto_applied": dashboard.get("summary", {}).get(
                     "paper_threshold_auto_applied"
                 ),
@@ -55,4 +61,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

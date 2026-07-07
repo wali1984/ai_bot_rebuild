@@ -40,6 +40,10 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.config import (
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
     TrainingExample,
     V2HybridTrainerDataLoader,
+    _classification_from_lineage,
+    _lineage_trust_fields,
+    _snapshot_decision_time_lineage,
+    trainer_feedback_quarantine_rejection_reasons,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.model import (
     V2HybridPolicyModel,
@@ -603,21 +607,13 @@ def _trusted_replay_holdout_examples(
         if tensor.data_coverage_percent < 20.0:
             rejected["data_coverage_below_20"] = rejected.get("data_coverage_below_20", 0) + 1
             continue
-        classification = (
-            "STALE_MASKED"
-            if tensor.stale_feature_names
-            else "MISSING_MASKED"
-            if tensor.missing_feature_names
-            else "TRAINABLE"
-        )
+        snapshot_lineage = _snapshot_decision_time_lineage(snapshot)
+        classification = _classification_from_lineage(tensor=tensor, lineage=snapshot_lineage)
         trust_row = dict(replay_row)
+        trust_row.update(_lineage_trust_fields(tensor=tensor, lineage=snapshot_lineage))
         trust_row.update(
             {
                 "row_classification": classification,
-                "missing_feature_names": list(tensor.missing_feature_names),
-                "missing_feature_count": len(tensor.missing_feature_names),
-                "stale_feature_names": list(tensor.stale_feature_names),
-                "stale_feature_count": len(tensor.stale_feature_names),
                 "feature_vector_hash": tensor.tensor_id,
                 "reject_reasons": list(reasons),
                 "out_of_sample_holdout": True,
@@ -1792,6 +1788,9 @@ def _blocked_feedback_training_metrics(*, reason: str, trusted_rows: int = 0) ->
 
 
 def _snapshot_backed_feedback_rejection_reason(client: Any, row: Mapping[str, Any]) -> str | None:
+    quarantine_reasons = trainer_feedback_quarantine_rejection_reasons(row)
+    if quarantine_reasons:
+        return quarantine_reasons[0]
     if row.get("trainer_consumable") is not True:
         return "not_marked_trainer_consumable"
     required_fields = (

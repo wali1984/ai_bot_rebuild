@@ -752,6 +752,30 @@ def test_current_feedback_metrics_accept_embedded_trust_snapshot_when_archive_mi
     assert metrics["metrics"]["rows_rejected_by_reason"] == {}
 
 
+def test_current_feedback_metrics_reject_invalid_paper_admission_quarantine(monkeypatch) -> None:
+    row = _trusted_feedback_row(
+        feature_snapshot_id="feat-1",
+        embedded_snapshot=_feature_snapshot("feat-1"),
+    )
+    row["trainer_consumable"] = False
+    row["quarantine_reason"] = "P0_ENTRY_GATE_BLOCKED_NOT_EXPLORATION_RELAXABLE"
+    row["quarantine_reasons"] = ["P0_ENTRY_GATE_BLOCKED_NOT_EXPLORATION_RELAXABLE"]
+
+    monkeypatch.setattr(
+        runtime_module,
+        "connect_redis",
+        lambda: _FakeRedis({"v2:trainer:feedback:outcomes": [row]}),
+    )
+
+    metrics = runtime_module.latest_training_metrics_from_current_feedback(fail_closed=True)
+
+    assert metrics is not None
+    assert metrics["metrics"]["trusted_rows_loaded"] == 0
+    assert metrics["metrics"]["rows_rejected_by_reason"] == {
+        "P0_ENTRY_GATE_BLOCKED_NOT_EXPLORATION_RELAXABLE": 1
+    }
+
+
 def test_current_feedback_metrics_reject_mismatched_embedded_trust_snapshot(monkeypatch) -> None:
     monkeypatch.setattr(
         runtime_module,

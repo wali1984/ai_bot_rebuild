@@ -50,12 +50,91 @@ def _source_hashes(feature_snapshot_id: str = "feat_1") -> dict[str, str]:
     }
 
 
+def _premium_feature_values() -> dict[str, float]:
+    return {
+        "orderbook_depth_usd": 250000.0,
+        "bid_depth_usd": 130000.0,
+        "ask_depth_usd": 120000.0,
+        "depth_imbalance": 0.04,
+        "bid_ask_spread_bps": 1.2,
+        "micro_price": 100.2,
+        "funding_rate": 0.0001,
+        "expected_funding_bps": 1.0,
+        "long_short_ratio": 1.2,
+        "oi_change_pct": 0.01,
+        "nearest_liquidation_level_above": 103.0,
+        "nearest_liquidation_level_below": 97.0,
+        "liquidation_sweep_target_short_distance_bps": 76.0,
+        "liquidation_sweep_target_long_distance_bps": 115.0,
+        "liquidation_pressure_direction": -0.22,
+        "liquidation_levels_count_long": 4.0,
+        "liquidation_levels_count_short": 3.0,
+        "public_intel_score": 0.1,
+        "news_sentiment_score": 0.05,
+    }
+
+
+def _premium_contexts() -> dict[str, dict[str, object]]:
+    return {
+        "liquidity_context": {
+            "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+            "orderbook_depth_usd": 250000.0,
+            "bid_depth_usd": 130000.0,
+            "ask_depth_usd": 120000.0,
+            "depth_imbalance": 0.04,
+        },
+        "liquidity_zone_context": {
+            "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+            "orderbook_depth_usd": 250000.0,
+            "nearest_bid_wall_distance_bps": 42.0,
+            "nearest_ask_wall_distance_bps": 58.0,
+        },
+        "liquidation_distance_context": {
+            "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+            "nearest_liquidation_level_above": 103.0,
+            "nearest_liquidation_level_below": 97.0,
+            "liquidation_sweep_target_short_distance_bps": 76.0,
+            "liquidation_sweep_target_long_distance_bps": 115.0,
+            "liquidation_pressure_direction": -0.22,
+        },
+        "liquidation_context": {
+            "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+            "nearest_liquidation_level_above": 103.0,
+            "nearest_liquidation_level_below": 97.0,
+            "liquidation_sweep_target_short_distance_bps": 76.0,
+            "liquidation_sweep_target_long_distance_bps": 115.0,
+            "liquidation_pressure_direction": -0.22,
+        },
+        "microstructure_context": {
+            "source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:unit",
+            "bid_ask_spread_bps": 1.2,
+            "orderbook_depth_usd": 250000.0,
+            "depth_imbalance": 0.04,
+            "micro_price": 100.2,
+        },
+        "oi_funding_context": {
+            "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+            "funding_rate": 0.0001,
+            "expected_funding_bps": 1.0,
+            "long_short_ratio": 1.2,
+            "oi_change_pct": 0.01,
+        },
+        "public_intel_context": {
+            "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+            "public_intel_score": 0.1,
+            "news_sentiment_score": 0.05,
+        },
+    }
+
+
 def _feature_snapshot(
     feature_snapshot_id: str = "feat_1",
     *,
     symbol: str = "BTCUSDT",
     timeframe: str = "1m",
 ) -> dict[str, object]:
+    features = {name: 1.0 for name, _source in FEATURE_SPEC}
+    features.update(_premium_feature_values())
     return {
         "feature_snapshot_id": feature_snapshot_id,
         "symbol": symbol,
@@ -64,10 +143,16 @@ def _feature_snapshot(
         "generated_at": AVAILABLE_AT,
         "feature_cutoff": FEATURE_CUTOFF,
         "source_available_time": AVAILABLE_AT,
+        "candle_open_time": "2026-06-21T09:59:00Z",
+        "candle_close_time": FEATURE_CUTOFF,
         "candle_closed_confirmed": True,
         "latest_unclosed_kline_excluded": True,
         "source_hashes": _source_hashes(feature_snapshot_id),
-        "features": {name: 1.0 for name, _source in FEATURE_SPEC},
+        "categories_present": ["microstructure", "funding_oi_liquidation", "premium_ingestors"],
+        "external_v2_sources_present": ["v2:unified_features", "v2:liquidation_levels_engine"],
+        "missing_feature_flags": [],
+        "stale_feature_flags": [],
+        "features": features,
     }
 
 
@@ -125,7 +210,7 @@ def _audit_fields() -> dict[str, object]:
         "intra_trade_high_price": 102.0,
         "intra_trade_low_price": 99.5,
         "trailing_stop_history": [],
-        "microstructure_context": {"source": "unit", "bid_ask_spread_bps": 1.2},
+        **_premium_contexts(),
     }
 
 
@@ -162,11 +247,7 @@ def _close_and_outcome(*, action: str = "long", symbol: str = "BTCUSDT") -> tupl
         "market_regime": "TREND",
         "market_regime_at_entry": "TREND",
         "market_regime_at_exit": "TREND",
-        "liquidity_zone_context": {"source": "unit"},
-        "liquidity_context": {"source": "unit"},
-        "liquidation_distance_context": {"source": "unit"},
-        "oi_funding_context": {"source": "unit"},
-        "public_intel_context": {"source": "unit"},
+        **_premium_contexts(),
         "future_window_label_source": "closed_trade_outcome",
         "drawdown_at_entry": 0.0,
         **_audit_fields(),
@@ -623,6 +704,10 @@ def test_snapshot_backed_feedback_uses_entry_feature_snapshot() -> None:
     )[0]
     assert row["trainer_consumable"] is True
     snapshot = _feature_snapshot()
+    features = dict(snapshot["features"])
+    features.pop("best_bid_size")
+    features.pop("estimated_price_impact_bps")
+    snapshot["features"] = features
     loader = V2HybridTrainerDataLoader(
         io=V2OnlyJsonIO(
             client=_FakeRedis(
@@ -642,7 +727,55 @@ def test_snapshot_backed_feedback_uses_entry_feature_snapshot() -> None:
     assert trust_row["snapshot_backed_closed_trade_feedback"] is True
     assert trust_row["realized_reward_source"] == "realized_net_pnl_bps_after_cost"
     assert trust_row["uses_expected_move_as_realized_reward"] is False
+    assert trust_row["candle_closed_confirmed"] is True
+    assert trust_row["candle_close_time"] == FEATURE_CUTOFF
+    # Decision-time lineage is canonical: the snapshot's explicit
+    # missing_feature_flags say nothing was missing, so the two dropped
+    # features are tensor-reconstruction gaps, preserved separately.
+    assert trust_row["missing_feature_names"] == []
+    assert trust_row["missing_feature_lineage_source"] == "feature_snapshot_decision_time_flags"
+    assert {"best_bid_size", "estimated_price_impact_bps"}.issubset(
+        set(trust_row["tensor_unreconstructed_feature_names"])
+    )
+    assert trust_row["tensor_missing_mask_preserved"] is True
     assert examples[0].tensor.feature_snapshot_id == "feat_1"
+    model = V2HybridPolicyModel(input_dim=len(examples[0].tensor.model_vector))
+    accepted, summary = V2HybridPPOTrainer(model=model)._filter_trusted_training_rows(examples)  # noqa: SLF001
+    assert accepted == examples
+    assert summary["training_trusted_rows"] == 1
+
+
+def test_snapshot_with_explicit_missing_critical_source_still_blocks_training() -> None:
+    close_event, outcome_label = _close_and_outcome(action="short")
+    prediction = _trust_prediction(selected_action="short")
+    row = paper_loop._build_trainer_feedback_rows(  # noqa: SLF001
+        close_events=[close_event],
+        outcome_labels=[outcome_label],
+        predictions_by_id={"pred_1": prediction},
+    )[0]
+    snapshot = _feature_snapshot()
+    snapshot["missing_feature_flags"] = ["ohlcv_window", "orderbook"]
+    snapshot["missing_feature_count"] = 2
+    loader = V2HybridTrainerDataLoader(
+        io=V2OnlyJsonIO(
+            client=_FakeRedis(
+                {
+                    "v2:trainer:feedback:outcomes": [row],
+                    "v2:features:snapshot:feat_1": snapshot,
+                }
+            )
+        )
+    )
+
+    trusted_examples = loader.load_training_examples(symbols=[], timeframes=[], limit=4, trusted_only=True)
+    assert trusted_examples == [] or all(
+        (example.trust_row or {}).get("trainer_consumable") is not True for example in trusted_examples
+    )
+    if trusted_examples:
+        model = V2HybridPolicyModel(input_dim=len(trusted_examples[0].tensor.model_vector))
+        accepted, summary = V2HybridPPOTrainer(model=model)._filter_trusted_training_rows(trusted_examples)  # noqa: SLF001
+        assert accepted == []
+        assert summary["training_trusted_rows"] == 0
 
 
 def test_embedded_entry_feature_snapshot_trains_when_archive_snapshot_missing() -> None:
@@ -769,3 +902,35 @@ def test_checkpoint_reload_reproduces_predictions(tmp_path: Path) -> None:
     assert load_status["model_state_restored"] is True
     assert actual.action_probabilities == pytest.approx(expected.action_probabilities)
     assert actual.expected_move_bps == pytest.approx(expected.expected_move_bps)
+
+
+def test_metadata_only_checkpoint_does_not_block_latest_weight_blob(tmp_path: Path) -> None:
+    model, result = _train_one()
+    vector = list(_training_example().tensor.model_vector)
+    expected = model.forward(vector)
+    manager = V2HybridCheckpointManager(tmp_path / ".local_models/v2_native_rl_masa_ppo")
+    valid_manifest = manager.write_checkpoint(
+        model=model,
+        input_dim=model.input_dim,
+        device=result.device,
+        cuda_active=result.cuda_active,
+        write_weight_blob=True,
+    )
+    metadata_only = manager.write_manifest(
+        model_id="metadata_only_newer_v2_model_123456789012345678901234",
+        input_dim=model.input_dim,
+        device=result.device,
+        cuda_active=result.cuda_active,
+        weight_blob_written=False,
+    )
+
+    restored = V2HybridPolicyModel(input_dim=model.input_dim, seed=7)
+    load_status = manager.load_latest_weights(restored)
+    actual = restored.forward(vector)
+
+    assert metadata_only.checkpoint_id != valid_manifest.checkpoint_id
+    assert load_status["checkpoint_id"] == valid_manifest.checkpoint_id
+    assert load_status["latest_metadata_checkpoint_id"] == metadata_only.checkpoint_id
+    assert load_status["metadata_only_manifest_ignored_for_weight_load"] is True
+    assert load_status["model_state_restored"] is True
+    assert actual.action_probabilities == pytest.approx(expected.action_probabilities)

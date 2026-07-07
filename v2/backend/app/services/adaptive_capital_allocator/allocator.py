@@ -405,6 +405,39 @@ def _result(
     expected_net_pnl_usd = gross_notional * sizing_row.expected_move_after_cost_bps / 10000.0
     expected_shortfall_usd = risk_budget_usd * max(0.0, envelope.tail_loss_multiplier)
     hedge_budget_usd = risk_budget_usd * hedge_budget_pct
+    modeled_stop_loss_usd = (
+        None
+        if stop_distance_bps is None
+        else gross_notional * max(0.0, stop_distance_bps) / 10000.0
+    )
+    max_loss_if_stop_hit = (
+        None
+        if modeled_stop_loss_usd is None
+        else modeled_stop_loss_usd + expected_fees_usd + expected_slippage_usd + expected_funding_usd
+    )
+    risk_reward = (
+        None
+        if max_loss_if_stop_hit is None or max_loss_if_stop_hit <= 0.0
+        else expected_net_pnl_usd / max_loss_if_stop_hit
+    )
+    portfolio_exposure_after_trade = max(0.0, row.total_exposure_usdt) + gross_notional
+    correlation_exposure_after_trade = _clamp(
+        max(0.0, row.correlation_exposure_pct)
+        + (0.0 if row.equity <= 0.0 else gross_notional / row.equity),
+        0.0,
+        1.0,
+    )
+    risk_of_ruin_contribution = _clamp(
+        0.0
+        if row.equity <= 0.0 or max_loss_if_stop_hit is None
+        else (
+            (max_loss_if_stop_hit / row.equity)
+            * (1.0 + max(0.0, row.drawdown_bps) / max(1.0, envelope.max_daily_drawdown_pct * 10000.0))
+            * (1.0 + max(0.0, row.correlation_exposure_pct) / max(1e-9, envelope.max_correlation_exposure_pct))
+        ),
+        0.0,
+        1.0,
+    )
     return AllocationResult(
         adaptive_capital_policy_version=ADAPTIVE_CAPITAL_POLICY_VERSION,
         allocation_id=_allocation_id(row, mode),
@@ -423,6 +456,11 @@ def _result(
         stop_distance_bps=None if stop_distance_bps is None else round(max(0.0, stop_distance_bps), 8),
         liquidation_price_estimate=None if liquidation_price is None else round(max(0.0, liquidation_price), 12),
         liquidation_buffer_bps=None if liquidation_buffer_bps is None else round(liquidation_buffer_bps, 8),
+        max_loss_if_stop_hit=None if max_loss_if_stop_hit is None else round(max_loss_if_stop_hit, 8),
+        risk_reward=None if risk_reward is None else round(risk_reward, 8),
+        risk_of_ruin_contribution=round(risk_of_ruin_contribution, 8),
+        portfolio_exposure_after_trade=round(portfolio_exposure_after_trade, 8),
+        correlation_exposure_after_trade=round(correlation_exposure_after_trade, 8),
         expected_fees_usd=round(expected_fees_usd, 8),
         expected_slippage_usd=round(expected_slippage_usd, 8),
         expected_funding_usd=round(expected_funding_usd, 8),

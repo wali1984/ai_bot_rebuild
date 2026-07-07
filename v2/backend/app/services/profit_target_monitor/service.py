@@ -1589,7 +1589,8 @@ def build_adaptive_leverage_margin_selection_status(
     if not exchange_filter_evidence_present:
         optional_missing.append("exchange_filter_evidence")
 
-    recommended_leverage = 1.0
+    minimum_paper_leverage = 1.0
+    recommended_leverage = minimum_paper_leverage
     reasons: list[str] = []
     risk_veto_reason = None
     if not live_executable:
@@ -1629,13 +1630,13 @@ def build_adaptive_leverage_margin_selection_status(
             reasons.append("evidence supports paper activity but not leverage above 1x")
 
     if volatility_bps is not None and volatility_bps >= 150:
-        recommended_leverage = min(recommended_leverage, 1.0)
+        recommended_leverage = min(recommended_leverage, minimum_paper_leverage)
         reasons.append("high volatility caps paper leverage recommendation")
     if spread_bps is not None and spread_bps >= 15:
-        recommended_leverage = min(recommended_leverage, 1.0)
+        recommended_leverage = min(recommended_leverage, minimum_paper_leverage)
         reasons.append("wide spread caps paper leverage recommendation")
     if liquidity_score is not None and liquidity_score < 0.35:
-        recommended_leverage = min(recommended_leverage, 1.0)
+        recommended_leverage = min(recommended_leverage, minimum_paper_leverage)
         reasons.append("weak liquidity caps paper leverage recommendation")
 
     live_action_status = (

@@ -34,8 +34,9 @@ def _prediction(
     expected_after: float,
     confidence: float,
     paper_fill_allowed: bool,
+    premium_context: bool = False,
 ) -> dict[str, object]:
-    return {
+    prediction: dict[str, object] = {
         "prediction_id": prediction_id,
         "generated_est": ANCHOR,
         "symbol": symbol,
@@ -57,6 +58,42 @@ def _prediction(
         "live_gate": LIVE_GATE_BLOCKED,
         "live_symbols": [],
     }
+    if premium_context:
+        prediction.update(
+            {
+                "feature_cutoff": "2026-06-04T11:59:59-04:00",
+                "available_at": "2026-06-04T11:59:59-04:00",
+                "decision_time": ANCHOR,
+                "entry_feature_snapshot_id": f"fs_{prediction_id}",
+                "liquidation_engine_context_status": "LIQUIDATION_ENGINE_CONTEXT_READY",
+                "premium_ingestor_context_status": "PREMIUM_CONTEXT_READY",
+                "liquidity_context": {
+                    "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+                    "depth_imbalance": 0.33,
+                    "orderbook_depth_usd": 1_900_000.0,
+                },
+                "liquidation_context": {
+                    "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+                    "liquidation_short_strength": 5.0,
+                    "liquidation_long_strength": 1.0,
+                },
+                "microstructure_context": {
+                    "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+                    "orderbook_imbalance": 0.33,
+                    "spread_bps": 1.2,
+                },
+                "oi_funding_context": {
+                    "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+                    "funding_bps": 0.3,
+                    "oi_change_pct": 1.6,
+                },
+                "public_intel_context": {
+                    "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+                    "public_intel_score": 0.62,
+                },
+            }
+        )
+    return prediction
 
 
 def _lineage(prediction_id: str, *, symbol: str, allowed: bool) -> dict[str, object]:
@@ -106,7 +143,15 @@ def _source_payload() -> dict[str, object]:
     predictions = [
         _prediction("p1", symbol="BTCUSDT", action="long", expected_after=20.0, confidence=0.82, paper_fill_allowed=True),
         _prediction("p2", symbol="ETHUSDT", action="short", expected_after=-20.0, confidence=0.76, paper_fill_allowed=True),
-        _prediction("p3", symbol="SOLUSDT", action="hold", expected_after=18.0, confidence=0.48, paper_fill_allowed=False),
+        _prediction(
+            "p3",
+            symbol="SOLUSDT",
+            action="hold",
+            expected_after=18.0,
+            confidence=0.48,
+            paper_fill_allowed=False,
+            premium_context=True,
+        ),
     ]
     return {
         "go_no_go": TRAINER_CORE_PAPER_SHADOW_GO_NO_GO,
@@ -179,6 +224,12 @@ def test_cuda_edge_burn_in_mines_outcomes_and_blocks_live(tmp_path: Path) -> Non
     assert outcome["classification_counts"]["correct_trade"] == 1
     assert outcome["classification_counts"]["false_positive"] == 1
     assert outcome["classification_counts"]["false_negative"] == 1
+    sol_row = next(row for row in outcome["rows"] if row["symbol"] == "SOLUSDT")
+    assert sol_row["entry_feature_snapshot_id"] == "fs_p3"
+    assert sol_row["feature_cutoff"] == "2026-06-04T11:59:59-04:00"
+    assert sol_row["liquidation_engine_context_status"] == "LIQUIDATION_ENGINE_CONTEXT_READY"
+    assert sol_row["liquidation_context"]["liquidation_short_strength"] == 5.0
+    assert sol_row["microstructure_context"]["orderbook_imbalance"] == 0.33
     assert edge["edge_proven"] is False
     assert edge["primary_recommendation"] == "BLOCK_LIVE_PAPER_EDGE_NOT_PROVEN"
     assert edge["false_positive_count"] == 1

@@ -205,6 +205,53 @@ def _audit_quality_fields() -> dict:
     }
 
 
+def _premium_ingestor_context_fields() -> dict:
+    liquidity = {
+        "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+        "orderbook_depth_usd": 100000.0,
+        "bid_depth_usd": 125000.0,
+        "ask_depth_usd": 100000.0,
+        "depth_imbalance": 0.11,
+        "nearest_bid_wall_distance_bps": 44.0,
+        "nearest_ask_wall_distance_bps": 61.0,
+    }
+    liquidation = {
+        "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+        "nearest_liquidation_level_above": 103.0,
+        "nearest_liquidation_level_below": 97.0,
+        "liquidation_sweep_target_short_distance_bps": 77.0,
+        "liquidation_sweep_target_long_distance_bps": 118.0,
+        "liquidation_pressure_direction": -0.2,
+        "liquidation_levels_count_long": 4.0,
+        "liquidation_levels_count_short": 3.0,
+    }
+    return {
+        "liquidity_zone_context": liquidity,
+        "liquidity_context": liquidity,
+        "liquidation_distance_context": liquidation,
+        "liquidation_context": liquidation,
+        "microstructure_context": {
+            "source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:test",
+            "bid_ask_spread_bps": 1.4,
+            "orderbook_depth_usd": 100000.0,
+            "depth_imbalance": 0.11,
+            "micro_price": 100.01,
+        },
+        "oi_funding_context": {
+            "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+            "funding_rate": 0.0001,
+            "expected_funding_bps": 1.0,
+            "long_short_ratio": 1.2,
+            "oi_change_pct": 0.01,
+        },
+        "public_intel_context": {
+            "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+            "public_intel_score": 0.1,
+            "news_sentiment_score": 0.05,
+        },
+    }
+
+
 def _entry_feature_snapshot(fill_id: str) -> dict:
     return {
         "feature_snapshot_id": f"feat_{fill_id}",
@@ -248,13 +295,28 @@ def test_active_runtime_exit_config_suppresses_static_stop_loss() -> None:
 
     result = evaluate_exit(
         position=position,
-        mark_price=98.0,
+        # -20bps: static 80bps stop suppressed; above the 35bps missing-ATR
+        # floor fallback added by the A+ goal (Phase 8).
+        mark_price=99.8,
         generated_utc="2026-06-11T10:30:00Z",
         config=_active_runtime_dynamic_exit_config(stop_loss_bps=80.0),
     )
 
     assert result["should_close"] is False
     assert result["close_reason"] is None
+
+    # LITUSDT regression (A+ goal Phase 8): with static stops suppressed and no
+    # ATR, the missing-ATR floor fallback still closes real losses instead of
+    # leaving the position stopless.
+    deep = evaluate_exit(
+        position=_position("static_stop_disabled_deep"),
+        mark_price=98.0,  # -200bps
+        generated_utc="2026-06-11T10:30:00Z",
+        config=_active_runtime_dynamic_exit_config(stop_loss_bps=80.0),
+    )
+    assert deep["should_close"] is True
+    assert deep["close_reason"] == "TIER_1_ATR_VOLATILITY_STOP"
+    assert deep["atr_missing_floor_fallback"] is True
 
 
 def test_active_runtime_exit_config_suppresses_static_take_profit_and_max_hold() -> None:
@@ -560,12 +622,7 @@ def test_closed_trade_generates_consumable_trainer_feedback() -> None:
             "strategy_subtype": "trend_following",
             "strategy_selected_mode": "trend_following",
             "market_regime_at_entry": "TREND",
-            "liquidity_zone_context": {"source": "test_liquidity"},
-            "liquidity_context": {"source": "test_liquidity"},
-            "liquidation_distance_context": {"source": "test_liquidations"},
-            "microstructure_context": {"source": "test_microstructure"},
-            "oi_funding_context": {"source": "test_oi_funding"},
-            "public_intel_context": {"source": "test_public_intel"},
+            **_premium_ingestor_context_fields(),
             **_audit_quality_fields(),
         }
     )
@@ -645,12 +702,7 @@ def test_major_move_fields_reach_trainer_feedback() -> None:
             "strategy_selected_mode": "correlated_major_squeeze",
             "entry_reason": "paper_only_major_move_candidate",
             "market_regime_at_entry": "correlated_breakout_squeeze",
-            "liquidity_zone_context": {"source": "test"},
-            "liquidity_context": {"source": "test"},
-            "liquidation_distance_context": {"source": "test"},
-            "microstructure_context": {"source": "test"},
-            "oi_funding_context": {"source": "test"},
-            "public_intel_context": {"source": "test"},
+            **_premium_ingestor_context_fields(),
             "major_move_signal_id": "major_move_abc",
             "squeeze_evidence_score": 0.74,
             "future_window_label_source": "closed_candle_replay_label",
@@ -1949,7 +2001,9 @@ def test_closed_trade_carries_accounting_and_path_telemetry() -> None:
     adverse = reconcile_paper_lifecycle(
         existing_ledger=opened,
         accepted_fills=[fill],
-        mark_prices={"BTCUSDT": 98.0},
+        # -100bps adverse move: below stops under test, above the 150bps
+        # catastrophic floor added by the A+ goal (Phase 8).
+        mark_prices={"BTCUSDT": 99.0},
         generated_utc="2026-06-11T10:05:00Z",
         config=cfg,
     )
@@ -1997,9 +2051,9 @@ def test_closed_trade_carries_accounting_and_path_telemetry() -> None:
     assert row["entry_feature_source"] == "v2:features:latest:BTCUSDT:1m"
     assert row["entry_feature_candle_closed_confirmed"] is True
     assert row["mfe_bps"] == 500.0
-    assert row["mae_bps"] == 200.0
+    assert row["mae_bps"] == 100.0
     assert row["intra_trade_high_price"] == 105.0
-    assert row["intra_trade_low_price"] == 98.0
+    assert row["intra_trade_low_price"] == 99.0
     assert row["trailing_activation_price"] == pytest.approx(100.42)
     assert row["paper_exit_policy_version"] == PAPER_EXIT_POLICY_VERSION
     assert row["trailing_after_cost_floor_enabled"] is True
@@ -2405,12 +2459,7 @@ def test_trainer_feedback_loader_requires_enriched_outcome_label() -> None:
                     "market_regime": "TREND",
                     "market_regime_at_entry": "TREND",
                     "market_regime_at_exit": "TREND",
-                    "liquidity_zone_context": {"source": "test"},
-                    "liquidity_context": {"source": "test"},
-                    "liquidation_distance_context": {"source": "test"},
-                    "microstructure_context": {"source": "test"},
-                    "oi_funding_context": {"source": "test"},
-                    "public_intel_context": {"source": "test"},
+                    **_premium_ingestor_context_fields(),
                     "major_move_context": {"source": "test", "status": "not_major_move_trade"},
                     "future_window_label_source": "closed_trade_outcome",
                     "drawdown_at_entry": 0.0,

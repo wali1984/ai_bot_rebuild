@@ -70,7 +70,17 @@ final class AIBotV2CoreTests: XCTestCase {
                                   closed_at: nil, close_reason: nil,
                                   status: "open",
                                   signal_id: "sig-1", prediction_id: "pred-1",
-                                  decision_reasoning: nil)
+                                  decision_reasoning: nil,
+                                  account_scope: "PAPER_SIM_ACCOUNT",
+                                  source_type: "unit_test",
+                                  paper_or_live: "paper",
+                                  contains_simulated_positions: true,
+                                  contains_live_positions: false,
+                                  contains_quarantined_positions: false,
+                                  equity_trusted: true,
+                                  pnl_trusted: true,
+                                  reason_if_untrusted: nil,
+                                  routes_to_live: false)
         XCTAssertTrue(pos.isBuy)
     }
 

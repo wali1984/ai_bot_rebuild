@@ -275,7 +275,8 @@ def _mobile_runtime_truth_from_redis(
         trajectory_status = {
             "schema_version": "one_thousand_x_trajectory_status_v1",
             "status": "ONE_THOUSAND_X_TRAJECTORY_STATUS_UNAVAILABLE",
-            "current_status": "INSUFFICIENT_EVIDENCE",
+            "current_status": "ONE_THOUSAND_X_TRAJECTORY_STATUS_UNAVAILABLE",
+            "trajectory_status": "ONE_THOUSAND_X_TRAJECTORY_STATUS_UNAVAILABLE",
             "source": f"operator_runtime/{trajectory_rel}",
             "available": False,
             "guaranteed_profit_claim": False,
@@ -387,6 +388,13 @@ def _mobile_runtime_truth_from_redis(
                 "generated_utc",
                 "status",
                 "current_status",
+                "trajectory_status",
+                "blocker",
+                "trajectory_status_detail",
+                "calibration_status",
+                "target_multiple",
+                "target_horizon_days",
+                "required_daily_return_pct",
                 "required_daily_geometric_return",
                 "required_monthly_geometric_return",
                 "actual_1d_return",
@@ -395,6 +403,14 @@ def _mobile_runtime_truth_from_redis(
                 "drawdown_adjusted_growth_rate",
                 "lower_confidence_bound_growth_rate",
                 "days_ahead_or_behind_target",
+                "projection_days",
+                "A_plus_rows",
+                "B_grade_rows",
+                "current_A_plus_daily_return_pct",
+                "current_B_grade_daily_return_pct",
+                "current_actual_daily_return_pct",
+                "B_grade_counts_as_1000x_proof",
+                "required_operator_text",
                 "required_edge",
                 "required_capital",
                 "guaranteed_profit_claim",
@@ -573,6 +589,131 @@ def _live_gate_status() -> dict[str, Any]:
 
 # ── Compact model helpers ─────────────────────────────────────────────────────
 
+def _row_has_quarantine(row: dict[str, Any]) -> bool:
+    account_scope = str(row.get("account_scope") or "").upper()
+    if account_scope == "QUARANTINED_INVALID_ACCOUNT":
+        return True
+    if row.get("contains_quarantined_positions") is True:
+        return True
+    if row.get("quarantine_reasons") not in (None, "", [], {}):
+        return True
+    reason = str(row.get("reason_if_untrusted") or row.get("quarantine_reason") or "").upper()
+    return bool(reason and reason != "NONE")
+
+
+def _paper_account_truth_fields(
+    *,
+    source_type: str,
+    contains_quarantined_positions: bool = False,
+    reason_if_untrusted: str | None = None,
+) -> dict[str, Any]:
+    trusted = not contains_quarantined_positions and not reason_if_untrusted
+    return {
+        "account_scope": "PAPER_SIM_ACCOUNT" if trusted else "QUARANTINED_INVALID_ACCOUNT",
+        "source_type": source_type,
+        "paper_or_live": "paper",
+        "contains_simulated_positions": True,
+        "contains_live_positions": False,
+        "contains_quarantined_positions": contains_quarantined_positions,
+        "equity_trusted": trusted,
+        "pnl_trusted": trusted,
+        "reason_if_untrusted": reason_if_untrusted
+        or ("INVALID_OR_QUARANTINED_PAPER_ROWS_PRESENT" if contains_quarantined_positions else None),
+        "routes_to_live": False,
+    }
+
+
+def _paper_account_session_fields(
+    r: Any | None,
+    hb: dict[str, Any],
+    *,
+    source_type: str,
+) -> dict[str, Any]:
+    portfolio = (_redis_get_json(r, "v2:portfolio:state") if r else None) or {}
+    session = (_redis_get_json(r, "v2:paper:session") if r else None) or {}
+    ledger = (_redis_get_json(r, "v2:paper:ledger") if r else None) or {}
+    def _first_float(*values: Any) -> float | None:
+        for value in values:
+            parsed = _optional_float(value)
+            if parsed is not None:
+                return parsed
+        return None
+    def _first_int_or_none(*values: Any) -> int | None:
+        for value in values:
+            if value is None or value == "":
+                continue
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                continue
+        return None
+
+    initial_capital = _first_float(
+        session.get("starting_equity_usd"),
+        session.get("initial_capital"),
+        portfolio.get("starting_equity_usd"),
+        portfolio.get("initial_capital"),
+        ledger.get("starting_equity_usd"),
+        ledger.get("initial_capital"),
+    )
+    equity = _first_float(portfolio.get("equity"))
+    if equity is None:
+        equity = (
+            initial_capital
+            + (_first_float(portfolio.get("realized_pnl_usd")) or 0.0)
+            + (_first_float(portfolio.get("unrealized_pnl_usd")) or 0.0)
+            if initial_capital is not None
+            else None
+        )
+    realized_pnl = _first_float(
+        portfolio.get("realized_pnl_usd"),
+        ledger.get("realized_pnl_usd"),
+        hb.get("realized_pnl_usd"),
+    )
+    unrealized_pnl = _first_float(
+        portfolio.get("unrealized_pnl_usd"),
+        ledger.get("unrealized_pnl_usd"),
+        hb.get("unrealized_pnl_usd"),
+    )
+    paper_session_id = (
+        session.get("paper_session_id")
+        or portfolio.get("paper_session_id")
+        or ledger.get("paper_session_id")
+        or session.get("session_id")
+        or portfolio.get("session_id")
+        or ledger.get("session_id")
+        or hb.get("paper_session_id")
+        or hb.get("session_id")
+    )
+    return {
+        "paper_session_id": paper_session_id,
+        "equity": equity,
+        "paper_equity": equity,
+        "paper_balance": equity,
+        "initial_capital": initial_capital,
+        "starting_equity_usd": initial_capital,
+        "paper_initial_capital": initial_capital,
+        "realized_pnl": realized_pnl,
+        "realized_pnl_usd": realized_pnl,
+        "unrealized_pnl": unrealized_pnl,
+        "unrealized_pnl_usd": unrealized_pnl,
+        "open_position_count": _first_int_or_none(
+            portfolio.get("open_positions_count"),
+            ledger.get("open_position_count"),
+            hb.get("open_position_count"),
+            hb.get("accepted_position_count"),
+        ),
+        "closed_trade_count": _first_int_or_none(
+            portfolio.get("closed_trade_count"),
+            portfolio.get("closed_positions_count"),
+            ledger.get("closed_trade_count"),
+            hb.get("closed_trade_count"),
+        ),
+        "account_source": "redis:v2:portfolio:state+v2:paper:session+v2:paper:ledger",
+        "source_type": source_type,
+    }
+
+
 def _sanitize_decision_reasoning(raw: dict[str, Any] | None) -> dict[str, Any] | None:
     """Return decision_reasoning with all fields as mobile-safe JSON types.
 
@@ -590,6 +731,13 @@ def _sanitize_decision_reasoning(raw: dict[str, Any] | None) -> dict[str, Any] |
 
 
 def _compact_position(pos: dict[str, Any]) -> dict[str, Any]:
+    contains_quarantined = _row_has_quarantine(pos)
+    truth_fields = _paper_account_truth_fields(
+        source_type=str(pos.get("source_type") or "paper_mobile_position"),
+        contains_quarantined_positions=contains_quarantined,
+        reason_if_untrusted=str(pos.get("reason_if_untrusted") or pos.get("quarantine_reason") or "")
+        or None,
+    )
     entry_price, entry_price_source = _first_positive_price_with_source(
         pos,
         [
@@ -653,6 +801,7 @@ def _compact_position(pos: dict[str, Any]) -> dict[str, Any]:
         "signal_id": pos.get("signal_id"),
         "prediction_id": pos.get("prediction_id"),
         "decision_reasoning": _sanitize_decision_reasoning(pos.get("decision_reasoning") if isinstance(pos.get("decision_reasoning"), dict) else None),
+        **truth_fields,
     }
 
 
@@ -813,11 +962,24 @@ async def get_mobile_dashboard(
     trainer = _trainer_status_from_redis(r) if r else {}
     gpu = _gpu_status_from_redis(r) if r else {}
     live_gate = _live_gate_status()
+    account_fields = _paper_account_session_fields(
+        r,
+        hb,
+        source_type="paper_mobile_dashboard",
+    )
 
-    open_count = _safe_int(hb.get("open_position_count") or hb.get("accepted_position_count"))
-    closed_count = _safe_int(hb.get("closed_trade_count"))
-    realized_pnl = _safe_float(hb.get("realized_pnl_usd"))
-    unrealized_pnl = _safe_float(hb.get("unrealized_pnl_usd"))
+    open_count = _safe_int(
+        account_fields.get("open_position_count")
+        if account_fields.get("open_position_count") is not None
+        else hb.get("open_position_count") or hb.get("accepted_position_count")
+    )
+    closed_count = _safe_int(
+        account_fields.get("closed_trade_count")
+        if account_fields.get("closed_trade_count") is not None
+        else hb.get("closed_trade_count")
+    )
+    realized_pnl = _safe_float(account_fields.get("realized_pnl_usd"))
+    unrealized_pnl = _safe_float(account_fields.get("unrealized_pnl_usd"))
 
     alerts_preview: list[dict[str, Any]] = []
     if r:
@@ -843,6 +1005,7 @@ async def get_mobile_dashboard(
         "generated_utc": _utc_now(),
         "live_gate": live_gate,
         "paper": {
+            **account_fields,
             "open_positions": open_count,
             "closed_trades": closed_count,
             "realized_pnl_usd": realized_pnl,
@@ -913,6 +1076,14 @@ async def get_mobile_positions(
 
     positions = [_compact_position(p) for p in projected_positions]
     closed_positions = _mobile_closed_positions(r, _recent_closed_trade_rows(raw_closed_trades, 200)) if r else []
+    contains_quarantined = any(
+        p.get("contains_quarantined_positions") is True
+        for p in [*positions, *closed_positions]
+    )
+    truth_fields = _paper_account_truth_fields(
+        source_type="paper_mobile_positions",
+        contains_quarantined_positions=contains_quarantined,
+    )
     realized_pnl = _safe_float(hb.get("realized_pnl_usd"))
     unrealized_pnl = (
         _safe_float(position_pricing.get("unrealized_pnl_usd"))
@@ -934,10 +1105,12 @@ async def get_mobile_positions(
             "total_pnl_usd": total_pnl,
             "realized_pnl_usd": realized_pnl,
             "unrealized_pnl_usd": unrealized_pnl,
+            **truth_fields,
         },
         "mode": "paper",
         "live_gate": "blocked_human_only",
         "places_real_order": False,
+        **truth_fields,
     }
 
 
@@ -1103,6 +1276,29 @@ async def get_mobile_paper_summary(
     feedback_consumable = _safe_int(hb.get("trainer_feedback_consumable_row_count"))
     feedback_quarantined = _safe_int(hb.get("trainer_feedback_quarantined_row_count"))
     runtime_truth = _mobile_runtime_truth_from_redis(r, hb)
+    contains_quarantined = any(_row_has_quarantine(position) for position in positions_enriched)
+    truth_fields = _paper_account_truth_fields(
+        source_type="paper_mobile_summary",
+        contains_quarantined_positions=contains_quarantined,
+    )
+    account_fields = _paper_account_session_fields(
+        r,
+        hb,
+        source_type="paper_mobile_summary",
+    )
+    open_count = _safe_int(
+        account_fields.get("open_position_count")
+        if account_fields.get("open_position_count") is not None
+        else hb.get("open_position_count") or hb.get("accepted_position_count") or len(positions_enriched)
+    )
+    closed_count = _safe_int(
+        account_fields.get("closed_trade_count")
+        if account_fields.get("closed_trade_count") is not None
+        else hb.get("closed_trade_count")
+    )
+    realized_pnl = _safe_float(account_fields.get("realized_pnl_usd"))
+    if not positions_enriched:
+        unrealized_pnl = _safe_float(account_fields.get("unrealized_pnl_usd"))
 
     win_rate: float | None = None
     if closed_count > 0:
@@ -1115,6 +1311,8 @@ async def get_mobile_paper_summary(
         "mode": "paper",
         "places_real_order": False,
         "live_gate": "blocked_human_only",
+        **truth_fields,
+        **account_fields,
         "loop": {
             "signals_seen": signals_seen,
             "intents_built": intents_built,
@@ -1137,6 +1335,7 @@ async def get_mobile_paper_summary(
             "open_count": open_count,
             "closed_count": closed_count,
             "positions_preview": positions_enriched[:5],
+            **truth_fields,
         },
         "position_pricing": {
             "unrealized_pnl_usd": position_pricing.get("unrealized_pnl_usd"),
@@ -1151,13 +1350,76 @@ async def get_mobile_paper_summary(
             "unrealized_usd": unrealized_pnl,
             "total_usd": realized_pnl + unrealized_pnl,
             "win_rate_pct": win_rate,
+            "equity_trusted": truth_fields["equity_trusted"],
+            "pnl_trusted": truth_fields["pnl_trusted"],
+            "reason_if_untrusted": truth_fields["reason_if_untrusted"],
         },
         "trainer_feedback": {
             "outcome_labels": outcome_labels,
             "consumable_rows": feedback_consumable,
             "quarantined_rows": feedback_quarantined,
         },
+        **_mobile_a_plus_runtime_truth(r),
     }
+
+
+def _mobile_a_plus_runtime_truth(r: Any) -> dict[str, Any]:
+    """A+ goal Phase 12: session performance, freeze, A+ gate, trainer learning
+    and real-trader readiness truth for every operator surface."""
+    governor = _redis_get_json(r, "v2:paper:performance_governor_status") or {}
+    halt = _redis_get_json(r, "v2:paper:new_entry_emergency_halt_status") or {}
+    freeze = _redis_get_json(r, "v2:paper:entry_freeze") or {}
+    a_plus = _redis_get_json(r, "v2:paper:a_plus_gate:status") or {}
+    trainer = _redis_get_json(r, "v2:trainer:hybrid_cuda:status") or {}
+    rejected = a_plus.get("rejected_reason_matrix")
+    top_blockers = list((freeze.get("future_gate_blockers") or []))
+    for reason in (halt.get("halt_reasons") or []):
+        if reason not in top_blockers:
+            top_blockers.append(reason)
+    return {
+        "performance": {
+            "profit_factor": governor.get("profit_factor"),
+            "notional_weighted_expectancy_bps": governor.get("notional_weighted_expectancy_bps"),
+            "win_rate": governor.get("win_rate"),
+            "closed_outcome_count": governor.get("closed_outcome_count"),
+            "governor_state": governor.get("state"),
+        },
+        "entry_freeze": {
+            "new_entries_allowed": halt.get("new_entries_allowed"),
+            "halt_reasons": halt.get("halt_reasons"),
+            "future_gate_blockers": freeze.get("future_gate_blockers"),
+            "allow_close": halt.get("allow_close"),
+            "allow_reduce": halt.get("allow_reduce"),
+        },
+        "a_plus_gate": {
+            "evaluated_candidates": a_plus.get("evaluated_candidates"),
+            "a_plus_candidates": a_plus.get("a_plus_candidates"),
+            "rejected_reason_matrix": dict(list(rejected.items())[:8]) if isinstance(rejected, dict) else None,
+            "gate_is_hard_entry_condition": a_plus.get("gate_is_hard_entry_condition"),
+        },
+        "trainer_learning": {
+            "effective_trainer_mode": trainer.get("effective_trainer_mode"),
+            "online_learning_status": trainer.get("online_learning_status"),
+            "last_successful_weight_update_at": trainer.get("last_successful_weight_update_at"),
+            "checkpoint_id": trainer.get("checkpoint_id"),
+        },
+        "real_trader_readiness": {
+            "live_gate": "blocked_human_only",
+            "operator_flip_required": True,
+            "order_submitted": False,
+            "test_order_submitted": False,
+            "live_ready": False,
+            "one_flip_packet": "goal_state/V2_FABLE5_FULL_SYSTEM_A_PLUS_LIVE_READY_1000X_MACHINE_COMPLETION/real_trader_one_flip_readiness_packet.json",
+        },
+        "top_blockers": top_blockers[:6],
+    }
+
+
+@router.get("/summary")
+async def get_mobile_summary(
+    actor: UserRecord | None = Depends(optional_auth),
+) -> dict[str, Any]:
+    return await get_mobile_paper_summary(actor)
 
 
 # ── Push notification registration ───────────────────────────────────────────

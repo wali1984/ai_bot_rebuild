@@ -168,6 +168,36 @@ def _whale_walls(symbol: str = "BTCUSDT", score: float = 0.84) -> dict:
     }
 
 
+def _santiment(symbol: str = "BTCUSDT", score: float = 0.76) -> dict:
+    return {
+        "schema_version": "v2_altdata_santiment_symbol_signal_v1",
+        "symbol": symbol,
+        "provider": "santiment",
+        "source_status": "API_OK",
+        "santiment_social_volume_score": score,
+        "santiment_whale_activity_score": 0.61,
+        "santiment_sentiment_score": 0.4,
+        "santiment_onchain_activity_score": 0.7,
+        "santiment_dev_activity_score": 0.3,
+        "santiment_exchange_inflow_risk_score": 0.64,
+        "santiment_supply_on_exchanges_score": 0.87,
+        "santiment_social_volume_total": 1200,
+        "santiment_sentiment_positive_total": 7,
+        "santiment_sentiment_negative_total": 3,
+        "santiment_whale_transaction_count_1m": 12,
+        "santiment_whale_transaction_count_100k_usd_to_inf": 12,
+        "santiment_exchange_inflow": 2_500_000,
+        "santiment_percent_of_total_supply_on_exchanges": 13,
+        "santiment_active_addresses_24h": 900_000,
+        "santiment_transaction_volume": 42_000_000,
+        "santiment_dev_activity": 14,
+        "provider_freshness_seconds": 45,
+        "missing_feature_flags": [],
+        "stale_feature_flags": [],
+        "generated_utc": "2026-07-06T12:00:00Z",
+    }
+
+
 def test_symbol_score_combines_nansen_and_lunar_without_gate_override() -> None:
     svc = _svc()
     payload = svc.build_symbol_score_payload(
@@ -261,6 +291,25 @@ def test_whale_wall_payload_can_rank_without_nansen_or_lunar() -> None:
     assert payload["live_symbols"] == []
 
 
+def test_santiment_payload_can_rank_without_nansen_or_lunar() -> None:
+    svc = _svc()
+    payload = svc.build_symbol_score_payload(
+        "BTCUSDT",
+        santiment_payload=_santiment("BTCUSDT"),
+        generated_utc="2026-07-06T12:05:00Z",
+    )
+    assert payload["altdata_symbol_score"] is not None
+    assert payload["provider_available"]["santiment"] is True
+    assert "santiment" in payload["providers_consulted"]
+    assert payload["santiment_social_volume_score"] == 0.76
+    assert payload["santiment_sentiment_score"] == 0.4
+    assert payload["santiment_exchange_inflow_risk_score"] == 0.64
+    assert payload["santiment_supply_on_exchanges_score"] == 0.87
+    assert payload["input_presence"]["santiment"] is True
+    assert payload["live_gate"] == "blocked_human_only"
+    assert payload["live_symbols"] == []
+
+
 def test_aicoin_missing_status_is_visible_but_does_not_fabricate_signal() -> None:
     svc = _svc()
     payload = svc.build_symbol_score_payload(
@@ -344,6 +393,9 @@ def test_cli_run_once_reads_v2_inputs_and_writes_only_allowed_outputs(tmp_path: 
     fake.store["v2:altdata:public_intel:symbol:ETHUSDT"] = json.dumps(
         _public_intel("ETHUSDT")
     )
+    fake.store["v2:altdata:santiment:symbol:ETHUSDT"] = json.dumps(
+        _santiment("ETHUSDT")
+    )
     public_a = tmp_path / "public_a/status.json"
     public_b = tmp_path / "public_b/status.json"
     payload = cli.run_once(
@@ -372,6 +424,8 @@ def test_cli_run_once_reads_v2_inputs_and_writes_only_allowed_outputs(tmp_path: 
     assert payload["symbol_scores"]["ETHUSDT"]["altdata_symbol_score"] is not None
     assert "coingecko" in payload["symbol_scores"]["ETHUSDT"]["providers_consulted"]
     assert "public_intel" in payload["symbol_scores"]["ETHUSDT"]["providers_consulted"]
+    assert "santiment" in payload["symbol_scores"]["ETHUSDT"]["providers_consulted"]
+    assert payload["symbol_scores"]["ETHUSDT"]["input_presence"]["santiment"] is True
 
 
 def test_status_payload_contains_no_raw_secret_shaped_value(tmp_path: Path) -> None:
@@ -391,6 +445,7 @@ def test_status_payload_contains_no_raw_secret_shaped_value(tmp_path: Path) -> N
     assert sentinel not in serialized
     assert "NANSEN_API_KEY" not in serialized
     assert "LUNARCRUSH_API_KEY" not in serialized
+    assert "SANTIMENT_API_KEY" not in serialized
 
 
 def test_no_network_or_exchange_mutation_imported() -> None:

@@ -121,8 +121,8 @@ def test_hedge_evaluation_never_places_real_order() -> None:
 
 def test_atr_stop_fires_before_static_stop_loss() -> None:
     pos = _long_position()
-    # PnL at -20 bps: below ATR stop (atr_bps=8, multiplier=2 → stop at -16 bps)
-    # but above static stop_loss (80 bps)
+    # PnL at -55 bps: below ATR stop (atr_bps=25, multiplier=2 → stop at -50 bps,
+    # above the 35 bps compressed-vol floor) but above static stop_loss (80 bps).
     pos.avg_entry_price = 100_000.0
     pos.best_favorable_price = None
 
@@ -131,18 +131,65 @@ def test_atr_stop_fires_before_static_stop_loss() -> None:
         atr_stop_multiplier=2.0,
         min_hold_seconds=0,
     )
-    # Simulate PnL by making position's mark_price 20 bps below entry
-    mark = 100_000.0 * (1 - 20 / 10000.0)
+    # Simulate PnL by making position's mark_price 55 bps below entry
+    mark = 100_000.0 * (1 - 55 / 10000.0)
     result = evaluate_exit(
         position=pos,
         mark_price=mark,
         generated_utc="2026-06-17T01:00:00Z",
         config=config,
-        atr_bps=8.0,  # 8 bps ATR → stop at 16 bps
+        atr_bps=25.0,  # 25 bps ATR → stop at 50 bps
     )
     assert result["should_close"] is True
     assert result["close_reason"] == "TIER_1_ATR_VOLATILITY_STOP"
-    assert result["atr_bps"] == 8.0
+    assert result["atr_bps"] == 25.0
+    assert result["atr_stop_floor_applied"] is False
+
+
+def test_atr_stop_floor_blocks_sub_cost_stop_in_compressed_volatility() -> None:
+    """2026-07-05 cluster regression: entry ATR 6-7 bps put the scaled stop at
+    ~19-21 bps — inside round-trip cost plus one candle of noise. The floor
+    keeps the effective stop at atr_stop_floor_bps so the position is not
+    stopped at -20 bps, while a move past the floor still closes."""
+    config = PaperExitConfig(
+        stop_loss_bps=80.0,
+        atr_stop_multiplier=2.0,
+        atr_stop_multiplier_trend_mode=3.0,
+        atr_stop_floor_bps=35.0,
+        min_hold_seconds=0,
+        mfe_breakeven_protection_enabled=False,
+    )
+
+    pos = _long_position()
+    pos.avg_entry_price = 100_000.0
+    pos.best_favorable_price = None
+    # -20 bps with ATR 7 bps (scaled stop 14-21 bps < floor 35): must NOT close.
+    mark = 100_000.0 * (1 - 20 / 10000.0)
+    held = evaluate_exit(
+        position=pos,
+        mark_price=mark,
+        generated_utc="2026-06-17T01:00:00Z",
+        config=config,
+        atr_bps=7.0,
+    )
+    assert held["should_close"] is False
+
+    pos2 = _long_position()
+    pos2.avg_entry_price = 100_000.0
+    pos2.best_favorable_price = None
+    # -36 bps breaches the 35 bps floor: closes with the floor recorded.
+    mark2 = 100_000.0 * (1 - 36 / 10000.0)
+    closed = evaluate_exit(
+        position=pos2,
+        mark_price=mark2,
+        generated_utc="2026-06-17T01:00:00Z",
+        config=config,
+        atr_bps=7.0,
+    )
+    assert closed["should_close"] is True
+    assert closed["close_reason"] == "TIER_1_ATR_VOLATILITY_STOP"
+    assert closed["atr_stop_floor_applied"] is True
+    assert closed["atr_stop_bps"] == 35.0
 
 
 def test_atr_stop_does_not_fire_when_pnl_within_range() -> None:
@@ -688,3 +735,96 @@ def test_confidence_decay_exit_fires() -> None:
     )
     assert result["should_close"] is True
     assert result["close_reason"] == "TIER_1_CONFIDENCE_DECAY_EXIT"
+
+
+def test_catastrophic_floor_stop_fires_without_atr_or_static_stops() -> None:
+    """LITUSDT regression (2026-07-06): entry_atr_bps=None + static stops
+    disabled left no working stop; MAE reached 610bps. The catastrophic floor
+    must fire unconditionally."""
+    config = PaperExitConfig(
+        static_stop_loss_enabled=False,
+        catastrophic_floor_stop_bps=150.0,
+        atr_stop_floor_bps=0.0,  # isolate the catastrophic floor
+        mfe_breakeven_protection_enabled=False,
+        min_hold_seconds=0,
+    )
+    pos = _long_position()
+    pos.avg_entry_price = 100_000.0
+    pos.best_favorable_price = None
+    mark = 100_000.0 * (1 - 200 / 10000.0)
+    result = evaluate_exit(
+        position=pos,
+        mark_price=mark,
+        generated_utc="2026-06-17T01:00:00Z",
+        config=config,
+        atr_bps=None,
+    )
+    assert result["should_close"] is True
+    assert result["close_reason"] == "TIER_0_CATASTROPHIC_FLOOR_STOP"
+
+
+def test_missing_atr_falls_back_to_floor_stop_when_static_disabled() -> None:
+    config = PaperExitConfig(
+        static_stop_loss_enabled=False,
+        atr_stop_floor_bps=35.0,
+        catastrophic_floor_stop_bps=150.0,
+        mfe_breakeven_protection_enabled=False,
+        min_hold_seconds=0,
+    )
+    pos = _long_position()
+    pos.avg_entry_price = 100_000.0
+    pos.best_favorable_price = None
+    mark = 100_000.0 * (1 - 40 / 10000.0)
+    result = evaluate_exit(
+        position=pos,
+        mark_price=mark,
+        generated_utc="2026-06-17T01:00:00Z",
+        config=config,
+        atr_bps=None,
+    )
+    assert result["should_close"] is True
+    assert result["close_reason"] == "TIER_1_ATR_VOLATILITY_STOP"
+    assert result["atr_missing_floor_fallback"] is True
+    assert result["atr_stop_bps"] == 35.0
+
+
+def test_mfe_breakeven_protection_does_not_mislabel_deep_losses() -> None:
+    """The breakeven tier must only fire near breakeven; a -286bps position
+    must fall through to real stops instead of closing as 'protection'."""
+    config = PaperExitConfig(
+        static_stop_loss_enabled=False,
+        atr_stop_floor_bps=0.0,
+        catastrophic_floor_stop_bps=0.0,  # disable stops to observe fall-through
+        mfe_breakeven_protection_enabled=True,
+        mfe_breakeven_min_mfe_bps=20.0,
+        mfe_breakeven_cost_buffer_bps=8.0,
+        min_hold_seconds=0,
+        trailing_stop_enabled=False,
+    )
+    pos = _long_position()
+    pos.avg_entry_price = 100_000.0
+    pos.best_favorable_price = 100_000.0 * (1 + 35 / 10000.0)  # MFE 35bps, armed
+    mark = 100_000.0 * (1 - 286 / 10000.0)
+    result = evaluate_exit(
+        position=pos,
+        mark_price=mark,
+        generated_utc="2026-06-17T01:00:00Z",
+        config=config,
+        atr_bps=None,
+    )
+    assert result.get("close_reason") != "TIER_2_MFE_BREAKEVEN_PROTECTION"
+
+    # Near breakeven (within 3x cost buffer) it still protects as designed.
+    pos2 = _long_position()
+    pos2.avg_entry_price = 100_000.0
+    pos2.best_favorable_price = 100_000.0 * (1 + 35 / 10000.0)
+    mark2 = 100_000.0 * (1 + 5 / 10000.0)
+    result2 = evaluate_exit(
+        position=pos2,
+        mark_price=mark2,
+        generated_utc="2026-06-17T01:00:00Z",
+        config=config,
+        atr_bps=None,
+    )
+    assert result2["should_close"] is True
+    assert result2["close_reason"] == "TIER_2_MFE_BREAKEVEN_PROTECTION"

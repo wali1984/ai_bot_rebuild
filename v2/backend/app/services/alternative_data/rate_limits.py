@@ -47,6 +47,19 @@ def build_rate_limit_contract(
     tier = "paid" if paid_enabled else "free"
     rows: list[ProviderRateLimit] = []
     for provider in provider_definitions():
+        if provider.id == "santiment" and provider.default_state.startswith("ENABLED_PRO_PLAN"):
+            rows.append(
+                ProviderRateLimit(
+                    provider_id=provider.id,
+                    tier="santiment_pro_background_producer",
+                    rate_limit_per_minute=provider.paid_rate_limit_per_minute,
+                    daily_request_budget=provider.paid_daily_budget,
+                    cache_ttl_seconds=provider.paid_cache_ttl_seconds,
+                    per_symbol_cooldown_seconds=provider.paid_per_symbol_cooldown_seconds,
+                    paid_endpoint_enabled=True,
+                )
+            )
+            continue
         if tier == "paid":
             rows.append(
                 ProviderRateLimit(
@@ -89,7 +102,7 @@ def build_dry_run_schedule(symbols: tuple[str, ...]) -> list[dict[str, Any]]:
     schedule: list[dict[str, Any]] = []
     contract = build_rate_limit_contract()
     limits = {row["provider_id"]: row for row in contract["provider_limits"]}
-    for provider_id in ("nansen", "lunarcrush"):
+    for provider_id in ("nansen", "lunarcrush", "santiment"):
         limit = limits[provider_id]
         for rank, symbol in enumerate(symbols, start=1):
             schedule.append(
@@ -97,7 +110,7 @@ def build_dry_run_schedule(symbols: tuple[str, ...]) -> list[dict[str, Any]]:
                     "provider_id": provider_id,
                     "symbol": symbol,
                     "rank": rank,
-                    "tier": "free",
+                    "tier": limit["tier"],
                     "dry_run": True,
                     "network_call_allowed": False,
                     "cache_ttl_seconds": limit["cache_ttl_seconds"],
@@ -107,4 +120,3 @@ def build_dry_run_schedule(symbols: tuple[str, ...]) -> list[dict[str, Any]]:
                 }
             )
     return schedule
-

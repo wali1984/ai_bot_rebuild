@@ -184,10 +184,14 @@ def build_archive_record_from_prediction_payload(payload: Mapping[str, Any]) -> 
         return None
     replay_snapshot = payload.get("replay_snapshot") if isinstance(payload.get("replay_snapshot"), Mapping) else {}
     prediction = replay_snapshot.get("prediction") if isinstance(replay_snapshot.get("prediction"), Mapping) else {}
+    if not prediction and isinstance(replay_snapshot.get("feature_snapshot"), Mapping):
+        prediction = replay_snapshot
     feature_snapshot = (
         prediction.get("feature_snapshot")
         if isinstance(prediction.get("feature_snapshot"), Mapping)
         else payload.get("feature_snapshot")
+        if isinstance(payload.get("feature_snapshot"), Mapping)
+        else payload.get("entry_feature_snapshot")
     )
     feature_snapshot = feature_snapshot if isinstance(feature_snapshot, Mapping) else {}
     features = feature_snapshot.get("features") if isinstance(feature_snapshot.get("features"), Mapping) else {}
@@ -325,24 +329,114 @@ def load_snapshot(snapshot_id: Any, *, root: Path | None = None, verify: bool = 
     return record
 
 
-def iter_index_records(root: Path | None = None) -> Iterator[dict[str, Any]]:
+def _iter_lines_reverse(path: Path, *, chunk_size: int = 1024 * 1024) -> Iterator[str]:
+    with path.open("rb") as handle:
+        handle.seek(0, os.SEEK_END)
+        position = handle.tell()
+        buffer = b""
+        while position > 0:
+            read_size = min(chunk_size, position)
+            position -= read_size
+            handle.seek(position)
+            buffer = handle.read(read_size) + buffer
+            lines = buffer.split(b"\n")
+            buffer = lines[0]
+            for raw_line in reversed(lines[1:]):
+                line = raw_line.decode("utf-8", errors="replace").strip()
+                if line:
+                    yield line
+        if buffer.strip():
+            yield buffer.decode("utf-8", errors="replace").strip()
+
+
+def _iter_manifest_index_records(
+    root: Path,
+    *,
+    newest_first: bool = False,
+    limit: int | None = None,
+) -> Iterator[dict[str, Any]]:
+    manifest = root / "manifest.jsonl"
+    if not manifest.exists():
+        return
+    seen: set[str] = set()
+    if newest_first:
+        lines = _iter_lines_reverse(manifest)
+        yield from _iter_manifest_lines(lines, manifest=manifest, limit=limit, seen=seen)
+    else:
+        with manifest.open("r", encoding="utf-8") as handle:
+            yield from _iter_manifest_lines(handle, manifest=manifest, limit=limit, seen=seen)
+
+
+def _iter_manifest_lines(
+    lines: Iterable[str],
+    *,
+    manifest: Path,
+    limit: int | None,
+    seen: set[str],
+) -> Iterator[dict[str, Any]]:
+    count = 0
+    for line in lines:
+        if limit is not None and count >= int(limit):
+            return
+        try:
+            record = json.loads(line)
+        except Exception:
+            continue
+        snapshot_id = str(record.get("snapshot_id") or "")
+        if not snapshot_id or snapshot_id in seen:
+            continue
+        seen.add(snapshot_id)
+        record["_manifest_path"] = str(manifest)
+        record["_index_path"] = str(_index_path(manifest.parent, snapshot_id))
+        count += 1
+        yield record
+
+
+def iter_index_records(
+    root: Path | None = None,
+    *,
+    newest_first: bool = False,
+    limit: int | None = None,
+) -> Iterator[dict[str, Any]]:
     archive_root = root or default_archive_root()
     index_dir = archive_root / "index" / "snapshot_id"
+    manifest = archive_root / "manifest.jsonl"
+    if manifest.exists():
+        yielded = False
+        for record in _iter_manifest_index_records(archive_root, newest_first=newest_first, limit=limit):
+            yielded = True
+            yield record
+        if yielded:
+            return
     if not index_dir.exists():
         return
-    for path in sorted(index_dir.glob("*.json")):
+    paths = sorted(
+        index_dir.glob("*.json"),
+        key=lambda path: (path.stat().st_mtime, path.name),
+        reverse=bool(newest_first),
+    )
+    count = 0
+    for path in paths:
+        if limit is not None and count >= int(limit):
+            return
         try:
             record = json.loads(path.read_text(encoding="utf-8"))
         except Exception:
             continue
         record["_index_path"] = str(path)
+        count += 1
         yield record
 
 
-def iter_snapshots(root: Path | None = None, *, limit: int | None = None) -> Iterator[dict[str, Any]]:
+def iter_snapshots(
+    root: Path | None = None,
+    *,
+    limit: int | None = None,
+    newest_first: bool = False,
+) -> Iterator[dict[str, Any]]:
     count = 0
     archive_root = root or default_archive_root()
-    for index in iter_index_records(archive_root):
+    for index in iter_index_records(archive_root, newest_first=newest_first, limit=limit):
         if limit is not None and count >= int(limit):
             return
         snapshot = load_snapshot(index.get("snapshot_id"), root=archive_root)

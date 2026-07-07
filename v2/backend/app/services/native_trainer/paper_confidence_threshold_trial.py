@@ -35,6 +35,9 @@ OUTCOME_OBSERVER_REL = Path(
 CONFIDENCE_PROPOSAL_REL = Path(
     "v2_confidence_calibration_and_paper_actionability_improvement/latest/calibrated_confidence_threshold_proposal.json"
 )
+BUCKET_QUARANTINE_REL = Path(
+    "operator_runtime/v2_paper_trade_management/latest/bucket_quarantine_status.json"
+)
 
 TRIAL_SIGNAL_REDIS_KEY = "v2:signals:paper:confidence_threshold_trial"
 TRIAL_STATUS_REDIS_KEY = "v2:paper:confidence_threshold_trial:status"
@@ -56,6 +59,7 @@ class PaperConfidenceTrialPaths:
     portfolio_path: Path
     outcome_observer_path: Path
     confidence_proposal_path: Path
+    bucket_quarantine_path: Path
 
 
 @dataclass(frozen=True)
@@ -77,6 +81,7 @@ def default_paths(repo_root: Path) -> PaperConfidenceTrialPaths:
         portfolio_path=public_root / PORTFOLIO_REL,
         outcome_observer_path=public_root / OUTCOME_OBSERVER_REL,
         confidence_proposal_path=public_root / CONFIDENCE_PROPOSAL_REL,
+        bucket_quarantine_path=public_root / BUCKET_QUARANTINE_REL,
     )
 
 
@@ -132,6 +137,18 @@ def _selected_action(row: Mapping[str, Any]) -> str:
     return str(row.get("selected_action") or row.get("action") or "").lower()
 
 
+def _first_present(*values: Any) -> Any:
+    for value in values:
+        if value not in (None, ""):
+            return value
+    return None
+
+
+def _known_bucket_value(value: Any) -> bool:
+    text = str(value or "").strip()
+    return bool(text) and text.upper() != "UNKNOWN"
+
+
 def _bucket(confidence: float | None) -> str:
     if confidence is None:
         return "missing"
@@ -151,6 +168,53 @@ def _bucket(confidence: float | None) -> str:
     return "1.010-plus"
 
 
+def _trial_regime(row: Mapping[str, Any]) -> str:
+    return str(
+        _first_present(
+            row.get("market_regime"),
+            row.get("market_regime_at_entry"),
+            row.get("strategy_market_regime"),
+        )
+        or "UNKNOWN"
+    )
+
+
+def _trial_strategy(row: Mapping[str, Any]) -> str:
+    return str(
+        _first_present(
+            row.get("strategy_mode"),
+            row.get("strategy_canonical_mode"),
+            row.get("strategy_id"),
+            row.get("strategy_family"),
+            row.get("strategy_subtype"),
+            row.get("strategy_selected_mode"),
+            row.get("strategy_router_selected_mode"),
+        )
+        or "UNKNOWN"
+    )
+
+
+def _trial_quarantine_candidate_keys(row: Mapping[str, Any]) -> set[str]:
+    symbol = str(row.get("symbol") or "UNKNOWN").upper()
+    timeframe = str(row.get("timeframe") or "UNKNOWN")
+    side = _selected_action(row) or str(row.get("side") or "UNKNOWN").lower()
+    strategy = _trial_strategy(row)
+    regime = _trial_regime(row)
+    confidence_bucket = _bucket(_float(row.get("confidence_calibrated")))
+    keys = {f"{symbol}|{timeframe}|{strategy}|{regime}"}
+    if _known_bucket_value(side):
+        keys.add(f"side:{side}")
+    if _known_bucket_value(regime):
+        keys.add(f"regime:{regime}")
+    if _known_bucket_value(timeframe):
+        keys.add(f"timeframe:{timeframe}")
+    if _known_bucket_value(strategy) and _known_bucket_value(regime):
+        keys.add(f"strategy_regime:{strategy}|{regime}")
+    if _known_bucket_value(confidence_bucket) and _known_bucket_value(regime):
+        keys.add(f"confidence_regime:{confidence_bucket}|{regime}")
+    return keys
+
+
 def _safe_list_without_confidence_reason(row: Mapping[str, Any]) -> list[str]:
     return sorted(
         {
@@ -168,9 +232,14 @@ def classify_trial_candidate(
     expected_move_floor_bps: float = EXPECTED_MOVE_FLOOR_BPS,
     market_state_integrity_floor: float = MARKET_STATE_INTEGRITY_FLOOR,
     data_coverage_floor: float = DATA_COVERAGE_FLOOR,
+    blocked_bucket_keys: set[str] | None = None,
 ) -> tuple[bool, list[str]]:
     """Return whether a row can enter the paper-only threshold trial."""
     reasons: list[str] = []
+    blocked_bucket_keys = blocked_bucket_keys or set()
+    matched_quarantine_keys = sorted(
+        _trial_quarantine_candidate_keys(row) & blocked_bucket_keys
+    )
     confidence = _float(row.get("confidence_calibrated"))
     expected = _float(row.get("expected_move_after_cost_bps"))
     integrity = _float(row.get("market_state_integrity_score"))
@@ -211,6 +280,8 @@ def classify_trial_candidate(
         reasons.append("PRICE_TARGET_MISSING_OR_INVALID")
     if price_status not in {"VALID", ""}:
         reasons.append(f"PRICE_TARGET_STATUS_{price_status}")
+    for key in matched_quarantine_keys:
+        reasons.append(f"PAPER_BUCKET_QUARANTINE_MATCH:{key}")
     for field in ("prediction_id", "feature_snapshot_id", "market_state_id"):
         if not row.get(field):
             reasons.append(f"{field.upper()}_MISSING")
@@ -440,20 +511,37 @@ def build_paper_confidence_threshold_trial(
     outcome_observer: Mapping[str, Any],
     confidence_proposal: Mapping[str, Any],
     generated_est: str,
+    bucket_quarantine_status: Mapping[str, Any] | None = None,
     threshold: float = TRIAL_THRESHOLD,
     apply_trial: bool = True,
     run_paper_loop: bool = True,
 ) -> PaperConfidenceTrialResult:
     predictions = _prediction_rows(prediction_source)
+    bucket_quarantine_status = _as_dict(bucket_quarantine_status)
+    blocked_bucket_keys = {
+        str(key)
+        for key in _as_list(bucket_quarantine_status.get("blocked_bucket_keys"))
+        if str(key)
+    }
     trial_candidate_rows: list[dict[str, Any]] = []
     rejected_reason_counts: Counter[str] = Counter()
     rejected_rows: list[dict[str, Any]] = []
+    quarantine_blocked_candidate_count = 0
     for row in predictions:
-        allowed, reasons = classify_trial_candidate(row, threshold=threshold)
+        allowed, reasons = classify_trial_candidate(
+            row,
+            threshold=threshold,
+            blocked_bucket_keys=blocked_bucket_keys,
+        )
         if allowed:
             trial_candidate_rows.append(row)
         else:
             rejected_reason_counts.update(reasons)
+            matched_quarantine_keys = sorted(
+                _trial_quarantine_candidate_keys(row) & blocked_bucket_keys
+            )
+            if matched_quarantine_keys:
+                quarantine_blocked_candidate_count += 1
             if "confidence_below_threshold" in _block_reasons(row):
                 rejected_rows.append(
                     {
@@ -462,6 +550,7 @@ def build_paper_confidence_threshold_trial(
                         "timeframe": row.get("timeframe"),
                         "confidence_calibrated": row.get("confidence_calibrated"),
                         "expected_move_after_cost_bps": row.get("expected_move_after_cost_bps"),
+                        "quarantine_matched_bucket_keys": matched_quarantine_keys,
                         "trial_reject_reasons": reasons[:8],
                     }
                 )
@@ -543,6 +632,11 @@ def build_paper_confidence_threshold_trial(
         "redis_signal_key": TRIAL_SIGNAL_REDIS_KEY,
         "drawdown_guard_status": drawdown_guard.get("status"),
         "drawdown_guard_reason": drawdown_guard.get("drawdown_guard_reason"),
+        "bucket_quarantine_status": bucket_quarantine_status.get("status"),
+        "bucket_quarantine_generated_utc": bucket_quarantine_status.get("generated_utc"),
+        "blocked_bucket_keys": sorted(blocked_bucket_keys),
+        "blocked_bucket_key_count": len(blocked_bucket_keys),
+        "quarantine_blocked_candidate_count": quarantine_blocked_candidate_count,
         "guard_contract": [
             "paper_only",
             "confidence_above_trial_threshold",
@@ -550,6 +644,7 @@ def build_paper_confidence_threshold_trial(
             "valid_market_state_for_paper",
             "fresh_features_only",
             "valid_price_target",
+            "not_in_current_paper_loss_quarantine_bucket",
             "deterministic_trial_lineage",
             "no_live_threshold_change",
         ],
@@ -562,6 +657,8 @@ def build_paper_confidence_threshold_trial(
         "trial_candidate_count": len(trial_candidate_rows),
         "trial_promoted_signal_count": len(trial_signals),
         "paper_allowed_after_simulated": paper_allowed_before + len(trial_signals),
+        "quarantine_blocked_candidate_count": quarantine_blocked_candidate_count,
+        "active_bucket_quarantine_keys": sorted(blocked_bucket_keys),
         "paper_loop_result": paper_loop,
         "portfolio_refresh_result": portfolio_refresh,
         "redis_write_result": redis_write,
@@ -665,6 +762,7 @@ def build_paper_confidence_threshold_trial(
             "paper_allowed_before": paper_allowed_before,
             "trial_candidate_count": len(trial_candidate_rows),
             "trial_promoted_signal_count": len(trial_signals),
+            "quarantine_blocked_candidate_count": quarantine_blocked_candidate_count,
             "paper_confidence_threshold": threshold,
             "paper_loop_run": paper_loop.get("paper_loop_run"),
         },
@@ -693,6 +791,8 @@ def build_paper_confidence_threshold_trial(
             ),
             "overlay_source": "v2_paper_only_confidence_threshold_trial_and_outcome_monitor",
             "overlay_candidate_count": len(trial_signals),
+            "quarantine_blocked_candidate_count": quarantine_blocked_candidate_count,
+            "active_bucket_quarantine_keys": sorted(blocked_bucket_keys),
             "paper_shadow_only": True,
             "runtime_config_changed": bool(apply_trial and trial_signals),
             "thresholds_auto_accepted": False,
@@ -826,6 +926,7 @@ def run_paper_confidence_threshold_trial(
         portfolio=_read_json(paths.portfolio_path),
         outcome_observer=_read_json(paths.outcome_observer_path),
         confidence_proposal=_read_json(paths.confidence_proposal_path),
+        bucket_quarantine_status=_read_json(paths.bucket_quarantine_path),
         generated_est=generated_est,
         threshold=threshold,
         apply_trial=apply_trial,

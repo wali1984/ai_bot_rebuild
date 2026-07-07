@@ -1223,3 +1223,187 @@ async def execute_control_action(
             "live_gate": "blocked_human_only",
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# /api/v2/admin/paper/session-reset  — operator bootstrap session reset
+# ---------------------------------------------------------------------------
+# Paper-only. Clears closed_trades, positions, outcome_labels, and computed
+# performance keys. Has no effect on live trading (routes_to_live: false).
+# Requires admin auth + danger_accepted: true in the request body.
+# Writes an audit log entry with actor, reason, and cleared key list.
+#
+# Use case: after root-cause patches are applied (R29-D2, R30-D1, R29-D4),
+# the bootstrap deadlock (FIRST_BOOTSTRAP_CLOSE_NEGATIVE) can only be cleared
+# by resetting the session so the improved entry gate governs new trades.
+# ---------------------------------------------------------------------------
+
+_PAPER_SESSION_RESET_KEYS = (
+    "v2:paper:closed_trades",
+    "v2:paper:positions",
+    "v2:paper:outcome_labels",
+    "v2:paper:performance_circuit_breaker_status",
+    "v2:paper:bleed_halt_status",
+    "v2:paper:governor_v2_status",
+)
+
+# Filesystem lifecycle state file path (written by paper loop, read by verifier dist/ copy).
+# Reset clears it so the paper loop starts fresh on next cycle.
+_PAPER_LIFECYCLE_STATE_PATH = (
+    _REPO_ROOT
+    / "v2" / "frontend" / "public"
+    / "operator_runtime" / "v2_paper_trade_management" / "latest"
+    / "paper_lifecycle_state.json"
+)
+
+_PAPER_SESSION_RESET_AUDIT_KEY = "v2:paper:operator_session_reset_log"
+
+
+@router.post("/paper/session-reset", dependencies=[Depends(require_admin)])
+async def paper_session_reset(
+    body: dict[str, Any] = Body(default_factory=dict),
+    actor: UserRecord = Depends(require_admin),
+) -> dict[str, Any]:
+    """Paper-only bootstrap session reset.
+
+    Clears the paper trading session state (closed_trades, positions,
+    outcome_labels, and computed performance keys) so bootstrap can restart
+    with the current entry gate (R29-D2 regime gate, R30-D1 micro-cap filter,
+    R29-D4 wider ATR stop).
+
+    DOES NOT affect live trading. routes_to_live: false.
+    DOES NOT change leverage, margin, or exchange state.
+    DOES NOT clear audit ledger or trade history files — only Redis state.
+
+    Required body fields:
+        danger_accepted: true   — explicit operator acknowledgment
+        reason: str             — documented reason for the reset
+    """
+    now = _utc_now()
+    audit_id = secrets.token_hex(16)
+    actor_email = str(actor.get("email") or actor.get("username") or "unknown")
+    reason = str(body.get("reason") or "").strip()
+    danger_accepted = body.get("danger_accepted") is True
+
+    if not danger_accepted:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "DANGER_NOT_ACCEPTED",
+                "message": "Must include danger_accepted: true to confirm session reset.",
+                "audit_id": audit_id,
+                "actor": actor_email,
+                "generated_at": now,
+                "routes_to_live": False,
+                "places_real_order": False,
+            },
+        )
+
+    if not reason:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "REASON_REQUIRED",
+                "message": "Must include a non-empty reason string for audit log.",
+                "audit_id": audit_id,
+                "actor": actor_email,
+                "generated_at": now,
+            },
+        )
+
+    client = get_redis()
+    if client is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "error": "REDIS_UNAVAILABLE",
+                "message": "Cannot connect to Redis to perform session reset.",
+                "audit_id": audit_id,
+                "actor": actor_email,
+                "generated_at": now,
+            },
+        )
+
+    cleared_keys: list[str] = []
+    skipped_keys: list[str] = []
+    errors: list[str] = []
+
+    for key in _PAPER_SESSION_RESET_KEYS:
+        try:
+            existed = client.exists(key)
+            if existed:
+                client.delete(key)
+                cleared_keys.append(key)
+            else:
+                skipped_keys.append(key)
+        except Exception as exc:
+            errors.append(f"{key}: {exc}")
+
+    # Also clear the public/ lifecycle state file so the paper loop starts fresh.
+    # The paper loop overwrites this on the next write cycle with current state.
+    # NOTE: The dist/ copy (read by the verifier's historical supplement) is only
+    # updated on npm run build — run `cd v2/frontend && npm run build` after reset
+    # so the verifier's G13/G14 historical supplement picks up the cleared state.
+    lifecycle_file_cleared = False
+    if _PAPER_LIFECYCLE_STATE_PATH.exists():
+        try:
+            _PAPER_LIFECYCLE_STATE_PATH.write_text(
+                json.dumps({"closed_trades": [], "open_positions": [], "session_reset_utc": now}, indent=2)
+            )
+            cleared_keys.append(str(_PAPER_LIFECYCLE_STATE_PATH.relative_to(_REPO_ROOT)))
+            lifecycle_file_cleared = True
+        except Exception as exc:
+            errors.append(f"lifecycle_state_file: {exc}")
+
+    audit_entry = {
+        "audit_id": audit_id,
+        "event": "PAPER_SESSION_RESET",
+        "actor": actor_email,
+        "reason": reason,
+        "cleared_keys": cleared_keys,
+        "skipped_keys": skipped_keys,
+        "errors": errors,
+        "lifecycle_file_cleared": lifecycle_file_cleared,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "live_path_changed": False,
+        "paper_only": True,
+        "generated_at": now,
+        "patches_applied": ["R29-D2", "R29-D4", "R30-D1"],
+    }
+
+    try:
+        client.rpush(_PAPER_SESSION_RESET_AUDIT_KEY, json.dumps(audit_entry))
+    except Exception:
+        pass
+
+    result: dict[str, Any] = {
+        "status": "RESET_COMPLETE" if not errors else "RESET_PARTIAL",
+        "audit_id": audit_id,
+        "actor": actor_email,
+        "reason": reason,
+        "cleared_keys": cleared_keys,
+        "skipped_keys": skipped_keys,
+        "errors": errors,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "live_path_changed": False,
+        "paper_only": True,
+        "next_steps": (
+            "1. Restart the paper loop process to begin a fresh bootstrap session. "
+            "2. Run: cd v2/frontend && npm run build — to update dist/ so the guardian "
+            "verifier's G13/G14 historical supplement picks up the cleared trade history. "
+            "3. The improved entry gate (R29-D2 regime gate, R30-D1 micro-cap filter, "
+            "R29-D4 3x ATR stop for trend_mode) is already active. "
+            "4. G13/G14 gates will pass once 100+ trades with positive expectancy accumulate."
+        ),
+        "generated_at": now,
+    }
+
+    if errors:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=result,
+        )
+
+    return result

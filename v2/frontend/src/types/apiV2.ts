@@ -1,5 +1,24 @@
-export type ApiV2SourceType = 'websocket' | 'api' | 'repository' | 'redis_live' | 'static_payload' | 'unavailable';
+export type ApiV2SourceType = 'websocket' | 'api' | 'repository' | 'redis_live' | 'static_payload' | 'computed' | 'unavailable';
 export type ApiV2Mode = 'paper' | 'read_only' | 'live_blocked' | 'paper_preview_unverified';
+export type AccountScopeValue =
+  | 'public_read_only'
+  | 'authenticated_trader'
+  | 'PAPER_SIM_ACCOUNT'
+  | 'QUARANTINED_INVALID_ACCOUNT'
+  | 'SHADOW_DIAGNOSTIC_ACCOUNT'
+  | 'LIVE_BINANCE_SIGNED_ACCOUNT';
+
+export interface AccountTruthFields {
+  account_scope?: AccountScopeValue | string;
+  source_type?: string;
+  paper_or_live?: 'paper' | 'live' | string;
+  contains_simulated_positions?: boolean;
+  contains_live_positions?: boolean;
+  contains_quarantined_positions?: boolean;
+  equity_trusted?: boolean;
+  pnl_trusted?: boolean;
+  reason_if_untrusted?: string | null;
+}
 
 export interface TraderContext {
   scope: 'public_read_only' | 'authenticated_trader';
@@ -244,11 +263,11 @@ export interface AlertsData {
   last_action?: Record<string, unknown>;
   trader_id?: string | null;
   paper_account_id?: string | null;
-  account_scope?: 'public_read_only' | 'authenticated_trader';
+  account_scope?: AccountScopeValue | string;
   account_specific?: boolean;
 }
 
-export interface PortfolioData {
+export interface PortfolioData extends AccountTruthFields {
   equity: number | null;
   realized_pnl: number | null;
   unrealized_pnl: number | null;
@@ -256,22 +275,20 @@ export interface PortfolioData {
   mode: 'paper';
   trader_id?: string | null;
   paper_account_id?: string | null;
-  account_scope?: 'public_read_only' | 'authenticated_trader';
   account_specific?: boolean;
 }
 
-export interface PositionsData {
+export interface PositionsData extends AccountTruthFields {
   positions: unknown[];
   trader_id?: string | null;
   paper_account_id?: string | null;
-  account_scope?: 'public_read_only' | 'authenticated_trader';
   account_specific?: boolean;
 }
 
 export interface AccountReadinessData {
   trader_id: string | null;
   paper_account_id: string | null;
-  account_scope: 'public_read_only' | 'authenticated_trader';
+  account_scope: AccountScopeValue | string;
   account_specific: boolean;
   account_present: boolean;
   repository_status: string;
@@ -330,7 +347,7 @@ export interface OrdersData {
   orders?: unknown[];
   trader_id?: string | null;
   paper_account_id?: string | null;
-  account_scope?: 'public_read_only' | 'authenticated_trader';
+  account_scope?: AccountScopeValue | string;
   account_specific?: boolean;
 }
 
@@ -338,7 +355,7 @@ export interface ExecutionsData {
   executions?: unknown[];
   trader_id?: string | null;
   paper_account_id?: string | null;
-  account_scope?: 'public_read_only' | 'authenticated_trader';
+  account_scope?: AccountScopeValue | string;
   account_specific?: boolean;
 }
 
@@ -346,7 +363,7 @@ export interface AuditEventsData {
   audit_events?: unknown[];
   trader_id?: string | null;
   paper_account_id?: string | null;
-  account_scope?: 'public_read_only' | 'authenticated_trader';
+  account_scope?: AccountScopeValue | string;
   account_specific?: boolean;
   audit_policy?: {
     audit_chain_version?: string;
@@ -373,7 +390,7 @@ export interface SignalData {
   active_signal?: Record<string, unknown> | null;
   trader_id?: string | null;
   paper_account_id?: string | null;
-  account_scope?: 'public_read_only' | 'authenticated_trader';
+  account_scope?: AccountScopeValue | string;
   account_specific?: boolean;
 }
 
@@ -442,7 +459,7 @@ export interface OrderPreviewData {
   available_paper_balance: number | null;
   trader_id?: string | null;
   paper_account_id?: string | null;
-  account_scope?: 'public_read_only' | 'authenticated_trader';
+  account_scope?: AccountScopeValue | string;
   paper_execution_policy?: PaperExecutionPolicy;
   risk_checks: Array<{ name: string; passed: boolean }>;
 }

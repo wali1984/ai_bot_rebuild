@@ -10621,7 +10621,8 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                     "generated_at": now,
                 }
             trajectory_status = str(
-                one_thousand_x_trajectory_status.get("current_status")
+                one_thousand_x_trajectory_status.get("trajectory_status")
+                or one_thousand_x_trajectory_status.get("current_status")
                 or one_thousand_x_trajectory_status.get("status")
                 or ""
             )
@@ -10860,7 +10861,7 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                         or {},
                     }
                 )
-            if trajectory_status != "ON_1000X_TRAJECTORY":
+            if trajectory_status != "ON_TRACK_90D_A_PLUS_EVIDENCE":
                 blockers.append(
                     {
                         "id": "ONE_THOUSAND_X_TRAJECTORY_NOT_READY",
@@ -10870,6 +10871,18 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                         or trajectory_rel,
                         "status": trajectory_status
                         or "ONE_THOUSAND_X_TRAJECTORY_STATUS_UNAVAILABLE",
+                        "blocker": one_thousand_x_trajectory_status.get("blocker"),
+                        "target_multiple": one_thousand_x_trajectory_status.get(
+                            "target_multiple"
+                        ),
+                        "target_horizon_days": one_thousand_x_trajectory_status.get(
+                            "target_horizon_days"
+                        ),
+                        "required_daily_return_pct": (
+                            one_thousand_x_trajectory_status.get(
+                                "required_daily_return_pct"
+                            )
+                        ),
                         "required_daily_geometric_return": (
                             one_thousand_x_trajectory_status.get(
                                 "required_daily_geometric_return"
@@ -10903,6 +10916,31 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                             one_thousand_x_trajectory_status.get(
                                 "days_ahead_or_behind_target"
                             )
+                        ),
+                        "projection_days": one_thousand_x_trajectory_status.get(
+                            "projection_days"
+                        ),
+                        "A_plus_rows": one_thousand_x_trajectory_status.get(
+                            "A_plus_rows"
+                        ),
+                        "B_grade_rows": one_thousand_x_trajectory_status.get(
+                            "B_grade_rows"
+                        ),
+                        "current_A_plus_daily_return_pct": (
+                            one_thousand_x_trajectory_status.get(
+                                "current_A_plus_daily_return_pct"
+                            )
+                        ),
+                        "current_B_grade_daily_return_pct": (
+                            one_thousand_x_trajectory_status.get(
+                                "current_B_grade_daily_return_pct"
+                            )
+                        ),
+                        "required_operator_text": (
+                            one_thousand_x_trajectory_status.get(
+                                "required_operator_text"
+                            )
+                            or []
                         ),
                         "required_edge": one_thousand_x_trajectory_status.get(
                             "required_edge"

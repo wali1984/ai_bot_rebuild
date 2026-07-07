@@ -33,6 +33,15 @@ def _minimal_position(
     signal_id: str | None = "sig_xyz456",
     strategy_id: str = "mean_reversion_mode",
 ) -> PaperNetPosition:
+    liquidity_context = {
+            "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+            "orderbook_depth_usd": 250000.0,
+            "bid_depth_usd": 130000.0,
+            "ask_depth_usd": 120000.0,
+            "depth_imbalance": 0.04,
+            "nearest_bid_wall_distance_bps": 42.0,
+            "nearest_ask_wall_distance_bps": 58.0,
+    }
     return PaperNetPosition(
         position_id=f"paper_pos_{symbol}",
         symbol=symbol,
@@ -60,11 +69,38 @@ def _minimal_position(
         hedge_state="NO_HEDGE",
         hedge_reason="NO_HEDGE_CONTEXT",
         market_regime_at_entry="range",
+        liquidity_zone_context=liquidity_context,
+        liquidation_distance_context={
+            "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+            "nearest_liquidation_level_above": 0.108,
+            "nearest_liquidation_level_below": 0.101,
+            "liquidation_sweep_target_short_distance_bps": 76.0,
+            "liquidation_sweep_target_long_distance_bps": 115.0,
+            "liquidation_pressure_direction": -0.22,
+        },
+        microstructure_context={
+            "source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:test",
+            "bid_ask_spread_bps": 2.5,
+            "orderbook_depth_usd": 250000.0,
+            "depth_imbalance": 0.04,
+        },
+        oi_funding_context={
+            "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+            "funding_rate": 0.0001,
+            "expected_funding_bps": 1.0,
+            "long_short_ratio": 1.2,
+            "oi_change_pct": 0.01,
+        },
+        public_intel_context={
+            "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+            "news_sentiment_score": 0.05,
+            "public_intel_score": 0.1,
+        },
         fill_ids=[signal_id or "fill_1"],
     )
 
 
-def _build_feedback(position: PaperNetPosition) -> dict:
+def _build_feedback(position: PaperNetPosition, *, close_event_overrides: dict | None = None) -> dict:
     close_event, outcome = build_close_event(
         position=position,
         close_quantity=position.net_quantity,
@@ -86,6 +122,8 @@ def _build_feedback(position: PaperNetPosition) -> dict:
         close_event["intra_trade_high_price"] = float(position.avg_entry_price) * 1.005
     if close_event.get("intra_trade_low_price") is None:
         close_event["intra_trade_low_price"] = float(position.avg_entry_price) * 0.995
+    if close_event_overrides:
+        close_event.update(close_event_overrides)
     return build_strategy_hedge_exit_feedback(
         close_event=close_event,
         outcome_label=outcome,
@@ -175,6 +213,21 @@ class TestRealFeatureSnapshotIdUnchanged:
         row = _build_feedback(position)
 
         assert row["feature_snapshot_id"] == "synth_fsid_v2h_already_set"
+
+    def test_explicitly_quarantined_closed_trade_is_not_consumable(self) -> None:
+        position = _minimal_position(feature_snapshot_id="feat_real_id_from_signal_pipeline")
+        row = _build_feedback(
+            position,
+            close_event_overrides={
+                "quarantine_reason": "BTC_ENTRY_PRICE_IMPOSSIBLE_WITH_CURRENT_MARK",
+                "quarantine_reasons": ["BTC_ENTRY_PRICE_IMPOSSIBLE_WITH_CURRENT_MARK"],
+            },
+        )
+
+        assert row["trainer_consumable"] is False
+        assert "EXPLICIT_QUARANTINE_REASON" in row["closed_trade_validity_rejection_reasons"]
+        assert "EXPLICIT_QUARANTINE_REASONS" in row["closed_trade_validity_rejection_reasons"]
+        assert "closed_trade_validity:explicit_quarantine_reason" in row["quarantine_reason"]
 
 
 # ---------------------------------------------------------------------------

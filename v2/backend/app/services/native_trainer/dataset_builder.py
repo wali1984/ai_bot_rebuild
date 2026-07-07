@@ -114,6 +114,23 @@ ALTDATA_NUMERIC_FEATURES = (
     "whale_total_wall_notional_usd",
     "nearest_bid_wall_distance_bps",
     "nearest_ask_wall_distance_bps",
+    "santiment_social_volume_score",
+    "santiment_whale_activity_score",
+    "santiment_sentiment_score",
+    "santiment_onchain_activity_score",
+    "santiment_dev_activity_score",
+    "santiment_exchange_inflow_risk_score",
+    "santiment_supply_on_exchanges_score",
+    "santiment_social_volume_total",
+    "santiment_sentiment_positive_total",
+    "santiment_sentiment_negative_total",
+    "santiment_whale_transaction_count_1m",
+    "santiment_whale_transaction_count_100k_usd_to_inf",
+    "santiment_exchange_inflow",
+    "santiment_percent_of_total_supply_on_exchanges",
+    "santiment_active_addresses_24h",
+    "santiment_transaction_volume",
+    "santiment_dev_activity",
 )
 
 ALTDATA_PROVIDER_FLAGS = (
@@ -125,6 +142,7 @@ ALTDATA_PROVIDER_FLAGS = (
     "public_intel",
     "aicoin",
     "whale_walls",
+    "santiment",
     "market",
     "features",
 )

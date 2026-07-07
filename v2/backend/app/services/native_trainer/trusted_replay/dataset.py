@@ -27,6 +27,14 @@ FUTURE_LABEL_PREFIXES = (
     "target_",
     "realized_",
 )
+PIT_SAFE_REALIZED_FEATURES = {"realized_slippage_error"}
+
+
+def _future_label_feature_name(name: Any) -> bool:
+    lowered = str(name).lower()
+    if lowered in PIT_SAFE_REALIZED_FEATURES:
+        return False
+    return lowered.startswith(FUTURE_LABEL_PREFIXES)
 
 
 def parse_utc(value: Any) -> datetime | None:
@@ -235,7 +243,7 @@ def replay_rejection_reasons(
     available_at = parse_utc(snapshot.get("available_at"))
     if not features:
         reasons.append("FEATURES_EMPTY")
-    if any(str(name).lower().startswith(FUTURE_LABEL_PREFIXES) for name in features):
+    if any(_future_label_feature_name(name) for name in features):
         reasons.append("FUTURE_LABEL_PRESENT_IN_FEATURES")
     if feature_cutoff is None:
         reasons.append("FEATURE_CUTOFF_MISSING")

@@ -26,6 +26,7 @@ FUTURE_LABEL_PREFIXES = (
     "target_",
     "realized_",
 )
+PIT_SAFE_REALIZED_FEATURES = {"realized_slippage_error"}
 
 
 def finite_float(value: Any) -> float | None:
@@ -68,6 +69,8 @@ def parse_utc(value: Any) -> datetime | None:
 
 def _feature_name_allowed(name: str) -> bool:
     lowered = str(name).lower()
+    if lowered in PIT_SAFE_REALIZED_FEATURES:
+        return True
     return not lowered.startswith(FUTURE_LABEL_PREFIXES)
 
 

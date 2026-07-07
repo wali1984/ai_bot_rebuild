@@ -15,6 +15,23 @@ MODE_SCALP = "scalp_mode"
 MODE_REDUCE_SIZE = "reduce_size_mode"
 MODE_NO_TRADE = "no_trade_mode"
 
+STRATEGY_TREND_CONTINUATION = "trend_continuation"
+STRATEGY_BREAKOUT_SQUEEZE = "breakout_squeeze"
+STRATEGY_MEAN_REVERSION = "mean_reversion"
+STRATEGY_RANGE_SCALP = "range_scalp"
+STRATEGY_LIQUIDITY_SWEEP_REVERSAL = "liquidity_sweep_reversal"
+STRATEGY_RISK_OFF_NO_TRADE = "risk_off_no_trade"
+STRATEGY_REDUCE_ONLY_RECOVERY = "reduce_only_recovery"
+REQUIRED_STRATEGY_MODES = (
+    STRATEGY_TREND_CONTINUATION,
+    STRATEGY_BREAKOUT_SQUEEZE,
+    STRATEGY_MEAN_REVERSION,
+    STRATEGY_RANGE_SCALP,
+    STRATEGY_LIQUIDITY_SWEEP_REVERSAL,
+    STRATEGY_RISK_OFF_NO_TRADE,
+    STRATEGY_REDUCE_ONLY_RECOVERY,
+)
+
 LABEL_TREND = "TREND"
 LABEL_RANGE = "RANGE"
 LABEL_BREAKOUT = "BREAKOUT"
@@ -23,6 +40,25 @@ LABEL_LOW_LIQUIDITY = "LOW_LIQUIDITY"
 LABEL_DATA_UNRELIABLE = "DATA_UNRELIABLE"
 LABEL_MODEL_DISAGREEMENT = "MODEL_DISAGREEMENT"
 LABEL_NO_TRADE = "NO_TRADE"
+LABEL_LIQUIDITY_SWEEP = "LIQUIDITY_SWEEP"
+LABEL_RISK_OFF = "RISK_OFF"
+
+REQUIRED_REGIME_FEATURES = (
+    "trend_strength",
+    "range_chop_score",
+    "volatility_expansion",
+    "atr_percentile",
+    "funding_skew",
+    "open_interest_change",
+    "long_short_ratio",
+    "liquidation_cluster_proximity",
+    "orderbook_imbalance",
+    "spread_depth_slippage",
+    "aggressive_flow",
+    "cross_asset_btc_eth_sol_regime",
+    "market_wide_risk",
+    "fakeout_reversal_probability",
+)
 
 _KNOWN_ACTIONS = ("hold", "long", "short", "close")
 _KNOWN_POSITION_STATES = {"FLAT", "LONG", "SHORT", "INVALID"}
@@ -44,6 +80,11 @@ DEFAULT_ROUTER_CONFIG: dict[str, float | bool] = {
     "high_volatility_reduce_size_multiplier": 0.7,
     "low_liquidity_reduce_size_multiplier": 0.5,
     "drawdown_reduce_size_multiplier": 0.5,
+    "microstructure_min_trust_score": 0.65,
+    "microstructure_shadow_block_threshold": 0.45,
+    "microstructure_reduce_size_multiplier": 0.5,
+    "microstructure_sweep_block_threshold": 0.75,
+    "microstructure_sweep_reduce_threshold": 0.55,
     "paper_insufficient_execution_sample_reduce_size_multiplier": 0.65,
     "paper_major_move_min_evidence_score": 0.60,
     "paper_major_move_min_expected_move_bps": 10.0,
@@ -233,6 +274,94 @@ def _paper_only_envelope(envelope: Mapping[str, Any]) -> bool:
     return envelope.get("paper_only") is True or mode in {"paper", "paper_shadow", "paper_only"}
 
 
+def _confidence_bucket(confidence: float | None) -> str:
+    if confidence is None:
+        return "missing"
+    for low, high in (
+        (0.0, 0.5),
+        (0.5, 0.6),
+        (0.6, 0.7),
+        (0.7, 0.8),
+        (0.8, 0.9),
+        (0.9, 1.01),
+    ):
+        if low <= confidence < high:
+            return f"{low:.1f}-{high:.1f}"
+    return "1.0-plus"
+
+
+def _known_bucket_value(value: Any) -> bool:
+    text = str(value or "").strip()
+    return bool(text) and text.upper() != "UNKNOWN"
+
+
+def _paper_loss_quarantine_blocked_keys(envelope: Mapping[str, Any]) -> set[str]:
+    direct = envelope.get("paper_loss_quarantine_blocked_bucket_keys")
+    if isinstance(direct, Sequence) and not isinstance(direct, (str, bytes)):
+        return {str(item) for item in direct if str(item)}
+    status = _as_mapping(envelope.get("paper_loss_quarantine_status"))
+    keys = status.get("blocked_bucket_keys")
+    if isinstance(keys, Sequence) and not isinstance(keys, (str, bytes)):
+        return {str(item) for item in keys if str(item)}
+    return set()
+
+
+def _paper_loss_quarantine_candidate_keys(
+    *,
+    envelope: Mapping[str, Any],
+    action: str,
+    confidence: float | None,
+    strategy_mode: Any | None = None,
+    regime_labels: Sequence[Any] | None = None,
+) -> set[str]:
+    symbol = str(envelope.get("symbol") or "UNKNOWN").upper()
+    timeframe = str(envelope.get("timeframe") or "UNKNOWN")
+    strategy = str(
+        _first_present(
+            strategy_mode,
+            envelope.get("strategy_mode"),
+            envelope.get("strategy_canonical_mode"),
+            envelope.get("strategy_id"),
+            envelope.get("strategy_family"),
+            envelope.get("strategy_selected_mode"),
+            envelope.get("strategy_router_selected_mode"),
+        )
+        or "UNKNOWN"
+    )
+    regime = str(
+        _first_present(
+            envelope.get("market_regime"),
+            envelope.get("market_regime_at_entry"),
+            envelope.get("strategy_market_regime"),
+        )
+        or "UNKNOWN"
+    )
+    confidence_bucket = _confidence_bucket(confidence)
+    keys = {f"{symbol}|{timeframe}|{strategy}|{regime}"}
+    if _known_bucket_value(action):
+        keys.add(f"side:{action}")
+    if _known_bucket_value(regime):
+        keys.add(f"regime:{regime}")
+    if _known_bucket_value(timeframe):
+        keys.add(f"timeframe:{timeframe}")
+    if _known_bucket_value(strategy) and _known_bucket_value(regime):
+        keys.add(f"strategy_regime:{strategy}|{regime}")
+    if _known_bucket_value(confidence_bucket) and _known_bucket_value(regime):
+        keys.add(f"confidence_regime:{confidence_bucket}|{regime}")
+    for label in regime_labels or ():
+        label_text = str(label or "").strip()
+        if not _known_bucket_value(label_text):
+            continue
+        keys.add(f"regime:{label_text}")
+        if _known_bucket_value(strategy):
+            keys.add(f"strategy_regime:{strategy}|{label_text}")
+            if _known_bucket_value(symbol) and _known_bucket_value(timeframe):
+                keys.add(f"{symbol}|{timeframe}|{strategy}|{label_text}")
+        if _known_bucket_value(confidence_bucket):
+            keys.add(f"confidence_regime:{confidence_bucket}|{label_text}")
+    return keys
+
+
 def _execution_sample_is_insufficient(metrics: Mapping[str, Any]) -> bool:
     source = str(metrics.get("execution_success_metric_source") or "")
     sample_status = str(metrics.get("execution_success_sample_status") or "")
@@ -275,6 +404,254 @@ def _paper_major_move_evidence(
         "expected_edge_bps": expected_edge,
         "major_move_signal_id": signal_id,
     }
+
+
+def _as_mapping(value: Any) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
+
+
+def _first_present(*values: Any) -> Any:
+    for value in values:
+        if value not in (None, "", [], {}):
+            return value
+    return None
+
+
+def _nested_float(*sources_and_keys: tuple[Mapping[str, Any], str]) -> float | None:
+    for source, key in sources_and_keys:
+        value = _coerce_float(_as_mapping(source).get(key))
+        if value is not None:
+            return value
+    return None
+
+
+def _context(envelope: Mapping[str, Any], predictions: Sequence[Mapping[str, Any]], name: str) -> Mapping[str, Any]:
+    direct = _as_mapping(envelope.get(name))
+    if direct:
+        return direct
+    for row in predictions:
+        value = _as_mapping(row.get(name))
+        if value:
+            return value
+    return {}
+
+
+def _premium_regime_features(
+    *,
+    envelope: Mapping[str, Any],
+    predictions: Sequence[Mapping[str, Any]],
+    volatility_liquidity_state: Mapping[str, Any],
+) -> dict[str, Any]:
+    liquidity = _context(envelope, predictions, "liquidity_context")
+    liquidation = _context(envelope, predictions, "liquidation_context") or _context(
+        envelope,
+        predictions,
+        "liquidation_distance_context",
+    )
+    cascade_context = _context(envelope, predictions, "cascade_context")
+    micro = _context(envelope, predictions, "microstructure_context")
+    oi_funding = _context(envelope, predictions, "oi_funding_context")
+    public_intel = _context(envelope, predictions, "public_intel_context")
+    trend_strength = _nested_float(
+        (envelope, "trend_strength"),
+        (envelope, "htf_trend_strength"),
+        (public_intel, "market_breadth_score"),
+    )
+    chop = _nested_float((envelope, "range_chop_score"), (envelope, "chop_score"), (envelope, "range_score"))
+    volatility_expansion = _nested_float(
+        (envelope, "volatility_expansion"),
+        (volatility_liquidity_state, "volatility_expansion"),
+        (volatility_liquidity_state, "volatility"),
+        (volatility_liquidity_state, "volatility_pct"),
+    )
+    spread = _nested_float((micro, "bid_ask_spread_bps"), (micro, "spread_bps"), (volatility_liquidity_state, "bid_ask_spread_bps"))
+    depth = _nested_float((liquidity, "orderbook_depth_usd"), (micro, "orderbook_depth_usd"), (volatility_liquidity_state, "orderbook_depth_usd"))
+    slippage = _nested_float((envelope, "expected_slippage_bps"), (volatility_liquidity_state, "expected_slippage_bps"))
+    spread_depth_slippage = {
+        "bid_ask_spread_bps": spread,
+        "orderbook_depth_usd": depth,
+        "expected_slippage_bps": slippage,
+    }
+    return {
+        "trend_strength": trend_strength,
+        "range_chop_score": chop,
+        "volatility_expansion": volatility_expansion,
+        "atr_percentile": _nested_float((envelope, "atr_percentile"), (volatility_liquidity_state, "atr_percentile")),
+        "funding_skew": _nested_float((oi_funding, "funding_skew"), (oi_funding, "funding_bps"), (oi_funding, "funding_rate")),
+        "open_interest_change": _nested_float((oi_funding, "oi_change_pct"), (oi_funding, "open_interest_change_pct")),
+        "long_short_ratio": _nested_float((oi_funding, "long_short_ratio")),
+        "liquidation_cluster_proximity": _nested_float(
+            (cascade_context, "liquidation_level_proximity_component"),
+            (liquidation, "liquidation_sweep_target_short_distance_bps"),
+            (liquidation, "liquidation_sweep_target_long_distance_bps"),
+            (liquidation, "liquidation_distance_pct"),
+            (liquidation, "nearest_distance_bps"),
+        ),
+        "cascade_context_status": _first_present(
+            envelope.get("cascade_context_status"),
+            cascade_context.get("cascade_context_status"),
+        ),
+        "cascade_risk_score": _nested_float(
+            (envelope, "cascade_risk_score"),
+            (cascade_context, "cascade_risk_score"),
+            (liquidation, "liquidation_cascade_risk"),
+            (liquidation, "cascade_risk"),
+        ),
+        "cascade_missing_mask": _first_present(
+            envelope.get("cascade_missing_mask"),
+            cascade_context.get("missing_mask"),
+        ),
+        "cascade_stale_mask": _first_present(
+            envelope.get("cascade_stale_mask"),
+            cascade_context.get("stale_mask"),
+        ),
+        "cascade_source_availability": _first_present(
+            envelope.get("cascade_source_availability"),
+            cascade_context.get("source_availability"),
+        ),
+        "orderbook_imbalance": _nested_float((micro, "orderbook_imbalance"), (micro, "depth_imbalance"), (liquidity, "depth_imbalance")),
+        "spread_depth_slippage": spread_depth_slippage,
+        "aggressive_flow": _nested_float(
+            (micro, "order_flow_imbalance"),
+            (micro, "tape_imbalance"),
+            (envelope, "aggressive_flow"),
+        ),
+        "cross_asset_btc_eth_sol_regime": _first_present(
+            envelope.get("cross_asset_btc_eth_sol_regime"),
+            envelope.get("cross_asset_regime"),
+            public_intel.get("cross_asset_btc_eth_sol_regime"),
+        ),
+        "market_wide_risk": _first_present(
+            envelope.get("market_wide_risk"),
+            envelope.get("risk_on_risk_off"),
+            public_intel.get("market_breadth_score"),
+        ),
+        "fakeout_reversal_probability": _nested_float(
+            (envelope, "fakeout_reversal_probability"),
+            (micro, "post_sweep_reversal_probability"),
+            (liquidation, "fakeout_reversal_probability"),
+            (public_intel, "fakeout_reversal_probability"),
+        ),
+        "microstructure_trust_score": _nested_float(
+            (envelope, "microstructure_trust_score"),
+            (micro, "microstructure_trust_score"),
+            (micro, "orderbook_trust_score"),
+        ),
+        "microstructure_action": _first_present(
+            envelope.get("microstructure_action"),
+            micro.get("microstructure_action"),
+        ),
+        "sweep_risk": _nested_float(
+            (envelope, "sweep_risk"),
+            (envelope, "sweep_risk_score"),
+            (micro, "sweep_risk"),
+            (micro, "sweep_risk_score"),
+        ),
+        "cross_venue_confirmation_score": _nested_float(
+            (envelope, "cross_venue_confirmation_score"),
+            (micro, "cross_venue_confirmation_score"),
+            (micro, "cross_venue_confirmation"),
+        ),
+        "trade_tape_confirmation_score": _nested_float(
+            (envelope, "trade_tape_confirmation_score"),
+            (micro, "trade_tape_confirmation_score"),
+        ),
+    }
+
+
+def _regime_feature_status(features: Mapping[str, Any]) -> dict[str, Any]:
+    missing: list[str] = []
+    present: list[str] = []
+    for name in REQUIRED_REGIME_FEATURES:
+        value = features.get(name)
+        if isinstance(value, Mapping):
+            if any(item not in (None, "", [], {}) for item in value.values()):
+                present.append(name)
+            else:
+                missing.append(name)
+        elif value in (None, "", [], {}):
+            missing.append(name)
+        else:
+            present.append(name)
+    return {
+        "required_features": list(REQUIRED_REGIME_FEATURES),
+        "present_features": present,
+        "missing_features": missing,
+        "all_required_features_present": not missing,
+        "missing_features_are_explicit": True,
+    }
+
+
+def _bucket_performance_state(
+    envelope: Mapping[str, Any],
+    recent_execution_success_metrics: Mapping[str, Any],
+) -> dict[str, Any]:
+    perf = _as_mapping(envelope.get("bucket_performance") or recent_execution_success_metrics.get("bucket_performance"))
+    profit_factor = _coerce_float(
+        _first_present(
+            perf.get("profit_factor"),
+            perf.get("PF"),
+            envelope.get("bucket_profit_factor"),
+            recent_execution_success_metrics.get("bucket_profit_factor"),
+        )
+    )
+    expectancy = _coerce_float(
+        _first_present(
+            perf.get("expectancy"),
+            perf.get("expectancy_bps"),
+            envelope.get("bucket_expectancy_bps"),
+            recent_execution_success_metrics.get("bucket_expectancy_bps"),
+        )
+    )
+    sample_count = _coerce_float(
+        _first_present(
+            perf.get("sample_count"),
+            perf.get("closed_trades"),
+            envelope.get("bucket_closed_trades"),
+            recent_execution_success_metrics.get("bucket_closed_trades"),
+        )
+    )
+    negative = (profit_factor is not None and profit_factor < 1.0) or (
+        expectancy is not None and expectancy <= 0.0
+    )
+    return {
+        "profit_factor": profit_factor,
+        "expectancy_bps": expectancy,
+        "sample_count": int(sample_count) if sample_count is not None else None,
+        "negative_bucket": negative,
+        "quarantine_reason": "NEGATIVE_BUCKET_PERFORMANCE" if negative else None,
+    }
+
+
+def _canonical_strategy_mode(
+    *,
+    selected_mode: str,
+    block_reason: str | None,
+    position_state: str,
+    labels: Sequence[str],
+    features: Mapping[str, Any],
+) -> str:
+    if block_reason is not None or LABEL_NO_TRADE in labels or LABEL_RISK_OFF in labels:
+        return STRATEGY_RISK_OFF_NO_TRADE
+    if position_state in {"LONG", "SHORT"}:
+        return STRATEGY_REDUCE_ONLY_RECOVERY
+    if (
+        selected_mode != MODE_TREND
+        and features.get("fakeout_reversal_probability") is not None
+        and features.get("liquidation_cluster_proximity") is not None
+    ):
+        return STRATEGY_LIQUIDITY_SWEEP_REVERSAL
+    if selected_mode == MODE_REDUCE_SIZE:
+        return STRATEGY_REDUCE_ONLY_RECOVERY
+    if selected_mode == MODE_BREAKOUT:
+        return STRATEGY_BREAKOUT_SQUEEZE
+    if selected_mode == MODE_TREND:
+        return STRATEGY_TREND_CONTINUATION
+    if selected_mode == MODE_SCALP:
+        return STRATEGY_RANGE_SCALP
+    if selected_mode == MODE_MEAN_REVERSION:
+        return STRATEGY_MEAN_REVERSION
+    return STRATEGY_RISK_OFF_NO_TRADE
 
 
 def route_strategy(
@@ -345,6 +722,9 @@ def route_strategy(
         or 0.0
     )
     paper_only = _paper_only_envelope(envelope)
+    paper_loss_quarantine_blocked_keys = _paper_loss_quarantine_blocked_keys(envelope)
+    paper_loss_quarantine_candidate_keys: set[str] = set()
+    paper_loss_quarantine_matched_keys: list[str] = []
     execution_sample_insufficient = _execution_sample_is_insufficient(recent_execution_success_metrics)
     paper_major_move = _paper_major_move_evidence(
         envelope=envelope,
@@ -352,6 +732,13 @@ def route_strategy(
         expected_move_bps=float(expected_move_bps),
         cfg=cfg,
     )
+    regime_features = _premium_regime_features(
+        envelope=envelope,
+        predictions=predictions,
+        volatility_liquidity_state=volatility_liquidity_state,
+    )
+    regime_feature_status = _regime_feature_status(regime_features)
+    bucket_performance_state = _bucket_performance_state(envelope, recent_execution_success_metrics)
 
     disagreement = classify_masa_ppo_disagreement(
         {
@@ -382,6 +769,11 @@ def route_strategy(
     reasons: list[str] = []
     size_multiplier = 1.0
     block_reason: str | None = None
+
+    if bucket_performance_state["negative_bucket"] is True:
+        labels.extend([LABEL_RISK_OFF, LABEL_NO_TRADE])
+        reasons.append(str(bucket_performance_state["quarantine_reason"]))
+        block_reason = "NEGATIVE_BUCKET_PERFORMANCE_QUARANTINE"
 
     if _future_cutoff_detected(market_state_envelope=envelope, timeframe_rows=predictions):
         labels.extend([LABEL_DATA_UNRELIABLE, LABEL_NO_TRADE])
@@ -473,6 +865,32 @@ def route_strategy(
         reasons.append("LOW_LIQUIDITY_REDUCE_SIZE")
         size_multiplier = min(size_multiplier, float(cfg["low_liquidity_reduce_size_multiplier"]))
 
+    microstructure_trust_score = _coerce_float(regime_features.get("microstructure_trust_score"))
+    microstructure_action = str(regime_features.get("microstructure_action") or "").upper()
+    sweep_risk = _coerce_float(regime_features.get("sweep_risk"))
+    if microstructure_action in {"NO_TRADE", "SHADOW_ONLY", "CLOSE_OR_REDUCE_ONLY"}:
+        labels.extend([LABEL_DATA_UNRELIABLE, LABEL_NO_TRADE])
+        reasons.append(f"MICROSTRUCTURE_ACTION_{microstructure_action}")
+        block_reason = block_reason or f"MICROSTRUCTURE_ACTION_{microstructure_action}"
+    elif microstructure_trust_score is not None and microstructure_trust_score < float(cfg["microstructure_shadow_block_threshold"]):
+        labels.extend([LABEL_DATA_UNRELIABLE, LABEL_NO_TRADE])
+        reasons.append("MICROSTRUCTURE_TRUST_SCORE_UNTRUSTED")
+        block_reason = block_reason or "MICROSTRUCTURE_TRUST_SCORE_UNTRUSTED"
+    elif (
+        microstructure_action == "REDUCE_SIZE"
+        or (microstructure_trust_score is not None and microstructure_trust_score < float(cfg["microstructure_min_trust_score"]))
+    ):
+        reasons.append("MICROSTRUCTURE_TRUST_REDUCE_SIZE")
+        size_multiplier = min(size_multiplier, float(cfg["microstructure_reduce_size_multiplier"]))
+    if sweep_risk is not None and sweep_risk >= float(cfg["microstructure_sweep_block_threshold"]):
+        labels.extend([LABEL_LIQUIDITY_SWEEP, LABEL_NO_TRADE])
+        reasons.append("MICROSTRUCTURE_SWEEP_RISK_BLOCK")
+        block_reason = block_reason or "MICROSTRUCTURE_SWEEP_RISK_BLOCK"
+    elif sweep_risk is not None and sweep_risk >= float(cfg["microstructure_sweep_reduce_threshold"]):
+        labels.append(LABEL_LIQUIDITY_SWEEP)
+        reasons.append("MICROSTRUCTURE_SWEEP_RISK_REDUCE_SIZE")
+        size_multiplier = min(size_multiplier, float(cfg["microstructure_reduce_size_multiplier"]))
+
     selected_mode = MODE_NO_TRADE
     if block_reason is None:
         if paper_major_move["allowed"]:
@@ -503,6 +921,44 @@ def route_strategy(
             execution_success_probability,
         )
     )
+    paper_loss_quarantine_confidence = (
+        ppo_confidence if ppo_confidence is not None else masa_confidence
+    )
+
+    canonical_strategy_mode = _canonical_strategy_mode(
+        selected_mode=selected_mode,
+        block_reason=block_reason,
+        position_state=position_state,
+        labels=labels,
+        features=regime_features,
+    )
+    if paper_only and paper_loss_quarantine_blocked_keys:
+        paper_loss_quarantine_candidate_keys = _paper_loss_quarantine_candidate_keys(
+            envelope=envelope,
+            action=action,
+            confidence=paper_loss_quarantine_confidence,
+            strategy_mode=canonical_strategy_mode,
+            regime_labels=labels,
+        )
+        paper_loss_quarantine_matched_keys = sorted(
+            paper_loss_quarantine_blocked_keys & paper_loss_quarantine_candidate_keys
+        )
+        if paper_loss_quarantine_matched_keys:
+            labels.extend([LABEL_RISK_OFF, LABEL_NO_TRADE])
+            reasons.append("PAPER_LOSS_BUCKET_QUARANTINE")
+            reasons.extend(
+                f"PAPER_LOSS_BUCKET_QUARANTINE_MATCH:{key}"
+                for key in paper_loss_quarantine_matched_keys
+            )
+            block_reason = "PAPER_LOSS_BUCKET_QUARANTINE"
+            selected_mode = MODE_NO_TRADE
+            canonical_strategy_mode = _canonical_strategy_mode(
+                selected_mode=selected_mode,
+                block_reason=block_reason,
+                position_state=position_state,
+                labels=labels,
+                features=regime_features,
+            )
 
     action_mask = {name: False for name in _KNOWN_ACTIONS}
     action_mask["hold"] = True
@@ -525,8 +981,19 @@ def route_strategy(
             labels.append(LABEL_NO_TRADE)
         selected_mode = MODE_NO_TRADE
 
+    canonical_strategy_mode = _canonical_strategy_mode(
+        selected_mode=selected_mode,
+        block_reason=block_reason,
+        position_state=position_state,
+        labels=labels,
+        features=regime_features,
+    )
+    market_regime = ",".join(sorted(set(labels))) if labels else LABEL_RANGE
+
     return {
         "selected_mode": selected_mode,
+        "strategy_mode": canonical_strategy_mode,
+        "strategy_modes_supported": list(REQUIRED_STRATEGY_MODES),
         "allowed_actions": allowed_actions,
         "action_mask": action_mask,
         "size_multiplier": round(max(0.0, min(1.0, size_multiplier)), 6),
@@ -534,6 +1001,45 @@ def route_strategy(
         "block_reason": block_reason,
         "reason_codes": sorted(set(reasons)),
         "regime_labels": sorted(set(labels)),
+        "market_regime": market_regime,
+        "regime_features": regime_features,
+        "regime_feature_status": regime_feature_status,
+        "bucket_performance_state": bucket_performance_state,
+        "strategy_bucket_key": {
+            "symbol": envelope.get("symbol"),
+            "timeframe": envelope.get("timeframe"),
+            "strategy_mode": canonical_strategy_mode,
+            "market_regime": market_regime,
+            "position_state": position_state,
+        },
+        "bucket_quarantined": bucket_performance_state["negative_bucket"] is True,
+        "bucket_quarantine_reason": bucket_performance_state["quarantine_reason"],
+        "strategy_feature_snapshot_status": envelope.get("strategy_feature_snapshot_status"),
+        "strategy_feature_snapshot_id": envelope.get("strategy_feature_snapshot_id"),
+        "strategy_feature_snapshot_available_at": envelope.get("strategy_feature_snapshot_available_at"),
+        "strategy_feature_snapshot_feature_cutoff": envelope.get("strategy_feature_snapshot_feature_cutoff"),
+        "strategy_feature_snapshot_candle_closed_confirmed": envelope.get(
+            "strategy_feature_snapshot_candle_closed_confirmed"
+        ),
+        "strategy_feature_snapshot_latest_unclosed_kline_excluded": envelope.get(
+            "strategy_feature_snapshot_latest_unclosed_kline_excluded"
+        ),
+        "strategy_regime_feature_source_map": dict(
+            _as_mapping(envelope.get("strategy_regime_feature_source_map"))
+        ),
+        "strategy_cross_asset_context_status": envelope.get("strategy_cross_asset_context_status"),
+        "strategy_cross_asset_context_source": envelope.get("strategy_cross_asset_context_source"),
+        "strategy_cross_asset_available_symbol_count": envelope.get(
+            "strategy_cross_asset_available_symbol_count"
+        ),
+        "paper_loss_quarantine_status": envelope.get("paper_loss_quarantine_status"),
+        "paper_loss_quarantine_blocked_bucket_keys": sorted(
+            paper_loss_quarantine_blocked_keys
+        ),
+        "paper_loss_quarantine_candidate_bucket_keys": sorted(
+            paper_loss_quarantine_candidate_keys
+        ),
+        "paper_loss_quarantine_matched_bucket_keys": paper_loss_quarantine_matched_keys,
         "explanation": {
             "higher_timeframe": {
                 "timeframe": higher.get("timeframe"),

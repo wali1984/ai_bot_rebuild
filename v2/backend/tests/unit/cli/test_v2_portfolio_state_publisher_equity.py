@@ -65,6 +65,8 @@ def test_accepted_fill_recomputes_equity_from_current_market_price(monkeypatch, 
     assert result["order_counters"] == {
         "paper_accepted_intent_count": 1,
         "paper_accepted_fill_count": 1,
+        "paper_accepted_fill_raw_count": 1,
+        "paper_invalid_admission_accepted_count": 0,
         "paper_economic_fill_count": 1,
         "paper_non_economic_fill_count": 0,
         "paper_held_intent_count": 1,
@@ -72,6 +74,8 @@ def test_accepted_fill_recomputes_equity_from_current_market_price(monkeypatch, 
         "paper_shadow_observation_count": 0,
         "paper_open_position_count": 1,
         "paper_closed_position_count": 0,
+        "paper_closed_position_raw_count": 0,
+        "paper_invalid_admission_closed_count": 0,
         "live_order_count": 0,
         "test_order_count": 0,
         "exchange_order_mutation_count": 0,
@@ -108,6 +112,115 @@ def test_no_accepted_fills_reports_no_open_position_without_fabricating_pnl(monk
     assert result["unrealized_pnl_usd"] == 0.0
     assert result["equity"] == 10000.0
     assert result["paper_equity_reason"] == "NO_ACCEPTED_PAPER_FILL_IN_CURRENT_V2_LEDGER"
+
+
+def test_no_accepted_fills_uses_reset_session_initial_capital(monkeypatch, tmp_path):
+    fake = FakeRedis(
+        {
+            "v2:paper:session": {
+                "initial_capital": 3000.0,
+                "starting_equity_usd": 3000.0,
+                "paper_session_id": "paper_3000_final_pre_live_test",
+                "reset_session_id": "paper_3000_final_pre_live_test",
+            },
+            "v2:portfolio:state": {
+                "reset_session_id": "paper_3000_final_pre_live_test",
+            },
+            "v2:paper:ledger": {
+                "generated_utc": "2026-07-05T00:00:00Z",
+                "accepted": [],
+                "accepted_count": 0,
+                "held_by_paper_fill_gate_count": 0,
+                "shadow_observation_count": 0,
+            },
+        }
+    )
+    monkeypatch.setattr(publisher, "_connect_redis", lambda: fake)
+    monkeypatch.setattr(publisher, "PAYLOAD_PATH", tmp_path / "v2_portfolio_state.json")
+
+    result = publisher.run_once(write_redis=False)
+
+    assert result["initial_capital"] == 3000.0
+    assert result["starting_equity_usd"] == 3000.0
+    assert result["equity"] == 3000.0
+    assert result["current_session_equity"] == 3000.0
+    assert result["equity_change_since_last"] == 0.0
+    assert result["paper_session_id"] == "paper_3000_final_pre_live_test"
+
+
+def test_invalid_admission_rows_are_excluded_from_clean_session_equity(monkeypatch, tmp_path):
+    session_id = "paper_3000_final_pre_live_test"
+    fake = FakeRedis(
+        {
+            "v2:paper:session": {
+                "initial_capital": 3000.0,
+                "starting_equity_usd": 3000.0,
+                "paper_session_id": session_id,
+                "reset_session_id": session_id,
+            },
+            "v2:paper:ledger": {
+                "generated_utc": "2026-07-05T00:00:00Z",
+                "paper_session_id": session_id,
+                "starting_equity_usd": 3000.0,
+                "accepted": [
+                    {
+                        "fill_id": "fill-blocked",
+                        "intent_id": "fill-blocked",
+                        "prediction_id": "pred-blocked",
+                        "symbol": "CRVUSDT",
+                        "side": "short",
+                        "fill_price": 0.2131,
+                        "quantity": 100.0,
+                        "entry_gate_block_reasons": [
+                            "REGIME_GATE_CASCADE_CONTEXT_SHADOW_ONLY:short:trend_mode:CRVUSDT:15m"
+                        ],
+                    }
+                ],
+                "closed_trades": [
+                    {
+                        "close_id": "close-blocked",
+                        "symbol": "CRVUSDT",
+                        "source_fill_ids": ["fill-blocked"],
+                        "realized_pnl_usd": -0.95,
+                    }
+                ],
+                "accepted_count": 1,
+                "held_by_paper_fill_gate_count": 0,
+                "shadow_observation_count": 0,
+            },
+            "v2:paper:closed_trades": [
+                {
+                    "close_id": "close-blocked",
+                    "symbol": "CRVUSDT",
+                    "source_fill_ids": ["fill-blocked"],
+                    "realized_pnl_usd": -0.95,
+                }
+            ],
+        }
+    )
+    monkeypatch.setattr(publisher, "_connect_redis", lambda: fake)
+    monkeypatch.setattr(publisher, "PAYLOAD_PATH", tmp_path / "v2_portfolio_state.json")
+
+    result = publisher.run_once(write_redis=False)
+
+    assert result["classification"] == (
+        "PORTFOLIO_STATE_CURRENT_PAPER_LEDGER_INVALID_ADMISSIONS_EXCLUDED"
+    )
+    assert result["accepted_fill_total"] == 0
+    assert result["accepted_fill_raw_total"] == 1
+    assert result["invalid_admission_accepted_excluded"] == 1
+    assert result["closed_positions_count"] == 0
+    assert result["closed_positions_raw_count"] == 1
+    assert result["invalid_admission_closed_trades_excluded"] == 1
+    assert result["realized_pnl_usd"] == 0.0
+    assert result["clean_session_valid_equity_usd"] == 3000.0
+    assert result["equity"] == 3000.0
+    assert result["current_session_equity"] == 3000.0
+    assert result["raw_realized_pnl_including_invalid_admissions_usd"] == -0.95
+    assert result["raw_equity_including_invalid_admissions_usd"] == 2999.05
+    assert result["contains_quarantined_positions"] is True
+    assert result["equity_trusted"] is True
+    assert result["pnl_trusted"] is True
 
 
 def test_closed_trade_ledger_realized_pnl_is_included_in_equity(monkeypatch, tmp_path):
@@ -403,6 +516,58 @@ def test_portfolio_publisher_resets_stale_high_water_after_closed_fill_suppressi
     assert result["equity_high_water_mark_reset_reason"] == (
         "RESET_STALE_HIGH_WATER_AFTER_CLOSED_LEDGER_SUPPRESSED_PHANTOM_OPEN_INVENTORY"
     )
+
+
+def test_portfolio_publisher_respects_authoritative_zero_open_ledger(monkeypatch, tmp_path):
+    fake = FakeRedis(
+        {
+            "v2:paper:ledger": {
+                "generated_utc": "2026-07-06T01:40:00Z",
+                "accepted": [
+                    {
+                        "intent_id": "intent-btc",
+                        "signal_id": "signal-btc",
+                        "prediction_id": "prediction-btc",
+                        "risk_decision_id": "risk-btc",
+                        "orchestrator_decision_id": "orch-btc",
+                        "symbol": "BTCUSDT",
+                        "side": "BUY",
+                        "quantity": 1.0,
+                        "fill_price": 10.0,
+                    }
+                ],
+                "open_position_count": 0,
+                "open_positions": [],
+                "positions_by_symbol": {},
+                "closed_trades": [
+                    {
+                        "close_id": "close-btc",
+                        "symbol": "BTCUSDT",
+                        "realized_pnl_usd": 1.0,
+                    }
+                ],
+                "accepted_count": 1,
+                "held_by_paper_fill_gate_count": 0,
+                "shadow_observation_count": 0,
+            },
+            "v2:market:prices:BTCUSDT": {
+                "ticker_24hr": {"lastPrice": "20.0"},
+                "fetched_utc": "2026-07-06T01:40:05Z",
+            },
+        }
+    )
+    monkeypatch.setattr(publisher, "_connect_redis", lambda: fake)
+    monkeypatch.setattr(publisher, "PAYLOAD_PATH", tmp_path / "v2_portfolio_state.json")
+
+    result = publisher.run_once(write_redis=False)
+
+    assert result["classification"] == "PORTFOLIO_STATE_CURRENT_PAPER_LEDGER_CLOSED_ONLY"
+    assert result["ledger_authoritative_no_open_positions"] is True
+    assert result["accepted_fills_suppressed_by_authoritative_open_ledger_count"] == 1
+    assert result["open_positions_count"] == 0
+    assert result["unrealized_pnl_usd"] == 0.0
+    assert result["equity"] == 10001.0
+    assert result["ledger_to_portfolio_status"] == "LEDGER_TO_PORTFOLIO_CLOSED_ONLY"
 
 
 def test_portfolio_publisher_resets_stale_high_water_with_remaining_active_fill(monkeypatch, tmp_path):

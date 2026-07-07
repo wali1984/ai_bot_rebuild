@@ -127,6 +127,16 @@ public struct MobilePosition: Decodable, Identifiable, Equatable {
     public let signal_id: String?
     public let prediction_id: String?
     public let decision_reasoning: PositionDecisionReasoning?
+    public let account_scope: String?
+    public let source_type: String?
+    public let paper_or_live: String?
+    public let contains_simulated_positions: Bool?
+    public let contains_live_positions: Bool?
+    public let contains_quarantined_positions: Bool?
+    public let equity_trusted: Bool?
+    public let pnl_trusted: Bool?
+    public let reason_if_untrusted: String?
+    public let routes_to_live: Bool?
 
     public var total_pnl: Double { (unrealized_pnl ?? 0) + realized_pnl }
     public var isBuy: Bool { side.lowercased() == "long" || side.lowercased() == "buy" }
@@ -166,6 +176,16 @@ public struct MobilePositionsResponse: Decodable {
     public let mode: String
     public let live_gate: String
     public let places_real_order: Bool
+    public let account_scope: String?
+    public let source_type: String?
+    public let paper_or_live: String?
+    public let contains_simulated_positions: Bool?
+    public let contains_live_positions: Bool?
+    public let contains_quarantined_positions: Bool?
+    public let equity_trusted: Bool?
+    public let pnl_trusted: Bool?
+    public let reason_if_untrusted: String?
+    public let routes_to_live: Bool?
 }
 
 public struct PositionPricing: Decodable, Equatable {
@@ -183,6 +203,16 @@ public struct PositionSummary: Decodable, Equatable {
     public let total_pnl_usd: Double
     public let realized_pnl_usd: Double
     public let unrealized_pnl_usd: Double
+    public let account_scope: String?
+    public let source_type: String?
+    public let paper_or_live: String?
+    public let contains_simulated_positions: Bool?
+    public let contains_live_positions: Bool?
+    public let contains_quarantined_positions: Bool?
+    public let equity_trusted: Bool?
+    public let pnl_trusted: Bool?
+    public let reason_if_untrusted: String?
+    public let routes_to_live: Bool?
 }
 
 // MARK: - Signal
@@ -289,6 +319,65 @@ public struct HealthPaper: Decodable, Equatable {
     public let intents_blocked: Int
 }
 
+// MARK: - Orderbook Runtime Truth
+
+public struct OrderbookRuntimeTruth: Decodable, Equatable {
+    public let generated_at: String?
+    public let coinapi_expired_or_not_required: Bool
+    public let direct_binance_active: Bool?
+    public let direct_kucoin_active: Bool?
+    public let direct_binance_kucoin_active: Bool
+    public let symbols_covered: Int
+    public let stale_symbols: [String]
+    public let sequence_gaps: [String]
+    public let direct_feed_coverage: OrderbookDirectFeedCoverage?
+    public let configured_symbol_coverage: OrderbookConfiguredSymbolCoverage?
+    public let trainer_consumes_orderbook: Bool
+    public let risk_consumes_orderbook: Bool
+    public let allocator_consumes_orderbook: Bool
+    public let paper_fills_consume_orderbook: Bool
+}
+
+public struct OrderbookDirectFeedCoverage: Decodable, Equatable {
+    public let binance_book_ticker_persisted: Bool?
+    public let binance_partial_depth_5_10_20_persisted: Bool?
+    public let binance_diff_depth_persisted: Bool?
+    public let binance_100ms_depth_persisted: Bool?
+    public let binance_250ms_depth_persisted: Bool?
+    public let kucoin_best_5_50_persisted: Bool?
+    public let kucoin_increment_best_500_persisted: Bool?
+    public let kucoin_100ms_depth_persisted: Bool?
+    public let kucoin_10ms_increment_persisted: Bool?
+}
+
+public struct OrderbookConfiguredSymbolCoverage: Decodable, Equatable {
+    public let configured_symbol_count: Int?
+    public let complete_symbols: [String]?
+    public let incomplete_symbols: [String]?
+    public let all_configured_symbols_have_required_direct_feed_coverage: Bool?
+}
+
+// MARK: - Microstructure Truth
+
+public struct MicrostructureTruth: Decodable, Equatable {
+    public let generated_at: String?
+    public let live_gate: String
+    public let coinapi_expired_or_not_required: Bool
+    public let coinapi_not_required_to_solve_book_trust: Bool
+    public let public_book_default_trust: String
+    public let public_book_can_approve_trade_alone: Bool
+    public let direct_binance_kucoin_active: Bool
+    public let symbols_covered: Int
+    public let stale_symbols: [String]
+    public let sequence_gaps: [String]
+    public let trainer_consumes_microstructure: Bool
+    public let risk_consumes_microstructure: Bool
+    public let orchestrator_consumes_microstructure: Bool
+    public let allocator_consumes_microstructure: Bool
+    public let paper_fills_consume_microstructure: Bool
+    public let why_candidate_blocked_visible: Bool
+}
+
 // MARK: - Risk
 
 public struct MobileRiskStatus: Decodable, Equatable {
@@ -354,6 +443,16 @@ public struct PaperPositions: Decodable, Equatable {
     public let open_count: Int
     public let closed_count: Int
     public let positions_preview: [MobilePosition]
+    public let account_scope: String?
+    public let source_type: String?
+    public let paper_or_live: String?
+    public let contains_simulated_positions: Bool?
+    public let contains_live_positions: Bool?
+    public let contains_quarantined_positions: Bool?
+    public let equity_trusted: Bool?
+    public let pnl_trusted: Bool?
+    public let reason_if_untrusted: String?
+    public let routes_to_live: Bool?
 }
 
 public struct PaperPnL: Decodable, Equatable {
@@ -361,6 +460,9 @@ public struct PaperPnL: Decodable, Equatable {
     public let unrealized_usd: Double
     public let total_usd: Double
     public let win_rate_pct: Double?
+    public let equity_trusted: Bool?
+    public let pnl_trusted: Bool?
+    public let reason_if_untrusted: String?
 }
 
 public struct TrainerFeedback: Decodable, Equatable {

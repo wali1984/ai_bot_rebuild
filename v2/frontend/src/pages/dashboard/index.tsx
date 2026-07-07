@@ -804,19 +804,21 @@ function EquityPanel({ equity, realized, unrealized, pnlHistory }: {
           ))}
         </div>
         {chartData.length ? (
-          <ResponsiveContainer width="100%" height={60}>
-            <AreaChart data={chartData} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="eqGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="var(--accent,#3b82f6)" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="var(--accent,#3b82f6)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <Area type="monotone" dataKey="value" stroke="var(--accent,#3b82f6)" strokeWidth={2} fill="url(#eqGrad)" dot={false} />
-            </AreaChart>
-          </ResponsiveContainer>
+          <div data-chart-mode="FALLBACK_STATIC_CHART" aria-label="Execution-restricted account equity chart">
+            <ResponsiveContainer width="100%" height={60}>
+              <AreaChart data={chartData} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="eqGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--accent,#3b82f6)" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="var(--accent,#3b82f6)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <Area type="monotone" dataKey="value" stroke="var(--accent,#3b82f6)" strokeWidth={2} fill="url(#eqGrad)" dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         ) : (
-          <div className="nervyx-dashboard-chart-empty">Awaiting account stream…</div>
+          <div className="nervyx-dashboard-chart-empty" data-chart-mode="FALLBACK_STATIC_CHART">Awaiting account stream…</div>
         )}
         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, fontFamily: 'var(--font-mono)' }}>
           Starting capital: $10,000.00 · Execution-restricted telemetry
@@ -1055,6 +1057,15 @@ export default function DashboardPage(): JSX.Element {
           </div>
         </div>
         <StatusBar orch={orchData} risk={riskData} />
+      </div>
+
+      <div
+        className="live-block-banner live-block-banner--red"
+        data-testid="live-block-banner"
+        data-live-gate-status="blocked_human_only"
+      >
+        LIVE TRADING: BLOCKED · blocked_human_only
+        <span className="live-block-banner__hint">execution-restricted runtime truth</span>
       </div>
 
       <DashboardStreamStatus items={dashboardStreamItems} browser={browserStatus} />

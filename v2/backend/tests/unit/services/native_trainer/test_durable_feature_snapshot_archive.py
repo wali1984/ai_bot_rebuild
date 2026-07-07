@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -9,8 +10,10 @@ from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive imp
     SnapshotArchiveError,
     append_snapshot,
     build_archive_record,
+    build_archive_record_from_prediction_payload,
     build_reference_retention_status,
     content_sha256,
+    iter_index_records,
     load_snapshot,
     rollover_archive,
 )
@@ -95,6 +98,17 @@ def test_unreferenced_snapshot_rollover(tmp_path: Path) -> None:
     assert load_snapshot("old", root=tmp_path, verify=False) is None
 
 
+def test_index_iteration_prefers_newest_snapshot(tmp_path: Path) -> None:
+    older = append_snapshot(_record("older"), root=tmp_path)
+    newer = append_snapshot(_record("newer"), root=tmp_path)
+    os.utime(older.index_path, (2, 2))
+    os.utime(newer.index_path, (1, 1))
+
+    records = list(iter_index_records(root=tmp_path, newest_first=True, limit=1))
+
+    assert [record["snapshot_id"] for record in records] == ["newer"]
+
+
 def test_feedback_can_resolve_archived_snapshot(tmp_path: Path) -> None:
     append_snapshot(_record("feedback-snapshot"), root=tmp_path)
     loader = V2HybridTrainerDataLoader(trusted_replay_archive_root=tmp_path)
@@ -107,3 +121,52 @@ def test_feedback_can_resolve_archived_snapshot(tmp_path: Path) -> None:
     assert snapshot is not None
     assert snapshot["snapshot_id"] == "feedback-snapshot"
     assert source == "durable_feature_snapshot_archive:feedback-snapshot"
+
+
+def test_prediction_payload_archive_record_accepts_flattened_replay_snapshot() -> None:
+    payload = {
+        "prediction_id": "pred-1",
+        "signal_id": "sig-1",
+        "decision_id": "decision-1",
+        "feature_snapshot_id": "snapshot-flat",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "feature_cutoff": FEATURE_CUTOFF,
+        "feature_decision_time": DECISION_TIME,
+        "available_at": AVAILABLE_AT,
+        "mtf_snapshot_id": "mtf-1",
+        "generated_utc": AVAILABLE_AT,
+        "model_version": "v2_native_hybrid",
+        "checkpoint_id": "ckpt-1",
+        "feature_names": ["open", "close", "open_interest"],
+        "missing_feature_names": [],
+        "stale_feature_names": [],
+        "source_availability_vector": [1.0, 1.0, 1.0],
+        "source_hashes": {"feature_vector_hash": "hash-1"},
+        "replay_snapshot": {
+            "feature_snapshot": {
+                "feature_snapshot_id": "snapshot-flat",
+                "symbol": "BTCUSDT",
+                "timeframe": "1m",
+                "feature_cutoff": FEATURE_CUTOFF,
+                "available_at": AVAILABLE_AT,
+                "candle_closed_confirmed": True,
+                "features": {
+                    "open": 100.0,
+                    "close": 101.0,
+                    "open_interest": 123.0,
+                },
+            },
+        },
+    }
+
+    record = build_archive_record_from_prediction_payload(payload)
+
+    assert record is not None
+    assert record["snapshot_id"] == "snapshot-flat"
+    assert record["features"]["open_interest"] == 123.0
+    assert record["feature_cutoff"] == FEATURE_CUTOFF
+    assert record["decision_time"] == DECISION_TIME
+    assert record["available_at"] == AVAILABLE_AT
+    assert record["candle_closed_confirmed"] is True
+    assert content_sha256(record) == record["content_sha256"]

@@ -25,6 +25,217 @@ class _FakeRedis:
         return len(value.encode("utf-8") if isinstance(value, str) else value)
 
 
+def test_b_grade_calibration_safety_halts_negative_warmup() -> None:
+    rows = [
+        {
+            "paper_opportunity_tier": paper_loop.PAPER_TIER_B_GRADE_EXPLORATION,
+            "realized_net_pnl_bps": value,
+            "gross_notional_usd": 100.0,
+        }
+        for value in (12.0, -20.0, -14.0, 8.0, -18.0)
+    ]
+
+    status = paper_loop._b_grade_calibration_safety_status(  # noqa: SLF001
+        rows,
+        churn_status={"status": "ACTIVE", "new_entries_allowed": True},
+        generated_utc="2026-07-06T12:00:00Z",
+    )
+
+    assert status["status"] == "HALTED_PERFORMANCE"
+    assert status["new_b_grade_entries_allowed"] is False
+    assert "B_GRADE_PROFIT_FACTOR_BELOW_1" in status["blockers"]
+    assert "B_GRADE_EXPECTANCY_NON_POSITIVE" in status["blockers"]
+    assert status["places_real_order"] is False
+
+
+def test_a_plus_gate_redistribution_flags_100pct_present_source_failures() -> None:
+    evaluations = [
+        {
+            "a_plus": False,
+            "failed_checks": [
+                "side_bucket_positive",
+                "regime_aligned",
+                "microstructure_trust_confirms",
+                "allocator_allows",
+            ],
+            "checks": {
+                "side_bucket_positive": {"passed": False, "missing_evidence": False},
+                "regime_aligned": {"passed": False, "missing_evidence": False},
+                "microstructure_trust_confirms": {"passed": False, "missing_evidence": False},
+                "allocator_allows": {"passed": False, "missing_evidence": False},
+            },
+        },
+        {
+            "a_plus": False,
+            "failed_checks": [
+                "side_bucket_positive",
+                "regime_aligned",
+                "microstructure_trust_confirms",
+                "allocator_allows",
+            ],
+            "checks": {
+                "side_bucket_positive": {"passed": False, "missing_evidence": False},
+                "regime_aligned": {"passed": False, "missing_evidence": False},
+                "microstructure_trust_confirms": {"passed": False, "missing_evidence": False},
+                "allocator_allows": {"passed": False, "missing_evidence": False},
+            },
+        },
+    ]
+
+    status = paper_loop._a_plus_gate_redistribution_status(  # noqa: SLF001
+        evaluations,
+        generated_utc="2026-07-06T12:00:00Z",
+        paper_session_id="session-1",
+    )
+
+    assert status["evaluated_candidates"] == 2
+    assert status["a_plus_candidates"] == 0
+    assert status["failed_check_counts"]["side_bucket_positive"] == 2
+    assert "side_bucket_positive" in status["plumbing_bug_suspected_checks"]
+    assert status["known_bad_pattern_detected"] is True
+
+
+def test_a_plus_gate_redistribution_separates_safety_blocks_from_plumbing() -> None:
+    evaluations = [
+        {
+            "a_plus": False,
+            "failed_checks": [
+                "allocator_allows",
+                "cost_evidence_production_grade",
+                "no_quarantine_bucket",
+                "no_stale_or_missing_critical_feature",
+            ],
+            "checks": {
+                "allocator_allows": {
+                    "passed": False,
+                    "missing_evidence": False,
+                    "reason": "ALLOCATOR_BLOCKED:BLOCK_NO_EDGE",
+                },
+                "cost_evidence_production_grade": {
+                    "passed": False,
+                    "missing_evidence": False,
+                    "reason": "runtime_cost_capture_status=PARTIAL_COST_CAPTURE",
+                },
+                "no_quarantine_bucket": {
+                    "passed": False,
+                    "missing_evidence": False,
+                    "reason": "bucket_quarantine_status=ACTIVE_WITH_QUARANTINES",
+                },
+                "no_stale_or_missing_critical_feature": {
+                    "passed": False,
+                    "missing_evidence": False,
+                    "reason": "MISSING_CRITICAL_FEATURES:204",
+                },
+            },
+        },
+        {
+            "a_plus": False,
+            "failed_checks": [
+                "allocator_allows",
+                "cost_evidence_production_grade",
+                "no_quarantine_bucket",
+                "no_stale_or_missing_critical_feature",
+            ],
+            "checks": {
+                "allocator_allows": {
+                    "passed": False,
+                    "missing_evidence": False,
+                    "reason": "ALLOCATOR_BLOCKED:BLOCK_INSUFFICIENT_LIQUIDITY",
+                },
+                "cost_evidence_production_grade": {
+                    "passed": False,
+                    "missing_evidence": False,
+                    "reason": "runtime_cost_capture_status=PARTIAL_COST_CAPTURE",
+                },
+                "no_quarantine_bucket": {
+                    "passed": False,
+                    "missing_evidence": False,
+                    "reason": "candidate_bucket_quarantined:side:long",
+                },
+                "no_stale_or_missing_critical_feature": {
+                    "passed": False,
+                    "missing_evidence": False,
+                    "reason": "STALE_FEATURES:3",
+                },
+            },
+        },
+    ]
+
+    status = paper_loop._a_plus_gate_redistribution_status(  # noqa: SLF001
+        evaluations,
+        generated_utc="2026-07-06T12:00:00Z",
+        paper_session_id="session-1",
+    )
+
+    assert status["source_present_100pct_failure_checks"] == [
+        "allocator_allows",
+        "cost_evidence_production_grade",
+        "no_quarantine_bucket",
+        "no_stale_or_missing_critical_feature",
+    ]
+    assert status["safety_block_100pct_checks"] == [
+        "allocator_allows",
+        "cost_evidence_production_grade",
+        "no_quarantine_bucket",
+        "no_stale_or_missing_critical_feature",
+    ]
+    assert status["plumbing_bug_suspected_checks"] == []
+
+
+def test_a_plus_5_trade_gate_requires_five_wins() -> None:
+    rows = [
+        {
+            "paper_opportunity_tier": paper_loop.PAPER_TIER_A_GRADE_EXECUTION,
+            "counts_as_a_grade_evidence": True,
+            "realized_net_pnl_bps": 5.0,
+            "gross_notional_usd": 100.0,
+        }
+        for _ in range(5)
+    ]
+
+    status = paper_loop._a_plus_5_trade_gate_runtime_status(  # noqa: SLF001
+        rows,
+        generated_utc="2026-07-06T12:00:00Z",
+    )
+
+    assert status["status"] == "PASSED_A_PLUS_5_TRADE_GATE"
+    assert status["win_count"] == 5
+    assert status["loss_count"] == 0
+    assert status["no_live_mutation"] is True
+
+
+def test_b_grade_resumption_requests_patch_after_three_zero_fill_cycles() -> None:
+    status = paper_loop._b_grade_exploration_resumption_status(  # noqa: SLF001
+        intents=[
+            {
+                "paper_opportunity_tier": paper_loop.PAPER_TIER_B_GRADE_EXPLORATION,
+                "confidence_calibrated": 0.5,
+            }
+        ],
+        accepted_rows=[],
+        closed_rows=[],
+        trainer_feedback_rows=[],
+        trainer_hybrid_cuda_status={"status": "RUNNING"},
+        b_grade_canary_supply_status={
+            "root_cause_counts": {"allocator_failed": 4, "risk_failed": 1}
+        },
+        previous_status={"accepted_fills_zero_cycle_streak": 2},
+        generated_utc="2026-07-06T12:00:00Z",
+    )
+
+    assert status["accepted_fills_zero_cycle_streak"] == 3
+    assert status["patch_required"] is True
+    assert status["patch_target"] == "allocator_failed"
+    assert status["exact_blocker"] == "allocator_failed"
+    assert status["redis_keys_checked"] == [
+        "v2:paper:intents",
+        "v2:paper:accepted_fills",
+        "v2:paper:closed_trades",
+        "v2:trainer:feedback:outcomes",
+        "v2:trainer:hybrid_cuda:status",
+    ]
+
+
 def _allowed_allocation(**overrides):
     payload = {
         "allocator_decision": "ALLOW_WITH_SIZE",
@@ -69,6 +280,23 @@ def test_paper_adaptive_sizing_runtime_status_exposes_full_candidate_allocations
             ),
             policy_tier=(
                 "B_GRADE_EXPLORATION_PAPER" if index % 2 == 0 else "NO_TRADE"
+            ),
+            selected_action=("long" if index % 2 == 0 else "hold"),
+            action=("long" if index % 2 == 0 else "hold"),
+            expected_move_bps=(24.0 if index % 2 == 0 else -48.0),
+            expected_move_after_cost_bps=(12.0 if index % 2 == 0 else 0.0),
+            paper_fill_block_reason=(
+                None
+                if index % 2 == 0
+                else "MARKET_STATE_INTEGRITY_PAPER_GATE_BLOCKED"
+            ),
+            local_block_reasons=(
+                []
+                if index % 2 == 0
+                else [
+                    "entry_gate:EXPECTED_MOVE_NON_POSITIVE:0.0bps",
+                    "strategy_router:PPO_ACTION_NOT_TRADABLE",
+                ]
             ),
             capital_class=(
                 "B_GRADE_EXPLORATION_FRACTIONAL_BUDGET"
@@ -126,6 +354,50 @@ def test_paper_adaptive_sizing_runtime_status_exposes_full_candidate_allocations
         "ALLOW_WITH_SIZE": 15,
         "BLOCK_NON_EXECUTABLE_PAPER_TIER": 15,
     }
+    assert status["selected_action_counts"] == {"hold": 15, "long": 15}
+    assert status["selected_action_expected_move_bps_sign_counts"] == {
+        "hold:negative": 15,
+        "long:positive": 15,
+    }
+    assert status["hold_with_directional_expected_move_bps_count"] == 15
+    assert (
+        status["hold_zero_after_cost_with_directional_expected_move_bps_count"]
+        == 15
+    )
+    assert status["paper_opportunity_tier_counts"] == {
+        "B_GRADE_EXPLORATION_PAPER": 15,
+        "NO_TRADE": 15,
+    }
+    assert status["paper_opportunity_tier_reason_counts"] == {
+        "NON_EXECUTABLE_PAPER_TIER:NO_TRADE": 15,
+        "missing": 15,
+    }
+    assert status["paper_fill_block_reason_counts"] == {
+        "MARKET_STATE_INTEGRITY_PAPER_GATE_BLOCKED": 15,
+        "missing": 15,
+    }
+    assert status["paper_allocation_block_reason_counts"] == {
+        "NON_EXECUTABLE_PAPER_TIER:NO_TRADE": 15,
+        "missing": 15,
+    }
+    assert status["strategy_router_block_reason_counts"] == {
+        "PPO_ACTION_NOT_TRADABLE": 15,
+        "missing": 15,
+    }
+    assert status["local_block_reason_counts"] == {
+        "entry_gate:EXPECTED_MOVE_NON_POSITIVE:0.0bps": 15,
+        "strategy_router:PPO_ACTION_NOT_TRADABLE": 15,
+    }
+    blocked_rows = [
+        row
+        for row in status["candidate_allocations"]
+        if row["allocator_decision"] == "BLOCK_NON_EXECUTABLE_PAPER_TIER"
+    ]
+    assert all(row["strategy_router_block_reason"] == "PPO_ACTION_NOT_TRADABLE" for row in blocked_rows)
+    assert all(row["strategy_router_block_reason_source"] == "local_block_reasons" for row in blocked_rows)
+    assert status["allocator_microstructure_block_reason_counts"] == {"missing": 30}
+    assert status["microstructure_trust_status_counts"] == {"missing": 30}
+    assert status["missing_microstructure_trust_candidate_count"] == 0
     assert status["paper_only"] is True
     assert status["places_real_order"] is False
     assert status["test_orders"] is False
@@ -540,6 +812,37 @@ def test_current_cycle_candidate_allocations_publish_intent_runtime_evidence() -
     assert "paper_fill_allowed" not in current_allocation
 
 
+def test_paper_adaptive_sizing_runtime_status_counts_microstructure_trust_blocks() -> None:
+    status = paper_loop._paper_adaptive_sizing_runtime_status(  # noqa: SLF001
+        [
+            _allowed_allocation(
+                allocator_decision="BLOCK_INSUFFICIENT_LIQUIDITY",
+                allocator_microstructure_block_reason="MICROSTRUCTURE_TRUST_SCORE_MISSING",
+                microstructure_trust_status="MISSING_MICROSTRUCTURE_TRUST_SCORE",
+            ),
+            _allowed_allocation(
+                allocator_decision="BLOCK_INSUFFICIENT_LIQUIDITY",
+                allocator_microstructure_block_reason="MICROSTRUCTURE_TRUST_SCORE_MISSING",
+                microstructure_trust_status="MISSING_MICROSTRUCTURE_TRUST_SCORE",
+            ),
+            _allowed_allocation(
+                allocator_decision="BLOCK_LOW_CONFIDENCE",
+                microstructure_trust_status="MICROSTRUCTURE_TRUST_SCORE_FOUND",
+            ),
+        ]
+    )
+
+    assert status["allocator_microstructure_block_reason_counts"] == {
+        "MICROSTRUCTURE_TRUST_SCORE_MISSING": 2,
+        "missing": 1,
+    }
+    assert status["microstructure_trust_status_counts"] == {
+        "MICROSTRUCTURE_TRUST_SCORE_FOUND": 1,
+        "MISSING_MICROSTRUCTURE_TRUST_SCORE": 2,
+    }
+    assert status["missing_microstructure_trust_candidate_count"] == 2
+
+
 def test_build_allocation_input_uses_configured_paper_fee_schedule_when_missing() -> None:
     intent = {
         "symbol": "BTCUSDT",
@@ -588,6 +891,97 @@ def test_build_allocation_input_uses_configured_paper_fee_schedule_when_missing(
     assert intent["fee_bps_unavailable_reason"] is None
     assert intent["market_cost_evidence_status"] == "COMPLETE_EXPLICIT_MARKET_COST_EVIDENCE"
     assert "MISSING_FEES" not in (intent.get("market_cost_evidence_missing_fields") or [])
+
+
+def test_read_orderbook_microstructure_marks_missing_trust_score() -> None:
+    redis_client = _FakeRedis(
+        {
+            "v2:market:orderbook:BANKUSDT": {
+                "bid_ask_spread_bps": 1.2,
+                "best_bid": 99.99,
+                "best_ask": 100.01,
+                "bids": [[99.99, 10.0]],
+                "asks": [[100.01, 10.0]],
+                "generated_at_ms": 1783293900000,
+            },
+        }
+    )
+
+    microstructure = paper_loop._read_v2_orderbook_microstructure(  # noqa: SLF001
+        redis_client,
+        "BANKUSDT",
+    )
+
+    assert microstructure["microstructure_trust_status"] == "MISSING_MICROSTRUCTURE_TRUST_SCORE"
+    assert microstructure["microstructure_trust_missing_reason"] == (
+        "NO_V2_MICROSTRUCTURE_TRUST_SCORE_REDIS_PAYLOAD"
+    )
+    assert microstructure["microstructure_trust_lookup_keys"] == [
+        "v2:microstructure:trust_score:BANKUSDT:1m",
+        "v2:microstructure:trust_score:BANKUSDT:5m",
+        "v2:microstructure:trust_score:BANKUSDT:15m",
+    ]
+    assert "microstructure_trust_score" not in microstructure
+
+
+def test_build_allocation_input_exposes_missing_microstructure_trust_block() -> None:
+    intent = {
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "side": "long",
+        "entry_price": 100.0,
+        "confidence_calibrated": 0.8,
+        "expected_move_after_cost_bps": 40.0,
+        "market_state_integrity_score": 92.0,
+    }
+
+    allocation_input = paper_loop._build_allocation_input(  # noqa: SLF001
+        intent=intent,
+        signal={
+            "timeframe": "1m",
+            "price_target": 100.0,
+            "expected_funding_bps": 0.5,
+        },
+        prediction={"features": {}},
+        portfolio_context={
+            "equity": 10000.0,
+            "available_margin": 9000.0,
+            "wallet_balance": 10000.0,
+            "drawdown_bps": 0.0,
+        },
+        symbol_exposures={},
+        total_exposure=0.0,
+        market_microstructure={
+            "bid_ask_spread_bps": 1.2,
+            "source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK",
+            "orderbook_depth_usd": 100000.0,
+            "orderbook_depth_source": "orderbook_top5",
+            "microstructure_trust_status": "MISSING_MICROSTRUCTURE_TRUST_SCORE",
+            "microstructure_trust_missing_reason": (
+                "NO_V2_MICROSTRUCTURE_TRUST_SCORE_REDIS_PAYLOAD"
+            ),
+            "microstructure_trust_lookup_keys": [
+                "v2:microstructure:trust_score:BTCUSDT:1m",
+                "v2:microstructure:trust_score:BTCUSDT:5m",
+                "v2:microstructure:trust_score:BTCUSDT:15m",
+            ],
+        },
+    )
+
+    assert allocation_input.liquidity_score == 0.0
+    assert intent["allocator_liquidity_score_before_microstructure_trust_gate"] > 0.0
+    assert intent["allocator_liquidity_score_after_microstructure"] == 0.0
+    assert intent["allocator_liquidity_score_after_microstructure_trust_gate"] == 0.0
+    assert intent["allocator_microstructure_block_reason"] == "MICROSTRUCTURE_TRUST_SCORE_MISSING"
+    assert intent["allocator_microstructure_trust_gate_status"] == (
+        "BLOCKED_MISSING_MICROSTRUCTURE_TRUST_SCORE"
+    )
+    assert intent["microstructure_trust_status"] == "MISSING_MICROSTRUCTURE_TRUST_SCORE"
+    assert intent["microstructure_trust_lookup_keys"] == [
+        "v2:microstructure:trust_score:BTCUSDT:1m",
+        "v2:microstructure:trust_score:BTCUSDT:5m",
+        "v2:microstructure:trust_score:BTCUSDT:15m",
+    ]
 
 
 def test_build_allocation_input_uses_readonly_fee_schedule_before_configured_default() -> None:
@@ -662,6 +1056,40 @@ def test_read_readonly_fee_schedule_context_uses_symbol_specific_redis_payload()
         3.25,
         "READ_ONLY_FEE_SCHEDULE_REDIS:v2:account:fee_schedule:BTCUSDT.taker_fee_bps",
     )
+
+
+def test_pre_trade_fee_context_uses_readonly_schedule_before_configured_default() -> None:
+    context = paper_loop._pre_trade_fee_context(  # noqa: SLF001
+        signal={},
+        prediction={"features": {}},
+        fee_schedule_context={
+            "source": "READ_ONLY_FEE_SCHEDULE_REDIS:v2:account:fee_schedule:ETHUSDT",
+            "taker_fee_bps": 3.1,
+        },
+    )
+
+    assert context["fee_bps"] == pytest.approx(3.1)
+    assert context["fee_bps_source"] == (
+        "READ_ONLY_FEE_SCHEDULE_REDIS:v2:account:fee_schedule:ETHUSDT.taker_fee_bps"
+    )
+    assert context["fee_bps_readonly_schedule"] is True
+    assert context["fee_bps_configured_schedule"] is False
+
+
+def test_pre_trade_fee_context_prefers_explicit_signal_fee() -> None:
+    context = paper_loop._pre_trade_fee_context(  # noqa: SLF001
+        signal={"fee_bps": 2.4},
+        prediction={"features": {}},
+        fee_schedule_context={
+            "source": "READ_ONLY_FEE_SCHEDULE_REDIS:v2:account:fee_schedule:SOLUSDT",
+            "taker_fee_bps": 3.1,
+        },
+    )
+
+    assert context["fee_bps"] == pytest.approx(2.4)
+    assert context["fee_bps_source"] == "signal.fee_bps"
+    assert context["fee_bps_readonly_schedule"] is False
+    assert context["fee_bps_configured_schedule"] is False
 
 
 def test_read_v2_feature_snapshot_missing_timeframe_does_not_default_to_1m() -> None:
@@ -2346,6 +2774,8 @@ def test_runtime_cost_capture_contract_marks_complete_production_grade_cost() ->
         "actual_observed_spread_entry_bps": 1.2,
         "expected_slippage_bps": 0.8,
         "expected_slippage_source": "MODELED_FROM_OBSERVED_ORDERBOOK",
+        "maker_taker_assumption": "taker",
+        "maker_taker_probability": 1.0,
         "fee_bps": 4.0,
         "fee_bps_source": "CONFIGURED_PAPER_FEE_SCHEDULE",
         "fee_bps_readonly_schedule": False,
@@ -2375,6 +2805,18 @@ def test_runtime_cost_capture_contract_marks_complete_production_grade_cost() ->
         "ask_depth_usd": 12000.0,
         "orderbook_depth_usd": 10000.0,
         "market_depth_usd": 10000.0,
+        "microstructure_trust_score": 0.82,
+        "microstructure_adaptive_minimum": 0.65,
+        "orderbook_trust_tier": "HIGH_TRUST",
+        "microstructure_action": "ALLOW",
+        "orderbook_latency_ms": 25.0,
+        "book_sequence_gap": False,
+        "book_depth_persistence_score": 0.9,
+        "book_cancel_pressure_score": 0.1,
+        "trade_tape_confirmation_score": 0.8,
+        "cross_venue_confirmation_score": 0.8,
+        "sweep_risk_score": 0.1,
+        "microstructure_trust_source": "v2:microstructure:trust_score:BANKUSDT:15m",
         "ask_levels_top5": [
             {"price": 100.01, "quantity": 10.0},
         ],
@@ -2451,6 +2893,238 @@ def test_runtime_cost_capture_contract_marks_complete_production_grade_cost() ->
     assert rows[0]["routes_to_live"] is False
 
 
+def _complete_runtime_cost_capture_intent_and_microstructure(
+    *,
+    microstructure_action: str,
+    microstructure_trust_score: float,
+    microstructure_adaptive_minimum: float = 0.65,
+) -> tuple[dict[str, object], dict[str, object]]:
+    intent: dict[str, object] = {
+        "symbol": "BANKUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "strategy_id": "trend_follow",
+        "decision_time": "2026-06-22T13:00:00.000Z",
+        "feature_cutoff": "2026-06-22T12:45:00.000Z",
+        "available_at": "2026-06-22T12:59:58.000Z",
+        "entry_feature_decision_time": "2026-06-22T13:00:00.000Z",
+        "expected_move_bps": 20.0,
+        "expected_move_after_cost_bps": 12.0,
+        "score": 0.72,
+        "entry_price_provenance_present": True,
+        "entry_spread_source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:v2:market:orderbook:BANKUSDT",
+        "entry_spread_available_at": "2026-06-22T12:59:59.500Z",
+        "actual_observed_spread_entry_bps": 1.2,
+        "expected_slippage_bps": 0.8,
+        "expected_slippage_source": "MODELED_FROM_OBSERVED_ORDERBOOK",
+        "maker_taker_assumption": "taker",
+        "maker_taker_probability": 1.0,
+        "fee_bps": 4.0,
+        "fee_bps_source": "CONFIGURED_PAPER_FEE_SCHEDULE",
+        "expected_funding_bps": 0.5,
+        "expected_funding_bps_source": "V2_MARKET_FUNDING_PREMIUM_INDEX",
+        "latency_reserve_bps": 0.0,
+        "mark_price": 100.03,
+        "index_price": 100.0,
+        "mark_index_divergence_bps": 3.0,
+        "mark_index_source": "V2_MARKET_FUNDING_PREMIUM_INDEX:v2:market:funding:BANKUSDT",
+        "fill_price": 100.0,
+        "fill_price_utc": "2026-06-22T13:00:00.250Z",
+        "entry_price": 100.0,
+        "quantity": 2.5,
+        "notional_usdt": 250.0,
+        "gross_notional_usd": 250.0,
+        "allocated_margin_usd": 125.0,
+        "recommended_leverage": 2.0,
+        "recommended_margin_mode": "isolated_paper_simulated",
+        "adaptive_allocation": {},
+    }
+    market_microstructure: dict[str, object] = {
+        "source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:v2:market:orderbook:BANKUSDT",
+        "entry_spread_available_at": "2026-06-22T12:59:59.500Z",
+        "best_bid": 99.99,
+        "best_ask": 100.01,
+        "mid_price": 100.0,
+        "bid_depth_usd": 10000.0,
+        "ask_depth_usd": 12000.0,
+        "orderbook_depth_usd": 10000.0,
+        "market_depth_usd": 10000.0,
+        "depth_derived_price_impact_bps": 0.0,
+        "microstructure_trust_score": microstructure_trust_score,
+        "microstructure_adaptive_minimum": microstructure_adaptive_minimum,
+        "orderbook_trust_tier": (
+            "REDUCED_SIZE" if microstructure_action == "REDUCE_SIZE" else "HIGH_TRUST"
+        ),
+        "microstructure_action": microstructure_action,
+        "orderbook_latency_ms": 25.0,
+        "book_sequence_gap": False,
+        "book_depth_persistence_score": 0.9,
+        "book_cancel_pressure_score": 0.1,
+        "trade_tape_confirmation_score": 0.8,
+        "cross_venue_confirmation_score": 0.8,
+        "sweep_risk_score": 0.1,
+        "microstructure_trust_source": "v2:microstructure:trust_score:BANKUSDT:15m",
+    }
+    return intent, market_microstructure
+
+
+def test_runtime_cost_capture_allows_reduce_size_below_microstructure_minimum() -> None:
+    intent, market_microstructure = _complete_runtime_cost_capture_intent_and_microstructure(
+        microstructure_action="REDUCE_SIZE",
+        microstructure_trust_score=0.52,
+    )
+
+    paper_loop._attach_runtime_cost_capture_contract(  # noqa: SLF001
+        intent,
+        market_microstructure,
+        signal={"policy_fingerprint": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT},
+        prediction={"model_source": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA"},
+    )
+
+    assert intent["microstructure_below_adaptive_minimum"] is True
+    assert intent["runtime_cost_capture_microstructure_trust_policy"] == (
+        "REDUCE_SIZE_BELOW_ADAPTIVE_MINIMUM"
+    )
+    assert intent["runtime_cost_capture_source_reject_reasons"] == []
+    assert intent["runtime_cost_capture_missing_fields"] == []
+    assert intent["production_grade_cost_flag"] is True
+    assert intent["fallback_cost_flag"] is False
+    assert intent["microstructure_gate_allows_a_grade"] is False
+    assert paper_loop._paper_policy_owner_open_rejection_reasons(intent) == []  # noqa: SLF001
+    assert intent["paper_policy_owner_open_allowed"] is True
+
+
+def test_runtime_cost_capture_rejects_allow_below_microstructure_minimum() -> None:
+    intent, market_microstructure = _complete_runtime_cost_capture_intent_and_microstructure(
+        microstructure_action="ALLOW",
+        microstructure_trust_score=0.52,
+    )
+
+    paper_loop._attach_runtime_cost_capture_contract(  # noqa: SLF001
+        intent,
+        market_microstructure,
+        signal={"policy_fingerprint": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT},
+        prediction={"model_source": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA"},
+    )
+    reasons = paper_loop._paper_policy_owner_open_rejection_reasons(intent)  # noqa: SLF001
+
+    assert intent["runtime_cost_capture_source_reject_reasons"] == [
+        "MICROSTRUCTURE_TRUST_BELOW_ADAPTIVE_MINIMUM"
+    ]
+    assert intent["production_grade_cost_flag"] is False
+    assert intent["fallback_cost_flag"] is True
+    assert "source:MICROSTRUCTURE_TRUST_BELOW_ADAPTIVE_MINIMUM" in reasons
+    assert intent["paper_policy_owner_open_allowed"] is False
+
+
+def test_direct_orderbook_features_feed_production_grade_cost_contract() -> None:
+    fake = _FakeRedis(
+        {
+            "v2:orderbook:features:binance:ARBUSDT": {
+                "schema_version": "direct_orderbook_features_v1",
+                "source": "direct_binance",
+                "exchange": "binance",
+                "symbol": "ARBUSDT",
+                "best_bid": 0.08044,
+                "best_ask": 0.08045,
+                "bid_ask_mid": 0.080445,
+                "spread_bps": 1.2430853378,
+                "available_at": "2026-06-22T12:59:59.500Z",
+                "received_at": "2026-06-22T12:59:59.500Z",
+                "event_time": "2026-06-22T12:59:59.000Z",
+                "depth_5_bid_usd": 12559.017389,
+                "depth_5_ask_usd": 7525.206321,
+                "depth_20_bid_usd": 93566.472852,
+                "depth_20_ask_usd": 89967.454721,
+                "orderbook_depth_usd": 89967.454721,
+                "microstructure_liquidity_depth": 89967.454721,
+                "estimated_price_impact_bps": 1.6058845596,
+            },
+            "v2:microstructure:trust_score:ARBUSDT:1m": {
+                "microstructure_trust_score": 0.82,
+                "orderbook_trust_score": 0.82,
+                "orderbook_trust_tier": "HIGH_TRUST",
+                "microstructure_action": "ALLOW",
+                "adaptive_minimum": 0.65,
+                "orderbook_latency_ms": 35.0,
+                "book_sequence_gap": False,
+                "depth_persistence": 0.9,
+                "cancel_pressure": 0.1,
+                "trade_tape_confirmation_score": 0.8,
+                "cross_venue_confirmation_score": 0.8,
+                "sweep_risk_score": 0.1,
+                "available_at": "2026-06-22T12:59:59.500Z",
+                "decision_time": "2026-06-22T13:00:00.000Z",
+            },
+        }
+    )
+    market_microstructure = paper_loop._read_v2_orderbook_microstructure(  # noqa: SLF001
+        fake,
+        "ARBUSDT",
+    )
+    intent = {
+        "symbol": "ARBUSDT",
+        "timeframe": "1h",
+        "side": "short",
+        "strategy_id": "trend_mode",
+        "decision_time": "2026-06-22T13:00:00.000Z",
+        "paper_admission_decision_time": "2026-06-22T13:00:00.000Z",
+        "feature_cutoff": "2026-06-22T12:45:00.000Z",
+        "available_at": "2026-06-22T12:59:58.000Z",
+        "entry_feature_available_at": "2026-06-22T12:59:58.000Z",
+        "entry_feature_decision_time": "2026-06-22T13:00:00.000Z",
+        "selected_action": "short",
+        "expected_move_bps": -20.0,
+        "expected_move_after_cost_bps": -12.0,
+        "score": 0.72,
+        "entry_price": 0.08044,
+        "fill_price": 0.08044,
+        "quantity": 1000.0,
+        "notional_usdt": 80.44,
+        "gross_notional_usd": 80.44,
+        "allocated_margin_usd": 40.22,
+        "recommended_leverage": 2.0,
+        "recommended_margin_mode": "isolated_paper_simulated",
+        "maker_taker_assumption": "taker",
+        "maker_taker_probability": 1.0,
+        "fee_bps": 4.0,
+        "fee_bps_source": "CONFIGURED_PAPER_FEE_SCHEDULE",
+        "expected_slippage_bps": 0.620694,
+        "expected_slippage_source": "MODELED_FROM_OBSERVED_ORDERBOOK",
+        "expected_funding_bps": 0.5,
+        "expected_funding_bps_source": "V2_MARKET_FUNDING_PREMIUM_INDEX",
+        "latency_reserve_bps": 0.0,
+        "mark_index_divergence_bps": 0.0,
+        "mark_index_source": "V2_MARKET_FUNDING_PREMIUM_INDEX",
+        "adaptive_allocation": {},
+    }
+
+    assert market_microstructure["entry_spread_available_at"] == "2026-06-22T12:59:59.500Z"
+    assert market_microstructure["bid_depth_usd"] == pytest.approx(12559.017389)
+    assert market_microstructure["ask_depth_usd"] == pytest.approx(7525.206321)
+    assert market_microstructure["market_depth_usd"] == pytest.approx(89967.454721)
+    assert market_microstructure["depth_derived_price_impact_bps"] == pytest.approx(1.60588456)
+
+    paper_loop._attach_runtime_cost_capture_contract(  # noqa: SLF001
+        intent,
+        market_microstructure,
+        signal={"policy_fingerprint": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT},
+        prediction={"model_source": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA"},
+    )
+
+    assert intent["cost_source"] == (
+        "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:v2:orderbook:features:binance:ARBUSDT"
+    )
+    assert intent["cost_source_timestamp"] == "2026-06-22T12:59:59.500Z"
+    assert intent["top_book_bid_depth_usd"] == pytest.approx(12559.017389)
+    assert intent["top_book_ask_depth_usd"] == pytest.approx(7525.206321)
+    assert intent["market_depth_usd"] == pytest.approx(89967.454721)
+    assert intent["depth_derived_price_impact_bps"] == pytest.approx(1.60588456)
+    assert intent["runtime_cost_capture_missing_fields"] == []
+    assert intent["runtime_cost_capture_temporal_reject_reasons"] == []
+    assert intent["production_grade_cost_flag"] is True
+
+
 @pytest.mark.parametrize(
     ("source", "family"),
     [
@@ -2507,6 +3181,18 @@ def test_runtime_cost_capture_rejects_disallowed_cost_source_family() -> None:
         "mark_index_divergence_bps": 0.0,
         "cost_source": "LEGACY_PAPER_RUNTIME_FAKE_COST",
         "cost_source_timestamp": "2026-06-22T12:59:59.500Z",
+        "microstructure_trust_score": 0.82,
+        "microstructure_adaptive_minimum": 0.65,
+        "orderbook_trust_tier": "HIGH_TRUST",
+        "microstructure_action": "ALLOW",
+        "orderbook_latency_ms": 25.0,
+        "book_sequence_gap": False,
+        "book_depth_persistence_score": 0.9,
+        "book_cancel_pressure_score": 0.1,
+        "trade_tape_confirmation_score": 0.8,
+        "cross_venue_confirmation_score": 0.8,
+        "sweep_risk_score": 0.1,
+        "microstructure_trust_source": "v2:microstructure:trust_score:BANKUSDT:15m",
         "adaptive_allocation": {},
     }
 
@@ -2569,6 +3255,18 @@ def test_runtime_cost_capture_rejects_orderbook_timestamp_after_feature_decision
         "ask_depth_usd": 12000.0,
         "orderbook_depth_usd": 10000.0,
         "market_depth_usd": 10000.0,
+        "microstructure_trust_score": 0.82,
+        "microstructure_adaptive_minimum": 0.65,
+        "orderbook_trust_tier": "HIGH_TRUST",
+        "microstructure_action": "ALLOW",
+        "orderbook_latency_ms": 25.0,
+        "book_sequence_gap": False,
+        "book_depth_persistence_score": 0.9,
+        "book_cancel_pressure_score": 0.1,
+        "trade_tape_confirmation_score": 0.8,
+        "cross_venue_confirmation_score": 0.8,
+        "sweep_risk_score": 0.1,
+        "microstructure_trust_source": "v2:microstructure:trust_score:BANKUSDT:15m",
         "ask_levels_top5": [
             {"price": 100.01, "quantity": 10.0},
         ],
@@ -2648,6 +3346,18 @@ def test_runtime_cost_capture_uses_explicit_paper_admission_decision_time() -> N
         "ask_depth_usd": 12000.0,
         "orderbook_depth_usd": 10000.0,
         "market_depth_usd": 10000.0,
+        "microstructure_trust_score": 0.82,
+        "microstructure_adaptive_minimum": 0.65,
+        "orderbook_trust_tier": "HIGH_TRUST",
+        "microstructure_action": "ALLOW",
+        "orderbook_latency_ms": 25.0,
+        "book_sequence_gap": False,
+        "book_depth_persistence_score": 0.9,
+        "book_cancel_pressure_score": 0.1,
+        "trade_tape_confirmation_score": 0.8,
+        "cross_venue_confirmation_score": 0.8,
+        "sweep_risk_score": 0.1,
+        "microstructure_trust_source": "v2:microstructure:trust_score:BANKUSDT:15m",
         "ask_levels_top5": [
             {"price": 100.01, "quantity": 10.0},
         ],
@@ -2680,6 +3390,128 @@ def test_runtime_cost_capture_uses_explicit_paper_admission_decision_time() -> N
     assert intent["production_grade_cost_flag"] is True
     assert intent["fallback_cost_flag"] is False
     assert paper_loop._paper_policy_owner_open_rejection_reasons(intent) == []  # noqa: SLF001
+
+
+def test_runtime_cost_capture_derives_orderbook_latency_from_pit_cost_timestamps() -> None:
+    intent = {
+        "symbol": "BANKUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "strategy_id": "trend_follow",
+        "decision_time": "2026-06-22T13:00:00.000Z",
+        "feature_cutoff": "2026-06-22T12:45:00.000Z",
+        "available_at": "2026-06-22T12:59:58.000Z",
+        "paper_admission_decision_time": "2026-06-22T13:00:00.000Z",
+        "notional_usdt": 250.0,
+        "gross_notional_usd": 250.0,
+        "allocated_margin_usd": 125.0,
+        "recommended_leverage": 2.0,
+        "recommended_margin_mode": "isolated_paper_simulated",
+        "observed_bid": 99.99,
+        "observed_ask": 100.01,
+        "observed_spread_bps": 2.0,
+        "top_book_bid_depth_usd": 10000.0,
+        "top_book_ask_depth_usd": 12000.0,
+        "market_depth_usd": 10000.0,
+        "depth_derived_price_impact_bps": 0.0,
+        "maker_taker_assumption": "taker",
+        "maker_taker_probability": 1.0,
+        "fee_bps": 4.0,
+        "fee_bps_source": "CONFIGURED_PAPER_FEE_SCHEDULE",
+        "expected_slippage_bps": 0.8,
+        "expected_funding_bps": 0.5,
+        "latency_reserve_bps": 0.0,
+        "mark_index_divergence_bps": 0.0,
+        "cost_source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:v2:market:orderbook:BANKUSDT",
+        "cost_source_timestamp": "2026-06-22T12:59:59.500Z",
+        "microstructure_trust_score": 0.82,
+        "microstructure_adaptive_minimum": 0.65,
+        "orderbook_trust_tier": "HIGH_TRUST",
+        "microstructure_action": "ALLOW",
+        "book_sequence_gap": False,
+        "book_depth_persistence_score": 0.9,
+        "book_cancel_pressure_score": 0.1,
+        "trade_tape_confirmation_score": 0.8,
+        "cross_venue_confirmation_score": 0.8,
+        "sweep_risk_score": 0.1,
+        "adaptive_allocation": {},
+    }
+
+    paper_loop._attach_runtime_cost_capture_contract(  # noqa: SLF001
+        intent,
+        {},
+        signal={"policy_fingerprint": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT},
+        prediction={"model_source": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA"},
+    )
+
+    assert intent["cost_evidence_freshness_ms"] == 500.0
+    assert intent["orderbook_latency_ms"] == 500.0
+    assert intent["orderbook_latency_source"] == (
+        "DERIVED_FROM_COST_SOURCE_TIMESTAMP_AND_RUNTIME_DECISION_TIME"
+    )
+    assert intent["runtime_cost_capture_missing_fields"] == []
+    assert intent["runtime_cost_capture_temporal_reject_reasons"] == []
+    assert intent["production_grade_cost_flag"] is True
+
+
+def test_runtime_cost_capture_does_not_derive_latency_from_future_cost_timestamp() -> None:
+    intent = {
+        "symbol": "BANKUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "strategy_id": "trend_follow",
+        "decision_time": "2026-06-22T13:00:00.000Z",
+        "feature_cutoff": "2026-06-22T12:45:00.000Z",
+        "available_at": "2026-06-22T12:59:58.000Z",
+        "paper_admission_decision_time": "2026-06-22T13:00:00.000Z",
+        "notional_usdt": 250.0,
+        "gross_notional_usd": 250.0,
+        "allocated_margin_usd": 125.0,
+        "recommended_leverage": 2.0,
+        "recommended_margin_mode": "isolated_paper_simulated",
+        "observed_bid": 99.99,
+        "observed_ask": 100.01,
+        "observed_spread_bps": 2.0,
+        "top_book_bid_depth_usd": 10000.0,
+        "top_book_ask_depth_usd": 12000.0,
+        "market_depth_usd": 10000.0,
+        "depth_derived_price_impact_bps": 0.0,
+        "maker_taker_assumption": "taker",
+        "maker_taker_probability": 1.0,
+        "fee_bps": 4.0,
+        "fee_bps_source": "CONFIGURED_PAPER_FEE_SCHEDULE",
+        "expected_slippage_bps": 0.8,
+        "expected_funding_bps": 0.5,
+        "latency_reserve_bps": 0.0,
+        "mark_index_divergence_bps": 0.0,
+        "cost_source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:v2:market:orderbook:BANKUSDT",
+        "cost_source_timestamp": "2026-06-22T13:00:00.500Z",
+        "microstructure_trust_score": 0.82,
+        "microstructure_adaptive_minimum": 0.65,
+        "orderbook_trust_tier": "HIGH_TRUST",
+        "microstructure_action": "ALLOW",
+        "book_sequence_gap": False,
+        "book_depth_persistence_score": 0.9,
+        "book_cancel_pressure_score": 0.1,
+        "trade_tape_confirmation_score": 0.8,
+        "cross_venue_confirmation_score": 0.8,
+        "sweep_risk_score": 0.1,
+        "adaptive_allocation": {},
+    }
+
+    paper_loop._attach_runtime_cost_capture_contract(  # noqa: SLF001
+        intent,
+        {},
+        signal={"policy_fingerprint": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT},
+        prediction={"model_source": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA"},
+    )
+
+    assert intent["cost_evidence_freshness_ms"] == -500.0
+    assert "orderbook_latency_ms" not in intent
+    assert intent["runtime_cost_capture_temporal_reject_reasons"] == [
+        "COST_SOURCE_TIMESTAMP_AFTER_DECISION_TIME"
+    ]
+    assert intent["production_grade_cost_flag"] is False
 
 
 def test_runtime_cost_capture_prefers_final_paper_notional_for_order_size() -> None:
@@ -4800,6 +5632,51 @@ def test_forward_canary_archive_preserves_observed_outcomes_across_cycles(
     assert status["production_grade_cost_coverage"] == 1.0
 
 
+def test_forward_canary_archive_filters_pre_reset_rows_when_session_scoped(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-07-05T04:20:00Z")
+    archive_path = tmp_path / "paper_forward_canary_closed_outcome_archive.json"
+    old_rows = [
+        _forward_canary_closed_row(
+            f"OLD{idx % 20:02d}USDT",
+            "long" if idx % 2 == 0 else "short",
+            close_id=f"old-close-{idx}",
+        )
+        for idx in range(100)
+    ]
+    archive_path.write_text(
+        json.dumps({"closed_outcomes": old_rows}),
+        encoding="utf-8",
+    )
+    current_row = _forward_canary_closed_row(
+        "NEW01USDT",
+        "long",
+        close_id="new-close-1",
+        paper_session_id="paper_3000_final_pre_live_20260705T024432Z",
+    )
+
+    archive = paper_loop._paper_forward_canary_closed_outcome_archive_status(  # noqa: SLF001
+        [current_row],
+        path=archive_path,
+        paper_session_id="paper_3000_final_pre_live_20260705T024432Z",
+    )
+    status = paper_loop._paper_forward_canary_evidence_status(  # noqa: SLF001
+        closed_rows=archive["closed_outcomes"],
+        accepted_rows=[],
+    )
+
+    assert archive["paper_session_filter_enabled"] is True
+    assert archive["paper_session_id"] == "paper_3000_final_pre_live_20260705T024432Z"
+    assert archive["existing_archived_closed_outcome_rows"] == 100
+    assert archive["session_excluded_archived_closed_outcome_rows"] == 100
+    assert archive["archived_closed_outcome_rows"] == 1
+    assert archive["closed_outcomes"][0]["close_id"] == "new-close-1"
+    assert status["source_closed_trade_rows"] == 1
+    assert status["valid_forward_canary_economic_outcomes"] == 1
+    assert status["forward_canary_shortfalls"]["valid_forward_canary_economic_outcomes"] == 99
+
+
 def test_forward_canary_archive_replaces_duplicate_with_cost_complete_row(
     tmp_path, monkeypatch
 ) -> None:
@@ -5000,6 +5877,167 @@ def test_dynamic_positive_edge_below_a_grade_becomes_b_grade_when_exploration_ga
     assert classification["risk_budget_fraction_of_normal_adaptive"] > 0.0
 
 
+@pytest.mark.parametrize(
+    "entry_gate_reason",
+    [
+        "REGIME_GATE_CASCADE_CONTEXT_SHADOW_ONLY:short:trend_mode:CRVUSDT:15m",
+        "REGIME_GATE_CASCADE_CONTEXT_ABSENT_NO_TRADE:short:trend_mode:INJUSDT:1h",
+    ],
+)
+def test_b_grade_exploration_cannot_relax_p0_entry_gate_blocks(entry_gate_reason: str) -> None:
+    classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+        signal={
+            "selected_action": "short",
+            "confidence_calibrated": 0.68,
+            "expected_move_after_cost_bps": -40.0,
+            "strategy_selected_mode": "trend_mode",
+        },
+        intent={
+            "side": "short",
+            "confidence_calibrated": 0.68,
+            "expected_move_after_cost_bps": -40.0,
+            "strategy_selected_mode": "trend_mode",
+            "entry_gate_block_reasons": [entry_gate_reason],
+            "local_block_reasons": [f"entry_gate:{entry_gate_reason}"],
+            "paper_only": True,
+            "places_real_order": False,
+        },
+        allocation=_allowed_allocation(
+            confidence_calibrated=0.68,
+            expected_move_after_cost_bps=-40.0,
+        ),
+        integrity_gate={"allowed": True},
+        local_trade_gates_pass=False,
+        exploration_trade_gates_pass=True,
+        paper_fill_allowed_upstream=False,
+        portfolio_drawdown_bps=0.0,
+    )
+
+    assert classification["paper_opportunity_tier"] == "NO_TRADE"
+    assert classification["paper_opportunity_tier_reason"] == (
+        paper_loop.P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_REASON
+    )
+    assert classification["non_relaxable_entry_gate_reasons"] == [entry_gate_reason]
+    assert classification["paper_only"] is True
+    assert classification["places_real_order"] is False
+
+
+def test_invalid_admission_feedback_rows_are_quarantined_by_lineage() -> None:
+    rows = [
+        {
+            "trainer_feedback_id": "tf-bad",
+            "source_fill_ids": ["fill-bad"],
+            "entry_prediction_id": "pred-bad",
+            "trainer_consumable": True,
+            "quarantine_reason": "NONE",
+            "missing_feedback_classifications": [],
+            "counts_as_production_grade_training_evidence": True,
+        },
+        {
+            "trainer_feedback_id": "tf-good",
+            "source_fill_ids": ["fill-good"],
+            "trainer_consumable": True,
+            "quarantine_reason": "NONE",
+            "missing_feedback_classifications": [],
+            "counts_as_production_grade_training_evidence": True,
+        },
+    ]
+
+    quarantined, status = paper_loop._quarantine_invalid_admission_feedback_rows(  # noqa: SLF001
+        rows,
+        {"fill-bad", "pred-bad"},
+    )
+
+    assert status["status"] == "INVALID_ADMISSION_FEEDBACK_QUARANTINED"
+    assert status["invalid_admission_feedback_rows_seen"] == 2
+    assert status["invalid_admission_feedback_rows_quarantined"] == 1
+    assert status["invalid_admission_feedback_rows_remaining_consumable"] == 1
+    assert quarantined[0]["trainer_consumable"] is False
+    assert quarantined[0]["quarantine_reason"] == (
+        paper_loop.P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_REASON
+    )
+    assert quarantined[0]["invalid_admission_quarantine_reason"] == (
+        paper_loop.P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_REASON
+    )
+    assert quarantined[0]["paper_admission_quarantine_reason"] == (
+        paper_loop.P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_REASON
+    )
+    assert quarantined[0]["invalid_admission_source_ids_matched"] == [
+        "fill-bad",
+        "pred-bad",
+    ]
+    assert paper_loop.P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_REASON in quarantined[0][
+        "quarantine_reasons"
+    ]
+    assert paper_loop.P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_FEEDBACK_CLASSIFICATION in (
+        quarantined[0]["missing_feedback_classifications"]
+    )
+    assert quarantined[0]["counts_as_production_grade_training_evidence"] is False
+    assert quarantined[1]["trainer_consumable"] is True
+    assert quarantined[1]["quarantine_reason"] == "NONE"
+
+
+def test_invalid_admission_accepted_rows_are_split_to_quarantine() -> None:
+    invalid_reason = "REGIME_GATE_CASCADE_CONTEXT_SHADOW_ONLY:long:trend_mode:BTCUSDT:1m"
+    rows = [
+        {
+            "fill_id": "signal-btc-1m",
+            "signal_id": "signal-btc-1m",
+            "entry_signal_id": "signal-btc-1m",
+            "symbol": "BTCUSDT",
+            "entry_price": 100.0,
+            "entry_gate_block_reasons": [invalid_reason],
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "trainer_consumable": True,
+            "counts_as_production_grade_training_evidence": True,
+            "counts_as_a_grade_evidence": True,
+        },
+        {
+            "fill_id": "fill-valid",
+            "signal_id": "signal-valid",
+            "symbol": "ETHUSDT",
+            "entry_price": 2500.0,
+            "entry_gate_block_reasons": [],
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "trainer_consumable": True,
+        },
+    ]
+
+    valid_rows, quarantine_rows, status = (
+        paper_loop._split_invalid_admission_accepted_rows(rows)  # noqa: SLF001
+    )
+    compact_quarantine = paper_loop._compact_rows_for_state(quarantine_rows)  # noqa: SLF001
+
+    assert valid_rows == [rows[1]]
+    assert len(quarantine_rows) == 1
+    assert rows[0].get("accepted_fill_quarantined") is None
+    assert quarantine_rows[0]["fill_id"] == "signal-btc-1m"
+    assert quarantine_rows[0]["accepted_fill_quarantined"] is True
+    assert quarantine_rows[0]["accepted_fill_quarantine_reason"] == (
+        paper_loop.P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_REASON
+    )
+    assert quarantine_rows[0]["invalid_admission_entry_gate_block_reasons"] == [
+        invalid_reason
+    ]
+    assert quarantine_rows[0]["trainer_consumable"] is False
+    assert quarantine_rows[0]["counts_as_production_grade_training_evidence"] is False
+    assert quarantine_rows[0]["counts_as_a_grade_evidence"] is False
+    assert status["status"] == "INVALID_ADMISSION_ACCEPTED_FILLS_QUARANTINED"
+    assert status["accepted_rows_seen"] == 2
+    assert status["valid_accepted_rows"] == 1
+    assert status["invalid_admission_accepted_rows_quarantined"] == 1
+    assert status["paper_only"] is True
+    assert status["places_real_order"] is False
+    assert compact_quarantine[0]["accepted_fill_quarantined"] is True
+    assert compact_quarantine[0]["accepted_fill_quarantine_reason"] == (
+        paper_loop.P0_ENTRY_GATE_NOT_EXPLORATION_RELAXABLE_REASON
+    )
+
+
 def test_priority_bucket_context_matches_strategy_regime_labels_for_paper_only_collection() -> None:
     readiness = {
         "generated_utc": "2026-06-23T20:55:00Z",
@@ -5175,6 +6213,48 @@ def test_size_adjusted_trend_entry_is_not_lifecycle_no_trade() -> None:
     assert "lifecycle_or_no_trade_strategy_reasons" not in classification
 
 
+def test_size_adjusted_trend_entry_with_reduce_only_router_canonical_mode_is_not_lifecycle_no_trade() -> None:
+    classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+        signal={
+            "selected_action": "short",
+            "confidence_calibrated": 0.66,
+            "expected_move_after_cost_bps": -14.0,
+            "strategy_selected_mode": "trend_mode",
+            "strategy_router_selected_mode": "reduce_size_mode",
+            "strategy_size_adjustment_mode": "reduce_size_mode",
+            "strategy_regime_labels": ["TREND"],
+        },
+        intent={
+            "side": "short",
+            "confidence_calibrated": 0.66,
+            "expected_move_after_cost_bps": -14.0,
+            "strategy_selected_mode": "trend_mode",
+            "strategy_id": "trend_mode",
+            "strategy_family": "trend_mode",
+            "strategy_subtype": "trend_mode",
+            "strategy_mode": "reduce_only_recovery",
+            "strategy_canonical_mode": "reduce_only_recovery",
+            "strategy_router_selected_mode": "reduce_size_mode",
+            "strategy_size_adjustment_mode": "reduce_size_mode",
+            "entry_reason": "trend_mode",
+            "paper_only": True,
+            "places_real_order": False,
+        },
+        allocation=_allowed_allocation(confidence_calibrated=0.66, expected_move_after_cost_bps=-14.0),
+        integrity_gate={"allowed": True},
+        local_trade_gates_pass=False,
+        exploration_trade_gates_pass=True,
+        paper_fill_allowed_upstream=False,
+        portfolio_drawdown_bps=0.0,
+    )
+
+    assert classification["paper_opportunity_tier"] == "B_GRADE_EXPLORATION_PAPER"
+    assert classification["paper_opportunity_tier_reason"] == (
+        "DYNAMIC_POSITIVE_EDGE_BELOW_A_GRADE_EXPLORATION"
+    )
+    assert "lifecycle_or_no_trade_strategy_reasons" not in classification
+
+
 def test_no_trade_strategy_mode_cannot_be_b_grade_executable() -> None:
     classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
         signal={
@@ -5240,6 +6320,37 @@ def test_no_trade_regime_label_blocks_dynamic_b_grade_exploration() -> None:
     ]
 
 
+def test_canonical_risk_off_strategy_mode_cannot_be_b_grade_entry_evidence() -> None:
+    classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+        signal={
+            "selected_action": "long",
+            "confidence_calibrated": 0.72,
+            "expected_move_after_cost_bps": 14.0,
+        },
+        intent={
+            "side": "long",
+            "confidence_calibrated": 0.72,
+            "expected_move_after_cost_bps": 14.0,
+            "strategy_mode": "risk_off_no_trade",
+            "strategy_canonical_mode": "risk_off_no_trade",
+        },
+        allocation=_allowed_allocation(confidence_calibrated=0.72, expected_move_after_cost_bps=14.0),
+        integrity_gate={"allowed": True},
+        local_trade_gates_pass=False,
+        exploration_trade_gates_pass=True,
+        paper_fill_allowed_upstream=False,
+        portfolio_drawdown_bps=0.0,
+    )
+
+    assert classification["paper_opportunity_tier"] == "NO_TRADE"
+    assert classification["paper_opportunity_tier_reason"] == (
+        "LIFECYCLE_OR_NO_TRADE_STRATEGY_NOT_ENTRY_EVIDENCE"
+    )
+    assert "intent.strategy_mode=NO_TRADE" in classification[
+        "lifecycle_or_no_trade_strategy_reasons"
+    ]
+
+
 def test_lifecycle_strategy_mode_cannot_be_b_grade_entry_evidence() -> None:
     classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
         signal={
@@ -5290,6 +6401,47 @@ def test_feedback_entry_context_uses_audited_strategy_as_entry_reason() -> None:
         prediction={},
         strategy_router={
             "selected_mode": "reduce_size_mode",
+            "strategy_mode": "trend_continuation",
+            "strategy_modes_supported": ["trend_continuation", "risk_off_no_trade"],
+            "market_regime": "TREND",
+            "regime_features": {
+                "trend_strength": 0.81,
+                "liquidation_cluster_proximity": 18.0,
+            },
+            "regime_feature_status": {
+                "missing_features_are_explicit": True,
+                "missing_features": [],
+            },
+            "strategy_bucket_key": {
+                "symbol": "BTCUSDT",
+                "timeframe": "15m",
+                "strategy_mode": "trend_continuation",
+                "market_regime": "TREND",
+            },
+            "bucket_quarantined": False,
+            "bucket_quarantine_reason": None,
+            "bucket_performance_state": {
+                "profit_factor": 1.4,
+                "expectancy_bps": 8.0,
+                "negative_bucket": False,
+            },
+            "paper_loss_quarantine_status": "ACTIVE_WITH_QUARANTINES",
+            "paper_loss_quarantine_blocked_bucket_keys": ["side:short"],
+            "paper_loss_quarantine_candidate_bucket_keys": ["side:short", "timeframe:15m"],
+            "paper_loss_quarantine_matched_bucket_keys": ["side:short"],
+            "strategy_feature_snapshot_status": "ATTACHED_PIT_VALID_FEATURE_SNAPSHOT",
+            "strategy_feature_snapshot_id": "v2_fsnap_test",
+            "strategy_feature_snapshot_available_at": "2026-07-06T02:15:33Z",
+            "strategy_feature_snapshot_feature_cutoff": "2026-07-06T01:59:59Z",
+            "strategy_feature_snapshot_candle_closed_confirmed": True,
+            "strategy_feature_snapshot_latest_unclosed_kline_excluded": True,
+            "strategy_regime_feature_source_map": {
+                "trend_strength": "feature_snapshot.ta_ADX"
+            },
+            "strategy_cross_asset_context_status": (
+                "ATTACHED_PIT_BTC_ETH_SOL_PREDICTION_GRID"
+            ),
+            "strategy_cross_asset_context_source": "PIT_PREDICTION_GRID",
             "regime_labels": ["TREND"],
             "explanation": {},
         },
@@ -5300,6 +6452,322 @@ def test_feedback_entry_context_uses_audited_strategy_as_entry_reason() -> None:
     assert intent["strategy_selected_mode"] == "trend_mode"
     assert intent["strategy_size_adjustment_mode"] == "reduce_size_mode"
     assert intent["entry_reason"] == "trend_mode"
+    assert intent["strategy_mode"] == "trend_continuation"
+    assert intent["strategy_canonical_mode"] == "trend_continuation"
+    assert intent["market_regime_at_entry"] == "TREND"
+    assert intent["strategy_regime_feature_status"]["missing_features_are_explicit"] is True
+    assert intent["strategy_bucket_key"]["strategy_mode"] == "trend_continuation"
+    assert intent["strategy_bucket_performance_state"]["profit_factor"] == 1.4
+    assert intent["strategy_paper_loss_quarantine_status"] == "ACTIVE_WITH_QUARANTINES"
+    assert intent["strategy_paper_loss_quarantine_blocked_bucket_keys"] == ["side:short"]
+    assert intent["strategy_paper_loss_quarantine_matched_bucket_keys"] == ["side:short"]
+    assert intent["strategy_feature_snapshot_status"] == "ATTACHED_PIT_VALID_FEATURE_SNAPSHOT"
+    assert intent["strategy_feature_snapshot_id"] == "v2_fsnap_test"
+    assert intent["strategy_feature_snapshot_candle_closed_confirmed"] is True
+    assert intent["strategy_feature_snapshot_latest_unclosed_kline_excluded"] is True
+    assert intent["strategy_regime_feature_source_map"] == {
+        "trend_strength": "feature_snapshot.ta_ADX"
+    }
+    assert intent["strategy_cross_asset_context_status"] == (
+        "ATTACHED_PIT_BTC_ETH_SOL_PREDICTION_GRID"
+    )
+    assert intent["strategy_cross_asset_context_source"] == "PIT_PREDICTION_GRID"
+
+
+def test_strategy_router_provenance_survives_publication_and_compaction() -> None:
+    provenance = {
+        "strategy_feature_snapshot_status": "ATTACHED_PIT_VALID_FEATURE_SNAPSHOT",
+        "strategy_feature_snapshot_id": "v2_fsnap_publish",
+        "strategy_feature_snapshot_available_at": "2026-07-06T02:15:33Z",
+        "strategy_feature_snapshot_feature_cutoff": "2026-07-06T01:59:59Z",
+        "strategy_feature_snapshot_candle_closed_confirmed": True,
+        "strategy_feature_snapshot_latest_unclosed_kline_excluded": True,
+        "strategy_regime_feature_source_map": {
+            "trend_strength": "feature_snapshot.ta_ADX"
+        },
+        "strategy_cross_asset_context_status": (
+            "ATTACHED_PIT_BTC_ETH_SOL_PREDICTION_GRID"
+        ),
+        "strategy_cross_asset_context_source": "PIT_PREDICTION_GRID",
+        "strategy_cross_asset_available_symbol_count": 3,
+    }
+    intent = {
+        "intent_id": "fill-publish",
+        "symbol": "BTCUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "paper_opportunity_tier": "NO_TRADE",
+        "strategy_regime_features": {"trend_strength": 0.42},
+        "strategy_regime_feature_status": {
+            "missing_features_are_explicit": True,
+            "missing_features": ["atr_percentile", "fakeout_reversal_probability"],
+        },
+        **provenance,
+    }
+    allocation = {
+        "allocator_decision": "BLOCK_NON_EXECUTABLE_PAPER_TIER",
+        "paper_opportunity_tier": "NO_TRADE",
+    }
+
+    paper_loop._attach_paper_allocation_decision_context(  # noqa: SLF001
+        intent,
+        allocation,
+    )
+    allocation_rows = paper_loop._current_cycle_candidate_allocation_rows(  # noqa: SLF001
+        intents=[{**intent, "adaptive_allocation": allocation}],
+    )
+    compact_rows = paper_loop._compact_rows_for_state(allocation_rows)  # noqa: SLF001
+    feedback_context = paper_loop._entry_feedback_context_by_fill_id(  # noqa: SLF001
+        compact_rows,
+    )
+
+    for field, value in provenance.items():
+        assert allocation[field] == value
+        assert allocation_rows[0][field] == value
+        assert compact_rows[0][field] == value
+        assert feedback_context["fill-publish"][field] == value
+
+
+def test_strategy_router_feature_snapshot_context_maps_pit_regime_inputs() -> None:
+    envelope = {
+        "symbol": "DOGEUSDT",
+        "timeframe": "1h",
+        "decision_time": "2026-07-06T02:18:07.712Z",
+    }
+    feature_snapshot = {
+        "feature_snapshot_id": "v2_fsnap_test",
+        "available_at": "2026-07-06T02:15:33.179Z",
+        "feature_cutoff": "2026-07-06T01:59:59.999Z",
+        "candle_closed_confirmed": True,
+        "latest_unclosed_kline_excluded": True,
+        "features": {
+            "ta_ADX": 42.0,
+            "ta_HT_TRENDMODE_integer": 0.0,
+            "true_range_pct": 0.031,
+            "atr_percentile": 0.73,
+            "expected_funding_bps": 1.5,
+            "oi_change_pct": -2.2,
+            "long_short_ratio": 2.48,
+            "liquidation_sweep_target_short_distance_bps": 59.49,
+            "liquidation_sweep_target_long_distance_bps": 23.8,
+            "liquidation_short_strength": 29321.9,
+            "liquidation_long_strength": 7971.1,
+            "depth_imbalance": 0.62,
+            "bid_ask_spread_bps": 1.29,
+            "expected_slippage_bps": 0.44,
+            "orderbook_depth_usd": 270466.33,
+            "bid_depth_usd": 284664.97,
+            "ask_depth_usd": 270466.33,
+            "taker_buy_quote_vol": 60.0,
+            "quote_volume": 100.0,
+        },
+    }
+
+    paper_loop._attach_strategy_router_feature_snapshot_context(  # noqa: SLF001
+        envelope,
+        feature_snapshot,
+    )
+    volatility_liquidity = paper_loop._build_volatility_liquidity_state(  # noqa: SLF001
+        signal={},
+        prediction={},
+        feature_snapshot=feature_snapshot,
+    )
+
+    assert envelope["strategy_feature_snapshot_status"] == "ATTACHED_PIT_VALID_FEATURE_SNAPSHOT"
+    assert envelope["strategy_feature_snapshot_id"] == "v2_fsnap_test"
+    assert envelope["strategy_feature_snapshot_candle_closed_confirmed"] is True
+    assert envelope["strategy_feature_snapshot_latest_unclosed_kline_excluded"] is True
+    assert envelope["trend_strength"] == 0.42
+    assert envelope["range_chop_score"] == 1.0
+    assert envelope["volatility_expansion"] == 0.031
+    assert envelope["atr_percentile"] == 0.73
+    assert envelope["funding_skew"] == 1.5
+    assert envelope["open_interest_change"] == -2.2
+    assert envelope["long_short_ratio"] == 2.48
+    assert envelope["liquidation_cluster_proximity"] == 23.8
+    assert envelope["orderbook_imbalance"] == 0.62
+    assert envelope["aggressive_flow"] == pytest.approx(0.2)
+    assert envelope["liquidation_context"]["source"] == "PIT_VALID_FEATURE_SNAPSHOT"
+    assert envelope["liquidation_context"]["nearest_distance_bps"] == 23.8
+    assert envelope["microstructure_context"]["order_flow_imbalance"] == pytest.approx(0.2)
+    assert envelope["oi_funding_context"]["long_short_ratio"] == 2.48
+    assert envelope["strategy_regime_feature_source_map"]["trend_strength"] == "feature_snapshot.ta_ADX"
+    assert envelope["strategy_regime_feature_source_map"]["atr_percentile"] == "feature_snapshot.atr_percentile"
+    assert volatility_liquidity["bid_ask_spread_bps"] == 1.29
+    assert volatility_liquidity["orderbook_depth_usd"] == 270466.33
+    assert volatility_liquidity["expected_slippage_bps"] == 0.44
+
+
+def test_strategy_router_feature_snapshot_context_marks_unavailable_snapshot() -> None:
+    envelope: dict[str, object] = {}
+
+    paper_loop._attach_strategy_router_feature_snapshot_context(  # noqa: SLF001
+        envelope,
+        {"features": {}, "unavailable_reason": "FEATURE_AVAILABLE_AT_AFTER_DECISION_TIME"},
+    )
+
+    assert envelope == {
+        "strategy_feature_snapshot_status": "UNAVAILABLE_FEATURE_AVAILABLE_AT_AFTER_DECISION_TIME"
+    }
+
+
+def test_strategy_router_microstructure_context_uses_pit_fakeout_probability() -> None:
+    redis_client = _FakeRedis(
+        {
+            "v2:microstructure:trust_score:DOGEUSDT:1m": {
+                "symbol": "DOGEUSDT",
+                "timeframe": "1m",
+                "available_at": "2026-07-06T02:29:45Z",
+                "generated_at": "2026-07-06T02:29:50Z",
+                "microstructure_trust_score": 0.71,
+                "orderbook_trust_score": 0.69,
+                "microstructure_action": "ALLOW",
+                "sweep_risk_score": 0.33,
+                "post_sweep_reversal_probability": 0.42,
+            }
+        }
+    )
+
+    trust = paper_loop._read_v2_microstructure_trust(  # noqa: SLF001
+        redis_client,
+        "DOGEUSDT",
+        decision_time="2026-07-06T02:30:00Z",
+        timeframe="15m",
+    )
+    envelope: dict[str, object] = {}
+    paper_loop._attach_strategy_router_microstructure_context(envelope, trust)  # noqa: SLF001
+
+    assert trust["microstructure_trust_status"] == "MICROSTRUCTURE_TRUST_SCORE_FOUND"
+    assert envelope["fakeout_reversal_probability"] == 0.42
+    assert envelope["microstructure_context"]["post_sweep_reversal_probability"] == 0.42
+    assert envelope["strategy_regime_feature_source_map"] == {
+        "fakeout_reversal_probability": (
+            "v2:microstructure:trust_score:DOGEUSDT:1m.post_sweep_reversal_probability"
+        )
+    }
+
+
+def test_strategy_router_microstructure_context_rejects_future_fakeout_probability() -> None:
+    redis_client = _FakeRedis(
+        {
+            "v2:microstructure:trust_score:DOGEUSDT:1m": {
+                "symbol": "DOGEUSDT",
+                "timeframe": "1m",
+                "available_at": "2026-07-06T02:30:10Z",
+                "generated_at": "2026-07-06T02:30:11Z",
+                "microstructure_trust_score": 0.71,
+                "microstructure_action": "ALLOW",
+                "post_sweep_reversal_probability": 0.42,
+            }
+        }
+    )
+
+    trust = paper_loop._read_v2_microstructure_trust(  # noqa: SLF001
+        redis_client,
+        "DOGEUSDT",
+        decision_time="2026-07-06T02:30:00Z",
+        timeframe="15m",
+    )
+    envelope: dict[str, object] = {}
+    paper_loop._attach_strategy_router_microstructure_context(envelope, trust)  # noqa: SLF001
+
+    assert trust["microstructure_trust_status"] == (
+        "REJECTED_MICROSTRUCTURE_TRUST_AFTER_DECISION"
+    )
+    assert "fakeout_reversal_probability" not in envelope
+    assert envelope["microstructure_context"]["microstructure_trust_status"] == (
+        "REJECTED_MICROSTRUCTURE_TRUST_AFTER_DECISION"
+    )
+
+
+def test_strategy_router_cross_asset_context_uses_pit_prediction_grid() -> None:
+    envelope = {"decision_time": "2026-07-06T02:30:00Z", "timeframe": "15m"}
+    predictions_by_symbol = {
+        "BTCUSDT": [
+            {
+                "symbol": "BTCUSDT",
+                "timeframe": "15m",
+                "prediction_id": "btc-15m",
+                "available_at": "2026-07-06T02:29:00Z",
+                "feature_cutoff": "2026-07-06T02:14:59Z",
+                "expected_move_after_cost_bps": -10.0,
+                "selected_action": "short",
+            }
+        ],
+        "ETHUSDT": [
+            {
+                "symbol": "ETHUSDT",
+                "timeframe": "15m",
+                "prediction_id": "eth-15m",
+                "available_at": "2026-07-06T02:29:05Z",
+                "feature_cutoff": "2026-07-06T02:14:59Z",
+                "expected_move_after_cost_bps": -8.0,
+                "selected_action": "short",
+            }
+        ],
+        "SOLUSDT": [
+            {
+                "symbol": "SOLUSDT",
+                "timeframe": "15m",
+                "prediction_id": "sol-15m",
+                "available_at": "2026-07-06T02:29:10Z",
+                "feature_cutoff": "2026-07-06T02:14:59Z",
+                "expected_move_after_cost_bps": 2.0,
+                "selected_action": "long",
+            }
+        ],
+    }
+
+    paper_loop._attach_strategy_router_cross_asset_context(  # noqa: SLF001
+        envelope,
+        predictions_by_symbol,
+    )
+
+    assert envelope["strategy_cross_asset_context_status"] == (
+        "ATTACHED_PIT_BTC_ETH_SOL_PREDICTION_GRID"
+    )
+    assert envelope["cross_asset_btc_eth_sol_regime"] == "btc_eth_sol_risk_off"
+    assert envelope["market_wide_risk"] == "risk_off"
+    assert envelope["public_intel_context"]["source"] == "PIT_PREDICTION_GRID"
+    assert envelope["public_intel_context"]["market_breadth_score"] == pytest.approx(
+        -1 / 3
+    )
+    assert len(envelope["public_intel_context"]["source_rows"]) == 3
+
+
+def test_strategy_router_cross_asset_context_rejects_future_prediction_rows() -> None:
+    envelope = {"decision_time": "2026-07-06T02:30:00Z", "timeframe": "15m"}
+    predictions_by_symbol = {
+        "BTCUSDT": [
+            {
+                "symbol": "BTCUSDT",
+                "timeframe": "15m",
+                "available_at": "2026-07-06T02:31:00Z",
+                "feature_cutoff": "2026-07-06T02:14:59Z",
+                "expected_move_after_cost_bps": -10.0,
+            }
+        ],
+        "ETHUSDT": [
+            {
+                "symbol": "ETHUSDT",
+                "timeframe": "15m",
+                "available_at": "2026-07-06T02:29:00Z",
+                "feature_cutoff": "2026-07-06T02:31:00Z",
+                "expected_move_after_cost_bps": -8.0,
+            }
+        ],
+    }
+
+    paper_loop._attach_strategy_router_cross_asset_context(  # noqa: SLF001
+        envelope,
+        predictions_by_symbol,
+    )
+
+    assert envelope["strategy_cross_asset_context_status"] == (
+        "INSUFFICIENT_PIT_BTC_ETH_SOL_PREDICTION_ROWS"
+    )
+    assert envelope["strategy_cross_asset_available_symbol_count"] == 0
+    assert "public_intel_context" not in envelope
 
 
 def test_positive_edge_below_a_grade_row_becomes_dynamic_b_grade_exploration() -> None:
@@ -5336,6 +6804,570 @@ def test_negative_edge_trial_is_no_trade_not_b_grade_exploration() -> None:
 
     assert classification["paper_opportunity_tier"] == "NO_TRADE"
     assert classification["paper_opportunity_tier_reason"] == "EXPECTED_EDGE_NOT_FAVORABLE_AFTER_COST"
+
+
+def _phase1_closed_trade_row(
+    realized_bps: float,
+    *,
+    symbol: str = "BTCUSDT",
+    timeframe: str = "5m",
+    strategy_id: str = "trend_continuation",
+    regime: str = "trend",
+    confidence: float = 0.90,
+    close_reason: str = "TAKE_PROFIT",
+    tier: str = paper_loop.PAPER_TIER_B_GRADE_EXPLORATION,
+) -> dict[str, object]:
+    return {
+        "paper_only": True,
+        "paper_opportunity_tier": tier,
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "side": "long",
+        "strategy_id": strategy_id,
+        "market_regime": regime,
+        "confidence_calibrated": confidence,
+        "realized_pnl_bps": realized_bps,
+        "realized_pnl_usd": realized_bps / 10.0,
+        "gross_notional_usd": 1000.0,
+        "close_reason": close_reason,
+    }
+
+
+def test_paper_performance_circuit_breaker_blocks_negative_rolling_25() -> None:
+    rows = [
+        _phase1_closed_trade_row(10.0, confidence=0.70, close_reason="TAKE_PROFIT")
+        for _ in range(10)
+    ] + [
+        _phase1_closed_trade_row(-10.0, confidence=0.70, close_reason="MODEL_STOP")
+        for _ in range(15)
+    ]
+
+    status = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
+        rows,
+        generated_utc="2026-07-02T10:00:00Z",
+    )
+
+    assert status["state"] == "HALTED_PERFORMANCE"
+    assert status["new_entries_allowed"] is False
+    assert "ROLLING_25_PF_BELOW_1_AND_EXPECTANCY_NON_POSITIVE" in status["block_reasons"]
+    assert status["pass_conditions"]["negative_pf_blocks_new_entries"] is True
+    assert status["paper_only"] is True
+    assert status["routes_to_live"] is False
+    assert status["places_real_order"] is False
+
+
+def test_paper_performance_governor_mirror_uses_current_circuit_breaker() -> None:
+    rows = [
+        _phase1_closed_trade_row(-10.0, confidence=0.70, close_reason="MODEL_STOP")
+        for _ in range(5)
+    ]
+    circuit = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
+        rows,
+        generated_utc="2026-07-06T03:30:00Z",
+    )
+
+    governor = paper_loop._paper_performance_governor_status_from_circuit_breaker(  # noqa: SLF001
+        circuit,
+        generated_utc="2026-07-06T03:30:00Z",
+    )
+
+    assert governor["schema_version"] == "paper_performance_governor_status_v2"
+    assert governor["generated_utc"] == "2026-07-06T03:30:00Z"
+    assert governor["state"] == "HALTED_PERFORMANCE"
+    assert governor["new_entries_allowed"] is False
+    assert governor["closed_outcome_count"] == 5
+    assert governor["profit_factor"] == circuit["aggregate"]["profit_factor"]
+    assert governor["notional_weighted_expectancy_bps"] == circuit["aggregate"][
+        "notional_weighted_expectancy_bps"
+    ]
+    assert "CLOSED_5_PROFIT_FACTOR_BELOW_1" in governor["state_reasons"]
+    assert governor["pass_conditions"]["mirrors_current_performance_circuit_breaker"] is True
+    assert governor["paper_only"] is True
+    assert governor["places_real_order"] is False
+    assert governor["writes_legacy_redis"] is False
+    assert governor["exchange_action_taken"] is False
+
+
+def test_paper_new_entry_emergency_halt_mirror_tracks_current_bleed_state() -> None:
+    rows = [
+        _phase1_closed_trade_row(-10.0, confidence=0.70, close_reason="MODEL_STOP")
+        for _ in range(5)
+    ]
+    circuit = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
+        rows,
+        generated_utc="2026-07-06T03:30:00Z",
+    )
+    bleed = paper_loop._paper_bleed_halt_status(  # noqa: SLF001
+        circuit,
+        generated_utc="2026-07-06T03:30:00Z",
+    )
+
+    emergency = paper_loop._paper_new_entry_emergency_halt_status_from_performance(  # noqa: SLF001
+        circuit,
+        bleed,
+        generated_utc="2026-07-06T03:30:00Z",
+    )
+
+    assert emergency["schema_version"] == "paper_new_entry_emergency_halt_status_v2"
+    assert emergency["generated_utc"] == "2026-07-06T03:30:00Z"
+    assert emergency["status"] == "HALTED"
+    assert emergency["allow_new_entries"] is False
+    assert emergency["new_entries_allowed"] is False
+    assert emergency["performance_governor_v2_state"] == "HALTED_PERFORMANCE"
+    assert emergency["bleed_halt_state"] == "HALTED"
+    assert "CLOSED_5_EXPECTANCY_NON_POSITIVE" in emergency["halt_reasons"]
+    assert emergency["paper_only"] is True
+    assert emergency["places_real_order"] is False
+    assert emergency["writes_legacy_redis"] is False
+    assert emergency["exchange_action_taken"] is False
+
+
+def test_paper_new_entry_emergency_halt_mirror_allows_clean_bootstrap_state() -> None:
+    circuit = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
+        [],
+        generated_utc="2026-07-06T03:30:00Z",
+    )
+    bleed = paper_loop._paper_bleed_halt_status(  # noqa: SLF001
+        circuit,
+        generated_utc="2026-07-06T03:30:00Z",
+    )
+
+    emergency = paper_loop._paper_new_entry_emergency_halt_status_from_performance(  # noqa: SLF001
+        circuit,
+        bleed,
+        generated_utc="2026-07-06T03:30:00Z",
+    )
+
+    assert emergency["status"] == "ACTIVE"
+    assert emergency["allow_new_entries"] is True
+    assert emergency["halt_reason"] is None
+    assert emergency["halt_reasons"] == []
+    assert emergency["recovery_session_lift_allowed"] is True
+    assert emergency["routes_to_live"] is False
+
+
+def test_paper_performance_circuit_breaker_blocks_pf_below_one_even_if_expectancy_positive() -> None:
+    rows = [
+        {
+            **_phase1_closed_trade_row(
+                -10.0,
+                confidence=0.70,
+                close_reason="MODEL_STOP",
+            ),
+            "gross_notional_usd": 100.0,
+        }
+        for _ in range(4)
+    ] + [
+        {
+            **_phase1_closed_trade_row(
+                30.0,
+                confidence=0.70,
+                close_reason="TAKE_PROFIT",
+            ),
+            "gross_notional_usd": 1000.0,
+        }
+    ]
+
+    status = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
+        rows,
+        generated_utc="2026-07-02T10:00:00Z",
+    )
+
+    assert status["rolling_25"]["profit_factor_numeric"] < 1.0
+    assert status["rolling_25"]["notional_weighted_expectancy_bps"] > 0.0
+    assert status["new_entries_allowed"] is False
+    assert "CLOSED_5_PROFIT_FACTOR_BELOW_1" in status["block_reasons"]
+    assert status["pass_conditions"]["negative_pf_blocks_new_entries"] is True
+
+
+def test_paper_performance_circuit_breaker_blocks_expectancy_non_positive_even_if_pf_above_one() -> None:
+    rows = [
+        {
+            **_phase1_closed_trade_row(
+                10.0,
+                confidence=0.70,
+                close_reason="TAKE_PROFIT",
+            ),
+            "gross_notional_usd": 100.0,
+        }
+        for _ in range(4)
+    ] + [
+        {
+            **_phase1_closed_trade_row(
+                -30.0,
+                confidence=0.70,
+                close_reason="MODEL_STOP",
+            ),
+            "gross_notional_usd": 1000.0,
+        }
+    ]
+
+    status = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
+        rows,
+        generated_utc="2026-07-02T10:00:00Z",
+    )
+
+    assert status["rolling_25"]["profit_factor_numeric"] > 1.0
+    assert status["rolling_25"]["notional_weighted_expectancy_bps"] <= 0.0
+    assert status["new_entries_allowed"] is False
+    assert "CLOSED_5_EXPECTANCY_NON_POSITIVE" in status["block_reasons"]
+    assert status["pass_conditions"]["negative_expectancy_blocks_new_entries"] is True
+
+
+def test_paper_performance_circuit_breaker_blocks_negative_rolling_50_expectancy() -> None:
+    rows = [
+        _phase1_closed_trade_row(5.0, confidence=0.70, close_reason="TAKE_PROFIT")
+        for _ in range(25)
+    ] + [
+        _phase1_closed_trade_row(-5.0, confidence=0.70, close_reason="MODEL_STOP")
+        for _ in range(25)
+    ]
+
+    status = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
+        rows,
+        generated_utc="2026-07-02T10:00:00Z",
+    )
+
+    assert status["new_entries_allowed"] is False
+    assert "ROLLING_50_EXPECTANCY_NON_POSITIVE" in status["block_reasons"]
+    assert status["pass_conditions"]["negative_expectancy_blocks_new_entries"] is True
+
+
+def test_bucket_quarantine_blocks_same_bad_bucket_reentry() -> None:
+    rows = [
+        _phase1_closed_trade_row(
+            -12.0,
+            symbol="ETHUSDT",
+            timeframe="15m",
+            strategy_id="breakout_squeeze",
+            regime="squeeze",
+            confidence=0.94,
+            close_reason="MODEL_STOP",
+        ),
+        _phase1_closed_trade_row(
+            -8.0,
+            symbol="ETHUSDT",
+            timeframe="15m",
+            strategy_id="breakout_squeeze",
+            regime="squeeze",
+            confidence=0.93,
+            close_reason="MODEL_STOP",
+        ),
+    ]
+    status = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
+        rows,
+        generated_utc="2026-07-02T10:00:00Z",
+    )
+    intent = {
+        "paper_only": True,
+        "symbol": "ETHUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "strategy_id": "breakout_squeeze",
+        "market_regime": "squeeze",
+    }
+    allocation = _allowed_allocation()
+
+    blocked = paper_loop._paper_block_new_entry_by_performance_circuit(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        performance_circuit_breaker_status=status,
+    )
+
+    quarantined_by_key = {
+        row["bucket_key"]: row
+        for row in status["bucket_quarantine_status"]["quarantined_buckets"]
+    }
+    assert "ETHUSDT|15m|breakout_squeeze|squeeze" in quarantined_by_key
+    assert "HIGH_CONFIDENCE_LOSS_RATE_ABOVE_ADAPTIVE_BOUND" in quarantined_by_key[
+        "ETHUSDT|15m|breakout_squeeze|squeeze"
+    ]["block_reasons"]
+    assert blocked is True
+    assert intent["paper_fill_allowed"] is False
+    assert intent["places_real_order"] is False
+    assert intent["routes_to_live"] is False
+    assert allocation["allocator_decision"] == "BLOCK_PAPER_PERFORMANCE_CIRCUIT_BREAKER"
+
+
+def test_negative_phase3_side_and_strategy_regime_buckets_block_reentry() -> None:
+    rows = [
+        {
+            **_phase1_closed_trade_row(
+                -10.0 - idx,
+                symbol=symbol,
+                timeframe="1h" if idx < 3 else "15m",
+                strategy_id="trend_mode",
+                regime="TREND",
+                confidence=0.62,
+                close_reason="MODEL_STOP",
+            ),
+            "side": "short",
+        }
+        for idx, symbol in enumerate(
+            ["BARDUSDT", "CRVUSDT", "DASHUSDT", "INJUSDT", "WLDUSDT"]
+        )
+    ]
+
+    status = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
+        rows,
+        generated_utc="2026-07-02T10:00:00Z",
+    )
+    quarantined_by_key = {
+        row["bucket_key"]: row
+        for row in status["bucket_quarantine_status"]["quarantined_buckets"]
+    }
+
+    assert "BUCKET_QUARANTINE_ACTIVE" in status["block_reasons"]
+    assert "side:short" in quarantined_by_key
+    assert "strategy_regime:trend_mode|TREND" in quarantined_by_key
+    assert "NEGATIVE_EXPECTANCY_SIDE_BUCKET" in quarantined_by_key[
+        "side:short"
+    ]["block_reasons"]
+    assert "NEGATIVE_PROFIT_FACTOR_STRATEGY_REGIME_BUCKET" in quarantined_by_key[
+        "strategy_regime:trend_mode|TREND"
+    ]["block_reasons"]
+
+    intent = {
+        "paper_only": True,
+        "symbol": "NEWUSDT",
+        "timeframe": "4h",
+        "side": "short",
+        "strategy_id": "trend_mode",
+        "market_regime": "TREND",
+    }
+    allocation = _allowed_allocation()
+
+    blocked = paper_loop._paper_block_new_entry_by_performance_circuit(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        performance_circuit_breaker_status=status,
+    )
+
+    assert blocked is True
+    assert "PAPER_BUCKET_QUARANTINE_BLOCKED_REENTRY" in intent[
+        "paper_performance_circuit_breaker_block_reasons"
+    ]
+    assert "side:short" in intent[
+        "paper_performance_circuit_breaker_matched_blocked_bucket_keys"
+    ]
+    assert "strategy_regime:trend_mode|TREND" in intent[
+        "paper_performance_circuit_breaker_matched_blocked_bucket_keys"
+    ]
+    assert intent["paper_fill_allowed"] is False
+    assert allocation["allocator_decision"] == "BLOCK_PAPER_PERFORMANCE_CIRCUIT_BREAKER"
+
+
+def test_atr_stop_loss_cluster_quarantines_matching_bucket() -> None:
+    rows = [
+        _phase1_closed_trade_row(
+            -7.0,
+            symbol="SOLUSDT",
+            timeframe="1m",
+            strategy_id="range_scalp",
+            regime="chop",
+            confidence=0.72,
+            close_reason="TIER_1_ATR_VOLATILITY_STOP",
+        ),
+        _phase1_closed_trade_row(
+            -9.0,
+            symbol="SOLUSDT",
+            timeframe="1m",
+            strategy_id="range_scalp",
+            regime="chop",
+            confidence=0.74,
+            close_reason="TIER_1_ATR_VOLATILITY_STOP",
+        ),
+    ]
+
+    status = paper_loop._paper_bucket_quarantine_status(  # noqa: SLF001
+        rows,
+        generated_utc="2026-07-02T10:00:00Z",
+    )
+
+    assert status["status"] == "ACTIVE_WITH_QUARANTINES"
+    assert status["quarantined_buckets"][0]["bucket_key"] == (
+        "SOLUSDT|1m|range_scalp|chop"
+    )
+    assert "ATR_STOP_LOSS_CLUSTER" in status["quarantined_buckets"][0]["block_reasons"]
+    assert status["paper_only"] is True
+    assert status["places_real_order"] is False
+
+
+def test_atr_stop_loss_cluster_quarantines_side_timeframe_bucket_when_aggregate_positive() -> None:
+    rows = [
+        {
+            **_phase1_closed_trade_row(
+                -8.0,
+                symbol="WLDUSDT",
+                timeframe="1h",
+                strategy_id="trend_mode",
+                regime="TREND",
+                confidence=0.50,
+                close_reason="TIER_1_ATR_VOLATILITY_STOP",
+            ),
+            "side": "short",
+        },
+        {
+            **_phase1_closed_trade_row(
+                -7.0,
+                symbol="INJUSDT",
+                timeframe="1h",
+                strategy_id="trend_mode",
+                regime="TREND",
+                confidence=0.50,
+                close_reason="TIER_1_ATR_VOLATILITY_STOP",
+            ),
+            "side": "short",
+        },
+        {
+            **_phase1_closed_trade_row(
+                40.0,
+                symbol="TAOUSDT",
+                timeframe="1h",
+                strategy_id="trend_mode",
+                regime="TREND",
+                confidence=0.50,
+                close_reason="TIER_2_TRAILING_STOP",
+            ),
+            "side": "short",
+        },
+    ]
+
+    status = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
+        rows,
+        generated_utc="2026-07-02T10:00:00Z",
+    )
+    quarantined_by_key = {
+        row["bucket_key"]: row
+        for row in status["bucket_quarantine_status"]["quarantined_buckets"]
+    }
+
+    assert "BUCKET_QUARANTINE_ACTIVE" in status["block_reasons"]
+    assert status["aggregate"]["profit_factor_numeric"] > 1.0
+    assert status["aggregate"]["notional_weighted_expectancy_bps"] > 0.0
+    assert "side:short" not in quarantined_by_key
+    assert "timeframe:1h" not in quarantined_by_key
+    assert "side_timeframe:short|1h" in quarantined_by_key
+    assert "strategy_side_timeframe:trend_mode|short|1h" in quarantined_by_key
+    assert "ATR_STOP_LOSS_CLUSTER_SIDE_TIMEFRAME_BUCKET" in quarantined_by_key[
+        "side_timeframe:short|1h"
+    ]["block_reasons"]
+    assert "ATR_STOP_LOSS_CLUSTER_STRATEGY_SIDE_TIMEFRAME_BUCKET" in quarantined_by_key[
+        "strategy_side_timeframe:trend_mode|short|1h"
+    ]["block_reasons"]
+
+    intent = {
+        "paper_only": True,
+        "symbol": "NEWUSDT",
+        "timeframe": "1h",
+        "side": "short",
+        "strategy_id": "trend_mode",
+        "market_regime": "TREND",
+    }
+    allocation = _allowed_allocation()
+
+    blocked = paper_loop._paper_block_new_entry_by_performance_circuit(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        performance_circuit_breaker_status=status,
+    )
+
+    assert blocked is True
+    assert "PAPER_BUCKET_QUARANTINE_BLOCKED_REENTRY" in intent[
+        "paper_performance_circuit_breaker_block_reasons"
+    ]
+    assert "side_timeframe:short|1h" in intent[
+        "paper_performance_circuit_breaker_matched_blocked_bucket_keys"
+    ]
+    assert "strategy_side_timeframe:trend_mode|short|1h" in intent[
+        "paper_performance_circuit_breaker_matched_blocked_bucket_keys"
+    ]
+    assert intent["paper_fill_allowed"] is False
+    assert intent["places_real_order"] is False
+    assert intent["routes_to_live"] is False
+
+
+def test_first_negative_bootstrap_close_prevents_bootstrap_reopen() -> None:
+    rows = [
+        _phase1_closed_trade_row(
+            -1.0,
+            tier="A_GRADE_BOOTSTRAP_PAPER",
+            close_reason="TIER_1_ATR_VOLATILITY_STOP",
+        )
+    ]
+
+    status = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
+        rows,
+        generated_utc="2026-07-02T10:00:00Z",
+    )
+
+    bootstrap = status["first_bootstrap_close_block_status"]
+    assert bootstrap["first_bootstrap_close_negative"] is True
+    assert bootstrap["bootstrap_reopen_allowed"] is False
+    assert bootstrap["candidate_policy_change_required"] is True
+    assert "FIRST_BOOTSTRAP_CLOSE_NEGATIVE" in status["block_reasons"]
+
+
+def test_non_negative_first_bootstrap_close_does_not_halt() -> None:
+    rows = [
+        _phase1_closed_trade_row(
+            0.0,
+            tier="A_GRADE_BOOTSTRAP_PAPER",
+            close_reason="TIER_3_MODEL_REVERSAL_NETTING",
+        )
+    ]
+
+    status = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
+        rows,
+        generated_utc="2026-07-02T10:00:00Z",
+    )
+
+    bootstrap = status["first_bootstrap_close_block_status"]
+    assert bootstrap["first_bootstrap_close_negative"] is False
+    assert bootstrap["bootstrap_reopen_allowed"] is True
+    # Only 1 trade < 5 minimum for rolling windows, so no rolling block fires either
+    assert "FIRST_BOOTSTRAP_CLOSE_NEGATIVE" not in status["block_reasons"]
+    assert "ROLLING_25_PF_BELOW_1_AND_EXPECTANCY_NON_POSITIVE" not in status["block_reasons"]
+    assert status["new_entries_allowed"] is True
+
+
+def test_rolling_25_does_not_fire_with_fewer_than_5_trades() -> None:
+    # With < 5 trades, rolling window checks must be silent regardless of PF.
+    # This prevents a brand-new session (1-4 trades) from being permanently halted.
+    rows = [
+        _phase1_closed_trade_row(-10.0, confidence=0.90, close_reason="MODEL_STOP")
+        for _ in range(4)
+    ]
+
+    status = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
+        rows,
+        generated_utc="2026-07-02T10:00:00Z",
+    )
+
+    assert "ROLLING_25_PF_BELOW_1_AND_EXPECTANCY_NON_POSITIVE" not in status["block_reasons"]
+    assert "ROLLING_50_PROFIT_FACTOR_BELOW_1" not in status["block_reasons"]
+    assert "ROLLING_50_EXPECTANCY_NON_POSITIVE" not in status["block_reasons"]
+
+
+def test_rolling_50_does_not_fire_with_fewer_than_10_trades() -> None:
+    # 5-9 trades may fire rolling_25 but must NOT fire rolling_50 checks.
+    rows = [
+        _phase1_closed_trade_row(10.0, confidence=0.70, close_reason="TAKE_PROFIT")
+        for _ in range(3)
+    ] + [
+        _phase1_closed_trade_row(-15.0, confidence=0.70, close_reason="MODEL_STOP")
+        for _ in range(6)
+    ]
+    # 9 total trades: PF < 1 → rolling_25 fires (9 >= 5); rolling_50 must NOT (9 < 10)
+
+    status = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
+        rows,
+        generated_utc="2026-07-02T10:00:00Z",
+    )
+
+    assert "ROLLING_25_PF_BELOW_1_AND_EXPECTANCY_NON_POSITIVE" in status["block_reasons"]
+    assert "ROLLING_50_PROFIT_FACTOR_BELOW_1" not in status["block_reasons"]
+    assert "ROLLING_50_EXPECTANCY_NON_POSITIVE" not in status["block_reasons"]
 
 
 def test_no_trade_tier_blocks_executable_allocator_decision() -> None:
@@ -5570,6 +7602,31 @@ def test_b_grade_tier_remains_paper_only_executable_lane() -> None:
     assert allocation["gross_notional_usd"] == 1000.0
 
 
+def test_compact_accepted_fill_state_preserves_paper_session_metadata() -> None:
+    compact = paper_loop._compact_accepted_fill_for_state(  # noqa: SLF001
+        {
+            "fill_id": "fill-session-1",
+            "symbol": "SOLUSDT",
+            "side": "long",
+            "paper_session_id": "paper_3000_final_pre_live_20260705T024432Z",
+            "session_id": "paper_3000_final_pre_live_20260705T024432Z",
+            "reset_session_id": "paper_3000_final_pre_live_20260705T024432Z",
+            "starting_equity_usd": 3000.0,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        }
+    )
+
+    assert compact["paper_session_id"] == "paper_3000_final_pre_live_20260705T024432Z"
+    assert compact["session_id"] == "paper_3000_final_pre_live_20260705T024432Z"
+    assert compact["reset_session_id"] == "paper_3000_final_pre_live_20260705T024432Z"
+    assert compact["starting_equity_usd"] == 3000.0
+    assert compact["paper_only"] is True
+    assert compact["routes_to_live"] is False
+    assert compact["places_real_order"] is False
+
+
 def test_exploration_tier_status_separates_legacy_missing_tiers() -> None:
     status = paper_loop._paper_exploration_tier_status(  # noqa: SLF001
         accepted_rows=[
@@ -5764,3 +7821,541 @@ def test_merge_persistent_accepted_fills_preserves_policy_funding_metadata() -> 
     assert allocation["model_inputs"]["expected_funding_bps"] == 2.0
     assert allocation["model_inputs"]["funding_rate"] == 0.000125
     assert allocation["model_inputs"]["funding_interval_seconds"] == 3600.0
+
+
+# ─── CG-F038: SHORT trend_mode blocked at entry gate ─────────────────────────
+
+def test_cg_f038_short_trend_mode_blocked_by_default() -> None:
+    """
+    CG-F038 (upgraded to R29-D2 regime gate): SHORT trend_mode must be blocked by
+    default when no liquidation data is available (no redis_client passed).
+
+    Original CG-F038 was a hard side+mode block. R29-D2 replaced it with a cascade-risk
+    regime gate that blocks when cascade_risk < 0.30 OR liq data is missing/stale.
+    Without redis, _load_liq_regime_data returns None → REGIME_GATE_NO_CASCADE_DATA.
+
+    Evidence: 743-trade B_GRADE session (Jun19-Jul1) in a bullish market had
+      cascade_risk consistently < 0.05 → regime gate would have blocked all entries.
+    """
+    from v2.backend.app.services.paper_trade_management.entry_gate import (
+        PaperEntryGateConfig,
+        evaluate_entry_gate,
+    )
+
+    cfg = PaperEntryGateConfig()
+
+    result = evaluate_entry_gate(
+        symbol="BTCUSDT",
+        timeframe="4h",
+        side="short",
+        strategy_mode="trend_mode",
+        confidence_calibrated=0.70,
+        expected_move_after_cost_bps=-10.0,
+        major_move_detected=False,
+        redis_client=None,
+        config=cfg,
+    )
+
+    assert result["allowed"] is False, "SHORT trend_mode must be blocked by default (no liq data)"
+    block_reasons = result.get("reasons", [])
+    assert any("REGIME_GATE_NO_CASCADE_DATA" in r for r in block_reasons), (
+        f"Expected REGIME_GATE_NO_CASCADE_DATA in reasons, got {block_reasons}"
+    )
+
+
+def test_cg_f038_long_trend_mode_still_allowed() -> None:
+    """LONG trend_mode is not gated by the regime gate — only SHORT trend is controlled."""
+    from v2.backend.app.services.paper_trade_management.entry_gate import (
+        PaperEntryGateConfig,
+        evaluate_entry_gate,
+    )
+
+    cfg = PaperEntryGateConfig()
+
+    result = evaluate_entry_gate(
+        symbol="BTCUSDT",
+        timeframe="4h",
+        side="long",
+        strategy_mode="trend_mode",
+        confidence_calibrated=0.70,
+        expected_move_after_cost_bps=15.0,
+        major_move_detected=False,
+        config=cfg,
+    )
+
+    block_reasons = result.get("reasons", [])
+    assert not any("REGIME_GATE" in r for r in block_reasons), (
+        f"long:trend_mode must not be regime-gated, got {block_reasons}"
+    )
+
+
+def test_cg_f038_short_trend_mode_blocked_side_mode_in_default_frozenset() -> None:
+    """Verify CG-F009 hard block remains; CG-F038 upgraded to R29-D2 regime gate."""
+    from v2.backend.app.services.paper_trade_management.entry_gate import PaperEntryGateConfig
+
+    cfg = PaperEntryGateConfig()
+    assert "long:mean_reversion_mode" in cfg.blocked_side_mode_combinations, (
+        "CG-F009 rule must remain: long:mean_reversion_mode blocked"
+    )
+    # R29-D2 upgrade: short:trend_mode removed from hard block frozenset, now controlled
+    # by short_trend_mode_regime_gate_enabled + short_trend_cascade_risk_min
+    assert "short:trend_mode" not in cfg.blocked_side_mode_combinations, (
+        "CG-F038 hard block was upgraded to R29-D2 regime gate; should not be in frozenset"
+    )
+    assert cfg.short_trend_mode_regime_gate_enabled is True, (
+        "R29-D2 regime gate must be enabled by default"
+    )
+    assert cfg.short_trend_cascade_risk_min == 0.30, (
+        "R29-D2 cascade risk floor must default to 0.30"
+    )
+
+
+def test_r29_d2_short_trend_blocked_low_cascade_risk() -> None:
+    """R29-D2: SHORT trend_mode blocked when cascade_risk < floor (bullish market)."""
+    import json
+    from unittest.mock import MagicMock
+    from v2.backend.app.services.paper_trade_management.entry_gate import (
+        PaperEntryGateConfig,
+        evaluate_entry_gate,
+    )
+
+    liq_data = {
+        "liquidation_is_stale": 0,
+        "liquidation_cascade_risk": 0.047,  # Jun-Jul bullish market level
+        "liquidation_long_distance_pct": 0.2,
+        "liquidation_pressure_direction": -0.1,
+    }
+    redis_mock = MagicMock()
+    redis_mock.get.return_value = json.dumps(liq_data).encode()
+
+    cfg = PaperEntryGateConfig()
+    result = evaluate_entry_gate(
+        symbol="ETHUSDT",
+        timeframe="1h",
+        side="short",
+        strategy_mode="trend_mode",
+        confidence_calibrated=0.70,
+        expected_move_after_cost_bps=-8.0,
+        redis_client=redis_mock,
+        config=cfg,
+    )
+
+    assert result["allowed"] is False
+    block_reasons = result.get("reasons", [])
+    assert any("REGIME_GATE_INSUFFICIENT_CASCADE_RISK" in r for r in block_reasons), (
+        f"Expected REGIME_GATE_INSUFFICIENT_CASCADE_RISK, got {block_reasons}"
+    )
+    assert any("0.0470" in r for r in block_reasons), (
+        f"Block reason should contain cascade_risk value, got {block_reasons}"
+    )
+
+
+def test_r29_d2_short_trend_allowed_high_cascade_risk() -> None:
+    """R29-D2: SHORT trend_mode allowed when cascade_risk >= floor (cascade conditions)."""
+    import json
+    from unittest.mock import MagicMock
+    from v2.backend.app.services.paper_trade_management.entry_gate import (
+        PaperEntryGateConfig,
+        evaluate_entry_gate,
+    )
+
+    liq_data = {
+        "liquidation_is_stale": 0,
+        "liquidation_cascade_risk": 0.42,  # elevated — longs at risk
+        "liquidation_long_distance_pct": 0.05,
+        "liquidation_pressure_direction": -0.85,
+    }
+    redis_mock = MagicMock()
+    redis_mock.get.return_value = json.dumps(liq_data).encode()
+
+    cfg = PaperEntryGateConfig()
+    result = evaluate_entry_gate(
+        symbol="ETHUSDT",
+        timeframe="1h",
+        side="short",
+        strategy_mode="trend_mode",
+        confidence_calibrated=0.70,
+        expected_move_after_cost_bps=-8.0,
+        redis_client=redis_mock,
+        config=cfg,
+    )
+
+    block_reasons = result.get("reasons", [])
+    assert not any("REGIME_GATE" in r for r in block_reasons), (
+        f"HIGH cascade_risk should pass regime gate, got block_reasons={block_reasons}"
+    )
+    assert result["allowed"] is True, (
+        f"HIGH cascade_risk SHORT trend entry should be allowed, reasons={block_reasons}"
+    )
+
+
+def test_r29_d2_stale_liq_data_blocks_short_trend() -> None:
+    """R29-D2: Stale liquidation data is treated as missing → blocks SHORT trend."""
+    import json
+    from unittest.mock import MagicMock
+    from v2.backend.app.services.paper_trade_management.entry_gate import (
+        PaperEntryGateConfig,
+        evaluate_entry_gate,
+    )
+
+    stale_data = {
+        "liquidation_is_stale": 1,  # stale
+        "liquidation_cascade_risk": 0.99,  # high but stale — must not be used
+    }
+    redis_mock = MagicMock()
+    redis_mock.get.return_value = json.dumps(stale_data).encode()
+
+    cfg = PaperEntryGateConfig()
+    result = evaluate_entry_gate(
+        symbol="BNBUSDT",
+        timeframe="4h",
+        side="short",
+        strategy_mode="trend_mode",
+        confidence_calibrated=0.70,
+        expected_move_after_cost_bps=-5.0,
+        redis_client=redis_mock,
+        config=cfg,
+    )
+
+    assert result["allowed"] is False
+    assert any("REGIME_GATE_NO_CASCADE_DATA" in r for r in result.get("reasons", [])), (
+        "Stale data must be treated as missing → REGIME_GATE_NO_CASCADE_DATA"
+    )
+
+
+def test_r29_d2_gate_disabled_allows_short_trend_without_liq_check() -> None:
+    """R29-D2: When regime gate disabled, SHORT trend passes without liq data check."""
+    from v2.backend.app.services.paper_trade_management.entry_gate import (
+        PaperEntryGateConfig,
+        evaluate_entry_gate,
+    )
+
+    cfg = PaperEntryGateConfig(short_trend_mode_regime_gate_enabled=False)
+    result = evaluate_entry_gate(
+        symbol="BTCUSDT",
+        timeframe="4h",
+        side="short",
+        strategy_mode="trend_mode",
+        confidence_calibrated=0.70,
+        expected_move_after_cost_bps=-10.0,
+        redis_client=None,
+        config=cfg,
+    )
+
+    block_reasons = result.get("reasons", [])
+    assert not any("REGIME_GATE" in r for r in block_reasons), (
+        f"Disabled gate must not emit regime block reasons, got {block_reasons}"
+    )
+
+
+def test_r29_d2_short_mean_reversion_not_gated() -> None:
+    """R29-D2: Regime gate only applies to trend_mode SHORT; other modes not affected."""
+    from v2.backend.app.services.paper_trade_management.entry_gate import (
+        PaperEntryGateConfig,
+        evaluate_entry_gate,
+    )
+
+    # short:mean_reversion_mode — no redis, but regime gate should NOT fire
+    cfg = PaperEntryGateConfig()
+    result = evaluate_entry_gate(
+        symbol="BTCUSDT",
+        timeframe="4h",
+        side="short",
+        strategy_mode="mean_reversion_mode",
+        confidence_calibrated=0.70,
+        expected_move_after_cost_bps=-5.0,
+        redis_client=None,
+        config=cfg,
+    )
+
+    block_reasons = result.get("reasons", [])
+    assert not any("REGIME_GATE" in r for r in block_reasons), (
+        f"Regime gate must only apply to trend_mode SHORT, got {block_reasons}"
+    )
+
+
+def test_r29_d4_trend_mode_uses_wider_atr_multiplier() -> None:
+    """R29-D4: trend_mode uses atr_stop_multiplier_trend_mode (3.0x) not default (2.0x)."""
+    from v2.backend.app.services.paper_trade_management.exits import (
+        PaperExitConfig,
+        evaluate_exit,
+    )
+    from v2.backend.app.services.paper_trade_management.position_state import (
+        PaperNetPosition,
+    )
+
+    # trend_mode SHORT position with atr_bps=30
+    # 2.0x stop = -60 bps (default), 3.0x stop = -90 bps (trend_mode override)
+    # PnL at -70 bps: should NOT stop out with 3.0x (stop at -90), would stop at 2.0x
+    entry_price = 3000.0
+    pos = PaperNetPosition(
+        position_id="test-trend-short",
+        symbol="ETHUSDT",
+        side="short",
+        net_quantity=0.1,
+        avg_entry_price=entry_price,
+        opened_est="2026-07-02T10:00:00Z",
+        strategy_selected_mode="trend_mode",
+    )
+    # Simulate -70 bps adverse move (price went UP vs short)
+    mark_at_minus_70bps = entry_price * (1 + 70 / 10000)  # short goes against at +70 bps price
+    cfg = PaperExitConfig(
+        static_stop_loss_enabled=False,
+        static_take_profit_enabled=False,
+        static_profit_lock_enabled=False,
+        static_profit_bank_enabled=False,
+        static_max_hold_enabled=False,
+        atr_stop_multiplier=2.0,
+        atr_stop_multiplier_trend_mode=3.0,
+    )
+    result = evaluate_exit(
+        position=pos,
+        mark_price=mark_at_minus_70bps,
+        generated_utc="2026-07-02T11:00:00Z",
+        config=cfg,
+        atr_bps=30.0,  # ATR = 30 bps
+    )
+    # With 3.0x: stop at -90 bps. At -70 bps, should NOT close.
+    assert result["should_close"] is False, (
+        f"trend_mode with 3.0x ATR should NOT stop at -70 bps (stop is -90 bps), got {result}"
+    )
+
+
+def test_r29_d4_non_trend_mode_uses_default_atr_multiplier() -> None:
+    """R29-D4: non-trend_mode uses default atr_stop_multiplier (2.0x), not the wider override."""
+    from v2.backend.app.services.paper_trade_management.exits import (
+        PaperExitConfig,
+        evaluate_exit,
+    )
+    from v2.backend.app.services.paper_trade_management.position_state import (
+        PaperNetPosition,
+    )
+
+    # mean_reversion_mode position with atr_bps=30
+    # 2.0x stop = -60 bps (default), 3.0x (trend override should NOT apply)
+    # PnL at -70 bps: SHOULD stop out with 2.0x (stop at -60)
+    entry_price = 3000.0
+    pos = PaperNetPosition(
+        position_id="test-mr-short",
+        symbol="ETHUSDT",
+        side="short",
+        net_quantity=0.1,
+        avg_entry_price=entry_price,
+        opened_est="2026-07-02T10:00:00Z",
+        strategy_selected_mode="mean_reversion_mode",
+    )
+    mark_at_minus_70bps = entry_price * (1 + 70 / 10000)
+    cfg = PaperExitConfig(
+        static_stop_loss_enabled=False,
+        static_take_profit_enabled=False,
+        static_profit_lock_enabled=False,
+        static_profit_bank_enabled=False,
+        static_max_hold_enabled=False,
+        atr_stop_multiplier=2.0,
+        atr_stop_multiplier_trend_mode=3.0,
+    )
+    result = evaluate_exit(
+        position=pos,
+        mark_price=mark_at_minus_70bps,
+        generated_utc="2026-07-02T11:00:00Z",
+        config=cfg,
+        atr_bps=30.0,
+    )
+    # mean_reversion_mode: default 2.0x stop at -60 bps. At -70 bps, SHOULD close.
+    assert result["should_close"] is True, (
+        f"mean_reversion_mode should stop at -70 bps with 2.0x multiplier (stop=-60), got {result}"
+    )
+    assert result.get("close_reason") == "TIER_1_ATR_VOLATILITY_STOP", (
+        f"Expected TIER_1_ATR_VOLATILITY_STOP, got {result.get('close_reason')}"
+    )
+    assert result.get("atr_stop_multiplier_used") == 2.0, (
+        f"Non-trend mode must use 2.0x multiplier, got {result.get('atr_stop_multiplier_used')}"
+    )
+
+
+def test_r29_d4_default_trend_mode_multiplier_is_3x() -> None:
+    """R29-D4: PaperExitConfig default for atr_stop_multiplier_trend_mode is 3.0."""
+    from v2.backend.app.services.paper_trade_management.exits import PaperExitConfig
+
+    cfg = PaperExitConfig()
+    assert cfg.atr_stop_multiplier == 2.0, "Default ATR multiplier must remain 2.0"
+    assert cfg.atr_stop_multiplier_trend_mode == 3.0, (
+        "R29-D4 trend_mode ATR multiplier must default to 3.0"
+    )
+
+
+def test_r30_d1_synusdt_trend_mode_blocked_by_default() -> None:
+    """R30-D1: SYNUSDT in trend_mode blocked (13-100x ATR gap loss evidence)."""
+    from v2.backend.app.services.paper_trade_management.entry_gate import (
+        PaperEntryGateConfig,
+        evaluate_entry_gate,
+    )
+    cfg = PaperEntryGateConfig()
+    result = evaluate_entry_gate(
+        symbol="SYNUSDT",
+        timeframe="4h",
+        side="long",
+        strategy_mode="trend_mode",
+        confidence_calibrated=0.70,
+        expected_move_after_cost_bps=15.0,
+        config=cfg,
+    )
+    assert result["allowed"] is False
+    assert any("TREND_MODE_MICRO_CAP_GAP_RISK" in r for r in result.get("reasons", [])), (
+        f"SYNUSDT trend_mode should be blocked as micro-cap gap risk, got {result['reasons']}"
+    )
+
+
+def test_r30_d1_all_known_gap_risk_tokens_blocked() -> None:
+    """R30-D1: All 5 known gap-risk tokens blocked for trend_mode (both sides)."""
+    from v2.backend.app.services.paper_trade_management.entry_gate import (
+        PaperEntryGateConfig,
+        evaluate_entry_gate,
+    )
+    cfg = PaperEntryGateConfig()
+    known_gap_risk = ["SYNUSDT", "RAVEUSDT", "LITUSDT", "CAPUSDT", "EPICUSDT"]
+    for sym in known_gap_risk:
+        for side, move in [("long", 15.0), ("short", -10.0)]:
+            result = evaluate_entry_gate(
+                symbol=sym,
+                timeframe="4h",
+                side=side,
+                strategy_mode="trend_mode",
+                confidence_calibrated=0.70,
+                expected_move_after_cost_bps=move,
+                config=cfg,
+            )
+            block_reasons = result.get("reasons", [])
+            assert any("TREND_MODE_MICRO_CAP_GAP_RISK" in r for r in block_reasons), (
+                f"{sym} {side} trend_mode should be gap-risk blocked, got {block_reasons}"
+            )
+
+
+def test_r30_d1_gap_risk_token_allowed_in_mean_reversion() -> None:
+    """R30-D1: Gap-risk filter only applies to trend_mode; mean_reversion_mode passes filter."""
+    from v2.backend.app.services.paper_trade_management.entry_gate import (
+        PaperEntryGateConfig,
+        evaluate_entry_gate,
+    )
+    cfg = PaperEntryGateConfig()
+    # SYNUSDT in mean_reversion_mode — NOT blocked by R30-D1
+    result = evaluate_entry_gate(
+        symbol="SYNUSDT",
+        timeframe="15m",
+        side="long",
+        strategy_mode="mean_reversion_mode",
+        confidence_calibrated=0.70,
+        expected_move_after_cost_bps=10.0,
+        config=cfg,
+    )
+    block_reasons = result.get("reasons", [])
+    assert not any("TREND_MODE_MICRO_CAP_GAP_RISK" in r for r in block_reasons), (
+        f"SYNUSDT mean_reversion_mode must NOT be gap-risk blocked, got {block_reasons}"
+    )
+
+
+def test_r30_d1_btcusdt_not_in_gap_risk_exclusion() -> None:
+    """R30-D1: BTCUSDT is not in gap-risk exclusion; trend_mode allowed (if other gates pass)."""
+    from v2.backend.app.services.paper_trade_management.entry_gate import (
+        PaperEntryGateConfig,
+        evaluate_entry_gate,
+    )
+    cfg = PaperEntryGateConfig()
+    result = evaluate_entry_gate(
+        symbol="BTCUSDT",
+        timeframe="4h",
+        side="long",
+        strategy_mode="trend_mode",
+        confidence_calibrated=0.70,
+        expected_move_after_cost_bps=15.0,
+        config=cfg,
+    )
+    block_reasons = result.get("reasons", [])
+    assert not any("TREND_MODE_MICRO_CAP_GAP_RISK" in r for r in block_reasons), (
+        f"BTCUSDT must NOT be in gap-risk exclusion, got {block_reasons}"
+    )
+
+
+def test_r30_d1_default_exclusion_set_contains_evidence_tokens() -> None:
+    """R30-D1: Default trend_mode_micro_cap_exclusion contains all 5 evidence-backed tokens."""
+    from v2.backend.app.services.paper_trade_management.entry_gate import PaperEntryGateConfig
+    cfg = PaperEntryGateConfig()
+    required = {"SYNUSDT", "RAVEUSDT", "LITUSDT", "CAPUSDT", "EPICUSDT"}
+    assert required <= cfg.trend_mode_micro_cap_exclusion, (
+        f"Missing gap-risk tokens: {required - cfg.trend_mode_micro_cap_exclusion}"
+    )
+
+
+def test_bucket_quarantine_pre_repair_losses_do_not_halt_globally(tmp_path, monkeypatch) -> None:
+    """A+ goal Phase 1/8: after a verified exit repair, buckets whose loss
+    evidence entirely pre-dates the repair stay bucket-blocked but no longer
+    escalate to a global entry halt. Post-repair losses re-escalate; a missing
+    artifact or missing exit timestamps keep the original fail-closed halt."""
+    artifact = tmp_path / "atr_stop_cluster_repair_status.json"
+    artifact.write_text(
+        '{"repair_test_passed": true, "repair_deployed_utc": "2026-07-06T18:00:00Z"}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(paper_loop, "PAPER_EXIT_REPAIR_STATUS_PATH", artifact)
+
+    def _atr_loss(ts: str) -> dict[str, object]:
+        row = _phase1_closed_trade_row(
+            -25.0, confidence=0.75, close_reason="TIER_1_ATR_VOLATILITY_STOP"
+        )
+        row["exit_price_utc"] = ts
+        return row
+
+    wins = [
+        _phase1_closed_trade_row(15.0, confidence=0.70, close_reason="TIER_2_TRAILING_STOP")
+        for _ in range(6)
+    ]
+    for row in wins:
+        row["exit_price_utc"] = "2026-07-06T05:00:00.000Z"
+
+    # Two pre-repair ATR losses -> bucket quarantined but non-escalating.
+    pre_repair = wins + [_atr_loss("2026-07-06T01:34:09.533Z"), _atr_loss("2026-07-06T02:01:00.000Z")]
+    status = paper_loop._paper_bucket_quarantine_status(  # noqa: SLF001
+        pre_repair, generated_utc="2026-07-06T19:00:00Z"
+    )
+    assert status["quarantined_bucket_count"] > 0
+    assert status["global_halt_required"] is False
+    # Operator-approved (2026-07-06): pre-repair-only buckets are listed as
+    # PRE_REPAIR_EVIDENCE_ONLY but reopen for candidates; any post-repair loss
+    # re-blocks instantly (asserted below).
+    assert status["blocked_bucket_keys"] == []
+    assert all(
+        row.get("state") == "PRE_REPAIR_EVIDENCE_ONLY" and row.get("candidate_blocking") is False
+        for row in status["quarantined_buckets"]
+    )
+    circuit = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
+        pre_repair, generated_utc="2026-07-06T19:00:00Z"
+    )
+    assert "BUCKET_QUARANTINE_ACTIVE" not in circuit["block_reasons"]
+
+    # A post-repair loss escalates again.
+    post_repair = pre_repair + [_atr_loss("2026-07-06T19:30:00.000Z"), _atr_loss("2026-07-06T19:40:00.000Z")]
+    circuit_post = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
+        post_repair, generated_utc="2026-07-06T20:00:00Z"
+    )
+    assert "BUCKET_QUARANTINE_ACTIVE" in circuit_post["block_reasons"]
+    status_post = paper_loop._paper_bucket_quarantine_status(  # noqa: SLF001
+        post_repair, generated_utc="2026-07-06T20:00:00Z"
+    )
+    assert status_post["blocked_bucket_keys"]  # post-repair losses re-block
+
+    # Missing exit timestamps fail closed.
+    no_ts = wins + [
+        {k: v for k, v in _atr_loss("x").items() if k != "exit_price_utc"},
+        {k: v for k, v in _atr_loss("x").items() if k != "exit_price_utc"},
+    ]
+    status_no_ts = paper_loop._paper_bucket_quarantine_status(  # noqa: SLF001
+        no_ts, generated_utc="2026-07-06T19:00:00Z"
+    )
+    assert status_no_ts["global_halt_required"] is True
+
+    # Missing artifact keeps the original always-escalate behaviour.
+    monkeypatch.setattr(paper_loop, "PAPER_EXIT_REPAIR_STATUS_PATH", tmp_path / "missing.json")
+    status_no_artifact = paper_loop._paper_bucket_quarantine_status(  # noqa: SLF001
+        pre_repair, generated_utc="2026-07-06T19:00:00Z"
+    )
+    assert status_no_artifact["global_halt_required"] is True

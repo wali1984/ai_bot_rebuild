@@ -51,6 +51,9 @@ def main(argv: list[str] | None = None) -> int:
                 "prediction_rows": dashboard.get("summary", {}).get("prediction_rows"),
                 "paper_allowed_before": dashboard.get("summary", {}).get("paper_allowed_before"),
                 "trial_candidate_count": dashboard.get("summary", {}).get("trial_candidate_count"),
+                "quarantine_blocked_candidate_count": dashboard.get("summary", {}).get(
+                    "quarantine_blocked_candidate_count"
+                ),
                 "trial_promoted_signal_count": dashboard.get("summary", {}).get(
                     "trial_promoted_signal_count"
                 ),

@@ -40,6 +40,13 @@ from v2.backend.app.services.native_trainer.trusted_replay.dataset import (
 from .safety import V2OnlyJsonIO, assert_v2_key
 from .tensor_builder import FeatureTensorRecord, V2UnifiedFeatureTensorBuilder
 
+INVALID_PAPER_ADMISSION_REJECTION_REASON = (
+    "P0_ENTRY_GATE_BLOCKED_NOT_EXPLORATION_RELAXABLE"
+)
+TRUSTED_REPLAY_MAX_SCAN_PER_CYCLE = 8_192
+TRUSTED_REPLAY_MIN_SCAN_PER_CYCLE = 512
+TRUSTED_REPLAY_SCAN_MULTIPLIER = 4
+
 
 @dataclass(frozen=True)
 class TrainingExample:
@@ -84,6 +91,182 @@ def _has_explicit_training_trust_evidence(row: Mapping[str, Any]) -> bool:
     return any(row.get(field) is not None for field in EXPLICIT_TRAINING_TRUST_FIELDS)
 
 
+def _snapshot_decision_time_lineage(snapshot: Any) -> dict[str, Any] | None:
+    """Canonical decision-time feature lineage recorded by the feature pipeline.
+
+    The pipeline writes explicit ``missing_feature_flags``/``stale_feature_flags``
+    at snapshot capture time. Tensor rebuild gaps (live-only payloads that cannot
+    be reconstructed later) must not be conflated with data that was actually
+    missing when the decision was made. Returns ``None`` when the snapshot does
+    not carry explicit lineage, in which case tensor masks remain the only
+    available lineage source.
+    """
+    if not isinstance(snapshot, Mapping):
+        return None
+    if "missing_feature_flags" not in snapshot and "missing_feature_count" not in snapshot:
+        return None
+
+    def _names(value: Any) -> list[str]:
+        if isinstance(value, Mapping):
+            return [str(name) for name in value.keys() if str(name).strip()]
+        if isinstance(value, (list, tuple)):
+            return [str(name) for name in value if str(name).strip()]
+        return []
+
+    missing_names = _names(snapshot.get("missing_feature_flags"))
+    stale_names = _names(snapshot.get("stale_feature_flags"))
+    raw_count = snapshot.get("missing_feature_count")
+    try:
+        missing_count = int(raw_count) if raw_count is not None else len(missing_names)
+    except (TypeError, ValueError):
+        missing_count = len(missing_names)
+    missing_count = max(missing_count, len(missing_names))
+    # Guard against snapshots whose flags claim completeness while a whole
+    # critical feature family is absent from the captured features dict.
+    features = snapshot.get("features")
+    features = features if isinstance(features, Mapping) else {}
+    for family_name, representatives in _CRITICAL_FAMILY_REPRESENTATIVES.items():
+        if features and not any(features.get(name) is not None for name in representatives):
+            synthetic = f"critical_family_absent:{family_name}"
+            if synthetic not in missing_names:
+                missing_names = [*missing_names, synthetic]
+                missing_count += 1
+    return {
+        "missing_feature_names": missing_names,
+        "missing_feature_count": missing_count,
+        "stale_feature_names": stale_names,
+        "stale_feature_count": len(stale_names),
+        "lineage_source": "feature_snapshot_decision_time_flags",
+    }
+
+
+_CRITICAL_FAMILY_REPRESENTATIVES: dict[str, tuple[str, ...]] = {
+    "ohlcv_core": ("open", "high", "low", "close", "ohlcv_close", "last_price"),
+    "orderbook_depth": (
+        "bid_depth_usd",
+        "ask_depth_usd",
+        "depth_imbalance",
+        "bid_ask_spread_bps",
+        "ob_best_bid",
+        "ob_best_ask",
+        "orderbook_spread_bps",
+    ),
+    "funding_open_interest": (
+        "funding_rate",
+        "open_interest",
+        "oi_change_pct",
+        "basis_pct",
+        "mark_price",
+    ),
+}
+
+
+def _reconcile_lineage_with_row(
+    lineage: dict[str, Any] | None,
+    row: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """Drop snapshot-missing names whose values the runtime captured elsewhere.
+
+    The paper runtime records decision-time cost evidence (fee schedule,
+    expected slippage, funding) directly on the feedback row even when the
+    feature snapshot itself lacked those fields. A value that was verifiably
+    available at decision time is not missing evidence.
+    """
+    if lineage is None or not isinstance(row, Mapping):
+        return lineage
+    missing = list(lineage.get("missing_feature_names") or [])
+    if not missing:
+        return lineage
+    reconciled: list[str] = []
+    still_missing: list[str] = []
+    for name in missing:
+        value = row.get(name)
+        if isinstance(value, bool):
+            value = None
+        try:
+            numeric = float(value) if value is not None else None
+        except (TypeError, ValueError):
+            numeric = None
+        if numeric is not None and numeric == numeric:
+            reconciled.append(name)
+        else:
+            still_missing.append(name)
+    if not reconciled:
+        return lineage
+    updated = dict(lineage)
+    updated["missing_feature_names"] = still_missing
+    updated["missing_feature_count"] = len(still_missing)
+    updated["missing_reconciled_from_feedback_row"] = reconciled
+    return updated
+
+
+def _classification_from_lineage(
+    *,
+    tensor: "FeatureTensorRecord",
+    lineage: Mapping[str, Any] | None,
+) -> str:
+    """Row classification from canonical decision-time lineage when available.
+
+    Tensor masks are preserved on the tensor itself (the model consumes them);
+    integrity classification must reflect what was missing at decision time,
+    not what cannot be re-derived from an archived snapshot.
+    """
+    if tensor.data_coverage_percent < 20.0:
+        return "INSUFFICIENT_V2_DATA_COVERAGE"
+    if lineage is not None:
+        if int(lineage.get("stale_feature_count") or 0) > 0:
+            return "STALE_MASKED"
+        if int(lineage.get("missing_feature_count") or 0) > 0:
+            return "MISSING_MASKED"
+        return "TRAINABLE"
+    if tensor.stale_feature_names:
+        return "STALE_MASKED"
+    if tensor.missing_feature_names:
+        return "MISSING_MASKED"
+    return "TRAINABLE"
+
+
+def _lineage_trust_fields(
+    *,
+    tensor: "FeatureTensorRecord",
+    lineage: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Integrity-facing lineage fields for a trust row.
+
+    ``missing_feature_names`` reflects the decision-time snapshot record;
+    tensor rebuild gaps are preserved under explicit ``tensor_*`` keys so the
+    masks stay auditable without triggering MISSING_CRITICAL_FEATURE_FAMILY
+    false positives.
+    """
+    if lineage is not None:
+        return {
+            "missing_feature_names": list(lineage.get("missing_feature_names") or []),
+            "missing_feature_count": int(lineage.get("missing_feature_count") or 0),
+            "stale_feature_names": list(lineage.get("stale_feature_names") or []),
+            "stale_feature_count": int(lineage.get("stale_feature_count") or 0),
+            "missing_reconciled_from_feedback_row": list(
+                lineage.get("missing_reconciled_from_feedback_row") or []
+            ),
+            "missing_feature_lineage_source": "feature_snapshot_decision_time_flags",
+            "tensor_unreconstructed_feature_names": list(tensor.missing_feature_names),
+            "tensor_unreconstructed_feature_count": len(tensor.missing_feature_names),
+            "tensor_stale_feature_names": list(tensor.stale_feature_names),
+            "tensor_missing_mask_preserved": True,
+            "tensor_stale_mask_preserved": True,
+            "source_availability_preserved": True,
+        }
+    return {
+        "missing_feature_names": list(tensor.missing_feature_names),
+        "missing_feature_count": len(tensor.missing_feature_names),
+        "stale_feature_names": list(tensor.stale_feature_names),
+        "stale_feature_count": len(tensor.stale_feature_names),
+        "missing_feature_lineage_source": "tensor_reconstruction_masks",
+        "tensor_missing_mask_preserved": True,
+        "tensor_stale_mask_preserved": True,
+        "source_availability_preserved": True,
+    }
+
+
 def _parse_trust_time(value: Any) -> datetime | None:
     if value in (None, "") or isinstance(value, bool):
         return None
@@ -124,6 +307,8 @@ def _parse_trust_time(value: Any) -> datetime | None:
 
 
 def _trainer_feedback_row_usable(row: Mapping[str, Any]) -> bool:
+    if trainer_feedback_quarantine_rejection_reasons(row):
+        return False
     if row.get("trainer_consumable") is False:
         return False
     missing = row.get("missing_feedback_fields")
@@ -156,6 +341,26 @@ def _paper_outcome_label_row_usable(row: Mapping[str, Any]) -> bool:
     return all(row.get(field) not in (None, "") for field in REQUIRED_FEEDBACK_FIELDS) and not audit_quality_rejection_reasons(
         dict(row)
     )
+
+
+def trainer_feedback_quarantine_rejection_reasons(row: Mapping[str, Any]) -> list[str]:
+    reasons: list[str] = []
+    for field in (
+        "quarantine_reason",
+        "invalid_admission_quarantine_reason",
+        "paper_admission_quarantine_reason",
+    ):
+        value = row.get(field)
+        if value not in (None, "", "NONE"):
+            reasons.append(str(value))
+    values = row.get("quarantine_reasons")
+    if isinstance(values, list):
+        reasons.extend(str(value) for value in values if str(value).strip())
+    elif values not in (None, "", [], {}):
+        reasons.append(str(values))
+    if row.get("entry_gate_block_reasons"):
+        reasons.append(INVALID_PAPER_ADMISSION_REJECTION_REASON)
+    return sorted(set(reasons))
 
 
 def _feedback_trust_rejection_reasons(row: Mapping[str, Any]) -> list[str]:
@@ -396,6 +601,19 @@ class V2HybridTrainerDataLoader:
         }
         payloads = {name: self._get(key) for name, key in keys.items()}
         payloads["ohlcv"], keys["ohlcv"] = self._read_closed_candle_series(symbol=symbol, timeframe=timeframe)
+        direct_orderbook, direct_orderbook_key = self._get_merged(
+            f"v2:orderbook:features:binance:{symbol}",
+            f"v2:orderbook:depth:binance:{symbol}",
+            f"v2:orderbook:top:binance:{symbol}",
+            f"v2:orderbook:features:kucoin:{symbol}",
+            f"v2:orderbook:depth:kucoin:{symbol}",
+            f"v2:orderbook:top:kucoin:{symbol}",
+            f"v2:market:orderbook:{symbol}",
+            f"v2:market:orderbook:binance:{symbol}",
+        )
+        if direct_orderbook is not None:
+            payloads["orderbook"] = direct_orderbook
+            keys["orderbook"] = direct_orderbook_key
         for snapshot_timeframe in REQUIRED_DECISION_TIMEFRAMES:
             payloads[f"ohlcv_closed_{snapshot_timeframe}"], key = self._read_closed_candle_series(
                 symbol=symbol,
@@ -403,6 +621,16 @@ class V2HybridTrainerDataLoader:
             )
             keys[f"ohlcv_closed_{snapshot_timeframe}"] = key
         microstructure, microstructure_key = self._get_merged(
+            f"v2:microstructure:trust_score:{symbol}:{timeframe}",
+            f"v2:microstructure:feed_quality:binance:{symbol}",
+            f"v2:microstructure:feed_quality:kucoin:{symbol}",
+            f"v2:microstructure:adversarial_features:binance:{symbol}",
+            f"v2:microstructure:adversarial_features:kucoin:{symbol}",
+            f"v2:microstructure:trade_tape_confirmation:{symbol}",
+            f"v2:microstructure:cross_venue_confirmation:{symbol}",
+            f"v2:microstructure:sweep_risk:{symbol}:{timeframe}",
+            f"v2:orderbook:features:binance:{symbol}",
+            f"v2:orderbook:features:kucoin:{symbol}",
             f"v2:market:microstructure:{symbol}",
             f"v2:market:coinapi:wsds:{symbol}",
             f"v2:features:microfeat:{symbol}:{timeframe}",
@@ -448,6 +676,10 @@ class V2HybridTrainerDataLoader:
             f"v2:altdata:whale_walls:symbol:{symbol}",
             f"v2:altdata:whale_walls:{symbol}",
         )
+        santiment, santiment_key = self._get_first(
+            f"v2:altdata:santiment:symbol:{symbol}",
+            f"v2:altdata:santiment:{symbol}",
+        )
         payloads.update(
             {
                 "nansen": nansen,
@@ -455,6 +687,7 @@ class V2HybridTrainerDataLoader:
                 "public_intel": public_intel,
                 "aicoin": aicoin,
                 "whale_walls": whale_walls,
+                "santiment": santiment,
             }
         )
         keys.update(
@@ -464,6 +697,7 @@ class V2HybridTrainerDataLoader:
                 "public_intel": public_intel_key,
                 "aicoin": aicoin_key,
                 "whale_walls": whale_walls_key,
+                "santiment": santiment_key,
             }
         )
         payloads["_keys"] = keys
@@ -496,6 +730,7 @@ class V2HybridTrainerDataLoader:
             "public_intel": f"v2:altdata:public_intel:symbol:{symbol}",
             "aicoin": f"v2:altdata:aicoin:symbol:{symbol}",
             "whale_walls": f"v2:altdata:whale_walls:symbol:{symbol}",
+            "santiment": f"v2:altdata:santiment:symbol:{symbol}",
             "lunarcrush": f"v2:altdata:lunarcrush:symbol:{symbol}",
             "nansen": f"v2:altdata:nansen:symbol:{symbol}",
             "paper_positions": "v2:paper:positions",
@@ -507,7 +742,30 @@ class V2HybridTrainerDataLoader:
             if value is not None:
                 payloads[name] = value
             keys[name] = key
+        direct_orderbook, direct_orderbook_key = self._get_merged(
+            f"v2:orderbook:features:binance:{symbol}",
+            f"v2:orderbook:depth:binance:{symbol}",
+            f"v2:orderbook:top:binance:{symbol}",
+            f"v2:orderbook:features:kucoin:{symbol}",
+            f"v2:orderbook:depth:kucoin:{symbol}",
+            f"v2:orderbook:top:kucoin:{symbol}",
+            f"v2:market:orderbook:{symbol}",
+            f"v2:market:orderbook:binance:{symbol}",
+        )
+        if direct_orderbook is not None:
+            payloads["orderbook"] = direct_orderbook
+            keys["orderbook"] = direct_orderbook_key
         microstructure, microstructure_key = self._get_merged(
+            f"v2:microstructure:trust_score:{symbol}:{timeframe}",
+            f"v2:microstructure:feed_quality:binance:{symbol}",
+            f"v2:microstructure:feed_quality:kucoin:{symbol}",
+            f"v2:microstructure:adversarial_features:binance:{symbol}",
+            f"v2:microstructure:adversarial_features:kucoin:{symbol}",
+            f"v2:microstructure:trade_tape_confirmation:{symbol}",
+            f"v2:microstructure:cross_venue_confirmation:{symbol}",
+            f"v2:microstructure:sweep_risk:{symbol}:{timeframe}",
+            f"v2:orderbook:features:binance:{symbol}",
+            f"v2:orderbook:features:kucoin:{symbol}",
             f"v2:market:microstructure:{symbol}",
             f"v2:market:coinapi:wsds:{symbol}",
             f"v2:features:microfeat:{symbol}:{timeframe}",
@@ -547,14 +805,8 @@ class V2HybridTrainerDataLoader:
             tensor=tensor,
         )
         action = self._label_action(expected_move)
-        if tensor.data_coverage_percent < 20.0:
-            classification = "INSUFFICIENT_V2_DATA_COVERAGE"
-        elif tensor.stale_feature_names:
-            classification = "STALE_MASKED"
-        elif tensor.missing_feature_names:
-            classification = "MISSING_MASKED"
-        else:
-            classification = "TRAINABLE"
+        snapshot_lineage = _snapshot_decision_time_lineage(payloads.get("features_latest"))
+        classification = _classification_from_lineage(tensor=tensor, lineage=snapshot_lineage)
         trust_row = self._build_trust_row(
             symbol=symbol,
             timeframe=timeframe,
@@ -562,6 +814,7 @@ class V2HybridTrainerDataLoader:
             tensor=tensor,
             classification=classification,
         )
+        trust_row.update(_lineage_trust_fields(tensor=tensor, lineage=snapshot_lineage))
         outcome_row = self._matched_closed_trade_outcome(payloads=payloads, tensor=tensor)
         if outcome_row is not None:
             targets = self._outcome_targets_from_row(outcome_row)
@@ -753,9 +1006,18 @@ class V2HybridTrainerDataLoader:
 
     def load_trusted_replay_examples(self, *, limit: int | None = None) -> list[TrainingExample]:
         examples: list[TrainingExample] = []
-        scan_limit = None if limit is None else max(int(limit) * 20, int(limit))
-        scan_limit = min(scan_limit, 100_000) if scan_limit is not None else 100_000
-        archive_snapshots = list(iter_snapshots(self.trusted_replay_archive_root, limit=scan_limit))
+        requested_limit = TRUSTED_REPLAY_MAX_SCAN_PER_CYCLE if limit is None else max(0, int(limit))
+        scan_limit = min(
+            max(
+                requested_limit * TRUSTED_REPLAY_SCAN_MULTIPLIER,
+                requested_limit,
+                TRUSTED_REPLAY_MIN_SCAN_PER_CYCLE,
+            ),
+            TRUSTED_REPLAY_MAX_SCAN_PER_CYCLE,
+        )
+        archive_snapshots = list(
+            iter_snapshots(self.trusted_replay_archive_root, limit=scan_limit, newest_first=True)
+        )
         archive_candles: dict[tuple[str, str], list[dict[str, Any]]] = {}
         for archived_snapshot in archive_snapshots:
             candle, _reasons = snapshot_to_final_candle(archived_snapshot)
@@ -799,21 +1061,13 @@ class V2HybridTrainerDataLoader:
             tensor = self.tensor_builder.build(symbol=symbol, timeframe=timeframe, payloads=payloads)
             if tensor.data_coverage_percent < 20.0:
                 continue
-            classification = (
-                "STALE_MASKED"
-                if tensor.stale_feature_names
-                else "MISSING_MASKED"
-                if tensor.missing_feature_names
-                else "TRAINABLE"
-            )
+            snapshot_lineage = _snapshot_decision_time_lineage(snapshot)
+            classification = _classification_from_lineage(tensor=tensor, lineage=snapshot_lineage)
             trust_row = dict(replay_row)
+            trust_row.update(_lineage_trust_fields(tensor=tensor, lineage=snapshot_lineage))
             trust_row.update(
                 {
                     "row_classification": classification,
-                    "missing_feature_names": list(tensor.missing_feature_names),
-                    "missing_feature_count": len(tensor.missing_feature_names),
-                    "stale_feature_names": list(tensor.stale_feature_names),
-                    "stale_feature_count": len(tensor.stale_feature_names),
                     "feature_vector_hash": tensor.tensor_id,
                     "market_state_integrity_score": replay_row.get("market_state_integrity_score"),
                     "reject_reasons": list(reasons),
@@ -825,18 +1079,26 @@ class V2HybridTrainerDataLoader:
                     },
                 }
             )
-            examples.append(
-                TrainingExample(
-                    symbol=symbol,
-                    timeframe=timeframe,
-                    tensor=tensor,
-                    label_action_index=self._label_action(float(replay_row["future_return_after_cost_bps"])),
-                    label_expected_move_after_cost_bps=float(replay_row["future_return_after_cost_bps"]),
-                    payload_keys=tuple((payloads.get("_keys") or {}).values()),
-                    row_classification=classification,
-                    trust_row=trust_row,
-                )
+            example = TrainingExample(
+                symbol=symbol,
+                timeframe=timeframe,
+                tensor=tensor,
+                label_action_index=self._label_action(float(replay_row["future_return_after_cost_bps"])),
+                label_expected_move_after_cost_bps=float(replay_row["future_return_after_cost_bps"]),
+                payload_keys=tuple((payloads.get("_keys") or {}).values()),
+                row_classification=classification,
+                trust_row=trust_row,
             )
+            if classification == "STALE_MASKED":
+                continue
+            if classification == "MISSING_MASKED" and not _missing_names_are_optional_or_event_dependent(
+                trust_row.get("missing_feature_names") or tensor.missing_feature_names
+            ):
+                continue
+            sample = classify_training_sample(trust_row)
+            if sample.get("accepted_for_training") is not True or sample.get("reject_reasons"):
+                continue
+            examples.append(example)
         return examples
 
     def _closed_trade_snapshot_training_examples(self) -> list[TrainingExample]:
@@ -927,10 +1189,27 @@ class V2HybridTrainerDataLoader:
         targets = self._outcome_targets_from_row(row)
         directional_value = self._directional_label_bps_from_outcome(row)
         action = self._label_action(directional_value)
-        classification = "STALE_MASKED" if tensor.stale_feature_names else "MISSING_MASKED" if tensor.missing_feature_names else "TRAINABLE"
+        snapshot_lineage = _reconcile_lineage_with_row(_snapshot_decision_time_lineage(snapshot), row)
+        classification = _classification_from_lineage(tensor=tensor, lineage=snapshot_lineage)
+        lineage_fields = _lineage_trust_fields(tensor=tensor, lineage=snapshot_lineage)
+        missing_feature_names = list(lineage_fields["missing_feature_names"])
+        stale_feature_names = list(lineage_fields["stale_feature_names"])
+        optional_missing_masked = classification == "MISSING_MASKED" and _missing_names_are_optional_or_event_dependent(
+            missing_feature_names
+        )
+        trainer_consumable = classification == "TRAINABLE" or optional_missing_masked
+        feature_cutoff = row.get("feature_cutoff") or snapshot.get("feature_cutoff") or snapshot.get("source_event_time_est")
+        available_at = row.get("available_at") or snapshot.get("available_at") or snapshot.get("source_available_time")
+        candle_close_time = row.get("candle_close_time") or snapshot.get("candle_close_time") or feature_cutoff
+        candle_open_time = row.get("candle_open_time") or snapshot.get("candle_open_time")
+        source_event_time = row.get("source_event_time") or row.get("source_event_time_est") or snapshot.get(
+            "source_event_time_est"
+        ) or feature_cutoff
+        source_received_time = row.get("source_received_time_est") or snapshot.get("source_received_time_est") or available_at
         trust_row = dict(row)
         trust_row.update(
             {
+                "trust_schema_version": row.get("trust_schema_version") or TRUST_SCHEMA_VERSION,
                 "learning_mode": "outcome_supervised",
                 "update_lane": "OUTCOME_SUPERVISED_CLOSED_TRADE",
                 "outcome_targets": targets,
@@ -944,10 +1223,49 @@ class V2HybridTrainerDataLoader:
                 "directional_outcome": targets["directional_outcome"],
                 "trade_outcome": targets["trade_outcome"],
                 "action_was_profitable": targets["action_was_profitable"],
-                "accepted_for_training": True,
-                "valid_for_training": True,
+                "accepted_for_training": trainer_consumable,
+                "valid_for_training": trainer_consumable,
                 "market_state_integrity_score": row.get("market_state_integrity_score"),
                 "reject_reasons": [],
+                "row_classification": classification,
+                "trainer_consumable": trainer_consumable,
+                **lineage_fields,
+                "features": dict(features),
+                "feature_cutoff": feature_cutoff,
+                "decision_cutoff": row.get("decision_cutoff") or row.get("decision_time"),
+                "decision_time_est": row.get("decision_time_est") or row.get("decision_time"),
+                "decision_cutoff_time_est": row.get("decision_cutoff_time_est") or row.get("decision_time"),
+                "available_at": available_at,
+                "source_available_time": row.get("source_available_time") or available_at,
+                "source_event_time": source_event_time,
+                "source_event_time_est": source_event_time,
+                "source_received_time_est": source_received_time,
+                "generated_at": row.get("generated_at") or row.get("decision_time") or snapshot.get("generated_at"),
+                "generated_utc": row.get("generated_utc") or row.get("decision_time") or snapshot.get("generated_utc"),
+                "feature_freshness_state": row.get("feature_freshness_state")
+                or snapshot.get("feature_freshness_state")
+                or "CURRENT",
+                "candle_closed_confirmed": row.get("candle_closed_confirmed")
+                if row.get("candle_closed_confirmed") is not None
+                else snapshot.get("candle_closed_confirmed"),
+                "closed_candle": row.get("closed_candle")
+                if row.get("closed_candle") is not None
+                else snapshot.get("closed_candle") or snapshot.get("candle_closed_confirmed"),
+                "candle_open_time": candle_open_time,
+                "candle_close_time": candle_close_time,
+                "latency_ms": snapshot.get("latency_ms")
+                if snapshot.get("latency_ms") is not None
+                else row.get("cost_evidence_freshness_ms"),
+                "mtf_snapshot_valid": row.get("mtf_snapshot_valid")
+                if row.get("mtf_snapshot_valid") is not None
+                else bool(row.get("mtf_snapshot_id")),
+                "mtf_snapshot_reject_reasons": row.get("mtf_snapshot_reject_reasons") or [],
+                "replay_snapshot_id": row.get("replay_snapshot_id")
+                or row.get("decision_id")
+                or f"closed_trade:{feature_snapshot_id}",
+                "replay_snapshot_key": row.get("replay_snapshot_key") or f"v2:trainer:feedback:outcomes:{row.get('trainer_feedback_id')}",
+                "masa_feature_cutoff": row.get("masa_feature_cutoff") or feature_cutoff,
+                "ppo_feature_cutoff": row.get("ppo_feature_cutoff") or feature_cutoff,
                 "source_lineage": {
                     "trainer_feedback_id": row.get("trainer_feedback_id"),
                     "entry_prediction_id": row.get("entry_prediction_id") or row.get("prediction_id"),
@@ -1032,6 +1350,7 @@ class V2HybridTrainerDataLoader:
             "public_intel": dict(features),
             "aicoin": dict(features),
             "whale_walls": dict(features),
+            "santiment": dict(features),
             "paper_positions": {},
             "risk_decisions": {},
             "orchestrator_decisions": {},

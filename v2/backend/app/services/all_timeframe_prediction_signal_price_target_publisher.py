@@ -34,6 +34,8 @@ from v2.backend.app.services.live_gate.runtime_execution_state import (
     LIVE_GATE_ENABLED,
     validate_runtime_execution_state,
 )
+from v2.backend.app.services.feature_lineage_masks import canonical_feature_lineage
+from v2.backend.app.services.market_state_integrity.contracts import IntegrityThresholds
 from v2.backend.app.services.market_state_integrity.scoring import score_market_state
 
 
@@ -239,6 +241,48 @@ def to_float(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return number if math.isfinite(number) else None
+
+
+def expected_move_sign_label(value: Any) -> str:
+    number = to_float(value)
+    if number is None:
+        return "missing"
+    if number > 0:
+        return "positive"
+    if number < 0:
+        return "negative"
+    return "zero"
+
+
+def hold_zero_after_cost_diagnostic(
+    *,
+    action: Any,
+    expected_move_bps: Any,
+    expected_move_after_cost_bps: Any,
+) -> dict[str, Any]:
+    normalized_action = str(action or "").strip().lower()
+    expected_move = to_float(expected_move_bps)
+    expected_after_cost = to_float(expected_move_after_cost_bps)
+    directional_expected_move = expected_move is not None and expected_move != 0.0
+    hold_with_directional_expected_move = (
+        normalized_action == "hold" and directional_expected_move
+    )
+    zeroed_by_hold = (
+        hold_with_directional_expected_move
+        and expected_after_cost is not None
+        and expected_after_cost == 0.0
+    )
+    return {
+        "selected_action_expected_move_bps_sign": expected_move_sign_label(expected_move),
+        "hold_action_with_directional_expected_move_bps": hold_with_directional_expected_move,
+        "hold_action_directional_expected_move_bps": expected_move if hold_with_directional_expected_move else None,
+        "expected_move_after_cost_zeroed_by_hold_action": zeroed_by_hold,
+        "paper_non_actionable_diagnostic_reason": (
+            "HOLD_ACTION_WITH_DIRECTIONAL_EXPECTED_MOVE_ZERO_AFTER_COST_EDGE"
+            if zeroed_by_hold
+            else None
+        ),
+    }
 
 
 MARKET_COST_EVIDENCE_FIELDS = (
@@ -1441,6 +1485,10 @@ def build_prediction_row(
         status = "MODEL_SOURCE_NOT_CUDA_PARITY"
         missing_reason = f"EXPECTED_{MODEL_SOURCE_REQUIRED}_GOT_{model_source}"
 
+    feature_lineage = _prediction_row_feature_lineage(
+        prediction=prediction,
+        feature_payload=feature_payload,
+    )
     source_lineage = {
         "prediction_redis_key": selected_prediction_key,
         "primary_prediction_redis_key": prediction_key(symbol, timeframe),
@@ -1457,6 +1505,8 @@ def build_prediction_row(
         "prediction_temporal_block_reasons": temporal_block_reasons,
         "feature_redis_key": selected_feature_key,
         "feature_lookup_status": feature_lookup_status or "FEATURE_LATEST_LOOKUP",
+        "feature_lineage_source": feature_lineage["feature_lineage_source"],
+        "feature_missing_mask_source": "actual_feature_snapshot" if feature_lineage["lineage_fields_present"] else "prediction_fallback",
         "expected_move_source": source_for_expected_move(prediction),
         "expected_move_bps_source_field": "v2_prediction.expected_move_bps",
         "expected_move_after_cost_bps_source_field": "v2_prediction.expected_move_after_cost_bps",
@@ -1465,6 +1515,15 @@ def build_prediction_row(
         "required_model_source": MODEL_SOURCE_REQUIRED,
         "source_parity_label": missing_reason if status == "PRESENT_CURRENT_RL_CORE_SIDECAR_NOT_CUDA_PARITY" else None,
         "exact_blocker": None if status == "PRESENT_CURRENT_RL_CORE_SIDECAR_NOT_CUDA_PARITY" else missing_reason,
+    }
+    source_lineage["feature_lineage_masks"] = {
+        "missing_feature_names": feature_lineage["missing_feature_names"][:50],
+        "missing_feature_count": feature_lineage["missing_feature_count"],
+        "missing_mask": feature_lineage["missing_mask"],
+        "stale_feature_names": feature_lineage["stale_feature_names"][:50],
+        "stale_feature_count": feature_lineage["stale_feature_count"],
+        "stale_mask": feature_lineage["stale_mask"],
+        "source_availability": feature_lineage["source_availability"],
     }
     integrity = build_integrity_enrichment(
         symbol=symbol,
@@ -1525,6 +1584,11 @@ def build_prediction_row(
         and paper_actionable_order
         and not temporal_block_reasons
     )
+    action_edge_diagnostic = hold_zero_after_cost_diagnostic(
+        action=action,
+        expected_move_bps=expected_move,
+        expected_move_after_cost_bps=expected_after_cost,
+    )
     return {
         "prediction_id": prediction_id,
         "signal_id": signal_id,
@@ -1557,6 +1621,29 @@ def build_prediction_row(
         "source_timestamp_hash": prediction.get("source_timestamp_hash") or source_hashes.get("source_timestamp_hash"),
         "selected_action": action,
         "selected_action_index": selected_action_index(prediction, action),
+        **action_edge_diagnostic,
+        "action_probability_by_label": as_dict(prediction.get("action_probability_by_label")),
+        "opening_policy_argmax_action": prediction.get("opening_policy_argmax_action"),
+        "opening_policy_argmax_probability": to_float(prediction.get("opening_policy_argmax_probability")),
+        "selected_action_probability": to_float(prediction.get("selected_action_probability")),
+        "counterfactual_directional_action_from_expected_move": prediction.get(
+            "counterfactual_directional_action_from_expected_move"
+        ),
+        "counterfactual_directional_expected_move_after_cost_bps": to_float(
+            prediction.get("counterfactual_directional_expected_move_after_cost_bps")
+        ),
+        "counterfactual_directional_action_probability": to_float(
+            prediction.get("counterfactual_directional_action_probability")
+        ),
+        "selected_vs_counterfactual_directional_action_probability_gap": to_float(
+            prediction.get("selected_vs_counterfactual_directional_action_probability_gap")
+        ),
+        "selected_hold_with_directional_edge_after_cost": (
+            prediction.get("selected_hold_with_directional_edge_after_cost") is True
+        ),
+        "selected_hold_directional_edge_diagnostic_reason": prediction.get(
+            "selected_hold_directional_edge_diagnostic_reason"
+        ),
         "action_probabilities": action_probability_map(prediction),
         "confidence_raw": to_float(prediction.get("confidence_raw")),
         "confidence_calibrated": to_float(prediction.get("confidence_calibrated")),
@@ -1567,10 +1654,14 @@ def build_prediction_row(
         "last_price": last_price,
         "feature_snapshot_id": prediction.get("feature_snapshot_id"),
         "data_coverage_percent": to_float(prediction.get("data_coverage_percent")),
-        "missing_feature_count": prediction.get("missing_feature_count"),
-        "stale_feature_count": prediction.get("stale_feature_count"),
-        "missing_feature_names": as_list(prediction.get("missing_feature_names")),
-        "stale_feature_names": as_list(prediction.get("stale_feature_names")),
+        "missing_feature_count": feature_lineage["missing_feature_count"],
+        "stale_feature_count": feature_lineage["stale_feature_count"],
+        "missing_feature_names": feature_lineage["missing_feature_names"],
+        "stale_feature_names": feature_lineage["stale_feature_names"],
+        "missing_mask": feature_lineage["missing_mask"],
+        "stale_mask": feature_lineage["stale_mask"],
+        "source_availability": feature_lineage["source_availability"],
+        "feature_lineage_source": feature_lineage["feature_lineage_source"],
         "paper_fill_allowed": paper_fill_allowed,
         "paper_fill_gate_status": prediction.get("paper_fill_gate_status"),
         "paper_fill_gate_block_reasons": paper_gate_block_reasons,
@@ -2438,6 +2529,37 @@ def build_signal_from_row(
         "expected_move_bps": row.get("expected_move_bps"),
         "expected_move_after_cost_bps": row.get("expected_move_after_cost_bps"),
         "expected_net_edge_bps": row.get("expected_move_after_cost_bps"),
+        "selected_action_expected_move_bps_sign": row.get("selected_action_expected_move_bps_sign"),
+        "hold_action_with_directional_expected_move_bps": row.get(
+            "hold_action_with_directional_expected_move_bps"
+        ),
+        "hold_action_directional_expected_move_bps": row.get("hold_action_directional_expected_move_bps"),
+        "expected_move_after_cost_zeroed_by_hold_action": row.get(
+            "expected_move_after_cost_zeroed_by_hold_action"
+        ),
+        "paper_non_actionable_diagnostic_reason": row.get("paper_non_actionable_diagnostic_reason"),
+        "action_probability_by_label": as_dict(row.get("action_probability_by_label")),
+        "opening_policy_argmax_action": row.get("opening_policy_argmax_action"),
+        "opening_policy_argmax_probability": row.get("opening_policy_argmax_probability"),
+        "selected_action_probability": row.get("selected_action_probability"),
+        "counterfactual_directional_action_from_expected_move": row.get(
+            "counterfactual_directional_action_from_expected_move"
+        ),
+        "counterfactual_directional_expected_move_after_cost_bps": row.get(
+            "counterfactual_directional_expected_move_after_cost_bps"
+        ),
+        "counterfactual_directional_action_probability": row.get(
+            "counterfactual_directional_action_probability"
+        ),
+        "selected_vs_counterfactual_directional_action_probability_gap": row.get(
+            "selected_vs_counterfactual_directional_action_probability_gap"
+        ),
+        "selected_hold_with_directional_edge_after_cost": row.get(
+            "selected_hold_with_directional_edge_after_cost"
+        ),
+        "selected_hold_directional_edge_diagnostic_reason": row.get(
+            "selected_hold_directional_edge_diagnostic_reason"
+        ),
         "risk_state": risk_state,
         "risk_status_label": risk_state,
         "orchestrator_state": "BLOCKED_NO_ORCHESTRATOR_DECISION" if not lineage_ids["orchestrator_decision_id"] else "VISIBLE",
@@ -2469,6 +2591,14 @@ def build_signal_from_row(
         **market_cost_fields,
         "blocked_reason": blocked_reason,
         "data_coverage_percent": row.get("data_coverage_percent"),
+        "missing_feature_count": row.get("missing_feature_count"),
+        "stale_feature_count": row.get("stale_feature_count"),
+        "missing_feature_names": as_list(row.get("missing_feature_names")),
+        "stale_feature_names": as_list(row.get("stale_feature_names")),
+        "missing_mask": as_dict(row.get("missing_mask")),
+        "stale_mask": as_dict(row.get("stale_mask")),
+        "source_availability": row.get("source_availability") if row.get("source_availability") is not None else {},
+        "feature_lineage_source": row.get("feature_lineage_source"),
         "generated_est": row.get("generated_est") or est_now(),
         "source_prediction_status": status,
         "source_prediction_key": row.get("prediction_redis_key"),
@@ -2544,6 +2674,122 @@ def _find_by_symbol_or_id(rows: Iterable[Any], symbol: str, source_id: str | Non
     return {}
 
 
+CRITICAL_MARKET_STATE_PREDICTION_REASONS = {
+    "feature_timestamp_after_decision_cutoff",
+    "source_available_after_decision_cutoff",
+    "candle_not_closed_confirmed",
+    "candle_closed_confirmed_missing",
+    "CANDLE_COMPLETION_UNKNOWN",
+    "UNCLOSED_CANDLE",
+    "source_event_time_missing",
+    "decision_cutoff_time_missing",
+}
+
+
+def _component_score_with_canonical_missing(
+    components: Mapping[str, Any],
+    *,
+    base_score: float | None,
+    missing_count: int,
+    stale_count: int,
+) -> tuple[float | None, dict[str, Any]]:
+    if not components:
+        return base_score, {}
+    repaired = dict(components)
+    repaired["missing_data_score"] = round(max(0.0, 100.0 - (missing_count * 8.0) - (stale_count * 5.0)), 4)
+    values = [
+        to_float(repaired.get(key))
+        for key in (
+            "data_freshness_score",
+            "candle_completion_score",
+            "tf_alignment_score",
+            "missing_data_score",
+            "source_disagreement_score",
+            "latency_score",
+            "backfill_score",
+            "execution_fill_quality_score",
+        )
+    ]
+    numeric = [value for value in values if value is not None]
+    if len(numeric) == 8:
+        return round(sum(numeric) / len(numeric), 4), repaired
+    return base_score, repaired
+
+
+def _integrity_from_prediction_with_canonical_feature_lineage(
+    *,
+    symbol: str,
+    timeframe: str,
+    prediction: Mapping[str, Any],
+    feature_payload: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    lineage = canonical_feature_lineage(feature_payload)
+    reasons = set(as_list(prediction.get("market_state_reject_reasons")))
+    if lineage["missing_feature_count"] == 0:
+        reasons.discard("MISSING_CRITICAL_FEATURE_FAMILY")
+    else:
+        reasons.add("MISSING_CRITICAL_FEATURE_FAMILY")
+    if lineage["stale_feature_count"] > 0:
+        reasons.add("STALE_FEATURE_FAMILY")
+    else:
+        reasons.discard("STALE_FEATURE_FAMILY")
+
+    components = as_dict(prediction.get("market_state_score_components"))
+    base_score = to_float(prediction.get("market_state_integrity_score"))
+    score, repaired_components = _component_score_with_canonical_missing(
+        components,
+        base_score=base_score,
+        missing_count=int(lineage["missing_feature_count"]),
+        stale_count=int(lineage["stale_feature_count"]),
+    )
+    if score is None:
+        score = base_score
+    thresholds = IntegrityThresholds()
+    critical_block = bool(CRITICAL_MARKET_STATE_PREDICTION_REASONS.intersection(reasons))
+    score_value = score if score is not None else 0.0
+    no_reasons = not reasons
+    source_lineage = {
+        **as_dict(prediction.get("market_state_source_lineage")),
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "feature_lineage_source": lineage["feature_lineage_source"],
+        "missing_feature_names": lineage["missing_feature_names"][:50],
+        "missing_feature_count": lineage["missing_feature_count"],
+        "missing_mask": lineage["missing_mask"],
+        "stale_feature_names": lineage["stale_feature_names"][:50],
+        "stale_feature_count": lineage["stale_feature_count"],
+        "stale_mask": lineage["stale_mask"],
+        "source_availability": lineage["source_availability"],
+    }
+    return {
+        "market_state_id": prediction.get("market_state_id"),
+        "market_state_integrity_score": score,
+        "valid_for_training": score_value >= thresholds.training_min_score and no_reasons,
+        "valid_for_prediction": score_value >= thresholds.prediction_min_score and not critical_block,
+        "valid_for_risk": score_value >= thresholds.risk_min_score and not critical_block,
+        "valid_for_orchestrator": score_value >= thresholds.risk_min_score and not critical_block,
+        "valid_for_paper": score_value >= thresholds.paper_min_score and not critical_block,
+        "valid_for_live": score_value >= thresholds.live_min_score and no_reasons,
+        "decision_cutoff_time_est": prediction.get("decision_cutoff_time_est"),
+        "market_state_reject_reasons": sorted(reason for reason in reasons if reason),
+        "market_state_score_components": repaired_components or components,
+        "market_state_source_lineage": source_lineage,
+    }
+
+
+def _prediction_row_feature_lineage(
+    *,
+    prediction: Mapping[str, Any],
+    feature_payload: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    lineage = canonical_feature_lineage(feature_payload)
+    if lineage["lineage_fields_present"]:
+        return lineage
+    fallback = canonical_feature_lineage(prediction)
+    fallback["feature_lineage_source"] = "PREDICTION_LINEAGE_FALLBACK_NO_FEATURE_SNAPSHOT"
+    return fallback
+
+
 def _integrity_missing(
     *,
     symbol: str,
@@ -2584,6 +2830,13 @@ def build_integrity_enrichment(
     feature_source_key: str,
 ) -> dict[str, Any]:
     if prediction.get("market_state_id") and prediction.get("market_state_integrity_score") is not None:
+        if isinstance(feature_payload, Mapping):
+            return _integrity_from_prediction_with_canonical_feature_lineage(
+                symbol=symbol,
+                timeframe=timeframe,
+                prediction=prediction,
+                feature_payload=feature_payload,
+            )
         return {
             "market_state_id": prediction.get("market_state_id"),
             "market_state_integrity_score": prediction.get("market_state_integrity_score"),
@@ -2615,6 +2868,14 @@ def build_integrity_enrichment(
             reason="MARKET_STATE_FEATURE_SNAPSHOT_MISMATCH",
         )
     score_input = dict(feature_payload)
+    feature_lineage = canonical_feature_lineage(feature_payload)
+    score_input["missing_feature_names"] = feature_lineage["missing_feature_names"]
+    score_input["missing_feature_count"] = feature_lineage["missing_feature_count"]
+    score_input["missing_mask"] = feature_lineage["missing_mask"]
+    score_input["stale_feature_names"] = feature_lineage["stale_feature_names"]
+    score_input["stale_feature_count"] = feature_lineage["stale_feature_count"]
+    score_input["stale_mask"] = feature_lineage["stale_mask"]
+    score_input["source_availability"] = feature_lineage["source_availability"]
     score_input.setdefault("symbol", symbol)
     score_input.setdefault("timeframe", timeframe)
     score_input["prediction_id"] = prediction.get("prediction_id")
@@ -2691,6 +2952,11 @@ def build_runtime_paper_signal_rows(store: V2KeyValueStore, live_context: Mappin
         if expected_move is None:
             expected_move = to_float(signal.get("expected_move"))
         after_cost = to_float(signal.get("expected_move_after_cost_bps"))
+        action_edge_diagnostic = hold_zero_after_cost_diagnostic(
+            action=action,
+            expected_move_bps=expected_move,
+            expected_move_after_cost_bps=after_cost,
+        )
         price_payload = market_price_payload(store, symbol)
         last_price, price_field = extract_last_price(price_payload)
         targets = price_targets(
@@ -2814,6 +3080,7 @@ def build_runtime_paper_signal_rows(store: V2KeyValueStore, live_context: Mappin
                 "expected_move_bps": expected_move,
                 "expected_move_after_cost_bps": after_cost,
                 "expected_net_edge_bps": after_cost,
+                **action_edge_diagnostic,
                 "risk_state": risk_state,
                 "risk_status_label": risk_state,
                 "orchestrator_state": "VISIBLE" if orchestrator_decision_id else "BLOCKED_NO_ORCHESTRATOR_DECISION",
@@ -3313,6 +3580,31 @@ def cuda_prediction_grid_truth_fields(rows: list[Mapping[str, Any]]) -> dict[str
         for reason in reasons:
             label = str(reason)
             block_reason_counts[label] = block_reason_counts.get(label, 0) + 1
+    selected_action_expected_move_sign_counts: dict[str, int] = {}
+    hold_with_directional_expected_move_count = 0
+    hold_zero_after_cost_with_directional_expected_move_count = 0
+    selected_hold_with_directional_edge_after_cost_count = 0
+    selected_hold_directional_edge_reason_counts: dict[str, int] = {}
+    for row in current_rows:
+        action = str(row.get("selected_action") or row.get("action") or "missing").strip().lower() or "missing"
+        sign = expected_move_sign_label(row.get("expected_move_bps"))
+        label = f"{action}:{sign}"
+        selected_action_expected_move_sign_counts[label] = (
+            selected_action_expected_move_sign_counts.get(label, 0) + 1
+        )
+        if action == "hold" and sign in {"positive", "negative"}:
+            hold_with_directional_expected_move_count += 1
+            if to_float(row.get("expected_move_after_cost_bps")) == 0.0:
+                hold_zero_after_cost_with_directional_expected_move_count += 1
+        if row.get("selected_hold_with_directional_edge_after_cost") is True:
+            selected_hold_with_directional_edge_after_cost_count += 1
+            reason = str(
+                row.get("selected_hold_directional_edge_diagnostic_reason")
+                or "selected_hold_with_directional_edge_after_cost"
+            )
+            selected_hold_directional_edge_reason_counts[reason] = (
+                selected_hold_directional_edge_reason_counts.get(reason, 0) + 1
+            )
 
     def _tf_by_symbol(items: list[Mapping[str, Any]]) -> dict[str, list[str]]:
         out: dict[str, set[str]] = {}
@@ -3348,6 +3640,22 @@ def cuda_prediction_grid_truth_fields(rows: list[Mapping[str, Any]]) -> dict[str
         "paper_actionability_block_reason_counts": top_block_reason_counts,
         "top_paper_block_reasons": top_block_reason_counts,
         "top_prediction_paper_gate_block_reasons": top_block_reason_counts,
+        "selected_action_expected_move_bps_sign_counts": dict(
+            sorted(selected_action_expected_move_sign_counts.items())
+        ),
+        "hold_with_directional_expected_move_bps_count": hold_with_directional_expected_move_count,
+        "hold_zero_after_cost_with_directional_expected_move_bps_count": (
+            hold_zero_after_cost_with_directional_expected_move_count
+        ),
+        "selected_hold_with_directional_edge_after_cost_count": (
+            selected_hold_with_directional_edge_after_cost_count
+        ),
+        "selected_hold_directional_edge_reason_counts": dict(
+            sorted(
+                selected_hold_directional_edge_reason_counts.items(),
+                key=lambda item: (-item[1], item[0]),
+            )
+        ),
         "missing_prediction_symbols": sorted({str(row.get("symbol")).upper() for row in missing_rows if row.get("symbol")}),
         "missing_prediction_timeframes_by_symbol": _tf_by_symbol(missing_rows),
         "stale_prediction_symbols": sorted({str(row.get("symbol")).upper() for row in stale_rows if row.get("symbol")}),

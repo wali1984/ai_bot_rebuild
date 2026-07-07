@@ -537,6 +537,9 @@ def test_signal_publisher_build_signal_record_preserves_optional_edge_and_pit_fi
             "feature_snapshot_id": "fs_edge_1",
             "symbol": "BTCUSDT",
             "timeframe": "5m",
+            "missing_mask": {"open": False, "close": False},
+            "stale_mask": {"funding_rate": True},
+            "source_availability": {"ohlcv": True, "funding": False},
         },
         market_freshness_state="CURRENT",
         market_age_seconds=2,
@@ -551,6 +554,10 @@ def test_signal_publisher_build_signal_record_preserves_optional_edge_and_pit_fi
     assert record["decision_time"] == "2026-05-14T05:00:00Z"
     assert record["feature_cutoff"] == "2026-05-14T04:59:58Z"
     assert record["price_target_after_cost"] == 59907.0
+    assert record["missing_feature_count"] == 0
+    assert record["missing_mask"] == {"open": False, "close": False}
+    assert record["stale_feature_names"] == ["funding_rate"]
+    assert record["source_availability"] == {"ohlcv": True, "funding": False}
     assert record["explanation"] != EVIDENCE_MISSING_LABEL
     citation_by_field = {
         citation["field_name"]: citation

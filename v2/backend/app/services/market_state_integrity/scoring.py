@@ -5,6 +5,13 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from v2.backend.app.services.feature_lineage_masks import (
+    MISSING_NAME_KEYS,
+    STALE_NAME_KEYS,
+    canonical_feature_lineage,
+    mask_names,
+)
+
 from .contracts import IntegrityThresholds, MarketStateScore
 from .validators import validate_candle_completion, validate_event_time_alignment
 
@@ -13,16 +20,23 @@ OPTIONAL_OR_EVENT_FEATURE_TOKENS = (
     "altdata",
     "ask_wall",
     "basis",
+    "best_ask",
+    "best_bid",
     "bid_ask",
     "bid_wall",
     "bollinger",
+    "book_trade",
+    "cancel_pressure",
     "coingecko",
     "coinglass",
+    "cross_venue",
     "defillama",
     "distance_to_long_liq",
     "distance_to_short_liq",
     "depth_",
+    "estimated_price_impact",
     "fear_greed",
+    "feed_latency",
     "funding",
     "htf_",
     "index_price",
@@ -51,16 +65,22 @@ OPTIONAL_OR_EVENT_FEATURE_TOKENS = (
     "paper_position",
     "paper_unrealized",
     "price_last",
+    "post_sweep",
     "provider_",
     "public_intel",
+    "realized_slippage_error",
     "risk_recent_",
     "orchestrator_recent_",
+    "source_latency",
     "spread",
+    "spread_instability",
     "short_account",
     "surf_",
+    "sweep_risk",
     "taker_buy",
     "tape_",
     "toxicity",
+    "update_age",
     "whale",
 )
 
@@ -134,6 +154,9 @@ def _state_id(row: dict[str, Any]) -> str:
 
 def _features(row: dict[str, Any]) -> dict[str, Any]:
     value = row.get("features")
+    if isinstance(value, dict):
+        return value
+    value = row.get("feature_values")
     return value if isinstance(value, dict) else {}
 
 
@@ -143,12 +166,17 @@ def _has_core_market_snapshot(row: dict[str, Any]) -> bool:
 
 
 def _missing_feature_names(row: dict[str, Any]) -> list[str]:
-    raw = row.get("missing_feature_names") or row.get("missing_feature_flags") or []
-    if isinstance(raw, dict):
-        raw = list(raw.keys())
-    if not isinstance(raw, list):
-        return []
-    return [str(item) for item in raw if str(item).strip()]
+    return mask_names(row, mask_key="missing_mask", names_keys=MISSING_NAME_KEYS)
+
+
+def _stale_feature_names(row: dict[str, Any]) -> list[str]:
+    return mask_names(row, mask_key="stale_mask", names_keys=STALE_NAME_KEYS)
+
+
+def _effective_feature_count(row: dict[str, Any], *, names: list[str], count_key: str, mask_key: str, names_keys: tuple[str, ...]) -> int:
+    if mask_key in row or any(key in row for key in names_keys):
+        return len(names)
+    return int(_float(row.get(count_key), float(len(names))) or 0)
 
 
 def _missing_features_are_optional_or_event_dependent(names: list[str]) -> bool:
@@ -256,8 +284,22 @@ def score_market_state(
     reasons.extend(alignment["reject_reasons"])
 
     missing_names = _missing_feature_names(row)
-    missing_count = int(_float(row.get("missing_feature_count"), float(len(missing_names))) or 0)
-    stale_count = int(_float(row.get("stale_feature_count"), 0.0) or 0)
+    stale_names = _stale_feature_names(row)
+    missing_count = _effective_feature_count(
+        row,
+        names=missing_names,
+        count_key="missing_feature_count",
+        mask_key="missing_mask",
+        names_keys=MISSING_NAME_KEYS,
+    )
+    stale_count = _effective_feature_count(
+        row,
+        names=stale_names,
+        count_key="stale_feature_count",
+        mask_key="stale_mask",
+        names_keys=STALE_NAME_KEYS,
+    )
+    canonical_lineage = canonical_feature_lineage(row)
     optional_missing_masked = (
         missing_count > 0
         and _has_core_market_snapshot(row)
@@ -364,5 +406,11 @@ def score_market_state(
             "inferred": inferred_lineage,
             "optional_missing_features_masked": optional_missing_masked,
             "missing_feature_names": missing_names[:50],
+            "missing_feature_count": missing_count,
+            "missing_mask": canonical_lineage["missing_mask"],
+            "stale_feature_names": stale_names[:50],
+            "stale_feature_count": stale_count,
+            "stale_mask": canonical_lineage["stale_mask"],
+            "source_availability": canonical_lineage["source_availability"],
         },
     )

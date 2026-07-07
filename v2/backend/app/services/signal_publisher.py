@@ -17,6 +17,8 @@ import hashlib
 import time
 from typing import Any, Dict, Iterable, Mapping, Optional, Tuple
 
+from v2.backend.app.services.feature_lineage_masks import canonical_feature_lineage
+
 
 SIGNAL_SERVICE_ID = "v2_signal_publisher"
 LIVE_GATE_STATUS = "blocked_human_only"
@@ -154,6 +156,10 @@ def required_signal_record_fields() -> Tuple[str, ...]:
         "actionable_reason_code",
         "source_freshness",
         "market_age_seconds",
+        "missing_feature_names",
+        "missing_mask",
+        "stale_mask",
+        "source_availability",
         "evidence_citations",
         "explanation",
         "live_gate",
@@ -221,6 +227,7 @@ def build_signal_record(
         feature_snapshot.get("last_price"),
         feature_snapshot.get("price"),
     )
+    feature_lineage = canonical_feature_lineage(feature_snapshot)
 
     citations = [
         cite_evidence(
@@ -330,6 +337,14 @@ def build_signal_record(
         "actionable_reason_code": reason_code,
         "source_freshness": market_freshness_state or None,
         "market_age_seconds": market_age_seconds,
+        "missing_feature_count": feature_lineage["missing_feature_count"],
+        "stale_feature_count": feature_lineage["stale_feature_count"],
+        "missing_feature_names": feature_lineage["missing_feature_names"],
+        "stale_feature_names": feature_lineage["stale_feature_names"],
+        "missing_mask": feature_lineage["missing_mask"],
+        "stale_mask": feature_lineage["stale_mask"],
+        "source_availability": feature_lineage["source_availability"],
+        "feature_lineage_source": feature_lineage["feature_lineage_source"],
         "evidence_citations": citations + optional_citations,
         "explanation": explain_or_missing(
             explanation=explanation,
@@ -345,6 +360,9 @@ def build_signal_record(
             "available_at_source_field": "trainer_prediction.available_at",
             "decision_time_source_field": "trainer_prediction.decision_time",
             "feature_cutoff_source_field": "trainer_prediction.feature_cutoff or feature_snapshot.feature_cutoff",
+            "missing_feature_names_source_field": "feature_snapshot.missing_mask or feature_snapshot.missing_feature_names",
+            "stale_feature_names_source_field": "feature_snapshot.stale_mask or feature_snapshot.stale_feature_names",
+            "source_availability_source_field": "feature_snapshot.source_availability",
         },
         "live_gate": LIVE_GATE_STATUS,
         "exchange_call_invariant": EXCHANGE_CALL_INVARIANT,

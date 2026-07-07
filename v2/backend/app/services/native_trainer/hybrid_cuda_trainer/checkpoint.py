@@ -103,7 +103,12 @@ class V2HybridCheckpointManager:
             weight_file_size_bytes=weight.get("weight_file_size_bytes"),
         )
 
-    def latest_manifest(self, *, input_dim: int | None = None) -> CheckpointManifest | None:
+    def _manifest_rows(
+        self,
+        *,
+        input_dim: int | None = None,
+        require_weight_blob: bool = False,
+    ) -> list[tuple[float, CheckpointManifest]]:
         manifests: list[tuple[float, CheckpointManifest]] = []
         for path in self.model_dir.glob("v2_hybrid_ckpt_*.json"):
             if path.name.endswith(".tmp"):
@@ -134,29 +139,35 @@ class V2HybridCheckpointManager:
                     ),
                 )
             )
+        if require_weight_blob:
+            manifests = [
+                (mtime, manifest)
+                for mtime, manifest in manifests
+                if manifest.weight_blob_written
+                and manifest.weight_file_path
+                and Path(str(manifest.weight_file_path)).exists()
+            ]
+        manifests.sort(key=lambda item: item[0], reverse=True)
+        return manifests
+
+    def latest_manifest(self, *, input_dim: int | None = None) -> CheckpointManifest | None:
+        manifests = self._manifest_rows(input_dim=input_dim)
         if not manifests:
             return None
-        manifests.sort(key=lambda item: item[0], reverse=True)
         return manifests[0][1]
 
     def load_latest_weights(self, model: V2HybridPolicyModel) -> dict[str, Any]:
-        manifest = self.latest_manifest(input_dim=model.input_dim)
+        latest_metadata_manifest = self.latest_manifest(input_dim=model.input_dim)
+        manifest_rows = self._manifest_rows(input_dim=model.input_dim, require_weight_blob=True)
+        manifest = manifest_rows[0][1] if manifest_rows else None
         if manifest is None:
             return {
-                "checkpoint_manifest_exists": False,
+                "checkpoint_manifest_exists": latest_metadata_manifest is not None,
+                "checkpoint_id": latest_metadata_manifest.checkpoint_id if latest_metadata_manifest else None,
                 "weight_blob_written": False,
                 "latest_checkpoint_loadable": False,
                 "model_state_restored": False,
-                "load_status": "NO_COMPATIBLE_CHECKPOINT_MANIFEST",
-            }
-        if not manifest.weight_blob_written or not manifest.weight_file_path:
-            return {
-                "checkpoint_manifest_exists": True,
-                "checkpoint_id": manifest.checkpoint_id,
-                "weight_blob_written": False,
-                "latest_checkpoint_loadable": False,
-                "model_state_restored": False,
-                "load_status": "CHECKPOINT_MANIFEST_HAS_NO_WEIGHT_BLOB",
+                "load_status": "NO_COMPATIBLE_WEIGHT_BLOB_MANIFEST",
             }
         try:
             loaded = model.load_weight_blob(Path(manifest.weight_file_path))
@@ -173,6 +184,13 @@ class V2HybridCheckpointManager:
         return {
             "checkpoint_manifest_exists": True,
             "checkpoint_id": manifest.checkpoint_id,
+            "latest_metadata_checkpoint_id": (
+                latest_metadata_manifest.checkpoint_id if latest_metadata_manifest else manifest.checkpoint_id
+            ),
+            "metadata_only_manifest_ignored_for_weight_load": bool(
+                latest_metadata_manifest
+                and latest_metadata_manifest.checkpoint_id != manifest.checkpoint_id
+            ),
             "weight_blob_written": True,
             "weight_file_path": manifest.weight_file_path,
             "weight_file_format": manifest.weight_file_format,

@@ -93,6 +93,11 @@ class AllocationResult:
     stop_distance_bps: float | None
     liquidation_price_estimate: float | None
     liquidation_buffer_bps: float | None
+    max_loss_if_stop_hit: float | None
+    risk_reward: float | None
+    risk_of_ruin_contribution: float | None
+    portfolio_exposure_after_trade: float
+    correlation_exposure_after_trade: float
     expected_fees_usd: float
     expected_slippage_usd: float
     expected_funding_usd: float
@@ -127,6 +132,7 @@ class AllocationResult:
             "action": self.action,
             "allocator_decision": self.decision,
             "target_notional_usdt": self.target_notional_usdt,
+            "target_notional_usd": self.target_notional_usdt,
             "target_quantity": self.target_quantity,
             "risk_budget_usd": self.risk_budget_usd,
             "gross_notional_usd": self.gross_notional_usd,
@@ -137,6 +143,11 @@ class AllocationResult:
             "stop_distance_bps": self.stop_distance_bps,
             "liquidation_price_estimate": self.liquidation_price_estimate,
             "liquidation_buffer_bps": self.liquidation_buffer_bps,
+            "max_loss_if_stop_hit": self.max_loss_if_stop_hit,
+            "risk_reward": self.risk_reward,
+            "risk_of_ruin_contribution": self.risk_of_ruin_contribution,
+            "portfolio_exposure_after_trade": self.portfolio_exposure_after_trade,
+            "correlation_exposure_after_trade": self.correlation_exposure_after_trade,
             "expected_fees_usd": self.expected_fees_usd,
             "expected_slippage_usd": self.expected_slippage_usd,
             "expected_funding_usd": self.expected_funding_usd,

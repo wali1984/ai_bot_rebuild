@@ -225,6 +225,12 @@ def test_all_allowed_allocations_emit_explicit_margin_leverage_and_cost_fields()
         "stop_distance_bps",
         "liquidation_price_estimate",
         "liquidation_buffer_bps",
+        "target_notional_usd",
+        "max_loss_if_stop_hit",
+        "risk_reward",
+        "risk_of_ruin_contribution",
+        "portfolio_exposure_after_trade",
+        "correlation_exposure_after_trade",
         "expected_fees_usd",
         "expected_slippage_usd",
         "expected_funding_usd",
@@ -236,10 +242,16 @@ def test_all_allowed_allocations_emit_explicit_margin_leverage_and_cost_fields()
         assert field in payload
         assert payload[field] is not None
     assert payload["gross_notional_usd"] == payload["target_notional_usdt"]
+    assert payload["target_notional_usd"] == payload["target_notional_usdt"]
     assert payload["adaptive_capital_policy_version"] == ADAPTIVE_CAPITAL_POLICY_VERSION
     assert payload["allocated_margin_usd"] <= payload["gross_notional_usd"]
     assert payload["recommended_margin_mode"] == "isolated_paper_simulated"
     assert payload["capital_allocation_reason"] == result.final_size_reason
+    assert payload["max_loss_if_stop_hit"] > 0.0
+    assert payload["risk_reward"] > 0.0
+    assert 0.0 <= payload["risk_of_ruin_contribution"] <= 1.0
+    assert payload["portfolio_exposure_after_trade"] >= payload["gross_notional_usd"]
+    assert 0.0 <= payload["correlation_exposure_after_trade"] <= 1.0
 
 
 def test_allowed_allocation_payload_exposes_selected_capital_attribution_contract() -> None:
@@ -361,6 +373,48 @@ def test_paper_leverage_uses_phase8_target_for_high_confidence_low_volatility_ed
     assert result.model_inputs["leverage_live_mutation_allowed"] is False
     assert result.model_inputs["phase8_leverage_recommendation"]["paper_only"] is True
     assert result.model_inputs["phase8_leverage_recommendation"]["mutates_exchange"] is False
+
+
+def test_phase6_simulation_fields_scale_with_risk_and_do_not_mutate_live() -> None:
+    low_risk = allocate_paper_candidate(
+        _row(
+            confidence_calibrated=0.88,
+            expected_move_after_cost_bps=95.0,
+            volatility_bps=15.0,
+            stop_distance_bps=80.0,
+            total_exposure_usdt=100.0,
+            correlation_exposure_pct=0.01,
+        )
+    )
+    higher_pressure = allocate_paper_candidate(
+        _row(
+            confidence_calibrated=0.88,
+            expected_move_after_cost_bps=95.0,
+            volatility_bps=15.0,
+            stop_distance_bps=80.0,
+            total_exposure_usdt=100.0,
+            correlation_exposure_pct=0.12,
+            drawdown_bps=200.0,
+        )
+    )
+
+    low_payload = low_risk.to_payload()
+    pressure_payload = higher_pressure.to_payload()
+
+    assert low_risk.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
+    assert higher_pressure.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
+    assert low_payload["max_loss_if_stop_hit"] > low_payload["expected_fees_usd"]
+    assert low_payload["risk_reward"] == round(
+        low_payload["expected_net_pnl_usd"] / low_payload["max_loss_if_stop_hit"],
+        8,
+    )
+    assert low_payload["portfolio_exposure_after_trade"] == (
+        low_payload["gross_notional_usd"] + 100.0
+    )
+    assert pressure_payload["risk_of_ruin_contribution"] > low_payload["risk_of_ruin_contribution"]
+    assert pressure_payload["correlation_exposure_after_trade"] > low_payload["correlation_exposure_after_trade"]
+    assert pressure_payload["model_inputs"]["leverage_live_mutation_allowed"] is False
+    assert pressure_payload["model_inputs"]["margin_mode_live_mutation_allowed"] is False
 
 
 def test_paper_leverage_stays_at_one_when_after_cost_edge_is_too_small() -> None:

@@ -58,6 +58,8 @@ interface PaperRuntimeBlocker {
   severity?: string | null;
   detail?: string | null;
   status?: string | null;
+  trajectory_status?: string | null;
+  blocker?: string | null;
   valid_forward_canary_economic_outcomes?: number | null;
   post_cutover_valid_forward_canary_economic_outcomes?: number | null;
   required_forward_canary_economic_outcomes?: number | null;
@@ -79,6 +81,9 @@ interface PaperRuntimeBlocker {
   guardian_failure_reason_count?: number | null;
   source_tier_a_grade_execution_rows?: number | null;
   pass_conditions?: Record<string, boolean> | null;
+  target_multiple?: number | null;
+  target_horizon_days?: number | null;
+  required_daily_return_pct?: number | null;
   required_daily_geometric_return?: number | null;
   required_monthly_geometric_return?: number | null;
   actual_1d_return?: number | null;
@@ -87,6 +92,13 @@ interface PaperRuntimeBlocker {
   drawdown_adjusted_growth_rate?: number | null;
   lower_confidence_bound_growth_rate?: number | null;
   days_ahead_or_behind_target?: number | null;
+  projection_days?: number | null;
+  A_plus_rows?: number | null;
+  B_grade_rows?: number | null;
+  current_A_plus_daily_return_pct?: number | null;
+  current_B_grade_daily_return_pct?: number | null;
+  current_actual_daily_return_pct?: number | null;
+  required_operator_text?: string[] | null;
   required_edge?: number | null;
   required_capital?: number | null;
   missing_trajectory_evidence_fields?: string[] | null;
@@ -114,6 +126,13 @@ interface PaperTrainerModelQualityStatus {
 interface OneThousandXTrajectoryStatus {
   status?: string | null;
   current_status?: string | null;
+  trajectory_status?: string | null;
+  blocker?: string | null;
+  trajectory_status_detail?: string | null;
+  calibration_status?: string | null;
+  target_multiple?: number | null;
+  target_horizon_days?: number | null;
+  required_daily_return_pct?: number | null;
   required_daily_geometric_return?: number | null;
   required_monthly_geometric_return?: number | null;
   actual_1d_return?: number | null;
@@ -122,6 +141,14 @@ interface OneThousandXTrajectoryStatus {
   drawdown_adjusted_growth_rate?: number | null;
   lower_confidence_bound_growth_rate?: number | null;
   days_ahead_or_behind_target?: number | null;
+  projection_days?: number | null;
+  A_plus_rows?: number | null;
+  B_grade_rows?: number | null;
+  current_A_plus_daily_return_pct?: number | null;
+  current_B_grade_daily_return_pct?: number | null;
+  current_actual_daily_return_pct?: number | null;
+  B_grade_counts_as_1000x_proof?: boolean | null;
+  required_operator_text?: string[] | null;
   required_edge?: number | null;
   required_capital?: number | null;
   missing_trajectory_evidence_fields?: string[] | null;
@@ -865,11 +892,32 @@ export function AdaptiveCapitalTelemetryPanel({
   const guardianTruth = guardian?.readiness_truth;
   const guardianGate = guardian?.a_grade_execution_gate;
   const trajectory = guardian?.trajectory_status;
-  const runtimeTrajectoryStatus = trajectoryBlocker?.status
+  const runtimeTrajectoryStatus = trajectoryBlocker?.trajectory_status
+    ?? trajectoryBlocker?.status
+    ?? paperTrajectory?.trajectory_status
     ?? paperTrajectory?.current_status
     ?? paperTrajectory?.status
+    ?? trajectory?.trajectory_status
     ?? trajectory?.current_status
     ?? trajectory?.status;
+  const runtimeTrajectoryReady = runtimeTrajectoryStatus === 'ON_TRACK_90D_A_PLUS_EVIDENCE';
+  const runtimeTrajectoryRequiredDailyPct = trajectoryBlocker?.required_daily_return_pct
+    ?? paperTrajectory?.required_daily_return_pct
+    ?? trajectory?.required_daily_return_pct;
+  const runtimeTrajectoryAPlusRows = trajectoryBlocker?.A_plus_rows
+    ?? paperTrajectory?.A_plus_rows
+    ?? trajectory?.A_plus_rows;
+  const runtimeTrajectoryBGradeRows = trajectoryBlocker?.B_grade_rows
+    ?? paperTrajectory?.B_grade_rows
+    ?? trajectory?.B_grade_rows;
+  const runtimeTrajectoryOperatorText = trajectoryBlocker?.required_operator_text
+    ?? paperTrajectory?.required_operator_text
+    ?? trajectory?.required_operator_text
+    ?? [
+      'Target requires ~7.98% compounded daily.',
+      `Current A+ evidence: ${countText(runtimeTrajectoryAPlusRows)}.`,
+      'B-grade exploration does not count as 1000x proof.',
+    ];
   const runtimeTrajectoryActual1d = trajectoryBlocker?.actual_1d_return
     ?? paperTrajectory?.actual_1d_return
     ?? trajectory?.actual_1d_return;
@@ -894,6 +942,9 @@ export function AdaptiveCapitalTelemetryPanel({
   const runtimeTrajectoryDays = trajectoryBlocker?.days_ahead_or_behind_target
     ?? paperTrajectory?.days_ahead_or_behind_target
     ?? trajectory?.days_ahead_or_behind_target;
+  const runtimeTrajectoryProjectionDays = trajectoryBlocker?.projection_days
+    ?? paperTrajectory?.projection_days
+    ?? trajectory?.projection_days;
   const accuracy = view.accuracy;
   const accuracyCellTotal = accuracy?.symbol_timeframe_cell_count ?? accuracy?.required_symbol_timeframe_cell_count;
   const positiveEdgeDiagnostics = capital?.positive_edge_non_a_grade_diagnostics;
@@ -1029,28 +1080,43 @@ export function AdaptiveCapitalTelemetryPanel({
         />
         <HeaderMetric
           label="1000x Trajectory"
-          value={runtimeTrajectoryStatus ?? 'INSUFFICIENT_EVIDENCE'}
-          color={runtimeTrajectoryStatus === 'ON_1000X_TRAJECTORY' ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+          value={runtimeTrajectoryStatus ?? 'NO_A_PLUS_SUPPLY'}
+          color={runtimeTrajectoryReady ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
+          label="1000x Target"
+          value={runtimeTrajectoryOperatorText[0] ?? 'Target requires ~7.98% compounded daily.'}
+          color="var(--text-secondary)"
+        />
+        <HeaderMetric
+          label="1000x Evidence"
+          value={runtimeTrajectoryOperatorText[1] ?? `Current A+ evidence: ${countText(runtimeTrajectoryAPlusRows)}.`}
+          color={(runtimeTrajectoryAPlusRows ?? 0) > 0 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+        />
+        <HeaderMetric
+          label="1000x B-grade"
+          value={runtimeTrajectoryOperatorText[2] ?? 'B-grade exploration does not count as 1000x proof.'}
+          color={(runtimeTrajectoryBGradeRows ?? 0) > 0 ? 'var(--text-secondary)' : 'var(--text-muted)'}
         />
         <HeaderMetric
           label="1000x 1/7/30"
           value={`${compactPercent(runtimeTrajectoryActual1d)} / ${compactPercent(runtimeTrajectoryActual7d)} / ${compactPercent(runtimeTrajectoryActual30d)}`}
-          color={runtimeTrajectoryStatus === 'ON_1000X_TRAJECTORY' ? 'var(--buy,#10b981)' : 'var(--text-secondary)'}
+          color={runtimeTrajectoryReady ? 'var(--buy,#10b981)' : 'var(--text-secondary)'}
         />
         <HeaderMetric
           label="1000x Edge"
-          value={`${compactPercent(runtimeTrajectoryRequiredEdge)} · ${compactMoney(runtimeTrajectoryRequiredCapital)}`}
+          value={`${compactPercent(runtimeTrajectoryRequiredEdge)} · ${compactMoney(runtimeTrajectoryRequiredCapital)} · ${typeof runtimeTrajectoryRequiredDailyPct === 'number' ? `${runtimeTrajectoryRequiredDailyPct.toFixed(2)}% daily` : '7.98% daily'}`}
           color="var(--text-secondary)"
         />
         <HeaderMetric
           label="1000x LCB/DD"
           value={`${compactPercent(runtimeTrajectoryLcb, 3)} / ${compactPercent(runtimeTrajectoryDrawdown, 3)}`}
-          color={runtimeTrajectoryStatus === 'ON_1000X_TRAJECTORY' ? 'var(--buy,#10b981)' : 'var(--text-secondary)'}
+          color={runtimeTrajectoryReady ? 'var(--buy,#10b981)' : 'var(--text-secondary)'}
         />
         <HeaderMetric
-          label="1000x Days"
-          value={signedDays(runtimeTrajectoryDays)}
-          color={(runtimeTrajectoryDays ?? -1) >= 0 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
+          label="1000x Projection"
+          value={typeof runtimeTrajectoryProjectionDays === 'number' ? `${Math.round(runtimeTrajectoryProjectionDays)}d projection · ${signedDays(runtimeTrajectoryDays)}` : 'projection n/a'}
+          color={runtimeTrajectoryReady ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
         />
         <HeaderMetric
           label="Paper Owner"

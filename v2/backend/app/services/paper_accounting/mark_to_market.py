@@ -179,17 +179,31 @@ def classify_fill(
     for field, value in lineage.items():
         if not value:
             missing.append(f"MISSING_{field.upper()}")
+    effective_mark = mark_price if mark_price and mark_price > 0 else coerce_float(row.get("latest_price"))
+    if entry is not None and entry > 0 and effective_mark is not None and effective_mark > 0:
+        price_ratio = max(entry, effective_mark) / min(entry, effective_mark)
+        if price_ratio > 10.0:
+            missing.append("ENTRY_PRICE_CURRENT_MARK_IMPOSSIBLE_RATIO")
+        if symbol == "BTCUSDT" and entry < 1000.0 and effective_mark > 10000.0:
+            missing.append("BTC_ENTRY_PRICE_IMPOSSIBLE_WITH_CURRENT_MARK")
     classification = "ECONOMIC_FILL" if not missing else missing[0]
     economic = classification == "ECONOMIC_FILL"
-    effective_mark = mark_price if mark_price and mark_price > 0 else coerce_float(row.get("latest_price"))
     price_delta = None
     unrealized_pnl = None
     if economic and effective_mark is not None and entry is not None and quantity is not None:
         price_delta = effective_mark - entry
         unrealized_pnl = price_delta * quantity if side == "long" else -price_delta * quantity
+    raw_source_fill_ids = row.get("source_fill_ids")
+    if isinstance(raw_source_fill_ids, (list, tuple, set)):
+        source_fill_ids = [str(item) for item in raw_source_fill_ids if item not in (None, "")]
+    else:
+        source_fill_ids = []
+    if not source_fill_ids:
+        source_fill_ids = [fill_identity(row)]
     return {
         "fill_id": fill_identity(row),
         "ledger_row_id": fill_identity(row),
+        "source_fill_ids": source_fill_ids,
         "intent_id": row.get("intent_id"),
         "signal_id": lineage["signal_id"],
         "prediction_id": lineage["prediction_id"],

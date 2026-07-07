@@ -1,0 +1,15 @@
+[Unit]
+Description=AI Bot V2 A+ context loop (HTF + cross-asset + regime gate publisher; V2 namespace only; paper-shadow)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+ExecStartPre=/usr/bin/env bash -lc 'exec ./claude_worklog/tools/v2_automation_safety_preflight.sh ai-bot-v2-a-plus-context-loop'
+ExecStart=/usr/bin/env bash -lc 'mkdir -p claude_worklog/agent_supervisor/logs/control_plane; exec ./.venv/bin/python3 -m v2.backend.app.cli.v2_a_plus_context_loop --loop --interval-seconds 120 >> claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-a-plus-context-loop.log 2>&1'
+Restart=always
+RestartSec=30
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

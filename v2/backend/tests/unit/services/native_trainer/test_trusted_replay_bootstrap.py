@@ -12,8 +12,10 @@ from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive imp
     build_archive_record,
     load_snapshot,
 )
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import data_loader as data_loader_mod
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
     TrainingExample,
+    V2HybridTrainerDataLoader,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.model import (
     V2HybridPolicyModel,
@@ -149,7 +151,7 @@ def _append_archive_series(root: Path, *, rows: int = 270) -> None:
             "macd": 1.0,
             "macd_signal": 0.0,
         }
-        for offset, (name, _source) in enumerate(V2UnifiedFeatureTensorBuilder.feature_spec[:90]):
+        for offset, (name, _source) in enumerate(V2UnifiedFeatureTensorBuilder.feature_spec):
             features.setdefault(str(name), close + (offset * 0.001))
         record = build_archive_record(
             snapshot_id=f"archive-only-{minute:04d}",
@@ -246,6 +248,76 @@ def test_archive_only_bootstrap_refreshes_replay_status_without_redis_scan(tmp_p
     assert status["label_distribution"]["positive_directional_labels"] > 0
     published = tmp_path / "goal_state" / "V2_TRUSTED_REPLAY_BOOTSTRAP_PAPER_EXPLORATION_AND_ONLINE_LEARNING_ACTIVATION" / "trusted_replay_dataset_status.json"
     assert json.loads(published.read_text(encoding="utf-8"))["trusted_replay_rows"] == 20
+
+
+def test_trusted_replay_loader_skips_critical_missing_rows(tmp_path: Path) -> None:
+    archive_root = tmp_path / "archive"
+    base = datetime(2026, 6, 22, 0, 0, tzinfo=timezone.utc)
+    for minute in range(260):
+        close_time = base + timedelta(minutes=minute)
+        decision_time = close_time + timedelta(seconds=1)
+        close = 100.0 + minute * 0.02
+        features = {
+            "open": close - 0.01,
+            "high": close + 0.5,
+            "low": close - 0.5,
+            "close": close,
+            "last_price": close,
+            "ema_12": close + 0.1,
+            "ema_26": close - 0.1,
+            "rsi_14": 55.0,
+            "macd": 1.0,
+            "macd_signal": 0.0,
+        }
+        record = build_archive_record(
+            snapshot_id=f"critical-missing-{minute:04d}",
+            symbol="BTCUSDT",
+            timeframe="1m",
+            feature_cutoff=close_time.isoformat(timespec="seconds").replace("+00:00", "Z"),
+            decision_time=decision_time.isoformat(timespec="seconds").replace("+00:00", "Z"),
+            available_at=close_time.isoformat(timespec="seconds").replace("+00:00", "Z"),
+            mtf_snapshot_id=f"mtf-critical-missing-{minute:04d}",
+            features=features,
+            missing_mask={name: False for name in features},
+            stale_mask={name: False for name in features},
+            source_availability={"ohlcv": True},
+            source_hashes={"feature_payload_hash": f"hash-{minute}"},
+            created_at=close_time.isoformat(timespec="seconds").replace("+00:00", "Z"),
+            extra={
+                "decision_id": f"decision-critical-missing-{minute:04d}",
+                "candle_closed_confirmed": True,
+                "model_version": "unit",
+                "checkpoint_id": "ckpt",
+            },
+        )
+        append_snapshot(record, root=archive_root, update_checksum_manifest=False)
+    loader = V2HybridTrainerDataLoader(trusted_replay_archive_root=archive_root)
+
+    examples = loader.load_trusted_replay_examples(limit=20)
+
+    assert examples == []
+
+
+def test_trusted_replay_loader_caps_large_cycle_archive_scan(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: dict[str, object] = {}
+
+    def fake_iter_snapshots(root: Path, *, limit: int | None = None, newest_first: bool = False):
+        seen["root"] = root
+        seen["limit"] = limit
+        seen["newest_first"] = newest_first
+        return iter(())
+
+    monkeypatch.setattr(data_loader_mod, "iter_snapshots", fake_iter_snapshots)
+    loader = V2HybridTrainerDataLoader(trusted_replay_archive_root=Path("/tmp/archive"))
+
+    examples = loader.load_trusted_replay_examples(limit=32768)
+
+    assert examples == []
+    assert seen == {
+        "root": Path("/tmp/archive"),
+        "limit": data_loader_mod.TRUSTED_REPLAY_MAX_SCAN_PER_CYCLE,
+        "newest_first": True,
+    }
 
 
 def _tensor(feature_snapshot_id: str, value: float) -> FeatureTensorRecord:

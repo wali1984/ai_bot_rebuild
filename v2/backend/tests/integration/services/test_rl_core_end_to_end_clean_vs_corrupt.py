@@ -238,21 +238,25 @@ def _seed(
     client.set("v2:paper:position_history", json.dumps({"entries": []}))
 
 
-def _model_output() -> SimpleNamespace:
+def _model_output(**overrides) -> SimpleNamespace:
+    values = {
+        "selected_action": "long",
+        "selected_action_index": 1,
+        "action_probabilities": [0.1, 0.8, 0.1, 0.0, 0.0, 0.0, 0.0],
+        "expected_move_bps": 15.0,
+        "confidence_raw": 0.9,
+        "confidence_calibrated": 0.9,
+        "calibration": "test",
+        "policy_value": 0.0,
+        "masa_signal": 0.55,
+        "model_id": "model-test",
+        "device": "cpu",
+        "cuda_active": False,
+        "model_tensors_device_verified": False,
+    }
+    values.update(overrides)
     return SimpleNamespace(
-        selected_action="long",
-        selected_action_index=1,
-        action_probabilities=[0.1, 0.8, 0.1, 0.0, 0.0, 0.0, 0.0],
-        expected_move_bps=15.0,
-        confidence_raw=0.9,
-        confidence_calibrated=0.9,
-        calibration="test",
-        policy_value=0.0,
-        masa_signal=0.55,
-        model_id="model-test",
-        device="cpu",
-        cuda_active=False,
-        model_tensors_device_verified=False,
+        **values,
     )
 
 
@@ -281,8 +285,50 @@ def test_clean_path_produces_publishable_prediction_payload() -> None:
     assert str(payload["mtf_snapshot_id"]).startswith("mtf_")
     assert payload["input_feature_hash"]
     assert payload["all_tf_candle_timestamps"]
+    assert payload["counterfactual_directional_action_from_expected_move"] == "long"
+    assert payload["counterfactual_directional_expected_move_after_cost_bps"] == 15.0
+    assert payload["selected_hold_with_directional_edge_after_cost"] is False
     assert "market_state_invalid_for_prediction" not in payload["paper_fill_gate_block_reasons"]
     assert payload["market_state_integrity_score"] >= 80.0
+
+
+def test_hold_with_directional_edge_is_diagnostic_only_and_blocked() -> None:
+    client = _MemoryClient()
+    _seed(client)
+    loader = V2HybridTrainerDataLoader(io=V2OnlyJsonIO(client=client), tensor_builder=_StubTensorBuilder())
+
+    example = loader.build_example(symbol="BTCUSDT", timeframe="1m")
+    payload = build_prediction_payload(
+        example=example,
+        model_output=_model_output(
+            selected_action="hold",
+            selected_action_index=0,
+            action_probabilities=[0.250001, 0.05, 0.25, 0.0, 0.0, 0.0, 0.0],
+            expected_move_bps=-20.0,
+            confidence_raw=0.250001,
+            confidence_calibrated=0.9,
+        ),
+        checkpoint=None,
+        round_trip_cost_bps=12.0,
+        min_data_coverage_percent=1.0,
+        min_confidence_calibrated=0.0,
+        min_edge_after_cost_bps=4.0,
+    )
+
+    assert payload["paper_fill_allowed"] is False
+    assert payload["routes_to_orchestrator"] is False
+    assert "action_not_directional" in payload["paper_fill_gate_block_reasons"]
+    assert "expected_move_after_cost_below_threshold" in payload["paper_fill_gate_block_reasons"]
+    assert payload["expected_move_after_cost_bps"] == 0.0
+    assert payload["counterfactual_directional_action_from_expected_move"] == "short"
+    assert payload["counterfactual_directional_expected_move_after_cost_bps"] == -8.0
+    assert payload["counterfactual_directional_action_probability"] == 0.25
+    assert payload["selected_action_probability"] == 0.250001
+    assert payload["selected_hold_with_directional_edge_after_cost"] is True
+    assert (
+        payload["selected_hold_directional_edge_diagnostic_reason"]
+        == "EXPECTED_MOVE_DIRECTIONAL_EDGE_BLOCKED_BY_SELECTED_HOLD"
+    )
 
 
 def test_corrupt_path_is_blocked_before_training_and_prediction() -> None:

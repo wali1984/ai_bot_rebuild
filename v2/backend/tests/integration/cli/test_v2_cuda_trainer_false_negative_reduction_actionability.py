@@ -33,9 +33,10 @@ def _row(
     coverage: float = 52.0,
     missing: int = 32,
     risk_id: str | None = None,
+    premium_context: bool = False,
 ) -> dict[str, object]:
     risk_id = risk_id if risk_id is not None else f"rd_{prediction_id}"
-    return {
+    row: dict[str, object] = {
         "prediction_id": prediction_id,
         "symbol": symbol,
         "timeframe": "1m",
@@ -73,11 +74,70 @@ def _row(
         "correct_no_trade": classification == "correct_no_trade",
         "correct_trade": classification == "correct_trade",
     }
+    if premium_context:
+        row.update(
+            {
+                "feature_cutoff": "2026-06-04T17:24:59-04:00",
+                "available_at": "2026-06-04T17:24:59-04:00",
+                "decision_time": "2026-06-04T17:25:00-04:00",
+                "premium_ingestor_context_status": "PREMIUM_CONTEXT_READY",
+                "premium_ingestor_context_sources": {
+                    "liquidity_context": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+                    "liquidation_context": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+                    "microstructure_context": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+                    "oi_funding_context": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+                    "public_intel_context": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+                },
+                "liquidation_engine_context_status": "LIQUIDATION_ENGINE_CONTEXT_READY",
+                "liquidity_context": {
+                    "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+                    "bid_depth_usd": 1_400_000.0,
+                    "ask_depth_usd": 800_000.0,
+                    "depth_imbalance": 0.42,
+                    "whale_bid_wall_notional_usd": 920_000.0,
+                    "whale_ask_wall_notional_usd": 300_000.0,
+                },
+                "liquidation_context": {
+                    "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+                    "liquidation_pressure_direction": "up",
+                    "liquidation_short_strength": 7.0,
+                    "liquidation_long_strength": 2.0,
+                    "liquidation_sweep_target_short_distance_bps": 18.0,
+                    "liquidation_sweep_target_long_distance_bps": 52.0,
+                },
+                "liquidation_distance_context": {
+                    "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+                    "liquidation_short_strength": 7.0,
+                    "liquidation_long_strength": 2.0,
+                    "liquidation_sweep_target_short_distance_bps": 18.0,
+                    "liquidation_sweep_target_long_distance_bps": 52.0,
+                },
+                "microstructure_context": {
+                    "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+                    "orderbook_imbalance": 0.42,
+                    "spread_bps": 1.8,
+                    "orderbook_depth_usd": 2_200_000.0,
+                },
+                "oi_funding_context": {
+                    "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+                    "funding_bps": 0.4,
+                    "oi_change_pct": 2.8,
+                    "long_short_ratio": 0.82,
+                },
+                "public_intel_context": {
+                    "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS",
+                    "public_intel_score": 0.68,
+                    "news_sentiment_score": 0.61,
+                    "market_breadth_score": 0.57,
+                },
+            }
+        )
+    return row
 
 
 def _source_payload(*, missing_lineage: bool = False) -> dict[str, object]:
     rows = [
-        _row("fn_1", classification="false_negative", realized=24.0, symbol="BTCUSDT"),
+        _row("fn_1", classification="false_negative", realized=24.0, symbol="BTCUSDT", premium_context=True),
         _row("fn_2", classification="false_negative", realized=14.0, symbol="ETHUSDT", coverage=42.0, missing=41),
         _row("cnt_1", classification="correct_no_trade", realized=-9.0, symbol="SOLUSDT", coverage=75.0, missing=0),
         _row("fp_1", classification="false_positive", realized=-18.0, symbol="XRPUSDT", coverage=80.0, missing=0),
@@ -149,6 +209,24 @@ def test_false_negative_actionability_builds_required_ready_artifacts(tmp_path: 
     assert attribution["lineage_complete"] is True
     assert attribution["root_cause_counts"]["RISK_GATE_BLOCKED"] == 2
     assert attribution["root_cause_counts"]["TRAINER_ACTION_TOO_CONSERVATIVE"] == 2
+    assert attribution["symbol_universe_coverage"]["scope"] == "FULL_CONFIGURED_SYMBOL_UNIVERSE"
+    assert attribution["symbol_universe_coverage"]["not_limited_to_btc_eth_sol"] is True
+    assert attribution["symbol_universe_coverage"]["mandatory_major_symbols"] == ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+    assert attribution["premium_ingestor_context_ready_count"] >= 1
+    assert attribution["liquidation_engine_used_count"] >= 1
+    assert attribution["source_prediction_row_count"] == 4
+    assert attribution["completed_outcome_row_count"] == 4
+    assert attribution["pending_future_window_rows"] == 0
+    assert attribution["source_premium_context_ready_rows"] >= 1
+    assert attribution["source_liquidation_engine_ready_rows"] >= 1
+    first_fn = attribution["rows"][0]
+    strategy = first_fn["strategy_evidence"]
+    assert strategy["derived_from_outcome_windows_only"] is False
+    assert strategy["orderbook_confirmation"] == "BUY_PRESSURE"
+    assert strategy["premium_context_ready"] is True
+    assert strategy["liquidation_engine_used"] is True
+    assert strategy["liquidation_signal"]["cluster_strength_direction"] == "SHORT_LIQUIDATION_CLUSTER_DOMINANT"
+    assert "RISK_BLOCKED" in first_fn["missed_move_classification"]
     assert all(row["risk_decision"]["risk_decision_id"] for row in attribution["rows"])
     assert simulation["paper_only"] is True
     assert simulation["runtime_thresholds_changed"] is False

@@ -309,16 +309,18 @@ class V2HybridPolicyModel:
             coverage = tensor.data_coverage_percent
             missing_count = len(tensor.missing_feature_names)
             stale_count = len(tensor.stale_feature_names)
+            total_features = len(tensor.feature_names) or None
         else:
             vector = [self._finite_feature_value(v) for v in tensor]
             coverage = 100.0
             missing_count = 0
             stale_count = 0
+            total_features = None
         if len(vector) != self.input_dim:
             raise ValueError(f"model input dim mismatch: expected {self.input_dim}, got {len(vector)}")
         if self._torch is not None and self._net is not None:
-            return self._forward_torch(vector, coverage, missing_count, stale_count)
-        return self._forward_fallback(vector, coverage, missing_count, stale_count)
+            return self._forward_torch(vector, coverage, missing_count, stale_count, total_features)
+        return self._forward_fallback(vector, coverage, missing_count, stale_count, total_features)
 
     @staticmethod
     def _finite_feature_value(value: Any) -> float:
@@ -336,6 +338,7 @@ class V2HybridPolicyModel:
         coverage: float,
         missing_count: int,
         stale_count: int,
+        total_features: int | None = None,
     ) -> ModelForwardResult:
         torch = self._torch
         assert torch is not None and self._net is not None
@@ -382,6 +385,7 @@ class V2HybridPolicyModel:
             data_coverage_percent=coverage,
             missing_feature_count=missing_count,
             stale_feature_count=stale_count,
+            total_feature_count=total_features,
         )
         masa = self._masa.evaluate(
             expected_move_bps=expected,
@@ -412,6 +416,7 @@ class V2HybridPolicyModel:
         coverage: float,
         missing_count: int,
         stale_count: int,
+        total_features: int | None = None,
     ) -> ModelForwardResult:
         logits: list[float] = []
         for j in range(ACTION_COUNT):
@@ -428,6 +433,7 @@ class V2HybridPolicyModel:
             data_coverage_percent=coverage,
             missing_feature_count=missing_count,
             stale_feature_count=stale_count,
+            total_feature_count=total_features,
         )
         masa = self._masa.evaluate(
             expected_move_bps=expected,

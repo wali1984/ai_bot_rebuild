@@ -10,11 +10,13 @@ class FakeRedis:
     def __init__(self) -> None:
         self.store: dict[str, str] = {
             "v2:paper:ledger": json.dumps({
+                "paper_session_id": "paper_3000_test",
                 "accepted": [],
                 "held_by_paper_fill_gate": [{"symbol": "BTCUSDT"}],
                 "shadow_observations": [],
             }),
             "v2:portfolio:state": json.dumps({
+                "paper_session_id": "paper_3000_test",
                 "initial_capital": 10000.0,
                 "cash_balance": 10000.0,
                 "equity": 10000.0,
@@ -43,6 +45,7 @@ def test_minus_49_from_old_paper_online_is_not_current_session(tmp_path: Path, m
     result = rt.build_paper_pnl_source_of_truth(FakeRedis())
 
     assert result["current_session_pnl"] == 0.0
+    assert result["paper_session_id"] == "paper_3000_test"
     assert result["current_session_equity"] == 10000.0
     assert result["accepted_fill_count"] == 0
     assert result["paper_minus_49_classification"] == "STALE_OR_LIFETIME_PAPER_ONLINE_PNL_NOT_CURRENT_SESSION"
@@ -61,6 +64,13 @@ def test_live_gate_display_state_never_enables_submit() -> None:
             "available_margin": 100.0,
             "required_initial_margin": 64.86,
             "accepted_live_symbols": ["BTCUSDT"],
+            "live_execution_source_payload_age_seconds": 10.0,
+            "live_execution_source_payload_fresh": True,
+            "signed_account_snapshot": {"ok": True, "raw_credentials_exposed": False},
+            "open_orders_snapshot": {"ok": True, "open_orders_count": 0},
+            "position_mode_snapshot": {"ok": True, "dual_side_position": False},
+            "symbol_filter_snapshot": {"filters": {"BTCUSDT": {"ok": True, "step_size": "0.001"}}},
+            "selected_candidate_snapshot": {"symbol": "BTCUSDT", "quantity": 0.001},
         },
         previous_state={
             "accepted_risk_audit_id": "risk_audit",
@@ -77,3 +87,130 @@ def test_live_gate_display_state_never_enables_submit() -> None:
     assert result["order_transport_submit_enabled"] is False
     assert result["places_real_order"] is False
     assert result["exchange_action_taken"] is False
+    assert result["source_payload_fresh"] is True
+    assert result["signed_account_snapshot"]["raw_credentials_exposed"] is False
+    assert result["open_orders_snapshot"]["open_orders_count"] == 0
+    assert result["symbol_filter_snapshot"]["filters"]["BTCUSDT"]["step_size"] == "0.001"
+
+
+def test_current_live_execution_hold_uses_redis_live_gate_over_stale_signed_payload(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    public = tmp_path / "v2/frontend/public"
+    signed_path = (
+        public
+        / "v2_signed_read_recovered_balance_hold_and_first_order_resume/latest/operator_dashboard_payload.json"
+    )
+    balance_path = (
+        public
+        / "v2_live_transport_balance_aware_hold_and_first_order_monitor/latest/operator_dashboard_payload.json"
+    )
+    signed_path.parent.mkdir(parents=True)
+    balance_path.parent.mkdir(parents=True)
+    signed_path.write_text(
+        json.dumps({
+            "live_gate": "enabled_operator_approved",
+            "trader_state": "LIVE_ARMED_BALANCE_HOLD",
+            "signed_read_classification": "NO_451_DETECTED",
+            "blockers": ["INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER"],
+            "live_submit_allowed": True,
+        }),
+        encoding="utf-8",
+    )
+    balance_path.write_text(json.dumps({}), encoding="utf-8")
+    monkeypatch.setattr(rt, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(rt, "PUBLIC_ROOT", public)
+    monkeypatch.setattr(rt, "SIGNED_READ_RECOVERED_PATH", signed_path)
+    monkeypatch.setattr(rt, "BALANCE_HOLD_PATH", balance_path)
+
+    result = rt._current_live_execution_hold(  # noqa: SLF001
+        live_gate_state={
+            "live_gate": "blocked_human_only",
+            "operator_approved": False,
+            "order_transport_submit_enabled": False,
+        }
+    )
+
+    assert result["live_gate"] == "blocked_human_only"
+    assert result["live_order_submit_allowed"] is False
+    assert result["live_order_submit_blocker"] == "LIVE_GATE_NOT_ENABLED"
+    assert "LIVE_GATE_NOT_ENABLED" in result["blockers"]
+
+
+def test_current_live_execution_hold_marks_stale_signed_read_proof_not_current(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    public = tmp_path / "v2/frontend/public"
+    signed_dir = public / "v2_signed_read_recovered_balance_hold_and_first_order_resume/latest"
+    monitor_dir = public / "v2_live_transport_balance_aware_hold_and_first_order_monitor/latest"
+    signed_path = signed_dir / "operator_dashboard_payload.json"
+    balance_path = monitor_dir / "operator_dashboard_payload.json"
+    signed_dir.mkdir(parents=True)
+    monitor_dir.mkdir(parents=True)
+    signed_path.write_text(
+        json.dumps({
+            "live_gate": "enabled_operator_approved",
+            "trader_state": "LIVE_ARMED_BALANCE_HOLD",
+            "signed_read_classification": "NO_451_DETECTED",
+            "critical_account_read_gate": "CRITICAL_ACCOUNT_READ_GATE_READY",
+            "blockers": ["INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER"],
+            "live_submit_allowed": True,
+            "available_margin": 0.0,
+        }),
+        encoding="utf-8",
+    )
+    balance_path.write_text(json.dumps({}), encoding="utf-8")
+    (signed_dir / "account_margin_balance_hold_status.json").write_text(
+        json.dumps({
+            "generated_est": "2026-01-01T00:00:00-05:00",
+            "status": "LIVE_ARMED_BALANCE_HOLD",
+            "available_margin": 0.0,
+        }),
+        encoding="utf-8",
+    )
+    (monitor_dir / "open_orders_snapshot_status.json").write_text(
+        json.dumps({"status": "OPEN_ORDERS_READ_OK", "ok": True, "open_orders_count": 0}),
+        encoding="utf-8",
+    )
+    (monitor_dir / "live_symbol_min_executable_map.json").write_text(
+        json.dumps({
+            "status": "LIVE_SYMBOL_MIN_EXECUTABLE_BALANCE_HOLD",
+            "rows": [
+                {
+                    "symbol": "BTCUSDT",
+                    "filter_status": {"ok": True, "symbol": "BTCUSDT", "step_size": "0.001", "tick_size": "0.10"},
+                }
+            ],
+        }),
+        encoding="utf-8",
+    )
+    (monitor_dir / "live_order_transport_pre_submit_evaluation_status.json").write_text(
+        json.dumps({"position_mode_status": {"ok": True, "dual_side_position": False}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(rt, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(rt, "PUBLIC_ROOT", public)
+    monkeypatch.setattr(rt, "SIGNED_READ_RECOVERED_PATH", signed_path)
+    monkeypatch.setattr(rt, "BALANCE_HOLD_PATH", balance_path)
+    monkeypatch.setattr(rt, "_age_seconds", lambda path: 7200.0 if path == signed_path else 10.0)
+
+    result = rt._current_live_execution_hold(  # noqa: SLF001
+        live_gate_state={
+            "live_gate": "enabled_operator_approved",
+            "operator_approved": True,
+            "order_transport_submit_enabled": True,
+        }
+    )
+
+    assert result["source_payload_fresh"] is False
+    assert result["critical_account_read_gate"] == "CRITICAL_ACCOUNT_READ_GATE_STALE"
+    assert result["live_order_submit_allowed"] is False
+    assert result["binance_private_execution"] == "SIGNED_READ_SOURCE_STALE"
+    assert "LIVE_SIGNED_READ_SOURCE_STALE" in result["blockers"]
+    assert result["signed_account_snapshot"]["ok"] is False
+    assert result["signed_account_snapshot"]["last_known_signed_account_read_ok"] is True
+    assert result["signed_account_snapshot"]["fresh"] is False
+    assert result["open_orders_snapshot"]["open_orders_count"] == 0
+    assert result["symbol_filter_snapshot"]["filters"]["BTCUSDT"]["step_size"] == "0.001"

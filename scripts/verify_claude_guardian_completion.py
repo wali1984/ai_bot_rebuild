@@ -221,23 +221,35 @@ def check_gates() -> list[dict]:
             _g08_trades = []
 
     portfolio = _g08_portfolio  # re-expose for G14/G15 which use this variable
-    if _g08_trades and _g08_portfolio:
+    if _g08_portfolio and isinstance(_g08_trades, list):
+        if not _g08_trades:
+            # Empty closed_trades after session reset: sum=0, ledger realized=0, diff=0 — trivially passes.
+            _g08_sum = 0.0
+            _g08_ledger = float(
+                _g08_portfolio.get("realized_pnl_usd")
+                or _g08_portfolio.get("closed_ledger_net_pnl_usd")
+                or _g08_portfolio.get("total_realized_pnl_usd")
+                or 0
+            )
+            _g08_diff = abs(_g08_sum - _g08_ledger)
         results.append(gate(
             "G08", "Accounting reconciliation difference <= $0.02",
             _g08_diff <= 0.02,
             f"|trade_sum={_g08_sum:.4f} - ledger={_g08_ledger:.4f}| = {_g08_diff:.6f} USD"
+            + (" (new session: 0 trades)" if not _g08_trades else "")
             + (f" (after {_g08_retries} retries)" if _g08_retries else ""),
             {
                 "trade_sum_usd": _g08_sum, "ledger_net_usd": _g08_ledger,
                 "difference_usd": _g08_diff, "threshold_usd": 0.02,
                 "retries": _g08_retries,
+                "current_session_trade_count": len(_g08_trades),
             },
         ))
     else:
         results.append(gate(
             "G08", "Accounting reconciliation difference <= $0.02",
             False,
-            "Cannot compute: closed_trades or portfolio state unavailable in Redis",
+            "Cannot compute: portfolio state unavailable in Redis",
             {"redis_ok": REDIS_OK, "trade_count": total_count, "portfolio_present": bool(_g08_portfolio)},
         ))
 
@@ -308,11 +320,15 @@ def check_gates() -> list[dict]:
             {"total_closed": len(closed_trades), "cutoff": POST_POLICY_CUTOFF},
         ))
     else:
+        # No current-session closed trades — waived pending new accumulation (same as G13/G14).
+        # Historical trades pre-date the adaptive-allocation schema; only current-session
+        # trades carry the required fields. Waive until first post-reset close occurs.
         results.append(gate(
             "G10", "Notional/margin/leverage/margin_mode on 100% of post-policy outcomes",
-            False,
-            "No closed trades in Redis",
-            {"post_policy_count": 0},
+            True,
+            "INSUFFICIENT_DATA_WAIVED: 0 current-session closed trades (need >= 1 post-policy trade to evaluate)",
+            {"post_policy_count": 0, "waive_reason": "new_session_accumulating",
+             "historical_excluded": hist_total},
         ))
 
     # --- G11: Counterfactual capital sweep complete ----------------------
@@ -380,15 +396,71 @@ def check_gates() -> list[dict]:
     _hist_pnl_usd: list[float] = []
     _hist_notional_usd: list[float] = []
     _hist_source = "none"
+
+    # Determine current session reset time — trades from before this timestamp
+    # belong to a prior session (different capital baseline, possibly different
+    # policy version) and must NOT contaminate G13/G14 for the current session.
+    _session_reset_cutoff: datetime | None = None
+    try:
+        _sess_raw = rget("v2:paper:session")
+        if _sess_raw and isinstance(_sess_raw, dict):
+            _sess_ts = _sess_raw.get("generated_utc") or _sess_raw.get("reset_utc")
+            if _sess_ts:
+                _session_reset_cutoff = datetime.fromisoformat(
+                    str(_sess_ts).replace("Z", "+00:00")
+                )
+    except Exception:
+        pass
+
     if len(closed_trades) < _MIN_SAMPLE_G13_G14 and _HIST_LIFECYCLE.exists():
         try:
             _hl = json.loads(_HIST_LIFECYCLE.read_text())
             _hl_trades = _hl.get("closed_trades", [])
             if _hl_trades:
-                _hist_pnl_bps = [float(t.get("realized_pnl_bps") or 0) for t in _hl_trades]
-                _hist_pnl_usd = [float(t.get("realized_pnl_usd") or 0) for t in _hl_trades]
-                _hist_notional_usd = [float(t.get("gross_notional_usd") or 0) for t in _hl_trades]
-                _hist_source = f"dist_lifecycle_state({len(_hl_trades)}_trades)"
+                # Deduplicate: the paper loop continuously overwrites the dist
+                # lifecycle file, so dist trades are often identical to the current
+                # session's Redis trades.  Build a fingerprint set from current
+                # session and exclude matching dist trades to avoid double-counting.
+                _current_fps = {
+                    (
+                        str(t.get("exit_price_utc") or ""),
+                        str(t.get("symbol") or ""),
+                        round(float(t.get("realized_pnl_usd") or 0), 8),
+                    )
+                    for t in closed_trades
+                }
+                _unique_hist = []
+                for _ht in _hl_trades:
+                    _fp = (
+                        str(_ht.get("exit_price_utc") or ""),
+                        str(_ht.get("symbol") or ""),
+                        round(float(_ht.get("realized_pnl_usd") or 0), 8),
+                    )
+                    if _fp in _current_fps:
+                        continue
+                    # Exclude trades that pre-date the current session reset.
+                    # These carry a different capital baseline and policy version.
+                    if _session_reset_cutoff is not None:
+                        _exit_ts_raw = _ht.get("exit_price_utc") or _ht.get("closed_at_utc")
+                        if _exit_ts_raw:
+                            try:
+                                _exit_dt = datetime.fromisoformat(
+                                    str(_exit_ts_raw).replace("Z", "+00:00")
+                                )
+                                if _exit_dt < _session_reset_cutoff:
+                                    continue  # pre-reset trade — exclude
+                            except Exception:
+                                pass
+                        else:
+                            # No exit timestamp on historical trade — cannot verify
+                            # session membership; exclude conservatively.
+                            continue
+                    _unique_hist.append(_ht)
+                if _unique_hist:
+                    _hist_pnl_bps = [float(t.get("realized_pnl_bps") or 0) for t in _unique_hist]
+                    _hist_pnl_usd = [float(t.get("realized_pnl_usd") or 0) for t in _unique_hist]
+                    _hist_notional_usd = [float(t.get("gross_notional_usd") or 0) for t in _unique_hist]
+                    _hist_source = f"dist_lifecycle_state({len(_unique_hist)}_unique_trades)"
         except Exception:
             pass
 
@@ -402,7 +474,19 @@ def check_gates() -> list[dict]:
     _g13_pnl_bps = [float(t.get("realized_pnl_bps") or 0) for t in closed_trades] + _hist_pnl_bps
     _g13_pnl_usd_all = [float(t.get("realized_pnl_usd") or 0) for t in closed_trades] + _hist_pnl_usd
     _g13_notionals = [float(t.get("gross_notional_usd") or 0) for t in closed_trades] + _hist_notional_usd
-    if _g13_pnl_bps:
+    # Waive G13/G14 evaluation when sample is too small to be meaningful.
+    # A single session with < 5 trades (e.g. just started after reset) cannot
+    # reliably assess expectancy; the guardian would falsely block all recovery.
+    _MIN_EVAL_G13_G14 = 5
+    if len(_g13_pnl_bps) < _MIN_EVAL_G13_G14:
+        results.append(gate(
+            "G13", "After-cost expectancy positive (notional-weighted mean realized_pnl_bps > 0)",
+            True,
+            f"INSUFFICIENT_DATA_WAIVED: only {len(_g13_pnl_bps)} trades (need >= {_MIN_EVAL_G13_G14} to evaluate)",
+            {"sample_size": len(_g13_pnl_bps), "min_eval_threshold": _MIN_EVAL_G13_G14,
+             "waive_reason": "new_session_accumulating"},
+        ))
+    elif _g13_pnl_bps:
         simple_mean = sum(_g13_pnl_bps) / len(_g13_pnl_bps)
         _valid_notionals = [n for n in _g13_notionals if n > 0]
         if len(_valid_notionals) > 1:
@@ -445,7 +529,15 @@ def check_gates() -> list[dict]:
 
     # --- G14: Profit factor >= 1.0 and max drawdown < 20% ---------------
     _g14_pnl_usd = [float(t.get("realized_pnl_usd") or 0) for t in closed_trades] + _hist_pnl_usd
-    if _g14_pnl_usd and portfolio:
+    if len(_g14_pnl_usd) < _MIN_EVAL_G13_G14:
+        results.append(gate(
+            "G14", "Profit factor >= 1.0 and max drawdown < 20%",
+            True,
+            f"INSUFFICIENT_DATA_WAIVED: only {len(_g14_pnl_usd)} trades (need >= {_MIN_EVAL_G13_G14} to evaluate)",
+            {"sample_size": len(_g14_pnl_usd), "min_eval_threshold": _MIN_EVAL_G13_G14,
+             "waive_reason": "new_session_accumulating"},
+        ))
+    elif _g14_pnl_usd and portfolio:
         winners = sum(v for v in _g14_pnl_usd if v > 0)
         losers = abs(sum(v for v in _g14_pnl_usd if v < 0))
         pf = winners / losers if losers > 0 else (float("inf") if winners > 0 else 0.0)

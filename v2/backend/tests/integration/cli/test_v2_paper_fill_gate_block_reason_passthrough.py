@@ -193,6 +193,36 @@ def test_orchestrator_preserves_trust_envelope_on_routeable_signal(monkeypatch) 
         assert row["source_hashes"] == {"feature_vector_hash": "hash_feat"}
 
 
+def test_orchestrator_holds_low_microstructure_trust_prediction(monkeypatch) -> None:
+    fake = FakeRedis()
+    prediction = _make_routeable_prediction("BTCUSDT")
+    prediction.update(
+        {
+            "microstructure_trust_score": 0.2,
+            "orderbook_trust_score": 0.2,
+            "microstructure_action": "NO_TRADE",
+            "sweep_risk_score": 0.8,
+        }
+    )
+    fake.store["v2:prediction:BTCUSDT:1m"] = json.dumps(prediction)
+    orch = importlib.import_module("v2.backend.app.cli.v2_orchestrator_arbitration_loop")
+    _patch_connect(monkeypatch, "v2.backend.app.cli.v2_orchestrator_arbitration_loop", fake)
+    monkeypatch.setattr(orch, "_prediction_age_seconds", lambda _prediction: 5.0)
+    monkeypatch.setattr(orch, "score_market_state", lambda _row: _MarketStateOk())
+
+    status = orch.run_once()
+
+    assert status["bucket_winners_count"] == 0
+    assert status["predictions_held_by_paper_fill_gate"] == 1
+    held = status["held_by_paper_fill_gate"][0]
+    assert held["decision"] == "HELD_BY_MICROSTRUCTURE_TRUST_GATE"
+    assert held["risk_state"] == "NOT_ROUTED_TO_RISK_GATEWAY_BECAUSE_MICROSTRUCTURE_TRUST_BLOCKED"
+    assert "MICROSTRUCTURE_ACTION_NO_TRADE" in held["paper_fill_gate_block_reasons"]
+    assert "MICROSTRUCTURE_SWEEP_RISK_BLOCK" in held["paper_fill_gate_block_reasons"]
+    assert held["microstructure_trust_score"] == 0.2
+    assert held["places_real_order"] is False
+
+
 def test_orchestrator_ignores_rl_core_sidecar_predictions_for_primary_paper_signals(monkeypatch) -> None:
     fake = FakeRedis()
     fake.store["v2:prediction:rl_core:BTCUSDT:1m"] = json.dumps(
@@ -334,6 +364,47 @@ def test_paper_loop_reads_per_symbol_paper_signal_keys(monkeypatch) -> None:
             # which is blocked for long by entry_gate.blocked_side_mode_combinations.
             "paper_major_move_candidate": True,
             "major_move_evidence_score": 0.75,
+            "trend_strength": 0.74,
+            "range_chop_score": 0.21,
+            "volatility_expansion": 0.03,
+            "atr_percentile": 0.64,
+            "fakeout_reversal_probability": 0.08,
+            "cross_asset_btc_eth_sol_regime": "btc_eth_sol_risk_on",
+            "market_wide_risk": "risk_on",
+            "liquidity_context": {
+                "orderbook_depth_usd": 250_000.0,
+                "depth_imbalance": 0.2,
+            },
+            "liquidation_context": {
+                "liquidation_sweep_target_short_distance_bps": 80.0,
+                "liquidation_sweep_target_long_distance_bps": 120.0,
+            },
+            "oi_funding_context": {
+                "funding_bps": 0.1,
+                "oi_change_pct": 1.2,
+                "long_short_ratio": 0.9,
+            },
+            "public_intel_context": {"market_breadth_score": 0.67},
+            "microstructure_trust_score": 0.82,
+            "orderbook_trust_score": 0.82,
+            "orderbook_trust_tier": "HIGH_TRUST",
+            "microstructure_action": "ALLOW",
+            "sweep_risk_score": 0.1,
+            "cross_venue_confirmation_score": 0.8,
+            "trade_tape_confirmation_score": 0.8,
+            "microstructure_context": {
+                "microstructure_trust_score": 0.82,
+                "orderbook_trust_score": 0.82,
+                "microstructure_action": "ALLOW",
+                "sweep_risk_score": 0.1,
+                "cross_venue_confirmation_score": 0.8,
+                "trade_tape_confirmation_score": 0.8,
+                "post_sweep_reversal_probability": 0.1,
+                "spread_bps": 1.2,
+                "orderbook_depth_usd": 250_000.0,
+                "orderbook_imbalance": 0.2,
+                "order_flow_imbalance": 0.12,
+            },
         }
     )
     fake.store["v2:market:prices:BTCUSDT"] = json.dumps(
@@ -365,6 +436,25 @@ def test_paper_loop_reads_per_symbol_paper_signal_keys(monkeypatch) -> None:
                 {"price": 100.05, "quantity": 500.0},
             ],
             "E": orderbook_event_ms,
+        }
+    )
+    fake.store["v2:microstructure:trust_score:BTCUSDT:15m"] = json.dumps(
+        {
+            "microstructure_trust_score": 0.82,
+            "orderbook_trust_score": 0.82,
+            "orderbook_trust_tier": "HIGH_TRUST",
+            "microstructure_action": "ALLOW",
+            "adaptive_minimum": 0.65,
+            "orderbook_latency_ms": 40.0,
+            "book_sequence_gap": False,
+            "book_depth_persistence_score": 0.9,
+            "book_cancel_pressure_score": 0.1,
+            "trade_tape_confirmation_score": 0.8,
+            "cross_venue_confirmation_score": 0.8,
+            "liquidation_zone_risk_score": 0.1,
+            "sweep_risk_score": 0.1,
+            "decision_time": generated_utc,
+            "available_at": available_at,
         }
     )
     fake.store["v2:portfolio:state"] = json.dumps(

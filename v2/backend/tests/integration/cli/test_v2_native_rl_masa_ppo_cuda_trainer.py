@@ -69,10 +69,22 @@ _CLEAN_TRUST_FEATURES = {
     "ob_best_bid": 100.9,
     "ob_best_ask": 101.1,
     "ob_mid_price": 101.0,
+    "best_bid_size": 12.5,
+    "best_ask_size": 11.8,
     "orderbook_depth_usd": 500000.0,
     "depth_total_usd": 500000.0,
     "depth_usd": 500000.0,
+    "estimated_price_impact_bps": 1.7,
+    "update_age_ms": 75.0,
+    "source_latency_ms": 42.0,
     "depth_vs_tape_divergence": 0.05,
+    "feed_latency_ms": 38.0,
+    "cancel_pressure": 0.14,
+    "book_trade_divergence": 0.04,
+    "cross_venue_confirmation": 0.88,
+    "sweep_risk": 0.16,
+    "post_sweep_reversal_probability": 0.24,
+    "realized_slippage_error": 0.02,
     "ATR": 1.2,
     "bollinger_upper": 103.0,
     "bollinger_middle": 101.0,
@@ -540,9 +552,41 @@ def _trainer_feedback_row(
         "market_regime": "major_move_breakout",
         "market_regime_at_entry": "major_move_breakout",
         "market_regime_at_exit": "major_move_breakout",
-        "liquidity_context": {"source": "pytest", "liquidity_score": 0.8},
-        "liquidity_zone_context": {"source": "pytest", "nearest_zone_bps": 6.0},
-        "liquidation_distance_context": {"source": "pytest", "distance_bps": 80.0},
+        "liquidity_context": {
+            "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS:pytest",
+            "liquidity_score": 0.8,
+            "orderbook_depth_usd": 500000.0,
+            "depth_imbalance": 0.15,
+            "whale_bid_wall_notional_usd": 250000.0,
+            "whale_ask_wall_notional_usd": 220000.0,
+        },
+        "liquidity_zone_context": {
+            "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS:pytest",
+            "liquidity_score": 0.8,
+            "orderbook_depth_usd": 500000.0,
+            "nearest_bid_wall_distance_bps": 8.0,
+            "nearest_ask_wall_distance_bps": 9.0,
+        },
+        "liquidation_distance_context": {
+            "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS:pytest",
+            "nearest_liquidation_level_above": 107.0,
+            "nearest_liquidation_level_below": 95.0,
+            "liquidation_short_strength": 0.4,
+            "liquidation_long_strength": 0.3,
+            "liquidation_sweep_target_short_distance_bps": 80.0,
+            "liquidation_sweep_target_long_distance_bps": 120.0,
+            "aicoin_liquidation_score": 0.31,
+        },
+        "liquidation_context": {
+            "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS:pytest",
+            "nearest_liquidation_level_above": 107.0,
+            "nearest_liquidation_level_below": 95.0,
+            "liquidation_short_strength": 0.4,
+            "liquidation_long_strength": 0.3,
+            "liquidation_sweep_target_short_distance_bps": 80.0,
+            "liquidation_sweep_target_long_distance_bps": 120.0,
+            "aicoin_liquidation_score": 0.31,
+        },
         "microstructure_context": {
             "source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:pytest",
             "bid_ask_spread_bps": 1.4,
@@ -574,8 +618,31 @@ def _trainer_feedback_row(
         "intra_trade_high_price": 101.0,
         "intra_trade_low_price": 99.5,
         "trailing_stop_history": [],
-        "oi_funding_context": {"oi_change_pct": 0.18, "funding_skew": 0.01},
-        "public_intel_context": {"source": "pytest", "news_attention_score": 0.4},
+        "oi_funding_context": {
+            "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS:pytest",
+            "funding_bps": 0.1,
+            "open_interest": 1000000.0,
+            "oi_change_pct": 0.18,
+            "long_short_ratio": 1.5,
+        },
+        "public_intel_context": {
+            "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS:pytest",
+            "public_intel_score": 0.5,
+            "news_attention_score": 0.4,
+            "news_sentiment_score": 0.29,
+        },
+        "premium_ingestor_context_status": "PREMIUM_CONTEXT_READY",
+        "premium_ingestor_context_sources": {
+            "liquidity_context": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS:pytest",
+            "liquidity_zone_context": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS:pytest",
+            "liquidation_distance_context": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS:pytest",
+            "liquidation_context": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS:pytest",
+            "microstructure_context": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:pytest",
+            "oi_funding_context": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS:pytest",
+            "public_intel_context": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS:pytest",
+        },
+        "premium_ingestor_missing_contexts": [],
+        "liquidation_engine_context_status": "LIQUIDATION_ENGINE_CONTEXT_READY",
         "drawdown_context": {"current_drawdown_bps": 0.0},
         "drawdown_at_entry": 0.0,
         "risk_context": {"paper_only": True},
@@ -796,6 +863,17 @@ def test_runtime_publishes_predictions_lineage_and_artifacts(tmp_path: Path) -> 
         assert payload["feature_decision_time"] == "2026-06-11T12:05:00Z"
         assert payload["model_version"] == payload["model_source"]
         assert payload["source_hashes"]["feature_vector_hash"] == payload["feature_vector_hash"]
+        assert payload["entry_feature_snapshot_id"] == payload["feature_snapshot_id"]
+        assert payload["entry_feature_snapshot"]["features"]["orderbook_depth_usd"] == 500000.0
+        assert payload["liquidity_context"]["source"] == "V2_HYBRID_CUDA_TRAINER_ENTRY_FEATURES"
+        assert payload["liquidation_context"]["source"] == "V2_HYBRID_CUDA_TRAINER_ENTRY_FEATURES"
+        assert payload["liquidation_context"]["liquidation_strength"] == 0.4
+        assert payload["microstructure_context"]["depth_imbalance"] == 0.15
+        assert payload["oi_funding_context"]["aicoin_open_interest_score"] == 0.42
+        assert payload["public_intel_context"]["news_attention_score"] == 0.33
+        assert payload["liquidation_engine_context_status"] == "LIQUIDATION_ENGINE_CONTEXT_READY"
+        assert payload["premium_ingestor_context_status"] == "PREMIUM_CONTEXT_READY"
+        assert payload["premium_ingestor_missing_contexts"] == []
         assert is_publishable(payload)
     assert "v2:prediction:BTCUSDT:1m" in client.store
     assert f"v2:replay:snapshots:{result.predictions[0]['prediction_id']}" in client.store

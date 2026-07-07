@@ -62,6 +62,7 @@ def _paths(tmp_path: Path) -> PaperConfidenceTrialPaths:
         portfolio_path=public / "operator_runtime/v2_portfolio_state/latest/v2_portfolio_state.json",
         outcome_observer_path=public / "operator_runtime/paper_shadow_outcome_observer/latest/paper_shadow_outcome_observer_status.json",
         confidence_proposal_path=public / "v2_confidence_calibration_and_paper_actionability_improvement/latest/calibrated_confidence_threshold_proposal.json",
+        bucket_quarantine_path=public / "operator_runtime/v2_paper_trade_management/latest/bucket_quarantine_status.json",
     )
 
 
@@ -131,6 +132,30 @@ def test_trial_candidate_guard_accepts_only_clean_confidence_blocks() -> None:
     assert "EXPECTED_MOVE_AFTER_COST_BELOW_TRIAL_FLOOR" in reasons
 
 
+def test_trial_candidate_guard_blocks_current_loss_quarantine_bucket() -> None:
+    row = {
+        **_prediction("recoverable", confidence=0.541, expected=18.0),
+        "selected_action": "short",
+        "timeframe": "15m",
+        "market_regime": "TREND",
+        "strategy_id": "trend_mode",
+    }
+
+    ok, reasons = classify_trial_candidate(
+        row,
+        blocked_bucket_keys={
+            "side:short",
+            "timeframe:15m",
+            "strategy_regime:trend_mode|TREND",
+        },
+    )
+
+    assert ok is False
+    assert "PAPER_BUCKET_QUARANTINE_MATCH:side:short" in reasons
+    assert "PAPER_BUCKET_QUARANTINE_MATCH:timeframe:15m" in reasons
+    assert "PAPER_BUCKET_QUARANTINE_MATCH:strategy_regime:trend_mode|TREND" in reasons
+
+
 def test_paper_confidence_trial_builds_safe_artifacts(tmp_path: Path) -> None:
     prediction_source, runtime_truth, portfolio, outcome, proposal = _payloads()
     result = build_paper_confidence_threshold_trial(
@@ -174,6 +199,52 @@ def test_paper_confidence_trial_builds_safe_artifacts(tmp_path: Path) -> None:
     assert before_after["paper_allowed_after_simulated"] == 2
     assert lineage["complete_trial_lineage_count"] == 1
     assert lineage["risk_bypass"] is False
+
+
+def test_paper_confidence_trial_suppresses_quarantined_trial_candidates(tmp_path: Path) -> None:
+    prediction_source, runtime_truth, portfolio, outcome, proposal = _payloads()
+    prediction_source["prediction_rows"][0] = {
+        **prediction_source["prediction_rows"][0],
+        "selected_action": "short",
+        "timeframe": "15m",
+        "market_regime": "TREND",
+        "strategy_id": "trend_mode",
+    }
+    bucket_quarantine = {
+        "status": "ACTIVE_WITH_QUARANTINES",
+        "generated_utc": "2026-07-06T01:54:19Z",
+        "blocked_bucket_keys": [
+            "side:short",
+            "timeframe:15m",
+            "strategy_regime:trend_mode|TREND",
+        ],
+    }
+
+    result = build_paper_confidence_threshold_trial(
+        prediction_source=prediction_source,
+        runtime_truth=runtime_truth,
+        portfolio=portfolio,
+        outcome_observer=outcome,
+        confidence_proposal=proposal,
+        bucket_quarantine_status=bucket_quarantine,
+        generated_est="2026-06-10T16:00:00-04:00",
+        apply_trial=False,
+        run_paper_loop=False,
+    )
+
+    before_after = result.artifacts["paper_actionability_before_after_status.json"]
+    dashboard = result.artifacts["operator_dashboard_payload.json"]
+
+    assert before_after["trial_candidate_count"] == 0
+    assert before_after["trial_promoted_signal_count"] == 0
+    assert before_after["quarantine_blocked_candidate_count"] == 1
+    assert before_after["paper_allowed_after_simulated"] == 1
+    assert dashboard["summary"]["quarantine_blocked_candidate_count"] == 1
+    assert dashboard["paper_actionability_overlay"]["active_bucket_quarantine_keys"] == [
+        "side:short",
+        "strategy_regime:trend_mode|TREND",
+        "timeframe:15m",
+    ]
 
 
 def test_paper_confidence_trial_cli_writes_outputs(tmp_path: Path, capsys) -> None:
