@@ -27,6 +27,7 @@ from app.services.live_gate.live_position_state_machine import (
     evaluate_live_canary_preflight,
 )
 from app.services.market_state_integrity.trust import TRUST_SCHEMA_VERSION
+from app.services.provider_features import build_provider_consumer_context
 
 REQUIRED_DISABLED = {
     "live_gate": "blocked_human_only",
@@ -131,6 +132,13 @@ def run_exact_live_path_dry_run(*, client: Any, redis_url: str, output_dir: Path
     strict = latest_report_summary("pipeline_trust_evidence_pass3b")
     recorded = latest_recorded_summary("recorded_state_verification_pass3b")
     candidate_type, signal = select_candidate(client)
+    provider_context = build_provider_consumer_context(
+        client,
+        role="live_dry_run",
+        symbol=str(signal.get("symbol") or "BTCUSDT"),
+        timeframe=str(signal.get("timeframe") or "1m"),
+        decision_time=signal.get("decision_time") or signal.get("feature_cutoff") or signal.get("available_at"),
+    )
     runtime_payload = dry_run_runtime_payload(pre_live["live_gate_state"], str(signal.get("symbol") or "BTCUSDT"))
     signed_reads = build_signed_read_context(signal.get("symbol") or "BTCUSDT")
     signed_read_available = signed_reads.get("available") is True
@@ -196,6 +204,8 @@ def run_exact_live_path_dry_run(*, client: Any, redis_url: str, output_dir: Path
         "active_stale_count": active_stale_count(strict),
         "candidate_type": candidate_type,
         "candidate": summarize_signal(signal),
+        "provider_context": provider_context,
+        "optional_provider_failures_core_blocking": False,
         "signed_read_status": signed_reads,
         "signed_read_available": signed_read_available,
         "dry_run_runtime_overlay": summarize_runtime_overlay(runtime_payload),
@@ -371,29 +381,47 @@ def build_signed_read_context(symbol: str) -> dict[str, Any]:
     try:
         account = signed_get(base, "/fapi/v3/account", {}, api_key, api_secret)
         open_orders = signed_get(base, "/fapi/v1/openOrders", {"symbol": symbol}, api_key, api_secret)
+        position_mode = signed_get(base, "/fapi/v1/positionSide/dual", {}, api_key, api_secret)
     except Exception as exc:
         return {"available": False, "reason": type(exc).__name__}
     positions = account.get("positions") if isinstance(account, Mapping) else []
     exchange_position = position_for_symbol(positions if isinstance(positions, list) else [], symbol)
+    current_positions = summarize_current_positions(positions if isinstance(positions, list) else [])
     margin_mode = str(exchange_position.get("margin_mode") or "cross").lower()
+    symbol_filters = BinanceUsdMLiveOrderTransport(base_url=base).fetch_symbol_filters(symbol)
+    dual_side_position = (
+        position_mode.get("dualSidePosition") is True
+        if isinstance(position_mode, Mapping)
+        else None
+    )
     return {
         "available": True,
         "signed_read_ts_ms": now_ms,
         "exchange_position": exchange_position,
+        "current_positions": current_positions,
+        "current_position_count": len(current_positions),
         "open_orders": open_orders if isinstance(open_orders, list) else [],
         "margin_mode": margin_mode,
-        "position_mode_status": {"ok": True, "dual_side_position": False, "source": "pass3b_signed_read"},
+        "position_mode_status": {
+            "ok": isinstance(position_mode, Mapping) and dual_side_position is not None,
+            "dual_side_position": dual_side_position,
+            "source": "pass3b_signed_read",
+            "endpoint": "GET /fapi/v1/positionSide/dual",
+        },
         "account_margin_status": {
             "ok": True,
+            "can_trade": account.get("canTrade") if isinstance(account, Mapping) else None,
             "available_balance_checked": True,
             "available_balance_redacted": True,
             "_available_balance_usdt": numeric(account.get("availableBalance"), 0.0) if isinstance(account, Mapping) else 0.0,
+            "wallet_balance_checked": isinstance(account, Mapping) and account.get("totalWalletBalance") is not None,
+            "wallet_balance_redacted": True,
             "_wallet_balance_usdt": numeric(account.get("totalWalletBalance"), 0.0) if isinstance(account, Mapping) else 0.0,
             "margin_mode": margin_mode,
             "signed_read_ts_ms": now_ms,
             "endpoint": "GET /fapi/v3/account",
         },
-        "symbol_filter_status": {"ok": True, "symbol": symbol, "status": "TRADING", "min_qty": "0.000001", "step_size": "0.000001", "min_notional": "5"},
+        "symbol_filter_status": symbol_filters,
     }
 
 
@@ -415,6 +443,26 @@ def position_for_symbol(positions: list[Any], symbol: str) -> dict[str, Any]:
         side = "LONG" if amount > 0 else "SHORT" if amount < 0 else "FLAT"
         return {"symbol": symbol.upper(), "side": side, "quantity": abs(amount), "margin_mode": row.get("marginType") or "cross"}
     return {"symbol": symbol.upper(), "side": "FLAT", "quantity": 0.0, "margin_mode": "cross"}
+
+
+def summarize_current_positions(positions: list[Any]) -> list[dict[str, Any]]:
+    current: list[dict[str, Any]] = []
+    for row in positions:
+        if not isinstance(row, Mapping):
+            continue
+        amount = numeric(row.get("positionAmt"), 0.0)
+        if amount == 0:
+            continue
+        side = "LONG" if amount > 0 else "SHORT"
+        current.append(
+            {
+                "symbol": str(row.get("symbol") or "").upper(),
+                "side": side,
+                "quantity": abs(amount),
+                "margin_mode": str(row.get("marginType") or "cross").lower(),
+            }
+        )
+    return current
 
 
 def evaluate_realistic_candidate_preflight(signal: Mapping[str, Any], runtime_payload: Mapping[str, Any], signed_reads: Mapping[str, Any]) -> dict[str, Any]:
@@ -463,15 +511,29 @@ def validate_disabled_live_control(state: Mapping[str, Any]) -> dict[str, Any]:
     live_gate = state.get("live_gate_state") if isinstance(state.get("live_gate_state"), Mapping) else {}
     transport = state.get("live_order_transport_status") if isinstance(state.get("live_order_transport_status"), Mapping) else {}
     mismatches: dict[str, Any] = {}
+    warnings: list[str] = []
     for field, expected in REQUIRED_DISABLED.items():
         observed = live_gate.get(field)
         if observed != expected:
             mismatches[field] = {"expected": expected, "observed": observed}
     for field, expected in {"order_submitted": False, "writes_exchange_orders": False}.items():
+        if field not in transport:
+            warnings.append(f"LIVE_ORDER_TRANSPORT_STATUS_FIELD_MISSING:{field}")
+            continue
         observed = transport.get(field)
-        if observed != expected:
+        if observed is not expected:
             mismatches[field] = {"expected": expected, "observed": observed}
-    return {"ok": not mismatches, "mismatches": mismatches}
+    return {
+        "ok": not mismatches,
+        "mismatches": mismatches,
+        "warnings": warnings,
+        "live_order_transport_status_present": bool(transport),
+        "missing_transport_status_fields": [
+            field
+            for field in ("order_submitted", "writes_exchange_orders")
+            if field not in transport
+        ],
+    }
 
 
 def classify_status(*, signed_read_available: bool, blockers: list[str], realistic_preflight: Mapping[str, Any]) -> str:

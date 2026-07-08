@@ -34,6 +34,9 @@ from v2.backend.app.services.adaptive_regime_gate.permission_matrix import (
     strategy_allowed_in_regime,
 )
 from v2.backend.app.services.htf_context.service import multi_timeframe_alignment_score
+from v2.backend.app.services.microstructure_trust.trust_score import (
+    FINAL_A_PLUS_MIN_COMPOSITE_TRUST,
+)
 from v2.backend.app.services.paper_trade_management.side_performance import (
     SideGateConfig,
     evaluate_side_gate,
@@ -68,11 +71,22 @@ CHECKS = (
     "no_recent_high_confidence_loss_in_bucket",
 )
 
+REQUIRED_MICROSTRUCTURE_CONFIRMATION_FIELDS = (
+    "feed_integrity_pass",
+    "sequence_gap_free",
+    "latency_within_bound",
+    "trade_tape_confirmation_pass",
+    "cross_venue_confirmation_pass",
+    "liquidation_sweep_risk_acceptable",
+    "oi_funding_long_short_confirmation_pass",
+    "real_spread_depth_cost_evidence_pass",
+)
+
 
 @dataclass(frozen=True)
 class APlusGateConfig:
     min_htf_alignment_score: float = 0.25
-    min_microstructure_trust_score: float = 0.6
+    min_microstructure_trust_score: float = FINAL_A_PLUS_MIN_COMPOSITE_TRUST
     # Context freshness: regime/tape/HTF payloads older than this are unusable.
     max_context_age_seconds: float = 1800.0
     # Recent high-confidence loss lookback.
@@ -307,20 +321,41 @@ def _tape_check(*, trade_tape: Any, side: str, now: datetime, config: APlusGateC
 def _microstructure_check(*, microstructure_trust: Any, config: APlusGateConfig) -> dict[str, Any]:
     if not isinstance(microstructure_trust, Mapping):
         return _check(None, "MICROSTRUCTURE_TRUST_MISSING")
-    # The trust publisher's canonical field is microstructure_trust_score
-    # (schema microstructure_trust_score_v1); accept its aliases so real
-    # payloads are not scored as missing evidence.
-    score = None
-    for field in ("trust_score", "score", "microstructure_trust_score", "orderbook_trust_score"):
-        score = _finite(microstructure_trust.get(field))
-        if score is not None:
-            break
+    if (
+        microstructure_trust.get("public_book_can_approve_trade_alone") is True
+        or microstructure_trust.get("public_orderbook_can_produce_final_a_plus") is True
+    ):
+        return _check(False, "PUBLIC_ORDERBOOK_TRUST_CANNOT_APPROVE_FINAL_A_PLUS")
+    score = _finite(microstructure_trust.get("composite_microstructure_trust_score"))
     if score is None:
-        return _check(None, "MICROSTRUCTURE_TRUST_SCORE_MISSING")
+        return _check(None, "COMPOSITE_MICROSTRUCTURE_TRUST_SCORE_MISSING")
     if score > 1.0:
         score = score / 100.0
+    tier = str(microstructure_trust.get("orderbook_trust_tier") or "").upper()
+    action = str(microstructure_trust.get("microstructure_action") or "").upper()
+    if (
+        tier == "REDUCED_SIZE"
+        or action == "REDUCE_SIZE"
+        or microstructure_trust.get("bootstrap_reduced_size_paper_only") is True
+        or microstructure_trust.get("reduced_size_counts_as_final_a_plus") is True
+    ):
+        return _check(False, f"REDUCED_SIZE_BOOTSTRAP_NOT_FINAL_A_PLUS:score={score:.3f}")
+    explicit_missing = microstructure_trust.get("composite_confirmation_missing_fields")
+    if isinstance(explicit_missing, list) and explicit_missing:
+        missing = [str(field) for field in explicit_missing]
+    else:
+        missing = [
+            field
+            for field in REQUIRED_MICROSTRUCTURE_CONFIRMATION_FIELDS
+            if microstructure_trust.get(field) is not True
+        ]
+    if missing:
+        return _check(None, f"COMPOSITE_CONFIRMATION_MISSING:{','.join(missing[:5])}")
     passed = score >= config.min_microstructure_trust_score
-    return _check(passed, f"trust_score={score:.3f};threshold={config.min_microstructure_trust_score}")
+    return _check(
+        passed,
+        f"composite_trust_score={score:.3f};threshold={config.min_microstructure_trust_score}",
+    )
 
 
 def _risk_check(risk_result: Any) -> dict[str, Any]:

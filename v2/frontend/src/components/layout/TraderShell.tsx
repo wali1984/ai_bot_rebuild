@@ -2,6 +2,7 @@ import { Navigate, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useRoles, canSee, normalizeRole } from '../../auth/rbac';
 import { useAuth } from '../../hooks/useAuth';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
+import { RuntimeTruthStrip } from './RuntimeTruthStrip';
 import { TopBar } from './TopBar';
 
 interface ShellTickerRow {
@@ -257,6 +258,7 @@ export function TraderShell(): JSX.Element {
     >
       <TopBar surface="app" showSymbolSearch />
       <MarketTickerStrip />
+      <RuntimeTruthStrip surface="trader" />
       <SecondaryNav />
       <main
         data-testid="trader-main"

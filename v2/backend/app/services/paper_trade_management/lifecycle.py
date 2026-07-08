@@ -113,7 +113,130 @@ def _existing_outcome_labels(existing_ledger: dict[str, Any]) -> list[dict[str, 
 
 
 def _realized_pnl(row: dict[str, Any]) -> float:
-    return coerce_float(row.get("realized_pnl_usd") or row.get("realized_pnl_usdt")) or 0.0
+    return (
+        coerce_float(
+            first_present(
+                row.get("realized_net_pnl_usd"),
+                row.get("realized_net_pnl"),
+                row.get("realized_pnl_usd"),
+                row.get("realized_pnl_usdt"),
+                row.get("realized_pnl"),
+            )
+        )
+        or 0.0
+    )
+
+
+def _first_realized_number(row: dict[str, Any], *fields: str) -> float | None:
+    for field in fields:
+        value = coerce_float(row.get(field))
+        if value is not None:
+            return value
+    return None
+
+
+def _realized_pnl_notional_usd(row: dict[str, Any]) -> float | None:
+    notional = _first_realized_number(
+        row,
+        "gross_notional_usd",
+        "gross_notional",
+        "notional_usd",
+        "notional_usdt",
+        "target_notional_usd",
+        "target_notional_usdt",
+        "order_size_usd",
+        "order_size",
+    )
+    if notional is not None and notional > 0.0:
+        return abs(notional)
+    quantity = _first_realized_number(row, "closed_quantity", "quantity", "qty")
+    entry_price = _first_realized_number(row, "entry_price", "avg_entry_price", "fill_price")
+    if quantity is not None and quantity > 0.0 and entry_price is not None and entry_price > 0.0:
+        return abs(quantity * entry_price)
+    return None
+
+
+def _normalize_realized_pnl_usd_population(row: dict[str, Any]) -> dict[str, Any]:
+    """Populate P-0019 gross/net realized USD aliases on carried paper rows."""
+
+    normalized = dict(row)
+    realized_bps = _first_realized_number(
+        normalized,
+        "realized_pnl_bps",
+        "paper_exit_pnl_bps",
+        "pnl_bps",
+    )
+    notional = _realized_pnl_notional_usd(normalized)
+    gross_from_bps = None
+    if realized_bps is not None and notional is not None and notional > 0.0:
+        gross_from_bps = realized_bps / 10000.0 * notional
+
+    existing_gross_usd = _first_realized_number(
+        normalized,
+        "realized_pnl_usd",
+        "realized_pnl_usdt",
+        "realized_pnl",
+    )
+    gross_usd = gross_from_bps if gross_from_bps is not None else existing_gross_usd
+    if gross_from_bps is not None:
+        if existing_gross_usd is not None and abs(existing_gross_usd - gross_from_bps) > 1e-9:
+            normalized["pre_p0019_realized_pnl_usd_value"] = existing_gross_usd
+        normalized["realized_pnl_usd_population_source"] = (
+            "P0019_DERIVED_FROM_REALIZED_PNL_BPS_AND_GROSS_NOTIONAL_USD"
+        )
+    elif gross_usd is None and gross_from_bps is not None:
+        gross_usd = gross_from_bps
+        normalized["realized_pnl_usd_population_source"] = (
+            "P0019_DERIVED_FROM_REALIZED_PNL_BPS_AND_GROSS_NOTIONAL_USD"
+        )
+    if gross_usd is not None:
+        normalized["realized_pnl_usd"] = gross_usd
+        normalized["realized_pnl_usdt"] = gross_usd
+        normalized["realized_pnl"] = gross_usd
+
+    net_usd = _first_realized_number(
+        normalized,
+        "realized_net_pnl_usd",
+        "realized_net_pnl",
+    )
+    if net_usd is None and gross_usd is not None:
+        fees = _first_realized_number(normalized, "fees", "fees_usd", "expected_fees_usd") or 0.0
+        slippage = (
+            _first_realized_number(
+                normalized,
+                "slippage",
+                "slippage_usd",
+                "realized_slippage_usd",
+                "expected_slippage_usd",
+            )
+            or 0.0
+        )
+        funding = (
+            _first_realized_number(
+                normalized,
+                "funding_pnl_usd",
+                "funding_usd",
+                "funding",
+                "expected_funding_usd",
+            )
+            or 0.0
+        )
+        net_usd = gross_usd - fees - slippage + funding
+        normalized["realized_net_pnl_usd_population_source"] = (
+            "P0019_DERIVED_FROM_REALIZED_PNL_USD_MINUS_COSTS_PLUS_FUNDING"
+        )
+    if net_usd is not None:
+        normalized["realized_net_pnl_usd"] = net_usd
+        normalized["realized_net_pnl"] = net_usd
+    return normalized
+
+
+def _normalize_realized_pnl_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        _normalize_realized_pnl_usd_population(row)
+        for row in rows
+        if isinstance(row, dict)
+    ]
 
 
 def _trailing_stop_rows(closed_trades: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1140,7 +1263,9 @@ def _close_position(
             "paper_only": True,
             "places_real_order": False,
         }
-    position.realized_pnl += float(close_event["realized_pnl_usd"])
+    position.realized_pnl += float(
+        first_present(close_event.get("realized_net_pnl_usd"), close_event["realized_pnl_usd"])
+    )
     position.net_quantity = max(0.0, position.net_quantity - quantity)
     if position.net_quantity <= 1e-12:
         del positions[symbol]
@@ -1469,7 +1594,16 @@ def reconcile_paper_lifecycle(
         accepted_rows=policy_funding_repair_accepted_rows,
         generated_at=generated_utc,
     )
-    realized_total = sum(float(row.get("realized_pnl_usd") or row.get("realized_pnl_usdt") or 0.0) for row in closed_trades)
+    closed_trades = _normalize_realized_pnl_rows(closed_trades)
+    outcome_labels = _normalize_realized_pnl_rows(outcome_labels)
+    realized_total = sum(_realized_pnl(row) for row in closed_trades)
+    realized_gross_total = sum(
+        _first_realized_number(
+            row, "realized_pnl_usd", "realized_pnl_usdt", "realized_pnl"
+        )
+        or 0.0
+        for row in closed_trades
+    )
     unrealized_total = sum(float(row.get("unrealized_pnl") or 0.0) for row in open_positions)
     total_exposure = sum(float(row.get("notional") or 0.0) for row in open_positions)
     close_reasons: dict[str, int] = {}
@@ -1506,6 +1640,11 @@ def reconcile_paper_lifecycle(
         "outcome_labels": outcome_labels,
         "new_outcome_labels": new_outcomes,
         "realized_pnl_usd": realized_total,
+        # Ledger-level aggregate is NET (fees/slippage/funding applied); per-trade
+        # realized_pnl_usd is GROSS (bps x notional). Explicit aliases prevent
+        # gross-vs-net reconciliation category errors (guardian gate G08).
+        "realized_net_pnl_usd": realized_total,
+        "realized_gross_pnl_usd": realized_gross_total,
         "unrealized_pnl_usd": unrealized_total,
         "total_open_notional": total_exposure,
         "paper_position_lifecycle_status": {

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
+from pathlib import Path
 
 import pytest
 
@@ -18,11 +19,138 @@ class _FakeRedis:
     def get(self, key: str):
         return self.payloads.get(key)
 
+    def set(self, key: str, value: str):
+        self.payloads[key] = value
+        return True
+
     def strlen(self, key: str) -> int:
         value = self.payloads.get(key)
         if value is None:
             return 0
         return len(value.encode("utf-8") if isinstance(value, str) else value)
+
+
+def _preemptive_allow_decision(**overrides) -> dict[str, object]:
+    decision = {
+        "preemptive_decision_id": "test_preemptive_allow",
+        "preemptive_decision": "ALLOW",
+        "preemptive_decision_reasons": [],
+        "pre_trade_loss_probability": 0.20,
+        "confidence_overstatement_risk": 0.0,
+        "expected_edge_after_cost_bps": 12.0,
+        "allow_paper_fill": True,
+        "allow_live_dry_run": True,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    decision.update(overrides)
+    return decision
+
+
+def test_operator_et_timestamp_fields_preserve_utc_trace() -> None:
+    row = {
+        "generated_utc": "2026-07-08T06:00:00.000Z",
+        "decision_time": "2026-07-08T06:01:00.000Z",
+        "entry_time": "2026-07-08T06:02:00.000Z",
+        "exit_time": "2026-07-08T06:03:00.000Z",
+        "available_at": "2026-07-08T05:59:30.000Z",
+    }
+
+    enriched = paper_loop._with_operator_et_timestamp_fields(row)  # noqa: SLF001
+
+    assert enriched["generated_utc"] == row["generated_utc"]
+    assert enriched["generated_et"] == "2026-07-08T02:00:00.000-04:00"
+    assert enriched["decision_time_et"] == "2026-07-08T02:01:00.000-04:00"
+    assert enriched["entry_time_et"] == "2026-07-08T02:02:00.000-04:00"
+    assert enriched["exit_time_et"] == "2026-07-08T02:03:00.000-04:00"
+    assert enriched["available_at_et"] == "2026-07-08T01:59:30.000-04:00"
+    assert enriched["operator_display_timezone"] == "America/New_York"
+    assert enriched["raw_utc_allowed_for_machine_trace"] is True
+
+
+def test_advanced_indicator_fallback_publishes_only_v2_market_keys() -> None:
+    base = datetime(2026, 7, 8, 12, 0, tzinfo=timezone.utc)
+    candles = [
+        {
+            "open": 100 + i,
+            "high": 102 + i,
+            "low": 99 + i,
+            "close": 101 + i,
+            "volume": 1000 + i,
+            "taker_buy_base_vol": 550 + i,
+            "available_at": (base.replace(minute=i % 60)).isoformat(),
+            "event_time": (base.replace(minute=i % 60)).isoformat(),
+            "candle_closed_confirmed": True,
+        }
+        for i in range(12)
+    ]
+    redis = _FakeRedis(
+        {
+            "v2:market:ohlcv_closed:binance:BTCUSDT:5m": candles,
+            "v2:market:prices:BTCUSDT": {"price": 112.0},
+        }
+    )
+
+    context = paper_loop._compute_and_publish_v2_advanced_indicator_context(  # noqa: SLF001
+        redis,
+        "BTCUSDT",
+        timeframe="5m",
+        decision_time=base.replace(minute=20).isoformat(),
+    )
+
+    published = context["advanced_indicator_source_keys"]
+    assert context["advanced_indicator_status"] == "ADVANCED_INDICATOR_CONTEXT_COMPUTED_FROM_CLOSED_CANDLES"
+    assert published
+    assert all(key.startswith("v2:market:") for key in published)
+    assert not any(key.startswith("v1:") or key.startswith("legacy:") for key in redis.payloads)
+    assert "v2:market:fvg:BTCUSDT:5m" in redis.payloads
+
+
+def test_advanced_indicator_reader_rejects_stale_contract_and_republishes() -> None:
+    base = datetime(2026, 7, 8, 12, 0, tzinfo=timezone.utc)
+    candles = [
+        {
+            "open": 100 + i,
+            "high": 102 + i,
+            "low": 99 + i,
+            "close": 101 + i,
+            "volume": 1000 + i,
+            "taker_buy_base_vol": 550 + i,
+            "available_at": (base.replace(minute=i % 60)).isoformat(),
+            "event_time": (base.replace(minute=i % 60)).isoformat(),
+            "candle_closed_confirmed": True,
+        }
+        for i in range(12)
+    ]
+    redis = _FakeRedis(
+        {
+            "v2:market:fvg:BTCUSDT:5m": {
+                "schema_version": "v2_fvg_v1",
+                "symbol": "BTCUSDT",
+                "timeframe": "5m",
+                "bullish_fvg_present": True,
+            },
+            "v2:market:ohlcv_closed:binance:BTCUSDT:5m": candles,
+            "v2:market:prices:BTCUSDT": {"price": 112.0},
+        }
+    )
+
+    context = paper_loop._read_v2_advanced_indicator_context(  # noqa: SLF001
+        redis,
+        "BTCUSDT",
+        timeframe="5m",
+        decision_time=base.replace(minute=20).isoformat(),
+    )
+    fvg = json.loads(redis.payloads["v2:market:fvg:BTCUSDT:5m"])
+
+    assert context["advanced_indicator_status"] == "ADVANCED_INDICATOR_CONTEXT_COMPUTED_FROM_CLOSED_CANDLES"
+    assert context["advanced_indicator_invalid_contract_keys_repaired"]
+    assert fvg["event_time"]
+    assert fvg["available_at"]
+    assert fvg["decision_time"]
+    assert fvg["trainer_consumes"] is True
+    assert fvg["risk_consumes"] is True
 
 
 def test_b_grade_calibration_safety_halts_negative_warmup() -> None:
@@ -46,6 +174,73 @@ def test_b_grade_calibration_safety_halts_negative_warmup() -> None:
     assert "B_GRADE_PROFIT_FACTOR_BELOW_1" in status["blockers"]
     assert "B_GRADE_EXPECTANCY_NON_POSITIVE" in status["blockers"]
     assert status["places_real_order"] is False
+
+
+def test_paper_entry_freeze_halts_when_portfolio_truth_untrusted() -> None:
+    freeze = paper_loop._read_paper_entry_freeze(  # noqa: SLF001
+        _FakeRedis(
+            {
+                "v2:portfolio:state": {
+                    "equity_trusted": False,
+                    "pnl_trusted": False,
+                    "reason_if_untrusted": "MARK_PRICE_MISSING_FOR_OPEN_POSITION",
+                    "paper_equity_reason": "MARK_PRICE_MISSING",
+                }
+            }
+        )
+    )
+
+    assert freeze["paper_new_entries_halted"] is True
+    assert freeze["new_entries_allowed"] is False
+    assert freeze["reason"] == "MARK_PRICE_MISSING_FOR_OPEN_POSITION"
+    assert freeze["source"] == "v2:portfolio:state"
+    assert freeze["source_keys"] == ["v2:portfolio:state"]
+    assert freeze["places_real_order"] is False
+
+
+def test_sync_lifecycle_open_position_views_clears_stale_open_views() -> None:
+    lifecycle = {
+        "open_positions": [{"symbol": "BTCUSDT", "unrealized_pnl_usd": 1.2}],
+        "positions_by_symbol": {
+            "BTCUSDT": {"symbol": "BTCUSDT", "unrealized_pnl_usd": 1.2}
+        },
+        "unrealized_pnl_usd": 1.2,
+        "total_open_notional": 100.0,
+        "paper_position_lifecycle_status": {"open_positions_count": 1},
+        "paper_position_exposure_cap_status": {
+            "evaluations": [{"symbol": "BTCUSDT", "allowed": True}],
+            "blocked_count": 0,
+        },
+        "paper_hedge_netting_status": {
+            "events": [{"symbol": "BTCUSDT", "event": "OPEN_POSITION"}]
+        },
+        "paper_exit_coordinator_status": {
+            "evaluations": [{"symbol": "BTCUSDT", "should_close": False}]
+        },
+        "paper_stop_takeprofit_trailing_status": {
+            "trailing_stop_context_policy": {
+                "position_decisions": [{"symbol": "BTCUSDT", "enabled": True}]
+            }
+        },
+    }
+
+    paper_loop._sync_lifecycle_open_position_views(lifecycle, [])  # noqa: SLF001
+
+    assert lifecycle["open_positions"] == []
+    assert lifecycle["positions_by_symbol"] == {}
+    assert lifecycle["open_position_count"] == 0
+    assert lifecycle["unrealized_pnl_usd"] == 0
+    assert lifecycle["total_open_notional"] == 0
+    assert lifecycle["paper_position_lifecycle_status"]["open_positions_count"] == 0
+    assert lifecycle["paper_position_exposure_cap_status"]["evaluations"] == []
+    assert lifecycle["paper_hedge_netting_status"]["events"] == []
+    assert lifecycle["paper_exit_coordinator_status"]["evaluations"] == []
+    assert (
+        lifecycle["paper_stop_takeprofit_trailing_status"][
+            "trailing_stop_context_policy"
+        ]["position_decisions"]
+        == []
+    )
 
 
 def test_a_plus_gate_redistribution_flags_100pct_present_source_failures() -> None:
@@ -236,9 +431,286 @@ def test_b_grade_resumption_requests_patch_after_three_zero_fill_cycles() -> Non
     ]
 
 
+def test_write_paper_open_position_state_mirrors_canonical_positions_key() -> None:
+    class FakeRedis:
+        def __init__(self) -> None:
+            self.writes: list[tuple[str, str, int | None]] = []
+
+        def set(self, key: str, value: str, ex: int | None = None) -> None:
+            self.writes.append((key, value, ex))
+
+    redis_client = FakeRedis()
+    rows = [{"position_id": "paper_pos_BASUSDT", "symbol": "BASUSDT"}]
+
+    written = paper_loop._write_paper_open_position_state(  # noqa: SLF001
+        redis_client,
+        rows,
+        ttl_seconds=123,
+    )
+
+    assert written == ["v2:paper:positions", "v2:paper:open_positions"]
+    assert [key for key, _, _ in redis_client.writes] == written
+    assert [ttl for _, _, ttl in redis_client.writes] == [123, 123]
+    assert [json.loads(payload) for _, payload, _ in redis_client.writes] == [rows, rows]
+
+
+def test_paper_session_metadata_rows_bind_open_position_identity() -> None:
+    rows = paper_loop._with_paper_session_metadata_rows(  # noqa: SLF001
+        [{"position_id": "paper_pos_BASUSDT", "symbol": "BASUSDT"}],
+        paper_session_id="paper_session_current",
+        starting_equity_usd=3000.0,
+    )
+
+    assert rows == [
+        {
+            "position_id": "paper_pos_BASUSDT",
+            "symbol": "BASUSDT",
+            "paper_session_id": "paper_session_current",
+            "session_id": "paper_session_current",
+            "reset_session_id": "paper_session_current",
+            "starting_equity_usd": 3000.0,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        }
+    ]
+
+
+def _allow_preemptive_decision() -> dict:
+    return {
+        "preemptive_decision_id": "pec_test_allow",
+        "preemptive_decision": "ALLOW",
+        "pre_trade_loss_probability": 0.35,
+    }
+
+
+def test_missing_preemptive_decision_fails_paper_admission_closed() -> None:
+    reasons = paper_loop._paper_preemptive_admission_rejection_reasons(  # noqa: SLF001
+        {"paper_opportunity_tier": paper_loop.PAPER_TIER_A_GRADE_EXECUTION}
+    )
+
+    assert "PREEMPTIVE_DECISION_MISSING_FAIL_CLOSED" in reasons
+    assert "PRE_TRADE_LOSS_PROBABILITY_MISSING_FAIL_CLOSED" in reasons
+
+
+def test_high_pretrade_loss_probability_blocks_paper_admission() -> None:
+    reasons = paper_loop._paper_preemptive_admission_rejection_reasons(  # noqa: SLF001
+        {
+            "paper_opportunity_tier": paper_loop.PAPER_TIER_A_GRADE_EXECUTION,
+            "preemptive_edge_control": {
+                "preemptive_decision_id": "pec_high_loss",
+                "preemptive_decision": "ALLOW",
+            },
+            "pre_trade_loss_probability": 0.91,
+        }
+    )
+
+    assert "PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND" in reasons
+
+
+def test_preemptive_reduced_size_requires_guardian_approval_at_admission() -> None:
+    reasons = paper_loop._paper_preemptive_admission_rejection_reasons(  # noqa: SLF001
+        {
+            "paper_opportunity_tier": paper_loop.PAPER_TIER_A_PLUS_BOOTSTRAP_REDUCED_SIZE,
+            "preemptive_edge_control": {
+                "preemptive_decision_id": "pec_reduce",
+                "preemptive_decision": "REDUCE_SIZE_PAPER_ONLY",
+            },
+            "pre_trade_loss_probability": 0.45,
+            "continuous_edge_guardian_new_entries_allowed": False,
+        }
+    )
+
+    assert "REDUCE_SIZE_FILL_LACKS_GUARDIAN_APPROVAL" in reasons
+
+
+def test_positive_edge_probation_admission_can_pass_halted_guardian() -> None:
+    reasons = paper_loop._paper_preemptive_admission_rejection_reasons(  # noqa: SLF001
+        {
+            "paper_opportunity_tier": paper_loop.PAPER_TIER_POSITIVE_EDGE_PROBATION,
+            "preemptive_edge_control": {
+                "preemptive_decision_id": "pec_probation",
+                "preemptive_decision": "POSITIVE_EDGE_PROBATION_PAPER",
+            },
+            "pre_trade_loss_probability": 0.45,
+            "continuous_edge_guardian_status": "HALTED_PERFORMANCE",
+            "paper_effective_entry_gate_state": "HALTED",
+        }
+    )
+
+    assert "GUARDIAN_HALTED_PERFORMANCE_NO_NEW_ENTRY" not in reasons
+    assert reasons == []
+
+
+def test_preemptive_shadow_only_classifier_blocks_sized_entry() -> None:
+    classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+        signal={
+            "selected_action": "long",
+            "confidence_calibrated": 0.80,
+            "expected_move_after_cost_bps": 14.0,
+        },
+        intent={
+            "side": "long",
+            "confidence_calibrated": 0.80,
+            "expected_move_after_cost_bps": 14.0,
+        },
+        allocation=_allowed_allocation(expected_move_after_cost_bps=14.0),
+        integrity_gate={"allowed": True},
+        local_trade_gates_pass=True,
+        paper_fill_allowed_upstream=True,
+        portfolio_drawdown_bps=0.0,
+        preemptive_decision={
+            "preemptive_decision_id": "pec_shadow",
+            "preemptive_decision": "SHADOW_ONLY",
+            "pre_trade_loss_probability": 0.72,
+        },
+    )
+
+    assert classification["paper_opportunity_tier"] == "SHADOW_ONLY"
+    assert classification["paper_opportunity_tier_reason"] == (
+        "PREEMPTIVE_EDGE_CONTROL_SHADOW_ONLY"
+    )
+    assert classification["routes_to_live"] is False
+    assert classification["places_real_order"] is False
+
+
+def test_preemptive_blocked_counterfactual_feedback_is_pending_and_timestamped() -> None:
+    payload, status = paper_loop._build_preemptive_blocked_counterfactual_feedback(  # noqa: SLF001
+        [
+            {
+                "symbol": "BTCUSDT",
+                "timeframe": "5m",
+                "side": "long",
+                "strategy_id": "trend_breakout",
+                "decision_time": "2026-07-08T12:00:00Z",
+                "available_at": "2026-07-08T11:59:58Z",
+                "feature_cutoff": "2026-07-08T11:55:00Z",
+                "prediction_id": "prediction_1",
+                "feature_snapshot_id": "feature_1",
+                "mtf_snapshot_id": "mtf_1",
+                "expected_move_after_cost_bps": -7.5,
+                "preemptive_edge_control": {
+                    "preemptive_decision_id": "pec_blocked",
+                    "preemptive_decision": "NO_TRADE",
+                    "preemptive_decision_reasons": ["BUCKET_EXPECTANCY_NON_POSITIVE"],
+                    "pre_trade_loss_probability": 0.91,
+                    "confidence_overstatement_risk": 0.78,
+                    "expected_edge_after_cost_bps": -7.5,
+                    "target_notional_usd": 0.0,
+                },
+            }
+        ],
+        paper_session_id="paper-session",
+        generated_utc="2026-07-08T12:01:00Z",
+    )
+
+    assert payload["row_count"] == 1
+    row = payload["rows"][0]
+    assert row["counterfactual_feedback_id"] == "preemptive_blocked_pec_blocked"
+    assert row["trainer_feedback_source"] == (
+        "V2_PREEMPTIVE_EDGE_CONTROL_BLOCKED_CANDIDATE"
+    )
+    assert row["paper_session_id"] == "paper-session"
+    assert row["decision_time"] == "2026-07-08T12:00:00Z"
+    assert row["available_at"] == "2026-07-08T11:59:58Z"
+    assert row["feature_cutoff"] == "2026-07-08T11:55:00Z"
+    assert row["preemptive_decision_id"] == "pec_blocked"
+    assert row["preemptive_decision"] == "NO_TRADE"
+    assert row["pre_trade_loss_probability"] == pytest.approx(0.91)
+    assert row["realized_future_window_label"] is None
+    assert row["outcome_label"] == "PENDING_COUNTERFACTUAL_FUTURE_WINDOW"
+    assert row["counterfactual_label_pending"] is True
+    assert row["consumable_by_trainer_now"] is False
+    assert row["no_future_leakage"] is True
+    assert row["paper_only"] is True
+    assert row["routes_to_live"] is False
+    assert row["places_real_order"] is False
+    assert status["blocked_candidate_counterfactual_rows"] == 1
+    assert status["counterfactual_labels_pending"] == 1
+    assert status["consumable_labeled_counterfactual_rows"] == 0
+    assert status["trainer_consumption_state"] == "PENDING_FUTURE_WINDOW_LABELS"
+    assert status["trainer_key"] == "v2:trainer:preemptive_blocked_candidates"
+
+
+def test_classifier_admits_positive_edge_probation_paper_only() -> None:
+    classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+        signal={
+            "selected_action": "long",
+            "confidence_calibrated": 0.68,
+            "expected_move_after_cost_bps": 22.0,
+        },
+        intent={
+            "symbol": "BTCUSDT",
+            "timeframe": "5m",
+            "side": "long",
+            "strategy_selected_mode": "trend_mode",
+            "confidence_calibrated": 0.68,
+            "expected_move_after_cost_bps": 22.0,
+            "production_grade_cost_flag": True,
+            "microstructure_action": "ALLOW",
+            "composite_microstructure_trust_score": 0.82,
+            "pre_trade_loss_probability": 0.45,
+            "exit_feasibility_score": 0.75,
+        },
+        allocation=_allowed_allocation(expected_move_after_cost_bps=22.0),
+        integrity_gate={"allowed": True},
+        local_trade_gates_pass=False,
+        exploration_trade_gates_pass=False,
+        positive_edge_probation_trade_gates_pass=True,
+        paper_fill_allowed_upstream=False,
+        portfolio_drawdown_bps=0.0,
+        continuous_edge_guardian_gate={
+            "status": "HALTED_PERFORMANCE",
+            "a_grade_new_entries_allowed": False,
+        },
+        preemptive_decision={
+            "preemptive_decision_id": "pec_probation",
+            "preemptive_decision": "POSITIVE_EDGE_PROBATION_PAPER",
+            "pre_trade_loss_probability": 0.45,
+        },
+    )
+
+    assert classification["paper_opportunity_tier"] == (
+        paper_loop.PAPER_TIER_POSITIVE_EDGE_PROBATION
+    )
+    assert classification["paper_only"] is True
+    assert classification["routes_to_live"] is False
+    assert classification["places_real_order"] is False
+    assert classification["counts_as_final_a_plus"] is False
+    assert classification["counts_as_live_ready"] is False
+    assert classification["probation_paper_enabled"] is True
+
+
+def test_global_performance_halt_preserves_probation_allocator_evidence() -> None:
+    intent = {
+        "paper_only": True,
+        "symbol": "UNRELATEDUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "strategy_id": "trend_mode",
+        "market_regime": "TREND",
+    }
+    allocation = _allowed_allocation()
+
+    blocked = paper_loop._paper_block_new_entry_by_performance_circuit(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        performance_circuit_breaker_status={
+            "new_entries_allowed": False,
+            "blocked_bucket_keys": [],
+        },
+    )
+
+    assert blocked is True
+    assert intent["paper_performance_circuit_global_halt_only"] is True
+    assert allocation["allocator_decision"] == "ALLOW_WITH_SIZE"
+    assert allocation["global_halt_preserves_probation_allocator_evidence"] is True
+
+
 def _allowed_allocation(**overrides):
     payload = {
         "allocator_decision": "ALLOW_WITH_SIZE",
+        "target_notional_usd": 1000.0,
         "target_notional_usdt": 1000.0,
         "target_quantity": 10.0,
         "risk_budget_usd": 100.0,
@@ -1302,6 +1774,7 @@ def test_standalone_1m_priority_bucket_evidence_allows_b_grade_collection_only()
         exploration_trade_gates_pass=True,
         paper_fill_allowed_upstream=True,
         portfolio_drawdown_bps=0.0,
+        preemptive_decision=_allow_preemptive_decision(),
     )
 
     assert classification["paper_opportunity_tier"] == "B_GRADE_EXPLORATION_PAPER"
@@ -1645,6 +2118,19 @@ def test_paper_active_runtime_owner_status_passes_single_canonical_writer(
             "jq '{paper_online_runtime_active,toy_momentum_entry_writer_active}'",
         ],
     )
+    _write_fake_proc(
+        proc_root,
+        104,
+        [
+            "/bin/bash",
+            "-c",
+            "python - <<'PY'\n"
+            "import importlib\n"
+            "fp = importlib.import_module('v2.backend.app.cli.v2_trade_management_paper_loop')\n"
+            "print(fp._paper_runtime_process_rows())\n"
+            "PY",
+        ],
+    )
 
     status = paper_loop._paper_active_runtime_owner_status(proc_root)  # noqa: SLF001
 
@@ -1868,8 +2354,15 @@ def test_compact_accepted_fill_state_omits_snapshot_but_keeps_trust_and_executio
             "runtime_cost_capture_order_cost_applicable": False,
             "runtime_cost_capture_no_order_reason": "NO_TRADE_ZERO_SIZE_PAPER_INTENT",
             "adaptive_allocation": {
+                "target_notional_usd": 200.0,
+                "target_notional_usdt": 200.0,
                 "gross_notional_usd": 200.0,
                 "recommended_leverage": 2.0,
+                "max_loss_if_stop_hit": 2.5,
+                "risk_reward": 1.8,
+                "risk_of_ruin_contribution": 0.0008,
+                "portfolio_exposure_after_trade": 250.0,
+                "correlation_exposure_after_trade": 0.025,
                 "take_profit_structure": "decision_time_expected_move_or_price_target",
                 "take_profit_price": 101.5,
                 "hedge_enabled": False,
@@ -1904,8 +2397,15 @@ def test_compact_accepted_fill_state_omits_snapshot_but_keeps_trust_and_executio
     assert compact["runtime_cost_capture_unexplained_missing_fields"] == []
     assert compact["runtime_cost_capture_order_cost_applicable"] is False
     assert compact["runtime_cost_capture_no_order_reason"] == "NO_TRADE_ZERO_SIZE_PAPER_INTENT"
+    assert compact["adaptive_allocation"]["target_notional_usd"] == 200.0
+    assert compact["adaptive_allocation"]["target_notional_usdt"] == 200.0
     assert compact["adaptive_allocation"]["gross_notional_usd"] == 200.0
     assert compact["adaptive_allocation"]["recommended_leverage"] == 2.0
+    assert compact["adaptive_allocation"]["max_loss_if_stop_hit"] == 2.5
+    assert compact["adaptive_allocation"]["risk_reward"] == 1.8
+    assert compact["adaptive_allocation"]["risk_of_ruin_contribution"] == 0.0008
+    assert compact["adaptive_allocation"]["portfolio_exposure_after_trade"] == 250.0
+    assert compact["adaptive_allocation"]["correlation_exposure_after_trade"] == 0.025
     assert compact["adaptive_allocation"]["take_profit_structure"] == (
         "decision_time_expected_move_or_price_target"
     )
@@ -1918,6 +2418,44 @@ def test_compact_accepted_fill_state_omits_snapshot_but_keeps_trust_and_executio
     assert "all_partial_fills" not in compact
     assert "partial_fills" not in compact["adaptive_allocation"]
     assert "all_partial_fills" not in compact["adaptive_allocation"]
+
+
+def test_compact_accepted_fill_backfills_adaptive_allocation_contract() -> None:
+    compact = paper_loop._compact_accepted_fill_for_state(  # noqa: SLF001
+        {
+            "fill_id": "fill-legacy",
+            "symbol": "CRVUSDT",
+            "gross_notional_usd": 100.0,
+            "starting_equity_usd": 1000.0,
+            "drawdown_bps": 0.0,
+            "adaptive_allocation": {
+                "allocator_decision": "ALLOW_WITH_SIZE",
+                "target_notional_usd": 500.0,
+                "target_notional_usdt": 100.0,
+                "gross_notional_usd": 100.0,
+                "total_exposure_usdt": 200.0,
+                "correlation_exposure_pct": 0.02,
+                "stop_distance_bps": 25.0,
+                "expected_fees_usd": 0.4,
+                "expected_slippage_usd": 0.2,
+                "expected_funding_usd": 0.05,
+                "expected_net_pnl_usd": 2.7,
+            },
+        }
+    )
+
+    allocation = compact["adaptive_allocation"]
+    assert allocation["target_notional_usd"] == 100.0
+    assert allocation["target_notional_usdt"] == 100.0
+    assert allocation["max_loss_if_stop_hit"] == 0.9
+    assert allocation["risk_reward"] == 3.0
+    assert allocation["portfolio_exposure_after_trade"] == 300.0
+    assert allocation["correlation_exposure_after_trade"] == 0.12
+    assert allocation["risk_of_ruin_contribution"] == 0.001
+    assert allocation["adaptive_allocation_contract_backfilled"] is True
+    assert allocation["adaptive_allocation_contract_backfill_sources"]["target_notional_usd"] == (
+        "normalized_to_target_notional_usdt"
+    )
 
 
 def test_read_existing_accepted_fills_prefers_compact_file_state(monkeypatch, tmp_path) -> None:
@@ -2255,9 +2793,10 @@ def test_existing_ledger_payload_overlays_lifecycle_state(monkeypatch, tmp_path)
 
     assert ledger["accepted"] == [{"fill_id": "state-fill", "symbol": "BTCUSDT"}]
     assert ledger["accepted_count"] == 1
-    assert ledger["closed_trades"] == [
-        {"trainer_feedback_id": "close-1", "source_fill_ids": ["state-fill"]}
-    ]
+    # CG-F044: Redis-derived close history (here the ledger fallback sample)
+    # must never be displaced by the state file; the file only rescues history
+    # keys Redis knows nothing about (outcome_labels below).
+    assert ledger["closed_trades"] == [{"trainer_feedback_id": "redis-close"}]
     assert ledger["closed_trade_count"] == 1
     assert ledger["outcome_labels"] == [{"trainer_feedback_id": "close-1", "winner": True}]
     assert ledger["outcome_label_count"] == 1
@@ -2701,6 +3240,7 @@ def test_attach_paper_sizing_copies_target_fields_for_execution_evidence() -> No
     paper_loop._attach_paper_execution_evidence(intent, {})  # noqa: SLF001
 
     assert intent["target_notional_usdt"] == 1000.0
+    assert intent["target_notional_usd"] == 1000.0
     assert intent["target_quantity"] == 10.0
     assert intent["quantity"] == 10.0
     assert intent["notional_usdt"] == 1000.0
@@ -5308,12 +5848,14 @@ def test_churn_equity_bleed_open_position_filter_matches_position_id_to_fill_id(
         }
     ]
 
-    filtered = paper_loop._paper_filter_open_positions_to_accepted_rows(  # noqa: SLF001
+    filtered, dropped = paper_loop._paper_filter_open_positions_to_accepted_rows(  # noqa: SLF001
         open_positions,
         accepted_rows,
     )
 
     assert [row["position_id"] for row in filtered] == ["paper_pos_KEEPUSDT"]
+    # F-0007: dropped positions must be surfaced for audit, never silently lost
+    assert [row["position_id"] for row in dropped] == ["paper_pos_DROPUSDT"]
 
 
 def _forward_canary_closed_row(symbol: str, side: str, **overrides) -> dict:
@@ -5732,6 +6274,7 @@ def test_confidence_trial_positive_edge_becomes_b_grade_paper_only_exploration()
         local_trade_gates_pass=True,
         paper_fill_allowed_upstream=False,
         portfolio_drawdown_bps=100.0,
+        preemptive_decision=_preemptive_allow_decision(),
     )
 
     assert classification["paper_opportunity_tier"] == "B_GRADE_EXPLORATION_PAPER"
@@ -5753,12 +6296,175 @@ def test_confidence_trial_positive_edge_becomes_b_grade_paper_only_exploration()
 
     assert intent["paper_only"] is True
     assert intent["places_real_order"] is False
+
+
+def test_reduced_size_microstructure_becomes_a_plus_bootstrap_paper_only() -> None:
+    signal = {
+        "confidence_calibrated": 0.70,
+        "expected_move_after_cost_bps": 14.0,
+    }
+    intent = {
+        "confidence_calibrated": 0.70,
+        "expected_move_after_cost_bps": 14.0,
+        "paper_only": True,
+        "places_real_order": False,
+        "production_grade_cost_flag": True,
+        "microstructure_action": "REDUCE_SIZE",
+        "public_orderbook_trust_score": 0.51,
+        "composite_microstructure_trust_score": 0.52,
+        "bootstrap_reduced_size_paper_only": True,
+    }
+    allocation = _allowed_allocation(confidence_calibrated=0.70)
+
+    classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+        signal=signal,
+        intent=intent,
+        allocation=allocation,
+        integrity_gate={"allowed": True},
+        local_trade_gates_pass=False,
+        exploration_trade_gates_pass=True,
+        paper_fill_allowed_upstream=False,
+        portfolio_drawdown_bps=100.0,
+        continuous_edge_guardian_gate={
+            "status": "ACTIVE",
+            "a_grade_new_entries_allowed": True,
+            "allowed_runtime_actions": ["new_entry", "reduce", "close"],
+        },
+        preemptive_decision=_preemptive_allow_decision(),
+    )
+
+    assert (
+        classification["paper_opportunity_tier"]
+        == paper_loop.PAPER_TIER_A_PLUS_BOOTSTRAP_REDUCED_SIZE
+    )
+    assert classification["counts_as_final_a_plus"] is False
+    assert classification["counts_as_live_ready"] is False
+    assert classification["routes_to_live"] is False
+    assert classification["mandatory_size_haircut"] is True
+    fraction = classification["risk_budget_fraction_of_normal_adaptive"]
+    assert 0.0 < fraction <= paper_loop.B_GRADE_EXPLORATION_MAX_RISK_FRACTION_OF_NORMAL
+
+    paper_loop._apply_paper_tier_classification(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        classification=classification,
+    )
+    paper_loop._apply_b_grade_exploration_budget_cap(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        risk_budget_fraction_of_normal_adaptive=fraction,
+    )
+
+    assert intent["paper_only"] is True
+    assert intent["places_real_order"] is False
+    assert allocation["target_notional_usdt"] < allocation["normal_adaptive_target_notional_usdt"]
+    assert intent["counts_as_final_a_plus"] is False
     assert allocation["b_grade_exploration_budget_cap_applied"] is True
     assert allocation["normal_adaptive_risk_budget_usd"] == 100.0
     assert allocation["risk_budget_usd"] == round(100.0 * fraction, 8)
     assert allocation["target_notional_usdt"] == round(1000.0 * fraction, 8)
     assert allocation["target_quantity"] == round(10.0 * fraction, 12)
     assert allocation["model_inputs"]["risk_budget_fraction_of_normal_adaptive"] == fraction
+
+
+def test_reduced_size_bootstrap_requires_explicit_guardian_new_entries_allowed() -> None:
+    base_signal = {
+        "selected_action": "long",
+        "confidence_calibrated": 0.72,
+        "expected_move_after_cost_bps": 18.0,
+    }
+    base_intent = {
+        "side": "long",
+        "confidence_calibrated": 0.72,
+        "expected_move_after_cost_bps": 18.0,
+        "paper_only": True,
+        "places_real_order": False,
+        "production_grade_cost_flag": True,
+        "microstructure_action": "REDUCE_SIZE",
+        "public_orderbook_trust_score": 0.51,
+        "composite_microstructure_trust_score": 0.52,
+        "bootstrap_reduced_size_paper_only": True,
+    }
+
+    classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+        signal=base_signal,
+        intent=base_intent,
+        allocation=_allowed_allocation(confidence_calibrated=0.72),
+        integrity_gate={"allowed": True},
+        local_trade_gates_pass=False,
+        exploration_trade_gates_pass=True,
+        paper_fill_allowed_upstream=False,
+        portfolio_drawdown_bps=0.0,
+        continuous_edge_guardian_gate=None,
+        preemptive_decision=_preemptive_allow_decision(),
+    )
+
+    assert classification["paper_opportunity_tier"] == "SHADOW_ONLY"
+    assert classification["paper_opportunity_tier_reason"] == (
+        "REDUCED_SIZE_BOOTSTRAP_REQUIRES_GUARDIAN_NEW_ENTRIES_ALLOWED"
+    )
+    assert classification["pre_guardian_paper_opportunity_tier"] == (
+        paper_loop.PAPER_TIER_A_PLUS_BOOTSTRAP_REDUCED_SIZE
+    )
+    assert classification["paper_fill_allowed_source"] == (
+        "CONTINUOUS_EDGE_GUARDIAN_BLOCKED_REDUCED_SIZE_BOOTSTRAP"
+    )
+    assert classification["routes_to_live"] is False
+    assert classification["places_real_order"] is False
+
+
+def test_reduced_size_bootstrap_halted_guardian_blocks_cake_avnt_style_local_gate() -> None:
+    classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+        signal={
+            "selected_action": "short",
+            "confidence_calibrated": 0.78,
+            "expected_move_after_cost_bps": -17.0,
+        },
+        intent={
+            "symbol": "AVNTUSDT",
+            "side": "short",
+            "timeframe": "4h",
+            "strategy_id": "scalp_mode",
+            "confidence_calibrated": 0.78,
+            "expected_move_after_cost_bps": -17.0,
+            "paper_only": True,
+            "places_real_order": False,
+            "production_grade_cost_flag": True,
+            "microstructure_action": "REDUCE_SIZE",
+            "public_orderbook_trust_score": 0.51,
+            "composite_microstructure_trust_score": 0.52,
+            "bootstrap_reduced_size_paper_only": True,
+        },
+        allocation=_allowed_allocation(
+            confidence_calibrated=0.78,
+            expected_move_after_cost_bps=-17.0,
+        ),
+        integrity_gate={"allowed": True},
+        local_trade_gates_pass=False,
+        exploration_trade_gates_pass=True,
+        paper_fill_allowed_upstream=False,
+        portfolio_drawdown_bps=0.0,
+        continuous_edge_guardian_gate={
+            "status": "A_GRADE_HALTED_PERFORMANCE",
+            "a_grade_new_entries_allowed": False,
+            "failure_reasons": [{"reason": "HIGH_CONFIDENCE_LOSS_CLUSTER"}],
+            "allowed_runtime_actions": ["reduce", "close", "emergency_de_risk"],
+        },
+        preemptive_decision=_preemptive_allow_decision(),
+    )
+
+    assert classification["paper_opportunity_tier"] == "SHADOW_ONLY"
+    assert classification["paper_opportunity_tier_reason"] == (
+        "REDUCED_SIZE_BOOTSTRAP_REQUIRES_GUARDIAN_NEW_ENTRIES_ALLOWED"
+    )
+    assert classification["continuous_edge_guardian_status"] == "A_GRADE_HALTED_PERFORMANCE"
+    assert classification["continuous_edge_guardian_new_entries_allowed"] is False
+    assert classification["paper_fill_allowed_source"] == (
+        "CONTINUOUS_EDGE_GUARDIAN_BLOCKED_REDUCED_SIZE_BOOTSTRAP"
+    )
+    assert classification["counts_as_final_a_plus"] is False
+    assert classification["routes_to_live"] is False
+    assert classification["places_real_order"] is False
 
 
 def test_short_signed_edge_can_be_a_grade_when_strict_gate_allowed() -> None:
@@ -5778,6 +6484,7 @@ def test_short_signed_edge_can_be_a_grade_when_strict_gate_allowed() -> None:
         local_trade_gates_pass=True,
         paper_fill_allowed_upstream=True,
         portfolio_drawdown_bps=0.0,
+        preemptive_decision=_preemptive_allow_decision(),
     )
 
     assert classification["paper_opportunity_tier"] == "A_GRADE_EXECUTION_PAPER"
@@ -5808,6 +6515,7 @@ def test_continuous_edge_guardian_halt_downgrades_new_a_grade_to_shadow_only() -
             "failure_reasons": [{"reason": "ROLLING_100_WIN_RATE_BELOW_90P"}],
             "allowed_runtime_actions": ["reduce", "close"],
         },
+        preemptive_decision=_allow_preemptive_decision(),
     )
 
     assert classification["paper_opportunity_tier"] == "SHADOW_ONLY"
@@ -5868,6 +6576,7 @@ def test_dynamic_positive_edge_below_a_grade_becomes_b_grade_when_exploration_ga
         exploration_trade_gates_pass=True,
         paper_fill_allowed_upstream=False,
         portfolio_drawdown_bps=100.0,
+        preemptive_decision=_preemptive_allow_decision(),
     )
 
     assert classification["paper_opportunity_tier"] == "B_GRADE_EXPLORATION_PAPER"
@@ -5911,6 +6620,7 @@ def test_b_grade_exploration_cannot_relax_p0_entry_gate_blocks(entry_gate_reason
         exploration_trade_gates_pass=True,
         paper_fill_allowed_upstream=False,
         portfolio_drawdown_bps=0.0,
+        preemptive_decision=_allow_preemptive_decision(),
     )
 
     assert classification["paper_opportunity_tier"] == "NO_TRADE"
@@ -6138,6 +6848,7 @@ def test_priority_bucket_candidate_becomes_paper_only_b_grade_label_collection()
         exploration_trade_gates_pass=True,
         paper_fill_allowed_upstream=False,
         portfolio_drawdown_bps=100.0,
+        preemptive_decision=_allow_preemptive_decision(),
     )
 
     assert classification["paper_opportunity_tier"] == "B_GRADE_EXPLORATION_PAPER"
@@ -6206,6 +6917,7 @@ def test_size_adjusted_trend_entry_is_not_lifecycle_no_trade() -> None:
         exploration_trade_gates_pass=True,
         paper_fill_allowed_upstream=False,
         portfolio_drawdown_bps=0.0,
+        preemptive_decision=_allow_preemptive_decision(),
     )
 
     assert classification["paper_opportunity_tier"] == "B_GRADE_EXPLORATION_PAPER"
@@ -6246,6 +6958,7 @@ def test_size_adjusted_trend_entry_with_reduce_only_router_canonical_mode_is_not
         exploration_trade_gates_pass=True,
         paper_fill_allowed_upstream=False,
         portfolio_drawdown_bps=0.0,
+        preemptive_decision=_allow_preemptive_decision(),
     )
 
     assert classification["paper_opportunity_tier"] == "B_GRADE_EXPLORATION_PAPER"
@@ -6277,6 +6990,7 @@ def test_no_trade_strategy_mode_cannot_be_b_grade_executable() -> None:
         exploration_trade_gates_pass=True,
         paper_fill_allowed_upstream=False,
         portfolio_drawdown_bps=0.0,
+        preemptive_decision=_allow_preemptive_decision(),
     )
 
     assert classification["paper_opportunity_tier"] == "NO_TRADE"
@@ -6309,6 +7023,7 @@ def test_no_trade_regime_label_blocks_dynamic_b_grade_exploration() -> None:
         exploration_trade_gates_pass=True,
         paper_fill_allowed_upstream=False,
         portfolio_drawdown_bps=0.0,
+        preemptive_decision=_allow_preemptive_decision(),
     )
 
     assert classification["paper_opportunity_tier"] == "NO_TRADE"
@@ -6340,6 +7055,7 @@ def test_canonical_risk_off_strategy_mode_cannot_be_b_grade_entry_evidence() -> 
         exploration_trade_gates_pass=True,
         paper_fill_allowed_upstream=False,
         portfolio_drawdown_bps=0.0,
+        preemptive_decision=_allow_preemptive_decision(),
     )
 
     assert classification["paper_opportunity_tier"] == "NO_TRADE"
@@ -6373,6 +7089,7 @@ def test_lifecycle_strategy_mode_cannot_be_b_grade_entry_evidence() -> None:
         exploration_trade_gates_pass=True,
         paper_fill_allowed_upstream=False,
         portfolio_drawdown_bps=0.0,
+        preemptive_decision=_allow_preemptive_decision(),
     )
 
     assert classification["paper_opportunity_tier"] == "NO_TRADE"
@@ -6779,6 +7496,7 @@ def test_positive_edge_below_a_grade_row_becomes_dynamic_b_grade_exploration() -
         local_trade_gates_pass=True,
         paper_fill_allowed_upstream=False,
         portfolio_drawdown_bps=0.0,
+        preemptive_decision=_allow_preemptive_decision(),
     )
 
     assert classification["paper_opportunity_tier"] == "B_GRADE_EXPLORATION_PAPER"
@@ -6800,6 +7518,7 @@ def test_negative_edge_trial_is_no_trade_not_b_grade_exploration() -> None:
         local_trade_gates_pass=True,
         paper_fill_allowed_upstream=False,
         portfolio_drawdown_bps=0.0,
+        preemptive_decision=_allow_preemptive_decision(),
     )
 
     assert classification["paper_opportunity_tier"] == "NO_TRADE"
@@ -6830,6 +7549,23 @@ def _phase1_closed_trade_row(
         "realized_pnl_usd": realized_bps / 10.0,
         "gross_notional_usd": 1000.0,
         "close_reason": close_reason,
+    }
+
+
+def _high_confidence_loss_fixture_rows() -> list[dict[str, object]]:
+    fixture_path = (
+        Path(__file__).resolve().parents[2]
+        / "fixtures/high_confidence_loss_cluster_current_session.json"
+    )
+    payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+    return list(payload["rows"])
+
+
+def _active_guardian_gate() -> dict[str, object]:
+    return {
+        "status": "ACTIVE",
+        "a_grade_new_entries_allowed": True,
+        "allowed_runtime_actions": ["new_entry", "reduce", "close"],
     }
 
 
@@ -6946,6 +7682,66 @@ def test_paper_new_entry_emergency_halt_mirror_allows_clean_bootstrap_state() ->
     assert emergency["routes_to_live"] is False
 
 
+def test_paper_effective_entry_gate_blocks_when_performance_halted() -> None:
+    rows = [
+        _phase1_closed_trade_row(-10.0, confidence=0.70, close_reason="MODEL_STOP")
+        for _ in range(5)
+    ]
+    circuit = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
+        rows,
+        generated_utc="2026-07-06T03:30:00Z",
+    )
+    bleed = paper_loop._paper_bleed_halt_status(  # noqa: SLF001
+        circuit,
+        generated_utc="2026-07-06T03:30:00Z",
+    )
+    governor = paper_loop._paper_performance_governor_status_from_circuit_breaker(  # noqa: SLF001
+        circuit,
+        generated_utc="2026-07-06T03:30:00Z",
+    )
+    emergency = paper_loop._paper_new_entry_emergency_halt_status_from_performance(  # noqa: SLF001
+        circuit,
+        bleed,
+        generated_utc="2026-07-06T03:30:00Z",
+    )
+
+    effective = paper_loop._paper_effective_entry_gate_status(  # noqa: SLF001
+        paper_entry_freeze={
+            "schema_version": "paper_entry_freeze_v1",
+            "paper_new_entries_halted": False,
+            "new_entries_allowed": True,
+            "reason": None,
+            "source": "v2:paper:entry_freeze",
+        },
+        performance_circuit_breaker_status=circuit,
+        bleed_halt_status=bleed,
+        performance_governor_status=governor,
+        new_entry_emergency_halt_status=emergency,
+        churn_equity_bleed_governor_status={
+            "schema_version": "paper_churn_equity_bleed_governor_status_v1",
+            "state": "ACTIVE",
+            "new_entries_allowed": True,
+        },
+        generated_utc="2026-07-06T03:30:00Z",
+    )
+
+    assert effective["schema_version"] == "paper_effective_entry_gate_status_v1"
+    assert effective["status"] == "HALTED"
+    assert effective["paper_new_entries_halted"] is True
+    assert effective["new_entries_allowed"] is False
+    assert "performance_circuit_breaker" in effective["blocking_components"]
+    assert "CLOSED_5_PROFIT_FACTOR_BELOW_1" in effective["halt_reasons"]
+    assert (
+        effective["component_statuses"]["manual_or_portfolio_freeze"][
+            "new_entries_allowed"
+        ]
+        is True
+    )
+    assert effective["paper_only"] is True
+    assert effective["routes_to_live"] is False
+    assert effective["places_real_order"] is False
+
+
 def test_paper_performance_circuit_breaker_blocks_pf_below_one_even_if_expectancy_positive() -> None:
     rows = [
         {
@@ -7012,6 +7808,286 @@ def test_paper_performance_circuit_breaker_blocks_expectancy_non_positive_even_i
     assert status["new_entries_allowed"] is False
     assert "CLOSED_5_EXPECTANCY_NON_POSITIVE" in status["block_reasons"]
     assert status["pass_conditions"]["negative_expectancy_blocks_new_entries"] is True
+
+
+def test_paper_performance_circuit_breaker_blocks_high_confidence_loss_cluster_even_with_positive_edge() -> None:
+    rows = [
+        _phase1_closed_trade_row(
+            100.0,
+            symbol=f"WIN{idx}USDT",
+            confidence=0.74,
+            close_reason="TIER_2_TRAILING_STOP",
+        )
+        for idx in range(3)
+    ] + [
+        _phase1_closed_trade_row(
+            -10.0,
+            symbol="CAKEUSDT",
+            confidence=0.71,
+            close_reason="TIER_1_ATR_VOLATILITY_STOP",
+        ),
+        _phase1_closed_trade_row(
+            -10.0,
+            symbol="AVNTUSDT",
+            confidence=0.78,
+            close_reason="TIER_2_MFE_BREAKEVEN_PROTECTION",
+        ),
+    ]
+
+    status = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
+        rows,
+        generated_utc="2026-07-07T18:45:00Z",
+    )
+
+    cluster = status["recovery_high_confidence_loss_cluster_status"]
+    assert status["aggregate"]["profit_factor_numeric"] > 1.0
+    assert status["aggregate"]["notional_weighted_expectancy_bps"] > 0.0
+    assert cluster["cluster_detected"] is True
+    assert cluster["high_confidence_min_score"] == pytest.approx(0.70)
+    assert cluster["high_confidence_loss_count"] == 2
+    assert status["new_entries_allowed"] is False
+    assert "HIGH_CONFIDENCE_LOSS_CLUSTER" in status["block_reasons"]
+    assert (
+        status["pass_conditions"]["high_confidence_loss_cluster_blocks_new_entries"]
+        is True
+    )
+    assert status["paper_only"] is True
+    assert status["routes_to_live"] is False
+    assert status["places_real_order"] is False
+
+
+def test_high_confidence_loss_cluster_blocks_new_entries() -> None:
+    rows = _high_confidence_loss_fixture_rows()
+
+    status = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
+        rows,
+        generated_utc="2026-07-07T21:20:00Z",
+    )
+
+    cluster = status["recovery_high_confidence_loss_cluster_status"]
+    assert cluster["cluster_detected"] is True
+    assert cluster["high_confidence_min_score"] == pytest.approx(0.70)
+    assert cluster["high_confidence_loss_count"] == len(rows)
+    assert status["new_entries_allowed"] is False
+    assert "HIGH_CONFIDENCE_LOSS_CLUSTER" in status["block_reasons"]
+    assert status["routes_to_live"] is False
+    assert status["places_real_order"] is False
+
+
+def test_high_confidence_loss_cluster_forces_shadow_only_not_reduced_size(
+    monkeypatch,
+) -> None:
+    rows = _high_confidence_loss_fixture_rows()
+    # Pin the verified-repair epoch out: this test asserts the behavior when
+    # the fixture losses ARE current blocking evidence (post-repair losses
+    # re-block instantly; the repo-level epoch artifact must not neuter them).
+    monkeypatch.setattr(
+        paper_loop, "_paper_verified_exit_repair_deployed_utc", lambda: None
+    )
+    status = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
+        rows,
+        generated_utc="2026-07-07T21:20:00Z",
+    )
+    cake = next(row for row in rows if row["symbol"] == "CAKEUSDT")
+    intent = {
+        "symbol": cake["symbol"],
+        "timeframe": cake["timeframe"],
+        "side": cake["side"],
+        "strategy_id": cake["strategy_id"],
+        "market_regime_at_entry": cake["market_regime_at_entry"],
+        "confidence_calibrated": cake["confidence_calibrated"],
+        "expected_move_after_cost_bps": 30.0,
+        "paper_only": True,
+        "places_real_order": False,
+        "production_grade_cost_flag": True,
+        "microstructure_action": "REDUCE_SIZE",
+        "public_orderbook_trust_score": 0.51,
+        "composite_microstructure_trust_score": 0.52,
+        "bootstrap_reduced_size_paper_only": True,
+    }
+
+    classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+        signal={"selected_action": "long", "expected_move_after_cost_bps": 30.0},
+        intent=intent,
+        allocation=_allowed_allocation(confidence_calibrated=0.72),
+        integrity_gate={"allowed": True},
+        local_trade_gates_pass=False,
+        exploration_trade_gates_pass=True,
+        paper_fill_allowed_upstream=False,
+        portfolio_drawdown_bps=0.0,
+        continuous_edge_guardian_gate=_active_guardian_gate(),
+        bucket_quarantine_status=status["bucket_quarantine_status"],
+        preemptive_decision=_allow_preemptive_decision(),
+    )
+
+    assert classification["paper_opportunity_tier"] == "SHADOW_ONLY"
+    assert classification["paper_opportunity_tier_reason"] == (
+        "PAPER_BUCKET_QUARANTINE_BLOCKED_REENTRY"
+    )
+    assert classification["paper_fill_allowed_source"] == (
+        "PAPER_BUCKET_QUARANTINE_BLOCKED_REENTRY"
+    )
+    assert classification["counts_as_final_a_plus"] is False
+    assert classification["routes_to_live"] is False
+    assert "side:long" in classification[
+        "paper_bucket_quarantine_matched_blocked_bucket_keys"
+    ]
+
+
+def test_reduced_size_bootstrap_requires_guardian_new_entry_approval() -> None:
+    classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+        signal={
+            "selected_action": "long",
+            "confidence_calibrated": 0.72,
+            "expected_move_after_cost_bps": 18.0,
+        },
+        intent={
+            "side": "long",
+            "confidence_calibrated": 0.72,
+            "expected_move_after_cost_bps": 18.0,
+            "paper_only": True,
+            "places_real_order": False,
+            "production_grade_cost_flag": True,
+            "microstructure_action": "REDUCE_SIZE",
+            "public_orderbook_trust_score": 0.51,
+            "composite_microstructure_trust_score": 0.52,
+            "bootstrap_reduced_size_paper_only": True,
+        },
+        allocation=_allowed_allocation(confidence_calibrated=0.72),
+        integrity_gate={"allowed": True},
+        local_trade_gates_pass=False,
+        exploration_trade_gates_pass=True,
+        paper_fill_allowed_upstream=False,
+        portfolio_drawdown_bps=0.0,
+        continuous_edge_guardian_gate={},
+        preemptive_decision=_allow_preemptive_decision(),
+    )
+
+    assert classification["paper_opportunity_tier"] == "SHADOW_ONLY"
+    assert classification["paper_opportunity_tier_reason"] == (
+        "REDUCED_SIZE_BOOTSTRAP_REQUIRES_GUARDIAN_NEW_ENTRIES_ALLOWED"
+    )
+    assert classification["pre_guardian_paper_opportunity_tier"] == (
+        paper_loop.PAPER_TIER_A_PLUS_BOOTSTRAP_REDUCED_SIZE
+    )
+    assert classification["routes_to_live"] is False
+    assert classification["places_real_order"] is False
+
+
+def test_halted_guardian_blocks_reduced_size_bootstrap() -> None:
+    classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+        signal={
+            "selected_action": "short",
+            "confidence_calibrated": 0.78,
+            "expected_move_after_cost_bps": -17.0,
+        },
+        intent={
+            "side": "short",
+            "confidence_calibrated": 0.78,
+            "expected_move_after_cost_bps": -17.0,
+            "paper_only": True,
+            "places_real_order": False,
+            "production_grade_cost_flag": True,
+            "microstructure_action": "REDUCE_SIZE",
+            "public_orderbook_trust_score": 0.51,
+            "composite_microstructure_trust_score": 0.52,
+            "bootstrap_reduced_size_paper_only": True,
+        },
+        allocation=_allowed_allocation(
+            confidence_calibrated=0.78,
+            expected_move_after_cost_bps=-17.0,
+        ),
+        integrity_gate={"allowed": True},
+        local_trade_gates_pass=False,
+        exploration_trade_gates_pass=True,
+        paper_fill_allowed_upstream=False,
+        portfolio_drawdown_bps=0.0,
+        continuous_edge_guardian_gate={
+            "status": "A_GRADE_HALTED_PERFORMANCE",
+            "a_grade_new_entries_allowed": True,
+            "allowed_runtime_actions": ["new_entry", "reduce", "close"],
+        },
+        preemptive_decision=_allow_preemptive_decision(),
+    )
+
+    assert classification["paper_opportunity_tier"] == "SHADOW_ONLY"
+    assert classification["paper_opportunity_tier_reason"] == (
+        "REDUCED_SIZE_BOOTSTRAP_REQUIRES_GUARDIAN_NEW_ENTRIES_ALLOWED"
+    )
+    assert classification["continuous_edge_guardian_status"] == (
+        "A_GRADE_HALTED_PERFORMANCE"
+    )
+    assert classification["routes_to_live"] is False
+    assert classification["places_real_order"] is False
+
+
+def test_high_confidence_loss_bucket_does_not_block_unrelated_bucket_when_bucket_specific_recovery_enabled() -> None:
+    bucket_status = {
+        "status": "ACTIVE_WITH_QUARANTINES",
+        "blocked_bucket_keys": [
+            "CAKEUSDT|5m|breakout_mode|BREAKOUT,HIGH_VOLATILITY,TREND"
+        ],
+        "quarantined_buckets": [
+            {
+                "bucket_key": "CAKEUSDT|5m|breakout_mode|BREAKOUT,HIGH_VOLATILITY,TREND",
+                "bucket_type": "exact_context",
+                "state": "QUARANTINED",
+                "block_reasons": ["HIGH_CONFIDENCE_LOSS_RATE_ABOVE_ADAPTIVE_BOUND"],
+                "candidate_blocking": True,
+            }
+        ],
+    }
+
+    classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+        signal={"selected_action": "long", "expected_move_after_cost_bps": 20.0},
+        intent={
+            "symbol": "ETHUSDT",
+            "timeframe": "15m",
+            "side": "long",
+            "strategy_id": "breakout_mode",
+            "market_regime_at_entry": "BREAKOUT,HIGH_VOLATILITY,TREND",
+            "confidence_calibrated": 0.73,
+            "expected_move_after_cost_bps": 20.0,
+            "paper_only": True,
+            "places_real_order": False,
+            "production_grade_cost_flag": True,
+            "microstructure_action": "REDUCE_SIZE",
+            "public_orderbook_trust_score": 0.51,
+            "composite_microstructure_trust_score": 0.52,
+            "bootstrap_reduced_size_paper_only": True,
+        },
+        allocation=_allowed_allocation(confidence_calibrated=0.73),
+        integrity_gate={"allowed": True},
+        local_trade_gates_pass=False,
+        exploration_trade_gates_pass=True,
+        paper_fill_allowed_upstream=False,
+        portfolio_drawdown_bps=0.0,
+        continuous_edge_guardian_gate=_active_guardian_gate(),
+        bucket_quarantine_status=bucket_status,
+        preemptive_decision=_allow_preemptive_decision(),
+    )
+
+    assert classification["paper_opportunity_tier"] == (
+        paper_loop.PAPER_TIER_A_PLUS_BOOTSTRAP_REDUCED_SIZE
+    )
+    assert "paper_bucket_quarantine_matched_blocked_bucket_keys" not in classification
+    assert classification["routes_to_live"] is False
+    assert classification["places_real_order"] is False
+
+
+def test_high_confidence_loss_cluster_preserves_close_reduce_only() -> None:
+    status = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
+        _high_confidence_loss_fixture_rows(),
+        generated_utc="2026-07-07T21:20:00Z",
+    )
+
+    assert status["new_entries_allowed"] is False
+    assert status["allow_close"] is True
+    assert status["allow_reduce"] is True
+    assert status["allow_mark_to_market"] is True
+    assert status["allow_feedback_recording"] is True
+    assert status["routes_to_live"] is False
+    assert status["places_real_order"] is False
 
 
 def test_paper_performance_circuit_breaker_blocks_negative_rolling_50_expectancy() -> None:
@@ -8359,3 +9435,378 @@ def test_bucket_quarantine_pre_repair_losses_do_not_halt_globally(tmp_path, monk
         pre_repair, generated_utc="2026-07-06T19:00:00Z"
     )
     assert status_no_artifact["global_halt_required"] is True
+
+
+class TestForbiddenMarkerExecutablePosition:
+    """F-0011: monitoring processes that mention forbidden runtime names in
+    ARGUMENTS must not be classified as forbidden runtimes."""
+
+    def test_grep_pattern_argument_not_forbidden(self):
+        argv = ["bash", "-c", "ps aux | grep paper_online_runtime | head -5"]
+        assert paper_loop._forbidden_markers_for_argv(argv) == []  # noqa: SLF001
+
+    def test_systemctl_status_argument_not_forbidden(self):
+        argv = ["systemctl", "--user", "status", "ai-bot-v2-paper-online-runtime.service"]
+        assert paper_loop._forbidden_markers_for_argv(argv) == []  # noqa: SLF001
+
+    def test_actual_script_execution_is_forbidden(self):
+        argv = ["python3", "/legacy/paper_online_runtime.py", "--loop"]
+        assert "paper_online_runtime" in paper_loop._forbidden_markers_for_argv(argv)  # noqa: SLF001
+
+    def test_module_execution_is_forbidden(self):
+        argv = ["python3", "-m", "legacy.runtime.paper_online_runtime"]
+        assert "paper_online_runtime" in paper_loop._forbidden_markers_for_argv(argv)  # noqa: SLF001
+
+    def test_bash_wrapped_script_execution_is_forbidden(self):
+        argv = ["bash", "-c", "cd /app && python3 toy_momentum_wrapper.py --run"]
+        matched = paper_loop._forbidden_markers_for_argv(argv)  # noqa: SLF001
+        assert "toy_momentum" in matched or "momentum_wrapper" in matched
+
+    def test_worker_task_argument_not_forbidden(self):
+        argv = ["python3", "worker.py", "--task", "verify paper_online_runtime stays disabled"]
+        assert paper_loop._forbidden_markers_for_argv(argv) == []  # noqa: SLF001
+
+
+class TestAdmissionInvalidatedPositionsStayManaged:
+    """F-0015: admission-invalidated positions must remain under lifecycle
+    management (mark-to-market + stops) — never silently orphaned."""
+
+    def test_retained_rows_flagged_and_session_stamped(self):
+        rows = [{"position_id": "paper_pos_XUSDT", "symbol": "XUSDT", "side": "long"}]
+        out = paper_loop._retain_admission_invalidated_positions(  # noqa: SLF001
+            rows, recorded_utc="2026-07-07T06:00:00Z", paper_session_id="sess-1"
+        )
+        assert len(out) == 1
+        row = out[0]
+        assert row["admission_invalidated"] is True
+        assert row["new_entry_admission_eligible"] is False
+        assert row["admission_drop_reason"] == "OPEN_POSITION_FILL_NO_LONGER_ADMISSION_VALID"
+        assert row["paper_session_id"] == "sess-1"
+
+    def test_existing_session_id_preserved(self):
+        rows = [{"position_id": "p", "paper_session_id": "orig"}]
+        out = paper_loop._retain_admission_invalidated_positions(  # noqa: SLF001
+            rows, recorded_utc="t", paper_session_id="new"
+        )
+        assert out[0]["paper_session_id"] == "orig"
+
+    def test_non_dict_rows_skipped(self):
+        out = paper_loop._retain_admission_invalidated_positions(  # noqa: SLF001
+            ["junk", None, {"position_id": "ok"}], recorded_utc="t", paper_session_id="s"
+        )
+        assert len(out) == 1 and out[0]["position_id"] == "ok"
+
+    def test_stop_breached_retained_position_closes_in_one_lifecycle_cycle(self):
+        from v2.backend.app.services.paper_trade_management import (  # noqa: PLC0415
+            PaperLifecycleConfig,
+            reconcile_paper_lifecycle,
+        )
+        from v2.backend.app.services.paper_trade_management.exits import (  # noqa: PLC0415
+            PaperExitConfig,
+        )
+
+        retained = paper_loop._retain_admission_invalidated_positions(  # noqa: SLF001
+            [
+                {
+                    "fill_id": "p0018-stop",
+                    "ledger_row_id": "p0018-stop",
+                    "position_id": "paper_pos_BTCUSDT",
+                    "symbol": "BTCUSDT",
+                    "side": "long",
+                    "quantity": 1.0,
+                    "notional": 100.0,
+                    "notional_usdt": 100.0,
+                    "entry_price": 100.0,
+                    "fill_price": 100.0,
+                    "fill_price_utc": "2026-07-07T10:00:00Z",
+                    "generated_utc": "2026-07-07T10:00:00Z",
+                    "signal_id": "sig_p0018_stop",
+                    "prediction_id": "pred_p0018_stop",
+                    "risk_decision_id": "risk_p0018_stop",
+                    "orchestrator_decision_id": "orch_p0018_stop",
+                    "paper_only": True,
+                    "places_real_order": False,
+                    "gross_notional_usd": 100.0,
+                }
+            ],
+            recorded_utc="2026-07-07T10:00:30Z",
+            paper_session_id="paper_3000_final_pre_live_20260705T024432Z",
+        )
+
+        result = reconcile_paper_lifecycle(
+            existing_ledger={},
+            accepted_fills=retained,
+            mark_prices={"BTCUSDT": 98.0},
+            generated_utc="2026-07-07T10:01:00Z",
+            config=PaperLifecycleConfig(
+                portfolio_equity_usdt=3000.0,
+                exit_config=PaperExitConfig(
+                    stop_loss_bps=50.0,
+                    take_profit_bps=99999.0,
+                    trailing_stop_bps=99999.0,
+                ),
+            ),
+        )
+
+        assert result["open_positions"] == []
+        assert len(result["new_close_events"]) == 1
+        close = result["new_close_events"][0]
+        assert close["close_reason"] == "TIER_1_STOP_LOSS"
+        assert close["realized_pnl_bps"] == pytest.approx(-200.0)
+        assert close["realized_pnl_usd"] == pytest.approx(-2.0)
+        assert close["realized_net_pnl_usd"] < close["realized_pnl_usd"]
+        assert result["paper_exit_coordinator_status"]["evaluations"][0]["should_close"] is True
+
+
+class TestHighConfidenceLossClusterGate:
+    """F-0021 cluster gate: explicit cluster-bucket quarantine + the
+    trust-evidence-missing bootstrap denial that closes the admission vector
+    behind the 2026-07 high-confidence loss cluster."""
+
+    @staticmethod
+    def _cluster_gate() -> dict:
+        return {
+            "cluster_detected": True,
+            "cluster_evidence_missing": False,
+            "high_confidence_loss_count": 6,
+            "affected_symbols": ["CRVUSDT", "WLDUSDT", "AEROUSDT", "XPLUSDT", "CAKEUSDT", "AVNTUSDT"],
+            "quarantined_sides": ["short"],
+            "quarantined_timeframes": ["4h"],
+            "quarantined_strategy_modes": ["breakout_mode"],
+            "bucket_specific_recovery_enabled": True,
+        }
+
+    @staticmethod
+    def _bootstrap_intent(**overrides) -> dict:
+        intent = {
+            "symbol": "DOGEUSDT",
+            "timeframe": "15m",
+            "side": "long",
+            "strategy_id": "trend_mode",
+            "strategy_selected_mode": "trend_mode",
+            "confidence_calibrated": 0.72,
+            "expected_move_after_cost_bps": 18.0,
+            "paper_only": True,
+            "places_real_order": False,
+            "production_grade_cost_flag": True,
+            "microstructure_action": "REDUCE_SIZE",
+            "public_orderbook_trust_score": 0.51,
+            "composite_microstructure_trust_score": 0.52,
+            "bootstrap_reduced_size_paper_only": True,
+        }
+        intent.update(overrides)
+        return intent
+
+    def _classify(self, intent, *, cluster_gate=None, guardian=None):
+        return paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+            signal={
+                "selected_action": intent.get("side"),
+                "confidence_calibrated": intent.get("confidence_calibrated"),
+                "expected_move_after_cost_bps": intent.get(
+                    "expected_move_after_cost_bps"
+                ),
+            },
+            intent=intent,
+            allocation=_allowed_allocation(
+                confidence_calibrated=intent.get("confidence_calibrated"),
+                expected_move_after_cost_bps=intent.get(
+                    "expected_move_after_cost_bps"
+                ),
+            ),
+            integrity_gate={"allowed": True},
+            local_trade_gates_pass=False,
+            exploration_trade_gates_pass=True,
+            paper_fill_allowed_upstream=False,
+            portfolio_drawdown_bps=0.0,
+            continuous_edge_guardian_gate=(
+                guardian if guardian is not None else _active_guardian_gate()
+            ),
+            high_confidence_loss_cluster_gate=cluster_gate,
+            preemptive_decision=_allow_preemptive_decision(),
+    )
+
+    def test_bootstrap_flag_without_any_trust_evidence_is_denied(self) -> None:
+        intent = self._bootstrap_intent(
+            public_orderbook_trust_score=None,
+            composite_microstructure_trust_score=None,
+        )
+        intent.pop("public_orderbook_trust_score")
+        intent.pop("composite_microstructure_trust_score")
+        classification = self._classify(intent)
+        assert classification["paper_opportunity_tier"] == "SHADOW_ONLY"
+        assert classification["paper_opportunity_tier_reason"] == (
+            "MICROSTRUCTURE_TRUST_EVIDENCE_MISSING_BOOTSTRAP_DENIED"
+        )
+        assert classification["counts_as_final_a_plus"] is False
+        assert classification["routes_to_live"] is False
+        assert classification["places_real_order"] is False
+
+    def test_cluster_side_dimension_quarantines_short_candidate(self) -> None:
+        intent = self._bootstrap_intent(
+            symbol="LINKUSDT", side="short", expected_move_after_cost_bps=-18.0
+        )
+        classification = self._classify(intent, cluster_gate=self._cluster_gate())
+        assert classification["paper_opportunity_tier"] == "SHADOW_ONLY"
+        assert classification["paper_opportunity_tier_reason"] == (
+            "HIGH_CONFIDENCE_LOSS_CLUSTER_BUCKET_QUARANTINED"
+        )
+        assert "HIGH_CONFIDENCE_LOSS_CLUSTER_SIDE_QUARANTINED" in classification[
+            "high_confidence_loss_cluster_bucket_match_reasons"
+        ]
+        assert classification["counts_as_final_a_plus"] is False
+
+    def test_cluster_symbol_quarantine_blocks_even_unquarantined_side(self) -> None:
+        intent = self._bootstrap_intent(symbol="CAKEUSDT", side="long")
+        classification = self._classify(intent, cluster_gate=self._cluster_gate())
+        assert classification["paper_opportunity_tier"] == "SHADOW_ONLY"
+        assert "HIGH_CONFIDENCE_LOSS_CLUSTER_SYMBOL_QUARANTINED" in classification[
+            "high_confidence_loss_cluster_bucket_match_reasons"
+        ]
+
+    def test_unrelated_bucket_not_blocked_by_cluster_gate(self) -> None:
+        intent = self._bootstrap_intent(symbol="DOGEUSDT", side="long", timeframe="15m")
+        classification = self._classify(intent, cluster_gate=self._cluster_gate())
+        assert classification["paper_opportunity_tier_reason"] != (
+            "HIGH_CONFIDENCE_LOSS_CLUSTER_BUCKET_QUARANTINED"
+        )
+        assert classification["high_confidence_loss_cluster_bucket_match_reasons"] == []
+
+    def test_missing_cluster_evidence_fails_closed(self) -> None:
+        gate = paper_loop._high_confidence_loss_cluster_gate(None)  # noqa: SLF001
+        assert gate["cluster_detected"] is True
+        assert gate["cluster_evidence_missing"] is True
+        intent = self._bootstrap_intent()
+        classification = self._classify(intent, cluster_gate=gate)
+        assert classification["paper_opportunity_tier"] == "SHADOW_ONLY"
+        assert classification["paper_opportunity_tier_reason"] == (
+            "HIGH_CONFIDENCE_LOSS_CLUSTER_BUCKET_QUARANTINED"
+        )
+
+    def test_final_a_plus_denied_while_cluster_active_even_for_unrelated_a_grade(
+        self,
+    ) -> None:
+        classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+            signal={
+                "selected_action": "long",
+                "confidence_calibrated": 0.80,
+                "expected_move_after_cost_bps": 15.0,
+            },
+            intent={
+                "symbol": "DOGEUSDT",
+                "timeframe": "15m",
+                "side": "long",
+                "strategy_selected_mode": "trend_mode",
+                "confidence_calibrated": 0.80,
+                "expected_move_after_cost_bps": 15.0,
+            },
+            allocation=_allowed_allocation(expected_move_after_cost_bps=15.0),
+            integrity_gate={"allowed": True},
+            local_trade_gates_pass=True,
+            paper_fill_allowed_upstream=True,
+            portfolio_drawdown_bps=0.0,
+            high_confidence_loss_cluster_gate=self._cluster_gate(),
+            preemptive_decision=_allow_preemptive_decision(),
+    )
+        assert classification["paper_opportunity_tier"] == "A_GRADE_EXECUTION_PAPER"
+        assert classification["counts_as_final_a_plus"] is False
+        assert classification[
+            "final_a_plus_denied_by_high_confidence_loss_cluster"
+        ] is True
+
+
+class TestCgF044StateFileOverrideAndSyntheticQuarantine:
+    """CG-F044: state file must never displace non-empty Redis close history,
+    and close rows with no exit evidence must be quarantined, not counted."""
+
+    _FIXTURE_STUB = {
+        "trainer_feedback_id": "fb_incomplete",
+        "outcome_label_id": "out_incomplete",
+        "position_id": "pos_incomplete",
+        "symbol": "BTCUSDT",
+        "realized_pnl_bps": 4.2,
+        "hold_time_seconds": 120,
+        "exit_reason": "TIER_2_TAKE_PROFIT",
+    }
+
+    def _real_close(self, i: int) -> dict[str, object]:
+        return {
+            "close_id": f"close_{i}",
+            "symbol": "ETHUSDT",
+            "side": "long",
+            "exit_price_utc": "2026-07-08T15:00:00Z",
+            "realized_pnl_bps": 10.0 + i,
+            "paper_session_id": "sess_a",
+        }
+
+    def test_state_file_does_not_override_non_empty_redis_closes(
+        self, monkeypatch
+    ) -> None:
+        redis_rows = [self._real_close(i) for i in range(18)]
+        fake = _FakeRedis(
+            {
+                "v2:paper:closed_trades": redis_rows,
+                "v2:paper:outcome_labels": [{"outcome_label_id": "lbl_1"}],
+            }
+        )
+        monkeypatch.setattr(
+            paper_loop,
+            "_read_lifecycle_state_file",
+            lambda *a, **kw: {
+                "closed_trades": [dict(self._FIXTURE_STUB)],
+                "closes": [dict(self._FIXTURE_STUB)],
+                "outcome_labels": [],
+            },
+        )
+        payload = paper_loop._read_existing_ledger_payload(fake)  # noqa: SLF001
+        assert len(payload["closed_trades"]) == 18
+        assert len(payload["closes"]) == 18
+        assert payload["closed_trades"][0]["close_id"] == "close_0"
+        assert len(payload["outcome_labels"]) == 1
+
+    def test_state_file_still_rescues_when_redis_read_is_empty(
+        self, monkeypatch
+    ) -> None:
+        fake = _FakeRedis({})
+        rescue_rows = [self._real_close(0)]
+        monkeypatch.setattr(
+            paper_loop,
+            "_read_lifecycle_state_file",
+            lambda *a, **kw: {"closed_trades": rescue_rows, "closes": rescue_rows},
+        )
+        payload = paper_loop._read_existing_ledger_payload(fake)  # noqa: SLF001
+        assert len(payload["closed_trades"]) == 1
+        assert payload["closed_trades"][0]["close_id"] == "close_0"
+
+    def test_fixture_stub_without_exit_evidence_is_quarantined(self) -> None:
+        real = self._real_close(1)
+        restored_compact = {
+            "symbol": "TLMUSDT",
+            "side": "long",
+            "realized_pnl_bps": 493.52,
+            "reconstructed_from_artifacts": True,
+        }
+        kept, quarantined = paper_loop._split_closes_without_exit_evidence(  # noqa: SLF001
+            [real, dict(self._FIXTURE_STUB), restored_compact]
+        )
+        assert real in kept
+        assert restored_compact in kept
+        assert len(quarantined) == 1
+        assert quarantined[0]["position_id"] == "pos_incomplete"
+        assert (
+            quarantined[0]["quarantine_reason"]
+            == "NO_EXIT_EVIDENCE_SYNTHETIC_OR_TEST_ROW"
+        )
+        assert quarantined[0]["counts_as_closed_trade"] is False
+
+    def test_exit_time_alone_counts_as_exit_evidence(self) -> None:
+        row = {
+            "symbol": "SOLUSDT",
+            "side": "short",
+            "exit_time": "2026-07-08T15:05:00Z",
+            "realized_pnl_bps": -3.0,
+        }
+        kept, quarantined = paper_loop._split_closes_without_exit_evidence(  # noqa: SLF001
+            [row]
+        )
+        assert kept == [row]
+        assert quarantined == []

@@ -22,7 +22,21 @@
       "Bash(sudo cp \"/home/wali/Desktop/AI BOT REBUILD/scripts/verify_claude_guardian_completion.py\" /usr/local/lib/ai-bot-guardian/verify_claude_guardian_completion.py)",
       "Bash(sqlite3 -readonly ~/.config/Code/User/globalStorage/state.vscdb \"SELECT key, length\\(value\\) FROM ItemTable WHERE key LIKE '%chatgpt%' OR key LIKE '%codex%';\")",
       "Skill(claude-api)",
-      "Skill(claude-api:*)"
+      "Skill(claude-api:*)",
+      "Bash(redis-cli GET \"meta:coinank:last_update\")",
+      "Bash(redis-cli LRANGE \"coinank:call_log\" 0 0)",
+      "Bash(read key *)",
+      "Bash(redis-cli GET 'meta:coinank:last_update')",
+      "Bash(echo \"Data freshness: $\\(redis-cli GET 'meta:coinank:last_update'\\)\")",
+      "Bash(redis-cli GET \"v2:technical_analysis:BTCUSDT:1h\")",
+      "Bash(redis-cli HGETALL \"ta:BTCUSDT:1h\")",
+      "Bash(cat)",
+      "Bash(python3 /tmp/implement_ttl.py)",
+      "Bash(python3 v2/backend/app/services/enhanced_unified_feature_builder.py)",
+      "Bash(redis-cli TYPE \"v2:market:ohlcv:binance:BTCUSDT:1h\")",
+      "Bash(redis-cli HGETALL \"v2:market:ohlcv:binance:BTCUSDT:1h\")",
+      "Bash(redis-cli GET \"v2:market:ohlcv:binance:BTCUSDT:1h\")",
+      "Bash(python3 -m json.tool)"
     ],
     "deny": [
       "Read(./legacy_reference/.env)",

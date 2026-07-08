@@ -507,5 +507,5 @@ export function cudaCountMapText(counts: Record<string, number> | null | undefin
 }
 
 export function cudaBpsText(value: number | null | undefined): string {
-  return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(2)} bps` : '—';
+  return typeof value === 'number' && Number.isFinite(value) ? `${(value / 100).toFixed(2)}%` : '—';
 }

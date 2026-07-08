@@ -176,6 +176,7 @@ class OrchestratorArbitrationService:
         *,
         last_arbitration: Optional[ArbitrationResult] = None,
         last_deconflict: Optional[DeconflictResult] = None,
+        provider_context: Optional[Mapping[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Build the operator-runtime public status payload."""
         winners_payload: List[Dict[str, Any]] = []
@@ -262,6 +263,8 @@ class OrchestratorArbitrationService:
             "arbitration_considered_count": considered_count,
             "arbitration_stale_proposal_ids": stale_ids,
             "deconflict": dict(deconflict_payload),
+            "provider_context": dict(provider_context or {}),
+            "optional_provider_failures_core_blocking": False,
             "missing_evidence_reason": DECONFLICT_REASON_MISSING_EVIDENCE,
             "subproject": "4_orchestrator_arbitration",
         }

@@ -10,6 +10,8 @@ import math
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
+from v2.backend.app.services.preemptive_edge_control import evaluate_candidate
+
 from .exchange_filter_sizing import min_executable_order
 from .live_position_state_machine import LiveCanaryConfig, reconcile_exchange_local_state, validate_position_transition
 
@@ -344,6 +346,38 @@ def build_live_pre_submit_dry_run_status(
     account = _as_dict(account_snapshot)
     allocation = _as_dict(allocation_payload)
     candidate = _candidate_summary(allocation, candidate_signal)
+    preemptive_candidate = {
+        **_as_dict(candidate_signal),
+        **allocation,
+        **candidate,
+    }
+    preemptive_decision = _as_dict(
+        _first_present(
+            allocation.get("preemptive_edge_control"),
+            candidate.get("preemptive_edge_control"),
+            candidate_signal and candidate_signal.get("preemptive_edge_control"),
+        )
+    )
+    if not preemptive_decision:
+        preemptive_decision = evaluate_candidate(
+            preemptive_candidate,
+            continuous_edge_guardian_gate={
+                "status": _first_present(
+                    runtime.get("guardian_state"),
+                    runtime.get("risk_status"),
+                    runtime.get("status"),
+                    "LIVE_DRY_RUN_GUARDIAN_EVIDENCE_MISSING",
+                ),
+                "a_grade_new_entries_allowed": runtime.get("new_entries_allowed"),
+            },
+        )
+    if (
+        not preemptive_decision.get("preemptive_action")
+        and preemptive_decision.get("preemptive_decision") == "ALLOW"
+    ):
+        preemptive_decision["preemptive_action"] = "ALLOW_A_PLUS_CANDIDATE"
+        preemptive_decision["preemptive_allowed"] = True
+        preemptive_decision.setdefault("preemptive_block_reasons", [])
     filters = _symbol_filter_for_candidate(symbol_filter_snapshot, str(candidate.get("symbol") or ""))
     filter_snapshot = _as_dict(symbol_filter_snapshot)
     fields = _risk_profile_fields(runtime)
@@ -380,6 +414,35 @@ def build_live_pre_submit_dry_run_status(
         blockers.append("CANDIDATE_NOTIONAL_NOT_POSITIVE")
     if str(candidate.get("allocator_decision") or "") not in ALLOW_ALLOCATOR_DECISIONS:
         blockers.append("LIVE_PRE_SUBMIT_ALLOCATOR_NOT_ALLOWING_SIZE")
+    if not preemptive_decision.get("preemptive_decision_id"):
+        blockers.append("PREEMPTIVE_EDGE_CONTROL_DECISION_MISSING")
+    if preemptive_decision.get("preemptive_decision") != "ALLOW":
+        blockers.append("LIVE_PRE_SUBMIT_PREEMPTIVE_EDGE_CONTROL_NOT_ALLOW")
+    canonical_action = preemptive_decision.get("preemptive_action")
+    if canonical_action != "ALLOW_A_PLUS_CANDIDATE":
+        blockers.append("LIVE_PRE_SUBMIT_PREEMPTIVE_ACTION_NOT_A_PLUS_ALLOW")
+    if preemptive_decision.get("advanced_indicator_consumed") is not True:
+        blockers.append("ADVANCED_INDICATOR_DECISION_MISSING")
+    if preemptive_decision.get("advanced_indicator_block") is True:
+        blockers.append("LIVE_PRE_SUBMIT_ADVANCED_INDICATOR_BLOCK")
+    if preemptive_decision.get("advanced_indicator_shadow") is True:
+        blockers.append("LIVE_PRE_SUBMIT_ADVANCED_INDICATOR_SHADOW_ONLY")
+    advanced_indicator_status = _as_dict(
+        _first_present(
+            preemptive_decision.get("advanced_indicator_status"),
+            {},
+        )
+    )
+    advanced_indicator_exit_inputs = _as_dict(
+        preemptive_decision.get("advanced_indicator_exit_plan_inputs")
+    )
+    pre_trade_loss_probability = _float(
+        preemptive_decision.get("pre_trade_loss_probability")
+    )
+    if pre_trade_loss_probability is None:
+        blockers.append("PRE_TRADE_LOSS_PROBABILITY_MISSING")
+    elif pre_trade_loss_probability >= 0.80:
+        blockers.append("PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND")
 
     available_margin = _float(_first_present(account.get("available_margin"), runtime.get("available_margin"), truth.get("available_margin")))
     required_margin = _float(_first_present(candidate.get("margin"), runtime.get("required_initial_margin"), truth.get("required_initial_margin")))
@@ -483,6 +546,14 @@ def build_live_pre_submit_dry_run_status(
         "step_size_verified": "STEP_SIZE_MISSING" not in unique and "SYMBOL_FILTERS_STALE" not in unique,
         "tick_size_verified": "TICK_SIZE_MISSING" not in unique and "SYMBOL_FILTERS_STALE" not in unique,
         "allocator_allows_size": "LIVE_PRE_SUBMIT_ALLOCATOR_NOT_ALLOWING_SIZE" not in unique,
+        "preemptive_edge_control_pass": "LIVE_PRE_SUBMIT_PREEMPTIVE_EDGE_CONTROL_NOT_ALLOW" not in unique
+        and "PREEMPTIVE_EDGE_CONTROL_DECISION_MISSING" not in unique
+        and "PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND" not in unique
+        and "PRE_TRADE_LOSS_PROBABILITY_MISSING" not in unique
+        and "LIVE_PRE_SUBMIT_PREEMPTIVE_ACTION_NOT_A_PLUS_ALLOW" not in unique,
+        "advanced_indicator_evidence_pass": "ADVANCED_INDICATOR_DECISION_MISSING" not in unique
+        and "LIVE_PRE_SUBMIT_ADVANCED_INDICATOR_BLOCK" not in unique
+        and "LIVE_PRE_SUBMIT_ADVANCED_INDICATOR_SHADOW_ONLY" not in unique,
         "per_symbol_exposure_cap_pass": "PER_SYMBOL_EXPOSURE_CAP_EXCEEDED" not in unique,
         "total_exposure_cap_pass": "TOTAL_EXPOSURE_CAP_EXCEEDED" not in unique,
         "drawdown_cap_pass": "DRAWDOWN_CAP_EXCEEDED" not in unique,
@@ -501,6 +572,29 @@ def build_live_pre_submit_dry_run_status(
         "live_gate": live_gate,
         "release_mode": release_mode,
         "candidate": candidate,
+        "preemptive_edge_control": preemptive_decision,
+        "advanced_indicator_evidence": {
+            "status": preemptive_decision.get("advanced_indicator_status"),
+            "consumed": preemptive_decision.get("advanced_indicator_consumed") is True,
+            "block": preemptive_decision.get("advanced_indicator_block") is True,
+            "shadow": preemptive_decision.get("advanced_indicator_shadow") is True,
+            "block_reasons": preemptive_decision.get("advanced_indicator_block_reasons") or [],
+            "caution_reasons": preemptive_decision.get("advanced_indicator_caution_reasons") or [],
+            "missing_evidence": preemptive_decision.get("advanced_indicator_missing_evidence") or [],
+            "confluence_score": preemptive_decision.get("advanced_indicator_confluence_score"),
+            "fvg_standalone_allows_trade": False,
+            "fvg_present": preemptive_decision.get("fvg_present"),
+            "fvg_side_aligned": preemptive_decision.get("fvg_side_aligned"),
+            "liquidity_sweep_risk": preemptive_decision.get("liquidity_sweep_risk"),
+            "exit_plan_inputs": advanced_indicator_exit_inputs,
+            **advanced_indicator_status,
+        },
+        "pre_trade_loss_probability": preemptive_decision.get(
+            "pre_trade_loss_probability"
+        ),
+        "expected_edge_after_cost": preemptive_decision.get(
+            "expected_edge_after_cost_bps"
+        ),
         "symbol_filter_status": filters,
         "kill_switch_status": kill_switch,
         "position_reconciliation_status": position_status,
@@ -523,6 +617,15 @@ def build_first_live_canary_operator_packet(
 ) -> dict[str, Any]:
     pre_submit = _as_dict(pre_submit_status)
     candidate = _as_dict(pre_submit.get("candidate")) or _candidate_summary(allocation_payload, candidate_signal)
+    preemptive = _as_dict(pre_submit.get("preemptive_edge_control"))
+    advanced = _as_dict(pre_submit.get("advanced_indicator_evidence"))
+    advanced_exit_inputs = _as_dict(
+        _first_present(
+            advanced.get("exit_plan_inputs"),
+            preemptive.get("advanced_indicator_exit_plan_inputs"),
+            {},
+        )
+    )
     blockers = [str(item) for item in _as_list(pre_submit.get("blockers")) if str(item)]
     allowed_reasons = [
         "dry_run_only_no_exchange_submit",
@@ -537,14 +640,85 @@ def build_first_live_canary_operator_packet(
         if pre_submit.get("operator_review_ready") is True
         else "FIRST_LIVE_CANARY_PACKET_BLOCKED",
         "candidate_symbol": candidate.get("symbol"),
+        "symbol": candidate.get("symbol"),
         "side": candidate.get("side"),
         "quantity": candidate.get("quantity"),
+        "qty": candidate.get("quantity"),
         "notional": candidate.get("notional"),
         "margin": candidate.get("margin"),
         "leverage_recommendation": candidate.get("leverage_recommendation"),
+        "recommended_leverage": candidate.get("leverage_recommendation"),
         "margin_mode_recommendation": candidate.get("margin_mode_recommendation"),
+        "recommended_margin_mode": candidate.get("margin_mode_recommendation"),
+        "preemptive_decision": preemptive.get("preemptive_decision"),
+        "preemptive_decision_id": preemptive.get("preemptive_decision_id"),
+        "preemptive_action": preemptive.get("preemptive_action"),
+        "preemptive_allowed": preemptive.get("preemptive_allowed") is True,
+        "preemptive_block_reasons": preemptive.get("preemptive_block_reasons")
+        or preemptive.get("preemptive_decision_reasons")
+        or [],
+        "pre_trade_loss_probability": preemptive.get("pre_trade_loss_probability"),
+        "pre_trade_expected_net_pnl_usd": preemptive.get(
+            "pre_trade_expected_net_pnl_usd"
+        ),
+        "expected_edge_after_cost": preemptive.get("expected_edge_after_cost_bps"),
+        "advanced_indicator_evidence": {
+            "status": _first_present(
+                advanced.get("status"),
+                preemptive.get("advanced_indicator_status"),
+            ),
+            "consumed": _first_present(
+                advanced.get("consumed"),
+                preemptive.get("advanced_indicator_consumed") is True,
+            ),
+            "block": _first_present(
+                advanced.get("block"),
+                preemptive.get("advanced_indicator_block") is True,
+            ),
+            "shadow": _first_present(
+                advanced.get("shadow"),
+                preemptive.get("advanced_indicator_shadow") is True,
+            ),
+            "block_reasons": _first_present(
+                advanced.get("block_reasons"),
+                preemptive.get("advanced_indicator_block_reasons"),
+                [],
+            ),
+            "caution_reasons": _first_present(
+                advanced.get("caution_reasons"),
+                preemptive.get("advanced_indicator_caution_reasons"),
+                [],
+            ),
+            "missing_evidence": _first_present(
+                advanced.get("missing_evidence"),
+                preemptive.get("advanced_indicator_missing_evidence"),
+                [],
+            ),
+            "confluence_score": _first_present(
+                advanced.get("confluence_score"),
+                preemptive.get("advanced_indicator_confluence_score"),
+            ),
+            "fvg_standalone_allows_trade": False,
+            "fvg_present": _first_present(
+                advanced.get("fvg_present"),
+                preemptive.get("fvg_present"),
+            ),
+            "fvg_side_aligned": _first_present(
+                advanced.get("fvg_side_aligned"),
+                preemptive.get("fvg_side_aligned"),
+            ),
+            "liquidity_sweep_risk": _first_present(
+                advanced.get("liquidity_sweep_risk"),
+                preemptive.get("liquidity_sweep_risk"),
+            ),
+        },
         "stop_exit_plan": {
             "stop_distance_bps": candidate.get("stop_distance_bps"),
+            "nearest_liquidity_above": advanced_exit_inputs.get("nearest_liquidity_above"),
+            "nearest_liquidity_below": advanced_exit_inputs.get("nearest_liquidity_below"),
+            "distance_to_fvg_bps": advanced_exit_inputs.get("distance_to_fvg_bps"),
+            "distance_to_vwap_bps": advanced_exit_inputs.get("distance_to_vwap_bps"),
+            "structure_invalidation": advanced_exit_inputs.get("structure_invalidation"),
             "dynamic_exit_required": True,
             "static_stop_final_output_allowed": False,
             "static_take_profit_final_output_allowed": False,

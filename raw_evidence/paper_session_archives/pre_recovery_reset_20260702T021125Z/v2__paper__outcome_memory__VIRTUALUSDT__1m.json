@@ -1,0 +1,42 @@
+{
+  "avg_loser_bps": -24.8654,
+  "avg_winner_bps": null,
+  "baseline_advisory_reasons": [],
+  "baseline_evidence_date": null,
+  "baseline_trade_count": 0,
+  "block_reason": null,
+  "bucket_scope": "symbol_timeframe",
+  "consecutive_losses": 1,
+  "data_source": "REDIS",
+  "degraded": false,
+  "degraded_since": null,
+  "drawdown_contribution_usd": -0.62732746,
+  "last_trade_ts": "2026-06-18T14:10:26Z",
+  "last_updated": "2026-06-19T02:09:01Z",
+  "loss_count": 1,
+  "max_drawdown_bps": 24.8654,
+  "missed_tp_then_stop_rate": null,
+  "recent_bps": [
+    -24.865421826821024
+  ],
+  "recent_missed_tp_then_stop": [],
+  "recent_outcomes": [
+    0
+  ],
+  "recent_pnl_usd": [
+    -0.6273274586880614
+  ],
+  "recent_reversal_after_entry": [],
+  "recent_slippage_failures": [],
+  "reversal_after_entry_rate": null,
+  "rolling_ev_bps": -24.8654,
+  "rolling_win_rate": 0.0,
+  "schema_version": "v2_outcome_memory_updater_v1",
+  "slippage_failure_rate": null,
+  "soak_count": 1,
+  "symbol": "VIRTUALUSDT",
+  "timeframe": "1m",
+  "total_trades": 1,
+  "trade_count": 1,
+  "win_count": 0
+}

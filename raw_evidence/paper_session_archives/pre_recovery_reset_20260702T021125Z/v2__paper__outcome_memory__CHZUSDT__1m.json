@@ -1,0 +1,52 @@
+{
+  "avg_loser_bps": 0.0,
+  "avg_winner_bps": 666.6097,
+  "baseline_advisory_reasons": [],
+  "baseline_evidence_date": null,
+  "baseline_trade_count": 0,
+  "block_reason": null,
+  "bucket_scope": "symbol_timeframe",
+  "consecutive_losses": 0,
+  "data_source": "REDIS",
+  "degraded": false,
+  "degraded_since": null,
+  "drawdown_contribution_usd": -0.03038278,
+  "last_trade_ts": "2026-06-23T01:06:56.676Z",
+  "last_updated": "2026-06-23T22:29:41Z",
+  "loss_count": 1,
+  "max_drawdown_bps": 0.0,
+  "missed_tp_then_stop_rate": null,
+  "outcome_memory_can_block_entries": false,
+  "recent_bps": [
+    0.0,
+    666.6096850425972
+  ],
+  "recent_missed_tp_then_stop": [],
+  "recent_outcomes": [
+    0,
+    1
+  ],
+  "recent_pnl_usd": [
+    -0.03038277516853211,
+    1.8701885524410886
+  ],
+  "recent_reversal_after_entry": [],
+  "recent_slippage_failures": [
+    0,
+    0
+  ],
+  "reversal_after_entry_rate": null,
+  "rolling_ev_bps": 333.3048,
+  "rolling_win_rate": 0.5,
+  "schema_version": "v2_outcome_memory_updater_v1",
+  "slippage_failure_rate": 0.0,
+  "soak_count": 2,
+  "symbol": "CHZUSDT",
+  "timeframe": "1m",
+  "total_trades": 2,
+  "trade_count": 2,
+  "trust_evidence_status": "MIXED_TRUST_OUTCOME_MEMORY_ADVISORY",
+  "trusted_trade_count": 1,
+  "untrusted_trade_count": 1,
+  "win_count": 1
+}

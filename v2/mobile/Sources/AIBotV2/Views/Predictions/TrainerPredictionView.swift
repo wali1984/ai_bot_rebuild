@@ -89,6 +89,7 @@ struct TrainerPredictionView: View {
     private var signalMatrixList: some View {
         ScrollView {
             VStack(spacing: 12) {
+                RuntimeTruthLiveCard(title: "Runtime Truth")
                 metricsRow
                 matrixList
             }
@@ -289,7 +290,7 @@ struct PredictionDetailView: View {
             if let move = row.expected_move_bps {
                 DataRow(
                     label: "Expected Move",
-                    value: String(format: "%.1f bps", move),
+                    value: String(format: "%+.2f%%", move / 100.0),
                     mono: true
                 )
             }

@@ -648,7 +648,8 @@ export function formatAdaptivePercent(value: number | null | undefined): string 
 
 export function formatAdaptiveBps(value: number | null | undefined): string {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
-  return `${value >= 0 ? '+' : ''}${value.toFixed(1)} bps`;
+  const pct = value / 100;
+  return `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
 }
 
 export function adaptiveStatusColor(status: string | null | undefined): string {

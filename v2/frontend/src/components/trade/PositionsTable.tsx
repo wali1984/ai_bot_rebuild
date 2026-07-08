@@ -49,6 +49,12 @@ function positiveNumber(...values: Array<number | null | undefined>): number | n
   return null;
 }
 
+function bpsAsPercent(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return '—';
+  const pct = value / 100;
+  return `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
+}
+
 export function PositionsTable({ state }: { state: TradeTerminalState }): JSX.Element {
   const [filter, setFilter] = useState('');
 
@@ -116,7 +122,7 @@ export function PositionsTable({ state }: { state: TradeTerminalState }): JSX.El
             <span>Entry</span>
             <span>Mark</span>
             <span>Net PnL</span>
-            <span>bps</span>
+            <span>PnL %</span>
             <span>Strategy</span>
             <span>Regime</span>
             <span>Age</span>
@@ -143,8 +149,8 @@ export function PositionsTable({ state }: { state: TradeTerminalState }): JSX.El
                 <span data-label="Net PnL" className={signedClass(pos.unrealized_pnl)}>
                   {formatMoney(pos.unrealized_pnl)}
                 </span>
-                <span data-label="bps" className={signedClass(pos.unrealized_pnl_bps)}>
-                  {pos.unrealized_pnl_bps != null ? pos.unrealized_pnl_bps.toFixed(1) : '—'}
+                <span data-label="PnL %" className={signedClass(pos.unrealized_pnl_bps)}>
+                  {bpsAsPercent(pos.unrealized_pnl_bps)}
                 </span>
                 <span data-label="Strategy" style={{ fontSize: 10 }}>{pos.strategy_id ?? '—'}</span>
                 <span data-label="Regime" style={{ fontSize: 10 }}>{pos.market_regime_at_entry ?? '—'}</span>

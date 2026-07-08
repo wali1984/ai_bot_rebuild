@@ -56,6 +56,7 @@ struct MonitorView: View {
             VStack(spacing: 14) {
                 if let h = vm.health {
                     systemOverviewCard(h)
+                    RuntimeTruthLiveCard(title: "Runtime Truth")
                     trainerHealthCard(h.trainer)
                     gpuHealthCard(h.gpu)
                     paperHealthCard(h.paper)

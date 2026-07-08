@@ -236,14 +236,22 @@ export default function PortfolioPage(): JSX.Element {
       <div style={{ padding: '16px 24px' }}>
         <div className="trader-metric-grid">
           <CanonicalMetricCard label="Equity" metric={accountMetric('account.equity')} />
-          <CanonicalMetricCard label="Available Balance" metric={accountMetric('account.available_balance')} />
+          <CanonicalMetricCard
+            label="Available Balance"
+            metric={accountMetric('account.available_balance')}
+            emptyText="Paper balance unavailable; live signed account not read"
+          />
           <CanonicalMetricCard label="Realized PnL" metric={accountMetric('account.realized_pnl')} />
           <CanonicalMetricCard label="Unrealized PnL" metric={accountMetric('account.unrealized_pnl')} />
           <CanonicalMetricCard label="Daily PnL" metric={accountMetric('account.daily_pnl')} />
           <CanonicalMetricCard label="Drawdown" metric={accountMetric('account.drawdown')} />
           <CanonicalMetricCard label="Exposure" metric={accountMetric('account.exposure')} />
           <CanonicalMetricCard label="Open Positions" metric={accountMetric('account.open_position_count')} />
-          <CanonicalMetricCard label="Risk Status" metric={riskMetric} />
+          <CanonicalMetricCard
+            label="Risk Status"
+            metric={riskMetric}
+            emptyText="Fail-closed: no current risk record"
+          />
           <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '14px 16px' }}>
             <span style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>1D PnL Window</span>
             <span style={{ display: 'block', fontSize: 18, fontWeight: 700, fontFamily: 'var(--font-mono)', color: (oneDay?.realized_pnl_usd ?? 0) >= 0 ? 'var(--buy)' : 'var(--sell)', overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: 1.15 }}>{formatAdaptiveMoney(oneDay?.realized_pnl_usd)}</span>

@@ -1,0 +1,52 @@
+{
+  "avg_loser_bps": -1.7452,
+  "avg_winner_bps": 25.6872,
+  "baseline_advisory_reasons": [],
+  "baseline_evidence_date": null,
+  "baseline_trade_count": 0,
+  "block_reason": null,
+  "bucket_scope": "symbol_timeframe",
+  "consecutive_losses": 1,
+  "data_source": "REDIS",
+  "degraded": false,
+  "degraded_since": null,
+  "drawdown_contribution_usd": -0.0257636,
+  "last_trade_ts": "2026-06-30T18:43:15.570Z",
+  "last_updated": "2026-07-02T02:07:47Z",
+  "loss_count": 1,
+  "max_drawdown_bps": 1.7452,
+  "missed_tp_then_stop_rate": null,
+  "outcome_memory_can_block_entries": true,
+  "recent_bps": [
+    25.68719872239126,
+    -1.7452006980796024
+  ],
+  "recent_missed_tp_then_stop": [],
+  "recent_outcomes": [
+    1,
+    0
+  ],
+  "recent_pnl_usd": [
+    0.09254280412697759,
+    -0.02576360119726732
+  ],
+  "recent_reversal_after_entry": [],
+  "recent_slippage_failures": [
+    0,
+    0
+  ],
+  "reversal_after_entry_rate": null,
+  "rolling_ev_bps": 11.971,
+  "rolling_win_rate": 0.5,
+  "schema_version": "v2_outcome_memory_updater_v1",
+  "slippage_failure_rate": 0.0,
+  "soak_count": 2,
+  "symbol": "CELOUSDT",
+  "timeframe": "5m",
+  "total_trades": 2,
+  "trade_count": 2,
+  "trust_evidence_status": "TRUSTED_OUTCOME_MEMORY",
+  "trusted_trade_count": 2,
+  "untrusted_trade_count": 0,
+  "win_count": 1
+}

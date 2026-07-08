@@ -422,7 +422,11 @@ export default function AccountSettingsPage(): JSX.Element {
           <CanonicalMetricCard label="Account Mode" metric={accountMetric('account.mode')} />
           <CanonicalMetricCard label="Account Connection" metric={accountMetric('account.connection_status')} />
           <CanonicalMetricCard label="Equity" metric={accountMetric('account.equity')} />
-          <CanonicalMetricCard label="Available Balance" metric={accountMetric('account.available_balance')} />
+          <CanonicalMetricCard
+            label="Available Balance"
+            metric={accountMetric('account.available_balance')}
+            emptyText="Paper balance unavailable; live signed account not read"
+          />
         </div>
         <div className="cockpit-analytics-grid" style={{ marginTop: 14 }}>
           <Metric label="Backend session" value={user?.is_active ? 'Active' : 'Access unavailable'} />

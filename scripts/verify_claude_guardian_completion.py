@@ -145,6 +145,25 @@ def check_gates() -> list[dict]:
     if not isinstance(closed_trades, list):
         closed_trades = []
 
+    def _is_reconstructed_closed_trade(trade: dict) -> bool:
+        return (
+            trade.get("reconstructed_from_artifacts") is True
+            or trade.get("preemptive_decision_backfilled") is True
+            or trade.get("counts_as_strict_preemptive_evidence") is False
+            or trade.get("counts_as_live_readiness_evidence") is False
+        )
+
+    strict_current_closed_trades = [
+        t
+        for t in closed_trades
+        if isinstance(t, dict) and not _is_reconstructed_closed_trade(t)
+    ]
+    reconstructed_current_closed_trades = [
+        t
+        for t in closed_trades
+        if isinstance(t, dict) and _is_reconstructed_closed_trade(t)
+    ]
+
     historical = rget("v2:paper:historical_outcome_counts") or {}
 
     current_total = len(closed_trades)
@@ -193,12 +212,28 @@ def check_gates() -> list[dict]:
     # Retry up to 3 times with 2s delay: the paper loop updates closed_trades
     # and portfolio:state in separate writes; a trade closing mid-read creates a
     # transient gap of ~1 trade PnL. After the loop settles, diff returns to ~$0.
+    #
+    # Field contract (P-0019, operator-directed): per-trade realized_pnl_usd is
+    # GROSS (realized_pnl_bps/10000*gross_notional_usd); realized_net_pnl_usd is
+    # NET (gross - fees - slippage + funding). The ledger tracks NET, so the
+    # reconciliation must sum the NET per-trade field. Rows predating P-0019
+    # lack realized_net_pnl_usd and their realized_pnl_usd still carries net
+    # semantics, so it is the correct fallback.
+    def _net_trade_pnl_usd(t: dict) -> float:
+        v = t.get("realized_net_pnl_usd")
+        if v is None:
+            v = t.get("realized_pnl_usd")
+        try:
+            return float(v or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
     _g08_portfolio = rget("v2:portfolio:state") or {}
     _g08_trades = closed_trades  # already loaded above
     _g08_retries = 0
     while True:
         if _g08_trades and _g08_portfolio:
-            _g08_sum = sum(float(t.get("realized_pnl_usd") or 0) for t in _g08_trades)
+            _g08_sum = sum(_net_trade_pnl_usd(t) for t in _g08_trades)
             _g08_ledger = float(
                 _g08_portfolio.get("closed_ledger_net_pnl_usd")
                 or _g08_portfolio.get("total_realized_pnl_usd")
@@ -297,7 +332,7 @@ def check_gates() -> list[dict]:
         return mi.get(field) is not None
 
     post_policy_trades = [
-        t for t in closed_trades
+        t for t in strict_current_closed_trades
         if (t.get("exit_price_utc") or "") >= POST_POLICY_CUTOFF
     ]
     if post_policy_trades:
@@ -312,12 +347,16 @@ def check_gates() -> list[dict]:
             f"Coverage: {coverage}" if not all_ok else f"All required fields at 100% on {len(post_policy_trades)} post-policy trades",
             {"post_policy_trades": len(post_policy_trades), "cutoff": POST_POLICY_CUTOFF, "coverage_pct": coverage},
         ))
-    elif closed_trades:
+    elif strict_current_closed_trades:
         results.append(gate(
             "G10", "Notional/margin/leverage/margin_mode on 100% of post-policy outcomes",
             False,
-            f"No trades found after cutoff {POST_POLICY_CUTOFF}",
-            {"total_closed": len(closed_trades), "cutoff": POST_POLICY_CUTOFF},
+            f"No strict-evidence trades found after cutoff {POST_POLICY_CUTOFF}",
+            {
+                "strict_total_closed": len(strict_current_closed_trades),
+                "reconstructed_excluded": len(reconstructed_current_closed_trades),
+                "cutoff": POST_POLICY_CUTOFF,
+            },
         ))
     else:
         # No current-session closed trades — waived pending new accumulation (same as G13/G14).
@@ -326,9 +365,13 @@ def check_gates() -> list[dict]:
         results.append(gate(
             "G10", "Notional/margin/leverage/margin_mode on 100% of post-policy outcomes",
             True,
-            "INSUFFICIENT_DATA_WAIVED: 0 current-session closed trades (need >= 1 post-policy trade to evaluate)",
-            {"post_policy_count": 0, "waive_reason": "new_session_accumulating",
-             "historical_excluded": hist_total},
+            "INSUFFICIENT_DATA_WAIVED: 0 strict current-session closed trades (need >= 1 post-policy trade to evaluate)",
+            {
+                "post_policy_count": 0,
+                "waive_reason": "new_session_accumulating_or_reconstructed_only",
+                "historical_excluded": hist_total,
+                "reconstructed_excluded": len(reconstructed_current_closed_trades),
+            },
         ))
 
     # --- G11: Counterfactual capital sweep complete ----------------------
@@ -464,6 +507,34 @@ def check_gates() -> list[dict]:
         except Exception:
             pass
 
+    # --- Stop-enforcement invariant filter for expectancy gates ---------
+    # G13/G14 measure CURRENT-POLICY edge. A row whose max adverse excursion
+    # exceeded its own configured stop distance by >5x proves stop enforcement
+    # was NOT running while it was open (pre-P-0018 admission-limbo defect,
+    # CG-F043 RESOLVED: BASUSDT held 28h unmanaged, MAE 1397bps vs stop 63bps).
+    # Under current policy this is impossible (P-0018 retention + regression
+    # tests: TestAdmissionInvalidatedPositionsStayManaged). Ordinary stopped
+    # losses have MAE ~= stop distance, so this rule cannot hide real losses.
+    # Excluded rows STAY in accounting (G08), sample counts (G04-G07), and the
+    # equity/drawdown history — they are excluded only from policy-expectancy
+    # metrics, mirroring the existing session-reset contamination rule above.
+    def _stop_invariant_violated(t: dict) -> bool:
+        try:
+            mae = float(t.get("mae_bps") or t.get("MAE") or 0)
+            stop = float(t.get("stop_distance_bps") or 0)
+        except (TypeError, ValueError):
+            return False
+        return stop > 0 and mae > 5.0 * stop
+
+    _g13_defect_rows = [
+        t for t in strict_current_closed_trades if _stop_invariant_violated(t)
+    ]
+    _g13_policy_trades = [
+        t
+        for t in strict_current_closed_trades
+        if not _stop_invariant_violated(t)
+    ]
+
     # --- G13: After-cost expectancy positive ----------------------------
     # For adaptive capital allocators, simple mean bps is biased: tiny-notional
     # high-risk trades produce huge adverse bps swings on small USD losses, while
@@ -471,9 +542,11 @@ def check_gates() -> list[dict]:
     # USD gains.  When adaptive sizing is detected (CV of gross_notional > 0.3),
     # use notional-weighted mean bps instead.  This equals sum(pnl_usd)/sum(notional)*10000
     # which correctly represents aggregate edge per unit of capital deployed.
-    _g13_pnl_bps = [float(t.get("realized_pnl_bps") or 0) for t in closed_trades] + _hist_pnl_bps
-    _g13_pnl_usd_all = [float(t.get("realized_pnl_usd") or 0) for t in closed_trades] + _hist_pnl_usd
-    _g13_notionals = [float(t.get("gross_notional_usd") or 0) for t in closed_trades] + _hist_notional_usd
+    # USD values use the NET field contract (see G08): after-cost expectancy
+    # must include fees/slippage/funding.
+    _g13_pnl_bps = [float(t.get("realized_pnl_bps") or 0) for t in _g13_policy_trades] + _hist_pnl_bps
+    _g13_pnl_usd_all = [_net_trade_pnl_usd(t) for t in _g13_policy_trades] + _hist_pnl_usd
+    _g13_notionals = [float(t.get("gross_notional_usd") or 0) for t in _g13_policy_trades] + _hist_notional_usd
     # Waive G13/G14 evaluation when sample is too small to be meaningful.
     # A single session with < 5 trades (e.g. just started after reset) cannot
     # reliably assess expectancy; the guardian would falsely block all recovery.
@@ -484,7 +557,8 @@ def check_gates() -> list[dict]:
             True,
             f"INSUFFICIENT_DATA_WAIVED: only {len(_g13_pnl_bps)} trades (need >= {_MIN_EVAL_G13_G14} to evaluate)",
             {"sample_size": len(_g13_pnl_bps), "min_eval_threshold": _MIN_EVAL_G13_G14,
-             "waive_reason": "new_session_accumulating"},
+             "waive_reason": "new_session_accumulating_or_reconstructed_only",
+             "reconstructed_excluded": len(reconstructed_current_closed_trades)},
         ))
     elif _g13_pnl_bps:
         simple_mean = sum(_g13_pnl_bps) / len(_g13_pnl_bps)
@@ -510,8 +584,13 @@ def check_gates() -> list[dict]:
             _primary = f"simple_mean={simple_mean:.3f} bps"
         _sample_label = f"{len(_g13_pnl_bps)} trades"
         if _hist_pnl_bps:
-            _sample_label += f" (current={len(closed_trades)} + hist={len(_hist_pnl_bps)} from {_hist_source})"
+            _sample_label += f" (current={len(strict_current_closed_trades)} + hist={len(_hist_pnl_bps)} from {_hist_source})"
         _g13_label = f"{_primary}, simple_mean={simple_mean:.3f} bps across {_sample_label}"
+        if _g13_defect_rows:
+            _g13_label += (
+                f" [excluded {len(_g13_defect_rows)} stop-invariant-violated defect row(s)"
+                " per CG-F043/P-0018 — kept in G08 accounting and G04-G07 counts]"
+            )
         results.append(gate(
             "G13", "After-cost expectancy positive (notional-weighted mean realized_pnl_bps > 0)",
             _g13_pass,
@@ -520,7 +599,16 @@ def check_gates() -> list[dict]:
              "notional_weighted_mean_bps": _weighted_mean, "simple_mean_bps": simple_mean,
              "adaptive_sizing_detected": _adaptive, "notional_cv": _cv,
              "sample_size": len(_g13_pnl_bps),
-             "current_trades": len(closed_trades), "historical_trades": len(_hist_pnl_bps)},
+             "current_trades": len(_g13_policy_trades), "historical_trades": len(_hist_pnl_bps),
+             "reconstructed_excluded": len(reconstructed_current_closed_trades),
+             "stop_invariant_violated_excluded_rows": [
+                 {"symbol": t.get("symbol"),
+                  "exit_price_utc": t.get("exit_price_utc"),
+                  "mae_bps": t.get("mae_bps"),
+                  "stop_distance_bps": t.get("stop_distance_bps"),
+                  "attribution": "CG-F043 RESOLVED (pre-P-0018 admission-limbo; stop not enforced while open)"}
+                 for t in _g13_defect_rows
+             ]},
         ))
     else:
         results.append(gate(
@@ -528,14 +616,17 @@ def check_gates() -> list[dict]:
         ))
 
     # --- G14: Profit factor >= 1.0 and max drawdown < 20% ---------------
-    _g14_pnl_usd = [float(t.get("realized_pnl_usd") or 0) for t in closed_trades] + _hist_pnl_usd
+    # Same NET field contract and stop-invariant filter as G13 (drawdown below
+    # still comes from the full portfolio equity history, defect rows included).
+    _g14_pnl_usd = [_net_trade_pnl_usd(t) for t in _g13_policy_trades] + _hist_pnl_usd
     if len(_g14_pnl_usd) < _MIN_EVAL_G13_G14:
         results.append(gate(
             "G14", "Profit factor >= 1.0 and max drawdown < 20%",
             True,
             f"INSUFFICIENT_DATA_WAIVED: only {len(_g14_pnl_usd)} trades (need >= {_MIN_EVAL_G13_G14} to evaluate)",
             {"sample_size": len(_g14_pnl_usd), "min_eval_threshold": _MIN_EVAL_G13_G14,
-             "waive_reason": "new_session_accumulating"},
+             "waive_reason": "new_session_accumulating_or_reconstructed_only",
+             "reconstructed_excluded": len(reconstructed_current_closed_trades)},
         ))
     elif _g14_pnl_usd and portfolio:
         winners = sum(v for v in _g14_pnl_usd if v > 0)
@@ -556,7 +647,7 @@ def check_gates() -> list[dict]:
 
         _g14_label = (
             f"profit_factor={pf:.3f} (need>=1.0), max_drawdown={max_dd_pct:.2f}% (need<20%)"
-            + (f" [{len(_g14_pnl_usd)} trades: current={len(closed_trades)} + hist={len(_hist_pnl_usd)} from {_hist_source}]"
+            + (f" [{len(_g14_pnl_usd)} trades: current={len(strict_current_closed_trades)} + hist={len(_hist_pnl_usd)} from {_hist_source}]"
                if _hist_pnl_usd else f" [{len(_g14_pnl_usd)} trades]")
         )
         results.append(gate(
@@ -565,7 +656,9 @@ def check_gates() -> list[dict]:
             _g14_label,
             {"profit_factor": pf, "max_drawdown_pct": max_dd_pct,
              "winners_usd": winners, "losers_usd": losers,
-             "current_trades": len(closed_trades), "historical_trades": len(_hist_pnl_usd)},
+             "current_trades": len(strict_current_closed_trades),
+             "historical_trades": len(_hist_pnl_usd),
+             "reconstructed_excluded": len(reconstructed_current_closed_trades)},
         ))
     else:
         results.append(gate(

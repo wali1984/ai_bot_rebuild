@@ -1,0 +1,231 @@
+{
+  "schema_version": "moralis_token_contract_map_seed_v1",
+  "policy": {
+    "accept_wrong_chain_contract": false,
+    "require_metadata_validation": true,
+    "manual_review_required_default": true,
+    "moralis_is_curated_smart_money": false
+  },
+  "tokens": [
+    {
+      "symbol": "BTCUSDT",
+      "base_asset": "BTC",
+      "primary_chain": "bitcoin",
+      "contracts": [
+        {
+          "chain": "bitcoin",
+          "contract_address": "native",
+          "token_name": "Bitcoin",
+          "token_symbol": "BTC",
+          "decimals": 8,
+          "moralis_supported": true,
+          "mapping_confidence": 0.95,
+          "mapping_source": "native_asset_manual_seed",
+          "manual_review_required": false,
+          "tradeable_mapping_status": "VERIFIED",
+          "token_endpoint_supported": false
+        }
+      ]
+    },
+    {
+      "symbol": "ETHUSDT",
+      "base_asset": "ETH",
+      "primary_chain": "ethereum",
+      "contracts": [
+        {
+          "chain": "ethereum",
+          "contract_address": "native",
+          "token_name": "Ether",
+          "token_symbol": "ETH",
+          "decimals": 18,
+          "moralis_supported": true,
+          "mapping_confidence": 0.95,
+          "mapping_source": "native_asset_manual_seed",
+          "manual_review_required": false,
+          "tradeable_mapping_status": "VERIFIED",
+          "token_endpoint_supported": false
+        }
+      ]
+    },
+    {
+      "symbol": "SOLUSDT",
+      "base_asset": "SOL",
+      "primary_chain": "solana",
+      "contracts": [
+        {
+          "chain": "solana",
+          "contract_address": "native",
+          "token_name": "Solana",
+          "token_symbol": "SOL",
+          "decimals": 9,
+          "moralis_supported": true,
+          "mapping_confidence": 0.95,
+          "mapping_source": "native_asset_manual_seed",
+          "manual_review_required": false,
+          "tradeable_mapping_status": "VERIFIED",
+          "token_endpoint_supported": false
+        }
+      ]
+    },
+    {
+      "symbol": "BNBUSDT",
+      "base_asset": "BNB",
+      "primary_chain": "bsc",
+      "contracts": [
+        {
+          "chain": "bsc",
+          "contract_address": "native",
+          "token_name": "BNB",
+          "token_symbol": "BNB",
+          "decimals": 18,
+          "moralis_supported": true,
+          "mapping_confidence": 0.95,
+          "mapping_source": "native_asset_manual_seed",
+          "manual_review_required": false,
+          "tradeable_mapping_status": "VERIFIED",
+          "token_endpoint_supported": false
+        }
+      ]
+    },
+    {
+      "symbol": "XRPUSDT",
+      "base_asset": "XRP",
+      "primary_chain": "xrp",
+      "contracts": [
+        {
+          "chain": "xrp",
+          "contract_address": "native",
+          "token_name": "XRP",
+          "token_symbol": "XRP",
+          "decimals": 6,
+          "moralis_supported": false,
+          "mapping_confidence": 0.40,
+          "mapping_source": "native_asset_manual_seed_requires_chain_support_review",
+          "manual_review_required": true,
+          "tradeable_mapping_status": "NEEDS_METADATA_VALIDATION",
+          "token_endpoint_supported": false
+        }
+      ]
+    },
+    {
+      "symbol": "LINKUSDT",
+      "base_asset": "LINK",
+      "primary_chain": "ethereum",
+      "contracts": [
+        {
+          "chain": "ethereum",
+          "contract_address": "0x514910771af9ca656af840dff83e8264ecf986ca",
+          "token_name": "Chainlink",
+          "token_symbol": "LINK",
+          "decimals": 18,
+          "moralis_supported": true,
+          "mapping_confidence": 0.90,
+          "mapping_source": "manual_seed_requires_moralis_metadata_validation",
+          "manual_review_required": true,
+          "tradeable_mapping_status": "NEEDS_METADATA_VALIDATION",
+          "token_endpoint_supported": true
+        }
+      ]
+    },
+    {
+      "symbol": "PEPEUSDT",
+      "base_asset": "PEPE",
+      "primary_chain": "ethereum",
+      "contracts": [
+        {
+          "chain": "ethereum",
+          "contract_address": "0x6982508145454ce325ddbe47a25d4ec3d2311933",
+          "token_name": "Pepe",
+          "token_symbol": "PEPE",
+          "decimals": 18,
+          "moralis_supported": true,
+          "mapping_confidence": 0.90,
+          "mapping_source": "manual_seed_requires_moralis_metadata_validation",
+          "manual_review_required": true,
+          "tradeable_mapping_status": "NEEDS_METADATA_VALIDATION",
+          "token_endpoint_supported": true
+        }
+      ]
+    },
+    {
+      "symbol": "PYTHUSDT",
+      "base_asset": "PYTH",
+      "primary_chain": "solana",
+      "contracts": [
+        {
+          "chain": "solana",
+          "contract_address": "",
+          "token_name": "Pyth Network",
+          "token_symbol": "PYTH",
+          "decimals": null,
+          "moralis_supported": true,
+          "mapping_confidence": 0.0,
+          "mapping_source": "bootstrap_placeholder_requires_moralis_token_search",
+          "manual_review_required": true,
+          "tradeable_mapping_status": "NEEDS_METADATA_VALIDATION",
+          "token_endpoint_supported": false
+        }
+      ]
+    },
+    {
+      "symbol": "1000FLOKIUSDT",
+      "base_asset": "FLOKI",
+      "primary_chain": "ethereum",
+      "contracts": [
+        {
+          "chain": "ethereum",
+          "contract_address": "",
+          "token_name": "FLOKI",
+          "token_symbol": "FLOKI",
+          "decimals": null,
+          "moralis_supported": true,
+          "mapping_confidence": 0.0,
+          "mapping_source": "bootstrap_placeholder_requires_moralis_token_search",
+          "manual_review_required": true,
+          "tradeable_mapping_status": "NEEDS_METADATA_VALIDATION",
+          "token_endpoint_supported": false
+        }
+      ]
+    },
+    {
+      "symbol": "JSTUSDT",
+      "base_asset": "JST",
+      "primary_chain": "tron",
+      "contracts": [
+        {
+          "chain": "tron",
+          "contract_address": "",
+          "token_name": "JUST",
+          "token_symbol": "JST",
+          "decimals": null,
+          "moralis_supported": false,
+          "mapping_confidence": 0.0,
+          "mapping_source": "bootstrap_placeholder_requires_chain_support_review",
+          "manual_review_required": true,
+          "tradeable_mapping_status": "NEEDS_METADATA_VALIDATION",
+          "token_endpoint_supported": false
+        }
+      ]
+    },
+    {
+      "symbol": "AUCTIONUSDT",
+      "base_asset": "AUCTION",
+      "primary_chain": "ethereum",
+      "contracts": [
+        {
+          "chain": "ethereum",
+          "contract_address": "",
+          "token_name": "Bounce Token",
+          "token_symbol": "AUCTION",
+          "decimals": null,
+          "moralis_supported": true,
+          "mapping_confidence": 0.0,
+          "mapping_source": "bootstrap_placeholder_requires_moralis_token_search",
+          "manual_review_required": true,
+          "tradeable_mapping_status": "NEEDS_METADATA_VALIDATION",
+          "token_endpoint_supported": false
+        }
+      ]
+    }
+  ]
+}

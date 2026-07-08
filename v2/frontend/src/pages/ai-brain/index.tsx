@@ -272,7 +272,7 @@ function pct(value?: number | null): string {
 }
 
 function bps(value?: number | null): string {
-  return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(2)} bps` : '—';
+  return typeof value === 'number' && Number.isFinite(value) ? `${(value / 100).toFixed(2)}%` : '—';
 }
 
 function loss(value?: number | null): string {
@@ -398,7 +398,8 @@ function signalArrow(action: ActionBucketKey): string {
 
 function bpsOrDash(value: number | null | undefined): string {
   if (value == null || Number.isNaN(value) || !Number.isFinite(value)) return '—';
-  return `${value >= 0 ? '+' : ''}${value.toFixed(2)} bps`;
+  const pct = value / 100;
+  return `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
 }
 
 function ActionablePredictionCard({

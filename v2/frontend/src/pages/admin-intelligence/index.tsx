@@ -44,7 +44,7 @@ function unitPercent(value: number | null | undefined): string {
 }
 
 function bpsText(value: number | null | undefined): string {
-  return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(2)} bps` : '—';
+  return typeof value === 'number' && Number.isFinite(value) ? `${(value / 100).toFixed(2)}%` : '—';
 }
 
 function runtimeSourceText(value: unknown, fallback: string): string {

@@ -82,6 +82,56 @@ def _score_ratio(value: float | None, bound: float) -> float:
     return max(0.0, min(1.0, value / max(1e-9, bound)))
 
 
+DEPTH_STABILITY_RATIO = 0.55
+MIN_STRATUM_SAMPLES = 5
+
+DEPTH_PERSISTENCE_STABLE = "STABLE_DEPTH_WINDOW"
+DEPTH_PERSISTENCE_UNSTABLE = "DEPTH_UNSTABLE"
+DEPTH_PERSISTENCE_INSUFFICIENT = "INSUFFICIENT_DEPTH_WINDOW"
+DEPTH_PERSISTENCE_MISSING_FIELDS = "MISSING_DEPTH_FIELDS"
+
+
+def _stratum_key(payload: Mapping[str, Any]) -> str:
+    level = payload.get("depth_level")
+    if level is not None:
+        return f"depth_level:{level}"
+    return f"update:{payload.get('update_type') or 'unknown'}"
+
+
+def _select_depth_stratum(
+    rows: list[Mapping[str, Any]],
+) -> tuple[list[Mapping[str, Any]], str, str | None]:
+    """Pick one consistent visible-book view for depth-series metrics.
+
+    The recorder subscribes to several partial-depth streams per symbol
+    (levels 5/10/20) and emits one row per message. Depth sums computed from
+    different stream depths differ ~5x by construction, so a window that
+    mixes strata measures the subscription mix, not the market (F-0010:
+    depth persistence was pinned to 0 for every symbol). Prefer the deepest
+    stratum that has enough samples; report insufficiency explicitly.
+    """
+    strata: dict[str, list[Mapping[str, Any]]] = {}
+    for row in rows:
+        strata.setdefault(_stratum_key(row), []).append(row)
+    if not strata:
+        return [], "", DEPTH_PERSISTENCE_INSUFFICIENT
+
+    def _depth_rank(key: str) -> tuple[int, float]:
+        if key.startswith("depth_level:"):
+            try:
+                return (0, -float(key.split(":", 1)[1]))
+            except ValueError:
+                return (1, 0.0)
+        return (1, 0.0)
+
+    sufficient = [key for key in strata if len(strata[key]) >= MIN_STRATUM_SAMPLES]
+    if not sufficient:
+        largest = max(strata, key=lambda key: len(strata[key]))
+        return list(strata[largest]), largest, DEPTH_PERSISTENCE_INSUFFICIENT
+    best = sorted(sufficient, key=_depth_rank)[0]
+    return list(strata[best]), best, None
+
+
 def compute_orderbook_adversarial_features(
     *,
     exchange: str,
@@ -98,6 +148,9 @@ def compute_orderbook_adversarial_features(
             "public_orderbook_default_trust": "LOW",
             "insufficient_book_history": True,
             "depth_persistence_ms": 0,
+            "depth_persistence_reason": DEPTH_PERSISTENCE_INSUFFICIENT,
+            "depth_series_stratum": None,
+            "depth_series_sample_count": 0,
             "level_lifetime_distribution": [],
             "add_cancel_ratio": 1.0,
             "cancel_burst_score": 1.0,
@@ -114,6 +167,7 @@ def compute_orderbook_adversarial_features(
             "price_impact_instability_score": 1.0,
             "generated_at": iso_now(),
         }
+    rows, depth_series_stratum, stratum_insufficiency = _select_depth_stratum(rows)
     first_ms = parse_time_ms(rows[0].get("available_at") or rows[0].get("received_at") or rows[0].get("event_time")) or 0
     last_ms = parse_time_ms(rows[-1].get("available_at") or rows[-1].get("received_at") or rows[-1].get("event_time")) or first_ms
     window_ms = max(1, last_ms - first_ms)
@@ -125,7 +179,18 @@ def compute_orderbook_adversarial_features(
     bid_top = [value for value in (_top_qty(row, "bid") for row in rows) if value is not None]
     ask_top = [value for value in (_top_qty(row, "ask") for row in rows) if value is not None]
 
-    depth_persistence_ms = window_ms if total_depths and min(total_depths) >= max(total_depths) * 0.55 else 0
+    if stratum_insufficiency is not None:
+        depth_persistence_ms = 0
+        depth_persistence_reason = stratum_insufficiency
+    elif not total_depths or max(total_depths) <= 0.0:
+        depth_persistence_ms = 0
+        depth_persistence_reason = DEPTH_PERSISTENCE_MISSING_FIELDS
+    elif min(total_depths) >= max(total_depths) * DEPTH_STABILITY_RATIO:
+        depth_persistence_ms = window_ms
+        depth_persistence_reason = DEPTH_PERSISTENCE_STABLE
+    else:
+        depth_persistence_ms = 0
+        depth_persistence_reason = DEPTH_PERSISTENCE_UNSTABLE
     cancels = 0.0
     adds = 0.0
     for prev, cur in zip(total_depths, total_depths[1:]):
@@ -166,6 +231,10 @@ def compute_orderbook_adversarial_features(
         "public_orderbook_default_trust": "LOW",
         "insufficient_book_history": len(rows) < 3,
         "depth_persistence_ms": int(depth_persistence_ms),
+        "depth_persistence_reason": depth_persistence_reason,
+        "depth_series_stratum": depth_series_stratum or None,
+        "depth_series_sample_count": len(rows),
+        "depth_series_window_ms": int(window_ms),
         "level_lifetime_distribution": [int(depth_persistence_ms)],
         "add_cancel_ratio": round(add_cancel_ratio, 8),
         "cancel_burst_score": round(cancel_burst_score, 8),

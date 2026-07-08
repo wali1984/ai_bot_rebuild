@@ -62,6 +62,7 @@ struct LiveReadinessView: View {
         ScrollView {
             VStack(spacing: 14) {
                 overallStatusCard
+                RuntimeTruthLiveCard(title: "Runtime Truth")
                 blockedNote
                 gatesList
                 liveBlockedNote

@@ -101,6 +101,12 @@ function numberText(value: unknown, digits = 3): string {
   return value.toFixed(Math.abs(value) >= 100 ? 0 : digits);
 }
 
+function bpsAsPercent(value: unknown, digits = 2): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return value === null || value === undefined ? 'Current edge value pending' : String(value);
+  const pct = value / 100;
+  return `${pct >= 0 ? '+' : ''}${pct.toFixed(digits)}%`;
+}
+
 function countText(counts?: Record<string, number>): string {
   if (!counts) return 'Current edge count pending';
   return Object.entries(counts)
@@ -234,7 +240,7 @@ function EdgeBarList({
   const max = Math.max(1, ...values);
   const chartRows = rows.slice(0, 7).map((row) => ({
     symbol: row.symbol ?? 'NA',
-    bps: finite(row.after_cost_expectancy_bps) ?? 0,
+    edge_pct: (finite(row.after_cost_expectancy_bps) ?? 0) / 100,
   }));
   return (
     <div className={`edge-bar-card edge-bar-card--${tone}`}>
@@ -244,8 +250,8 @@ function EdgeBarList({
           <BarChart width={420} height={150} data={chartRows} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
             <XAxis dataKey="symbol" tick={{ fontSize: 10 }} interval={0} minTickGap={0} />
             <YAxis tick={{ fontSize: 10 }} width={34} />
-            <Tooltip formatter={(value) => tooltipValue(value, ' bps')} />
-            <Bar dataKey="bps" radius={[4, 4, 0, 0]} fill={tone === 'positive' ? '#14b8a6' : '#ef4444'} />
+            <Tooltip formatter={(value) => tooltipValue(value, '%')} />
+            <Bar dataKey="edge_pct" radius={[4, 4, 0, 0]} fill={tone === 'positive' ? '#14b8a6' : '#ef4444'} />
           </BarChart>
         </div>
       ) : null}
@@ -256,7 +262,7 @@ function EdgeBarList({
           <div className="edge-bar-row" key={`${title}-${row.symbol}`}>
             <span>{row.symbol ?? 'Current symbol pending'}</span>
             <div><i style={{ width }} /></div>
-            <strong>{numberText(raw)}</strong>
+            <strong>{bpsAsPercent(raw)}</strong>
           </div>
         );
       }) : <p className="cockpit-evidence-note">Current edge recovery rows are pending.</p>}
@@ -280,7 +286,7 @@ function PublicIntelHeatmap({ rows }: { rows: PublicIntelMode[] }): JSX.Element 
         return (
           <div className="edge-public-intel-cell" style={{ background }} key={row.mode ?? 'mode'}>
             <span>{row.mode ?? 'Current mode pending'}</span>
-            <strong>{numberText(value)}</strong>
+            <strong>{bpsAsPercent(value)}</strong>
             <small>{row.outcome_sample_count ?? 0} samples / {row.after_cost_proof_state ?? 'Current proof state pending'}</small>
           </div>
         );
@@ -325,15 +331,15 @@ export function EdgeRecoveryQualityPanel({ surface = 'runtime' }: { surface?: st
             </span>
           </div>
           <div className="metric">
-            <span className="metric-label">Expectancy (bps)</span>
+            <span className="metric-label">Expectancy</span>
             <span className={`metric-value ${(backtestEdge.after_cost_expectancy_bps ?? -1) > 0 ? 'metric--ok' : 'metric--block'}`}>
-              {numberText(backtestEdge.after_cost_expectancy_bps)}
+              {bpsAsPercent(backtestEdge.after_cost_expectancy_bps)}
             </span>
           </div>
           <div className="metric">
-            <span className="metric-label">CI lower (bps)</span>
+            <span className="metric-label">CI lower</span>
             <span className={`metric-value ${(backtestEdge.after_cost_ci_lower_bps ?? -1) > 0 ? 'metric--ok' : 'metric--block'}`}>
-              {numberText(backtestEdge.after_cost_ci_lower_bps)}
+              {bpsAsPercent(backtestEdge.after_cost_ci_lower_bps)}
             </span>
           </div>
           <div className="metric">
@@ -352,12 +358,12 @@ export function EdgeRecoveryQualityPanel({ surface = 'runtime' }: { surface?: st
       </p>
       <div className="cockpit-analytics-grid">
         <Metric label="Symbols" value={summary.symbol_count ?? 0} />
-        <Metric label="Pre-filter expectancy" value={numberText(summary.pre_filter_after_cost_expectancy_bps)} />
-        <Metric label="Pre-filter CI lower" value={numberText(summary.pre_filter_after_cost_ci_lower_bps)} />
-        <Metric label="After-fix expectancy" value={numberText(summary.after_quality_fixes_expectancy_bps)} />
-        <Metric label="After-fix CI lower" value={numberText(summary.after_quality_fixes_ci_lower_bps)} />
+        <Metric label="Pre-filter expectancy" value={bpsAsPercent(summary.pre_filter_after_cost_expectancy_bps)} />
+        <Metric label="Pre-filter CI lower" value={bpsAsPercent(summary.pre_filter_after_cost_ci_lower_bps)} />
+        <Metric label="After-fix expectancy" value={bpsAsPercent(summary.after_quality_fixes_expectancy_bps)} />
+        <Metric label="After-fix CI lower" value={bpsAsPercent(summary.after_quality_fixes_ci_lower_bps)} />
         <Metric label="After-fix candidates" value={summary.after_quality_fixes_candidate_count ?? 0} />
-        <Metric label="Calibration error" value={numberText(summary.calibration_error_bps)} />
+        <Metric label="Calibration error" value={bpsAsPercent(summary.calibration_error_bps)} />
         <Metric label="High-conf losers" value={summary.high_confidence_loser_count ?? 0} />
         <Metric label="Recommendation" value={summary.primary_live_recommendation ?? 'BLOCK_LIVE_PAPER_EDGE_NOT_PROVEN'} />
         <Metric label="Website sync" value={summary.website_sync_status ?? 'Current website sync pending'} />
@@ -366,27 +372,27 @@ export function EdgeRecoveryQualityPanel({ surface = 'runtime' }: { surface?: st
       <div className="edge-visual-grid" aria-label="Edge quality visual summary">
         <EdgeGauge
           label="Pre-filter expectancy"
-          value={finite(summary.pre_filter_after_cost_expectancy_bps)}
-          min={-30}
-          max={30}
-          unit="bps"
+          value={finite(summary.pre_filter_after_cost_expectancy_bps) === null ? null : finite(summary.pre_filter_after_cost_expectancy_bps)! / 100}
+          min={-0.3}
+          max={0.3}
+          unit="%"
           goodAbove={0}
         />
         <EdgeGauge
           label="After-fix expectancy"
-          value={finite(summary.after_quality_fixes_expectancy_bps)}
-          min={-30}
-          max={30}
-          unit="bps"
+          value={finite(summary.after_quality_fixes_expectancy_bps) === null ? null : finite(summary.after_quality_fixes_expectancy_bps)! / 100}
+          min={-0.3}
+          max={0.3}
+          unit="%"
           goodAbove={0}
         />
         <EdgeGauge
           label="Calibration error"
-          value={finite(summary.calibration_error_bps)}
+          value={finite(summary.calibration_error_bps) === null ? null : finite(summary.calibration_error_bps)! / 100}
           min={0}
-          max={100}
-          unit="bps"
-          goodBelow={25}
+          max={1}
+          unit="%"
+          goodBelow={0.25}
         />
         <EdgeDonut title="Symbol classification" counts={summary.classification_counts} />
         <EdgeDonut title="Risk block mix" counts={summary.risk_block_category_counts} />
@@ -420,7 +426,7 @@ export function EdgeRecoveryQualityPanel({ surface = 'runtime' }: { surface?: st
 
       <div className="cockpit-market-table" role="table" aria-label="Edge recovery symbol table" style={{ marginTop: '1rem' }}>
         <div className="cockpit-table-row cockpit-table-row--head" role="row">
-          <span>Positive candidates</span><span>bps</span><span>Negative blocks</span><span>bps</span>
+          <span>Positive candidates</span><span>Edge %</span><span>Negative blocks</span><span>Edge %</span>
         </div>
         {Array.from({ length: Math.max(topPositive.length, topNegative.length, 1) }).slice(0, 8).map((_, index) => {
           const pos = topPositive[index];
@@ -428,9 +434,9 @@ export function EdgeRecoveryQualityPanel({ surface = 'runtime' }: { surface?: st
           return (
             <div className="cockpit-table-row" role="row" key={`edge-symbol-${index}`}>
               <span>{pos?.symbol ?? 'Current symbol pending'}</span>
-              <span>{numberText(pos?.after_cost_expectancy_bps)}</span>
+              <span>{bpsAsPercent(pos?.after_cost_expectancy_bps)}</span>
               <span>{neg?.symbol ?? 'Current symbol pending'}</span>
-              <span>{numberText(neg?.after_cost_expectancy_bps)}</span>
+              <span>{bpsAsPercent(neg?.after_cost_expectancy_bps)}</span>
             </div>
           );
         })}
@@ -438,13 +444,13 @@ export function EdgeRecoveryQualityPanel({ surface = 'runtime' }: { surface?: st
 
       <div className="cockpit-market-table" role="table" aria-label="Public intelligence contribution table" style={{ marginTop: '1rem' }}>
         <div className="cockpit-table-row cockpit-table-row--head" role="row">
-          <span>Public-intel mode</span><span>Samples</span><span>After-cost bps</span><span>Proof state</span>
+          <span>Public-intel mode</span><span>Samples</span><span>After-cost edge</span><span>Proof state</span>
         </div>
         {publicModes.map((row) => (
           <div className="cockpit-table-row" role="row" key={row.mode ?? 'mode'}>
             <span>{row.mode ?? 'Current mode pending'}</span>
             <span>{row.outcome_sample_count ?? 0}</span>
-            <span>{numberText(row.after_cost_expectancy_bps)}</span>
+            <span>{bpsAsPercent(row.after_cost_expectancy_bps)}</span>
             <span>{row.after_cost_proof_state ?? 'Current proof state pending'}</span>
           </div>
         ))}
@@ -452,14 +458,14 @@ export function EdgeRecoveryQualityPanel({ surface = 'runtime' }: { surface?: st
 
       <div className="cockpit-market-table" role="table" aria-label="Strategy fallback comparison table" style={{ marginTop: '1rem' }}>
         <div className="cockpit-table-row cockpit-table-row--head" role="row">
-          <span>Strategy</span><span>Selected</span><span>Samples</span><span>After-cost bps</span><span>Verdict</span>
+          <span>Strategy</span><span>Selected</span><span>Samples</span><span>After-cost edge</span><span>Verdict</span>
         </div>
         {strategyRows.slice(0, 10).map((row) => (
           <div className="cockpit-table-row" role="row" key={row.strategy ?? 'strategy'}>
             <span>{row.strategy ?? 'Current strategy pending'}</span>
             <span>{row.selected_trade_count ?? 0}</span>
             <span>{row.actionable_outcome_sample_count ?? 0}</span>
-            <span>{numberText(row.after_cost_expectancy_bps)}</span>
+            <span>{bpsAsPercent(row.after_cost_expectancy_bps)}</span>
             <span>{row.diagnostic_verdict ?? 'Current diagnostic pending'}</span>
           </div>
         ))}

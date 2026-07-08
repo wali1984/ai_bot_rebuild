@@ -38,6 +38,9 @@ interface PortfolioData {
   equity?: number | null;
   paper_equity?: number | null;
   paper_balance?: number | null;
+  initial_capital?: number | null;
+  paper_initial_capital?: number | null;
+  starting_equity_usd?: number | null;
   realized_pnl?: number | null;
   unrealized_pnl?: number | null;
   open_positions?: unknown[];
@@ -164,9 +167,10 @@ function fPct(n: number | null | undefined, signed = false): string {
   const s = raw.toFixed(1) + '%';
   return signed ? (raw >= 0 ? '+' + s : s) : s;
 }
-function fBps(n: number | null | undefined): string {
+function fBpsAsPct(n: number | null | undefined): string {
   if (n == null) return '—';
-  return (n >= 0 ? '+' : '') + n.toFixed(0) + ' bps';
+  const pct = n / 100;
+  return (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
 }
 function fAge(sec: number | null | undefined): string {
   if (sec == null) return '—';
@@ -313,14 +317,20 @@ function PanelHead({ title, sub, to, badge, badgeTone }: {
   );
 }
 
-function KPITile({ label, value, metric, sub, valueColor, to }: {
-  label: string; value?: string; metric?: CanonicalMetric; sub?: string; valueColor?: string; to?: string;
+function KPITile({ label, value, metric, sub, valueColor, to, emptyText }: {
+  label: string;
+  value?: string;
+  metric?: CanonicalMetric;
+  sub?: string;
+  valueColor?: string;
+  to?: string;
+  emptyText?: string;
 }): JSX.Element {
   const inner = (
     <div className="nervyx-dashboard-kpi" data-clickable={to ? 'true' : 'false'}>
       <span className="nervyx-dashboard-kpi__label">{label}</span>
       <span className="nervyx-dashboard-kpi__value" style={{ color: valueColor ?? 'var(--text-primary)' }}>
-        {metric ? <CanonicalMetricValue metric={metric} /> : value}
+        {metric ? <CanonicalMetricValue metric={metric} emptyText={emptyText} /> : value}
       </span>
       {sub && <span className="nervyx-dashboard-kpi__sub">{sub}</span>}
     </div>
@@ -487,7 +497,7 @@ function ActiveSignalPanel({
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', fontSize: 11, fontFamily: 'var(--font-mono)' }}>
           {[
             ['Target', signal.target_1 != null ? '$' + signal.target_1.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'],
-            ['Exp. Move', fBps(signal.expected_move_after_cost_bps)],
+            ['Exp. Move', fBpsAsPct(signal.expected_move_after_cost_bps)],
             ['Data Quality', signal.data_coverage_percent != null ? signal.data_coverage_percent.toFixed(1) + '%' : '—'],
             ['State Score', signal.market_state_integrity_score != null ? signal.market_state_integrity_score.toFixed(1) + '%' : '—'],
             ['Risk Result', signal.risk_result ?? '—'],
@@ -583,7 +593,7 @@ function RiskPanel({ profile, latestResult, heartbeat }: {
               ['Max Notional/Trade', fields.max_notional_per_trade != null ? '$' + fields.max_notional_per_trade.toFixed(2) : '—'],
               ['Max Open Positions', fields.max_open_positions != null ? String(fields.max_open_positions) : '—'],
               ['Min Confidence', fields.min_confidence_calibrated != null ? fPct(fields.min_confidence_calibrated) : '—'],
-              ['Min Move', fields.min_expected_move_after_cost_bps != null ? fields.min_expected_move_after_cost_bps.toFixed(1) + ' bps' : '—'],
+              ['Min Move', fields.min_expected_move_after_cost_bps != null ? fBpsAsPct(fields.min_expected_move_after_cost_bps) : '—'],
               ['Max Daily Loss', fields.max_daily_loss != null ? fPct(fields.max_daily_loss / 100) : '—'],
               ['Max Drawdown', fields.max_drawdown != null ? fPct(fields.max_drawdown / 100) : '—'],
               ['Cooldown', fields.cooldown_seconds != null ? Math.round(fields.cooldown_seconds / 60) + 'm' : '—'],
@@ -750,13 +760,18 @@ function MarketPulsePanel({ tickers }: { tickers: TickerRow[] }): JSX.Element {
 
 // ─── Equity + Runtime Stats Mini-chart ───────────────────────────────────────
 
-function EquityPanel({ equity, realized, unrealized, pnlHistory }: {
-  equity: number | null; realized: number | null; unrealized: number | null; pnlHistory?: PnlHistoryStatus | null;
+function EquityPanel({ equity, realized, unrealized, startingCapital, pnlHistory }: {
+  equity: number | null;
+  realized: number | null;
+  unrealized: number | null;
+  startingCapital: number | null;
+  pnlHistory?: PnlHistoryStatus | null;
 }): JSX.Element {
+  const startValue = startingCapital ?? equity;
   const chartData = equity == null
     ? []
     : [
-      { t: 'Start', value: 10_000 },
+      { t: 'Start', value: startValue ?? equity },
       { t: 'Now', value: equity },
     ];
   const pnlTotal = (realized ?? 0) + (unrealized ?? 0);
@@ -821,7 +836,7 @@ function EquityPanel({ equity, realized, unrealized, pnlHistory }: {
           <div className="nervyx-dashboard-chart-empty" data-chart-mode="FALLBACK_STATIC_CHART">Awaiting account stream…</div>
         )}
         <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, fontFamily: 'var(--font-mono)' }}>
-          Starting capital: $10,000.00 · Execution-restricted telemetry
+          Starting capital: {startingCapital == null ? 'not reported' : f$(startingCapital)} · Execution-restricted telemetry
         </div>
       </div>
     </Panel>
@@ -990,8 +1005,13 @@ export default function DashboardPage(): JSX.Element {
     || streamSummary.unrealized_pnl_usd != null;
   const realized = streamSummary.realized_pnl_usd ?? portfolioData?.realized_pnl ?? null;
   const unrealized = streamSummary.unrealized_pnl_usd ?? portfolioData?.unrealized_pnl ?? null;
+  const startingCapital =
+    portfolioData?.initial_capital
+    ?? portfolioData?.paper_initial_capital
+    ?? portfolioData?.starting_equity_usd
+    ?? null;
   const reportedEquity = portfolioData?.equity ?? portfolioData?.paper_equity ?? portfolioData?.paper_balance;
-  const equity = reportedEquity ?? (hasRuntimeAccount ? 10_000 + (realized ?? 0) + (unrealized ?? 0) : null);
+  const equity = reportedEquity ?? (hasRuntimeAccount && startingCapital != null ? startingCapital + (realized ?? 0) + (unrealized ?? 0) : null);
   const activeSignal = signalData?.active_signal ?? null;
   const proposals = orchData?.last_proposals ?? [];
   const orchHeartbeat = orchData?.heartbeat ?? null;
@@ -1073,11 +1093,23 @@ export default function DashboardPage(): JSX.Element {
       {/* KPI strip */}
       <div className="nervyx-dashboard__kpis">
         <KPITile label="Account Equity" metric={accountMetric('account.equity')} sub="Trader snapshot" to="/portfolio" />
-        <KPITile label="Available Balance" metric={accountMetric('account.available_balance')} sub="Trader snapshot" to="/portfolio" />
+        <KPITile
+          label="Available Balance"
+          metric={accountMetric('account.available_balance')}
+          sub="Paper sim balance, not live signed account"
+          emptyText="Paper balance unavailable; live signed account not read"
+          to="/portfolio"
+        />
         <KPITile label="Unrealized PnL" metric={accountMetric('account.unrealized_pnl')} sub="Open position PnL" valueColor={pnlColor(accountMetric('account.unrealized_pnl').value as number | null)} to="/portfolio" />
         <KPITile label="Open Positions" metric={accountMetric('account.open_position_count')} sub="Scoped account count" to="/portfolio" />
         <KPITile label="Active Signal" metric={signalMetric('signal.id')} sub="Stable signal ID" to="/signals" />
-        <KPITile label="Risk Status" metric={riskMetric} sub="Execution remains restricted" to="/portfolio" />
+        <KPITile
+          label="Risk Status"
+          metric={riskMetric}
+          sub="Execution remains restricted"
+          emptyText="Fail-closed: no current risk record"
+          to="/portfolio"
+        />
       </div>
 
       <AdaptiveCapitalTelemetryPanel
@@ -1116,7 +1148,7 @@ export default function DashboardPage(): JSX.Element {
         <div className="nervyx-dashboard__side-stack">
           <CapitalProductivityPanel capital={capitalStatus} />
           <AccuracySummaryPanel accuracy={accuracyStatus} />
-          <EquityPanel equity={equity} realized={realized} unrealized={unrealized} pnlHistory={pnlHistory} />
+          <EquityPanel equity={equity} realized={realized} unrealized={unrealized} startingCapital={startingCapital} pnlHistory={pnlHistory} />
           <MarketPulsePanel tickers={tickers} />
         </div>
       </div>

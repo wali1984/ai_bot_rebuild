@@ -344,7 +344,7 @@ function finiteNumber(value: unknown): number | null {
 }
 
 function bps(value: unknown): string {
-  return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(2)} bps` : 'unpublished';
+  return typeof value === 'number' && Number.isFinite(value) ? `${(value / 100).toFixed(2)}%` : 'unpublished';
 }
 
 function statusTone(status?: string | null): 'ok' | 'warn' | 'block' | 'paper' {

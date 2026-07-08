@@ -19,6 +19,7 @@ export { default as route } from './route';
 
 interface TrainerAdminData {
   status: string | null;
+  state?: string | null;
   last_train_at: string | null;
   current_epoch: number | null;
   total_epochs: number | null;
@@ -35,6 +36,23 @@ interface TrainerAdminData {
   predictions_emitted: number | null;
   predictions_blocked: number | null;
   calibration_score: number | null;
+  champion_challenger_status?: {
+    status?: string | null;
+    result_status?: string | null;
+    best_challenger_id?: string | null;
+    promotion_allowed?: boolean | null;
+    promotion_reason?: string | null;
+    paper_challenger_enabled?: boolean | null;
+    replay_windows_processed?: number | null;
+    replay_snapshots_scanned?: number | null;
+    backtests_processed?: {
+      train_rows?: number | null;
+      validation_rows?: number | null;
+      untouched_holdout_rows?: number | null;
+      validation_trade_count?: number | null;
+      untouched_holdout_trade_count?: number | null;
+    } | null;
+  } | null;
   active_jobs: Array<{ id: string; status: string; started_at: string | null; progress: number | null }>;
 }
 
@@ -68,6 +86,7 @@ export default function TrainerAdminPage(): JSX.Element {
   });
 
   const data = envelope.data;
+  const challenger = data?.champion_challenger_status ?? null;
   const capitalStatus = adaptiveCapital.data?.capital_productivity_runtime_status ?? null;
   const accuracyStatus = adaptiveCapital.data?.signal_prediction_accuracy_status
     ?? capitalStatus?.signal_prediction_accuracy_status
@@ -110,7 +129,13 @@ export default function TrainerAdminPage(): JSX.Element {
 
       {/* Status KPIs */}
       <div style={{ padding: '16px 24px 0', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
-        <KV label="Status" value={loading ? '…' : (data?.status ?? '—')} color={statusColor(data?.status ?? null)} />
+        <KV label="Status" value={loading ? '…' : (data?.status ?? data?.state ?? '—')} color={statusColor(data?.status ?? data?.state ?? null)} />
+        <KV label="Challenger" value={loading ? '…' : (challenger?.status ?? 'MISSING_RUNTIME_EVIDENCE')} color={challenger?.promotion_allowed ? 'var(--buy)' : 'var(--warn)'} />
+        <KV label="Best Challenger" value={loading ? '…' : (challenger?.best_challenger_id ?? 'none')} />
+        <KV label="Promotion" value={loading ? '…' : (challenger?.promotion_allowed ? 'allowed' : 'blocked')} color={challenger?.promotion_allowed ? 'var(--buy)' : 'var(--sell)'} />
+        <KV label="Promotion Reason" value={loading ? '…' : (challenger?.promotion_reason ?? 'runtime key missing')} color={challenger?.promotion_allowed ? 'var(--buy)' : 'var(--warn)'} />
+        <KV label="Holdout Trades" value={loading ? '…' : String(challenger?.backtests_processed?.untouched_holdout_trade_count ?? '—')} color={(challenger?.backtests_processed?.untouched_holdout_trade_count ?? 0) >= 100 ? 'var(--buy)' : 'var(--warn)'} />
+        <KV label="Replay Windows" value={loading ? '…' : String(challenger?.replay_windows_processed ?? '—')} />
         <KV label="Model Version" value={loading ? '…' : (data?.model_version ?? '—')} />
         <KV label="Checkpoint" value={loading ? '…' : (data?.checkpoint ?? '—')} />
         <KV label="Epoch" value={loading ? '…' : data?.current_epoch != null && data?.total_epochs != null ? `${data.current_epoch}/${data.total_epochs}` : '—'} />

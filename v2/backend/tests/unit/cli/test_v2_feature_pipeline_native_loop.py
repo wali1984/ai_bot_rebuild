@@ -551,3 +551,52 @@ def test_feature_snapshot_uses_finalized_raw_ohlcv_bridge(monkeypatch) -> None:
     assert payload["valid_for_paper"] is True
     assert payload["feature_freshness_state"] == "CURRENT"
     assert payload["feature_cutoff"] == mod._ms_to_utc_iso(close_ms)  # noqa: SLF001
+
+
+class TestReadKlinesTieBreak:
+    """F-0009: ohlcv_closed key history is TTL-truncated for intervals longer
+    than the key TTL; on freshness ties _read_klines must prefer the deeper
+    raw buffer so history-window features (atr_percentile) can compute."""
+
+    class _FakeRedis:
+        def __init__(self, store):
+            self._store = store
+
+        def get(self, key):
+            return self._store.get(key)
+
+    @staticmethod
+    def _kline(close_ms: int) -> list:
+        # 12-field Binance kline row; index 6 is close_time
+        return [close_ms - 60_000, "1", "2", "0.5", "1.5", "10", close_ms, "10", 5, "5", "5", "0"]
+
+    def test_tie_prefers_deeper_raw_buffer(self):
+        import json as _json
+        import time as _time
+        import v2.backend.app.cli.v2_feature_pipeline_native_loop as fp
+
+        now_ms = int(_time.time() * 1000)
+        latest = now_ms - 10_000
+        raw = [self._kline(latest - i * 900_000) for i in range(50)][::-1]
+        closed = [self._kline(latest)]  # TTL-truncated: only the newest row
+        store = {
+            f"{fp.V2_REDIS_PREFIX}market:ohlcv:binance:XUSDT:15m": _json.dumps(raw),
+            f"{fp.V2_REDIS_PREFIX}market:ohlcv_closed:binance:XUSDT:15m": _json.dumps(closed),
+        }
+        rows = fp._read_klines(self._FakeRedis(store), "XUSDT", "15m", decision_ms=now_ms)
+        assert len(rows) == 50, "tie must resolve to the deeper raw buffer"
+
+    def test_newer_closed_key_still_wins(self):
+        import json as _json
+        import time as _time
+        import v2.backend.app.cli.v2_feature_pipeline_native_loop as fp
+
+        now_ms = int(_time.time() * 1000)
+        raw = [self._kline(now_ms - 900_000)]
+        closed = [self._kline(now_ms - 10_000), self._kline(now_ms - 910_000)]
+        store = {
+            f"{fp.V2_REDIS_PREFIX}market:ohlcv:binance:XUSDT:15m": _json.dumps(raw),
+            f"{fp.V2_REDIS_PREFIX}market:ohlcv_closed:binance:XUSDT:15m": _json.dumps(closed),
+        }
+        rows = fp._read_klines(self._FakeRedis(store), "XUSDT", "15m", decision_ms=now_ms)
+        assert len(rows) == 2, "closed key with strictly newer candle must win"

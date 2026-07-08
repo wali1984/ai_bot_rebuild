@@ -49,7 +49,7 @@ export function formatPercent(value: unknown, fallback = '—'): string {
 export function formatBps(value: unknown, fallback = '—'): string {
   const n = finite(value);
   if (n === null) return fallback;
-  return `${n.toLocaleString('en-US', { maximumFractionDigits: 2 })} bps`;
+  return `${(n / 100).toLocaleString('en-US', { maximumFractionDigits: 4 })}%`;
 }
 
 export function formatAge(value: number | null | undefined): string {

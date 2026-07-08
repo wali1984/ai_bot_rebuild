@@ -85,6 +85,32 @@ def _allocation(**overrides: object) -> dict[str, object]:
         "expected_net_pnl_usd": 4.0,
         "portfolio_exposure_after_trade": 500.0,
         "allocator_decision": "ALLOW_WITH_SIZE",
+        "preemptive_edge_control": {
+            "preemptive_decision_id": "pec_test_allow",
+            "preemptive_decision": "ALLOW",
+            "pre_trade_loss_probability": 0.35,
+            "expected_edge_after_cost_bps": 18.0,
+            "exit_feasibility_score": 0.9,
+            "advanced_indicator_consumed": True,
+            "advanced_indicator_status": "ADVANCED_INDICATOR_CONSUMED",
+            "advanced_indicator_block": False,
+            "advanced_indicator_shadow": False,
+            "advanced_indicator_block_reasons": [],
+            "advanced_indicator_caution_reasons": [],
+            "advanced_indicator_missing_evidence": [],
+            "advanced_indicator_confluence_score": 0.62,
+            "fvg_standalone_allows_trade": False,
+            "fvg_present": True,
+            "fvg_side_aligned": True,
+            "liquidity_sweep_risk": 0.2,
+            "advanced_indicator_exit_plan_inputs": {
+                "nearest_liquidity_above": 50500.0,
+                "nearest_liquidity_below": 49500.0,
+                "distance_to_fvg_bps": 12.0,
+                "distance_to_vwap_bps": 8.0,
+                "structure_invalidation": "down",
+            },
+        },
     }
     values.update(overrides)
     return values
@@ -212,6 +238,13 @@ def test_phase7_complete_fixture_builds_operator_packet_fields() -> None:
     assert packet["margin_mode_recommendation"] == "isolated_paper_simulated"
     assert packet["max_loss"] == 6.0
     assert packet["liquidation_buffer"] == 2_000.0
+    assert pre_submit["pass_conditions"]["advanced_indicator_evidence_pass"] is True
+    assert pre_submit["advanced_indicator_evidence"]["consumed"] is True
+    assert pre_submit["advanced_indicator_evidence"]["fvg_standalone_allows_trade"] is False
+    assert packet["advanced_indicator_evidence"]["consumed"] is True
+    assert packet["advanced_indicator_evidence"]["fvg_standalone_allows_trade"] is False
+    assert packet["stop_exit_plan"]["nearest_liquidity_above"] == 50500.0
+    assert packet["stop_exit_plan"]["distance_to_fvg_bps"] == 12.0
     assert packet["reduce_only_plan"]["reduce_only_required_for_closes"] is True
     assert packet["order_submitted"] is False
     assert packet["test_order_submitted"] is False
@@ -235,6 +268,96 @@ def test_phase7_invalid_position_transition_blocks_before_order_preview_ready() 
     assert status["submit_allowed"] is False
     assert "AVERAGING_DOWN_DISABLED" in status["blockers"]
     assert status["position_transition"]["allowed"] is False
+    assert status["order_submitted"] is False
+
+
+def test_phase7_live_dry_run_blocks_preemptive_no_trade() -> None:
+    status = build_live_pre_submit_dry_run_status(
+        _runtime(),
+        account_snapshot=_account(),
+        symbol_filter_snapshot=_filters(),
+        allocation_payload=_allocation(
+            preemptive_edge_control={
+                "preemptive_decision_id": "pec_test_no_trade",
+                "preemptive_decision": "NO_TRADE",
+                "pre_trade_loss_probability": 0.72,
+                "expected_edge_after_cost_bps": -8.0,
+            }
+        ),
+        now_ms=1_000,
+    )
+
+    assert status["submit_allowed"] is False
+    assert status["operator_review_ready"] is False
+    assert "LIVE_PRE_SUBMIT_PREEMPTIVE_EDGE_CONTROL_NOT_ALLOW" in status["blockers"]
+    assert status["pass_conditions"]["preemptive_edge_control_pass"] is False
+    assert status["order_submitted"] is False
+    assert status["test_order_submitted"] is False
+
+
+def test_phase7_live_dry_run_blocks_malformed_preemptive_decision() -> None:
+    status = build_live_pre_submit_dry_run_status(
+        _runtime(),
+        account_snapshot=_account(),
+        symbol_filter_snapshot=_filters(),
+        allocation_payload=_allocation(
+            preemptive_edge_control={
+                "preemptive_decision": "ALLOW",
+            }
+        ),
+        now_ms=1_000,
+    )
+
+    assert status["submit_allowed"] is False
+    assert "PREEMPTIVE_EDGE_CONTROL_DECISION_MISSING" in status["blockers"]
+    assert "PRE_TRADE_LOSS_PROBABILITY_MISSING" in status["blockers"]
+    assert status["pass_conditions"]["preemptive_edge_control_pass"] is False
+    assert status["order_submitted"] is False
+
+
+def test_phase7_live_dry_run_blocks_high_pretrade_loss_probability() -> None:
+    status = build_live_pre_submit_dry_run_status(
+        _runtime(),
+        account_snapshot=_account(),
+        symbol_filter_snapshot=_filters(),
+        allocation_payload=_allocation(
+            preemptive_edge_control={
+                "preemptive_decision_id": "pec_test_high_loss",
+                "preemptive_decision": "ALLOW",
+                "pre_trade_loss_probability": 0.91,
+                "expected_edge_after_cost_bps": 18.0,
+            }
+        ),
+        now_ms=1_000,
+    )
+
+    assert status["submit_allowed"] is False
+    assert "PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND" in status["blockers"]
+    assert status["pass_conditions"]["preemptive_edge_control_pass"] is False
+    assert status["order_submitted"] is False
+    assert status["exchange_leverage_mutated"] is False
+    assert status["exchange_margin_mutated"] is False
+
+
+def test_phase7_live_dry_run_blocks_missing_advanced_indicator_evidence() -> None:
+    status = build_live_pre_submit_dry_run_status(
+        _runtime(),
+        account_snapshot=_account(),
+        symbol_filter_snapshot=_filters(),
+        allocation_payload=_allocation(
+            preemptive_edge_control={
+                "preemptive_decision_id": "pec_test_old_allow",
+                "preemptive_decision": "ALLOW",
+                "pre_trade_loss_probability": 0.35,
+                "expected_edge_after_cost_bps": 18.0,
+            }
+        ),
+        now_ms=1_000,
+    )
+
+    assert status["submit_allowed"] is False
+    assert "ADVANCED_INDICATOR_DECISION_MISSING" in status["blockers"]
+    assert status["pass_conditions"]["advanced_indicator_evidence_pass"] is False
     assert status["order_submitted"] is False
 
 

@@ -1,0 +1,48 @@
+{
+  "avg_loser_bps": -35.5262,
+  "avg_winner_bps": null,
+  "baseline_advisory_reasons": [],
+  "baseline_evidence_date": null,
+  "baseline_trade_count": 0,
+  "block_reason": null,
+  "bucket_scope": "symbol_timeframe",
+  "consecutive_losses": 3,
+  "data_source": "REDIS",
+  "degraded": false,
+  "degraded_since": null,
+  "drawdown_contribution_usd": -1.81835161,
+  "last_trade_ts": "2026-06-19T01:57:50Z",
+  "last_updated": "2026-06-19T02:09:01Z",
+  "loss_count": 3,
+  "max_drawdown_bps": 106.5785,
+  "missed_tp_then_stop_rate": null,
+  "recent_bps": [
+    -35.0760430389898,
+    -37.80069493360649,
+    -33.70179776731253
+  ],
+  "recent_missed_tp_then_stop": [],
+  "recent_outcomes": [
+    0,
+    0,
+    0
+  ],
+  "recent_pnl_usd": [
+    -0.5606426154640276,
+    -0.7509046744814506,
+    -0.506804323821965
+  ],
+  "recent_reversal_after_entry": [],
+  "recent_slippage_failures": [],
+  "reversal_after_entry_rate": null,
+  "rolling_ev_bps": -35.5262,
+  "rolling_win_rate": 0.0,
+  "schema_version": "v2_outcome_memory_updater_v1",
+  "slippage_failure_rate": null,
+  "soak_count": 3,
+  "symbol": "FETUSDT",
+  "timeframe": "15m",
+  "total_trades": 3,
+  "trade_count": 3,
+  "win_count": 0
+}

@@ -1,0 +1,151 @@
+{
+  "generated_at": "2026-07-01T18:40:46Z",
+  "goal_id": "V2_REPO_CLEANUP_RUNTIME_SAFE_SOURCE_TREE_AND_ARTIFACT_ARCHIVE_READY",
+  "active_runtime_disruption_risk": false,
+  "cleanup_exclusion_list_written": true,
+
+  "active_runtime_pids": [
+    {"pid": 2464, "service": "v2_binance_kline_wss_loop", "type": "ingestor"},
+    {"pid": 2466, "service": "v2_closed_loop_claude_worker (claude-1)", "type": "claude_worker"},
+    {"pid": 2467, "service": "v2_closed_loop_claude_worker (claude-2)", "type": "claude_worker"},
+    {"pid": 2469, "service": "v2_closed_loop_claude_worker (claude-3)", "type": "claude_worker"},
+    {"pid": 2471, "service": "v2_closed_loop_codex_worker (codex-1)", "type": "codex_worker"},
+    {"pid": 2475, "service": "v2_closed_loop_codex_worker (codex-2)", "type": "codex_worker"},
+    {"pid": 2476, "service": "v2_closed_loop_codex_worker (codex-3)", "type": "codex_worker"},
+    {"pid": 2494, "service": "v2_coinank_direct_runtime_status_publisher", "type": "publisher"},
+    {"pid": 2499, "service": "v2_coinapi_rest_ingestor_worker", "type": "ingestor"},
+    {"pid": 2518, "service": "v2_liquidation_runtime_status_publisher", "type": "publisher"},
+    {"pid": 2539, "service": "v2_native_cuda_trainer_persistent_loop", "type": "trainer", "critical": true},
+    {"pid": 2552, "service": "v2_native_ingestors_live_loop", "type": "ingestor"},
+    {"pid": 2580, "service": "v2_feature_pipeline_native_loop", "type": "feature_pipeline"},
+    {"pid": 2596, "service": "v2_ingestors_status_publisher", "type": "publisher"},
+    {"pid": 2609, "service": "v2_market_chart_payload_publisher", "type": "publisher"},
+    {"pid": 2656, "service": "v2_log_errors_status_publisher", "type": "publisher"},
+    {"pid": 2682, "service": "v2_professional_market_chart_payload_publisher", "type": "publisher"},
+    {"pid": 2684, "service": "v2_rl_core_inference_loop", "type": "inference"},
+    {"pid": 2686, "service": "v2_orchestrator_arbitration_loop", "type": "orchestrator", "critical": true},
+    {"pid": 2700, "service": "v2_opportunity_tracker_publisher", "type": "publisher"},
+    {"pid": 2705, "service": "v2_operator_review_publisher", "type": "publisher"},
+    {"pid": 2713, "service": "v2_legacy_v2_production_comparator", "type": "comparator"},
+    {"pid": 2723, "service": "v2_production_replacement_runtime_guard", "type": "guard"},
+    {"pid": 2809, "service": "v2_portfolio_state_publisher", "type": "publisher"},
+    {"pid": 2842, "service": "v2_paper_decision_lineage_publisher", "type": "publisher"},
+    {"pid": 2885, "service": "v2_technical_analysis_status_publisher", "type": "publisher"},
+    {"pid": 5323, "service": "v2_risk_gateway_live_loop", "type": "risk_gateway", "critical": true},
+    {"pid": 5328, "service": "v2_full_talib_ta_loop", "type": "ta_loop"},
+    {"pid": 5341, "service": "v2_trainer_checkpoint_evidence_publisher", "type": "publisher"},
+    {"pid": 5342, "service": "v2_worker_porting_orchestrator (daemon)", "type": "orchestrator"},
+    {"pid": 5514, "service": "v2_feature_snapshot_builder", "type": "feature_pipeline"},
+    {"pid": 5516, "service": "agent_supervisor (daemon)", "type": "supervisor", "critical": true},
+    {"pid": 5639, "service": "codex_non_live_watchdog (daemon)", "type": "codex_watchdog"},
+    {"pid": 5645, "service": "codex_legacy_shutdown_readiness_takeover (daemon)", "type": "codex_guard"},
+    {"pid": 5646, "service": "parallel_capacity_scheduler (daemon)", "type": "scheduler"},
+    {"pid": 5648, "service": "v2_parallel_spark_automation_runner", "type": "automation"},
+    {"pid": 5649, "service": "codex_legacy_v2_realtime_decision_observatory (daemon)", "type": "codex_observer"},
+    {"pid": 130672, "service": "v2_coinapi_wsds_loop", "type": "ingestor"},
+    {"pid": 153179, "service": "v2_liquidation_wss_loop", "type": "ingestor"},
+    {"pid": 398413, "service": "v2_all_timeframe_prediction_signal_price_target_publisher", "type": "publisher"},
+    {"pid": 897905, "service": "v2_out_of_sample_reverify_evidence_producer", "type": "evidence"},
+    {"pid": 910928, "service": "v2_position_history_persistent_tracker", "type": "tracker"},
+    {"pid": 2740920, "service": "v2_continuous_edge_guardian", "type": "guardian"},
+    {"pid": 2932284, "service": "uvicorn FastAPI backend (port 8000)", "type": "api_server", "critical": true},
+    {"pid": 2951024, "service": "v2_trade_management_paper_loop", "type": "paper_loop", "critical": true}
+  ],
+
+  "active_systemd_services": [
+    {"name": "redis-server.service", "status": "running", "critical": true}
+  ],
+
+  "active_codex_goal_dirs": [
+    "goal_state/V2_CLAUDE_CONTINUOUS_ADVERSARIAL_VALIDATION_AND_CAPITAL_PRODUCTIVITY_GUARDIAN",
+    "goal_state/V2_PERFORMANCE_REGRESSION_EMERGENCY_HALT_RECOVERY_AND_A_GRADE_BOOTSTRAP_REBUILD",
+    "goal_state/V2_TRUSTED_REPLAY_BOOTSTRAP_PAPER_EXPLORATION_AND_ONLINE_LEARNING_ACTIVATION",
+    "goal_state/V2_CONTINUOUS_90P_A_GRADE_EDGE_ZERO_LIQUIDATION_AND_1000X_COMPOUNDING_RELEASE",
+    "goal_state/V2_A_GRADE_BOOTSTRAP_ALLOCATOR_GUARDIAN_LS_DATA_AND_PERFORMANCE_GOVERNOR_COMPLETION",
+    "goal_state/V2_A_GRADE_ALLOCATOR_GUARDIAN_PORTFOLIO_API_AND_DYNAMIC_THRESHOLD_COMPLETION",
+    "goal_state/V2_FINAL_RUNTIME_CUTOVER_PRODUCTION_COST_A_GRADE_WEBSITE_AND_1000X_TRAJECTORY_READY"
+  ],
+
+  "active_goal_state_dirs_modified_last_72h": [
+    "goal_state/V2_CLAUDE_CONTINUOUS_ADVERSARIAL_VALIDATION_AND_CAPITAL_PRODUCTIVITY_GUARDIAN",
+    "goal_state/V2_PERFORMANCE_REGRESSION_EMERGENCY_HALT_RECOVERY_AND_A_GRADE_BOOTSTRAP_REBUILD",
+    "goal_state/V2_TRUSTED_REPLAY_BOOTSTRAP_PAPER_EXPLORATION_AND_ONLINE_LEARNING_ACTIVATION",
+    "goal_state/V2_CONTINUOUS_90P_A_GRADE_EDGE_ZERO_LIQUIDATION_AND_1000X_COMPOUNDING_RELEASE",
+    "goal_state/V2_A_GRADE_BOOTSTRAP_ALLOCATOR_GUARDIAN_LS_DATA_AND_PERFORMANCE_GOVERNOR_COMPLETION",
+    "goal_state/V2_A_GRADE_ALLOCATOR_GUARDIAN_PORTFOLIO_API_AND_DYNAMIC_THRESHOLD_COMPLETION",
+    "goal_state/V2_FINAL_RUNTIME_CUTOVER_PRODUCTION_COST_A_GRADE_WEBSITE_AND_1000X_TRAJECTORY_READY",
+    "goal_state/V2_CANONICAL_FORWARD_CANARY_EVIDENCE_AND_WEBSITE_TRUTH_COMPLETION"
+  ],
+
+  "active_claude_goal_dirs": [
+    "claude_worklog/agent_supervisor",
+    "claude_worklog/final_readiness",
+    "claude_worklog/tools"
+  ],
+
+  "active_public_payload_dirs_modified_last_24h": [
+    "v2/frontend/public/v2_closed_loop_execution/latest",
+    "v2/frontend/public/v2_dynamic_93_symbol_runtime_burn_in_edge_and_website_sync/latest",
+    "v2/frontend/public/v2_persistent_cuda_trainer_resource_utilization_and_paper_drawdown_guard/latest",
+    "v2/frontend/public/v2_dynamic_93_edge_recovery_and_signal_quality_burndown/latest",
+    "v2/frontend/public/v2_all_timeframe_prediction_signal_price_target_publisher/latest",
+    "v2/frontend/public/operator_runtime/v2_dynamic_93_symbol_runtime_burn_in_edge_and_website_sync/latest",
+    "v2/frontend/public/operator_runtime/v2_derivatives/latest",
+    "v2/frontend/public/operator_runtime/v2_native_trainer/latest",
+    "v2/frontend/public/operator_runtime/v2_trade_terminal/latest",
+    "v2/frontend/public/operator_runtime/v2_signals/latest",
+    "v2/frontend/public/operator_runtime/v2_dynamic_93_edge_recovery_and_signal_quality_burndown/latest",
+    "v2/frontend/public/operator_runtime/v2_continuous_edge_guardian/latest",
+    "v2/frontend/public/operator_runtime/v2_paper_trade_management/latest",
+    "v2/frontend/public/operator_runtime/v2_adaptive_capital_productivity/latest"
+  ],
+
+  "redis_state_files_or_db_files": [
+    {"path": "./leases.db", "type": "sqlite", "action": "NEVER_TOUCH"},
+    {"path": "./v2/backend/v2_paper_trading.db", "type": "sqlite", "action": "NEVER_TOUCH"}
+  ],
+
+  "log_dirs_written_by_active_pids": [
+    "claude_worklog/agent_supervisor/logs/control_plane/",
+    "v2/runtime/"
+  ],
+
+  "cleanup_exclusions": {
+    "goal_state_dirs_excluded": [
+      "goal_state/V2_CLAUDE_CONTINUOUS_ADVERSARIAL_VALIDATION_AND_CAPITAL_PRODUCTIVITY_GUARDIAN",
+      "goal_state/V2_PERFORMANCE_REGRESSION_EMERGENCY_HALT_RECOVERY_AND_A_GRADE_BOOTSTRAP_REBUILD",
+      "goal_state/V2_TRUSTED_REPLAY_BOOTSTRAP_PAPER_EXPLORATION_AND_ONLINE_LEARNING_ACTIVATION",
+      "goal_state/V2_CONTINUOUS_90P_A_GRADE_EDGE_ZERO_LIQUIDATION_AND_1000X_COMPOUNDING_RELEASE",
+      "goal_state/V2_A_GRADE_BOOTSTRAP_ALLOCATOR_GUARDIAN_LS_DATA_AND_PERFORMANCE_GOVERNOR_COMPLETION",
+      "goal_state/V2_A_GRADE_ALLOCATOR_GUARDIAN_PORTFOLIO_API_AND_DYNAMIC_THRESHOLD_COMPLETION",
+      "goal_state/V2_FINAL_RUNTIME_CUTOVER_PRODUCTION_COST_A_GRADE_WEBSITE_AND_1000X_TRAJECTORY_READY",
+      "goal_state/V2_CANONICAL_FORWARD_CANARY_EVIDENCE_AND_WEBSITE_TRUTH_COMPLETION"
+    ],
+    "claude_worklog_dirs_excluded": [
+      "claude_worklog/agent_supervisor",
+      "claude_worklog/final_readiness",
+      "claude_worklog/tools"
+    ],
+    "public_payload_dirs_excluded": [
+      "v2/frontend/public/operator_runtime/",
+      "v2/frontend/public/v2_closed_loop_execution/latest",
+      "v2/frontend/public/v2_dynamic_93_symbol_runtime_burn_in_edge_and_website_sync/latest",
+      "v2/frontend/public/v2_persistent_cuda_trainer_resource_utilization_and_paper_drawdown_guard/latest",
+      "v2/frontend/public/v2_dynamic_93_edge_recovery_and_signal_quality_burndown/latest",
+      "v2/frontend/public/v2_all_timeframe_prediction_signal_price_target_publisher/latest"
+    ],
+    "files_never_touch": [
+      ".env*", "*.db", "*.rdb", "leases.db",
+      "v2/backend/v2_paper_trading.db"
+    ],
+    "runtime_logs_excluded": [
+      "claude_worklog/agent_supervisor/logs/",
+      "v2/runtime/"
+    ]
+  },
+
+  "phase_0_pass_conditions": {
+    "active_runtime_disruption_risk": false,
+    "cleanup_exclusion_list_written": true
+  }
+}

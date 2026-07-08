@@ -332,10 +332,20 @@ def build_supervision_plan(
     monitor_timeframe: str,
     monitor_exchanges: str,
     provider_filter_status: dict[str, Any] | None = None,
+    smoke_test: bool = False,
+    kucoin_symbols: list[str] | None = None,
 ) -> dict[str, Any]:
     batches = _chunks(_normalize_symbols(symbols), batch_size)
+    # Cross-venue confirmation (F-0010) needs a second direct venue: spawn
+    # KuCoin recorder children for the KuCoin-supported symbol subset in
+    # addition to the Binance children. Symbols without KuCoin coverage stay
+    # Binance-only and are reported as cross-venue-unavailable downstream.
+    kucoin_batches = _chunks(_normalize_symbols(kucoin_symbols or []), batch_size)
+    exchange_batches: list[tuple[str, list[str]]] = [
+        ("binance", batch) for batch in batches
+    ] + [("kucoin", batch) for batch in kucoin_batches]
     direct_commands: list[list[str]] = []
-    for batch in batches:
+    for exchange, batch in exchange_batches:
         command = [
             python_executable,
             "-m",
@@ -343,7 +353,7 @@ def build_supervision_plan(
             "--symbols",
             ",".join(batch),
             "--exchange",
-            "binance",
+            exchange,
             "--speed",
             str(binance_speed),
             "--max-messages",
@@ -368,6 +378,11 @@ def build_supervision_plan(
             command.append("--binance-include-book-ticker")
         if binance_include_diff_depth:
             command.append("--binance-include-diff-depth")
+        if smoke_test:
+            # Children re-run the symbol resolver; explicit BTC/ETH/SOL sets are
+            # rejected by the V2_SYMBOL_DEFAULT_DRIFT guard unless the child is
+            # also told it is a smoke test.
+            command.append("--smoke-test")
         direct_commands.append(command)
 
     monitor_command = [
@@ -392,11 +407,16 @@ def build_supervision_plan(
         "--replay-root",
         str(replay_root),
     ]
+    if smoke_test:
+        monitor_command.append("--smoke-test")
     stream_count = len(_normalize_symbols(symbols)) * (3 + int(bool(binance_include_book_ticker)) + int(bool(binance_include_diff_depth)))
     return {
         "direct_batches": batches,
         "direct_batch_count": len(batches),
         "direct_batch_size": max(1, int(batch_size)),
+        "direct_kucoin_batches": kucoin_batches,
+        "direct_kucoin_batch_count": len(kucoin_batches),
+        "direct_kucoin_symbol_count": len(_normalize_symbols(kucoin_symbols or [])),
         "direct_commands": direct_commands,
         "direct_command_strings": [_command_string(command) for command in direct_commands],
         "monitor_command": monitor_command,
@@ -405,7 +425,7 @@ def build_supervision_plan(
         "binance_include_book_ticker": bool(binance_include_book_ticker),
         "binance_include_diff_depth": bool(binance_include_diff_depth),
         "direct_uses_redis_freshness_check": True,
-        "direct_exchange": "binance",
+        "direct_exchange": "binance" if not kucoin_batches else "binance+kucoin",
         "monitor_exchanges": monitor_exchanges,
         "provider_filter_status": provider_filter_status or {"enabled": False},
     }
@@ -885,7 +905,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--monitor-interval-seconds", type=float, default=1.0)
     parser.add_argument("--monitor-ttl-seconds", type=int, default=300)
     parser.add_argument("--monitor-timeframe", default="1m")
-    parser.add_argument("--monitor-exchanges", default="binance")
+    parser.add_argument("--monitor-exchanges", default="binance,kucoin")
+    parser.add_argument(
+        "--direct-kucoin",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Spawn KuCoin direct recorder children for the KuCoin-supported symbol subset (cross-venue confirmation).",
+    )
     parser.add_argument("--filter-provider-supported-symbols", action="store_true")
     parser.add_argument("--inspect-runtime-owner", action="store_true")
     parser.add_argument("--require-no-conflicting-owner", action="store_true")
@@ -918,6 +944,17 @@ def main(argv: list[str] | None = None) -> int:
             enabled=True,
         )
         symbol_source = f"{symbol_source}_provider_supported"
+    kucoin_symbols: list[str] = []
+    kucoin_provider_filter_status: dict[str, Any] = {"enabled": False}
+    if args.direct_kucoin:
+        # Cross-venue confirmation needs a second direct venue (F-0010).
+        # Only the KuCoin-supported subset gets KuCoin children; the rest
+        # stay Binance-only and report cross-venue unavailable.
+        kucoin_symbols, kucoin_provider_filter_status = filter_symbols_by_provider_support(
+            symbols=symbols,
+            exchange="kucoin",
+            enabled=True,
+        )
     plan = build_supervision_plan(
         symbols=symbols,
         python_executable=str(args.python_executable),
@@ -938,7 +975,10 @@ def main(argv: list[str] | None = None) -> int:
         monitor_timeframe=str(args.monitor_timeframe),
         monitor_exchanges=str(args.monitor_exchanges),
         provider_filter_status=provider_filter_status,
+        smoke_test=bool(args.smoke_test),
+        kucoin_symbols=kucoin_symbols,
     )
+    plan["kucoin_provider_filter_status"] = kucoin_provider_filter_status
     run_result = None
     if args.run_bounded and args.run_managed:
         raise SystemExit("--run-bounded and --run-managed are mutually exclusive")

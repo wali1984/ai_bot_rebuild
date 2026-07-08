@@ -23,6 +23,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
@@ -30,6 +31,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.websockets import WebSocketState
 
 from app.api.v2._common import get_redis
+from app.api.v2.probation_display import probation_gate_display_status
 from app.auth.security import optional_auth, require_auth
 from app.auth.users import UserRecord, safe_exchange_accounts, safe_user
 from app.domain.governance.audit_chain import local_paper_audit_policy_metadata
@@ -59,6 +61,10 @@ from app.services.backend_shutdown import (
     track_current_task,
     wait_for_shutdown,
 )
+from app.services.coinglass_provider import build_coinglass_health
+from app.services.hedge_engine import compute_portfolio_exposure, simulate_cross_margin_stress
+from app.services.provider_features import build_provider_actual_data_panel
+from app.services.smart_money_wallets import build_moralis_health
 
 router = APIRouter(tags=["v2-market-contracts"])
 stream_router = APIRouter(tags=["v2-market-streams"])
@@ -159,6 +165,7 @@ ADAPTIVE_CAPITAL_COMPACT_CACHE: dict[str, Any] = {
     "payload": None,
     "timestamp": None,
 }
+OPERATOR_ET = ZoneInfo("America/New_York")
 
 
 def _repo_root() -> Path:
@@ -178,6 +185,22 @@ def _market_stream_telemetry_store_path() -> Path:
 
 def _utc_now() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _et_now() -> str:
+    return datetime.now(OPERATOR_ET).isoformat(timespec="seconds")
+
+
+def _to_et(timestamp: str | None) -> str | None:
+    if not timestamp:
+        return None
+    try:
+        parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(OPERATOR_ET).isoformat(timespec="seconds")
 
 
 def _timestamp_from_payload(payload: dict[str, Any] | None) -> str | None:
@@ -239,6 +262,123 @@ def _read_v2_redis_json(key: str) -> dict[str, Any] | None:
     except (TypeError, ValueError):
         return None
     return payload if isinstance(payload, dict) else None
+
+
+def _provider_readiness_summary() -> dict[str, Any]:
+    coinglass = _read_v2_redis_json("v2:provider:coinglass:health")
+    moralis = _read_v2_redis_json("v2:provider:moralis:health")
+    coinglass_usage = _read_v2_redis_json("v2:provider:coinglass:usage") or {}
+    moralis_usage = _read_v2_redis_json("v2:provider:moralis:usage") or {}
+    coinglass_endpoint_status = _read_v2_redis_json("v2:provider:coinglass:endpoint_status") or {}
+    moralis_endpoint_status = _read_v2_redis_json("v2:provider:moralis:endpoint_status") or {}
+    if not coinglass:
+        coinglass = build_coinglass_health(os.environ)
+    if not moralis:
+        moralis = build_moralis_health(os.environ)
+    provider_actual_data = build_provider_actual_data_panel(
+        get_redis(),
+        symbol=str(os.environ.get("ALPHAFORGE_PROVIDER_PANEL_SYMBOL", "BTCUSDT")).upper(),
+        timeframe=str(os.environ.get("ALPHAFORGE_PROVIDER_PANEL_TIMEFRAME", "1m")),
+    )
+    return {
+        "schema_version": "v2_provider_readiness_summary_v1",
+        "status": "PROVIDER_READINESS_ACTIVE",
+        "coinglass": coinglass,
+        "moralis": moralis,
+        "coinglass_status": coinglass.get("status"),
+        "moralis_status": moralis.get("status"),
+        "coinglass_dashboard_color": provider_actual_data.get("coinglass", {}).get("dashboard_color"),
+        "moralis_dashboard_color": provider_actual_data.get("moralis", {}).get("dashboard_color"),
+        "coinglass_actual_payload_present": provider_actual_data.get("coinglass", {}).get("actual_payload_present"),
+        "moralis_actual_payload_present": provider_actual_data.get("moralis", {}).get("actual_payload_present"),
+        "coinglass_heartbeat_only": provider_actual_data.get("coinglass", {}).get("heartbeat_only"),
+        "moralis_heartbeat_only": provider_actual_data.get("moralis", {}).get("heartbeat_only"),
+        "coinglass_usage": coinglass_usage,
+        "moralis_usage": moralis_usage,
+        "coinglass_endpoint_status": coinglass_endpoint_status,
+        "moralis_endpoint_status": moralis_endpoint_status,
+        "actual_data_panel": provider_actual_data,
+        "raw_keys_exposed": False,
+        "invalid_subscription_blocks_core_system": False,
+        "optional_provider_failures_core_blocking": False,
+        "heartbeat_only_green_allowed": False,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+
+
+def _adaptive_hedge_cross_margin_summary() -> dict[str, Any]:
+    portfolio = _read_v2_redis_json("v2:portfolio:state") or {}
+    rows = portfolio.get("positions_by_symbol") or portfolio.get("positions") or []
+    positions = [
+        row
+        for row in rows
+        if isinstance(row, dict)
+        and row.get("open_position") is not False
+        and str(row.get("position_state") or "").lower() != "shadow_observation_only"
+    ]
+    equity = _float(
+        portfolio.get("equity")
+        or portfolio.get("current_session_equity")
+        or portfolio.get("paper_equity")
+    ) or 0.0
+    available = _float(portfolio.get("cash_balance") or portfolio.get("available_balance") or equity) or 0.0
+    open_notional = _float(portfolio.get("open_position_notional")) or sum(
+        _float(row.get("gross_notional") or row.get("notional") or row.get("notional_usd")) or 0.0
+        for row in positions
+    )
+    portfolio_summary_leverage = _float(portfolio.get("effective_leverage")) or (
+        open_notional / equity if equity > 0.0 and open_notional > 0.0 else 0.0
+    )
+    exposure = compute_portfolio_exposure(positions, equity_usd=equity)
+    stress = simulate_cross_margin_stress(
+        equity_usd=equity,
+        available_margin_usd=available,
+        target_notional_usd=open_notional,
+        allocated_margin_usd=open_notional,
+        recommended_leverage=portfolio_summary_leverage,
+        max_loss_usd=portfolio.get("current_drawdown_usd"),
+        requested_margin_mode="isolated_paper_simulated",
+        expectancy_usd=portfolio.get("session_realized_pnl") or portfolio.get("realized_pnl_usd"),
+    )
+    leverage_values = []
+    margin_modes = []
+    hedge_rows = 0
+    for row in positions:
+        leverage = _float(row.get("recommended_leverage") or row.get("effective_leverage"))
+        if leverage is not None:
+            leverage_values.append(round(leverage, 8))
+        mode = row.get("recommended_margin_mode") or row.get("margin_mode_simulated")
+        if mode:
+            margin_modes.append(str(mode))
+        if row.get("hedge_state") not in (None, "", "NO_HEDGE"):
+            hedge_rows += 1
+    if not leverage_values and open_notional > 0.0:
+        leverage_values = [round(portfolio_summary_leverage, 8)]
+    if not margin_modes and open_notional > 0.0:
+        margin_modes = [stress.get("recommended_margin_mode") or "isolated_paper_simulated"]
+    return {
+        "schema_version": "v2_adaptive_hedge_cross_margin_runtime_summary_v1",
+        "status": "ADAPTIVE_HEDGE_CROSS_MARGIN_SIMULATION_ACTIVE",
+        "source": "redis:v2:portfolio:state",
+        "generated_utc": portfolio.get("generated_utc") or _utc_now(),
+        "generated_et": _to_et(portfolio.get("generated_utc")) or portfolio.get("generated_est") or _et_now(),
+        "paper_session_id": portfolio.get("paper_session_id") or portfolio.get("reset_session_id"),
+        "recommended_leverage_distribution": sorted(set(leverage_values)),
+        "recommended_margin_mode_distribution": sorted(set(margin_modes)),
+        "current_notional_distribution_usd": [round(open_notional, 8)] if open_notional else [],
+        "hedge_rows": hedge_rows,
+        "hedge_state": "NO_HEDGE" if hedge_rows <= 0 else "HEDGE_ROWS_PRESENT",
+        "cross_margin_state": stress.get("why_cross_margin_or_isolated"),
+        "cross_margin_safe": stress.get("cross_margin_safe"),
+        "recommended_margin_mode": stress.get("recommended_margin_mode"),
+        "operator_display_currency": "USD",
+        "operator_display_timezone": "America/New_York",
+        "bps_operator_display_allowed": False,
+        **exposure,
+        **stress,
+    }
 
 
 async def _maybe_await(value: Any) -> Any:
@@ -1578,7 +1718,10 @@ def _base_response(
         "source_type": source_type,
         "endpoint": endpoint,
         "timestamp": timestamp,
+        "timestamp_et": _to_et(timestamp),
+        "generated_et": _to_et(timestamp),
         "received_at": _utc_now(),
+        "received_et": _et_now(),
         "lag_ms": lag,
         "stale": unavailable or lag is None or lag > 120_000,
         "missing_fields": missing_fields,
@@ -1777,6 +1920,123 @@ def _compact_a_grade_source_readiness(payload: Any) -> dict[str, Any]:
     if closest:
         compact["closest_near_a_grade"] = closest
     return compact
+
+
+def _high_confidence_cluster_derived_dimensions(
+    cluster_payload: dict[str, Any],
+) -> dict[str, Any]:
+    rows = (
+        cluster_payload.get("sample_high_confidence_losses")
+        if isinstance(cluster_payload.get("sample_high_confidence_losses"), list)
+        else []
+    )
+    sample_rows = [row for row in rows if isinstance(row, dict)]
+
+    def _counts(*fields: str) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for row in sample_rows:
+            value = None
+            for field in fields:
+                if row.get(field) not in (None, ""):
+                    value = row.get(field)
+                    break
+            if value in (None, ""):
+                continue
+            key = str(value).strip().lower()
+            if key:
+                counts[key] = counts.get(key, 0) + 1
+        return counts
+
+    dimension_counts = cluster_payload.get("affected_dimension_counts")
+    if not isinstance(dimension_counts, dict) or not dimension_counts:
+        dimension_counts = {
+            "side": _counts("side"),
+            "timeframe": _counts("timeframe"),
+            "strategy_mode": _counts("strategy_selected_mode", "strategy_mode", "strategy_id"),
+        }
+    affected_symbols = cluster_payload.get("affected_symbols")
+    if not isinstance(affected_symbols, list) or not affected_symbols:
+        affected_symbols = sorted(
+            {
+                str(row.get("symbol")).strip().upper()
+                for row in sample_rows
+                if row.get("symbol")
+            }
+        )
+    return {
+        "affected_symbols": affected_symbols,
+        "affected_dimension_counts": dimension_counts,
+        "quarantined_sides": cluster_payload.get("quarantined_sides")
+        or sorted((dimension_counts.get("side") or {}).keys()),
+        "quarantined_timeframes": cluster_payload.get("quarantined_timeframes")
+        or sorted((dimension_counts.get("timeframe") or {}).keys()),
+        "quarantined_strategy_modes": cluster_payload.get("quarantined_strategy_modes")
+        or sorted((dimension_counts.get("strategy_mode") or {}).keys()),
+    }
+
+
+def _advanced_indicator_runtime_summary(
+    *,
+    preemptive_matrix: dict[str, Any] | None,
+    preemptive_status: dict[str, Any] | None = None,
+    admission_status: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    matrix = preemptive_matrix if isinstance(preemptive_matrix, dict) else {}
+    rows = matrix.get("rows") or matrix.get("sample_decisions") or []
+    rows = [row for row in rows if isinstance(row, dict)]
+    status_counts: dict[str, int] = {}
+    block_reasons: dict[str, int] = {}
+    caution_reasons: dict[str, int] = {}
+    fvg_present = 0
+    fvg_side_aligned = 0
+    for row in rows:
+        status = str(
+            row.get("advanced_indicator_status")
+            or "ADVANCED_INDICATOR_NOT_REPORTED"
+        )
+        status_counts[status] = status_counts.get(status, 0) + 1
+        if row.get("fvg_present") is True:
+            fvg_present += 1
+        if row.get("fvg_side_aligned") is True:
+            fvg_side_aligned += 1
+        for reason in row.get("advanced_indicator_block_reasons") or []:
+            text = str(reason)
+            block_reasons[text] = block_reasons.get(text, 0) + 1
+        for reason in row.get("advanced_indicator_caution_reasons") or []:
+            text = str(reason)
+            caution_reasons[text] = caution_reasons.get(text, 0) + 1
+    accepted_block_count = None
+    if isinstance(admission_status, dict):
+        accepted_block_count = admission_status.get(
+            "accepted_advanced_indicator_block_count"
+        )
+    return {
+        "schema_version": "advanced_indicator_runtime_truth_v1",
+        "status": (
+            "ADVANCED_INDICATOR_DECISION_CONSUMPTION_ACTIVE"
+            if rows
+            else "ADVANCED_INDICATOR_WAITING_FOR_PREEMPTIVE_MATRIX"
+        ),
+        "candidate_count": len(rows),
+        "preemptive_candidate_count": (
+            preemptive_status.get("candidate_count")
+            if isinstance(preemptive_status, dict)
+            else matrix.get("candidate_count")
+        ),
+        "status_counts": status_counts,
+        "block_reason_counts": block_reasons,
+        "caution_reason_counts": caution_reasons,
+        "fvg_present_count": fvg_present,
+        "fvg_side_aligned_count": fvg_side_aligned,
+        "accepted_advanced_indicator_block_count": accepted_block_count,
+        "fvg_standalone_allows_trade": False,
+        "fvg_alone_can_approve_trade": False,
+        "sweep_risk_can_block_or_reduce": True,
+        "displayed_without_decision_consumption": False,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "paper_only": True,
+    }
 
 
 def _compact_a_grade_readiness(payload: Any) -> dict[str, Any] | None:
@@ -3000,6 +3260,11 @@ def _runtime_canonical_paper_account(client: Any | None) -> dict[str, Any]:
         "starting_equity_usd": starting_equity,
         "initial_capital": starting_equity,
         "equity": equity,
+        "available_balance": equity,
+        "available_balance_usd": equity,
+        "available_balance_scope": "PAPER_SIM_ACCOUNT_NOT_LIVE_SIGNED_ACCOUNT",
+        "available_balance_source": "paper_equity_from_v2_portfolio_state",
+        "used_balance": 0.0,
         "realized_pnl": realized_pnl,
         "realized_pnl_usd": realized_pnl,
         "unrealized_pnl": unrealized_pnl,
@@ -3349,6 +3614,81 @@ async def get_market_overview() -> dict[str, Any]:
         timestamp=_timestamp_from_payload(manifest),
         missing_fields=[] if symbols else ["symbols"],
         warnings=["Static payload fallback; ticker prices unavailable; not a live stream"],
+        mode="read_only",
+    )
+
+
+@router.get("/markets")
+async def get_markets_contract() -> dict[str, Any]:
+    """Compatibility alias for frontend/mobile consumers expecting `/api/v2/markets`."""
+    response = dict(await get_market_overview())
+    response["endpoint"] = "/api/v2/markets"
+    return response
+
+
+@router.get("/derivatives")
+async def get_derivatives_contract() -> dict[str, Any]:
+    """Aggregate derivatives contract for `/api/v2/derivatives`.
+
+    Uses the existing operator-truth builder in read-only mode. This route
+    never places orders, calls test-order, changes leverage/margin, or writes
+    Redis/exchange state.
+    """
+    endpoint = "/api/v2/derivatives"
+    try:
+        from app.services.operator_truth.trade_derivatives_runtime import (
+            DERIVATIVES_OUT,
+            build_derivatives_payload,
+            json_load,
+        )
+
+        cached_payload = json_load(DERIVATIVES_OUT / "derivatives_payload.json", None)
+        if isinstance(cached_payload, dict):
+            payload = cached_payload
+            payload_source = "operator_runtime/v2_derivatives/latest/derivatives_payload.json"
+        else:
+            payload = await run_in_threadpool(build_derivatives_payload)
+            payload_source = "app.services.operator_truth.trade_derivatives_runtime.build_derivatives_payload"
+    except Exception as exc:
+        return _base_response(
+            endpoint=endpoint,
+            data={
+                "schema_version": "v2_derivatives_payload_v1",
+                "symbols": [],
+                "modules": {},
+                "live_submit_allowed": False,
+                "live_submit_blocker": "DERIVATIVES_PAYLOAD_UNAVAILABLE",
+            },
+            source="app.services.operator_truth.trade_derivatives_runtime",
+            source_type="unavailable",
+            timestamp=None,
+            missing_fields=["derivatives_payload"],
+            warnings=[
+                f"Derivatives payload builder failed: {type(exc).__name__}",
+                "Read-only derivatives endpoint failed closed and did not mutate exchange state",
+            ],
+            mode="read_only",
+        )
+
+    modules = payload.get("modules") if isinstance(payload.get("modules"), dict) else {}
+    required_modules = ("funding", "open_interest", "long_short", "basis", "liquidations")
+    missing = [name for name in required_modules if name not in modules]
+    for name in required_modules:
+        module = modules.get(name)
+        if isinstance(module, dict) and str(module.get("data_status") or "").startswith("NO_CURRENT_"):
+            missing.append(name)
+
+    return _base_response(
+        endpoint=endpoint,
+        data=payload,
+        source=payload_source,
+        source_type="static_payload" if modules else "unavailable",
+        timestamp=_timestamp_from_payload(payload) or _utc_now(),
+        missing_fields=sorted(set(missing)),
+        warnings=[
+            "Derivatives contract is read-only; live_submit_allowed remains false",
+            "Public/Redis derivatives sources cannot approve final A+ execution by themselves",
+        ],
         mode="read_only",
     )
 
@@ -4773,12 +5113,19 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
             "equity": equity,
             "paper_equity": equity,
             "paper_balance": equity,
+            "available_balance": equity,
+            "available_balance_usd": equity,
+            "available_balance_scope": "PAPER_SIM_ACCOUNT_NOT_LIVE_SIGNED_ACCOUNT",
+            "available_balance_source": "paper_equity_from_v2_portfolio_state_not_live_signed_account",
+            "used_balance": _notional or 0.0,
             "paper_initial_capital": _paper_initial_capital,
             "initial_capital": _paper_initial_capital,
             "starting_equity_usd": _paper_initial_capital,
             "paper_session_id": _paper_session_id,
             "realized_pnl": _clamp_pnl(realized_pnl),
+            "realized_pnl_usd": _clamp_pnl(realized_pnl),
             "unrealized_pnl": _clamp_pnl(unrealized_pnl),
+            "unrealized_pnl_usd": _clamp_pnl(unrealized_pnl),
             "open_position_count": _open_count,
             "closed_trade_count": _closed_count,
             "total_open_notional": _notional,
@@ -4941,8 +5288,19 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
         "equity": base_equity,
         "paper_equity": base_equity,
         "paper_balance": base_equity,
+        "available_balance": base_equity,
+        "available_balance_usd": base_equity,
+        "available_balance_scope": "PAPER_SIM_ACCOUNT_NOT_LIVE_SIGNED_ACCOUNT",
+        "available_balance_source": "paper_equity_from_v2_portfolio_state_not_live_signed_account",
+        "used_balance": _first_public_not_none(
+            _float(pub_portfolio_state.get("open_position_notional")),
+            _float(redis_hb_public.get("total_open_notional")),
+            0.0,
+        ),
         "realized_pnl": _clamp(base_realized),
+        "realized_pnl_usd": _clamp(base_realized),
         "unrealized_pnl": _clamp(base_unrealized),
+        "unrealized_pnl_usd": _clamp(base_unrealized),
         "paper_initial_capital": _public_initial_capital,
         "initial_capital": _public_initial_capital,
         "starting_equity_usd": _public_initial_capital,
@@ -5109,6 +5467,12 @@ async def get_account_summary(actor: UserRecord | None = Depends(optional_auth))
         "starting_equity_usd": portfolio_data.get("starting_equity_usd")
         or portfolio_data.get("paper_initial_capital"),
         "paper_initial_capital": portfolio_data.get("paper_initial_capital"),
+        "available_balance": portfolio_data.get("available_balance"),
+        "available_balance_usd": portfolio_data.get("available_balance_usd"),
+        "available_balance_scope": portfolio_data.get("available_balance_scope")
+        or "PAPER_SIM_ACCOUNT_NOT_LIVE_SIGNED_ACCOUNT",
+        "available_balance_source": portfolio_data.get("available_balance_source")
+        or "paper_equity_from_v2_portfolio_state_not_live_signed_account",
         "realized_pnl": portfolio_data.get("realized_pnl"),
         "unrealized_pnl": portfolio_data.get("unrealized_pnl"),
         "open_position_count": portfolio_data.get("open_position_count"),
@@ -8516,6 +8880,14 @@ async def get_orchestrator_status() -> dict[str, Any]:
     )
 
 
+@router.get("/orchestrator")
+async def get_orchestrator_contract() -> dict[str, Any]:
+    """Compatibility alias for `/api/v2/orchestrator`."""
+    response = dict(await get_orchestrator_status())
+    response["endpoint"] = "/api/v2/orchestrator"
+    return response
+
+
 # ---------------------------------------------------------------------------
 # Risk gateway status endpoint
 # ---------------------------------------------------------------------------
@@ -8543,6 +8915,253 @@ async def get_risk_status() -> dict[str, Any]:
     )
     heartbeat: dict[str, Any] | None = heartbeat_raw if isinstance(heartbeat_raw, dict) else None
     recent_decisions = _parse_redis_list_or_json(decisions_raw)
+    governor_raw = _read_v2_redis_json_or_list("v2:paper:performance_governor_status")
+    governor: dict[str, Any] = governor_raw if isinstance(governor_raw, dict) else {}
+    circuit_raw = _read_v2_redis_json_or_list("v2:paper:performance_circuit_breaker_status")
+    circuit: dict[str, Any] = circuit_raw if isinstance(circuit_raw, dict) else {}
+    preemptive_edge_control_raw = _read_v2_redis_json_or_list(
+        "v2:paper:preemptive_edge_control_status"
+    )
+    preemptive_edge_control_status: dict[str, Any] = (
+        preemptive_edge_control_raw
+        if isinstance(preemptive_edge_control_raw, dict)
+        else {
+            "schema_version": "preemptive_edge_control_status_v1",
+            "status": "PREEMPTIVE_EDGE_CONTROL_STATUS_UNAVAILABLE",
+            "candidate_count": 0,
+            "accepted_count": 0,
+            "hard_fail": True,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        }
+    )
+    preemptive_matrix_raw = _read_v2_redis_json_or_list(
+        "v2:paper:preemptive_candidate_decision_matrix"
+    )
+    preemptive_candidate_decision_matrix: dict[str, Any] = (
+        preemptive_matrix_raw
+        if isinstance(preemptive_matrix_raw, dict)
+        else {
+            "schema_version": "preemptive_candidate_decision_matrix_v1",
+            "status": "PREEMPTIVE_CANDIDATE_DECISION_MATRIX_UNAVAILABLE",
+            "candidate_count": 0,
+            "sample_decisions": [],
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        }
+    )
+    preemptive_rows = (
+        preemptive_candidate_decision_matrix.get("rows")
+        or preemptive_candidate_decision_matrix.get("sample_decisions")
+        or []
+    )
+    preemptive_rows = preemptive_rows if isinstance(preemptive_rows, list) else []
+    first_preemptive_sample = (
+        preemptive_rows[0]
+        if preemptive_rows and isinstance(preemptive_rows[0], dict)
+        else {}
+    )
+    paper_preemptive_admission_raw = _read_v2_redis_json_or_list(
+        "v2:paper:preemptive_admission_status"
+    )
+    paper_preemptive_admission_status: dict[str, Any] = (
+        paper_preemptive_admission_raw
+        if isinstance(paper_preemptive_admission_raw, dict)
+        else {
+            "schema_version": "paper_preemptive_admission_status_v1",
+            "status": "PAPER_PREEMPTIVE_ADMISSION_STATUS_UNAVAILABLE",
+            "hard_fail": True,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        }
+    )
+    positive_edge_probation_policy_raw = _read_v2_redis_json_or_list(
+        "v2:paper:positive_edge_probation_policy"
+    )
+    positive_edge_probation_policy: dict[str, Any] = (
+        positive_edge_probation_policy_raw
+        if isinstance(positive_edge_probation_policy_raw, dict)
+        else {
+            "schema_version": "positive_edge_probation_policy_v1",
+            "status": "POSITIVE_EDGE_PROBATION_POLICY_UNAVAILABLE",
+            "enabled": False,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        }
+    )
+    positive_edge_probation_runtime_raw = _read_v2_redis_json_or_list(
+        "v2:paper:positive_edge_probation_runtime_status"
+    )
+    positive_edge_probation_runtime_status: dict[str, Any] = (
+        positive_edge_probation_runtime_raw
+        if isinstance(positive_edge_probation_runtime_raw, dict)
+        else {
+            "schema_version": "positive_edge_probation_runtime_status_v1",
+            "status": "POSITIVE_EDGE_PROBATION_RUNTIME_STATUS_UNAVAILABLE",
+            "current_candidate_count": 0,
+            "current_accepted_count": 0,
+            "closed_probation_trade_count": 0,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "counts_as_final_a_plus": False,
+            "counts_as_live_ready": False,
+        }
+    )
+    probation_5_trade_gate = (
+        _read_v2_redis_json_or_list("v2:paper:probation_5_trade_gate") or {}
+    )
+    probation_20_trade_gate = (
+        _read_v2_redis_json_or_list("v2:paper:probation_20_trade_gate") or {}
+    )
+    probation_50_trade_gate = (
+        _read_v2_redis_json_or_list("v2:paper:probation_50_trade_gate") or {}
+    )
+    if not isinstance(probation_5_trade_gate, dict):
+        probation_5_trade_gate = {}
+    if not isinstance(probation_20_trade_gate, dict):
+        probation_20_trade_gate = {}
+    if not isinstance(probation_50_trade_gate, dict):
+        probation_50_trade_gate = {}
+    probation_5_display_status = probation_gate_display_status(probation_5_trade_gate)
+    positive_edge_probation_summary = {
+        "status": positive_edge_probation_runtime_status.get("status"),
+        "policy_enabled": positive_edge_probation_policy.get("enabled") is True,
+        "current_candidate_count": positive_edge_probation_runtime_status.get(
+            "current_candidate_count"
+        ),
+        "current_accepted_count": positive_edge_probation_runtime_status.get(
+            "current_accepted_count"
+        ),
+        "closed_probation_trade_count": positive_edge_probation_runtime_status.get(
+            "closed_probation_trade_count"
+        ),
+        "next_gate": positive_edge_probation_runtime_status.get("next_gate"),
+        "probation_5_trade_gate_status": probation_5_display_status,
+        "probation_20_trade_gate_status": probation_20_trade_gate.get("status"),
+        "probation_50_trade_gate_status": probation_50_trade_gate.get("status"),
+        "counts_as_final_a_plus": False,
+        "counts_as_live_ready": False,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "supply_state": (
+            "NO_SAFE_TRADE_SUPPLY"
+            if int(positive_edge_probation_runtime_status.get("current_candidate_count") or 0)
+            <= 0
+            else "POSITIVE_EDGE_PROBATION_SUPPLY_AVAILABLE"
+        ),
+    }
+    advanced_indicator_summary = _advanced_indicator_runtime_summary(
+        preemptive_matrix=preemptive_candidate_decision_matrix,
+        preemptive_status=preemptive_edge_control_status,
+        admission_status=paper_preemptive_admission_status,
+    )
+    adaptive_hedge_cross_margin = _adaptive_hedge_cross_margin_summary()
+    provider_readiness = _provider_readiness_summary()
+    halt_reasons = [
+        str(reason)
+        for reason in (
+            governor.get("halt_reasons")
+            or governor.get("state_reasons")
+            or []
+        )
+        if reason
+    ]
+    state_reasons = [
+        str(reason)
+        for reason in (
+            governor.get("state_reasons")
+            or governor.get("halt_reasons")
+            or []
+        )
+        if reason
+    ]
+    top_blockers = halt_reasons[:8]
+    cluster_raw = circuit.get("recovery_high_confidence_loss_cluster_status")
+    bucket_raw = circuit.get("bucket_quarantine_status")
+    bucket_raw = bucket_raw if isinstance(bucket_raw, dict) else {}
+    cluster_status: dict[str, Any] | None = None
+    if isinstance(cluster_raw, dict):
+        derived_cluster = _high_confidence_cluster_derived_dimensions(cluster_raw)
+        cluster_detected = cluster_raw.get("cluster_detected") is True
+        guardian_state = (
+            governor.get("state")
+            or governor.get("status")
+            or circuit.get("state")
+            or circuit.get("status")
+        )
+        guardian_new_entries_allowed = (
+            governor.get("new_entries_allowed")
+            if governor.get("new_entries_allowed") is not None
+            else circuit.get("new_entries_allowed")
+        )
+        reduce_size_allowed = (
+            circuit.get("new_entries_allowed") is True
+            and guardian_new_entries_allowed is True
+            and not cluster_detected
+            and not bool(bucket_raw.get("blocked_bucket_keys"))
+        )
+        cluster_status = {
+            "status": cluster_raw.get("status"),
+            "active": cluster_detected,
+            "cluster_detected": cluster_raw.get("cluster_detected"),
+            "high_confidence_min_score": cluster_raw.get("high_confidence_min_score"),
+            "high_confidence_loss_count": cluster_raw.get("high_confidence_loss_count"),
+            "cluster_count": cluster_raw.get("high_confidence_loss_count"),
+            "cluster_min_loss_count": cluster_raw.get("cluster_min_loss_count"),
+            "affected_symbols": derived_cluster["affected_symbols"],
+            "affected_dimension_counts": derived_cluster["affected_dimension_counts"],
+            "affected_buckets": {
+                "sides": derived_cluster["quarantined_sides"],
+                "timeframes": derived_cluster["quarantined_timeframes"],
+                "strategy_modes": derived_cluster["quarantined_strategy_modes"],
+                "blocked_bucket_keys": (bucket_raw.get("blocked_bucket_keys") or [])[:20],
+            },
+            "guardian_state": guardian_state,
+            "guardian_new_entries_allowed": guardian_new_entries_allowed,
+            "REDUCE_SIZE_allowed": reduce_size_allowed,
+            "reduce_size_bootstrap_allowed": reduce_size_allowed,
+            "reduce_size_policy": "REDUCE_SIZE_BOOTSTRAP_PAPER_ONLY_NOT_FINAL_A_PLUS",
+            "why_reduce_size_blocked": (
+                "HIGH_CONFIDENCE_LOSS_CLUSTER_ACTIVE"
+                if cluster_detected
+                else "BUCKET_QUARANTINE_ACTIVE"
+                if bucket_raw.get("blocked_bucket_keys")
+                else "GUARDIAN_OR_GLOBAL_ENTRY_GATE_BLOCKED"
+                if not reduce_size_allowed
+                else None
+            ),
+            "post_patch_recovery_status": (
+                "BLOCKED_CURRENT_CLUSTER_NO_POST_PATCH_RECOVERY_PROOF"
+                if cluster_detected
+                else "NO_ACTIVE_HIGH_CONFIDENCE_CLUSTER"
+            ),
+            "paper_only": cluster_raw.get("paper_only"),
+            "routes_to_live": cluster_raw.get("routes_to_live"),
+            "places_real_order": cluster_raw.get("places_real_order"),
+            "sample_high_confidence_losses": [
+                {
+                    "symbol": row.get("symbol"),
+                    "side": row.get("side"),
+                    "timeframe": row.get("timeframe"),
+                    "strategy_id": row.get("strategy_id"),
+                    "confidence_calibrated": row.get("confidence_calibrated"),
+                    "realized_pnl_bps": row.get("realized_pnl_bps"),
+                    "exit_reason": row.get("exit_reason"),
+                }
+                for row in (
+                    cluster_raw.get("sample_high_confidence_losses")
+                    if isinstance(cluster_raw.get("sample_high_confidence_losses"), list)
+                    else []
+                )[:5]
+                if isinstance(row, dict)
+            ],
+        }
 
     missing: list[str] = []
     # An empty latest-decision payload with a live heartbeat means the gateway
@@ -8594,6 +9213,18 @@ async def get_risk_status() -> dict[str, Any]:
     _live_gate = (heartbeat.get("current_gate_state") or heartbeat.get("live_gate") if heartbeat else None) or "blocked_human_only"
     _live_blocked = not bool(heartbeat.get("approves_live", False)) if heartbeat else True
     _fail_closed = bool(heartbeat.get("fail_closed", True)) if heartbeat else True
+    _governor_state = (
+        governor.get("state")
+        or governor.get("status")
+        or governor.get("governor_state")
+    )
+    _risk_status = (
+        str(_governor_state)
+        if _governor_state
+        else str(heartbeat.get("classification")) if heartbeat and heartbeat.get("classification") else None
+    )
+    if not _risk_status:
+        _risk_status = "FAIL_CLOSED_NO_RECENT_RISK_RECORDS" if missing else "FAIL_CLOSED_READ_ONLY"
 
     # Normalize decisions for the admin-risk decisions table
     _normalized_decisions: list[dict[str, Any]] = []
@@ -8610,6 +9241,137 @@ async def get_risk_status() -> dict[str, Any]:
     _resp = _base_response(
         endpoint=endpoint,
         data={
+            "status": _risk_status,
+            "risk_status": _risk_status,
+            "classification": _risk_status,
+            "fail_closed_reason": _governor_state or ("missing:" + ",".join(missing) if missing else "read_only_live_gate_blocked"),
+            "new_entries_allowed": governor.get("new_entries_allowed"),
+            "halt_reasons": halt_reasons,
+            "state_reasons": state_reasons,
+            "top_blockers": top_blockers,
+            "recovery_high_confidence_loss_cluster_status": cluster_status,
+            "preemptive_edge_control_status": preemptive_edge_control_status,
+            "preemptive_candidate_decision_matrix": preemptive_candidate_decision_matrix,
+            "paper_preemptive_admission_status": paper_preemptive_admission_status,
+            "positive_edge_probation": positive_edge_probation_summary,
+            "advanced_indicators": advanced_indicator_summary,
+            "adaptive_hedge_cross_margin": adaptive_hedge_cross_margin,
+            "provider_readiness": provider_readiness,
+            "positive_edge_probation_policy": positive_edge_probation_policy,
+            "positive_edge_probation_runtime_status": (
+                positive_edge_probation_runtime_status
+            ),
+            "probation_5_trade_gate": probation_5_trade_gate,
+            "probation_20_trade_gate": probation_20_trade_gate,
+            "probation_50_trade_gate": probation_50_trade_gate,
+            "preemptive_prevention": {
+                "status": (
+                    "PREEMPTIVE_EDGE_CONTROL_ACTIVE"
+                    if preemptive_edge_control_status.get("candidate_count")
+                    is not None
+                    and preemptive_edge_control_status.get("status")
+                    != "PREEMPTIVE_EDGE_CONTROL_STATUS_UNAVAILABLE"
+                    else "PREEMPTIVE_EDGE_CONTROL_NOT_YET_PUBLISHED"
+                ),
+                "candidate_count": preemptive_edge_control_status.get("candidate_count"),
+                "decision_counts": preemptive_edge_control_status.get("decision_counts") or {},
+                "action_counts": preemptive_edge_control_status.get("action_counts") or {},
+                "preemptive_decision_id": first_preemptive_sample.get(
+                    "preemptive_decision_id"
+                ),
+                "preemptive_action": first_preemptive_sample.get("preemptive_action"),
+                "preemptive_allowed": first_preemptive_sample.get("preemptive_allowed") is True,
+                "preemptive_block_reasons": (
+                    first_preemptive_sample.get("preemptive_block_reasons")
+                    or first_preemptive_sample.get("preemptive_decision_reasons")
+                    or []
+                ),
+                "pre_trade_expected_net_pnl_usd": first_preemptive_sample.get(
+                    "pre_trade_expected_net_pnl_usd"
+                ),
+                "pre_trade_loss_probability": first_preemptive_sample.get(
+                    "pre_trade_loss_probability"
+                ),
+                "guardian_new_entries_allowed": (
+                    first_preemptive_sample.get("guardian_new_entries_allowed") is True
+                ),
+                "continuous_edge_guardian_status": first_preemptive_sample.get(
+                    "continuous_edge_guardian_status"
+                ),
+                "reduce_size_guardian_approved": (
+                    first_preemptive_sample.get("reduce_size_guardian_approved") is True
+                ),
+                "accepted_without_preemptive_decision": (
+                    preemptive_edge_control_status.get(
+                        "accepted_without_preemptive_decision"
+                    )
+                ),
+                "accepted_high_loss_probability_count": (
+                    preemptive_edge_control_status.get(
+                        "accepted_high_loss_probability_count"
+                    )
+                ),
+                "reduced_size_without_guardian_approval_count": (
+                    preemptive_edge_control_status.get(
+                        "reduced_size_without_guardian_approval_count"
+                    )
+                ),
+                "hard_fail": preemptive_edge_control_status.get("hard_fail") is True,
+                "advanced_indicators": advanced_indicator_summary,
+                "advanced_indicator_status": advanced_indicator_summary.get("status"),
+                "advanced_indicator_block_reason_counts": (
+                    advanced_indicator_summary.get("block_reason_counts") or {}
+                ),
+                "advanced_indicator_caution_reason_counts": (
+                    advanced_indicator_summary.get("caution_reason_counts") or {}
+                ),
+                "positive_edge_probation_status": (
+                    positive_edge_probation_summary.get("status")
+                ),
+                "positive_edge_probation_supply_state": (
+                    positive_edge_probation_summary.get("supply_state")
+                ),
+                "positive_edge_probation_candidates": (
+                    positive_edge_probation_summary.get("current_candidate_count")
+                ),
+                "positive_edge_probation_accepted": (
+                    positive_edge_probation_summary.get("current_accepted_count")
+                ),
+                "closed_probation_trade_count": (
+                    positive_edge_probation_summary.get("closed_probation_trade_count")
+                ),
+                "probation_5_trade_gate_status": (
+                    positive_edge_probation_summary.get("probation_5_trade_gate_status")
+                ),
+                "probation_counts_as_final_a_plus": False,
+                "probation_counts_as_live_ready": False,
+                "why_trade_was_prevented": (
+                    paper_preemptive_admission_status.get("prevention_reasons")
+                    or paper_preemptive_admission_status.get("top_rejection_reasons")
+                    or []
+                ),
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+            },
+            "hedge_cross_margin": adaptive_hedge_cross_margin,
+            "providers": provider_readiness,
+            "profit_factor": governor.get("profit_factor"),
+            "expectancy_usd": (
+                round(
+                    float(governor.get("realized_pnl_usd") or 0.0)
+                    / max(1, int(governor.get("closed_outcome_count") or 0)),
+                    8,
+                )
+                if governor.get("closed_outcome_count")
+                else None
+            ),
+            "realized_pnl_usd": governor.get("realized_pnl_usd"),
+            "expectancy_bps": (
+                governor.get("notional_weighted_expectancy_bps")
+                or governor.get("expectancy_bps")
+                or governor.get("expectancy")
+            ),
             "active_profile": profile_summary,
             "latest_gateway_result": latest_gw,
             "heartbeat": {
@@ -8638,6 +9400,26 @@ async def get_risk_status() -> dict[str, Any]:
     _resp["live_gate"] = _live_gate
     _resp["live_blocked"] = _live_blocked
     _resp["fail_closed"] = _fail_closed
+    _resp["status"] = _risk_status
+    _resp["risk_status"] = _risk_status
+    _resp["halt_reasons"] = halt_reasons
+    _resp["state_reasons"] = state_reasons
+    _resp["top_blockers"] = top_blockers
+    _resp["new_entries_allowed"] = governor.get("new_entries_allowed")
+    _resp["recovery_high_confidence_loss_cluster_status"] = cluster_status
+    _resp["preemptive_edge_control_status"] = preemptive_edge_control_status
+    _resp["preemptive_candidate_decision_matrix"] = preemptive_candidate_decision_matrix
+    _resp["paper_preemptive_admission_status"] = paper_preemptive_admission_status
+    _resp["positive_edge_probation"] = positive_edge_probation_summary
+    _resp["advanced_indicators"] = advanced_indicator_summary
+    _resp["adaptive_hedge_cross_margin"] = adaptive_hedge_cross_margin
+    _resp["provider_readiness"] = provider_readiness
+    _resp["positive_edge_probation_policy"] = positive_edge_probation_policy
+    _resp["positive_edge_probation_runtime_status"] = positive_edge_probation_runtime_status
+    _resp["probation_5_trade_gate"] = probation_5_trade_gate
+    _resp["probation_20_trade_gate"] = probation_20_trade_gate
+    _resp["probation_50_trade_gate"] = probation_50_trade_gate
+    _resp["preemptive_prevention"] = _resp["data"].get("preemptive_prevention")
     _resp["recent_decisions"] = _normalized_decisions
     _resp["active_profile"] = profile_summary
     # Risk gateway heartbeat updates once per cycle (~5-15 min), not per-second.
@@ -8647,6 +9429,14 @@ async def get_risk_status() -> dict[str, Any]:
     if _hb_classification in ("V2_RISK_GATEWAY_LIVE_OK", "RUNTIME_ARTIFACT_CURRENT", "V2_RISK_GATEWAY_OK"):
         _resp["stale"] = _lag is None or _lag > 900_000
     return _resp
+
+
+@router.get("/risk")
+async def get_risk_contract() -> dict[str, Any]:
+    """Compatibility alias for `/api/v2/risk`."""
+    response = dict(await get_risk_status())
+    response["endpoint"] = "/api/v2/risk"
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -9986,14 +10776,158 @@ def _paper_a_plus_runtime_truth_block(client: Any) -> dict[str, Any]:
     freeze = _get("v2:paper:entry_freeze")
     a_plus = _get("v2:paper:a_plus_gate:status")
     trainer = _get("v2:trainer:hybrid_cuda:status")
+    circuit = _get("v2:paper:performance_circuit_breaker_status")
+    bucket_quarantine = (
+        circuit.get("bucket_quarantine_status")
+        if isinstance(circuit.get("bucket_quarantine_status"), dict)
+        else _get("v2:paper:bucket_quarantine_status")
+    )
+    if not isinstance(bucket_quarantine, dict):
+        bucket_quarantine = {}
+    cluster_raw = circuit.get("recovery_high_confidence_loss_cluster_status")
+    cluster_raw = cluster_raw if isinstance(cluster_raw, dict) else {}
     rejected = a_plus.get("rejected_reason_matrix")
     top_blockers = list(freeze.get("future_gate_blockers") or [])
     for reason in halt.get("halt_reasons") or []:
         if reason not in top_blockers:
             top_blockers.append(reason)
+    for reason in circuit.get("block_reasons") or []:
+        if reason not in top_blockers:
+            top_blockers.append(reason)
+
+    reduced_semantics, _ = _read_json(
+        "operator_runtime/v2_paper_trade_management/latest/"
+        "a_plus_gate_after_trust_semantics_status.json"
+    )
+    reduced_hash_chain, _ = _read_json(
+        "operator_runtime/v2_paper_trade_management/latest/"
+        "a_plus_reduced_size_bootstrap_hash_chain.json"
+    )
+    reduced_ts = (
+        _timestamp_from_payload(reduced_semantics)
+        or _timestamp_from_payload(reduced_hash_chain)
+    )
+    reduced_lag_ms = _lag_ms(reduced_ts)
+    reduced_bootstrap = {
+        "schema_version": "runtime_reduced_size_bootstrap_truth_v1",
+        "source": (
+            "operator_runtime/v2_paper_trade_management/latest/"
+            "a_plus_gate_after_trust_semantics_status.json + "
+            "a_plus_reduced_size_bootstrap_hash_chain.json"
+        ),
+        "generated_at": reduced_ts,
+        "lag_ms": reduced_lag_ms,
+        "stale": reduced_lag_ms is None or reduced_lag_ms > 900_000,
+        "final_a_plus_candidates": (
+            reduced_semantics.get("final_a_plus_candidates")
+            if isinstance(reduced_semantics, dict)
+            else None
+        ),
+        "reduced_size_bootstrap_candidates": (
+            reduced_semantics.get("reduced_size_bootstrap_candidates")
+            if isinstance(reduced_semantics, dict)
+            else None
+        ),
+        "closed_rows": (
+            reduced_hash_chain.get("closed_rows")
+            if isinstance(reduced_hash_chain, dict)
+            else None
+        ),
+        "counts_as_final_a_plus": (
+            reduced_semantics.get("reduced_size_counts_as_final_a_plus") is True
+            or reduced_hash_chain.get("counts_as_final_a_plus") is True
+            if isinstance(reduced_hash_chain, dict) and isinstance(reduced_semantics, dict)
+            else False
+        ),
+        "b_grade_counts_as_final_a_plus": (
+            reduced_semantics.get("b_grade_counts_as_final_a_plus") is True
+            if isinstance(reduced_semantics, dict)
+            else False
+        ),
+        "routes_to_live": (
+            reduced_hash_chain.get("routes_to_live") is True
+            if isinstance(reduced_hash_chain, dict)
+            else False
+        ),
+        "paper_only": (
+            reduced_hash_chain.get("paper_only") is not False
+            if isinstance(reduced_hash_chain, dict)
+            else True
+        ),
+        "policy": "REDUCE_SIZE_BOOTSTRAP_PAPER_ONLY_NOT_FINAL_A_PLUS",
+    }
+    cluster_detected = cluster_raw.get("cluster_detected") is True
+    guardian_state = (
+        a_plus.get("guardian_status")
+        or a_plus.get("continuous_edge_guardian_status")
+        or circuit.get("state")
+        or circuit.get("status")
+    )
+    guardian_new_entries_allowed = (
+        a_plus.get("guardian_new_entries_allowed")
+        if a_plus.get("guardian_new_entries_allowed") is not None
+        else a_plus.get("continuous_edge_guardian_new_entries_allowed")
+    )
+    reduce_size_allowed = (
+        halt.get("new_entries_allowed") is True
+        and guardian_new_entries_allowed is True
+        and not cluster_detected
+        and not bool(bucket_quarantine.get("blocked_bucket_keys"))
+    )
+    derived_cluster = _high_confidence_cluster_derived_dimensions(cluster_raw)
+    high_confidence_cluster = {
+        "schema_version": "runtime_high_confidence_loss_cluster_truth_v1",
+        "status": (
+            cluster_raw.get("status")
+            or ("BLOCKED_HIGH_CONFIDENCE_LOSS_CLUSTER" if cluster_detected else "CLEAR")
+        ),
+        "active": cluster_detected,
+        "cluster_detected": cluster_detected,
+        "cluster_count": cluster_raw.get("high_confidence_loss_count"),
+        "high_confidence_loss_count": cluster_raw.get("high_confidence_loss_count"),
+        "affected_symbols": derived_cluster["affected_symbols"],
+        "affected_buckets": {
+            "sides": derived_cluster["quarantined_sides"],
+            "timeframes": derived_cluster["quarantined_timeframes"],
+            "strategy_modes": derived_cluster["quarantined_strategy_modes"],
+            "blocked_bucket_keys": (bucket_quarantine.get("blocked_bucket_keys") or [])[:20],
+        },
+        "affected_dimension_counts": derived_cluster["affected_dimension_counts"],
+        "guardian_state": guardian_state,
+        "guardian_new_entries_allowed": guardian_new_entries_allowed,
+        "reduce_size_bootstrap_allowed": reduce_size_allowed,
+        "reduce_size_policy": "REDUCE_SIZE_BOOTSTRAP_PAPER_ONLY_NOT_FINAL_A_PLUS",
+        "why_reduce_size_blocked": (
+            "HIGH_CONFIDENCE_LOSS_CLUSTER_ACTIVE"
+            if cluster_detected
+            else "BUCKET_QUARANTINE_ACTIVE"
+            if bucket_quarantine.get("blocked_bucket_keys")
+            else "GUARDIAN_OR_GLOBAL_ENTRY_GATE_BLOCKED"
+            if not reduce_size_allowed
+            else None
+        ),
+        "post_patch_recovery_status": (
+            "BLOCKED_CURRENT_CLUSTER_NO_POST_PATCH_RECOVERY_PROOF"
+            if cluster_detected
+            else "NO_ACTIVE_HIGH_CONFIDENCE_CLUSTER"
+        ),
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
     return {
         "performance": {
             "profit_factor": governor.get("profit_factor"),
+            "expectancy_usd": (
+                round(
+                    float(governor.get("realized_pnl_usd") or 0.0)
+                    / max(1, int(governor.get("closed_outcome_count") or 0)),
+                    8,
+                )
+                if governor.get("closed_outcome_count")
+                else None
+            ),
+            "realized_pnl_usd": governor.get("realized_pnl_usd"),
             "notional_weighted_expectancy_bps": governor.get("notional_weighted_expectancy_bps"),
             "win_rate": governor.get("win_rate"),
             "closed_outcome_count": governor.get("closed_outcome_count"),
@@ -10011,6 +10945,19 @@ def _paper_a_plus_runtime_truth_block(client: Any) -> dict[str, Any]:
             "a_plus_candidates": a_plus.get("a_plus_candidates"),
             "rejected_reason_matrix": dict(list(rejected.items())[:8]) if isinstance(rejected, dict) else None,
             "gate_is_hard_entry_condition": a_plus.get("gate_is_hard_entry_condition"),
+        },
+        "reduced_size_bootstrap": reduced_bootstrap,
+        "high_confidence_loss_cluster": high_confidence_cluster,
+        "post_patch_recovery": {
+            "status": high_confidence_cluster["post_patch_recovery_status"],
+            "do_not_mix_pre_patch_rows": True,
+            "five_trade_gate": (
+                "BLOCKED_CURRENT_CLUSTER"
+                if cluster_detected
+                else "NOT_EVALUATED_NO_POST_PATCH_SAMPLE"
+            ),
+            "fifty_trade_gate": "NOT_EVALUATED_NO_POST_PATCH_SAMPLE",
+            "three_hundred_trade_gate": "NOT_EVALUATED_NO_POST_PATCH_SAMPLE",
         },
         "trainer_learning": {
             "effective_trainer_mode": trainer.get("effective_trainer_mode"),
@@ -10033,6 +10980,57 @@ def _paper_a_plus_runtime_truth_block(client: Any) -> dict[str, Any]:
 async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_auth)) -> dict[str, Any]:
     """Real-time paper runtime status synthesized from Redis — replaces stale static file."""
 
+    def _coinapi_provider_unusable_status(client: Any, source: Any) -> str | None:
+        if "coinapi" not in str(source or "").lower():
+            return None
+        try:
+            keys = list(client.keys("v2:market:coinapi:rest:status:*") or [])[:20]
+        except Exception:
+            keys = []
+        if not keys:
+            return "COINAPI_STATUS_KEYS_MISSING_NOT_CURRENT_SOURCE"
+
+        sampled = 0
+        upstream_errors = 0
+        usable_payloads = 0
+        for key in keys:
+            try:
+                raw = client.get(key)
+                payload = json.loads(raw) if raw else {}
+            except Exception:
+                continue
+            if not isinstance(payload, dict):
+                continue
+            sampled += 1
+            http_status_raw = payload.get("http_status")
+            try:
+                http_status = int(http_status_raw)
+            except (TypeError, ValueError):
+                http_status = None
+            has_upstream_error = (
+                (http_status is not None and http_status >= 400)
+                or bool(payload.get("error"))
+                or bool(payload.get("upstream_error"))
+                or bool(payload.get("provider_unusable_reason"))
+            )
+            has_usable_market_data = bool(
+                payload.get("orderbook_present")
+                or payload.get("ohlcv_present_timeframes")
+                or payload.get("ohlcv")
+            )
+            if has_upstream_error:
+                upstream_errors += 1
+            elif has_usable_market_data:
+                usable_payloads += 1
+
+        if sampled and upstream_errors >= max(1, sampled // 2):
+            return "COINAPI_HTTP_FORBIDDEN_OR_EXPIRED_NOT_CURRENT_SOURCE"
+        if sampled and usable_payloads == 0:
+            return "COINAPI_NO_USABLE_OHLCV_OR_ORDERBOOK_NOT_CURRENT_SOURCE"
+        if not sampled:
+            return "COINAPI_STATUS_PAYLOADS_UNREADABLE_NOT_CURRENT_SOURCE"
+        return None
+
     def _build() -> dict[str, Any]:
         try:
             client = get_redis()
@@ -10049,6 +11047,18 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
             market_ts = market_hb.get("finished_utc") or market_hb.get("ts") or ""
             market_age_ms = _lag_ms(market_ts or None)
             market_age_s = int(market_age_ms / 1000) if market_age_ms is not None else None
+            market_freshness_state = (
+                "MARKET_FEED_CURRENT"
+                if market_age_s is not None and market_age_s < 600
+                else "MARKET_FEED_STALE"
+            )
+            market_source = market_hb.get("source", "coinapi_rest")
+            if market_freshness_state != "MARKET_FEED_CURRENT" and "coinapi" in str(market_source).lower():
+                market_source = "coinapi_stale_or_unavailable_not_current_source"
+            coinapi_unusable_reason = _coinapi_provider_unusable_status(client, market_source)
+            if coinapi_unusable_reason:
+                market_source = "coinapi_provider_unusable_not_current_source"
+                market_freshness_state = "MARKET_FEED_PROVIDER_UNUSABLE_NOT_CURRENT"
 
             paper_event_count = int(
                 hb.get("paper_event_count")
@@ -10059,6 +11069,209 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
 
             tm_raw = client.get("v2:paper:trade_management:status")
             trade_management_status = _json_object_from_redis_raw(tm_raw) or {}
+            def _paper_contract_from_key(
+                key: str,
+                embedded_key: str,
+                fallback: dict[str, Any],
+            ) -> dict[str, Any]:
+                try:
+                    raw = client.get(key)
+                except Exception:
+                    raw = None
+                payload = _json_object_from_redis_raw(raw)
+                if not payload:
+                    embedded = trade_management_status.get(embedded_key)
+                    if isinstance(embedded, dict):
+                        payload = embedded
+                if not payload:
+                    payload = dict(fallback)
+                else:
+                    payload = _compact_paper_runtime_contract(payload)
+                    payload.setdefault("available", True)
+                payload.setdefault("source", f"redis:{key}")
+                payload.setdefault("paper_only", True)
+                payload.setdefault("routes_to_live", False)
+                payload.setdefault("places_real_order", False)
+                return payload
+
+            preemptive_edge_control_status = _paper_contract_from_key(
+                "v2:paper:preemptive_edge_control_status",
+                "preemptive_edge_control_status",
+                {
+                    "schema_version": "preemptive_edge_control_status_v1",
+                    "status": "PREEMPTIVE_EDGE_CONTROL_STATUS_UNAVAILABLE",
+                    "available": False,
+                    "candidate_count": 0,
+                    "accepted_count": 0,
+                    "decision_counts": {},
+                    "hard_fail": True,
+                    "generated_at": now,
+                },
+            )
+            preemptive_candidate_decision_matrix = _paper_contract_from_key(
+                "v2:paper:preemptive_candidate_decision_matrix",
+                "preemptive_candidate_decision_matrix",
+                {
+                    "schema_version": "preemptive_candidate_decision_matrix_v1",
+                    "status": "PREEMPTIVE_CANDIDATE_DECISION_MATRIX_UNAVAILABLE",
+                    "available": False,
+                    "candidate_count": 0,
+                    "sample_decisions": [],
+                    "generated_at": now,
+                },
+            )
+            preemptive_rows = (
+                preemptive_candidate_decision_matrix.get("rows")
+                or preemptive_candidate_decision_matrix.get("sample_decisions")
+                or []
+            )
+            preemptive_rows = preemptive_rows if isinstance(preemptive_rows, list) else []
+            first_preemptive_sample = (
+                preemptive_rows[0]
+                if preemptive_rows and isinstance(preemptive_rows[0], dict)
+                else {}
+            )
+            paper_preemptive_admission_status = _paper_contract_from_key(
+                "v2:paper:preemptive_admission_status",
+                "paper_preemptive_admission_status",
+                {
+                    "schema_version": "paper_preemptive_admission_status_v1",
+                    "status": "PAPER_PREEMPTIVE_ADMISSION_STATUS_UNAVAILABLE",
+                    "available": False,
+                    "hard_fail": True,
+                    "accepted_without_preemptive_decision": None,
+                    "accepted_high_loss_probability_count": None,
+                    "reduced_size_without_guardian_approval_count": None,
+                    "generated_at": now,
+                },
+            )
+            paper_no_bad_entry_runtime_status = _paper_contract_from_key(
+                "v2:paper:no_bad_entry_runtime_status",
+                "paper_no_bad_entry_runtime_status",
+                {
+                    "schema_version": "paper_no_bad_entry_runtime_status_v1",
+                    "status": "PAPER_NO_BAD_ENTRY_RUNTIME_STATUS_UNAVAILABLE",
+                    "available": False,
+                    "hard_fail": True,
+                    "generated_at": now,
+                },
+            )
+            positive_edge_probation_policy = _paper_contract_from_key(
+                "v2:paper:positive_edge_probation_policy",
+                "positive_edge_probation_policy",
+                {
+                    "schema_version": "positive_edge_probation_policy_v1",
+                    "status": "POSITIVE_EDGE_PROBATION_POLICY_UNAVAILABLE",
+                    "enabled": False,
+                    "available": False,
+                    "paper_only": True,
+                    "routes_to_live": False,
+                    "places_real_order": False,
+                    "generated_at": now,
+                },
+            )
+            positive_edge_probation_runtime_status = _paper_contract_from_key(
+                "v2:paper:positive_edge_probation_runtime_status",
+                "positive_edge_probation_runtime_status",
+                {
+                    "schema_version": "positive_edge_probation_runtime_status_v1",
+                    "status": "POSITIVE_EDGE_PROBATION_RUNTIME_STATUS_UNAVAILABLE",
+                    "available": False,
+                    "current_candidate_count": 0,
+                    "current_accepted_count": 0,
+                    "closed_probation_trade_count": 0,
+                    "paper_only": True,
+                    "routes_to_live": False,
+                    "places_real_order": False,
+                    "counts_as_final_a_plus": False,
+                    "counts_as_live_ready": False,
+                    "generated_at": now,
+                },
+            )
+            probation_5_trade_gate = _paper_contract_from_key(
+                "v2:paper:probation_5_trade_gate",
+                "probation_5_trade_gate",
+                {
+                    "schema_version": "positive_edge_probation_trade_gate_v1",
+                    "status": "PROBATION_5_TRADE_GATE_WAITING_OR_BLOCKED",
+                    "available": False,
+                    "closed_count": 0,
+                    "paper_only": True,
+                    "routes_to_live": False,
+                    "places_real_order": False,
+                    "generated_at": now,
+                },
+            )
+            probation_20_trade_gate = _paper_contract_from_key(
+                "v2:paper:probation_20_trade_gate",
+                "probation_20_trade_gate",
+                {
+                    "schema_version": "positive_edge_probation_trade_gate_v1",
+                    "status": "PROBATION_20_TRADE_GATE_WAITING_OR_BLOCKED",
+                    "available": False,
+                    "closed_count": 0,
+                    "paper_only": True,
+                    "routes_to_live": False,
+                    "places_real_order": False,
+                    "generated_at": now,
+                },
+            )
+            probation_50_trade_gate = _paper_contract_from_key(
+                "v2:paper:probation_50_trade_gate",
+                "probation_50_trade_gate",
+                {
+                    "schema_version": "positive_edge_probation_trade_gate_v1",
+                    "status": "PROBATION_50_TRADE_GATE_WAITING_OR_BLOCKED",
+                    "available": False,
+                    "closed_count": 0,
+                    "paper_only": True,
+                    "routes_to_live": False,
+                    "places_real_order": False,
+                    "generated_at": now,
+                },
+            )
+            probation_candidate_count = _integer(
+                positive_edge_probation_runtime_status.get("current_candidate_count")
+            ) or 0
+            probation_5_display_status = probation_gate_display_status(
+                probation_5_trade_gate
+            )
+            positive_edge_probation_summary = {
+                "status": positive_edge_probation_runtime_status.get("status"),
+                "policy_enabled": positive_edge_probation_policy.get("enabled") is True,
+                "current_candidate_count": probation_candidate_count,
+                "current_accepted_count": _integer(
+                    positive_edge_probation_runtime_status.get("current_accepted_count")
+                )
+                or 0,
+                "closed_probation_trade_count": _integer(
+                    positive_edge_probation_runtime_status.get(
+                        "closed_probation_trade_count"
+                    )
+                )
+                or 0,
+                "next_gate": positive_edge_probation_runtime_status.get("next_gate"),
+                "probation_5_trade_gate_status": probation_5_display_status,
+                "probation_20_trade_gate_status": probation_20_trade_gate.get("status"),
+                "probation_50_trade_gate_status": probation_50_trade_gate.get("status"),
+                "supply_state": (
+                    "NO_SAFE_TRADE_SUPPLY"
+                    if probation_candidate_count <= 0
+                    else "POSITIVE_EDGE_PROBATION_SUPPLY_AVAILABLE"
+                ),
+                "counts_as_final_a_plus": False,
+                "counts_as_live_ready": False,
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+            }
+            advanced_indicator_summary = _advanced_indicator_runtime_summary(
+                preemptive_matrix=preemptive_candidate_decision_matrix,
+                preemptive_status=preemptive_edge_control_status,
+                admission_status=paper_preemptive_admission_status,
+            )
+            adaptive_hedge_cross_margin = _adaptive_hedge_cross_margin_summary()
+            provider_readiness = _provider_readiness_summary()
             runtime_admission_status = (
                 trade_management_status.get("paper_runtime_admission_status")
                 if isinstance(trade_management_status.get("paper_runtime_admission_status"), dict)
@@ -11010,6 +12223,124 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                 # A+ goal Phase 12: session performance / freeze / A+ gate /
                 # trainer learning / real-trader readiness truth for the web.
                 **_paper_a_plus_runtime_truth_block(client),
+                "preemptive_edge_control": {
+                    "status": (
+                        "PREEMPTIVE_EDGE_CONTROL_ACTIVE"
+                        if preemptive_edge_control_status.get("available") is True
+                        else "PREEMPTIVE_EDGE_CONTROL_NOT_YET_PUBLISHED"
+                    ),
+                    "decision_counts": (
+                        preemptive_edge_control_status.get("decision_counts") or {}
+                    ),
+                    "action_counts": (
+                        preemptive_edge_control_status.get("action_counts") or {}
+                    ),
+                    "preemptive_decision_id": first_preemptive_sample.get(
+                        "preemptive_decision_id"
+                    ),
+                    "preemptive_action": first_preemptive_sample.get(
+                        "preemptive_action"
+                    ),
+                    "preemptive_allowed": (
+                        first_preemptive_sample.get("preemptive_allowed") is True
+                    ),
+                    "preemptive_block_reasons": (
+                        first_preemptive_sample.get("preemptive_block_reasons")
+                        or first_preemptive_sample.get("preemptive_decision_reasons")
+                        or []
+                    ),
+                    "pre_trade_expected_net_pnl_usd": (
+                        first_preemptive_sample.get("pre_trade_expected_net_pnl_usd")
+                    ),
+                    "pre_trade_loss_probability": (
+                        first_preemptive_sample.get("pre_trade_loss_probability")
+                    ),
+                    "guardian_new_entries_allowed": (
+                        first_preemptive_sample.get("guardian_new_entries_allowed")
+                        is True
+                    ),
+                    "continuous_edge_guardian_status": (
+                        first_preemptive_sample.get("continuous_edge_guardian_status")
+                    ),
+                    "reduce_size_guardian_approved": (
+                        first_preemptive_sample.get("reduce_size_guardian_approved")
+                        is True
+                    ),
+                    "candidate_count": preemptive_edge_control_status.get(
+                        "candidate_count"
+                    ),
+                    "accepted_count": preemptive_edge_control_status.get(
+                        "accepted_count"
+                    ),
+                    "hard_fail": preemptive_edge_control_status.get("hard_fail") is True,
+                    "advanced_indicators": advanced_indicator_summary,
+                    "advanced_indicator_status": advanced_indicator_summary.get("status"),
+                    "advanced_indicator_block_reason_counts": (
+                        advanced_indicator_summary.get("block_reason_counts") or {}
+                    ),
+                    "advanced_indicator_caution_reason_counts": (
+                        advanced_indicator_summary.get("caution_reason_counts") or {}
+                    ),
+                    "positive_edge_probation_status": (
+                        positive_edge_probation_summary.get("status")
+                    ),
+                    "positive_edge_probation_supply_state": (
+                        positive_edge_probation_summary.get("supply_state")
+                    ),
+                    "positive_edge_probation_candidates": (
+                        positive_edge_probation_summary.get("current_candidate_count")
+                    ),
+                    "positive_edge_probation_accepted": (
+                        positive_edge_probation_summary.get("current_accepted_count")
+                    ),
+                    "closed_probation_trade_count": (
+                        positive_edge_probation_summary.get("closed_probation_trade_count")
+                    ),
+                    "probation_5_trade_gate_status": (
+                        positive_edge_probation_summary.get("probation_5_trade_gate_status")
+                    ),
+                    "probation_counts_as_final_a_plus": False,
+                    "probation_counts_as_live_ready": False,
+                    "why_trade_was_prevented": (
+                        paper_preemptive_admission_status.get("prevention_reasons")
+                        or paper_preemptive_admission_status.get(
+                            "top_rejection_reasons"
+                        )
+                        or []
+                    ),
+                    "governor_auto_action": (
+                        "halt_new_entries"
+                        if paper_entry_freeze.get("new_entries_allowed") is False
+                        else "evaluate_preemptive_candidate"
+                    ),
+                    "next_remediation": (
+                        "Wait for governor clearance and evaluate only post-patch closes"
+                        if paper_entry_freeze.get("new_entries_allowed") is False
+                        else "Observe accepted rows for preemptive decision compliance"
+                    ),
+                    "paper_only": True,
+                    "routes_to_live": False,
+                    "places_real_order": False,
+                },
+                "preemptive_edge_control_status": preemptive_edge_control_status,
+                "preemptive_candidate_decision_matrix": (
+                    preemptive_candidate_decision_matrix
+                ),
+                "advanced_indicators": advanced_indicator_summary,
+                "adaptive_hedge_cross_margin": adaptive_hedge_cross_margin,
+                "provider_readiness": provider_readiness,
+                "hedge_cross_margin": adaptive_hedge_cross_margin,
+                "providers": provider_readiness,
+                "paper_preemptive_admission_status": paper_preemptive_admission_status,
+                "paper_no_bad_entry_runtime_status": paper_no_bad_entry_runtime_status,
+                "positive_edge_probation": positive_edge_probation_summary,
+                "positive_edge_probation_policy": positive_edge_probation_policy,
+                "positive_edge_probation_runtime_status": (
+                    positive_edge_probation_runtime_status
+                ),
+                "probation_5_trade_gate": probation_5_trade_gate,
+                "probation_20_trade_gate": probation_20_trade_gate,
+                "probation_50_trade_gate": probation_50_trade_gate,
                 "account_scope": "PAPER_SIM_ACCOUNT",
                 "source_type": "paper_runtime_redis_live",
                 "paper_or_live": "paper",
@@ -11033,13 +12364,15 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                     "symbol": market_hb.get("live_symbols", [None])[0] if market_hb.get("live_symbols") else "BTCUSDT",
                     "price": None,
                     "source_type": "redis_live",
-                    "source": market_hb.get("source", "coinapi_rest"),
+                    "source": market_source,
                     "source_pointer": "v2:market:coinapi:ohlcv:heartbeat",
                     "generated_at": market_ts or now,
                     "last_event_at": market_ts or None,
                     "age_seconds": market_age_s,
-                    "freshness_state": "MARKET_FEED_CURRENT" if market_age_s is not None and market_age_s < 600 else "MARKET_FEED_STALE",
-                    "errors": [],
+                    "freshness_state": market_freshness_state,
+                    "provider_current": coinapi_unusable_reason is None,
+                    "provider_unusable_reason": coinapi_unusable_reason,
+                    "errors": [coinapi_unusable_reason] if coinapi_unusable_reason else [],
                 },
                 "paper_loop": {
                     "state": hb.get("cycle_state", "RUNNING_CYCLE"),
@@ -11129,6 +12462,24 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                     "one_thousand_x_trajectory_runtime_status": (
                         one_thousand_x_trajectory_status
                     ),
+                    "preemptive_edge_control_status": preemptive_edge_control_status,
+                    "preemptive_candidate_decision_matrix": (
+                        preemptive_candidate_decision_matrix
+                    ),
+                    "paper_preemptive_admission_status": (
+                        paper_preemptive_admission_status
+                    ),
+                    "paper_no_bad_entry_runtime_status": (
+                        paper_no_bad_entry_runtime_status
+                    ),
+                    "positive_edge_probation": positive_edge_probation_summary,
+                    "positive_edge_probation_policy": positive_edge_probation_policy,
+                    "positive_edge_probation_runtime_status": (
+                        positive_edge_probation_runtime_status
+                    ),
+                    "probation_5_trade_gate": probation_5_trade_gate,
+                    "probation_20_trade_gate": probation_20_trade_gate,
+                    "probation_50_trade_gate": probation_50_trade_gate,
                 },
                 "paper_account": _runtime_canonical_paper_account(client),
                 "trainer_prediction": {
@@ -11215,6 +12566,11 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
             }
 
     data = await run_in_threadpool(_build)
+    generated_at = data.get("generated_at") if isinstance(data, dict) else None
+    if isinstance(data, dict):
+        data.setdefault("generated_et", _to_et(generated_at) or _et_now())
+        data.setdefault("timestamp_et", data.get("generated_et"))
+        data.setdefault("received_et", _et_now())
     return data
 
 

@@ -126,9 +126,10 @@ def provider_definitions() -> tuple[ProviderDefinition, ...]:
             free_cache_ttl_seconds=None,
             free_per_symbol_cooldown_seconds=None,
             paid_rate_limit_per_minute=100,
-            paid_daily_budget=80_000,
-            paid_cache_ttl_seconds=300,
-            paid_per_symbol_cooldown_seconds=300,
+            # SANBASE Pro live header reports 5,000/month; store a conservative daily slice.
+            paid_daily_budget=166,
+            paid_cache_ttl_seconds=28_800,
+            paid_per_symbol_cooldown_seconds=21_600,
         ),
         ProviderDefinition(
             id="coingecko",

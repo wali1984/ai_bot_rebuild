@@ -117,6 +117,70 @@ def test_hedge_evaluation_never_places_real_order() -> None:
     assert snap["approves_live"] is False
 
 
+def test_advanced_fvg_invalidation_closes_position_before_static_tiers() -> None:
+    pos = _long_position()
+    result = evaluate_exit(
+        position=pos,
+        mark_price=100_200.0,
+        generated_utc="2026-06-17T00:05:00Z",
+        config=PaperExitConfig(static_take_profit_enabled=False, static_stop_loss_enabled=False),
+        alpha_context={
+            "advanced_indicator_context": {
+                "fvg_invalidated": True,
+                "fvg_kind": "bullish",
+                "distance_to_fvg_bps": -25.0,
+                "nearest_liquidity_above": 101_000.0,
+            }
+        },
+    )
+
+    assert result["should_close"] is True
+    assert result["close_reason"] == "TIER_1_FVG_INVALIDATION_EXIT"
+    assert result["advanced_indicator_exit"] is True
+    assert result["advanced_indicator_exit_context"]["places_real_order"] is False
+
+
+def test_advanced_structure_invalidation_closes_against_long() -> None:
+    pos = _long_position()
+    result = evaluate_exit(
+        position=pos,
+        mark_price=100_100.0,
+        generated_utc="2026-06-17T00:05:00Z",
+        config=PaperExitConfig(static_take_profit_enabled=False, static_stop_loss_enabled=False),
+        alpha_context={
+            "advanced_indicator_context": {
+                "choch_direction": "down",
+                "nearest_liquidity_below": 99_200.0,
+            }
+        },
+    )
+
+    assert result["should_close"] is True
+    assert result["close_reason"] == "TIER_1_STRUCTURE_INVALIDATION_EXIT"
+    assert result["advanced_indicator_exit_context"]["nearest_liquidity_below"] == 99_200.0
+
+
+def test_advanced_vwap_cvd_invalidation_closes_long() -> None:
+    pos = _long_position()
+    result = evaluate_exit(
+        position=pos,
+        mark_price=99_800.0,
+        generated_utc="2026-06-17T00:05:00Z",
+        config=PaperExitConfig(static_take_profit_enabled=False, static_stop_loss_enabled=False),
+        alpha_context={
+            "advanced_indicator_context": {
+                "distance_to_vwap_bps": -12.0,
+                "cvd_slope": -0.4,
+                "session_vwap": 99_920.0,
+            }
+        },
+    )
+
+    assert result["should_close"] is True
+    assert result["close_reason"] == "TIER_1_VWAP_CVD_INVALIDATION_EXIT"
+    assert result["advanced_indicator_exit_context"]["nearest_liquidity_target"] == 99_920.0
+
+
 # ── ATR-based volatility-adjusted stop ────────────────────────────────────────
 
 def test_atr_stop_fires_before_static_stop_loss() -> None:

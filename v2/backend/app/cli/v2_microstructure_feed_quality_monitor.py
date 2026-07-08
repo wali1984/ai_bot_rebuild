@@ -42,6 +42,10 @@ from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_REPLAY_ROOT = REPO_ROOT / "v2/runtime/orderbook_replay"
+MICROSTRUCTURE_SUPERVISOR_STATUS_PATH = (
+    REPO_ROOT
+    / "v2/frontend/public/operator_runtime/v2_microstructure_runtime_supervisor/latest/status.json"
+)
 V2_REDIS_PREFIX = "v2:"
 MICROSTRUCTURE_REDIS_PREFIX = f"{V2_REDIS_PREFIX}microstructure:"
 STATUS_WORKER_ID = "v2_microstructure_feed_quality_monitor"
@@ -69,6 +73,98 @@ def _first_present(*values: Any) -> Any:
         if value not in (None, "", [], {}):
             return value
     return None
+
+
+def _load_provider_symbol_support() -> dict[str, Any]:
+    try:
+        payload = json.loads(MICROSTRUCTURE_SUPERVISOR_STATUS_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    candidates: list[Any] = [
+        payload.get("provider_filter_status"),
+        payload.get("kucoin_provider_filter_status"),
+    ]
+    plan = payload.get("plan")
+    if isinstance(plan, Mapping):
+        candidates.extend(
+            [
+                plan.get("provider_filter_status"),
+                plan.get("kucoin_provider_filter_status"),
+            ]
+        )
+    merged: dict[str, Any] = {}
+    for candidate in candidates:
+        if not isinstance(candidate, Mapping):
+            continue
+        support = candidate.get("provider_symbol_support")
+        if not isinstance(support, Mapping):
+            continue
+        for exchange, rows in support.items():
+            if not isinstance(rows, Mapping):
+                continue
+            exchange_rows = merged.setdefault(str(exchange).lower(), {})
+            if isinstance(exchange_rows, dict):
+                exchange_rows.update(rows)
+    return merged
+
+
+def _venue_unavailability_reason(
+    *,
+    exchange: str,
+    symbol: str,
+    payload: Any,
+    provider_symbol_support: Mapping[str, Any] | None,
+) -> tuple[str | None, dict[str, Any] | None]:
+    exchange_l = str(exchange).lower()
+    provider_rows = (
+        provider_symbol_support.get(exchange_l)
+        if isinstance(provider_symbol_support, Mapping)
+        else None
+    )
+    provider_row = (
+        provider_rows.get(symbol.upper())
+        if isinstance(provider_rows, Mapping)
+        else None
+    )
+    detail = dict(provider_row) if isinstance(provider_row, Mapping) else None
+    if isinstance(provider_row, Mapping) and provider_row.get("orderbook_supported") is False:
+        status = str(provider_row.get("status") or "UNSUPPORTED")
+        provider_symbol = str(provider_row.get("provider_symbol") or symbol.upper())
+        return (
+            f"{exchange_l.upper()}_DIRECT_ORDERBOOK_UNSUPPORTED:{status}:{provider_symbol}",
+            detail,
+        )
+    if isinstance(payload, Mapping):
+        if payload.get("source_is_direct_orderbook") is True:
+            return None, detail
+        return f"{exchange_l.upper()}_PAYLOAD_PRESENT_NOT_DIRECT_ORDERBOOK", detail
+    return f"{exchange_l.upper()}_DIRECT_ORDERBOOK_PAYLOAD_MISSING", detail
+
+
+def _venue_unavailability_status(
+    *,
+    symbol: str,
+    exchanges: list[str],
+    books: Mapping[str, Any],
+    provider_symbol_support: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    reasons: dict[str, str] = {}
+    provider_details: dict[str, Any] = {}
+    for exchange in exchanges:
+        reason, detail = _venue_unavailability_reason(
+            exchange=exchange,
+            symbol=symbol,
+            payload=books.get(exchange),
+            provider_symbol_support=provider_symbol_support,
+        )
+        if reason:
+            reasons[str(exchange).lower()] = reason
+        if detail:
+            provider_details[str(exchange).lower()] = detail
+    return {
+        "venue_unavailable_reasons": reasons,
+        "provider_symbol_support_details": provider_details,
+    }
 
 
 def _redis_client(enabled: bool = True) -> Any:
@@ -267,10 +363,35 @@ def _combine_adversarial(rows: list[Mapping[str, Any]], *, symbol: str) -> dict[
     ):
         values = [_float(row.get(field)) for row in rows]
         out[field] = max([value for value in values if value is not None], default=out.get(field))
-    persistence = [_float(row.get("depth_persistence_ms")) for row in rows]
+    # Depth persistence combines only rows that carry actual book evidence: a
+    # venue with no recorded window (INSUFFICIENT/MISSING reasons) must be
+    # reported as unavailable, not allowed to zero out another venue's
+    # evidence via min() (F-0010).
+    evidenced = [
+        row
+        for row in rows
+        if row.get("depth_persistence_reason")
+        in (None, "STABLE_DEPTH_WINDOW", "DEPTH_UNSTABLE")
+    ]
+    pool = evidenced or rows
+    persistence = [_float(row.get("depth_persistence_ms")) for row in pool]
     persistence = [value for value in persistence if value is not None]
     if persistence:
         out["depth_persistence_ms"] = min(persistence)
+        worst = min(
+            pool, key=lambda row: _float(row.get("depth_persistence_ms")) or 0.0
+        )
+        out["depth_persistence_reason"] = worst.get("depth_persistence_reason") or out.get(
+            "depth_persistence_reason"
+        )
+        out["depth_series_stratum"] = worst.get("depth_series_stratum") or out.get(
+            "depth_series_stratum"
+        )
+    out["depth_persistence_unavailable_exchanges"] = [
+        row.get("exchange")
+        for row in rows
+        if row not in evidenced
+    ]
     out["exchange"] = "multi"
     out["source_exchanges"] = [row.get("exchange") for row in rows]
     out["generated_at"] = iso_now()
@@ -285,6 +406,7 @@ def _build_symbol_rows(
     exchanges: list[str],
     replay_root: Path,
     decision_time: str,
+    provider_symbol_support: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     books = {exchange: _book_payload(redis_client, exchange, symbol) for exchange in exchanges}
     # The monitor's decision timestamp must be after the Redis feature snapshot
@@ -401,6 +523,12 @@ def _build_symbol_rows(
         for exchange, payload in books.items()
         if isinstance(payload, Mapping) and payload.get("source_is_direct_orderbook") is True
     ]
+    venue_unavailability = _venue_unavailability_status(
+        symbol=symbol,
+        exchanges=exchanges,
+        books=books,
+        provider_symbol_support=provider_symbol_support,
+    )
     trust = score_microstructure_trust(
         symbol=symbol,
         timeframe=timeframe,
@@ -415,6 +543,8 @@ def _build_symbol_rows(
             "orderbook_latency_ms": trust.get("feed_latency_ms"),
             "book_sequence_gap": bool(trust.get("sequence_gap_flag")),
             "book_depth_persistence_score": trust.get("depth_persistence"),
+            "book_depth_persistence_reason": trust.get("depth_persistence_reason"),
+            "book_depth_series_stratum": trust.get("depth_series_stratum"),
             "book_cancel_pressure_score": trust.get("cancel_pressure"),
             "trade_tape_confirmation_score": tape.get("trade_tape_confirmation_score"),
             "cross_venue_confirmation_score": cross.get("cross_venue_confirmation_score"),
@@ -430,6 +560,7 @@ def _build_symbol_rows(
             "direct_binance_kucoin_active": bool(direct_orderbook_sources),
             "feed_quality_fail_closed": bool(combined_feed.get("fail_closed")),
             "feed_quality_fail_reasons": combined_feed.get("fail_reasons") or [],
+            **venue_unavailability,
             "source_availability": {
                 "direct_binance_or_kucoin": bool(direct_orderbook_sources),
                 "binance": isinstance(books.get("binance"), Mapping),
@@ -532,6 +663,7 @@ def run_once(
 ) -> dict[str, Any]:
     started_at = iso_now()
     redis_client = redis_client_override if redis_client_override is not None else _redis_client(enabled=not plan_only or write_redis)
+    provider_symbol_support = _load_provider_symbol_support()
     rows = [] if plan_only else [
         _build_symbol_rows(
             redis_client=redis_client,
@@ -540,6 +672,7 @@ def run_once(
             exchanges=exchanges,
             replay_root=replay_root,
             decision_time="",
+            provider_symbol_support=provider_symbol_support,
         )
         for symbol in symbols
     ]

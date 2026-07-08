@@ -1,0 +1,60 @@
+{
+  "avg_loser_bps": -324.277,
+  "avg_winner_bps": 69.173,
+  "baseline_advisory_reasons": [],
+  "baseline_evidence_date": null,
+  "baseline_trade_count": 0,
+  "block_reason": null,
+  "bucket_scope": "symbol_timeframe",
+  "consecutive_losses": 0,
+  "data_source": "REDIS",
+  "degraded": false,
+  "degraded_since": null,
+  "drawdown_contribution_usd": -0.6295805,
+  "last_trade_ts": "2026-06-23T21:52:00.708Z",
+  "last_updated": "2026-06-23T22:29:41Z",
+  "loss_count": 1,
+  "max_drawdown_bps": 324.277,
+  "missed_tp_then_stop_rate": null,
+  "outcome_memory_can_block_entries": true,
+  "recent_bps": [
+    -324.2769500438189,
+    123.51912411681353,
+    41.99999999999974,
+    41.999999999999424
+  ],
+  "recent_missed_tp_then_stop": [],
+  "recent_outcomes": [
+    0,
+    1,
+    1,
+    1
+  ],
+  "recent_pnl_usd": [
+    -0.6295805042974919,
+    3.7091928846740627,
+    2.4966459559730336,
+    0.8808081424029035
+  ],
+  "recent_reversal_after_entry": [],
+  "recent_slippage_failures": [
+    0,
+    1,
+    0,
+    0
+  ],
+  "reversal_after_entry_rate": null,
+  "rolling_ev_bps": -29.1895,
+  "rolling_win_rate": 0.75,
+  "schema_version": "v2_outcome_memory_updater_v1",
+  "slippage_failure_rate": 0.25,
+  "soak_count": 4,
+  "symbol": "DEXEUSDT",
+  "timeframe": "5m",
+  "total_trades": 4,
+  "trade_count": 4,
+  "trust_evidence_status": "TRUSTED_OUTCOME_MEMORY",
+  "trusted_trade_count": 4,
+  "untrusted_trade_count": 0,
+  "win_count": 3
+}

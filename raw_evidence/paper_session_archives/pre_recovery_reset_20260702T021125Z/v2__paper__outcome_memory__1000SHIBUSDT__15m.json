@@ -1,0 +1,52 @@
+{
+  "avg_loser_bps": -17.7768,
+  "avg_winner_bps": null,
+  "baseline_advisory_reasons": [],
+  "baseline_evidence_date": null,
+  "baseline_trade_count": 0,
+  "block_reason": null,
+  "bucket_scope": "symbol_timeframe",
+  "consecutive_losses": 2,
+  "data_source": "REDIS",
+  "degraded": false,
+  "degraded_since": null,
+  "drawdown_contribution_usd": -0.16427015,
+  "last_trade_ts": "2026-06-30T17:12:30.323Z",
+  "last_updated": "2026-07-02T02:07:47Z",
+  "loss_count": 2,
+  "max_drawdown_bps": 35.5535,
+  "missed_tp_then_stop_rate": null,
+  "outcome_memory_can_block_entries": true,
+  "recent_bps": [
+    -11.879306248514602,
+    -23.67424242424146
+  ],
+  "recent_missed_tp_then_stop": [],
+  "recent_outcomes": [
+    0,
+    0
+  ],
+  "recent_pnl_usd": [
+    -0.05317799625952112,
+    -0.1110921499797047
+  ],
+  "recent_reversal_after_entry": [],
+  "recent_slippage_failures": [
+    0,
+    0
+  ],
+  "reversal_after_entry_rate": null,
+  "rolling_ev_bps": -17.7768,
+  "rolling_win_rate": 0.0,
+  "schema_version": "v2_outcome_memory_updater_v1",
+  "slippage_failure_rate": 0.0,
+  "soak_count": 2,
+  "symbol": "1000SHIBUSDT",
+  "timeframe": "15m",
+  "total_trades": 2,
+  "trade_count": 2,
+  "trust_evidence_status": "TRUSTED_OUTCOME_MEMORY",
+  "trusted_trade_count": 2,
+  "untrusted_trade_count": 0,
+  "win_count": 0
+}

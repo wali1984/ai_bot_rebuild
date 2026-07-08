@@ -275,7 +275,8 @@ function pct(value: number | null | undefined): string {
 
 function bps(value: number | null | undefined): string {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 'pending';
-  return `${value >= 0 ? '+' : ''}${value.toLocaleString('en-US', { maximumFractionDigits: 2 })} bps`;
+  const pct = value / 100;
+  return `${pct >= 0 ? '+' : ''}${pct.toLocaleString('en-US', { maximumFractionDigits: 2 })}%`;
 }
 
 function gateTone(value: string | null | undefined): string {

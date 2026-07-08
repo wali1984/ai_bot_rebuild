@@ -298,26 +298,36 @@ def test_trusted_replay_loader_skips_critical_missing_rows(tmp_path: Path) -> No
     assert examples == []
 
 
-def test_trusted_replay_loader_caps_large_cycle_archive_scan(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_trusted_replay_loader_uses_persistent_cursor_not_newest_first(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """F-0013: the lane must walk oldest-first from a persisted byte cursor
+    (never a bounded newest-first scan, which only ever inspects rows younger
+    than the label horizon and starves training forever)."""
     seen: dict[str, object] = {}
 
-    def fake_iter_snapshots(root: Path, *, limit: int | None = None, newest_first: bool = False):
-        seen["root"] = root
-        seen["limit"] = limit
-        seen["newest_first"] = newest_first
+    def fake_iter_snapshots_from_offset(root: Path, *, start_offset: int = 0, limit: int | None = None):
+        seen["root"] = Path(root)
+        seen["start_offset"] = start_offset
         return iter(())
 
-    monkeypatch.setattr(data_loader_mod, "iter_snapshots", fake_iter_snapshots)
-    loader = V2HybridTrainerDataLoader(trusted_replay_archive_root=Path("/tmp/archive"))
+    archive_root = tmp_path / "archive"
+    archive_root.mkdir(parents=True)
+    (archive_root / "trusted_replay_cursor.json").write_text(
+        json.dumps({"manifest_offset": 12345}), encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        data_loader_mod, "iter_snapshots_from_offset", fake_iter_snapshots_from_offset
+    )
+    loader = V2HybridTrainerDataLoader(trusted_replay_archive_root=archive_root)
 
     examples = loader.load_trusted_replay_examples(limit=32768)
 
     assert examples == []
-    assert seen == {
-        "root": Path("/tmp/archive"),
-        "limit": data_loader_mod.TRUSTED_REPLAY_MAX_SCAN_PER_CYCLE,
-        "newest_first": True,
-    }
+    assert seen == {"root": archive_root, "start_offset": 12345}
+    scan = loader.last_trusted_replay_scan
+    assert scan["cursor_offset"] == 12345
+    assert scan["embargo_seconds"] == data_loader_mod.TRUSTED_REPLAY_LABEL_EMBARGO_SECONDS
 
 
 def _tensor(feature_snapshot_id: str, value: float) -> FeatureTensorRecord:

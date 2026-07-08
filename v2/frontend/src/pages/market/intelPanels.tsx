@@ -59,6 +59,11 @@ function num(value: unknown): number | null {
   return null;
 }
 
+function bpsToPct(value: unknown): number | null {
+  const parsed = num(value);
+  return parsed === null ? null : parsed / 100;
+}
+
 function fmtAge(seconds: number | null): string {
   if (seconds == null) return 'age unknown';
   if (seconds < 90) return `${Math.round(seconds)}s ago`;
@@ -337,8 +342,8 @@ export function SymbolIntelSection({ symbol }: { symbol: string }): JSX.Element 
             )}
           </div>
           <ScoreBar label="Opportunity score" value={num(opportunity?.data?.score)} color={SERIES[0]} />
-          <ScoreBar label="MFE bps" value={num(opportunity?.data?.mfe_bps)} max={100} color={UP} />
-          <ScoreBar label="MAE bps" value={num(opportunity?.data?.mae_bps)} max={100} color={DOWN} />
+          <ScoreBar label="MFE %" value={bpsToPct(opportunity?.data?.mfe_bps)} max={1} color={UP} />
+          <ScoreBar label="MAE %" value={bpsToPct(opportunity?.data?.mae_bps)} max={1} color={DOWN} />
         </IntelCard>
       </div>
     </div>

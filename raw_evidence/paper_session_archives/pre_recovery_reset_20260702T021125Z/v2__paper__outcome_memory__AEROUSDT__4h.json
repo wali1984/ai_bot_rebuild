@@ -1,0 +1,60 @@
+{
+  "avg_loser_bps": -80.3454,
+  "avg_winner_bps": null,
+  "baseline_advisory_reasons": [],
+  "baseline_evidence_date": null,
+  "baseline_trade_count": 0,
+  "block_reason": null,
+  "bucket_scope": "symbol_timeframe",
+  "consecutive_losses": 4,
+  "data_source": "REDIS",
+  "degraded": false,
+  "degraded_since": null,
+  "drawdown_contribution_usd": -8.29616658,
+  "last_trade_ts": "2026-06-30T20:36:36.936Z",
+  "last_updated": "2026-07-02T02:07:47Z",
+  "loss_count": 4,
+  "max_drawdown_bps": 321.3817,
+  "missed_tp_then_stop_rate": null,
+  "outcome_memory_can_block_entries": true,
+  "recent_bps": [
+    -122.29523562334721,
+    -89.53944732519591,
+    -53.055591355050446,
+    -56.491408081394795
+  ],
+  "recent_missed_tp_then_stop": [],
+  "recent_outcomes": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "recent_pnl_usd": [
+    -3.056786855821398,
+    -4.185012209515008,
+    -0.519976088414451,
+    -0.5343914234947642
+  ],
+  "recent_reversal_after_entry": [],
+  "recent_slippage_failures": [
+    1,
+    0,
+    0,
+    0
+  ],
+  "reversal_after_entry_rate": null,
+  "rolling_ev_bps": -80.3454,
+  "rolling_win_rate": 0.0,
+  "schema_version": "v2_outcome_memory_updater_v1",
+  "slippage_failure_rate": 0.25,
+  "soak_count": 4,
+  "symbol": "AEROUSDT",
+  "timeframe": "4h",
+  "total_trades": 4,
+  "trade_count": 4,
+  "trust_evidence_status": "TRUSTED_OUTCOME_MEMORY",
+  "trusted_trade_count": 4,
+  "untrusted_trade_count": 0,
+  "win_count": 0
+}

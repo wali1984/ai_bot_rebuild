@@ -112,6 +112,14 @@ def test_rate_limits_default_free_and_paid_disabled() -> None:
     assert nansen["daily_request_budget"] == 1000
     assert nansen["cache_ttl_seconds"] == 600
     assert nansen["per_symbol_cooldown_seconds"] == 300
+    santiment = next(
+        row for row in payload["provider_limits"] if row["provider_id"] == "santiment"
+    )
+    assert santiment["tier"] == "santiment_pro_background_producer"
+    assert santiment["paid_endpoint_enabled"] is True
+    assert santiment["daily_request_budget"] == 166
+    assert santiment["cache_ttl_seconds"] == 28_800
+    assert santiment["per_symbol_cooldown_seconds"] == 21_600
 
 
 def test_safe_redis_set_allows_only_three_altdata_contracts() -> None:
@@ -208,15 +216,16 @@ def test_run_once_writes_worklog_public_and_allowed_redis_only(tmp_path: Path) -
         assert "raw_lunar_value" not in raw
 
 
-def test_dashboard_contract_has_top_10_with_binance_panels() -> None:
+def test_dashboard_contract_has_santiment_with_binance_panels() -> None:
     registry = _registry()
     panels = list(registry.dashboard_contracts())
-    assert len(panels) == 10
+    assert len(panels) == 11
     ids = {panel["id"] for panel in panels}
     assert {
         "binance_12h_volume_leaders",
         "binance_12h_most_traded",
         "binance_12h_volatility_leaders",
+        "santiment_onchain_social_state",
     }.issubset(ids)
     overlay = next(panel for panel in panels if panel["id"] == "v2_trainer_risk_decision_overlay")
     assert overlay["altdata_may_not_override_strict_paper_fill_gate"] is True

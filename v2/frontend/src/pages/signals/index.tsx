@@ -491,7 +491,8 @@ function fmtVol(v: number): string {
 
 function fmtBpsLiq(bps: number | null): string {
   if (bps == null) return '—';
-  return `${bps >= 0 ? '+' : ''}${bps.toFixed(1)}bp`;
+  const pct = bps / 100;
+  return `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
 }
 
 function cascadeColor(risk: number | null): string {

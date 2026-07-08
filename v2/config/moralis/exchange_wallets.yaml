@@ -1,0 +1,8 @@
+{
+  "schema_version": "moralis_exchange_wallets_v1",
+  "policy": {
+    "exchange_wallets_are_smart_money": false,
+    "require_source_for_exchange_wallet": true
+  },
+  "addresses": []
+}

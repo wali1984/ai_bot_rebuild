@@ -99,6 +99,55 @@ def test_microstructure_monitor_consumes_generic_v2_market_orderbook_without_ove
     assert result["places_real_order"] is False
 
 
+def test_microstructure_monitor_explains_provider_unsupported_venue(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        monitor,
+        "_load_provider_symbol_support",
+        lambda: {
+            "kucoin": {
+                "BICOUSDT": {
+                    "provider_symbol": "BICOUSDTM",
+                    "listed": False,
+                    "orderbook_supported": False,
+                    "status": "MISSING",
+                }
+            }
+        },
+    )
+    fake = FakeRedis(
+        {
+            "v2:orderbook:features:binance:BICOUSDT": {
+                "best_bid": 100.0,
+                "best_ask": 100.1,
+                "bids": [[100.0, 2.0]],
+                "asks": [[100.1, 2.0]],
+                "event_time": "2026-07-02T12:00:00.000Z",
+                "transaction_time": "2026-07-02T12:00:00.010Z",
+                "received_at": "2026-07-02T12:00:00.020Z",
+                "available_at": "2026-07-02T12:00:00.020Z",
+            },
+        }
+    )
+
+    result = monitor.run_once(
+        symbols=["BICOUSDT"],
+        timeframe="1m",
+        exchanges=["binance", "kucoin"],
+        replay_root=tmp_path,
+        write_redis=True,
+        redis_client_override=fake,
+    )
+
+    trust = json.loads(fake.store["v2:microstructure:trust_score:BICOUSDT:1m"])
+    assert result["places_real_order"] is False
+    assert trust["direct_orderbook_sources"] == ["binance"]
+    assert trust["source_availability"]["kucoin_direct_orderbook"] is False
+    assert trust["venue_unavailable_reasons"]["kucoin"] == (
+        "KUCOIN_DIRECT_ORDERBOOK_UNSUPPORTED:MISSING:BICOUSDTM"
+    )
+    assert trust["provider_symbol_support_details"]["kucoin"]["listed"] is False
+
+
 def test_microstructure_monitor_uses_direct_orderbook_source_latency(tmp_path) -> None:
     observed_at = monitor.iso_now()
     fake = FakeRedis(

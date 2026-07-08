@@ -89,7 +89,8 @@ function fmtPct(n: number | null | undefined): string {
 
 function fmtBps(n: number | null | undefined): string {
   if (n == null) return '—';
-  return (n >= 0 ? '+' : '') + n.toFixed(0) + ' bps';
+  const pct = n / 100;
+  return (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
 }
 
 function fmtAge(iso: string | null | undefined): string {

@@ -99,6 +99,7 @@ def assemble_risk_decision_record(
     mtf_snapshot_id: str | None = None,
     mtf_snapshot_valid: bool | None = None,
     risk_context: Mapping[str, Any] | None = None,
+    provider_context: Mapping[str, Any] | None = None,
     **_: Any,
 ) -> RiskDecisionRecord:
     if not isinstance(decision, OrchestratorDecisionRecord):
@@ -199,6 +200,15 @@ def assemble_risk_decision_record(
             block_reason = "missing_mtf_snapshot"
         elif mtf_snapshot_valid is not True:
             block_reason = "invalid_mtf_snapshot"
+    if (
+        block_reason is None
+        and isinstance(provider_context, Mapping)
+        and decision.decision_action in {DECISION_ACTION_OPEN_LONG, DECISION_ACTION_OPEN_SHORT}
+    ):
+        # Optional provider degradation must not block the core risk path. Only
+        # callers that explicitly mark a provider required can set this flag.
+        if provider_context.get("core_system_blocked") is True:
+            block_reason = "required_provider_context_blocked"
 
     if block_reason is not None:
         deny_reason = block_reason_code if block_reason_code else _INFRA_DENY_REASON
@@ -228,6 +238,8 @@ def assemble_risk_decision_record(
                 "replay_snapshot_key": replay_snapshot_key,
                 "mtf_snapshot_id": mtf_snapshot_id,
                 "mtf_snapshot_valid": mtf_snapshot_valid,
+                "provider_context": dict(provider_context or {}),
+                "optional_provider_failures_core_blocking": False,
             },
         )
         return record

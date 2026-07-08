@@ -1,0 +1,52 @@
+{
+  "avg_loser_bps": -14.5349,
+  "avg_winner_bps": 177.3801,
+  "baseline_advisory_reasons": [],
+  "baseline_evidence_date": null,
+  "baseline_trade_count": 0,
+  "block_reason": null,
+  "bucket_scope": "symbol_timeframe",
+  "consecutive_losses": 1,
+  "data_source": "REDIS",
+  "degraded": false,
+  "degraded_since": null,
+  "drawdown_contribution_usd": -0.03311482,
+  "last_trade_ts": "2026-06-30T16:58:45.131Z",
+  "last_updated": "2026-07-02T02:07:47Z",
+  "loss_count": 1,
+  "max_drawdown_bps": 14.5349,
+  "missed_tp_then_stop_rate": null,
+  "outcome_memory_can_block_entries": true,
+  "recent_bps": [
+    177.38007175489147,
+    -14.534883720929976
+  ],
+  "recent_missed_tp_then_stop": [],
+  "recent_outcomes": [
+    1,
+    0
+  ],
+  "recent_pnl_usd": [
+    0.3279918746190242,
+    -0.03311481834656657
+  ],
+  "recent_reversal_after_entry": [],
+  "recent_slippage_failures": [
+    0,
+    1
+  ],
+  "reversal_after_entry_rate": null,
+  "rolling_ev_bps": 81.4226,
+  "rolling_win_rate": 0.5,
+  "schema_version": "v2_outcome_memory_updater_v1",
+  "slippage_failure_rate": 0.5,
+  "soak_count": 2,
+  "symbol": "EIGENUSDT",
+  "timeframe": "15m",
+  "total_trades": 2,
+  "trade_count": 2,
+  "trust_evidence_status": "TRUSTED_OUTCOME_MEMORY",
+  "trusted_trade_count": 2,
+  "untrusted_trade_count": 0,
+  "win_count": 1
+}

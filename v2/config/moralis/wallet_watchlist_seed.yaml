@@ -1,0 +1,10 @@
+{
+  "schema_version": "moralis_wallet_watchlist_seed_v1",
+  "policy": {
+    "empty_watchlist_status": "CONFIGURED_NO_WATCHLIST",
+    "t0_max_wallets": 50,
+    "t1_max_wallets": 250,
+    "unknown_wallet_is_smart_money": false
+  },
+  "wallets": []
+}

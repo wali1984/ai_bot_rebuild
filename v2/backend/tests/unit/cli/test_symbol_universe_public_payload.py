@@ -18,6 +18,12 @@ def _write_status(root: Path, worker: str, payload: dict[str, object]) -> None:
     path.write_text(json.dumps(payload))
 
 
+def _write_portfolio(root: Path, payload: dict[str, object]) -> None:
+    path = root / "v2/frontend/public/operator_runtime/v2_portfolio_state/latest/v2_portfolio_state.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload))
+
+
 def test_payload_preserves_symbol_roles_without_live_symbols(tmp_path: Path) -> None:
     _write_status(
         tmp_path,
@@ -85,3 +91,41 @@ def test_coinank_only_symbols_are_not_directly_tradable(tmp_path: Path) -> None:
     assert "COINANK_ONLY_USDT" in payload["rejected_paper_symbols"]
     assert payload["coinank_symbols_directly_tradable"] is False
     assert payload["coinank_symbols_tradability"] == "market_intelligence_only_until_binance_usdm_confirmed"
+
+
+def test_active_paper_position_enters_runtime_scopes_when_binance_tradable(
+    tmp_path: Path,
+) -> None:
+    _write_status(
+        tmp_path,
+        "v2_dynamic_symbol_discovery",
+        {
+            "discovered_symbols": ["BTCUSDT", "ETHUSDT"],
+            "training_symbols": ["BTCUSDT"],
+            "paper_symbols": ["BTCUSDT"],
+            "binance_usdm_confirmed_symbols": ["BTCUSDT"],
+            "binance_usdm_tradable_symbols": ["BTCUSDT", "ETHUSDT", "BASUSDT"],
+        },
+    )
+    _write_portfolio(
+        tmp_path,
+        {
+            "open_positions": [
+                {
+                    "symbol": "BASUSDT",
+                    "open_position": True,
+                    "paper_session_id": "paper_3000_current",
+                }
+            ]
+        },
+    )
+
+    payload = build_payload(tmp_path)
+
+    assert "BASUSDT" in payload["active_paper_position_symbols"]
+    assert "BASUSDT" in payload["discovered_symbols"]
+    assert "BASUSDT" in payload["observed_symbols"]
+    assert "BASUSDT" in payload["training_symbols"]
+    assert "BASUSDT" in payload["paper_symbols"]
+    assert payload["live_data_symbols"] == ["BASUSDT"]
+    assert "BASUSDT" not in payload["rejected_paper_symbols"]

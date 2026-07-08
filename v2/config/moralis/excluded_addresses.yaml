@@ -1,0 +1,19 @@
+{
+  "schema_version": "moralis_excluded_addresses_v1",
+  "addresses": [
+    {
+      "chain": "*",
+      "address": "0x0000000000000000000000000000000000000000",
+      "category": "burn_address",
+      "label": "zero_address",
+      "source": "bootstrap_default"
+    },
+    {
+      "chain": "*",
+      "address": "0x000000000000000000000000000000000000dead",
+      "category": "burn_address",
+      "label": "dead_address",
+      "source": "bootstrap_default"
+    }
+  ]
+}

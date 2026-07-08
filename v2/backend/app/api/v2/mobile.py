@@ -18,8 +18,13 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 
 from app.api.v2._common import get_redis
+from app.api.v2.probation_display import probation_gate_display_status
 from app.auth.security import optional_auth, require_auth
 from app.auth.users import UserRecord
+from app.services.coinglass_provider import build_coinglass_health
+from app.services.hedge_engine import compute_portfolio_exposure, simulate_cross_margin_stress
+from app.services.provider_features import build_provider_actual_data_panel
+from app.services.smart_money_wallets import build_moralis_health
 
 router = APIRouter(prefix="/mobile", tags=["v2-mobile"])
 
@@ -116,6 +121,338 @@ def _paper_heartbeat(r: Any) -> dict[str, Any]:
 
 def _as_object(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
+
+
+def _mobile_provider_readiness(r: Any | None) -> dict[str, Any]:
+    coinglass = (_redis_get_json(r, "v2:provider:coinglass:health") if r else None) or build_coinglass_health(os.environ)
+    moralis = (_redis_get_json(r, "v2:provider:moralis:health") if r else None) or build_moralis_health(os.environ)
+    coinglass_usage = (_redis_get_json(r, "v2:provider:coinglass:usage") if r else None) or {}
+    moralis_usage = (_redis_get_json(r, "v2:provider:moralis:usage") if r else None) or {}
+    coinglass_endpoint_status = (_redis_get_json(r, "v2:provider:coinglass:endpoint_status") if r else None) or {}
+    moralis_endpoint_status = (_redis_get_json(r, "v2:provider:moralis:endpoint_status") if r else None) or {}
+    provider_actual_data = build_provider_actual_data_panel(
+        r,
+        symbol=str(os.environ.get("ALPHAFORGE_PROVIDER_PANEL_SYMBOL", "BTCUSDT")).upper(),
+        timeframe=str(os.environ.get("ALPHAFORGE_PROVIDER_PANEL_TIMEFRAME", "1m")),
+    )
+    return {
+        "schema_version": "v2_mobile_provider_readiness_v1",
+        "status": "PROVIDER_READINESS_ACTIVE",
+        "coinglass_status": coinglass.get("status"),
+        "moralis_status": moralis.get("status"),
+        "coinglass_dashboard_color": provider_actual_data.get("coinglass", {}).get("dashboard_color"),
+        "moralis_dashboard_color": provider_actual_data.get("moralis", {}).get("dashboard_color"),
+        "coinglass_actual_payload_present": provider_actual_data.get("coinglass", {}).get("actual_payload_present"),
+        "moralis_actual_payload_present": provider_actual_data.get("moralis", {}).get("actual_payload_present"),
+        "coinglass_heartbeat_only": provider_actual_data.get("coinglass", {}).get("heartbeat_only"),
+        "moralis_heartbeat_only": provider_actual_data.get("moralis", {}).get("heartbeat_only"),
+        "coinglass_usage": coinglass_usage,
+        "moralis_usage": moralis_usage,
+        "coinglass_endpoint_status": coinglass_endpoint_status,
+        "moralis_endpoint_status": moralis_endpoint_status,
+        "actual_data_panel": provider_actual_data,
+        "coinglass": coinglass,
+        "moralis": moralis,
+        "raw_keys_exposed": False,
+        "invalid_subscription_blocks_core_system": False,
+        "optional_provider_failures_core_blocking": False,
+        "heartbeat_only_green_allowed": False,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+
+
+def _mobile_hedge_cross_margin_truth(r: Any | None) -> dict[str, Any]:
+    portfolio = (_redis_get_json(r, "v2:portfolio:state") if r else None) or {}
+    rows = portfolio.get("positions_by_symbol") or portfolio.get("positions") or []
+    positions = [
+        row
+        for row in rows
+        if isinstance(row, dict)
+        and row.get("open_position") is not False
+        and str(row.get("position_state") or "").lower() != "shadow_observation_only"
+    ]
+    equity = _safe_float(
+        portfolio.get("equity")
+        or portfolio.get("current_session_equity")
+        or portfolio.get("paper_equity")
+    )
+    available = _safe_float(portfolio.get("cash_balance") or portfolio.get("available_balance") or equity)
+    open_notional = _safe_float(portfolio.get("open_position_notional")) or sum(
+        _safe_float(row.get("gross_notional") or row.get("notional") or row.get("notional_usd"))
+        for row in positions
+    )
+    portfolio_summary_leverage = _safe_float(portfolio.get("effective_leverage")) or (
+        open_notional / equity if equity > 0 and open_notional > 0 else 0.0
+    )
+    exposure = compute_portfolio_exposure(positions, equity_usd=equity)
+    stress = simulate_cross_margin_stress(
+        equity_usd=equity,
+        available_margin_usd=available,
+        target_notional_usd=open_notional,
+        allocated_margin_usd=open_notional,
+        recommended_leverage=portfolio_summary_leverage,
+        max_loss_usd=portfolio.get("current_drawdown_usd"),
+        requested_margin_mode="isolated_paper_simulated",
+        expectancy_usd=portfolio.get("session_realized_pnl") or portfolio.get("realized_pnl_usd"),
+    )
+    return {
+        "schema_version": "v2_mobile_hedge_cross_margin_truth_v1",
+        "status": "ADAPTIVE_HEDGE_CROSS_MARGIN_SIMULATION_ACTIVE",
+        "paper_session_id": portfolio.get("paper_session_id") or portfolio.get("reset_session_id"),
+        "operator_display_currency": "USD",
+        "operator_display_timezone": "America/New_York",
+        "bps_operator_display_allowed": False,
+        "recommended_leverage_distribution": [round(portfolio_summary_leverage, 8)] if open_notional > 0 else [],
+        "recommended_margin_mode_distribution": [stress.get("recommended_margin_mode") or "isolated_paper_simulated"] if open_notional > 0 else [],
+        "hedge_state": "NO_HEDGE",
+        "hedge_rows": 0,
+        "cross_margin_state": stress.get("why_cross_margin_or_isolated"),
+        **exposure,
+        **stress,
+    }
+
+
+def _mobile_preemptive_edge_control_truth(r: Any | None) -> dict[str, Any]:
+    trade_management_status = (
+        _redis_get_json(r, "v2:paper:trade_management:status") if r else None
+    ) or {}
+
+    def _contract(key: str, embedded_key: str, fallback: dict[str, Any]) -> dict[str, Any]:
+        payload = (_redis_get_json(r, key) if r else None) or _as_object(
+            trade_management_status.get(embedded_key)
+        )
+        if not payload:
+            payload = dict(fallback)
+        else:
+            payload = dict(payload)
+            payload.setdefault("available", True)
+        payload.setdefault("source", f"redis:{key}")
+        payload.setdefault("paper_only", True)
+        payload.setdefault("routes_to_live", False)
+        payload.setdefault("places_real_order", False)
+        return payload
+
+    status = _contract(
+        "v2:paper:preemptive_edge_control_status",
+        "preemptive_edge_control_status",
+        {
+            "schema_version": "preemptive_edge_control_status_v1",
+            "status": "PREEMPTIVE_EDGE_CONTROL_STATUS_UNAVAILABLE",
+            "available": False,
+            "candidate_count": 0,
+            "accepted_count": 0,
+            "decision_counts": {},
+            "hard_fail": True,
+        },
+    )
+    matrix = _contract(
+        "v2:paper:preemptive_candidate_decision_matrix",
+        "preemptive_candidate_decision_matrix",
+        {
+            "schema_version": "preemptive_candidate_decision_matrix_v1",
+            "status": "PREEMPTIVE_CANDIDATE_DECISION_MATRIX_UNAVAILABLE",
+            "available": False,
+            "candidate_count": 0,
+            "sample_decisions": [],
+        },
+    )
+    admission = _contract(
+        "v2:paper:preemptive_admission_status",
+        "paper_preemptive_admission_status",
+        {
+            "schema_version": "paper_preemptive_admission_status_v1",
+            "status": "PAPER_PREEMPTIVE_ADMISSION_STATUS_UNAVAILABLE",
+            "available": False,
+            "hard_fail": True,
+        },
+    )
+    probation_policy = _contract(
+        "v2:paper:positive_edge_probation_policy",
+        "positive_edge_probation_policy",
+        {
+            "schema_version": "positive_edge_probation_policy_v1",
+            "status": "POSITIVE_EDGE_PROBATION_POLICY_UNAVAILABLE",
+            "available": False,
+            "enabled": False,
+        },
+    )
+    probation_runtime = _contract(
+        "v2:paper:positive_edge_probation_runtime_status",
+        "positive_edge_probation_runtime_status",
+        {
+            "schema_version": "positive_edge_probation_runtime_status_v1",
+            "status": "POSITIVE_EDGE_PROBATION_RUNTIME_STATUS_UNAVAILABLE",
+            "available": False,
+            "current_candidate_count": 0,
+            "current_accepted_count": 0,
+            "closed_probation_trade_count": 0,
+            "counts_as_final_a_plus": False,
+            "counts_as_live_ready": False,
+        },
+    )
+    probation_5_trade_gate = _contract(
+        "v2:paper:probation_5_trade_gate",
+        "probation_5_trade_gate",
+        {
+            "schema_version": "positive_edge_probation_trade_gate_v1",
+            "status": "PROBATION_5_TRADE_GATE_WAITING_OR_BLOCKED",
+            "available": False,
+            "closed_count": 0,
+        },
+    )
+    samples = matrix.get("rows") or matrix.get("sample_decisions")
+    samples = samples if isinstance(samples, list) else []
+    first_sample = samples[0] if samples and isinstance(samples[0], dict) else {}
+    advanced_status_counts: dict[str, int] = {}
+    advanced_block_counts: dict[str, int] = {}
+    advanced_caution_counts: dict[str, int] = {}
+    fvg_present_count = 0
+    for row in samples:
+        if not isinstance(row, dict):
+            continue
+        status_text = str(
+            row.get("advanced_indicator_status")
+            or "ADVANCED_INDICATOR_NOT_REPORTED"
+        )
+        advanced_status_counts[status_text] = advanced_status_counts.get(status_text, 0) + 1
+        if row.get("fvg_present") is True:
+            fvg_present_count += 1
+        for reason in row.get("advanced_indicator_block_reasons") or []:
+            text = str(reason)
+            advanced_block_counts[text] = advanced_block_counts.get(text, 0) + 1
+        for reason in row.get("advanced_indicator_caution_reasons") or []:
+            text = str(reason)
+            advanced_caution_counts[text] = advanced_caution_counts.get(text, 0) + 1
+    advanced_indicators = {
+        "schema_version": "advanced_indicator_runtime_truth_v1",
+        "status": (
+            "ADVANCED_INDICATOR_DECISION_CONSUMPTION_ACTIVE"
+            if samples
+            else "ADVANCED_INDICATOR_WAITING_FOR_PREEMPTIVE_MATRIX"
+        ),
+        "candidate_count": len(samples),
+        "status_counts": advanced_status_counts,
+        "block_reason_counts": advanced_block_counts,
+        "caution_reason_counts": advanced_caution_counts,
+        "fvg_present_count": fvg_present_count,
+        "accepted_advanced_indicator_block_count": _safe_int(
+            admission.get("accepted_advanced_indicator_block_count")
+        ),
+        "fvg_standalone_allows_trade": False,
+        "fvg_alone_can_approve_trade": False,
+        "sweep_risk_can_block_or_reduce": True,
+        "displayed_without_decision_consumption": False,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    decision_counts = status.get("decision_counts")
+    decision_counts = decision_counts if isinstance(decision_counts, dict) else {}
+    action_counts = status.get("action_counts")
+    action_counts = action_counts if isinstance(action_counts, dict) else {}
+    why_prevented = (
+        admission.get("prevention_reasons")
+        or admission.get("top_rejection_reasons")
+        or first_sample.get("preemptive_decision_reasons")
+        or []
+    )
+    probation_candidate_count = _safe_int(probation_runtime.get("current_candidate_count"))
+    probation_supply_state = (
+        "NO_SAFE_TRADE_SUPPLY"
+        if probation_candidate_count <= 0
+        else "POSITIVE_EDGE_PROBATION_SUPPLY_AVAILABLE"
+    )
+    probation_5_display_status = probation_gate_display_status(probation_5_trade_gate)
+    return {
+        "preemptive_edge_control": {
+            "status": (
+                "PREEMPTIVE_EDGE_CONTROL_ACTIVE"
+                if status.get("available") is True
+                else "PREEMPTIVE_EDGE_CONTROL_NOT_YET_PUBLISHED"
+            ),
+            "candidate_count": _safe_int(status.get("candidate_count")),
+            "accepted_count": _safe_int(status.get("accepted_count")),
+            "decision_counts": decision_counts,
+            "action_counts": action_counts,
+            "preemptive_decision_id": first_sample.get("preemptive_decision_id"),
+            "preemptive_action": first_sample.get("preemptive_action"),
+            "preemptive_allowed": first_sample.get("preemptive_allowed") is True,
+            "preemptive_block_reasons": (
+                first_sample.get("preemptive_block_reasons")
+                or first_sample.get("preemptive_decision_reasons")
+                or []
+            ),
+            "pre_trade_expected_net_pnl_usd": _optional_float(
+                first_sample.get("pre_trade_expected_net_pnl_usd")
+            ),
+            "pre_trade_loss_probability": _optional_float(
+                first_sample.get("pre_trade_loss_probability")
+            ),
+            "guardian_new_entries_allowed": (
+                first_sample.get("guardian_new_entries_allowed") is True
+            ),
+            "continuous_edge_guardian_status": first_sample.get(
+                "continuous_edge_guardian_status"
+            ),
+            "reduce_size_guardian_approved": (
+                first_sample.get("reduce_size_guardian_approved") is True
+            ),
+            "confidence_overstatement_risk": _optional_float(
+                first_sample.get("confidence_overstatement_risk")
+            ),
+            "regime_compatibility_score": _optional_float(
+                first_sample.get("regime_compatibility_score")
+            ),
+            "exit_feasibility_score": _optional_float(
+                first_sample.get("exit_feasibility_score")
+            ),
+            "bucket_profit_factor": _optional_float(
+                first_sample.get("bucket_profit_factor")
+            ),
+            "positive_edge_probation_status": probation_runtime.get("status"),
+            "positive_edge_probation_supply_state": probation_supply_state,
+            "positive_edge_probation_candidates": probation_candidate_count,
+            "positive_edge_probation_accepted": _safe_int(
+                probation_runtime.get("current_accepted_count")
+            ),
+            "closed_probation_trade_count": _safe_int(
+                probation_runtime.get("closed_probation_trade_count")
+            ),
+            "probation_5_trade_gate_status": probation_5_display_status,
+            "probation_counts_as_final_a_plus": False,
+            "probation_counts_as_live_ready": False,
+            "why_trade_was_prevented": why_prevented if isinstance(why_prevented, list) else [],
+            "governor_auto_action": (
+                "halt_new_entries"
+                if decision_counts.get("NO_TRADE") or decision_counts.get("SHADOW_ONLY")
+                else "evaluate_preemptive_candidate"
+            ),
+            "next_remediation": (
+                "Wait for governor clearance and post-patch recovery evidence"
+                if status.get("accepted_count") in (None, 0)
+                else "Verify accepted rows keep loss probability below the bound"
+            ),
+            "hard_fail": status.get("hard_fail") is True,
+            "advanced_indicators": advanced_indicators,
+            "advanced_indicator_status": advanced_indicators["status"],
+            "advanced_indicator_block_reason_counts": advanced_block_counts,
+            "advanced_indicator_caution_reason_counts": advanced_caution_counts,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        },
+        "advanced_indicators": advanced_indicators,
+        "adaptive_hedge_cross_margin": _mobile_hedge_cross_margin_truth(r),
+        "provider_readiness": _mobile_provider_readiness(r),
+        "preemptive_edge_control_status": status,
+        "preemptive_candidate_decision_matrix": matrix,
+        "paper_preemptive_admission_status": admission,
+        "positive_edge_probation_policy": probation_policy,
+        "positive_edge_probation_runtime_status": probation_runtime,
+        "probation_5_trade_gate": probation_5_trade_gate,
+    }
 
 
 def _operator_runtime_json(relative: str) -> dict[str, Any] | None:
@@ -417,6 +754,7 @@ def _mobile_runtime_truth_from_redis(
                 "leverage_increase_allowed_because_behind",
             ),
         ),
+        **_mobile_preemptive_edge_control_truth(r),
     }
 
 
@@ -424,6 +762,24 @@ def _trainer_status_from_redis(r: Any) -> dict[str, Any]:
     """Read trainer status from v2:trainer:hybrid_cuda:metrics (real data)."""
     metrics = _redis_get_json(r, "v2:trainer:hybrid_cuda:metrics") or {}
     heartbeat = _redis_get_json(r, "v2:trainer:hybrid_cuda:heartbeat") or {}
+    champion_challenger = _redis_get_json(r, "v2:trainer:champion_challenger_status") or {
+        "status": "MISSING_RUNTIME_EVIDENCE",
+        "available": False,
+        "best_challenger_id": None,
+        "promotion_allowed": False,
+        "promotion_reason": "runtime key missing",
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    if isinstance(champion_challenger, dict):
+        champion_challenger = {
+            **champion_challenger,
+            "available": champion_challenger.get("available", True),
+            "promotion_allowed": champion_challenger.get("promotion_allowed") is True,
+            "routes_to_live": champion_challenger.get("routes_to_live") is True,
+            "places_real_order": champion_challenger.get("places_real_order") is True,
+        }
     training = metrics.get("training") or {}
     cpu_util = metrics.get("cuda_cpu_resource_utilization") or {}
     checkpoint_data = metrics.get("checkpoint") or {}
@@ -461,6 +817,7 @@ def _trainer_status_from_redis(r: Any) -> dict[str, Any]:
         "data_coverage": data_cov,
         "training_steps_total": steps_total,
         "training_steps_last_hour": steps_last_hour,
+        "champion_challenger_status": champion_challenger,
     }
 
 
@@ -566,11 +923,32 @@ def _alerts_from_redis(r: Any, limit: int = 30) -> list[dict[str, Any]]:
 def _risk_status_from_redis(r: Any) -> dict[str, Any]:
     """Read risk status from v2:risk:gateway:heartbeat (real data)."""
     gw = _redis_get_json(r, "v2:risk:gateway:heartbeat") or {}
+    governor = _redis_get_json(r, "v2:paper:performance_governor_status") or {}
+    closed_count = _safe_int(governor.get("closed_outcome_count")) or 0
+    realized_pnl_usd = _safe_float(governor.get("realized_pnl_usd"))
+    governor_state = (
+        governor.get("state")
+        or governor.get("status")
+        or governor.get("governor_state")
+    )
     return {
-        "state": gw.get("current_gate_state") or gw.get("classification") or "UNKNOWN",
+        "state": governor_state or gw.get("current_gate_state") or gw.get("classification") or "FAIL_CLOSED_NO_RECENT_RISK_RECORDS",
         "classification": gw.get("classification") or "",
         "kill_switch_active": bool(gw.get("live_blocked", True)),
         "fail_closed": bool(gw.get("fail_closed", True)),
+        "new_entries_allowed": governor.get("new_entries_allowed"),
+        "profit_factor": _safe_float(governor.get("profit_factor")),
+        "expectancy_usd": (
+            round(realized_pnl_usd / max(1, closed_count), 8)
+            if realized_pnl_usd is not None and closed_count
+            else None
+        ),
+        "realized_pnl_usd": realized_pnl_usd,
+        "expectancy_bps": _safe_float(
+            governor.get("notional_weighted_expectancy_bps")
+            or governor.get("expectancy_bps")
+            or governor.get("expectancy")
+        ),
         "decisions_processed_total": _safe_int(gw.get("decisions_processed_total")),
         "max_position_size_usd": _safe_float(gw.get("max_position_size_usd")),
         "daily_loss_limit_usd": _safe_float(gw.get("daily_loss_limit_usd")),
@@ -690,6 +1068,11 @@ def _paper_account_session_fields(
         "equity": equity,
         "paper_equity": equity,
         "paper_balance": equity,
+        "available_balance": equity,
+        "available_balance_usd": equity,
+        "available_balance_scope": "PAPER_SIM_ACCOUNT_NOT_LIVE_SIGNED_ACCOUNT",
+        "available_balance_source": "paper_equity_from_v2_portfolio_state_not_live_signed_account",
+        "used_balance": _first_float(portfolio.get("open_position_notional"), hb.get("total_open_notional")) or 0.0,
         "initial_capital": initial_capital,
         "starting_equity_usd": initial_capital,
         "paper_initial_capital": initial_capital,
@@ -1006,6 +1389,7 @@ async def get_mobile_dashboard(
         "live_gate": live_gate,
         "paper": {
             **account_fields,
+            **_mobile_a_plus_runtime_truth(r),
             "open_positions": open_count,
             "closed_trades": closed_count,
             "realized_pnl_usd": realized_pnl,
@@ -1020,6 +1404,7 @@ async def get_mobile_dashboard(
             "state": trainer.get("state", "UNKNOWN"),
             "checkpoint": trainer.get("checkpoint", ""),
             "model_source": trainer.get("model_source", ""),
+            "champion_challenger_status": trainer.get("champion_challenger_status"),
             "cuda_active": bool(trainer.get("cuda_active")),
             "device": str(trainer.get("device") or ""),
             "gpu_name": str(trainer.get("gpu_name") or ""),
@@ -1179,6 +1564,11 @@ async def get_mobile_health(
     trainer = _trainer_status_from_redis(r) if r else {}
     gpu = _gpu_status_from_redis(r) if r else {}
     hb = _paper_heartbeat(r) if r else {}
+    account_fields = _paper_account_session_fields(
+        r,
+        hb,
+        source_type="paper_mobile_health",
+    )
 
     trainer_state = str(trainer.get("state") or "UNKNOWN")
     cuda_active = bool(trainer.get("cuda_active"))
@@ -1196,6 +1586,7 @@ async def get_mobile_health(
             "cuda_active": cuda_active,
             "training_active": training_active,
             "checkpoint": str(trainer.get("checkpoint") or ""),
+            "champion_challenger_status": trainer.get("champion_challenger_status"),
             "device": str(trainer.get("device") or ""),
             "gpu_name": str(trainer.get("gpu_name") or ""),
         },
@@ -1208,8 +1599,14 @@ async def get_mobile_health(
             "temperature_c": _safe_float(gpu.get("temperature_c")),
         },
         "paper": {
+            **account_fields,
+            **_mobile_a_plus_runtime_truth(r),
             "classification": paper_classification,
-            "open_positions": _safe_int(hb.get("open_position_count")),
+            "open_positions": _safe_int(
+                account_fields.get("open_position_count")
+                if account_fields.get("open_position_count") is not None
+                else hb.get("open_position_count")
+            ),
             "intents_accepted": _safe_int(hb.get("intents_accepted")),
             "intents_blocked": _safe_int(hb.get("intents_blocked")),
         },
@@ -1246,6 +1643,8 @@ async def get_mobile_risk_status(
         "current_daily_loss_usd": _safe_float(risk.get("current_daily_loss_usd")),
         "dangerous_actions_require_human_approval": True,
         "mobile_can_approve_dangerous_actions": False,
+        **_mobile_preemptive_edge_control_truth(r),
+        **_mobile_a_plus_runtime_truth(r),
     }
 
 
@@ -1366,6 +1765,58 @@ async def get_mobile_paper_summary(
 def _mobile_a_plus_runtime_truth(r: Any) -> dict[str, Any]:
     """A+ goal Phase 12: session performance, freeze, A+ gate, trainer learning
     and real-trader readiness truth for every operator surface."""
+
+    def _coinapi_provider_unusable_status(source: Any) -> str | None:
+        if "coinapi" not in str(source or "").lower():
+            return None
+        try:
+            keys = list(r.keys("v2:market:coinapi:rest:status:*") or [])[:20]
+        except Exception:
+            keys = []
+        if not keys:
+            return "COINAPI_STATUS_KEYS_MISSING_NOT_CURRENT_SOURCE"
+
+        sampled = 0
+        upstream_errors = 0
+        usable_payloads = 0
+        for key in keys:
+            try:
+                raw = r.get(key)
+                payload = json.loads(raw) if raw else {}
+            except Exception:
+                continue
+            if not isinstance(payload, dict):
+                continue
+            sampled += 1
+            http_status_raw = payload.get("http_status")
+            try:
+                http_status = int(http_status_raw)
+            except (TypeError, ValueError):
+                http_status = None
+            has_upstream_error = (
+                (http_status is not None and http_status >= 400)
+                or bool(payload.get("error"))
+                or bool(payload.get("upstream_error"))
+                or bool(payload.get("provider_unusable_reason"))
+            )
+            has_usable_market_data = bool(
+                payload.get("orderbook_present")
+                or payload.get("ohlcv_present_timeframes")
+                or payload.get("ohlcv")
+            )
+            if has_upstream_error:
+                upstream_errors += 1
+            elif has_usable_market_data:
+                usable_payloads += 1
+
+        if sampled and upstream_errors >= max(1, sampled // 2):
+            return "COINAPI_HTTP_FORBIDDEN_OR_EXPIRED_NOT_CURRENT_SOURCE"
+        if sampled and usable_payloads == 0:
+            return "COINAPI_NO_USABLE_OHLCV_OR_ORDERBOOK_NOT_CURRENT_SOURCE"
+        if not sampled:
+            return "COINAPI_STATUS_PAYLOADS_UNREADABLE_NOT_CURRENT_SOURCE"
+        return None
+
     governor = _redis_get_json(r, "v2:paper:performance_governor_status") or {}
     halt = _redis_get_json(r, "v2:paper:new_entry_emergency_halt_status") or {}
     freeze = _redis_get_json(r, "v2:paper:entry_freeze") or {}
@@ -1376,9 +1827,61 @@ def _mobile_a_plus_runtime_truth(r: Any) -> dict[str, Any]:
     for reason in (halt.get("halt_reasons") or []):
         if reason not in top_blockers:
             top_blockers.append(reason)
+
+    reduced_semantics = _operator_runtime_json(
+        "v2_paper_trade_management/latest/a_plus_gate_after_trust_semantics_status.json"
+    ) or {}
+    reduced_hash_chain = _operator_runtime_json(
+        "v2_paper_trade_management/latest/a_plus_reduced_size_bootstrap_hash_chain.json"
+    ) or {}
+    reduced_generated_at = (
+        reduced_semantics.get("generated_at")
+        or reduced_semantics.get("generated_utc")
+        or reduced_hash_chain.get("generated_at")
+        or reduced_hash_chain.get("generated_utc")
+    )
+
+    market_hb = _redis_get_json(r, "v2:market:coinapi:ohlcv:heartbeat") or {}
+    market_generated_at = (
+        market_hb.get("finished_utc")
+        or market_hb.get("generated_at")
+        or market_hb.get("generated_utc")
+        or market_hb.get("ts")
+    )
+    market_age_seconds: int | None = None
+    if isinstance(market_generated_at, str) and market_generated_at:
+        try:
+            parsed = datetime.fromisoformat(market_generated_at.replace("Z", "+00:00"))
+            market_age_seconds = max(
+                0,
+                int((datetime.now(UTC) - parsed.astimezone(UTC)).total_seconds()),
+            )
+        except ValueError:
+            market_age_seconds = None
+    market_freshness_state = (
+        "MARKET_FEED_CURRENT"
+        if market_age_seconds is not None and market_age_seconds < 600
+        else "MARKET_FEED_STALE"
+    )
+    market_source = market_hb.get("source") or "v2:market:coinapi:ohlcv:heartbeat"
+    if market_freshness_state != "MARKET_FEED_CURRENT" and "coinapi" in str(market_source).lower():
+        market_source = "coinapi_stale_or_unavailable_not_current_source"
+    coinapi_unusable_reason = _coinapi_provider_unusable_status(market_source)
+    if coinapi_unusable_reason:
+        market_source = "coinapi_provider_unusable_not_current_source"
+        market_freshness_state = "MARKET_FEED_PROVIDER_UNUSABLE_NOT_CURRENT"
+
+    closed_count = _safe_int(governor.get("closed_outcome_count")) or 0
+    realized_pnl_usd = _safe_float(governor.get("realized_pnl_usd"))
     return {
         "performance": {
             "profit_factor": governor.get("profit_factor"),
+            "expectancy_usd": (
+                round(realized_pnl_usd / max(1, closed_count), 8)
+                if realized_pnl_usd is not None and closed_count
+                else None
+            ),
+            "realized_pnl_usd": realized_pnl_usd,
             "notional_weighted_expectancy_bps": governor.get("notional_weighted_expectancy_bps"),
             "win_rate": governor.get("win_rate"),
             "closed_outcome_count": governor.get("closed_outcome_count"),
@@ -1397,6 +1900,29 @@ def _mobile_a_plus_runtime_truth(r: Any) -> dict[str, Any]:
             "rejected_reason_matrix": dict(list(rejected.items())[:8]) if isinstance(rejected, dict) else None,
             "gate_is_hard_entry_condition": a_plus.get("gate_is_hard_entry_condition"),
         },
+        "reduced_size_bootstrap": {
+            "schema_version": "mobile_reduced_size_bootstrap_truth_v1",
+            "source": (
+                "operator_runtime/v2_paper_trade_management/latest/"
+                "a_plus_gate_after_trust_semantics_status.json + "
+                "a_plus_reduced_size_bootstrap_hash_chain.json"
+            ),
+            "generated_at": reduced_generated_at,
+            "final_a_plus_candidates": reduced_semantics.get("final_a_plus_candidates"),
+            "reduced_size_bootstrap_candidates": reduced_semantics.get(
+                "reduced_size_bootstrap_candidates"
+            ),
+            "closed_rows": reduced_hash_chain.get("closed_rows"),
+            "counts_as_final_a_plus": (
+                reduced_semantics.get("reduced_size_counts_as_final_a_plus") is True
+                or reduced_hash_chain.get("counts_as_final_a_plus") is True
+            ),
+            "b_grade_counts_as_final_a_plus": (
+                reduced_semantics.get("b_grade_counts_as_final_a_plus") is True
+            ),
+            "routes_to_live": reduced_hash_chain.get("routes_to_live") is True,
+            "paper_only": reduced_hash_chain.get("paper_only") is not False,
+        },
         "trainer_learning": {
             "effective_trainer_mode": trainer.get("effective_trainer_mode"),
             "online_learning_status": trainer.get("online_learning_status"),
@@ -1411,6 +1937,15 @@ def _mobile_a_plus_runtime_truth(r: Any) -> dict[str, Any]:
             "live_ready": False,
             "one_flip_packet": "goal_state/V2_FABLE5_FULL_SYSTEM_A_PLUS_LIVE_READY_1000X_MACHINE_COMPLETION/real_trader_one_flip_readiness_packet.json",
         },
+        "market_data_freshness": {
+            "source": market_source,
+            "generated_at": market_generated_at,
+            "age_seconds": market_age_seconds,
+            "freshness_state": market_freshness_state,
+            "provider_current": coinapi_unusable_reason is None,
+            "provider_unusable_reason": coinapi_unusable_reason,
+        },
+        **_mobile_preemptive_edge_control_truth(r),
         "top_blockers": top_blockers[:6],
     }
 
@@ -1514,6 +2049,7 @@ async def get_mobile_admin_summary(
         "trainer": {
             "state": trainer.get("state", "UNKNOWN"),
             "checkpoint": trainer.get("checkpoint", ""),
+            "champion_challenger_status": trainer.get("champion_challenger_status"),
             "device": str(trainer.get("device") or ""),
             "gpu_name": str(trainer.get("gpu_name") or ""),
             "cuda_active": bool(trainer.get("cuda_active")),

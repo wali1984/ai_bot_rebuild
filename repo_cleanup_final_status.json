@@ -1,0 +1,50 @@
+{
+  "marker": "V2_REPO_CLEANUP_RUNTIME_SAFE_SOURCE_TREE_AND_ARTIFACT_ARCHIVE_READY",
+  "generated_at": "2026-07-01T18:40:46Z",
+  "goal_id": "V2_REPO_CLEANUP_RUNTIME_SAFE_SOURCE_TREE_AND_ARTIFACT_ARCHIVE_READY",
+
+  "summary": {
+    "files_archived_count": 480,
+    "bytes_archived": "775MB",
+    "files_deleted_count_approx": 6987,
+    "bytes_deleted_approx": "cache artifacts (size varies)",
+    "cache_dirs_deleted": 620,
+    "cache_pyc_deleted": 6245,
+    "files_requiring_operator_review": 9
+  },
+
+  "archive_location": "/home/wali/AI_BOT_REBUILD_REPO_CLEANUP_ARCHIVE/20260701_184046/files/",
+  "restore_instructions": "repo_cleanup_restore_instructions.md",
+  "operator_review_list": "repo_cleanup_review_required_files.txt",
+
+  "phases_executed": {
+    "phase_0_runtime_lock": "PASS",
+    "phase_1_inventory": "PARTIAL — top-level du/find inventory captured; full JSONL skipped due to repo size",
+    "phase_2_cache_delete": "PASS — __pycache__, .pyc, .pytest_cache, htmlcov, .coverage, playwright-report, test-results, .tsbuildinfo, .DS_Store deleted",
+    "phase_3_archive_plan": "PASS — archive plan created with reference checks",
+    "phase_4_quarantine_and_delete": "PASS — 17 dirs/paths archived to external location, then deleted from repo",
+    "phase_5_source_review": "PASS — no source files deleted; 0 DEPRECATED/DO_NOT_USE markers found in active source",
+    "phase_6_frontend_public_cleanup": "PASS — 4 old public proof dirs archived and deleted; operator_runtime/* preserved",
+    "phase_7_backend_validation": "PASS — compile OK, 138 tests pass",
+    "phase_8_logs_cleanup": "PASS — only 1 old log found (active paper loop log), left untouched",
+    "phase_9_git_hygiene": "PASS — .gitignore updated with .pytest_cache, .mypy_cache, .ruff_cache, .coverage, htmlcov, *.tsbuildinfo, playwright-report, test-results, .DS_Store, Thumbs.db",
+    "phase_10_validation": "PASS"
+  },
+
+  "what_was_NOT_cleaned": [
+    "legacy_reference/ (290G) — read-only audit source, must not touch",
+    "v2/legacy_owned_runtime/data/ (113G) — live JSONL data feed being actively written",
+    "claude_worklog/agent_supervisor/events.jsonl (5.4G) — active agent supervisor event log",
+    "v2/backend/market_stream_alert_history.jsonl (12G) — active market stream telemetry",
+    "v2/frontend/dist/ (7.8G) — served by uvicorn in production",
+    ".local_data/v2_native_trainer/ (9.2G) — trainer snapshot archive",
+    ".claude/worktrees/ (4.1G) — active agent worktrees with uncommitted changes",
+    "claude_worklog/final_readiness/ (21G) — active worklog modified in last 72h",
+    "7 goal_state dirs with backend code references — kept per safety rule",
+    ".venv/ and venv/ — per hard constraint"
+  ],
+
+  "gitignore_updated": true,
+  "active_runtime_disruption": false,
+  "validation_status": "PASS"
+}

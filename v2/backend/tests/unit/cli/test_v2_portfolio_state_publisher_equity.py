@@ -88,6 +88,66 @@ def test_accepted_fill_recomputes_equity_from_current_market_price(monkeypatch, 
     assert all(row.get("open_position") is not True for row in result["positions"][1:])
 
 
+def test_missing_mark_price_marks_portfolio_untrusted_and_preserves_session(
+    monkeypatch,
+    tmp_path,
+):
+    session_id = "paper_3000_current"
+    fake = FakeRedis(
+        {
+            "v2:paper:session": {
+                "initial_capital": 3000.0,
+                "starting_equity_usd": 3000.0,
+                "paper_session_id": session_id,
+                "reset_session_id": session_id,
+            },
+            "v2:paper:ledger": {
+                "generated_utc": "2026-07-07T05:00:00Z",
+                "paper_session_id": session_id,
+                "accepted": [
+                    {
+                        "fill_id": "paper_pos_bas",
+                        "intent_id": "paper_pos_bas",
+                        "signal_id": "signal-bas",
+                        "prediction_id": "prediction-bas",
+                        "risk_decision_id": "risk-bas",
+                        "orchestrator_decision_id": "orch-bas",
+                        "symbol": "BASUSDT",
+                        "side": "long",
+                        "fill_price": 0.030994,
+                        "quantity": 366.275065325735,
+                        "notional": 11.352,
+                        "paper_session_id": session_id,
+                        "session_id": session_id,
+                        "reset_session_id": session_id,
+                        "starting_equity_usd": 3000.0,
+                    }
+                ],
+                "accepted_count": 1,
+                "held_by_paper_fill_gate_count": 0,
+                "shadow_observation_count": 0,
+            },
+        }
+    )
+    monkeypatch.setattr(publisher, "_connect_redis", lambda: fake)
+    monkeypatch.setattr(publisher, "PAYLOAD_PATH", tmp_path / "v2_portfolio_state.json")
+
+    result = publisher.run_once(write_redis=False)
+
+    assert result["classification"] == "PORTFOLIO_STATE_CURRENT_PAPER_LEDGER_MARK_PRICE_MISSING"
+    assert result["paper_zero_pnl_reason"] == "MARK_PRICE_MISSING"
+    assert result["paper_equity_reason"] == "MARK_PRICE_MISSING"
+    assert result["equity_trusted"] is False
+    assert result["pnl_trusted"] is False
+    assert result["reason_if_untrusted"] == "MARK_PRICE_MISSING_FOR_OPEN_POSITION"
+    assert result["open_positions_count"] == 1
+    assert result["open_positions"][0]["symbol"] == "BASUSDT"
+    assert result["open_positions"][0]["paper_session_id"] == session_id
+    assert result["mark_price_blockers"][0]["symbol"] == "BASUSDT"
+    assert result["mark_price_blockers"][0]["paper_session_id"] == session_id
+    assert result["pnl_blockers"][0]["classification"] == "MARK_PRICE_MISSING"
+
+
 def test_no_accepted_fills_reports_no_open_position_without_fabricating_pnl(monkeypatch, tmp_path):
     fake = FakeRedis(
         {
@@ -260,6 +320,48 @@ def test_closed_trade_ledger_realized_pnl_is_included_in_equity(monkeypatch, tmp
     assert result["current_drawdown_bps"] > 0.0
 
 
+def test_p0019_portfolio_equity_uses_net_closed_pnl_when_gross_alias_exists(
+    monkeypatch,
+    tmp_path,
+):
+    fake = FakeRedis(
+        {
+            "v2:paper:session": {
+                "initial_capital": 3000.0,
+                "starting_equity_usd": 3000.0,
+                "paper_session_id": "paper_3000_p0019",
+                "reset_session_id": "paper_3000_p0019",
+            },
+            "v2:paper:closed_trades": [
+                {
+                    "close_id": "close-win-after-cost",
+                    "symbol": "BTCUSDT",
+                    "realized_pnl_usd": 1.0,
+                    "realized_pnl": 1.0,
+                    "realized_net_pnl_usd": 0.73,
+                },
+                {
+                    "close_id": "close-loss-after-cost",
+                    "symbol": "ETHUSDT",
+                    "realized_pnl_usd": -0.5,
+                    "realized_pnl": -0.5,
+                    "realized_net_pnl_usd": -0.98,
+                },
+            ],
+        }
+    )
+    monkeypatch.setattr(publisher, "_connect_redis", lambda: fake)
+    monkeypatch.setattr(publisher, "PAYLOAD_PATH", tmp_path / "v2_portfolio_state.json")
+
+    result = publisher.run_once(write_redis=False)
+
+    assert result["realized_pnl_usd"] == -0.25
+    assert result["closed_ledger_net_pnl_usd"] == -0.25
+    assert result["portfolio_realized_matches_closed_ledger"] is True
+    assert result["equity"] == 2999.75
+    assert result["equity_reconciles_within_1_cent"] is True
+
+
 def test_paper_accounting_fixture_moves_equity_with_mark_price() -> None:
     state = build_accounting_state(
         [
@@ -324,6 +426,34 @@ def test_paper_accounting_fixture_moves_equity_with_mark_price() -> None:
     assert closed["realized_pnl"] == 0.1
     assert closed["unrealized_pnl"] == 0.0
     assert closed["current_session_equity"] == 10000.1
+
+
+def test_p0019_accounting_state_uses_net_closed_pnl_when_gross_alias_exists() -> None:
+    state = build_accounting_state(
+        [],
+        [
+            {
+                "close_id": "close-btc",
+                "symbol": "BTCUSDT",
+                "realized_pnl_usd": 1.0,
+                "realized_pnl": 1.0,
+                "realized_net_pnl_usd": 0.73,
+            },
+            {
+                "close_id": "close-eth",
+                "symbol": "ETHUSDT",
+                "realized_pnl_usd": -0.5,
+                "realized_pnl": -0.5,
+                "realized_net_pnl_usd": -0.98,
+            },
+        ],
+        {},
+        initial_capital=3000.0,
+    )
+
+    assert state["closed_ledger_net_pnl"] == -0.25
+    assert state["realized_pnl"] == -0.25
+    assert state["current_session_equity"] == 2999.75
 
 
 def test_closed_trade_ledger_is_authoritative_when_reconstructed_close_fill_overlaps() -> None:

@@ -1,0 +1,160 @@
+{
+  "generated_at": "2026-07-01T18:40:46Z",
+  "archive_root": "/home/wali/AI_BOT_REBUILD_REPO_CLEANUP_ARCHIVE/20260701_184046",
+  "archive_files_root": "/home/wali/AI_BOT_REBUILD_REPO_CLEANUP_ARCHIVE/20260701_184046/files",
+  "total_archived_bytes_approx": "775MB",
+  "total_archived_files": 480,
+  "archived_items": [
+    {
+      "source": "goal_state/V2_ACTIVE_PAPER_RUNTIME_OWNER_CUTOVER_CUDA_SIGNAL_CHAIN_AND_COMPOUNDING_REPAIR",
+      "size": "572K",
+      "reason": "Inactive goal — not modified in last 72h, no backend/frontend references",
+      "status": "ARCHIVED_AND_DELETED"
+    },
+    {
+      "source": "goal_state/V2_ADAPTIVE_CAPITAL_OUT_OF_SAMPLE_EVIDENCE_PRODUCER_AND_LIVE_GRADE_REVERIFY",
+      "size": "539M",
+      "reason": "Inactive goal — not modified in last 72h, no backend/frontend references",
+      "status": "ARCHIVED_AND_DELETED"
+    },
+    {
+      "source": "goal_state/V2_CHALLENGER_BLIND_LOCKBOX_CURRENT_MARKET_SUPPLY_RUNTIME_BINDING_AND_PAPER_CANARY",
+      "size": "1.9M",
+      "reason": "Inactive goal — not modified in last 72h, no backend/frontend references",
+      "status": "ARCHIVED_AND_DELETED"
+    },
+    {
+      "source": "goal_state/V2_CLAUDE_CONTINUOUS_ADVERSARIAL_VALIDATION_AND_CAPITAL_PRODUCTIVITY_GUARDIAN.premature-complete.20260620T195354Z",
+      "size": "204K",
+      "reason": "Premature-complete marker from 2026-06-20, not a live goal dir",
+      "status": "ARCHIVED_AND_DELETED"
+    },
+    {
+      "source": "goal_state/V2_CLAUDE_PERFORMANCE_REGRESSION_RECOVERY_VERIFIER",
+      "size": "32K",
+      "reason": "Inactive goal — not modified in last 72h, no backend/frontend references",
+      "status": "ARCHIVED_AND_DELETED"
+    },
+    {
+      "source": "recorded_state_verification_pass2a",
+      "size": "13M",
+      "reason": "Audit snapshot from completed pass, no backend/frontend references",
+      "status": "ARCHIVED_AND_DELETED"
+    },
+    {
+      "source": "recorded_state_verification_pass2b",
+      "size": "2.2M",
+      "reason": "Audit snapshot from completed pass",
+      "status": "ARCHIVED_AND_DELETED"
+    },
+    {
+      "source": "recorded_state_verification_pass3a",
+      "size": "2.2M",
+      "reason": "Audit snapshot from completed pass",
+      "status": "ARCHIVED_AND_DELETED"
+    },
+    {
+      "source": "recorded_state_verification_pass3b",
+      "size": "2.2M",
+      "reason": "Audit snapshot from completed pass",
+      "status": "ARCHIVED_AND_DELETED"
+    },
+    {
+      "source": "recorded_state_verification_pass3c",
+      "size": "2.2M",
+      "reason": "Audit snapshot from completed pass",
+      "status": "ARCHIVED_AND_DELETED"
+    },
+    {
+      "source": "recorded_state_verification_pass4a",
+      "size": "18M",
+      "reason": "Audit snapshot from completed pass",
+      "status": "ARCHIVED_AND_DELETED"
+    },
+    {
+      "source": "pipeline_trust_quarantine",
+      "size": "17M",
+      "reason": "Old quarantine evidence, no backend/frontend references, listed in .gitignore",
+      "status": "ARCHIVED_AND_DELETED"
+    },
+    {
+      "source": "screenshots/",
+      "size": "177M",
+      "note": "136 files cleared",
+      "reason": "Auto-generated Playwright/crawl screenshots — regeneratable",
+      "status": "ARCHIVED_AND_DELETED"
+    },
+    {
+      "source": "v2/frontend/public/v2_zero_exception_parity_codex_review_burndown_20260531/",
+      "size": "740K",
+      "reason": "Old proof dir from 2026-05-31, not referenced by backend or frontend source",
+      "status": "ARCHIVED_AND_DELETED"
+    },
+    {
+      "source": "v2/frontend/public/historical_30d_replay_and_paper_proof/",
+      "size": "156K",
+      "reason": "Old proof dir, not referenced by backend or frontend source",
+      "status": "ARCHIVED_AND_DELETED"
+    },
+    {
+      "source": "v2/frontend/public/8h_trade_readiness/",
+      "size": "84K",
+      "reason": "Old proof dir, not referenced by backend or frontend source",
+      "status": "ARCHIVED_AND_DELETED"
+    },
+    {
+      "source": "v2/frontend/public/api/",
+      "size": "24K",
+      "reason": "Old api/v1 dir, not referenced by backend or frontend source",
+      "status": "ARCHIVED_AND_DELETED"
+    }
+  ],
+  "review_required_items": [
+    {
+      "source": "goal_state/V2_ADAPTIVE_CAPITAL_OUT_OF_SAMPLE_LIVE_GRADE_REVERIFY",
+      "reason": "Referenced as gate_id by v2_adaptive_capital_productivity_status.py",
+      "recommendation": "Verify if gate_id is a read path or just a label before archiving"
+    },
+    {
+      "source": "goal_state/V2_ADAPTIVE_CAPITAL_PRODUCTIVITY_COMPOUNDING_AND_1000X_FEASIBILITY",
+      "reason": "Used as GOAL_ID in v2_adaptive_capital_productivity_status.py — likely write target",
+      "recommendation": "Keep — active CLI writes to this dir"
+    },
+    {
+      "source": "goal_state/V2_CHALLENGER_V2_REPRODUCIBLE_COST_PARITY_FEATURE_ADAPTER_BLIND_LOCKBOX_AND_FORWARD_CANARY",
+      "size": "1.8G",
+      "reason": "Used as GOAL_ID in v2_challenger_v2_reproducible_pipeline.py and v2_paper_timeframe_churn_governance_audit.py",
+      "recommendation": "Keep — active CLI uses this as output dir. Largest inactive-looking dir but NOT safe to remove."
+    },
+    {
+      "source": "goal_state/V2_MODEL_EDGE_RECOVERY_CHAMPION_CHALLENGER_AND_A_GRADE_BOOTSTRAP",
+      "reason": "Used as GOAL_ID in model_edge_recovery_challenger.py",
+      "recommendation": "Keep — active service writes to this dir"
+    },
+    {
+      "source": "goal_state/V2_P0_DIRECTIONAL_EXIT_EXECUTION_RISK_AND_ADAPTIVE_CAPITAL_REMEDIATION",
+      "reason": "Actively READ at v2_adaptive_capital_productivity_status.py:9698 — MUST KEEP",
+      "recommendation": "NEVER ARCHIVE — runtime reads RUNTIME_VALIDATION_REPORT_AFTER_TRAILING_STOP_PRICE_COST_FLOOR_PATCH.json from this dir"
+    },
+    {
+      "source": "goal_state/V2_POST_POLICY_CAPITAL_PRODUCTIVITY_AND_LIVE_CANARY_READINESS",
+      "reason": "Referenced in docs/nervyx-starting-status-short.txt",
+      "recommendation": "Low risk to archive, but docs reference means operator should confirm"
+    },
+    {
+      "source": "goal_state/V2_STOP_THE_LINE_FULL_SYSTEM_TRAINER_PAPER_ALPHA_LIVE_GRADE_REMEDIATION",
+      "reason": "Referenced in docs/nervyx-starting-status-short.txt",
+      "recommendation": "Low risk to archive, but docs reference means operator should confirm"
+    },
+    {
+      "source": ".claude/worktrees/ (4 agent worktrees, 4.1G)",
+      "reason": "Active git worktrees with uncommitted changes detected",
+      "recommendation": "Check each worktree with 'git status' — remove individually if stale"
+    },
+    {
+      "source": "v2/frontend/dist/ (7.8G)",
+      "reason": "Actively served by FastAPI at PID 2932284 via app/main.py",
+      "recommendation": "NEVER DELETE — this is the production frontend served to users"
+    }
+  ]
+}

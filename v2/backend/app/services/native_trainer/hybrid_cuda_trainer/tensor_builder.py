@@ -8,6 +8,12 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
+from v2.backend.app.services.market_structure.common import (
+    bool_num,
+    direction_code,
+    zone_code,
+)
+
 FEATURE_SPEC: tuple[tuple[str, str], ...] = (
     ("last_price", "v2:market:prices"),
     ("mark_price", "v2:market:prices"),
@@ -92,6 +98,54 @@ FEATURE_SPEC: tuple[tuple[str, str], ...] = (
     ("liquidity_zone_above", "v2:market:liquidity_zones"),
     ("liquidity_zone_below", "v2:market:liquidity_zones"),
     ("distance_to_liquidity_zone_bps", "v2:market:liquidity_zones"),
+    ("bullish_fvg_present", "v2:market:fvg"),
+    ("bearish_fvg_present", "v2:market:fvg"),
+    ("fvg_size_bps", "v2:market:fvg"),
+    ("distance_to_fvg_bps", "v2:market:fvg"),
+    ("fvg_fill_percent", "v2:market:fvg"),
+    ("fvg_age_candles", "v2:market:fvg"),
+    ("fvg_retest_confirmed", "v2:market:fvg"),
+    ("htf_fvg_alignment", "v2:market:fvg"),
+    ("fvg_liquidity_confluence", "v2:market:fvg"),
+    ("fvg_orderbook_trust_confluence", "v2:market:fvg"),
+    ("fvg_trade_tape_confirmation", "v2:market:fvg"),
+    ("fvg_expected_edge_after_cost", "v2:market:fvg"),
+    ("bos_direction_code", "v2:market:structure"),
+    ("choch_direction_code", "v2:market:structure"),
+    ("order_block_strength", "v2:market:structure"),
+    ("breaker_block_active", "v2:market:structure"),
+    ("mitigation_block_active", "v2:market:structure"),
+    ("equal_highs_distance_bps", "v2:market:structure"),
+    ("equal_lows_distance_bps", "v2:market:structure"),
+    ("premium_discount_zone_code", "v2:market:structure"),
+    ("session_high_sweep", "v2:market:structure"),
+    ("session_low_sweep", "v2:market:structure"),
+    ("structure_trend_state_code", "v2:market:structure"),
+    ("nearest_liquidity_above", "v2:market:liquidity_zones"),
+    ("nearest_liquidity_below", "v2:market:liquidity_zones"),
+    ("distance_to_liquidity_above_bps", "v2:market:liquidity_zones"),
+    ("distance_to_liquidity_below_bps", "v2:market:liquidity_zones"),
+    ("liquidity_zone_strength", "v2:market:liquidity_zones"),
+    ("sweep_risk_long_side", "v2:market:sweep_risk"),
+    ("sweep_risk_short_side", "v2:market:sweep_risk"),
+    ("fake_breakout_risk", "v2:market:sweep_risk"),
+    ("fake_breakdown_risk", "v2:market:sweep_risk"),
+    ("cascade_continuation_probability", "v2:market:sweep_risk"),
+    ("session_vwap", "v2:market:vwap"),
+    ("anchored_vwap", "v2:market:vwap"),
+    ("distance_to_vwap_bps", "v2:market:vwap"),
+    ("vwap_slope", "v2:market:vwap"),
+    ("volume_profile_poc", "v2:market:volume_profile"),
+    ("high_volume_node_above", "v2:market:volume_profile"),
+    ("high_volume_node_below", "v2:market:volume_profile"),
+    ("low_volume_node_above", "v2:market:volume_profile"),
+    ("low_volume_node_below", "v2:market:volume_profile"),
+    ("cvd", "v2:market:cvd"),
+    ("cvd_slope", "v2:market:cvd"),
+    ("cvd_divergence", "v2:market:cvd"),
+    ("trade_imbalance", "v2:market:trade_tape_features"),
+    ("large_trade_cluster", "v2:market:trade_tape_features"),
+    ("sweep_prints", "v2:market:trade_tape_features"),
     ("orderbook_wall_strength", "v2:market:orderbook"),
     ("microstructure_liquidity_depth", "v2:market:microstructure"),
     ("coinapi_wsds_tape_imbalance", "v2:market:microstructure"),
@@ -313,6 +367,26 @@ def _dig(payload: Mapping[str, Any] | None, *keys: str) -> Any:
         if cur is not None:
             return cur
     return None
+
+
+def _provider_feature_values(payloads: Mapping[str, Any]) -> dict[str, float]:
+    """Extract point-in-time checked provider bridge features supplied by callers."""
+    candidates: list[Any] = []
+    context = payloads.get("provider_feature_context")
+    if isinstance(context, Mapping):
+        candidates.append(context.get("provider_features"))
+    candidates.append(payloads.get("provider_features"))
+    for candidate in candidates:
+        if not isinstance(candidate, Mapping):
+            continue
+        out: dict[str, float] = {}
+        for name, value in candidate.items():
+            parsed = _finite_float(value)
+            if parsed is not None:
+                out[str(name)] = parsed
+        if out:
+            return out
+    return {}
 
 
 def _first_present(*values: Any) -> Any:
@@ -640,14 +714,81 @@ class V2UnifiedFeatureTensorBuilder:
         micro = payloads.get("microstructure")
         liquidation_levels = payloads.get("liquidation_levels")
         liquidity_zones = payloads.get("liquidity_zones")
+        fvg = payloads.get("fvg")
+        market_structure = payloads.get("market_structure") or payloads.get("structure")
+        sweep_risk_payload = payloads.get("sweep_risk")
+        vwap_features = payloads.get("vwap_features")
+        volume_profile = payloads.get("volume_profile")
+        cvd_features = payloads.get("cvd_features")
         coinank_oi_payload = payloads.get("coinank_open_interest")
         coinank_funding_payload = payloads.get("coinank_funding")
         coinank_long_short_payload = payloads.get("coinank_long_short")
         coinank_liquidations_payload = payloads.get("coinank_liquidations")
         coinank_flow_payload = payloads.get("coinank_market_order_flow")
+        microstructure_trust = payloads.get("microstructure_trust")
+        trade_tape = payloads.get("trade_tape")
+        trade_tape_features = payloads.get("trade_tape_features")
+        advanced_trade_tape = payloads.get("advanced_trade_tape") or trade_tape_features
         paper_positions = payloads.get("paper_positions")
         risk = payloads.get("risk_decisions")
         orchestrator = payloads.get("orchestrator_decisions")
+        provider_feature_values = _provider_feature_values(payloads)
+
+        # The live payloads for these sources are LISTS of decision/position
+        # rows, not dicts with pre-aggregated fields. Derive the spec features
+        # from the rows so internally-owned evidence never reads as missing
+        # (this alone was ~5% of the data-coverage gap on every tensor).
+        def _rows_of(payload):
+            if isinstance(payload, list):
+                return [row for row in payload if isinstance(row, dict)]
+            return []
+
+        def _allow_rate(payload, *action_fields):
+            if isinstance(payload, Mapping):
+                winners = payload.get("bucket_winners")
+                considered = payload.get("considered_count")
+                try:
+                    if isinstance(winners, list) and considered and float(considered) > 0:
+                        return min(1.0, len(winners) / float(considered))
+                except (TypeError, ValueError):
+                    pass
+            rows = _rows_of(payload)[-200:]
+            if not rows:
+                return None
+            allowed = 0
+            for row in rows:
+                action = ""
+                for field in action_fields:
+                    if row.get(field) is not None:
+                        action = str(row.get(field)).lower()
+                        break
+                if action in {"allow", "allowed", "true", "pass"} or row.get("allowed") is True:
+                    allowed += 1
+            return allowed / len(rows)
+
+        _position_rows = [
+            row for row in _rows_of(paper_positions)
+            if str(row.get("symbol") or "").upper() == str(symbol).upper()
+        ]
+        derived_position_present = (
+            1.0 if _position_rows else (0.0 if isinstance(paper_positions, list) else None)
+        )
+        derived_unrealized_bps = None
+        if _position_rows:
+            try:
+                derived_unrealized_bps = float(
+                    _position_rows[0].get("unrealized_pnl_bps")
+                    or _position_rows[0].get("unrealized_bps")
+                    or 0.0
+                )
+            except (TypeError, ValueError):
+                derived_unrealized_bps = 0.0
+        elif isinstance(paper_positions, list):
+            derived_unrealized_bps = 0.0
+        derived_risk_allow_rate = _allow_rate(risk, "risk_action", "action", "decision")
+        derived_orchestrator_allow_rate = _allow_rate(
+            orchestrator, "orchestrator_action", "action", "decision"
+        )
         symbol_score = payloads.get("symbol_score")
         public_intel = payloads.get("public_intel")
         aicoin = payloads.get("aicoin")
@@ -797,17 +938,29 @@ class V2UnifiedFeatureTensorBuilder:
             "update_age_ms": _first_present(_dig(orderbook, "update_age_ms"), orderbook_update_age_ms),
             "sequence_gap_flag": sequence_gap_flag,
             "source_latency_ms": _dig(orderbook, "source_latency_ms"),
-            "microstructure_trust_score": _dig(micro, "microstructure_trust_score", "orderbook_trust_score"),
+            "microstructure_trust_score": _first_present(
+                _dig(micro, "microstructure_trust_score", "orderbook_trust_score"),
+                _dig(microstructure_trust, "composite_trust_score", "trust_score", "microstructure_trust_score"),
+                _dig(latest_features, "microstructure_trust_score"),
+            ),
             "feed_latency_ms": _dig(micro, "feed_latency_ms", "orderbook_latency_ms", "latency_ms", "local_latency_ms"),
             "spread_instability": _dig(micro, "spread_instability", "spread_expansion_rate"),
             "depth_persistence": _dig(micro, "depth_persistence", "book_depth_persistence_score", "depth_persistence_ms"),
             "cancel_pressure": _dig(micro, "cancel_pressure", "book_cancel_pressure_score", "cancel_burst_score"),
             "book_trade_divergence": _dig(micro, "book_trade_divergence", "book_trade_divergence_score"),
             "cross_venue_confirmation": _dig(micro, "cross_venue_confirmation", "cross_venue_confirmation_score"),
-            "sweep_risk": _dig(micro, "sweep_risk", "sweep_risk_score"),
+            "sweep_risk": _first_present(
+                _dig(micro, "sweep_risk", "sweep_risk_score"),
+                _dig(liquidity_zones, "liquidity_sweep_risk"),
+                _dig(latest_features, "sweep_risk", "liquidity_sweep_risk"),
+            ),
             "post_sweep_reversal_probability": _dig(micro, "post_sweep_reversal_probability"),
             "realized_slippage_error": _dig(micro, "realized_slippage_error", "realized_slippage_error_bps"),
-            "depth_vs_tape_divergence": _dig(micro, "depth_vs_tape_divergence"),
+            "depth_vs_tape_divergence": _first_present(
+                _dig(micro, "depth_vs_tape_divergence"),
+                _dig(trade_tape, "book_trade_divergence_score"),
+                _dig(latest_features, "depth_vs_tape_divergence", "book_trade_divergence_score"),
+            ),
             "orderbook_spread_bps": _first_present(_dig(orderbook, "spread_bps", "bid_ask_spread_bps"), spread_bps),
             "orderbook_depth_imbalance": _first_present(_dig(orderbook, "depth_imbalance"), book_imbalance),
             "funding_rate": _first_present(
@@ -910,6 +1063,92 @@ class V2UnifiedFeatureTensorBuilder:
             "liquidity_zone_above": _dig(liquidity_zones, "liquidity_zone_above", "nearest_liquidity_zone_above", "zone_above"),
             "liquidity_zone_below": _dig(liquidity_zones, "liquidity_zone_below", "nearest_liquidity_zone_below", "zone_below"),
             "distance_to_liquidity_zone_bps": _dig(liquidity_zones, "distance_to_liquidity_zone_bps", "liquidity_distance_bps"),
+            "bullish_fvg_present": bool_num(_dig(fvg, "bullish_fvg_present")),
+            "bearish_fvg_present": bool_num(_dig(fvg, "bearish_fvg_present")),
+            "fvg_size_bps": _dig(fvg, "fvg_size_bps"),
+            "distance_to_fvg_bps": _dig(fvg, "distance_to_fvg_bps"),
+            "fvg_fill_percent": _dig(fvg, "fvg_fill_percent"),
+            "fvg_age_candles": _dig(fvg, "fvg_age_candles"),
+            "fvg_retest_confirmed": bool_num(_dig(fvg, "fvg_retest_confirmed")),
+            "htf_fvg_alignment": bool_num(_dig(fvg, "htf_fvg_alignment")),
+            "fvg_liquidity_confluence": bool_num(_dig(fvg, "fvg_liquidity_confluence")),
+            "fvg_orderbook_trust_confluence": _dig(fvg, "fvg_orderbook_trust_confluence"),
+            "fvg_trade_tape_confirmation": _dig(fvg, "fvg_trade_tape_confirmation"),
+            "fvg_expected_edge_after_cost": _dig(fvg, "fvg_expected_edge_after_cost"),
+            "bos_direction_code": _first_present(
+                _dig(market_structure, "bos_direction_code"),
+                direction_code(_dig(market_structure, "bos_direction")),
+            ),
+            "choch_direction_code": _first_present(
+                _dig(market_structure, "choch_direction_code"),
+                direction_code(_dig(market_structure, "choch_direction")),
+            ),
+            "order_block_strength": _dig(market_structure, "order_block_strength"),
+            "breaker_block_active": bool_num(_dig(market_structure, "breaker_block_active")),
+            "mitigation_block_active": bool_num(_dig(market_structure, "mitigation_block_active")),
+            "equal_highs_distance_bps": _dig(market_structure, "equal_highs_distance_bps"),
+            "equal_lows_distance_bps": _dig(market_structure, "equal_lows_distance_bps"),
+            "premium_discount_zone_code": _first_present(
+                _dig(market_structure, "premium_discount_zone_code"),
+                zone_code(_dig(market_structure, "premium_discount_zone")),
+            ),
+            "session_high_sweep": bool_num(_dig(market_structure, "session_high_sweep")),
+            "session_low_sweep": bool_num(_dig(market_structure, "session_low_sweep")),
+            "structure_trend_state_code": _first_present(
+                _dig(market_structure, "structure_trend_state_code"),
+                direction_code(_dig(market_structure, "structure_trend_state")),
+            ),
+            "nearest_liquidity_above": _dig(liquidity_zones, "nearest_liquidity_above", "nearest_liquidity_zone_above"),
+            "nearest_liquidity_below": _dig(liquidity_zones, "nearest_liquidity_below", "nearest_liquidity_zone_below"),
+            "distance_to_liquidity_above_bps": _dig(liquidity_zones, "distance_to_liquidity_above_bps", "distance_to_zone_above_bps"),
+            "distance_to_liquidity_below_bps": _dig(liquidity_zones, "distance_to_liquidity_below_bps", "distance_to_zone_below_bps"),
+            "liquidity_zone_strength": _dig(liquidity_zones, "liquidity_zone_strength"),
+            "sweep_risk_long_side": _first_present(
+                _dig(sweep_risk_payload, "sweep_risk_long_side"),
+                _dig(liquidity_zones, "sweep_risk_long_side"),
+            ),
+            "sweep_risk_short_side": _first_present(
+                _dig(sweep_risk_payload, "sweep_risk_short_side"),
+                _dig(liquidity_zones, "sweep_risk_short_side"),
+            ),
+            "fake_breakout_risk": _first_present(
+                _dig(sweep_risk_payload, "fake_breakout_risk"),
+                _dig(liquidity_zones, "fake_breakout_risk"),
+            ),
+            "fake_breakdown_risk": _first_present(
+                _dig(sweep_risk_payload, "fake_breakdown_risk"),
+                _dig(liquidity_zones, "fake_breakdown_risk"),
+            ),
+            "cascade_continuation_probability": _first_present(
+                _dig(sweep_risk_payload, "cascade_continuation_probability"),
+                _dig(liquidity_zones, "cascade_continuation_probability"),
+            ),
+            "session_vwap": _dig(vwap_features, "session_vwap"),
+            "anchored_vwap": _dig(vwap_features, "anchored_vwap"),
+            "distance_to_vwap_bps": _dig(vwap_features, "distance_to_vwap_bps"),
+            "vwap_slope": _dig(vwap_features, "vwap_slope"),
+            "volume_profile_poc": _dig(volume_profile, "volume_profile_poc"),
+            "high_volume_node_above": _dig(volume_profile, "high_volume_node_above"),
+            "high_volume_node_below": _dig(volume_profile, "high_volume_node_below"),
+            "low_volume_node_above": _dig(volume_profile, "low_volume_node_above"),
+            "low_volume_node_below": _dig(volume_profile, "low_volume_node_below"),
+            "cvd": _dig(cvd_features, "cvd"),
+            "cvd_slope": _dig(cvd_features, "cvd_slope"),
+            "cvd_divergence": _dig(cvd_features, "cvd_divergence"),
+            "trade_imbalance": _first_present(
+                _dig(advanced_trade_tape, "trade_imbalance"),
+                _dig(trade_tape, "trade_imbalance"),
+            ),
+            "large_trade_cluster": _first_present(
+                _dig(advanced_trade_tape, "large_trade_cluster"),
+                _dig(trade_tape, "large_trade_cluster"),
+                _dig(advanced_trade_tape, "large_trade_count_5m"),
+            ),
+            "sweep_prints": _first_present(
+                _dig(advanced_trade_tape, "sweep_prints"),
+                _dig(trade_tape, "sweep_prints"),
+                _dig(liquidity_zones, "sweep_prints"),
+            ),
             "orderbook_wall_strength": _first_present(
                 _dig(orderbook, "orderbook_wall_strength", "wall_strength"),
                 _dig(whale_walls, "whale_wall_strength", "whale_wall_score"),
@@ -944,12 +1183,35 @@ class V2UnifiedFeatureTensorBuilder:
                 _dig(micro, "toxicity_proxy"),
                 None if _finite_float(_dig(micro, "imbalance_5")) is None else abs(float(_dig(micro, "imbalance_5"))),
             ),
-            "tape_imbalance": _first_present(_dig(micro, "tape_imbalance"), coinank_order_flow_imbalance),
-            "order_flow_imbalance": _first_present(_dig(micro, "order_flow_imbalance", "ofi"), coinank_order_flow_imbalance),
-            "paper_position_present": _dig(paper_positions, "position_present", "paper_position_present"),
-            "paper_unrealized_bps": _dig(paper_positions, "unrealized_bps", "paper_unrealized_bps"),
-            "risk_recent_allow_rate": _dig(risk, "recent_allow_rate", "allow_rate"),
-            "orchestrator_recent_allow_rate": _dig(orchestrator, "recent_allow_rate", "allow_rate"),
+            "tape_imbalance": _first_present(
+                _dig(micro, "tape_imbalance"),
+                _dig(trade_tape, "trade_imbalance"),
+                _dig(trade_tape_features, "tape_imbalance_5m"),
+                _dig(latest_features, "tape_imbalance", "trade_imbalance"),
+                coinank_order_flow_imbalance,
+            ),
+            "order_flow_imbalance": _first_present(
+                _dig(micro, "order_flow_imbalance", "ofi"),
+                _dig(trade_tape, "trade_imbalance"),
+                _dig(trade_tape_features, "per_minute_delta_5m"),
+                coinank_order_flow_imbalance,
+            ),
+            "paper_position_present": _first_present(
+                _dig(paper_positions, "position_present", "paper_position_present"),
+                derived_position_present,
+            ),
+            "paper_unrealized_bps": _first_present(
+                _dig(paper_positions, "unrealized_bps", "paper_unrealized_bps"),
+                derived_unrealized_bps,
+            ),
+            "risk_recent_allow_rate": _first_present(
+                _dig(risk, "recent_allow_rate", "allow_rate"),
+                derived_risk_allow_rate,
+            ),
+            "orchestrator_recent_allow_rate": _first_present(
+                _dig(orchestrator, "recent_allow_rate", "allow_rate"),
+                derived_orchestrator_allow_rate,
+            ),
             "altdata_symbol_score": _dig(symbol_score, "altdata_symbol_score"),
             "provider_availability_score": _dig(symbol_score, "provider_availability_score"),
             "altdata_freshness_score": _dig(symbol_score, "altdata_freshness_score"),
@@ -1032,6 +1294,15 @@ class V2UnifiedFeatureTensorBuilder:
         if raw_by_name.get("log_return") is None and kline_open not in (None, 0.0) and kline_close not in (None, 0.0):
             raw_by_name["log_return"] = math.log(float(kline_close) / float(kline_open))
 
+        feature_spec_names = {field_name for field_name, _source in FEATURE_SPEC}
+        provider_sources: dict[str, str] = {}
+        for name, value in provider_feature_values.items():
+            if name not in feature_spec_names:
+                continue
+            if raw_by_name.get(name) is None:
+                raw_by_name[name] = value
+                provider_sources[name] = "provider_feature_bridge"
+
         coinank_sources: dict[str, str] = {}
         if coinank_funding_rate is not None and _dig(payloads.get("funding"), "funding_rate", "rate", "fundingRate", "lastFundingRate") is None:
             coinank_sources["funding_rate"] = "latest:coinank:funding"
@@ -1100,7 +1371,12 @@ class V2UnifiedFeatureTensorBuilder:
             stale_mask=tuple(stale_mask),
             source_availability=tuple(source_availability),
             feature_names=tuple(name for name, _ in FEATURE_SPEC),
-            source_labels=tuple(coinank_sources.get(name, source) for name, source in FEATURE_SPEC),
+            source_labels=tuple(
+                coinank_sources.get(name)
+                or provider_sources.get(name)
+                or source
+                for name, source in FEATURE_SPEC
+            ),
             missing_feature_names=tuple(missing_names),
             stale_feature_names=tuple(stale_names),
             data_coverage_percent=float(coverage),

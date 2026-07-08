@@ -128,9 +128,10 @@ const fmt = {
     if (v == null || !Number.isFinite(v) || v <= 0) return '—';
     return v >= 100 ? '$' + v.toFixed(2) : v >= 1 ? '$' + v.toFixed(4) : '$' + v.toFixed(6);
   },
-  bps: (v: number | null | undefined) => {
+  bpsAsPct: (v: number | null | undefined) => {
     if (v == null || !Number.isFinite(v)) return '—';
-    return (v >= 0 ? '+' : '') + v.toFixed(1) + ' bps';
+    const pct = v / 100;
+    return (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
   },
   pct: (v: number | null | undefined) => {
     if (v == null || !Number.isFinite(v)) return '—';
@@ -585,7 +586,7 @@ function PositionsTab({ positions }: { positions: PaperPosition[] }) {
                 title={pos.mark_price_source ?? undefined}
               />
               <EvidenceMetric label="Net PnL" value={fmt.usd(pos.unrealized_pnl)} color={pnlColor(pos.unrealized_pnl)} />
-              <EvidenceMetric label="PnL bps" value={fmt.bps(pos.unrealized_pnl_bps)} color={pnlColor(pos.unrealized_pnl_bps)} />
+              <EvidenceMetric label="PnL %" value={fmt.bpsAsPct(pos.unrealized_pnl_bps)} color={pnlColor(pos.unrealized_pnl_bps)} />
               <EvidenceMetric label="Age" value={fmt.age(pos.position_age_seconds)} />
               <EvidenceMetric
                 label="Mark Age"
@@ -762,7 +763,7 @@ function HistoryTab({
               <EvidenceMetric label="Entry" value={fmt.price(t.entry_price)} title={t.entry_price_source ?? undefined} />
               <EvidenceMetric label="Exit" value={fmt.price(t.exit_price)} title={t.exit_price_source ?? undefined} />
               <EvidenceMetric label="Realized PnL" value={fmt.usd(t.realized_pnl_usd)} color={pnlColor(t.realized_pnl_usd)} />
-              <EvidenceMetric label="PnL bps" value={fmt.bps(t.realized_pnl_bps)} color={pnlColor(t.realized_pnl_bps)} />
+              <EvidenceMetric label="PnL %" value={fmt.bpsAsPct(t.realized_pnl_bps)} color={pnlColor(t.realized_pnl_bps)} />
               <EvidenceMetric label="Hold" value={fmt.holdTime(t.hold_time_seconds)} />
               <EvidenceMetric label="Close Reason" value={runtimeText(t.close_reason)} />
             </div>
@@ -785,8 +786,8 @@ function RiskGateTab({ riskProfile, summary }: { riskProfile: RiskProfile; summa
     ['Min Confidence', riskProfile.min_confidence_calibrated != null ? `${(riskProfile.min_confidence_calibrated * 100).toFixed(0)}%` : '—'],
     ['Max Daily Loss', fmt.usdRaw(riskProfile.max_daily_loss)],
     ['Max Drawdown', riskProfile.max_drawdown != null ? `${riskProfile.max_drawdown}%` : '—'],
-    ['Max Spread', riskProfile.max_spread_bps != null ? `${riskProfile.max_spread_bps} bps` : '—'],
-    ['Min Expected Move', riskProfile.min_expected_move_after_cost_bps != null ? `${riskProfile.min_expected_move_after_cost_bps} bps` : '—'],
+    ['Max Spread', riskProfile.max_spread_bps != null ? fmt.bpsAsPct(riskProfile.max_spread_bps) : '—'],
+    ['Min Expected Move', riskProfile.min_expected_move_after_cost_bps != null ? fmt.bpsAsPct(riskProfile.min_expected_move_after_cost_bps) : '—'],
     ['Cooldown', riskProfile.cooldown_seconds != null ? fmt.age(riskProfile.cooldown_seconds) : '—'],
   ];
 

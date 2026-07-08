@@ -115,6 +115,7 @@ struct PaperTradingView: View {
                 .padding(.horizontal, 4)
 
                 streamStatusCard
+                RuntimeTruthCard(title: "Runtime Truth", truth: .paperSummary(s))
                 pnlCard(s.pnl)
                 loopCard(s.loop)
                 positionsCard(s.positions)

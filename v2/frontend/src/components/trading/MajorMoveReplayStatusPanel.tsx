@@ -78,7 +78,7 @@ function listText(values: string[] | undefined, fallback = 'none reported'): str
 }
 
 function bps(value: number | null | undefined): string {
-  return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(2)} bps` : 'evidence pending';
+  return typeof value === 'number' && Number.isFinite(value) ? `${(value / 100).toFixed(2)}%` : 'evidence pending';
 }
 
 function tone(data: MajorMoveDashboardPayload | null): 'ok' | 'warn' | 'block' {

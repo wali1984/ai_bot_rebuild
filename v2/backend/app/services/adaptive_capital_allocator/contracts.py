@@ -101,9 +101,45 @@ class AllocationResult:
     expected_fees_usd: float
     expected_slippage_usd: float
     expected_funding_usd: float
+    expected_gross_pnl_usd: float
     expected_net_pnl_usd: float
     expected_shortfall_usd: float
+    max_loss_usd: float | None
+    stop_loss_usd: float | None
+    take_profit_usd: float | None
+    mfe_usd: float | None
+    mae_usd: float | None
+    liquidation_distance_usd: float | None
     hedge_budget_usd: float
+    net_delta_usd: float
+    gross_exposure_usd: float
+    long_exposure_usd: float
+    short_exposure_usd: float
+    btc_beta_exposure_usd: float
+    eth_beta_exposure_usd: float
+    sector_exposure_usd: dict[str, float]
+    correlation_exposure_usd: float
+    hedge_required: bool
+    hedge_action: str
+    hedge_reason: str
+    hedge_symbol: str | None
+    hedge_side: str | None
+    hedge_notional_usd: float
+    hedge_margin_usd: float
+    hedge_leverage: float
+    hedge_cost_usd: float
+    hedge_expected_risk_reduction_usd: float
+    hedge_net_benefit_usd: float
+    hedge_exit_plan: dict[str, Any]
+    isolated_margin_required_usd: float
+    cross_margin_stress_used_usd: float
+    cross_margin_available_buffer_usd: float
+    portfolio_liquidation_buffer_usd: float
+    worst_case_portfolio_loss_usd: float
+    maintenance_margin_estimate_usd: float
+    margin_call_risk: str
+    cross_margin_safe: bool
+    why_cross_margin_or_isolated: str
     capital_allocation_reason: str
     risk_budget_pct_of_equity: float
     risk_budget_pct_of_available_margin: float
@@ -151,9 +187,45 @@ class AllocationResult:
             "expected_fees_usd": self.expected_fees_usd,
             "expected_slippage_usd": self.expected_slippage_usd,
             "expected_funding_usd": self.expected_funding_usd,
+            "expected_gross_pnl_usd": self.expected_gross_pnl_usd,
             "expected_net_pnl_usd": self.expected_net_pnl_usd,
             "expected_shortfall_usd": self.expected_shortfall_usd,
+            "max_loss_usd": self.max_loss_usd,
+            "stop_loss_usd": self.stop_loss_usd,
+            "take_profit_usd": self.take_profit_usd,
+            "mfe_usd": self.mfe_usd,
+            "mae_usd": self.mae_usd,
+            "liquidation_distance_usd": self.liquidation_distance_usd,
             "hedge_budget_usd": self.hedge_budget_usd,
+            "net_delta_usd": self.net_delta_usd,
+            "gross_exposure_usd": self.gross_exposure_usd,
+            "long_exposure_usd": self.long_exposure_usd,
+            "short_exposure_usd": self.short_exposure_usd,
+            "btc_beta_exposure_usd": self.btc_beta_exposure_usd,
+            "eth_beta_exposure_usd": self.eth_beta_exposure_usd,
+            "sector_exposure_usd": self.sector_exposure_usd,
+            "correlation_exposure_usd": self.correlation_exposure_usd,
+            "hedge_required": self.hedge_required,
+            "hedge_action": self.hedge_action,
+            "hedge_reason": self.hedge_reason,
+            "hedge_symbol": self.hedge_symbol,
+            "hedge_side": self.hedge_side,
+            "hedge_notional_usd": self.hedge_notional_usd,
+            "hedge_margin_usd": self.hedge_margin_usd,
+            "hedge_leverage": self.hedge_leverage,
+            "hedge_cost_usd": self.hedge_cost_usd,
+            "hedge_expected_risk_reduction_usd": self.hedge_expected_risk_reduction_usd,
+            "hedge_net_benefit_usd": self.hedge_net_benefit_usd,
+            "hedge_exit_plan": self.hedge_exit_plan,
+            "isolated_margin_required_usd": self.isolated_margin_required_usd,
+            "cross_margin_stress_used_usd": self.cross_margin_stress_used_usd,
+            "cross_margin_available_buffer_usd": self.cross_margin_available_buffer_usd,
+            "portfolio_liquidation_buffer_usd": self.portfolio_liquidation_buffer_usd,
+            "worst_case_portfolio_loss_usd": self.worst_case_portfolio_loss_usd,
+            "maintenance_margin_estimate_usd": self.maintenance_margin_estimate_usd,
+            "margin_call_risk": self.margin_call_risk,
+            "cross_margin_safe": self.cross_margin_safe,
+            "why_cross_margin_or_isolated": self.why_cross_margin_or_isolated,
             "capital_allocation_reason": self.capital_allocation_reason,
             "risk_budget_pct": self.risk_budget_pct_of_equity,
             "risk_budget_pct_of_equity": self.risk_budget_pct_of_equity,

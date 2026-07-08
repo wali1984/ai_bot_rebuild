@@ -38,6 +38,9 @@ SCHEMA_VERSION = "v2_model_edge_recovery_champion_challenger_v1"
 MODEL_SOURCE = "V2_MODEL_EDGE_RECOVERY_TRUSTED_REPLAY_RIDGE"
 PAPER_CHALLENGER_TIER = "B_GRADE_EXPLORATION_PAPER"
 LIVE_GATE_BLOCKED = "blocked_human_only"
+CHAMPION_CHALLENGER_STATUS_REDIS_KEY = "v2:trainer:champion_challenger_status"
+CHAMPION_CHALLENGER_STATUS_SCHEMA_VERSION = "v2_trainer_champion_challenger_status_v1"
+CHAMPION_CHALLENGER_STATUS_TTL_SECONDS = 3600
 
 CHAMPION_BASELINE = {
     "directional_accuracy": 0.4137,
@@ -52,6 +55,8 @@ DEFAULT_RIDGE_LAMBDAS = (0.1, 1.0, 10.0, 100.0, 1000.0)
 DEFAULT_THRESHOLDS_BPS = (0.0, 2.0, 4.0, 6.0, 8.0, 10.0, 15.0, 20.0, 30.0, 50.0)
 DEFAULT_MODEL_FEATURE_CAP = 32
 DEFAULT_TARGET_CLIP_BPS = 50.0
+DEFAULT_MIN_VALIDATION_SUPPLY_TRADES = 300
+DEFAULT_MIN_VALIDATION_SUPPLY_COVERAGE = 0.03
 
 
 def utc_now() -> str:
@@ -381,6 +386,8 @@ def train_challenger_model(
     ridge_lambdas: Sequence[float] = DEFAULT_RIDGE_LAMBDAS,
     thresholds_bps: Sequence[float] = DEFAULT_THRESHOLDS_BPS,
     min_validation_trades: int = 100,
+    min_validation_supply_trades: int = DEFAULT_MIN_VALIDATION_SUPPLY_TRADES,
+    min_validation_supply_coverage: float = DEFAULT_MIN_VALIDATION_SUPPLY_COVERAGE,
     model_feature_cap: int | None = DEFAULT_MODEL_FEATURE_CAP,
     target_clip_bps: float | None = DEFAULT_TARGET_CLIP_BPS,
 ) -> ChallengerModel:
@@ -406,6 +413,14 @@ def train_challenger_model(
     xs_val = (x_val - means) / stds
     x_design = np.c_[np.ones(xs_train.shape[0]), xs_train]
     best: tuple[float, float, float, Any, dict[str, Any]] | None = None
+    validation_supply_floor = min(
+        len(validation_rows),
+        max(
+            int(min_validation_trades),
+            int(min_validation_supply_trades),
+            int(math.ceil(len(validation_rows) * max(0.0, float(min_validation_supply_coverage)))),
+        ),
+    )
     for ridge_lambda in ridge_lambdas:
         penalty = float(ridge_lambda) * np.eye(x_design.shape[1])
         penalty[0, 0] = 0.0
@@ -422,15 +437,22 @@ def train_challenger_model(
             )
             if metrics["trade_count"] < int(min_validation_trades):
                 continue
+            if metrics["trade_count"] < validation_supply_floor:
+                continue
             expectancy = metrics["after_cost_expectancy_bps"]
             if expectancy is None:
                 continue
             # Validation selects only model hyperparameters. Holdout remains untouched.
             score = float(expectancy) + 10.0 * float(metrics["directional_accuracy"] or 0.0)
             if best is None or score > best[0]:
+                metrics = dict(metrics)
+                metrics["selection_score"] = score
+                metrics["selection_min_validation_trades"] = int(min_validation_trades)
+                metrics["selection_validation_supply_floor"] = int(validation_supply_floor)
+                metrics["selection_validation_supply_coverage_floor"] = float(min_validation_supply_coverage)
                 best = (score, float(ridge_lambda), float(threshold), coef, metrics)
     if best is None:
-        raise ValueError("no_validation_candidate_met_minimum_trade_count")
+        raise ValueError("no_validation_candidate_met_minimum_trade_supply")
     _score, ridge_lambda, threshold, coef, validation_metrics = best
     return ChallengerModel(
         feature_names=list(feature_names),
@@ -483,6 +505,8 @@ def run_champion_challenger(
     min_validation_trades: int = 100,
     min_holdout_trades: int = 100,
     max_features: int = 256,
+    min_validation_supply_trades: int = DEFAULT_MIN_VALIDATION_SUPPLY_TRADES,
+    min_validation_supply_coverage: float = DEFAULT_MIN_VALIDATION_SUPPLY_COVERAGE,
     archive_root: Path | None = None,
 ) -> dict[str, Any]:
     archive_root = archive_root or default_archive_root(repo_root)
@@ -509,6 +533,8 @@ def run_champion_challenger(
                 validation_rows=validation_rows,
                 max_features=max_features,
                 min_validation_trades=min_validation_trades,
+                min_validation_supply_trades=min_validation_supply_trades,
+                min_validation_supply_coverage=min_validation_supply_coverage,
             )
         except ValueError as exc:
             blocker_reasons.append(str(exc).upper())
@@ -602,6 +628,122 @@ def emit_artifacts(repo_root: Path, result: Mapping[str, Any]) -> list[Path]:
     for path in paths:
         _write_json(path, result)
     return paths
+
+
+def champion_challenger_status_from_result(
+    result: Mapping[str, Any],
+    *,
+    source: str = "model_edge_recovery_challenger",
+) -> dict[str, Any]:
+    """Normalize a challenger evaluation into the runtime status contract.
+
+    This contract is deliberately descriptive. It never promotes A-grade/live
+    behavior by itself; it only exposes the currently evaluated challenger and
+    the reason promotion remains allowed or blocked.
+    """
+    result_hash = str(result.get("result_hash") or "")
+    result_status = str(result.get("status") or "UNKNOWN")
+    policy = result.get("paper_challenger_policy")
+    policy_map = policy if isinstance(policy, Mapping) else {}
+    model_payload = result.get("model")
+    model_map = model_payload if isinstance(model_payload, Mapping) else {}
+    dataset_freeze = result.get("dataset_freeze")
+    freeze_map = dataset_freeze if isinstance(dataset_freeze, Mapping) else {}
+    holdout_metrics = result.get("untouched_holdout_metrics")
+    holdout_map = holdout_metrics if isinstance(holdout_metrics, Mapping) else {}
+    validation_metrics = result.get("validation_metrics")
+    validation_map = validation_metrics if isinstance(validation_metrics, Mapping) else {}
+    row_counts = result.get("row_counts")
+    row_counts_map = row_counts if isinstance(row_counts, Mapping) else {}
+    blockers = [str(item) for item in (result.get("blocker_reasons") or [])]
+
+    paper_challenger_enabled = bool(policy_map.get("enabled"))
+    best_challenger_id = (
+        f"model_edge_recovery:{result_hash[:16]}"
+        if paper_challenger_enabled and result_hash
+        else None
+    )
+    promotion_allowed = bool(policy_map.get("a_grade_promotion_allowed") is True)
+    if promotion_allowed:
+        promotion_reason = "a_grade_promotion_allowed_by_challenger_contract"
+    elif result_status == "PASSED_PAPER_CHALLENGER_READY":
+        promotion_reason = (
+            "paper challenger passed holdout, but A-grade/live promotion remains disabled "
+            "until separate runtime paper evidence approves it"
+        )
+    else:
+        promotion_reason = ",".join(blockers) if blockers else result_status
+
+    replay_rows = freeze_map.get("trusted_replay_rows")
+    scan_rows = freeze_map.get("snapshots_scanned")
+    holdout_trades = holdout_map.get("trade_count")
+    model_validation = model_map.get("validation_metrics")
+    model_validation_map = model_validation if isinstance(model_validation, Mapping) else {}
+    validation_trades = (
+        validation_map.get("trade_count")
+        or model_validation_map.get("trade_count")
+    )
+
+    return {
+        "schema_version": CHAMPION_CHALLENGER_STATUS_SCHEMA_VERSION,
+        "generated_utc": utc_now(),
+        "evaluated_at_utc": result.get("generated_utc"),
+        "source": source,
+        "source_goal_id": result.get("goal_id"),
+        "source_result_hash": result_hash or None,
+        "redis_key": CHAMPION_CHALLENGER_STATUS_REDIS_KEY,
+        "status": (
+            "CHAMPION_CHALLENGER_EVALUATED_PAPER_READY"
+            if result_status == "PASSED_PAPER_CHALLENGER_READY"
+            else "CHAMPION_CHALLENGER_EVALUATED_BLOCKED"
+        ),
+        "result_status": result_status,
+        "best_challenger_id": best_challenger_id,
+        "paper_challenger_enabled": paper_challenger_enabled,
+        "paper_opportunity_tier": policy_map.get("paper_opportunity_tier"),
+        "promotion_allowed": promotion_allowed,
+        "promotion_reason": promotion_reason,
+        "blocker_reasons": blockers,
+        "replay_windows_processed": replay_rows,
+        "replay_snapshots_scanned": scan_rows,
+        "backtests_processed": {
+            "train_rows": row_counts_map.get("train"),
+            "validation_rows": row_counts_map.get("validation"),
+            "untouched_holdout_rows": row_counts_map.get("untouched_holdout"),
+            "validation_trade_count": validation_trades,
+            "untouched_holdout_trade_count": holdout_trades,
+        },
+        "holdout_metrics": holdout_map,
+        "holdout_improvement": result.get("holdout_improvement") or {},
+        "point_in_time_safety": result.get("point_in_time_safety") or {},
+        "trainer_model_source": model_map.get("model_source") or MODEL_SOURCE,
+        "model_threshold_bps": model_map.get("threshold_bps"),
+        "model_feature_count": len(model_map.get("feature_names") or []),
+        "safety": {
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "live_gate": LIVE_GATE_BLOCKED,
+            "counts_as_a_grade_evidence": policy_map.get("counts_as_a_grade_evidence") is True,
+            "a_grade_promotion_allowed": promotion_allowed,
+            "live_ready_implication": False,
+        },
+    }
+
+
+def publish_champion_challenger_status(
+    *,
+    client: Any,
+    result: Mapping[str, Any],
+    ttl_seconds: int = CHAMPION_CHALLENGER_STATUS_TTL_SECONDS,
+) -> dict[str, Any]:
+    status = champion_challenger_status_from_result(result, source="redis_runtime_publish")
+    client.set(
+        CHAMPION_CHALLENGER_STATUS_REDIS_KEY,
+        json.dumps(status, sort_keys=True, default=str),
+        ex=max(60, int(ttl_seconds)),
+    )
+    return status
 
 
 def _trust_row_for_current_snapshot(snapshot: Mapping[str, Any]) -> dict[str, Any]:

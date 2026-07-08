@@ -1,0 +1,23 @@
+{
+  "generated_at": "2026-07-01T18:40:46Z",
+  "phase": 2,
+  "description": "Cache artifacts deleted directly without archive (regeneratable)",
+  "deleted_types": [
+    {"pattern": "__pycache__/", "count_found": 620, "status": "deleted"},
+    {"pattern": "*.pyc", "count_found": 6245, "status": "deleted"},
+    {"pattern": ".pytest_cache/", "count_found": 2, "status": "deleted"},
+    {"pattern": "htmlcov/", "status": "deleted"},
+    {"pattern": ".coverage", "status": "deleted"},
+    {"pattern": "playwright-report/", "status": "deleted"},
+    {"pattern": "test-results/", "status": "deleted"},
+    {"pattern": "*.tsbuildinfo", "status": "deleted"},
+    {"pattern": ".DS_Store", "status": "deleted"}
+  ],
+  "excluded_from_deletion": [
+    "legacy_reference/",
+    ".venv/",
+    "venv/",
+    ".claude/worktrees/"
+  ],
+  "notes": "mypy_cache and ruff_cache patterns searched but none found outside excluded dirs"
+}

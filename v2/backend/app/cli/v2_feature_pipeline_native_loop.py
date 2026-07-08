@@ -17,6 +17,11 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from v2.backend.app.services.market_structure import (
+    compute_fvg,
+    compute_liquidity_zones,
+    compute_structure,
+)
 from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
 from v2.backend.app.services.feature_pipeline_and_ta.service import (
     _rsi as _ta_rsi,
@@ -379,6 +384,20 @@ def _read_klines(r, symbol: str, interval: str = "1m", *, decision_ms: int | Non
     raw_latest = _latest_closed_close_ms(raw_rows, decision_ms=current_decision_ms)
     if raw_latest is not None and (closed_latest is None or raw_latest > closed_latest):
         return raw_rows
+    # The ohlcv_closed key's history is TTL-truncated for intervals longer
+    # than its TTL (e.g. 15m holds 1-2 rows, 1h/4h expire entirely), which
+    # starves history-window features (atr_percentile needs 34+ candles).
+    # On a freshness tie prefer the deeper raw buffer; _closed_klines()
+    # downstream still filters to confirmed-closed rows only.
+    if (
+        raw_latest is not None
+        and closed_latest is not None
+        and raw_latest == closed_latest
+        and isinstance(raw_rows, list)
+        and isinstance(closed_rows, list)
+        and len(raw_rows) > len(closed_rows)
+    ):
+        return raw_rows
     return closed_rows
 
 
@@ -712,10 +731,39 @@ def _merge_a_plus_context_features(r, symbol: str, timeframe: str, features: dic
     return fields_merged, sources_present
 
 
+def _maybe_poll_moralis_smart_money(r) -> None:
+    """Hourly, CU-budget-guarded Moralis smart-money poll.
+
+    Runs inside the always-on pipeline loop; fires only when the last poll is
+    older than ~1h and MORALIS_API_KEY is present. The poller enforces the
+    2,000,000 CU/month budget (80% daily safety factor) and skips honestly
+    when the day's allowance is spent.
+    """
+    import os
+    import time as _time
+
+    try:
+        last = float(r.get("meta:moralis:last_update") or 0) / 1000.0
+        if _time.time() - last < 3500:
+            return
+        api_key = os.environ.get("MORALIS_API_KEY", "").strip()
+        if not api_key:
+            return
+        from v2.backend.app.services.smart_money_wallets.poller import (
+            poll_token_transfers,
+        )
+
+        poll_token_transfers(r, api_key)
+    except Exception:  # noqa: BLE001 - never poison the feature cycle
+        return
+
+
 def _merge_external_v2_features(r, symbol: str, timeframe: str, features: dict) -> dict:
     """Merge real V2 feature surfaces into the live feature mirror."""
     sources_present: list[str] = []
     fields_merged = 0
+    if symbol == "BTCUSDT" and timeframe == "1h":
+        _maybe_poll_moralis_smart_money(r)
 
     a_plus_merged, a_plus_sources = _merge_a_plus_context_features(r, symbol, timeframe, features)
     fields_merged += a_plus_merged
@@ -861,6 +909,106 @@ def _merge_external_v2_features(r, symbol: str, timeframe: str, features: dict) 
 
     fields_merged += _merge_numeric_aliases(features, features, DERIVED_ALTDATA_ALIASES)
     fields_merged += _derive_mean_feature(features, "aicoin_score", AICOIN_SCORE_COMPONENT_FIELDS)
+
+    # Market structure: liquidity zones (tensor-spec fields), FVG, and
+    # BOS/CHOCH structure. Computed from V2-owned closed candles + book +
+    # liquidation + tape evidence and published for risk/orchestrator/paper
+    # consumption. Missing candles yield explicit missing_evidence payloads.
+    try:
+        structure_candles = _read_json_key(
+            r, f"v2:market:ohlcv_closed:binance:{symbol}:{timeframe}"
+        )
+        if not isinstance(structure_candles, list):
+            structure_candles = []
+        reference_price = None
+        if structure_candles:
+            last = structure_candles[-1]
+            if isinstance(last, dict):
+                for pf in ("close", "c"):
+                    try:
+                        reference_price = float(last.get(pf))
+                        break
+                    except (TypeError, ValueError):
+                        continue
+        zones = compute_liquidity_zones(
+            symbol=symbol,
+            candles=structure_candles,
+            price=reference_price,
+            orderbook_features=_read_json_key(
+                r, f"v2:orderbook:features:binance:{symbol}"
+            ),
+            liquidation_levels=_read_json_key(
+                r, f"v2:market:liquidation_levels:{symbol}"
+            ),
+            trade_tape=_read_json_key(
+                r, f"v2:microstructure:trade_tape_confirmation:{symbol}"
+            ),
+        )
+        r.set(
+            f"v2:market:liquidity_zones:{symbol}",
+            json.dumps(zones, default=str),
+            ex=3600,
+        )
+        fields_merged += _merge_selected_numeric_features(
+            features,
+            zones,
+            (
+                "liquidity_zone_above",
+                "liquidity_zone_below",
+                "distance_to_liquidity_zone_bps",
+                "liquidity_sweep_risk",
+            ),
+        )
+        structure = compute_structure(
+            symbol=symbol,
+            timeframe=timeframe,
+            candles=structure_candles,
+            price=reference_price,
+        )
+        r.set(
+            f"v2:market:structure:{symbol}:{timeframe}",
+            json.dumps(structure, default=str),
+            ex=3600,
+        )
+        htf_fvg_payload = None
+        if timeframe not in ("4h", "1d"):
+            htf_fvg_payload = _read_json_key(r, f"v2:market:fvg:{symbol}:4h")
+        trust_payload = _read_json_key(
+            r, f"v2:microstructure:adversarial_features:binance:{symbol}"
+        )
+        trust_score = None
+        if isinstance(trust_payload, dict):
+            for tf_field in ("composite_trust_score", "trust_score", "orderbook_trust_score"):
+                try:
+                    trust_score = float(trust_payload.get(tf_field))
+                    break
+                except (TypeError, ValueError):
+                    continue
+        fvg = compute_fvg(
+            symbol=symbol,
+            timeframe=timeframe,
+            candles=structure_candles,
+            price=reference_price,
+            htf_fvg=htf_fvg_payload if isinstance(htf_fvg_payload, dict) else None,
+            liquidity_zones=zones,
+            orderbook_trust_score=trust_score,
+            trade_tape=_read_json_key(
+                r, f"v2:microstructure:trade_tape_confirmation:{symbol}"
+            ),
+        )
+        r.set(
+            f"v2:market:fvg:{symbol}:{timeframe}",
+            json.dumps(fvg, default=str),
+            ex=3600,
+        )
+        fields_merged += _merge_selected_numeric_features(
+            features,
+            fvg,
+            ("fvg_size_bps", "distance_to_fvg_bps", "fvg_fill_percent"),
+        )
+        sources_present.append("v2:market:structure_computed")
+    except Exception as exc:  # noqa: BLE001 - never poison the feature cycle
+        sources_present.append(f"market_structure_error:{type(exc).__name__}")
 
     return {
         "sources_present": sorted(set(sources_present)),
@@ -1469,6 +1617,29 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
             "generated_at": generated_at,
             "generated_utc": generated_at,
         }
+        # Embed the point-in-time-checked provider bridge context (CoinGlass
+        # etc.) so the trainer data_loader/tensor_builder — which read
+        # snapshot["provider_feature_context"] — actually consume provider
+        # features. Without this the tensor's provider slots always read
+        # missing even while the provider keys are green.
+        try:
+            from v2.backend.app.services.provider_features import (
+                build_provider_consumer_context,
+            )
+
+            provider_ctx = build_provider_consumer_context(
+                r,
+                role="trainer",
+                symbol=sym,
+                timeframe=timeframe,
+                decision_time=generated_at,
+            )
+            provider_feats = provider_ctx.get("provider_features")
+            if isinstance(provider_feats, dict) and provider_feats:
+                snap["provider_feature_context"] = provider_ctx
+                snap["provider_features"] = provider_feats
+        except Exception:
+            pass  # optional providers must never block core snapshots
         snap["feature_snapshot_id"] = _snapshot_id(snap)
         snapshots.append(snap)
         if r is not None:
@@ -1526,6 +1697,28 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
             ta_key = f"{V2_REDIS_PREFIX}technical_analysis:{sym}:{timeframe}"
             if _safe_write(r, ta_key, json.dumps(ta_payload), ex=600):
                 keys_written.append(ta_key)
+            # Keep the legacy-compatible flat TA hashes and the unified
+            # feature payload (TA + provider features, e.g. CoinGlass) fresh
+            # every cycle — consumers read v2:ta_flat / v2:features:unified
+            # and both carry TTLs shorter than ad-hoc backfills.
+            try:
+                from v2.backend.app.services.feature_pipeline.ta_flat_hash_adapter import (
+                    publish_flat_ta,
+                )
+                from v2.backend.app.services.feature_pipeline.unified_feature_bridge import (
+                    build_unified_feature_payload,
+                )
+
+                flat_record = publish_flat_ta(r, symbol=sym, timeframe=timeframe)
+                if flat_record.get("published"):
+                    keys_written.append(f"v2:ta_flat:{sym}:{timeframe}")
+                unified = build_unified_feature_payload(
+                    r, symbol=sym, timeframe=timeframe, publish=True
+                )
+                if unified.get("published_key"):
+                    keys_written.append(unified["published_key"])
+            except Exception:
+                pass  # optional enrichment must never block core snapshots
     if r is not None and snapshots:
         ids_payload = json.dumps([s["feature_snapshot_id"] for s in snapshots])
         if _safe_write(r, f"{V2_REDIS_PREFIX}features:snapshots", ids_payload, ex=FEATURE_SNAPSHOT_ARCHIVE_TTL_SECONDS):

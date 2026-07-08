@@ -98,7 +98,7 @@ export function formatCompactNumber(value: number | null | undefined, digits = 2
 }
 
 export function formatBps(value: number | null | undefined): string {
-  return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)} bps` : 'Connecting stream';
+  return typeof value === 'number' && Number.isFinite(value) ? `${(value / 100).toFixed(2)}%` : 'Connecting stream';
 }
 
 export function formatPercent(value: number | null | undefined): string {

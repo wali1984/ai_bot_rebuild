@@ -10,6 +10,7 @@ import {
   SYSTEM_NAV_SUPERADMIN_ONLY,
 } from '../../pages/productNavigation';
 import type { AdminOverviewPayload } from '../../types/adminData';
+import { RuntimeTruthStrip } from './RuntimeTruthStrip';
 
 // ── Canonical admin paths keyed by SYSTEM_NAV_ORDER id ───────────────────────
 const ADMIN_NAV_PATHS: Record<string, string> = {
@@ -486,6 +487,7 @@ export function AdminShell(): JSX.Element {
 
       {/* ── Global health strip ─────────────────────────────────────────── */}
       <GlobalHealthStrip counts={healthCounts} freshMs={freshMs} />
+      <RuntimeTruthStrip surface="admin" />
 
       {/* ── Body: left nav + main ───────────────────────────────────────── */}
       <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>

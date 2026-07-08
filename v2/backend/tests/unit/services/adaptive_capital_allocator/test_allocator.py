@@ -234,9 +234,16 @@ def test_all_allowed_allocations_emit_explicit_margin_leverage_and_cost_fields()
         "expected_fees_usd",
         "expected_slippage_usd",
         "expected_funding_usd",
+        "expected_gross_pnl_usd",
         "expected_net_pnl_usd",
         "expected_shortfall_usd",
         "hedge_budget_usd",
+        "hedge_action",
+        "hedge_reason",
+        "cross_margin_stress_used_usd",
+        "cross_margin_available_buffer_usd",
+        "portfolio_liquidation_buffer_usd",
+        "margin_call_risk",
         "capital_allocation_reason",
     ):
         assert field in payload
@@ -248,10 +255,28 @@ def test_all_allowed_allocations_emit_explicit_margin_leverage_and_cost_fields()
     assert payload["recommended_margin_mode"] == "isolated_paper_simulated"
     assert payload["capital_allocation_reason"] == result.final_size_reason
     assert payload["max_loss_if_stop_hit"] > 0.0
+    assert payload["max_loss_usd"] == payload["max_loss_if_stop_hit"]
+    assert payload["stop_loss_usd"] is not None
+    assert payload["take_profit_usd"] is not None
+    assert payload["liquidation_distance_usd"] is not None
     assert payload["risk_reward"] > 0.0
+    assert payload["expected_gross_pnl_usd"] >= payload["expected_net_pnl_usd"]
     assert 0.0 <= payload["risk_of_ruin_contribution"] <= 1.0
     assert payload["portfolio_exposure_after_trade"] >= payload["gross_notional_usd"]
     assert 0.0 <= payload["correlation_exposure_after_trade"] <= 1.0
+    assert payload["hedge_action"] in {
+        "NO_HEDGE",
+        "REDUCE_POSITION",
+        "CLOSE_POSITION",
+        "PROTECTIVE_HEDGE",
+        "PAIR_HEDGE",
+        "BETA_HEDGE",
+        "MARKET_REGIME_HEDGE",
+        "CROSS_MARGIN_RISK_OFF",
+    }
+    assert payload["cross_margin_safe"] in {True, False}
+    assert payload["model_inputs"]["hedge_engine"]["places_real_order"] is False
+    assert payload["model_inputs"]["cross_margin_stress"]["exchange_margin_mode_mutation_allowed"] is False
 
 
 def test_allowed_allocation_payload_exposes_selected_capital_attribution_contract() -> None:
@@ -305,6 +330,7 @@ def test_paper_margin_mode_selects_cross_simulation_for_high_edge_low_pressure()
     assert result.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
     assert result.recommended_leverage == 3.0
     assert result.recommended_margin_mode == "cross_paper_simulated"
+    assert result.cross_margin_safe is True
     assert result.model_inputs["selected_margin_mode"] == "cross_paper_simulated"
     assert result.model_inputs["margin_mode_live_mutation_allowed"] is False
     assert result.model_inputs["margin_mode_selection_reason"] == (
@@ -325,8 +351,33 @@ def test_paper_margin_mode_stays_isolated_under_correlation_pressure() -> None:
 
     assert result.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
     assert result.recommended_margin_mode == "isolated_paper_simulated"
+    assert result.cross_margin_safe is False
     assert result.model_inputs["selected_margin_mode"] == "isolated_paper_simulated"
     assert result.model_inputs["margin_mode_selection_reason"] == "isolated_limits_tail_contagion_for_current_risk"
+
+
+def test_allocator_emits_protective_hedge_when_net_delta_benefit_is_positive() -> None:
+    result = allocate_paper_candidate(
+        _row(
+            confidence_calibrated=0.9,
+            expected_move_after_cost_bps=180.0,
+            volatility_bps=15.0,
+            stop_distance_bps=80.0,
+            correlation_exposure_pct=0.13,
+            spread_bps=0.5,
+            slippage_bps=0.5,
+            fee_bps=0.5,
+        )
+    )
+
+    assert result.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
+    assert result.hedge_action in {"PROTECTIVE_HEDGE", "REDUCE_POSITION"}
+    if result.hedge_action == "PROTECTIVE_HEDGE":
+        assert result.hedge_required is True
+        assert result.hedge_notional_usd > 0.0
+        assert result.hedge_net_benefit_usd > 0.0
+        assert result.hedge_exit_plan["status"] == "HEDGE_EXIT_PLAN_ACTIVE"
+    assert result.model_inputs["hedge_engine"]["paper_only"] is True
 
 
 def test_leverage_is_lowest_safe_value_that_supports_margin_budget() -> None:

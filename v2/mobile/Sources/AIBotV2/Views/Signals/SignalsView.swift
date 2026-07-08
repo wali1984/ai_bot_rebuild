@@ -90,7 +90,11 @@ struct SignalsView: View {
 
     private var signalsList: some View {
         ScrollView {
-            LazyVStack(spacing: 0) {
+            LazyVStack(spacing: 12) {
+                RuntimeTruthLiveCard(title: "Runtime Truth")
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
+
                 // Header row
                 HStack {
                     Text("\(vm.signals.count) signals")
@@ -105,12 +109,14 @@ struct SignalsView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
 
-                ForEach(vm.signals) { sig in
-                    NavigationLink(destination: SignalDetailView(signal: sig)) {
-                        SignalRowView(signal: sig)
+                VStack(spacing: 0) {
+                    ForEach(vm.signals) { sig in
+                        NavigationLink(destination: SignalDetailView(signal: sig)) {
+                            SignalRowView(signal: sig)
+                        }
+                        .buttonStyle(.plain)
+                        NerVyxDivider().padding(.horizontal, 16)
                     }
-                    .buttonStyle(.plain)
-                    NerVyxDivider().padding(.horizontal, 16)
                 }
             }
             .padding(.bottom, 24)
@@ -245,7 +251,7 @@ struct SignalDetailView: View {
                         if let move = signal.expected_move_bps {
                             DataRow(
                                 label: "Expected Move",
-                                value: String(format: "%.1f bps", move),
+                                value: String(format: "%+.2f%%", move / 100.0),
                                 valueColor: NerVyx.textSecondary,
                                 mono: true
                             )

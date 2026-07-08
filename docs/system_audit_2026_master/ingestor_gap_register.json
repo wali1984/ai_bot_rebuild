@@ -1,0 +1,33 @@
+{
+  "generated_utc": "2026-07-01T22:56:31Z",
+  "gaps": [
+    {
+      "gap_id": "INGESTOR_GAP_001",
+      "ingestor": "v2_aicoin_whale",
+      "severity": "P2",
+      "description": "AICoin API credentials missing (5 env vars). Service runs but falls back to free-tier/no-API-call mode. Whale wall data from AICoin API unavailable.",
+      "impact": "Whale wall order book data from AICoin API not feeding trainer or website. Free-tier symbol scores written from other sources.",
+      "fix": "Set AICOIN_ACCESS_KEY_ID, AICOIN_ACCESS_SECRET, AICOIN_API_KEY, AICOIN_API_SECRET, AICOIN_API_BASE_URL in env",
+      "runtime_validation_required": true,
+      "status": "OPEN"
+    },
+    {
+      "gap_id": "INGESTOR_GAP_002",
+      "ingestor": "v2_lunarcrush",
+      "severity": "P2",
+      "description": "LunarCrush credential status not confirmed at audit time. Service active but whether credential is valid is unknown.",
+      "impact": "Social/sentiment scores may be missing or stale",
+      "fix": "Verify LUNARCRUSH_API_KEY in env; check redis-cli get 'v2:altdata:lunarcrush:status'",
+      "status": "OPEN"
+    },
+    {
+      "gap_id": "INGESTOR_GAP_003",
+      "ingestor": "v2_nansen",
+      "severity": "P2",
+      "description": "Nansen credential status not confirmed at audit time.",
+      "impact": "On-chain flow features may be missing",
+      "fix": "Verify NANSEN_API_KEY in env; check redis-cli get 'v2:altdata:nansen:status'",
+      "status": "OPEN"
+    }
+  ]
+}

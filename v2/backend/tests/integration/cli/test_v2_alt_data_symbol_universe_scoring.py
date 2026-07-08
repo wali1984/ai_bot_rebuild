@@ -310,6 +310,37 @@ def test_santiment_payload_can_rank_without_nansen_or_lunar() -> None:
     assert payload["live_symbols"] == []
 
 
+def test_santiment_delayed_payload_still_counts_for_symbol_selection() -> None:
+    svc = _svc()
+    santiment = _santiment("BTCUSDT")
+    santiment.update(
+        {
+            "generated_utc": "2026-07-07T05:47:58Z",
+            "feature_cutoff": "2026-06-06T00:00:00Z",
+            "provider_freshness_seconds": 2_699_278,
+            "data_latency_class": "SANBASE_PRO_DELAYED_NOT_LIVE_DECISION_FRESH",
+            "decision_fresh": False,
+            "stale_feature_flags": ["sanbase_pro_delayed_data_window"],
+        }
+    )
+
+    payload = svc.build_symbol_score_payload(
+        "BTCUSDT",
+        santiment_payload=santiment,
+        generated_utc="2026-07-07T05:49:30Z",
+    )
+
+    assert payload["provider_available"]["santiment"] is True
+    assert "santiment" in payload["providers_consulted"]
+    assert payload["provider_age_seconds"]["santiment"] == 2_699_278
+    assert "santiment_payload_stale" in payload["stale_provider_flags"]
+    assert "santiment_sanbase_pro_delayed_data_window" in payload["stale_provider_flags"]
+    assert payload["santiment_social_volume_score"] == 0.76
+    assert payload["altdata_symbol_score"] is not None
+    assert payload["may_not_place_orders"] is True
+    assert payload["writes_old_redis"] is False
+
+
 def test_aicoin_missing_status_is_visible_but_does_not_fabricate_signal() -> None:
     svc = _svc()
     payload = svc.build_symbol_score_payload(

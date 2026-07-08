@@ -145,9 +145,30 @@ def test_fetch_normalize_publish_writes_only_v2_santiment_keys() -> None:
         "v2:altdata:santiment:symbol:BTCUSDT",
     ]
     assert "v2:altdata:santiment:state" in fake_redis.hashes
+    assert (
+        fake_redis.expiries["v2:altdata:santiment:status"]
+        >= svc.DEFAULT_EXECUTION_INTERVAL_SECONDS
+    )
+    assert (
+        fake_redis.expiries["v2:altdata:santiment:symbol:BTCUSDT"]
+        >= svc.DEFAULT_EXECUTION_INTERVAL_SECONDS
+    )
+    assert (
+        fake_redis.expiries["v2:altdata:santiment:state"]
+        >= svc.DEFAULT_EXECUTION_INTERVAL_SECONDS
+    )
     assert all(key.startswith("v2:") for key in fake_redis.store)
     serialized = json.dumps(status) + json.dumps(payload) + json.dumps(fake_redis.store)
     assert "redacted-test-key" not in serialized
+
+
+def test_santiment_redis_ttls_cover_deployed_loop_cadence() -> None:
+    svc = _svc()
+
+    assert svc.DEFAULT_EXECUTION_INTERVAL_SECONDS == 21_600
+    assert svc.DEFAULT_REDIS_STATUS_TTL_SECONDS >= svc.DEFAULT_EXECUTION_INTERVAL_SECONDS
+    assert svc.DEFAULT_REDIS_SYMBOL_TTL_SECONDS >= svc.DEFAULT_EXECUTION_INTERVAL_SECONDS
+    assert svc.DEFAULT_REDIS_STATE_TTL_SECONDS >= svc.DEFAULT_EXECUTION_INTERVAL_SECONDS
 
 
 def test_rate_limit_headers_trigger_safety_sleep() -> None:

@@ -60,6 +60,17 @@ def detect_liquidation_sweep(
     direction_uncertain = uncertainty < 0.15 and max(long_sweep, short_sweep) >= 0.55
     reversal_probability = _clamp(max(fake_breakout, fake_breakdown) * 0.7 + stop_hunt * 0.3)
     continuation_probability = _clamp(cascade_risk * 0.6 + (1.0 - reversal_probability) * 0.4)
+    oi_funding_long_short_inputs_present = (
+        long_short_ratio is not None
+        and funding_rate is not None
+        and open_interest_change_pct is not None
+    )
+    oi_funding_long_short_confirmation_pass = (
+        oi_funding_long_short_inputs_present
+        and oi_risk < 0.75
+        and funding_skew < 0.75
+        and max(long_crowding, short_crowding) < 0.75
+    )
     return {
         "schema_version": "microstructure_liquidation_sweep_risk_v1",
         "symbol": symbol.upper(),
@@ -74,6 +85,11 @@ def detect_liquidation_sweep(
         "direction_uncertain": bool(direction_uncertain),
         "post_sweep_reversal_probability": round(reversal_probability, 8),
         "continuation_probability": round(continuation_probability, 8),
+        "oi_funding_long_short_inputs_present": bool(oi_funding_long_short_inputs_present),
+        "oi_funding_long_short_confirmation_pass": bool(oi_funding_long_short_confirmation_pass),
+        "oi_risk": round(oi_risk, 8),
+        "funding_skew": round(funding_skew, 8),
+        "long_short_crowding_risk": round(max(long_crowding, short_crowding), 8),
         "risk_action": "NO_TRADE" if direction_uncertain else ("REDUCE_SIZE" if max(long_sweep, short_sweep, stop_hunt) >= 0.55 else "ALLOW"),
         "generated_at": iso_now(),
     }

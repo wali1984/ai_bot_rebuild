@@ -10,6 +10,119 @@ from .position_state import PaperNetPosition, seconds_between
 PAPER_EXIT_POLICY_VERSION = "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1"
 
 
+def _first_present(*values: Any) -> Any:
+    for value in values:
+        if value is not None and value != "":
+            return value
+    return None
+
+
+def _context_value(context: Mapping[str, Any], *keys: str) -> Any:
+    for key in keys:
+        current: Any = context
+        for part in key.split("."):
+            if not isinstance(current, Mapping):
+                current = None
+                break
+            current = current.get(part)
+        if current is not None and current != "":
+            return current
+    return None
+
+
+def _advanced_exit_context(
+    position: PaperNetPosition,
+    *,
+    alpha_context: dict[str, Any] | None,
+    model_context: dict[str, Any] | None,
+) -> dict[str, Any]:
+    sources = [
+        alpha_context or {},
+        (alpha_context or {}).get("advanced_indicator_context") or {},
+        model_context or {},
+        (model_context or {}).get("advanced_indicator_context") or {},
+        position.liquidity_zone_context or {},
+        position.microstructure_context or {},
+    ]
+    context: dict[str, Any] = {}
+    for source in sources:
+        if not isinstance(source, Mapping):
+            continue
+        for key in (
+            "fvg_invalidated",
+            "fvg_kind",
+            "distance_to_fvg_bps",
+            "session_vwap",
+            "distance_to_vwap_bps",
+            "vwap_slope",
+            "cvd_slope",
+            "choch_direction",
+            "structure_invalidation",
+            "session_high_sweep",
+            "session_low_sweep",
+            "fake_breakout_risk",
+            "fake_breakdown_risk",
+            "sweep_risk_long_side",
+            "sweep_risk_short_side",
+            "post_sweep_reversal_probability",
+            "nearest_liquidity_above",
+            "nearest_liquidity_below",
+        ):
+            value = _context_value(source, key)
+            if value is not None and value != "":
+                context.setdefault(key, value)
+    side = str(position.side or "").lower()
+    nearest_target = (
+        _first_present(context.get("nearest_liquidity_above"), context.get("session_vwap"))
+        if side == "long"
+        else _first_present(context.get("nearest_liquidity_below"), context.get("session_vwap"))
+    )
+    return {
+        **context,
+        "advanced_indicator_exit_policy_version": "ADVANCED_MARKET_STRUCTURE_EXIT_V1",
+        "nearest_liquidity_target": nearest_target,
+        "paper_only": True,
+        "places_real_order": False,
+    }
+
+
+def _advanced_exit_signal(position: PaperNetPosition, context: dict[str, Any]) -> dict[str, Any] | None:
+    side = str(position.side or "").lower()
+    choch = str(_first_present(context.get("choch_direction"), context.get("structure_invalidation")) or "").lower()
+    fvg_kind = str(context.get("fvg_kind") or "").lower()
+    distance_to_vwap = coerce_float(context.get("distance_to_vwap_bps"))
+    cvd_slope = coerce_float(context.get("cvd_slope"))
+    post_sweep_reversal = coerce_float(context.get("post_sweep_reversal_probability"))
+    fake_breakout = coerce_float(_first_present(context.get("fake_breakout_risk"), context.get("sweep_risk_long_side")))
+    fake_breakdown = coerce_float(_first_present(context.get("fake_breakdown_risk"), context.get("sweep_risk_short_side")))
+
+    def _result(reason: str, tier: int = 1) -> dict[str, Any]:
+        return {
+            "should_close": True,
+            "close_reason": reason,
+            "tier": tier,
+            "advanced_indicator_exit": True,
+            "advanced_indicator_exit_context": context,
+        }
+
+    if context.get("fvg_invalidated") is True:
+        if not fvg_kind or (side == "long" and fvg_kind == "bullish") or (side == "short" and fvg_kind == "bearish"):
+            return _result("TIER_1_FVG_INVALIDATION_EXIT")
+    if side == "long" and choch in {"down", "bear", "bearish", "short"}:
+        return _result("TIER_1_STRUCTURE_INVALIDATION_EXIT")
+    if side == "short" and choch in {"up", "bull", "bullish", "long"}:
+        return _result("TIER_1_STRUCTURE_INVALIDATION_EXIT")
+    if side == "long" and distance_to_vwap is not None and distance_to_vwap < 0 and cvd_slope is not None and cvd_slope < 0:
+        return _result("TIER_1_VWAP_CVD_INVALIDATION_EXIT")
+    if side == "short" and distance_to_vwap is not None and distance_to_vwap > 0 and cvd_slope is not None and cvd_slope > 0:
+        return _result("TIER_1_VWAP_CVD_INVALIDATION_EXIT")
+    if side == "long" and (context.get("session_high_sweep") is True or (fake_breakout or 0.0) >= 0.75) and (post_sweep_reversal or 0.0) >= 0.60:
+        return _result("TIER_1_LIQUIDITY_SWEEP_REVERSAL_EXIT")
+    if side == "short" and (context.get("session_low_sweep") is True or (fake_breakdown or 0.0) >= 0.75) and (post_sweep_reversal or 0.0) >= 0.60:
+        return _result("TIER_1_LIQUIDITY_SWEEP_REVERSAL_EXIT")
+    return None
+
+
 def _trailing_stop_price_context(
     *,
     side: str,
@@ -211,6 +324,15 @@ def evaluate_exit(
             "pnl_bps": pnl_bps_value,
             "confidence": confidence,
         }
+    advanced_exit_context = _advanced_exit_context(
+        position,
+        alpha_context=alpha_context,
+        model_context=model_context,
+    )
+    advanced_exit = _advanced_exit_signal(position, advanced_exit_context)
+    if advanced_exit is not None:
+        advanced_exit["pnl_bps"] = pnl_bps_value
+        return advanced_exit
     # A+ goal Phase 7: MFE breakeven protection fires before the ATR stop so a
     # trade that already paid for itself exits near breakeven instead of riding
     # the full retracement into a TIER_1_ATR_VOLATILITY_STOP loss.

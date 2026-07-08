@@ -417,6 +417,7 @@ def run_hybrid_trainer_cycle(
         "examples_built": len(training_examples),
         "fresh_examples_built": len(fresh_examples),
         "trusted_replay_examples_built": len(trusted_replay_examples),
+        "trusted_replay_scan": dict(getattr(loader, "last_trusted_replay_scan", {}) or {}),
         "prediction_examples_built": len(prediction_examples),
         "prediction_failure_count": len(prediction_failure_rows),
         "prediction_failure_rows_sample": prediction_failure_rows[:10],

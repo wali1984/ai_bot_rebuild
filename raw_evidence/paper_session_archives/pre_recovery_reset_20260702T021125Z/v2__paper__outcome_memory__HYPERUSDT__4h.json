@@ -1,0 +1,60 @@
+{
+  "avg_loser_bps": -38.8779,
+  "avg_winner_bps": null,
+  "baseline_advisory_reasons": [],
+  "baseline_evidence_date": null,
+  "baseline_trade_count": 0,
+  "block_reason": null,
+  "bucket_scope": "symbol_timeframe",
+  "consecutive_losses": 4,
+  "data_source": "REDIS",
+  "degraded": false,
+  "degraded_since": null,
+  "drawdown_contribution_usd": -1.08760021,
+  "last_trade_ts": "2026-06-30T18:48:08.411Z",
+  "last_updated": "2026-07-02T02:07:47Z",
+  "loss_count": 4,
+  "max_drawdown_bps": 156.7859,
+  "missed_tp_then_stop_rate": null,
+  "outcome_memory_can_block_entries": true,
+  "recent_bps": [
+    -80.16032064128278,
+    -27.2209849047263,
+    -49.40461109703591,
+    1.2742099898075945
+  ],
+  "recent_missed_tp_then_stop": [],
+  "recent_outcomes": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "recent_pnl_usd": [
+    -0.6474662087340733,
+    -0.17147023410691223,
+    -0.26678515913608153,
+    -0.0018786082025180689
+  ],
+  "recent_reversal_after_entry": [],
+  "recent_slippage_failures": [
+    0,
+    0,
+    1,
+    0
+  ],
+  "reversal_after_entry_rate": null,
+  "rolling_ev_bps": -38.8779,
+  "rolling_win_rate": 0.0,
+  "schema_version": "v2_outcome_memory_updater_v1",
+  "slippage_failure_rate": 0.25,
+  "soak_count": 4,
+  "symbol": "HYPERUSDT",
+  "timeframe": "4h",
+  "total_trades": 4,
+  "trade_count": 4,
+  "trust_evidence_status": "TRUSTED_OUTCOME_MEMORY",
+  "trusted_trade_count": 4,
+  "untrusted_trade_count": 0,
+  "win_count": 0
+}

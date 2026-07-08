@@ -160,6 +160,12 @@ interface PaperRuntimeStatusPayload {
   runtime?: string | null;
   runtime_state?: string | null;
   live_gate_status?: string | null;
+  performance?: {
+    governor_state?: string | null;
+    state?: string | null;
+    status?: string | null;
+    new_entries_allowed?: boolean | null;
+  } | null;
   blockers?: PaperRuntimeBlocker[] | null;
   paper_loop?: {
     candidate_id?: string | null;
@@ -171,8 +177,11 @@ interface PaperRuntimeStatusPayload {
     intents_built?: number | null;
     intents_accepted?: number | null;
     intents_blocked?: number | null;
+    order_cost_applicable_rows?: number | null;
     production_grade_cost_rows?: number | null;
+    production_grade_cost_order_applicable_rows?: number | null;
     production_grade_cost_coverage?: number | null;
+    production_grade_cost_coverage_basis?: string | null;
     no_order_explained_rows?: number | null;
     unexplained_missing_cost_rows?: number | null;
     paper_fill_allowed_rows?: number | null;
@@ -892,7 +901,7 @@ export function AdaptiveCapitalTelemetryPanel({
   const guardianTruth = guardian?.readiness_truth;
   const guardianGate = guardian?.a_grade_execution_gate;
   const trajectory = guardian?.trajectory_status;
-  const runtimeTrajectoryStatus = trajectoryBlocker?.trajectory_status
+  const runtimeTrajectoryStatusRaw = trajectoryBlocker?.trajectory_status
     ?? trajectoryBlocker?.status
     ?? paperTrajectory?.trajectory_status
     ?? paperTrajectory?.current_status
@@ -900,7 +909,6 @@ export function AdaptiveCapitalTelemetryPanel({
     ?? trajectory?.trajectory_status
     ?? trajectory?.current_status
     ?? trajectory?.status;
-  const runtimeTrajectoryReady = runtimeTrajectoryStatus === 'ON_TRACK_90D_A_PLUS_EVIDENCE';
   const runtimeTrajectoryRequiredDailyPct = trajectoryBlocker?.required_daily_return_pct
     ?? paperTrajectory?.required_daily_return_pct
     ?? trajectory?.required_daily_return_pct;
@@ -910,6 +918,20 @@ export function AdaptiveCapitalTelemetryPanel({
   const runtimeTrajectoryBGradeRows = trajectoryBlocker?.B_grade_rows
     ?? paperTrajectory?.B_grade_rows
     ?? trajectory?.B_grade_rows;
+  const paperGovernorState =
+    paperRuntime?.performance?.governor_state
+    ?? paperRuntime?.performance?.state
+    ?? paperRuntime?.performance?.status
+    ?? paperChurn?.status
+    ?? paperChurn?.state
+    ?? null;
+  const noFinalAPlusSupply =
+    (runtimeTrajectoryAPlusRows ?? 0) <= 0
+    || String(runtimeTrajectoryStatusRaw ?? '').includes('NO_A_PLUS');
+  const runtimeTrajectoryStatus = noFinalAPlusSupply
+    ? (String(paperGovernorState ?? '').includes('HALTED') ? 'NO_A_PLUS_SUPPLY / HALTED_PERFORMANCE' : 'NO_A_PLUS_SUPPLY')
+    : runtimeTrajectoryStatusRaw ?? 'NO_A_PLUS_SUPPLY';
+  const runtimeTrajectoryReady = !noFinalAPlusSupply && runtimeTrajectoryStatusRaw === 'ON_TRACK_90D_A_PLUS_EVIDENCE';
   const runtimeTrajectoryOperatorText = trajectoryBlocker?.required_operator_text
     ?? paperTrajectory?.required_operator_text
     ?? trajectory?.required_operator_text
@@ -945,6 +967,11 @@ export function AdaptiveCapitalTelemetryPanel({
   const runtimeTrajectoryProjectionDays = trajectoryBlocker?.projection_days
     ?? paperTrajectory?.projection_days
     ?? trajectory?.projection_days;
+  const runtimeTrajectoryProjectionText = noFinalAPlusSupply
+    ? 'NO_A_PLUS_SUPPLY / HALTED_PERFORMANCE'
+    : typeof runtimeTrajectoryProjectionDays === 'number'
+      ? `${Math.round(runtimeTrajectoryProjectionDays)}d projection · ${signedDays(runtimeTrajectoryDays)}`
+      : 'projection n/a';
   const accuracy = view.accuracy;
   const accuracyCellTotal = accuracy?.symbol_timeframe_cell_count ?? accuracy?.required_symbol_timeframe_cell_count;
   const positiveEdgeDiagnostics = capital?.positive_edge_non_a_grade_diagnostics;
@@ -1090,7 +1117,7 @@ export function AdaptiveCapitalTelemetryPanel({
         />
         <HeaderMetric
           label="1000x Evidence"
-          value={runtimeTrajectoryOperatorText[1] ?? `Current A+ evidence: ${countText(runtimeTrajectoryAPlusRows)}.`}
+          value={noFinalAPlusSupply ? 'Current final A+ evidence: 0. REDUCE_SIZE and B-grade do not count.' : runtimeTrajectoryOperatorText[1] ?? `Current A+ evidence: ${countText(runtimeTrajectoryAPlusRows)}.`}
           color={(runtimeTrajectoryAPlusRows ?? 0) > 0 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
         />
         <HeaderMetric
@@ -1115,7 +1142,7 @@ export function AdaptiveCapitalTelemetryPanel({
         />
         <HeaderMetric
           label="1000x Projection"
-          value={typeof runtimeTrajectoryProjectionDays === 'number' ? `${Math.round(runtimeTrajectoryProjectionDays)}d projection · ${signedDays(runtimeTrajectoryDays)}` : 'projection n/a'}
+          value={runtimeTrajectoryProjectionText}
           color={runtimeTrajectoryReady ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
         />
         <HeaderMetric
@@ -1125,17 +1152,17 @@ export function AdaptiveCapitalTelemetryPanel({
         />
         <HeaderMetric
           label="Cost Coverage"
-          value={formatAdaptivePercent(paperLoop?.production_grade_cost_coverage)}
+          value={`${formatAdaptivePercent(paperLoop?.production_grade_cost_coverage)} · ${paperLoop?.production_grade_cost_coverage_basis ?? 'basis n/a'}`}
           color={(paperLoop?.production_grade_cost_coverage ?? 0) >= 0.95 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
         />
         <HeaderMetric
           label="Cost Rows"
-          value={`${countText(paperLoop?.production_grade_cost_rows)}/${countText(paperLoop?.intents_built)}`}
+          value={`order ${countText(paperLoop?.production_grade_cost_order_applicable_rows)}/${countText(paperLoop?.order_cost_applicable_rows)} · all ${countText(paperLoop?.production_grade_cost_rows)}/${countText(paperLoop?.intents_built)}`}
           color={(paperLoop?.production_grade_cost_coverage ?? 0) >= 0.95 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
         />
         <HeaderMetric
           label="No-Order Explained"
-          value={countText(paperLoop?.no_order_explained_rows)}
+          value={`${countText(paperLoop?.no_order_explained_rows)} explained · ${countText(paperLoop?.unexplained_missing_cost_rows)} unexplained`}
           color={(paperLoop?.unexplained_missing_cost_rows ?? 1) === 0 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
         />
         <HeaderMetric

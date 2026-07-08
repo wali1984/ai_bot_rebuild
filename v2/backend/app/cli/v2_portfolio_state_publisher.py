@@ -389,13 +389,38 @@ def _sum_closed_realized(rows: list[dict[str, Any]]) -> float:
     total = 0.0
     for row in rows:
         total += _safe_float(
-            row.get("realized_pnl_usd")
+            row.get("realized_net_pnl_usd")
+            or row.get("realized_net_pnl")
+            or row.get("net_pnl_usd")
+            or row.get("realized_pnl_usd")
             or row.get("realized_pnl_usdt")
             or row.get("realized_pnl")
             or row.get("pnl_usd"),
             0.0,
         )
     return total
+
+
+def _mark_price_blockers(positions_by_symbol: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    blockers: list[dict[str, Any]] = []
+    for position in positions_by_symbol:
+        if not isinstance(position, dict) or position.get("open_position") is not True:
+            continue
+        symbol = str(position.get("symbol") or "").upper()
+        mark_price = _coerce_float(position.get("last_mark_price"))
+        if mark_price is not None and mark_price > 0:
+            continue
+        blockers.append(
+            {
+                "symbol": symbol,
+                "classification": "MARK_PRICE_MISSING",
+                "missing_fields": ["MISSING_CURRENT_MARK_PRICE"],
+                "source_fill_ids": list(position.get("source_fill_ids") or []),
+                "paper_session_id": position.get("paper_session_id"),
+                "reason": "OPEN_PAPER_POSITION_MISSING_CURRENT_V2_MARKET_PRICE",
+            }
+        )
+    return blockers
 
 
 def _path_label(path: Path) -> str:
@@ -428,6 +453,8 @@ def run_once(write_redis: bool = True) -> dict:
     ledger_generated_utc = None
     ledger_count_fields_match_payload = True
     pnl_blockers: list[dict[str, Any]] = []
+    mark_price_blockers: list[dict[str, Any]] = []
+    portfolio_pnl_blockers: list[dict[str, Any]] = []
     closed_rows: list[dict[str, Any]] = []
     standalone_closed_rows: list[dict[str, Any]] = []
     accounting_inventory: list[dict[str, Any]] = []
@@ -585,6 +612,7 @@ def run_once(write_redis: bool = True) -> dict:
             )
             accounting_inventory = list(accounting.get("inventory") or [])
             positions_by_symbol = list(accounting.get("positions_by_symbol") or [])
+            mark_price_blockers = _mark_price_blockers(positions_by_symbol)
             active_accepted_fill_total = int(_safe_float(accounting.get("active_accepted_fill_count"), len(accepted_rows)))
             accepted_closed_filter_count = int(_safe_float(accounting.get("accepted_closed_filter_count"), 0))
             if ledger_authoritative_no_open_positions:
@@ -596,6 +624,7 @@ def run_once(write_redis: bool = True) -> dict:
             economic_fill_total = int(_safe_float(accounting.get("economic_fill_count"), 0))
             non_economic_fill_total = int(_safe_float(accounting.get("non_economic_fill_count"), 0))
             pnl_blockers = list(accounting.get("non_economic_fill_blockers") or [])
+            portfolio_pnl_blockers = [*pnl_blockers, *mark_price_blockers]
             unrealized_pnl_usd = _safe_float(accounting.get("unrealized_pnl"), 0.0)
             total_unrealized_bps = 0.0
             open_position_notional = sum(
@@ -623,6 +652,11 @@ def run_once(write_redis: bool = True) -> dict:
                     "fill_price": position.get("avg_entry_price"),
                     "latest_price": position.get("last_mark_price"),
                     "latest_price_source": position.get("last_mark_price_source"),
+                    "paper_session_id": position.get("paper_session_id"),
+                    "paper_session_ids": position.get("paper_session_ids"),
+                    "session_id": position.get("session_id"),
+                    "reset_session_id": position.get("reset_session_id"),
+                    "starting_equity_usd": position.get("starting_equity_usd"),
                     "unrealized_pnl_usd": position.get("unrealized_pnl"),
                     "realized_pnl_usd": position.get("realized_pnl"),
                     "unrealized_bps": None,
@@ -697,6 +731,8 @@ def run_once(write_redis: bool = True) -> dict:
                 initial_capital=session_initial_capital,
             )
             paper_zero_pnl_reason = accounting.get("zero_pnl_reason")
+            portfolio_pnl_blockers = []
+            mark_price_blockers = []
 
     # Sort by unrealized_bps descending
     positions.sort(key=lambda x: _safe_float(x.get("unrealized_bps"), -1_000_000.0), reverse=True)
@@ -750,6 +786,8 @@ def run_once(write_redis: bool = True) -> dict:
         else _safe_float(accounting.get("closed_ledger_net_pnl"), _sum_closed_realized(closed_rows))
     )
     portfolio_realized_matches_closed_ledger = abs(realized_pnl_usd - closed_ledger_net_pnl) <= 0.01
+    if not portfolio_pnl_blockers:
+        portfolio_pnl_blockers = list(pnl_blockers)
     if accepted_fill_total == 0 and invalid_admission_accepted_rows:
         classification = "PORTFOLIO_STATE_CURRENT_PAPER_LEDGER_INVALID_ADMISSIONS_EXCLUDED"
         paper_equity_reason = "INVALID_ADMISSION_ROWS_EXCLUDED_FROM_CLEAN_SESSION_EQUITY"
@@ -762,6 +800,9 @@ def run_once(write_redis: bool = True) -> dict:
     elif economic_fill_total == 0:
         classification = "PORTFOLIO_STATE_CURRENT_PAPER_LEDGER_NO_ECONOMIC_FILLS"
         paper_equity_reason = paper_zero_pnl_reason or "NO_ECONOMIC_FILLS"
+    elif mark_price_blockers:
+        classification = "PORTFOLIO_STATE_CURRENT_PAPER_LEDGER_MARK_PRICE_MISSING"
+        paper_equity_reason = "MARK_PRICE_MISSING"
     elif pnl_blockers:
         classification = "PORTFOLIO_STATE_CURRENT_PAPER_LEDGER_PARTIAL_PNL"
         paper_equity_reason = "ACCEPTED_FILL_PNL_BLOCKERS_PRESENT"
@@ -806,11 +847,14 @@ def run_once(write_redis: bool = True) -> dict:
         "contains_simulated_positions": True,
         "contains_live_positions": False,
         "contains_quarantined_positions": contains_quarantined_positions,
-        "equity_trusted": not bool(pnl_blockers),
-        "pnl_trusted": not bool(pnl_blockers),
+        "equity_trusted": not bool(portfolio_pnl_blockers),
+        "pnl_trusted": not bool(portfolio_pnl_blockers),
         "reason_if_untrusted": (
+            "MARK_PRICE_MISSING_FOR_OPEN_POSITION"
+            if mark_price_blockers
+            else
             "INVALID_OR_NON_ECONOMIC_PAPER_ROWS_EXCLUDED_FROM_EQUITY"
-            if pnl_blockers
+            if portfolio_pnl_blockers
             else None
         ),
         "quarantined_invalid_position_count": (
@@ -933,7 +977,8 @@ def run_once(write_redis: bool = True) -> dict:
         "paper_equity_reason": paper_equity_reason,
         "paper_equity_source": "v2:paper:ledger + v2:market:prices",
         "paper_zero_pnl_reason": paper_zero_pnl_reason,
-        "pnl_blockers": pnl_blockers,
+        "pnl_blockers": portfolio_pnl_blockers,
+        "mark_price_blockers": mark_price_blockers,
         "accepted_closed_filter_sample": accepted_closed_filter_sample[:25],
         "paper_fill_economic_inventory": accounting_inventory[:100],
         "positions_by_symbol": positions_by_symbol[:100],

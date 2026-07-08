@@ -85,7 +85,8 @@ function pct(value: number | null | undefined): string {
 
 function bps(value: number | null | undefined): string {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 'evidence pending';
-  return `${value.toLocaleString('en-US', { maximumFractionDigits: 3 })} bps`;
+  const pct = value / 100;
+  return `${pct.toLocaleString('en-US', { maximumFractionDigits: 3 })}%`;
 }
 
 function factor(value: number | null | undefined): string {

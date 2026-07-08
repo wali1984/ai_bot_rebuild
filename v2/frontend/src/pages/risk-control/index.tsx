@@ -84,6 +84,95 @@ interface RecentDecision {
   generated_at?: string;
 }
 
+interface HighConfidenceLossClusterStatus {
+  status?: string | null;
+  active?: boolean | null;
+  cluster_detected?: boolean | null;
+  cluster_count?: number | null;
+  high_confidence_loss_count?: number | null;
+  affected_symbols?: string[] | null;
+  affected_buckets?: {
+    sides?: string[] | null;
+    timeframes?: string[] | null;
+    strategy_modes?: string[] | null;
+    blocked_bucket_keys?: string[] | null;
+  } | null;
+  guardian_state?: string | null;
+  guardian_new_entries_allowed?: boolean | null;
+  REDUCE_SIZE_allowed?: boolean | null;
+  reduce_size_bootstrap_allowed?: boolean | null;
+  why_reduce_size_blocked?: string | null;
+  post_patch_recovery_status?: string | null;
+}
+
+interface PreemptiveEdgeControlSummary {
+  status?: string | null;
+  candidate_count?: number | null;
+  accepted_count?: number | null;
+  decision_counts?: Record<string, number | null> | null;
+  action_counts?: Record<string, number | null> | null;
+  preemptive_action?: string | null;
+  preemptive_allowed?: boolean | null;
+  preemptive_block_reasons?: string[] | null;
+  pre_trade_expected_net_pnl_usd?: number | null;
+  pre_trade_loss_probability?: number | null;
+  confidence_overstatement_risk?: number | null;
+  regime_compatibility_score?: number | null;
+  exit_feasibility_score?: number | null;
+  bucket_profit_factor?: number | null;
+  positive_edge_probation_status?: string | null;
+  positive_edge_probation_supply_state?: string | null;
+  positive_edge_probation_candidates?: number | null;
+  positive_edge_probation_accepted?: number | null;
+  closed_probation_trade_count?: number | null;
+  probation_5_trade_gate_status?: string | null;
+  probation_counts_as_final_a_plus?: boolean | null;
+  probation_counts_as_live_ready?: boolean | null;
+  why_trade_was_prevented?: string[] | null;
+  governor_auto_action?: string | null;
+  next_remediation?: string | null;
+  hard_fail?: boolean | null;
+  advanced_indicators?: AdvancedIndicatorSummary | null;
+  advanced_indicator_status?: string | null;
+  advanced_indicator_block_reason_counts?: Record<string, number | null> | null;
+  advanced_indicator_caution_reason_counts?: Record<string, number | null> | null;
+}
+
+interface AdvancedIndicatorSummary {
+  status?: string | null;
+  candidate_count?: number | null;
+  fvg_present_count?: number | null;
+  fvg_side_aligned_count?: number | null;
+  accepted_advanced_indicator_block_count?: number | null;
+  fvg_standalone_allows_trade?: boolean | null;
+  fvg_alone_can_approve_trade?: boolean | null;
+  sweep_risk_can_block_or_reduce?: boolean | null;
+  block_reason_counts?: Record<string, number | null> | null;
+  caution_reason_counts?: Record<string, number | null> | null;
+}
+
+interface PreemptiveDecisionMatrix {
+  rows?: Array<{
+    preemptive_decision_id?: string | null;
+    preemptive_decision?: string | null;
+    preemptive_action?: string | null;
+    preemptive_allowed?: boolean | null;
+    preemptive_block_reasons?: string[] | null;
+    preemptive_decision_reasons?: string[] | null;
+    pre_trade_expected_net_pnl_usd?: number | null;
+    pre_trade_loss_probability?: number | null;
+    confidence_overstatement_risk?: number | null;
+    expected_edge_after_cost_bps?: number | null;
+    bucket_profit_factor?: number | null;
+    regime_compatibility_score?: number | null;
+    exit_feasibility_score?: number | null;
+    advanced_indicator_status?: string | null;
+    advanced_indicator_block_reasons?: string[] | null;
+    advanced_indicator_caution_reasons?: string[] | null;
+    fvg_present?: boolean | null;
+  }> | null;
+}
+
 interface CanaryTightening {
   classification?: string;
   symbol?: string;
@@ -99,6 +188,10 @@ interface RiskStatus {
   heartbeat?: RiskHeartbeat;
   recent_decisions?: RecentDecision[];
   denials_breakdown?: Record<string, number>;
+  recovery_high_confidence_loss_cluster_status?: HighConfidenceLossClusterStatus | null;
+  preemptive_prevention?: PreemptiveEdgeControlSummary | null;
+  preemptive_edge_control_status?: PreemptiveEdgeControlSummary | null;
+  preemptive_candidate_decision_matrix?: PreemptiveDecisionMatrix | null;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -120,6 +213,11 @@ function actionTone(a: string | null | undefined): 'ok' | 'block' | 'warn' | 'ne
 function fmtPct(n: number | null | undefined): string {
   if (n == null) return '—';
   return (Math.abs(n) <= 1 ? n * 100 : n).toFixed(1) + '%';
+}
+
+function fmtScore(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return '—';
+  return n.toFixed(3);
 }
 
 function fmtAge(iso: string | null | undefined): string {
@@ -169,6 +267,12 @@ function Card({ children, accent }: { children: React.ReactNode; accent?: string
   );
 }
 
+function fmtBpsAsPct(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return '—';
+  const pct = value / 100;
+  return `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
+}
+
 // ─── Profile limits display ───────────────────────────────────────────────────
 
 function ProfileLimits({ fields }: { fields: RiskProfileFields }): JSX.Element {
@@ -179,9 +283,9 @@ function ProfileLimits({ fields }: { fields: RiskProfileFields }): JSX.Element {
     { label: 'Max Symbol Exposure', value: fields.max_symbol_exposure != null ? `$${fields.max_symbol_exposure.toFixed(2)}` : '—', warn: false },
     { label: 'Max Total Exposure', value: fields.max_total_exposure != null ? `${fields.max_total_exposure.toFixed(0)}%` : '—', warn: false },
     { label: 'Min Confidence', value: fmtPct(fields.min_confidence_calibrated), warn: false },
-    { label: 'Min Exp Move (after cost)', value: fields.min_expected_move_after_cost_bps != null ? `${fields.min_expected_move_after_cost_bps.toFixed(1)} bps` : '—', warn: false },
-    { label: 'Max Spread', value: fields.max_spread_bps != null ? `${fields.max_spread_bps} bps` : '—', warn: false },
-    { label: 'Max Slippage', value: fields.max_slippage_bps != null ? `${fields.max_slippage_bps} bps` : '—', warn: false },
+    { label: 'Min Exp Move (after cost)', value: fmtBpsAsPct(fields.min_expected_move_after_cost_bps), warn: false },
+    { label: 'Max Spread', value: fmtBpsAsPct(fields.max_spread_bps), warn: false },
+    { label: 'Max Slippage', value: fmtBpsAsPct(fields.max_slippage_bps), warn: false },
     { label: 'Max Daily Loss', value: fields.max_daily_loss != null ? `$${fields.max_daily_loss.toFixed(2)}` : '—', warn: true },
     { label: 'Max Drawdown', value: fields.max_drawdown != null ? `${fields.max_drawdown.toFixed(0)}%` : '—', warn: true },
     { label: 'Cooldown', value: fields.cooldown_seconds != null ? `${Math.round(fields.cooldown_seconds / 60)}m` : '—', warn: false },
@@ -280,11 +384,66 @@ export default function RiskControlPage(): JSX.Element {
   const latest = d?.latest_gateway_result;
   const decisions = d?.recent_decisions ?? [];
   const breakdown = d?.denials_breakdown ?? {};
+  const cluster = d?.recovery_high_confidence_loss_cluster_status;
+  const preemptive = d?.preemptive_prevention ?? d?.preemptive_edge_control_status;
+  const preemptiveSample = d?.preemptive_candidate_decision_matrix?.rows?.[0];
+  const preemptiveDecisionId =
+    preemptiveSample?.preemptive_decision_id ?? null;
+  const preemptiveAction =
+    preemptiveSample?.preemptive_action ?? preemptiveSample?.preemptive_decision ?? null;
 
   const classOk = (hb?.classification ?? '').toLowerCase().includes('ok');
   const totalDenials = Object.values(breakdown).reduce((a, b) => a + b, 0);
   const allowCount = decisions.filter(d => d.risk_action === 'allow').length;
   const denyCount = decisions.filter(d => d.risk_action === 'deny').length;
+  const clusterActive = cluster?.active === true || cluster?.cluster_detected === true;
+  const clusterCount = cluster?.cluster_count ?? cluster?.high_confidence_loss_count ?? 0;
+  const reduceSizeAllowed = cluster?.reduce_size_bootstrap_allowed ?? cluster?.REDUCE_SIZE_allowed;
+  const affectedBucketLabels = [
+    ...(cluster?.affected_buckets?.sides ?? []).map(value => `side:${value}`),
+    ...(cluster?.affected_buckets?.timeframes ?? []).map(value => `tf:${value}`),
+    ...(cluster?.affected_buckets?.strategy_modes ?? []).map(value => `strategy:${value}`),
+  ];
+  const affectedBucketText = affectedBucketLabels.length
+    ? affectedBucketLabels.slice(0, 6).join(', ')
+    : (cluster?.affected_symbols ?? []).slice(0, 6).join(', ') || '—';
+  const preemptiveDecisionCounts = preemptive?.decision_counts ?? {};
+  const preemptiveBlocked =
+    (preemptiveDecisionCounts['NO_TRADE'] ?? 0)
+    + (preemptiveDecisionCounts['SHADOW_ONLY'] ?? 0);
+  const preemptiveReasons =
+    preemptive?.why_trade_was_prevented
+    ?? preemptiveSample?.preemptive_decision_reasons
+    ?? [];
+  const preTradeLossProbability =
+    preemptive?.pre_trade_loss_probability
+    ?? preemptiveSample?.pre_trade_loss_probability;
+  const confidenceOverstatementRisk =
+    preemptive?.confidence_overstatement_risk
+    ?? preemptiveSample?.confidence_overstatement_risk;
+  const regimeCompatibility =
+    preemptive?.regime_compatibility_score
+    ?? preemptiveSample?.regime_compatibility_score;
+  const exitFeasibility =
+    preemptive?.exit_feasibility_score
+    ?? preemptiveSample?.exit_feasibility_score;
+  const bucketProfitFactor =
+    preemptive?.bucket_profit_factor
+    ?? preemptiveSample?.bucket_profit_factor;
+  const probationCandidates = preemptive?.positive_edge_probation_candidates ?? 0;
+  const probationAccepted = preemptive?.positive_edge_probation_accepted ?? 0;
+  const probationClosed = preemptive?.closed_probation_trade_count ?? 0;
+  const probationSupplyState = preemptive?.positive_edge_probation_supply_state ?? 'NO_SAFE_TRADE_SUPPLY';
+  const advanced = preemptive?.advanced_indicators;
+  const advancedStatus = advanced?.status ?? preemptive?.advanced_indicator_status ?? preemptiveSample?.advanced_indicator_status ?? 'ADVANCED_INDICATOR_NOT_REPORTED';
+  const advancedFvgCount = advanced?.fvg_present_count ?? (preemptiveSample?.fvg_present ? 1 : 0);
+  const advancedAcceptedBlocks = advanced?.accepted_advanced_indicator_block_count ?? 0;
+  const advancedBlockCounts = advanced?.block_reason_counts ?? preemptive?.advanced_indicator_block_reason_counts ?? {};
+  const advancedTopBlocker =
+    Object.entries(advancedBlockCounts)
+      .sort((a, b) => (Number(b[1] ?? 0)) - (Number(a[1] ?? 0)))[0]?.[0]
+    ?? preemptiveSample?.advanced_indicator_block_reasons?.[0]
+    ?? 'none';
 
   return (
     <div
@@ -409,6 +568,50 @@ export default function RiskControlPage(): JSX.Element {
 
           {/* Right column */}
           <div>
+            <SectionHead title="High-Confidence Loss Cluster" />
+            <Card accent={clusterActive ? 'rgba(239,83,80,0.22)' : 'rgba(38,194,129,0.18)'}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, marginBottom: 10 }}>
+                <KV label="Cluster" value={<Chip label={clusterActive ? 'ACTIVE' : 'INACTIVE'} tone={clusterActive ? 'block' : 'ok'} />} />
+                <KV label="Loss Count" value={clusterCount.toLocaleString()} valueColor={clusterActive ? '#ef5350' : '#26c281'} />
+                <KV label="Guardian" value={(cluster?.guardian_state ?? '—').replace(/_/g, ' ')} valueColor={cluster?.guardian_new_entries_allowed ? '#26c281' : '#ef5350'} />
+                <KV label="REDUCE_SIZE" value={reduceSizeAllowed ? 'ALLOWED' : 'BLOCKED'} valueColor={reduceSizeAllowed ? '#f59e0b' : '#ef5350'} />
+              </div>
+              <div style={{ display: 'grid', gap: 8 }}>
+                <KV label="Affected buckets" value={affectedBucketText.replace(/_/g, ' ')} valueColor="var(--text-muted)" />
+                <KV label="Why REDUCE_SIZE is not final A+" value={(cluster?.why_reduce_size_blocked ?? cluster?.status ?? 'paper-only bootstrap policy').replace(/_/g, ' ')} valueColor="var(--text-muted)" />
+                <KV label="Post-patch recovery" value={(cluster?.post_patch_recovery_status ?? 'not reported').replace(/_/g, ' ')} valueColor={clusterActive ? '#ef5350' : '#f59e0b'} />
+              </div>
+            </Card>
+
+            <SectionHead title="Preemptive Edge Control" />
+            <Card accent={(preemptive?.hard_fail || preemptiveBlocked > 0) ? 'rgba(239,83,80,0.22)' : 'rgba(38,194,129,0.18)'}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginBottom: 10 }}>
+                <KV label="Candidates" value={(preemptive?.candidate_count ?? 0).toLocaleString()} />
+                <KV label="Accepted" value={(preemptive?.accepted_count ?? 0).toLocaleString()} valueColor={(preemptive?.accepted_count ?? 0) > 0 ? '#26c281' : 'var(--text-muted)'} />
+                <KV label="Prevented" value={preemptiveBlocked.toLocaleString()} valueColor={preemptiveBlocked > 0 ? '#ef5350' : '#26c281'} />
+                <KV label="Pre-Trade Loss Risk" value={fmtScore(preTradeLossProbability)} valueColor={(preTradeLossProbability ?? 0) >= 0.8 ? '#ef5350' : 'var(--text-primary)'} />
+                <KV label="Confidence Overstatement" value={fmtScore(confidenceOverstatementRisk)} valueColor={(confidenceOverstatementRisk ?? 0) >= 0.75 ? '#ef5350' : 'var(--text-primary)'} />
+                <KV label="Bucket Health PF" value={fmtScore(bucketProfitFactor)} valueColor={(bucketProfitFactor ?? 1) < 1 ? '#ef5350' : 'var(--text-primary)'} />
+                <KV label="Regime Compatibility" value={fmtScore(regimeCompatibility)} valueColor={(regimeCompatibility ?? 1) < 0.45 ? '#ef5350' : 'var(--text-primary)'} />
+                <KV label="Exit Feasibility" value={fmtScore(exitFeasibility)} valueColor={(exitFeasibility ?? 1) < 0.55 ? '#ef5350' : 'var(--text-primary)'} />
+                <KV label="Status" value={(preemptive?.status ?? 'not published').replace(/_/g, ' ')} valueColor={preemptive?.hard_fail ? '#ef5350' : 'var(--text-muted)'} />
+                <KV label="Latest Decision" value={preemptiveDecisionId ? `${preemptiveDecisionId.slice(0, 22)} · ${String(preemptiveAction ?? '').replace(/_/g, ' ')}` : 'no decision yet'} valueColor={'var(--text-muted)'} />
+                <KV label="Advanced Market Structure" value={`${advancedStatus.replace(/_/g, ' ')} · FVG ${advancedFvgCount}`} valueColor={advancedStatus.includes('BLOCK') ? '#ef5350' : 'var(--text-muted)'} />
+                <KV label="Liquidity Sweep Risk" value={`can block/reduce ${advanced?.sweep_risk_can_block_or_reduce === false ? 'false' : 'true'} · accepted blocks ${advancedAcceptedBlocks}`} valueColor={advancedAcceptedBlocks > 0 ? '#ef5350' : 'var(--text-muted)'} />
+                <KV label="FVG Standalone Approval" value={advanced?.fvg_alone_can_approve_trade || advanced?.fvg_standalone_allows_trade ? 'true' : 'false'} valueColor={(advanced?.fvg_alone_can_approve_trade || advanced?.fvg_standalone_allows_trade) ? '#ef5350' : 'var(--text-muted)'} />
+                <KV label="Positive-Edge Probation" value={`${probationSupplyState.replace(/_/g, ' ')} · ${probationCandidates.toLocaleString()} candidates`} valueColor={probationCandidates > 0 ? '#f59e0b' : '#ef5350'} />
+                <KV label="Probation Accepted" value={`${probationAccepted.toLocaleString()} · closes ${probationClosed.toLocaleString()}`} valueColor={probationAccepted > 0 ? '#f59e0b' : 'var(--text-muted)'} />
+                <KV label="Probation 5-Trade Gate" value={(preemptive?.probation_5_trade_gate_status ?? 'waiting').replace(/_/g, ' ')} valueColor="var(--text-muted)" />
+              </div>
+              <div style={{ display: 'grid', gap: 8 }}>
+                <KV label="Why Trade Was Prevented" value={(preemptiveReasons.slice(0, 4).join(', ') || '—').replace(/_/g, ' ')} valueColor="var(--text-muted)" />
+                <KV label="Advanced Indicator Blocker" value={advancedTopBlocker.replace(/_/g, ' ')} valueColor={advancedTopBlocker === 'none' ? 'var(--text-muted)' : '#ef5350'} />
+                <KV label="Probation Proof Policy" value={`final A+ ${preemptive?.probation_counts_as_final_a_plus === true ? 'true' : 'false'} · live ${preemptive?.probation_counts_as_live_ready === true ? 'true' : 'false'}`} valueColor={(preemptive?.probation_counts_as_final_a_plus || preemptive?.probation_counts_as_live_ready) ? '#ef5350' : 'var(--text-muted)'} />
+                <KV label="Governor Auto-Action" value={(preemptive?.governor_auto_action ?? '—').replace(/_/g, ' ')} valueColor={preemptive?.governor_auto_action?.includes('halt') ? '#ef5350' : 'var(--text-muted)'} />
+                <KV label="Next Remediation" value={preemptive?.next_remediation ?? '—'} valueColor="var(--text-muted)" />
+              </div>
+            </Card>
+
             {/* Denial breakdown */}
             {Object.keys(breakdown).length > 0 && (
               <>

@@ -247,6 +247,44 @@ def test_signed_read_unavailable_returns_specific_blocked_status(tmp_path: Path,
     assert report["submit_function_called"] is False
 
 
+def test_absent_transport_status_does_not_block_disabled_live_control(
+    tmp_path: Path, monkeypatch, pass3b_runtime
+) -> None:
+    monkeypatch.setattr(pass3b, "build_signed_read_context", lambda _symbol: {"available": False, "reason": "NO_CREDS"})
+    redis = FakeRedis()
+    redis.data.pop("v2:live_order_transport:status")
+
+    report = run_report(tmp_path, redis)
+
+    assert report["status"] == "PASS3B_BLOCKED_SIGNED_READ_UNAVAILABLE"
+    assert report["pre_run_live_control_check"]["ok"] is True
+    assert report["pre_run_live_control_check"]["live_order_transport_status_present"] is False
+    assert report["pre_run_live_control_check"]["missing_transport_status_fields"] == [
+        "order_submitted",
+        "writes_exchange_orders",
+    ]
+    assert "LIVE_ORDER_TRANSPORT_STATUS_FIELD_MISSING:order_submitted" in report["pre_run_live_control_check"]["warnings"]
+
+
+def test_transport_status_true_flags_still_block_disabled_live_control(
+    tmp_path: Path, pass3b_runtime
+) -> None:
+    redis = FakeRedis()
+    redis.data["v2:live_order_transport:status"] = {
+        "order_submitted": True,
+        "writes_exchange_orders": False,
+    }
+
+    report = run_report(tmp_path, redis)
+
+    assert report["status"] == "PASS3B_FAILED_LIVE_CONTROL_ARMED"
+    assert report["pre_run_live_control_check"]["ok"] is False
+    assert report["pre_run_live_control_check"]["mismatches"]["order_submitted"] == {
+        "expected": False,
+        "observed": True,
+    }
+
+
 def test_submit_function_never_called_when_release_mode_non_live(tmp_path: Path, pass3b_runtime) -> None:
     report = run_report(tmp_path, FakeRedis())
 
@@ -268,6 +306,62 @@ def test_submit_guard_fails_if_submit_function_is_called() -> None:
         guard.submit_market_order(candidate=object(), api_key="x", api_secret="y")
 
     assert guard.submit_function_called is True
+
+
+def test_build_signed_read_context_uses_readonly_position_mode_and_real_filters(monkeypatch) -> None:
+    calls: list[str] = []
+
+    def fake_signed_get(_base: str, path: str, _params: dict, api_key: str, api_secret: str) -> object:
+        calls.append(path)
+        assert api_key == "key"
+        assert api_secret == "secret"
+        if path == "/fapi/v3/account":
+            return {
+                "canTrade": True,
+                "availableBalance": "12.5",
+                "totalWalletBalance": "15.0",
+                "positions": [
+                    {"symbol": "BTCUSDT", "positionAmt": "0.002", "marginType": "cross"},
+                    {"symbol": "ETHUSDT", "positionAmt": "0", "marginType": "cross"},
+                ],
+            }
+        if path == "/fapi/v1/openOrders":
+            return []
+        if path == "/fapi/v1/positionSide/dual":
+            return {"dualSidePosition": False}
+        raise AssertionError(path)
+
+    class FakeMetadataTransport:
+        def __init__(self, *, base_url: str | None = None) -> None:
+            assert base_url == "https://fapi.binance.com"
+
+        def fetch_symbol_filters(self, symbol: str) -> dict[str, object]:
+            return {
+                "ok": True,
+                "symbol": symbol,
+                "status": "TRADING",
+                "tick_size": "0.10",
+                "step_size": "0.001",
+                "min_qty": "0.001",
+                "min_notional": "5",
+                "endpoint": "GET /fapi/v1/exchangeInfo",
+            }
+
+    monkeypatch.setattr(pass3b, "parse_env", lambda _path: {"BINANCE_API_KEY": "key", "BINANCE_API_SECRET": "secret"})
+    monkeypatch.setattr(pass3b, "signed_get", fake_signed_get)
+    monkeypatch.setattr(pass3b, "BinanceUsdMLiveOrderTransport", FakeMetadataTransport)
+
+    payload = pass3b.build_signed_read_context("BTCUSDT")
+
+    assert calls == ["/fapi/v3/account", "/fapi/v1/openOrders", "/fapi/v1/positionSide/dual"]
+    assert payload["available"] is True
+    assert payload["position_mode_status"]["endpoint"] == "GET /fapi/v1/positionSide/dual"
+    assert payload["position_mode_status"]["dual_side_position"] is False
+    assert payload["account_margin_status"]["wallet_balance_checked"] is True
+    assert payload["symbol_filter_status"]["tick_size"] == "0.10"
+    assert payload["current_positions"] == [
+        {"symbol": "BTCUSDT", "side": "LONG", "quantity": 0.002, "margin_mode": "cross"}
+    ]
 
 
 def test_no_leverage_or_margin_mutation_and_live_control_remains_disabled(tmp_path: Path, pass3b_runtime) -> None:

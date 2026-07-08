@@ -1,4 +1,5 @@
 import { Outlet } from 'react-router-dom';
+import { RuntimeTruthStrip } from './RuntimeTruthStrip';
 import { TopBar } from './TopBar';
 
 export function PublicShell(): JSX.Element {
@@ -9,6 +10,7 @@ export function PublicShell(): JSX.Element {
       style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}
     >
       <TopBar surface="public" showSymbolSearch={false} />
+      <RuntimeTruthStrip surface="public" />
       <main
         className="public-shell__main"
         data-testid="public-main"

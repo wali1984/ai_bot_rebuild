@@ -210,7 +210,7 @@ function fmtPct(v: unknown): string {
 
 function fmtBps(v: unknown): string {
   const n = finite(v);
-  return n === null ? '—' : `${n.toLocaleString('en-US', { maximumFractionDigits: 2 })} bps`;
+  return n === null ? '—' : `${(n / 100).toLocaleString('en-US', { maximumFractionDigits: 4 })}%`;
 }
 
 function fmtCompact(v: unknown): string {

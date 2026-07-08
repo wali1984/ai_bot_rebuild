@@ -288,7 +288,17 @@ async def _consume_chunk(
                         key = _ohlcv_key(symbol, timeframe)
                         existing = _safe_get_json(redis_client, key)
                         merged = append_closed_candle(existing, canonical.to_dict(), limit=max_candles)
-                        if _safe_set_json(redis_client, key, merged, ex=ttl_seconds):
+                        # Closed-candle HISTORY must outlive the candle interval:
+                        # a flat 900s TTL expired 1h/4h keys between closes and
+                        # perpetually reset history to a single row (destroying
+                        # REST backfills). Keep the CLI TTL as a floor only.
+                        interval_seconds = {
+                            "1m": 60, "3m": 180, "5m": 300, "15m": 900,
+                            "30m": 1800, "1h": 3600, "2h": 7200, "4h": 14400,
+                            "6h": 21600, "12h": 43200, "1d": 86400,
+                        }.get(str(timeframe), 3600)
+                        closed_ttl = max(int(ttl_seconds), interval_seconds * 3)
+                        if _safe_set_json(redis_client, key, merged, ex=closed_ttl):
                             stats["ohlcv_closed_keys_written"] = int(stats.get("ohlcv_closed_keys_written") or 0) + 1
                             stats["ohlcv_keys_written"] = int(stats.get("ohlcv_keys_written") or 0) + 1
                     else:

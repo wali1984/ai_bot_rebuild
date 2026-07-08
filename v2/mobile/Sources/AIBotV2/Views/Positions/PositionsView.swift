@@ -120,6 +120,7 @@ struct PositionsView: View {
         ScrollView {
             VStack(spacing: 12) {
                 streamStatusCard
+                RuntimeTruthLiveCard(title: "Runtime Truth")
                 if let s = vm.summary {
                     summaryCard(s)
                 }

@@ -19,6 +19,7 @@ from .sizing_model import (
     spread_slippage_adjustment,
     volatility_adjustment,
 )
+from v2.backend.app.services.hedge_engine import evaluate_hedge_intent, simulate_cross_margin_stress
 
 
 MAX_DYNAMIC_HEDGE_BUDGET_PCT_OF_RISK = 0.35
@@ -390,6 +391,14 @@ def _result(
             "emergency_absolute_cap_usdt": envelope.emergency_absolute_cap_usdt,
         },
     }
+    provider_context = (
+        row.lineage_ids.get("provider_context")
+        if isinstance(row.lineage_ids.get("provider_context"), dict)
+        else None
+    )
+    if provider_context is not None:
+        model_inputs["provider_context"] = provider_context
+        model_inputs["optional_provider_failures_core_blocking"] = False
     model_inputs.update(hedge_selection)
     if leverage_selection:
         model_inputs.update(leverage_selection)
@@ -403,6 +412,7 @@ def _result(
     expected_slippage_usd = gross_notional * slippage_bps / 10000.0
     expected_funding_usd = gross_notional * funding_bps / 10000.0
     expected_net_pnl_usd = gross_notional * sizing_row.expected_move_after_cost_bps / 10000.0
+    expected_gross_pnl_usd = expected_net_pnl_usd + expected_fees_usd + expected_slippage_usd + expected_funding_usd
     expected_shortfall_usd = risk_budget_usd * max(0.0, envelope.tail_loss_multiplier)
     hedge_budget_usd = risk_budget_usd * hedge_budget_pct
     modeled_stop_loss_usd = (
@@ -438,6 +448,55 @@ def _result(
         0.0,
         1.0,
     )
+    liquidation_distance_usd = (
+        None
+        if liquidation_buffer_bps is None
+        else gross_notional * max(0.0, liquidation_buffer_bps) / 10000.0
+    )
+    hedge_plan = evaluate_hedge_intent(
+        candidate={
+            "symbol": row.symbol,
+            "action": row.action,
+            "side": row.action,
+            "target_notional_usd": gross_notional,
+            "gross_notional_usd": gross_notional,
+        },
+        positions=(),
+        equity_usd=row.equity,
+        risk_budget_usd=risk_budget_usd,
+        hedge_budget_usd=hedge_budget_usd,
+        max_loss_usd=max_loss_if_stop_hit,
+        expected_net_pnl_usd=expected_net_pnl_usd,
+        spread_bps=row.spread_bps,
+        slippage_bps=row.slippage_bps,
+        fee_bps=row.fee_bps,
+        funding_bps=row.expected_funding_bps,
+        correlation_exposure_pct=correlation_exposure_after_trade,
+        liquidation_buffer_usd=liquidation_distance_usd,
+        edge_remains=expected_net_pnl_usd > 0.0 and gross_notional > 0.0,
+    )
+    cross_margin = simulate_cross_margin_stress(
+        equity_usd=row.equity,
+        available_margin_usd=row.available_margin,
+        target_notional_usd=gross_notional,
+        allocated_margin_usd=allocated_margin,
+        recommended_leverage=leverage,
+        max_loss_usd=max_loss_if_stop_hit,
+        hedge_plan=hedge_plan,
+        requested_margin_mode=margin_mode or ("isolated_paper_simulated" if mode == "paper" else "isolated"),
+        maintenance_margin_rate=row.maintenance_margin_rate,
+        expectancy_usd=expected_net_pnl_usd,
+    )
+    recommended_margin_mode = str(cross_margin.get("recommended_margin_mode") or margin_mode or "isolated_paper_simulated")
+    model_inputs.update({
+        "hedge_engine": hedge_plan,
+        "cross_margin_stress": cross_margin,
+        "liquidation_distance_usd": None if liquidation_distance_usd is None else round(liquidation_distance_usd, 8),
+        "expected_gross_pnl_usd": round(expected_gross_pnl_usd, 8),
+        "max_loss_usd": None if max_loss_if_stop_hit is None else round(max_loss_if_stop_hit, 8),
+        "stop_loss_usd": None if modeled_stop_loss_usd is None else round(modeled_stop_loss_usd, 8),
+        "take_profit_usd": round(max(0.0, expected_gross_pnl_usd), 8),
+    })
     return AllocationResult(
         adaptive_capital_policy_version=ADAPTIVE_CAPITAL_POLICY_VERSION,
         allocation_id=_allocation_id(row, mode),
@@ -452,7 +511,7 @@ def _result(
         allocated_margin_usd=round(max(0.0, allocated_margin), 8),
         recommended_leverage=round(max(1.0, leverage), 8),
         effective_leverage=round(max(1.0, leverage), 8),
-        recommended_margin_mode=margin_mode or ("isolated_paper_simulated" if mode == "paper" else "isolated"),
+        recommended_margin_mode=recommended_margin_mode,
         stop_distance_bps=None if stop_distance_bps is None else round(max(0.0, stop_distance_bps), 8),
         liquidation_price_estimate=None if liquidation_price is None else round(max(0.0, liquidation_price), 12),
         liquidation_buffer_bps=None if liquidation_buffer_bps is None else round(liquidation_buffer_bps, 8),
@@ -464,9 +523,45 @@ def _result(
         expected_fees_usd=round(expected_fees_usd, 8),
         expected_slippage_usd=round(expected_slippage_usd, 8),
         expected_funding_usd=round(expected_funding_usd, 8),
+        expected_gross_pnl_usd=round(expected_gross_pnl_usd, 8),
         expected_net_pnl_usd=round(expected_net_pnl_usd, 8),
         expected_shortfall_usd=round(expected_shortfall_usd, 8),
+        max_loss_usd=None if max_loss_if_stop_hit is None else round(max_loss_if_stop_hit, 8),
+        stop_loss_usd=None if modeled_stop_loss_usd is None else round(modeled_stop_loss_usd, 8),
+        take_profit_usd=round(max(0.0, expected_gross_pnl_usd), 8),
+        mfe_usd=round(max(0.0, expected_gross_pnl_usd), 8),
+        mae_usd=None if modeled_stop_loss_usd is None else round(modeled_stop_loss_usd, 8),
+        liquidation_distance_usd=None if liquidation_distance_usd is None else round(liquidation_distance_usd, 8),
         hedge_budget_usd=round(hedge_budget_usd, 8),
+        net_delta_usd=round(float(hedge_plan.get("net_delta_usd") or 0.0), 8),
+        gross_exposure_usd=round(float(hedge_plan.get("gross_exposure_usd") or 0.0), 8),
+        long_exposure_usd=round(float(hedge_plan.get("long_exposure_usd") or 0.0), 8),
+        short_exposure_usd=round(float(hedge_plan.get("short_exposure_usd") or 0.0), 8),
+        btc_beta_exposure_usd=round(float(hedge_plan.get("btc_beta_exposure_usd") or 0.0), 8),
+        eth_beta_exposure_usd=round(float(hedge_plan.get("eth_beta_exposure_usd") or 0.0), 8),
+        sector_exposure_usd=dict(hedge_plan.get("sector_exposure_usd") or {}),
+        correlation_exposure_usd=round(float(hedge_plan.get("correlation_exposure_usd") or 0.0), 8),
+        hedge_required=bool(hedge_plan.get("hedge_required")),
+        hedge_action=str(hedge_plan.get("hedge_action") or "NO_HEDGE"),
+        hedge_reason=str(hedge_plan.get("hedge_reason") or ""),
+        hedge_symbol=hedge_plan.get("hedge_symbol"),
+        hedge_side=hedge_plan.get("hedge_side"),
+        hedge_notional_usd=round(float(hedge_plan.get("hedge_notional_usd") or 0.0), 8),
+        hedge_margin_usd=round(float(hedge_plan.get("hedge_margin_usd") or 0.0), 8),
+        hedge_leverage=round(float(hedge_plan.get("hedge_leverage") or 1.0), 8),
+        hedge_cost_usd=round(float(hedge_plan.get("hedge_cost_usd") or 0.0), 8),
+        hedge_expected_risk_reduction_usd=round(float(hedge_plan.get("hedge_expected_risk_reduction_usd") or 0.0), 8),
+        hedge_net_benefit_usd=round(float(hedge_plan.get("hedge_net_benefit_usd") or 0.0), 8),
+        hedge_exit_plan=dict(hedge_plan.get("hedge_exit_plan") or {}),
+        isolated_margin_required_usd=round(float(cross_margin.get("isolated_margin_required_usd") or 0.0), 8),
+        cross_margin_stress_used_usd=round(float(cross_margin.get("cross_margin_stress_used_usd") or 0.0), 8),
+        cross_margin_available_buffer_usd=round(float(cross_margin.get("cross_margin_available_buffer_usd") or 0.0), 8),
+        portfolio_liquidation_buffer_usd=round(float(cross_margin.get("portfolio_liquidation_buffer_usd") or 0.0), 8),
+        worst_case_portfolio_loss_usd=round(float(cross_margin.get("worst_case_portfolio_loss_usd") or 0.0), 8),
+        maintenance_margin_estimate_usd=round(float(cross_margin.get("maintenance_margin_estimate_usd") or 0.0), 8),
+        margin_call_risk=str(cross_margin.get("margin_call_risk") or "UNKNOWN"),
+        cross_margin_safe=bool(cross_margin.get("cross_margin_safe")),
+        why_cross_margin_or_isolated=str(cross_margin.get("why_cross_margin_or_isolated") or ""),
         capital_allocation_reason=final_size_reason,
         risk_budget_pct_of_equity=0.0 if row.equity <= 0 else round(risk_budget_usd / row.equity, 8),
         risk_budget_pct_of_available_margin=round(risk_budget_usd / available_margin, 8),

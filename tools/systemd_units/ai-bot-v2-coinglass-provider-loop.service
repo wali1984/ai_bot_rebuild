@@ -1,0 +1,16 @@
+[Unit]
+Description=AI BOT V2 CoinGlass provider loop (read-only market data ingestion; V2 namespace only; rate-limited to account header limit)
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD:/home/wali/Desktop/AI BOT REBUILD/v2/backend"
+Environment="LIVE_GATE=blocked_human_only"
+ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -m app.cli.v2_coinglass_provider_loop --sleep-seconds 15'
+StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_coinglass_provider_loop.log
+StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_coinglass_provider_loop.err
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=default.target

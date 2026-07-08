@@ -1,0 +1,56 @@
+{
+  "avg_loser_bps": -4.4914,
+  "avg_winner_bps": 5.4516,
+  "baseline_advisory_reasons": [],
+  "baseline_evidence_date": null,
+  "baseline_trade_count": 0,
+  "block_reason": null,
+  "bucket_scope": "symbol_timeframe",
+  "consecutive_losses": 2,
+  "data_source": "REDIS",
+  "degraded": false,
+  "degraded_since": null,
+  "drawdown_contribution_usd": -0.02850003,
+  "last_trade_ts": "2026-06-30T09:54:53.461Z",
+  "last_updated": "2026-07-02T02:07:47Z",
+  "loss_count": 2,
+  "max_drawdown_bps": 8.9828,
+  "missed_tp_then_stop_rate": null,
+  "outcome_memory_can_block_entries": true,
+  "recent_bps": [
+    5.451613147473339,
+    -3.4810773177545262,
+    -5.501713995514078
+  ],
+  "recent_missed_tp_then_stop": [],
+  "recent_outcomes": [
+    1,
+    0,
+    0
+  ],
+  "recent_pnl_usd": [
+    0.005477105849405095,
+    -0.003908079580029229,
+    -0.02459194962746949
+  ],
+  "recent_reversal_after_entry": [],
+  "recent_slippage_failures": [
+    0,
+    0,
+    0
+  ],
+  "reversal_after_entry_rate": null,
+  "rolling_ev_bps": -1.1771,
+  "rolling_win_rate": 0.3333,
+  "schema_version": "v2_outcome_memory_updater_v1",
+  "slippage_failure_rate": 0.0,
+  "soak_count": 3,
+  "symbol": "PAXGUSDT",
+  "timeframe": "4h",
+  "total_trades": 3,
+  "trade_count": 3,
+  "trust_evidence_status": "TRUSTED_OUTCOME_MEMORY",
+  "trusted_trade_count": 3,
+  "untrusted_trade_count": 0,
+  "win_count": 1
+}

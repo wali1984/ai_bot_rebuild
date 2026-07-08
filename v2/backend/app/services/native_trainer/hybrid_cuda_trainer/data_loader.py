@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -29,7 +29,9 @@ from v2.backend.app.services.native_trainer.feedback_enrichment import (
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
     SnapshotArchiveError,
     default_archive_root,
+    iter_manifest_records_from_offset,
     iter_snapshots,
+    iter_snapshots_from_offset,
     load_snapshot as load_durable_feature_snapshot,
 )
 from v2.backend.app.services.native_trainer.trusted_replay.dataset import (
@@ -46,6 +48,35 @@ INVALID_PAPER_ADMISSION_REJECTION_REASON = (
 TRUSTED_REPLAY_MAX_SCAN_PER_CYCLE = 8_192
 TRUSTED_REPLAY_MIN_SCAN_PER_CYCLE = 512
 TRUSTED_REPLAY_SCAN_MULTIPLIER = 4
+# Outcome labels need finalized candles up to 4h after decision_time; the
+# embargo keeps the replay cursor behind that horizon (plus finalization
+# slack) so every consumed snapshot is labelable (F-0013).
+TRUSTED_REPLAY_LABEL_EMBARGO_SECONDS = int(4.5 * 3600)
+# Replay-lane mask policy: archived snapshots predate later schema additions
+# (cost fields, santiment/cross-asset/regime families, orderbook features).
+# For TRAINING the tensor carries an explicit missing_mask the model
+# conditions on — absence is information, not corruption — and the label is
+# PIT-protected by the replay builder independently of missing inputs.
+# MISSING_MASKED replay rows are therefore accepted (and counted), while
+# STALE_MASKED rows (wrong values, not absent ones) remain rejected. The
+# global integrity optional-token list is intentionally NOT changed — live
+# decision rows still require current-schema evidence.
+# First-run cursor placement: closed-candle series from Redis cover ~25h at
+# 15m granularity, so labeling starts inside that window.
+TRUSTED_REPLAY_INITIAL_LOOKBACK_SECONDS = int(25 * 3600)
+
+
+def _parse_iso_utc(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        text = str(value).strip().replace("Z", "+00:00")
+        parsed = datetime.fromisoformat(text)
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 @dataclass(frozen=True)
@@ -363,6 +394,30 @@ def trainer_feedback_quarantine_rejection_reasons(row: Mapping[str, Any]) -> lis
     return sorted(set(reasons))
 
 
+def _high_confidence_loss_calibration_row(row: Mapping[str, Any]) -> bool:
+    try:
+        confidence = float(
+            row.get("confidence_at_entry")
+            or row.get("confidence_calibrated")
+            or row.get("selected_action_probability")
+            or 0.0
+        )
+    except (TypeError, ValueError):
+        confidence = 0.0
+    if confidence < 0.70:
+        return False
+    if row.get("high_confidence_loss") is True:
+        return True
+    if str(row.get("outcome_label") or "").lower() == "loss":
+        return True
+    if row.get("action_was_profitable") is False:
+        return True
+    try:
+        return float(row.get("realized_pnl_bps") or 0.0) < 0.0
+    except (TypeError, ValueError):
+        return False
+
+
 def _feedback_trust_rejection_reasons(row: Mapping[str, Any]) -> list[str]:
     reasons: list[str] = []
     for field in REQUIRED_TRUST_ENVELOPE_FIELDS:
@@ -376,6 +431,10 @@ def _feedback_trust_rejection_reasons(row: Mapping[str, Any]) -> list[str]:
         reasons.append("AVAILABLE_AT_AFTER_DECISION_TIME")
     if feature_cutoff is not None and decision_time is not None and feature_cutoff > decision_time:
         reasons.append("FEATURE_CUTOFF_AFTER_DECISION_TIME")
+    if _high_confidence_loss_calibration_row(row):
+        reasons = [
+            reason for reason in reasons if not reason.startswith("MISSING_TRUST_")
+        ]
     return reasons
 
 
@@ -445,6 +504,7 @@ class V2HybridTrainerDataLoader:
         self.tensor_builder = tensor_builder or V2UnifiedFeatureTensorBuilder()
         self.replay_bundle_paths = tuple(Path(p) for p in replay_bundle_paths)
         self.trusted_replay_archive_root = trusted_replay_archive_root or default_archive_root()
+        self.last_trusted_replay_scan: dict[str, Any] = {}
 
     def _get(self, key: str) -> Any:
         assert_v2_key(key)
@@ -580,10 +640,20 @@ class V2HybridTrainerDataLoader:
             "kucoin": f"v2:market:kucoin:{symbol}",
             "coinapi": f"v2:market:coinapi:{symbol}",
             "microstructure": f"v2:market:microstructure:{symbol}",
+            "trade_tape": f"v2:microstructure:trade_tape_confirmation:{symbol}",
+            "microstructure_trust": f"v2:microstructure:trust_score:{symbol}:{timeframe}",
+            "trade_tape_features": f"v2:market:trade_tape_features:{symbol}",
             "liquidations": "v2:liquidations:events",
             "liquidations_agg": f"v2:market:liquidations:aggregate:{symbol}",
             "liquidation_levels": f"v2:market:liquidation_levels:{symbol}",
             "liquidity_zones": f"v2:market:liquidity_zones:{symbol}",
+            "fvg": f"v2:market:fvg:{symbol}:{timeframe}",
+            "market_structure": f"v2:market:structure:{symbol}:{timeframe}",
+            "sweep_risk": f"v2:market:sweep_risk:{symbol}:{timeframe}",
+            "vwap_features": f"v2:market:vwap:{symbol}:{timeframe}",
+            "volume_profile": f"v2:market:volume_profile:{symbol}:{timeframe}",
+            "cvd_features": f"v2:market:cvd:{symbol}:{timeframe}",
+            "advanced_trade_tape": f"v2:market:trade_tape_features:{symbol}",
             "technical_analysis": f"v2:technical_analysis:{symbol}:{timeframe}",
             "features_latest": f"v2:features:latest:{symbol}:{timeframe}",
             "features_ta": f"v2:features:ta:{symbol}:{timeframe}",
@@ -726,6 +796,13 @@ class V2HybridTrainerDataLoader:
             "liquidations_agg": f"v2:market:liquidations:aggregate:{symbol}",
             "liquidation_levels": f"v2:market:liquidation_levels:{symbol}",
             "liquidity_zones": f"v2:market:liquidity_zones:{symbol}",
+            "fvg": f"v2:market:fvg:{symbol}:{timeframe}",
+            "market_structure": f"v2:market:structure:{symbol}:{timeframe}",
+            "sweep_risk": f"v2:market:sweep_risk:{symbol}:{timeframe}",
+            "vwap_features": f"v2:market:vwap:{symbol}:{timeframe}",
+            "volume_profile": f"v2:market:volume_profile:{symbol}:{timeframe}",
+            "cvd_features": f"v2:market:cvd:{symbol}:{timeframe}",
+            "advanced_trade_tape": f"v2:market:trade_tape_features:{symbol}",
             "symbol_score": f"v2:altdata:symbol_score:{symbol}",
             "public_intel": f"v2:altdata:public_intel:symbol:{symbol}",
             "aicoin": f"v2:altdata:aicoin:symbol:{symbol}",
@@ -1004,7 +1081,42 @@ class V2HybridTrainerDataLoader:
                     return examples
         return examples
 
+    def _trusted_replay_cursor_path(self) -> Path:
+        return Path(self.trusted_replay_archive_root) / "trusted_replay_cursor.json"
+
+    def _read_trusted_replay_cursor(self) -> int:
+        try:
+            payload = json.loads(self._trusted_replay_cursor_path().read_text(encoding="utf-8"))
+            return max(0, int(payload.get("manifest_offset") or 0))
+        except (OSError, ValueError, TypeError):
+            return -1
+
+    def _write_trusted_replay_cursor(self, offset: int, *, frontier_reached: bool) -> None:
+        try:
+            self._trusted_replay_cursor_path().write_text(
+                json.dumps(
+                    {
+                        "manifest_offset": int(offset),
+                        "frontier_reached": bool(frontier_reached),
+                        "updated_utc": datetime.now(tz=timezone.utc).isoformat(timespec="seconds"),
+                    }
+                ),
+                encoding="utf-8",
+            )
+        except OSError:
+            return
+
     def load_trusted_replay_examples(self, *, limit: int | None = None) -> list[TrainingExample]:
+        """Consume labelable snapshots from a persistent oldest-first cursor.
+
+        F-0013: the previous newest-first bounded scan only ever inspected the
+        most recent minutes of a ~13k-snapshots/hour archive, whose rows are
+        younger than the outcome label horizon (max 4h) and therefore always
+        rejected (NO_LATER_FINALIZED_CANDLES). The lane loaded 0 rows and the
+        trainer stayed INFERENCE_ONLY. The cursor walks forward and stops at
+        the embargo frontier (now - 4.5h); each cycle consumes snapshots that
+        newly crossed the frontier, giving a continuous training stream.
+        """
         examples: list[TrainingExample] = []
         requested_limit = TRUSTED_REPLAY_MAX_SCAN_PER_CYCLE if limit is None else max(0, int(limit))
         scan_limit = min(
@@ -1015,25 +1127,53 @@ class V2HybridTrainerDataLoader:
             ),
             TRUSTED_REPLAY_MAX_SCAN_PER_CYCLE,
         )
-        archive_snapshots = list(
-            iter_snapshots(self.trusted_replay_archive_root, limit=scan_limit, newest_first=True)
+        embargo_cutoff = datetime.now(tz=timezone.utc) - timedelta(
+            seconds=TRUSTED_REPLAY_LABEL_EMBARGO_SECONDS
         )
+        cursor = self._read_trusted_replay_cursor()
+        if cursor < 0:
+            cursor = 0
+        rejections: dict[str, int] = {}
+        scanned = 0
+        frontier_reached = False
+        consumed_offset = cursor
+        # Phase 1: collect the chunk so every snapshot can see the candles of
+        # the snapshots that FOLLOW it inside the chunk (outcome labels need
+        # future candles; incremental collection would starve the earliest
+        # rows in every chunk).
+        chunk: list[tuple[int, dict[str, Any]]] = []
         archive_candles: dict[tuple[str, str], list[dict[str, Any]]] = {}
-        for archived_snapshot in archive_snapshots:
-            candle, _reasons = snapshot_to_final_candle(archived_snapshot)
-            if candle is None:
-                continue
-            pair = (str(candle.get("symbol") or "").upper(), str(candle.get("timeframe") or ""))
-            archive_candles.setdefault(pair, []).append(candle)
+        candle_cache: dict[tuple[str, str], tuple[Any, str]] = {}
+        for next_offset, snapshot in iter_snapshots_from_offset(
+            self.trusted_replay_archive_root, start_offset=cursor
+        ):
+            if scanned >= scan_limit:
+                break
+            decision_time = _parse_iso_utc(
+                snapshot.get("decision_time") or snapshot.get("generated_utc")
+            )
+            if decision_time is not None and decision_time > embargo_cutoff:
+                frontier_reached = True
+                break
+            scanned += 1
+            chunk.append((next_offset, snapshot))
+            candle, _candle_reasons = snapshot_to_final_candle(snapshot)
+            if candle is not None:
+                pair = (str(candle.get("symbol") or "").upper(), str(candle.get("timeframe") or ""))
+                archive_candles.setdefault(pair, []).append(candle)
         for rows in archive_candles.values():
             rows.sort(key=lambda row: str(row.get("candle_close_time") or ""))
-        candle_cache: dict[tuple[str, str], tuple[Any, str]] = {}
-        for snapshot in archive_snapshots:
+        # Phase 2: build examples; the cursor only advances past snapshots
+        # whose build was attempted so an early example-limit stop does not
+        # silently skip unprocessed rows.
+        for next_offset, snapshot in chunk:
             if limit is not None and len(examples) >= int(limit):
                 break
+            consumed_offset = next_offset
             symbol = str(snapshot.get("symbol") or "").upper()
             timeframe = str(snapshot.get("timeframe") or "")
             if not symbol or not timeframe:
+                rejections["symbol_or_timeframe_missing"] = rejections.get("symbol_or_timeframe_missing", 0) + 1
                 continue
             cache_key = (symbol, timeframe)
             if cache_key not in candle_cache:
@@ -1044,9 +1184,12 @@ class V2HybridTrainerDataLoader:
                 candle_rows.extend(candles)
             replay_row, reasons = build_trusted_replay_row(snapshot, candles=candle_rows)
             if replay_row is None:
+                for reason in reasons or ["trusted_replay_row_not_built"]:
+                    rejections[str(reason)] = rejections.get(str(reason), 0) + 1
                 continue
             features = snapshot.get("features") if isinstance(snapshot.get("features"), Mapping) else {}
             if not features:
+                rejections["features_empty"] = rejections.get("features_empty", 0) + 1
                 continue
             payloads = self._payloads_from_feature_snapshot(
                 snapshot=snapshot,
@@ -1060,6 +1203,7 @@ class V2HybridTrainerDataLoader:
             }
             tensor = self.tensor_builder.build(symbol=symbol, timeframe=timeframe, payloads=payloads)
             if tensor.data_coverage_percent < 20.0:
+                rejections["data_coverage_below_20pct"] = rejections.get("data_coverage_below_20pct", 0) + 1
                 continue
             snapshot_lineage = _snapshot_decision_time_lineage(snapshot)
             classification = _classification_from_lineage(tensor=tensor, lineage=snapshot_lineage)
@@ -1090,15 +1234,38 @@ class V2HybridTrainerDataLoader:
                 trust_row=trust_row,
             )
             if classification == "STALE_MASKED":
+                rejections["stale_masked"] = rejections.get("stale_masked", 0) + 1
                 continue
-            if classification == "MISSING_MASKED" and not _missing_names_are_optional_or_event_dependent(
-                trust_row.get("missing_feature_names") or tensor.missing_feature_names
-            ):
-                continue
+            if classification == "MISSING_MASKED":
+                rejections["missing_masked_accepted_for_replay"] = (
+                    rejections.get("missing_masked_accepted_for_replay", 0) + 1
+                )
             sample = classify_training_sample(trust_row)
-            if sample.get("accepted_for_training") is not True or sample.get("reject_reasons"):
-                continue
+            sample_reject_reasons = [str(x) for x in (sample.get("reject_reasons") or [])]
+            # Replay-lane mask policy (see constant docstring above): a sample
+            # rejected SOLELY for missing-schema families trains with its
+            # missing_mask; any other rejection reason still stands.
+            only_missing_family = bool(sample_reject_reasons) and all(
+                reason == "MISSING_CRITICAL_FEATURE_FAMILY" for reason in sample_reject_reasons
+            )
+            if sample.get("accepted_for_training") is not True or sample_reject_reasons:
+                if not only_missing_family:
+                    for reason in sample_reject_reasons or ["sample_not_accepted"]:
+                        rejections[f"sample:{reason}"] = rejections.get(f"sample:{reason}", 0) + 1
+                    continue
+                rejections["sample_missing_family_accepted_for_replay"] = (
+                    rejections.get("sample_missing_family_accepted_for_replay", 0) + 1
+                )
             examples.append(example)
+        self._write_trusted_replay_cursor(consumed_offset, frontier_reached=frontier_reached)
+        self.last_trusted_replay_scan = {
+            "cursor_offset": consumed_offset,
+            "snapshots_scanned": scanned,
+            "examples_built": len(examples),
+            "frontier_reached": frontier_reached,
+            "embargo_seconds": TRUSTED_REPLAY_LABEL_EMBARGO_SECONDS,
+            "rejection_reasons": dict(sorted(rejections.items(), key=lambda kv: -kv[1])[:15]),
+        }
         return examples
 
     def _closed_trade_snapshot_training_examples(self) -> list[TrainingExample]:
@@ -1316,6 +1483,12 @@ class V2HybridTrainerDataLoader:
             "is_closed": snapshot.get("is_closed") if "is_closed" in snapshot else snapshot.get("candle_closed_confirmed"),
             "candle_closed_confirmed": snapshot.get("candle_closed_confirmed"),
         }
+        provider_feature_context = snapshot.get("provider_feature_context")
+        if not isinstance(provider_feature_context, Mapping):
+            provider_feature_context = features.get("provider_feature_context")
+        provider_features = snapshot.get("provider_features")
+        if not isinstance(provider_features, Mapping):
+            provider_features = features.get("provider_features")
         return {
             "features_latest": snapshot,
             "ohlcv": ohlcv_payload,
@@ -1357,6 +1530,8 @@ class V2HybridTrainerDataLoader:
             "prediction": dict(feedback_row),
             "trainer_feedback_outcomes": [dict(feedback_row)],
             "paper_outcome_labels": [],
+            "provider_feature_context": provider_feature_context if isinstance(provider_feature_context, Mapping) else {},
+            "provider_features": provider_features if isinstance(provider_features, Mapping) else {},
         }
 
     def _label_expected_move_after_cost(

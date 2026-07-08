@@ -13,16 +13,27 @@ from typing import Any
 from fastapi import APIRouter
 
 try:  # Uvicorn service runs with PYTHONPATH=v2/backend.
-    from app.services.operator_truth.trade_derivatives_runtime import publish_derivatives_payload
+    from app.services.operator_truth.trade_derivatives_runtime import (
+        DERIVATIVES_OUT,
+        build_derivatives_payload,
+        json_load,
+    )
 except ImportError:  # CLI/tests may import from the repo root package.
-    from v2.backend.app.services.operator_truth.trade_derivatives_runtime import publish_derivatives_payload
+    from v2.backend.app.services.operator_truth.trade_derivatives_runtime import (
+        DERIVATIVES_OUT,
+        build_derivatives_payload,
+        json_load,
+    )
 
 
 router = APIRouter(prefix="/derivatives", tags=["derivatives"])
 
 
 def _payload() -> dict[str, Any]:
-    return publish_derivatives_payload()
+    cached = json_load(DERIVATIVES_OUT / "derivatives_payload.json", None)
+    if isinstance(cached, dict):
+        return cached
+    return build_derivatives_payload()
 
 
 def _module(name: str) -> dict[str, Any]:

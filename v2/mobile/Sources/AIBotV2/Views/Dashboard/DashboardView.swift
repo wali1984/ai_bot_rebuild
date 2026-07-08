@@ -14,6 +14,7 @@ struct DashboardView: View {
                 ScrollView {
                     VStack(spacing: 16) {
                         streamBar
+                        RuntimeTruthLiveCard(title: "Runtime Truth")
                         if vm.isLoading && vm.dashboard == nil {
                             loadingContent
                         } else if let err = vm.error, vm.dashboard == nil {
@@ -346,6 +347,16 @@ struct DashboardView: View {
                 label: "Steps / hr",
                 value: "\(trainer.training_steps_last_hour.formatted())",
                 mono: true
+            )
+            DataRow(
+                label: "Challenger",
+                value: trainer.champion_challenger_status?.displayStatus.uppercased() ?? "MISSING RUNTIME EVIDENCE",
+                valueColor: (trainer.champion_challenger_status?.promotion_allowed == true) ? NerVyx.validation : NerVyx.warning
+            )
+            DataRow(
+                label: "Promotion",
+                value: trainer.champion_challenger_status?.promotion_allowed == true ? "ALLOWED" : "BLOCKED",
+                valueColor: trainer.champion_challenger_status?.promotion_allowed == true ? NerVyx.validation : NerVyx.warning
             )
             NerVyxDivider()
             HStack {

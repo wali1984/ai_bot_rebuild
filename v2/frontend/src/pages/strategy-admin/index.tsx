@@ -84,7 +84,7 @@ export default function StrategyAdminPage(): JSX.Element {
           color={(perf.profit_factor ?? 0) >= 1 ? 'var(--buy)' : 'var(--sell)'} />
         <KV label="Win rate" value={perf.win_rate != null ? `${(perf.win_rate * 100).toFixed(1)}%` : '—'}
           color={(perf.win_rate ?? 0) >= 0.5 ? 'var(--buy)' : 'var(--warn)'} />
-        <KV label="Expectancy" value={perf.notional_weighted_expectancy_bps != null ? `${perf.notional_weighted_expectancy_bps.toFixed(1)} bps` : '—'}
+        <KV label="Expectancy" value={perf.notional_weighted_expectancy_bps != null ? `${(perf.notional_weighted_expectancy_bps / 100).toFixed(2)}%` : '—'}
           color={(perf.notional_weighted_expectancy_bps ?? 0) >= 0 ? 'var(--buy)' : 'var(--sell)'} />
         <KV label="Closed outcomes" value={String(perf.closed_outcome_count ?? '—')} />
         <KV label="New entries" value={freeze.new_entries_allowed == null ? '—' : freeze.new_entries_allowed ? 'ALLOWED' : 'FROZEN'}

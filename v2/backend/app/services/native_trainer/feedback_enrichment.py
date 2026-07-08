@@ -149,6 +149,33 @@ PAPER_EXECUTION_EVIDENCE_FIELDS: tuple[str, ...] = (
     "paper_opportunity_tier_reason",
     "explicit_paper_opportunity_tier",
     "paper_fill_allowed_source",
+    "preemptive_decision_id",
+    "preemptive_decision",
+    "preemptive_decision_reasons",
+    "preemptive_action",
+    "preemptive_allowed",
+    "preemptive_block_reasons",
+    "reason_blocked",
+    "pre_trade_loss_probability",
+    "pre_trade_expected_net_pnl_usd",
+    "confidence_overstatement_risk",
+    "expected_edge",
+    "expected_edge_after_cost_bps",
+    "regime_compatibility_score",
+    "exit_feasibility_score",
+    "bucket_profit_factor",
+    "recent_high_confidence_loss_rate",
+    "recent_ATR_stop_risk",
+    "positive_edge_probation_paper",
+    "probation_paper_enabled",
+    "probation_counts_as_a_plus",
+    "probation_counts_as_final_a_plus",
+    "probation_counts_as_live_ready",
+    "positive_edge_probation_rejection_reasons",
+    "positive_edge_probation_budget_cap_applied",
+    "positive_edge_probation_max_risk_fraction_of_normal",
+    "positive_edge_probation_budget_formula",
+    "next_probation_gate",
     "strict_paper_fill_allowed_upstream",
     "calibration_label_purpose",
     "partial_fill_count",
@@ -325,6 +352,17 @@ def _coerce_float(value: Any) -> float | None:
     return parsed if parsed == parsed else None
 
 
+def _confidence_bucket(value: Any) -> str | None:
+    confidence = _coerce_float(value)
+    if confidence is None:
+        return None
+    bounded = max(0.0, min(1.0, confidence))
+    low_index = min(9, max(0, int(bounded * 10.0)))
+    low = low_index / 10.0
+    high = 1.0 if low_index == 9 else (low_index + 1) / 10.0
+    return f"{low:.1f}-{high:.1f}"
+
+
 def _mapping(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
@@ -476,9 +514,10 @@ def _merge_premium_contexts_from_snapshot(row: dict[str, Any]) -> None:
     for field, value_fields, _label, _required_real_values in _PREMIUM_CONTEXT_REQUIREMENTS:
         candidate = contexts.get(field)
         current = row.get(field)
-        if _context_is_default_placeholder(current) or not _context_has_real_values(current, value_fields):
-            if candidate:
-                row[field] = candidate
+        if candidate and _context_has_real_values(candidate, value_fields):
+            row[field] = candidate
+        elif _context_is_default_placeholder(current) and candidate:
+            row[field] = candidate
         context = row.get(field)
         if _context_has_real_values(context, value_fields):
             sources[field] = _context_source(context)
@@ -503,10 +542,33 @@ def _merge_premium_contexts_from_snapshot(row: dict[str, Any]) -> None:
 
 def _premium_ingestor_rejection_reasons(row: dict[str, Any]) -> list[str]:
     reasons: list[str] = []
+    has_entry_snapshot = isinstance(row.get("entry_feature_snapshot"), dict) or isinstance(
+        row.get("feature_snapshot"),
+        dict,
+    )
     for field, value_fields, label, required_real_values in _PREMIUM_CONTEXT_REQUIREMENTS:
         context = row.get(field)
+        if field == "liquidity_context":
+            context = _first_present(context, row.get("liquidity_zone_context"))
+        elif field == "liquidity_zone_context":
+            context = _first_present(context, row.get("liquidity_context"))
+        elif field == "liquidation_context":
+            context = _first_present(context, row.get("liquidation_distance_context"))
+        elif field == "liquidation_distance_context":
+            context = _first_present(context, row.get("liquidation_context"))
         if _context_is_default_placeholder(context):
             reasons.append(f"MISSING_PREMIUM_INGESTOR_{label}_CONTEXT")
+            continue
+        source = _context_source(context)
+        if not has_entry_snapshot or (
+            source
+            and source != PREMIUM_CONTEXT_SOURCE
+            and not _context_has_explicit_missing_mask(context)
+        ):
+            # Historical paper rows can carry explicit legacy context without
+            # the newer premium feature-snapshot envelope. Keep default/missing
+            # contexts quarantined, but do not require the newer numeric premium
+            # fields when a non-default legacy context is already present.
             continue
         has_values = _context_has_real_values(context, value_fields)
         if has_values:
@@ -920,6 +982,110 @@ def build_strategy_hedge_exit_feedback(
             close_event.get("side"),
             outcome_label.get("side"),
         ),
+        "preemptive_decision_id": _first_present(
+            close_event.get("preemptive_decision_id"),
+            outcome_label.get("preemptive_decision_id"),
+        ),
+        "preemptive_decision": _first_present(
+            close_event.get("preemptive_decision"),
+            outcome_label.get("preemptive_decision"),
+        ),
+        "preemptive_decision_reasons": _first_present(
+            close_event.get("preemptive_decision_reasons"),
+            outcome_label.get("preemptive_decision_reasons"),
+        ),
+        "preemptive_action": _first_present(
+            close_event.get("preemptive_action"),
+            outcome_label.get("preemptive_action"),
+        ),
+        "preemptive_allowed": _first_present(
+            close_event.get("preemptive_allowed"),
+            outcome_label.get("preemptive_allowed"),
+        ),
+        "preemptive_block_reasons": _first_present(
+            close_event.get("preemptive_block_reasons"),
+            outcome_label.get("preemptive_block_reasons"),
+        ),
+        "reason_blocked": _first_present(
+            close_event.get("reason_blocked"),
+            outcome_label.get("reason_blocked"),
+            close_event.get("paper_fill_block_reason"),
+            outcome_label.get("paper_fill_block_reason"),
+            close_event.get("paper_opportunity_tier_reason"),
+            outcome_label.get("paper_opportunity_tier_reason"),
+        ),
+        "pre_trade_loss_probability": _first_present(
+            close_event.get("pre_trade_loss_probability"),
+            outcome_label.get("pre_trade_loss_probability"),
+        ),
+        "pre_trade_expected_net_pnl_usd": _first_present(
+            close_event.get("pre_trade_expected_net_pnl_usd"),
+            outcome_label.get("pre_trade_expected_net_pnl_usd"),
+        ),
+        "confidence_overstatement_risk": _first_present(
+            close_event.get("confidence_overstatement_risk"),
+            outcome_label.get("confidence_overstatement_risk"),
+        ),
+        "regime_compatibility_score": _first_present(
+            close_event.get("regime_compatibility_score"),
+            outcome_label.get("regime_compatibility_score"),
+        ),
+        "exit_feasibility_score": _first_present(
+            close_event.get("exit_feasibility_score"),
+            outcome_label.get("exit_feasibility_score"),
+        ),
+        "bucket_profit_factor": _first_present(
+            close_event.get("bucket_profit_factor"),
+            outcome_label.get("bucket_profit_factor"),
+        ),
+        "recent_high_confidence_loss_rate": _first_present(
+            close_event.get("recent_high_confidence_loss_rate"),
+            outcome_label.get("recent_high_confidence_loss_rate"),
+        ),
+        "recent_ATR_stop_risk": _first_present(
+            close_event.get("recent_ATR_stop_risk"),
+            outcome_label.get("recent_ATR_stop_risk"),
+        ),
+        "positive_edge_probation_paper": _first_present(
+            close_event.get("positive_edge_probation_paper"),
+            outcome_label.get("positive_edge_probation_paper"),
+        ),
+        "probation_paper_enabled": _first_present(
+            close_event.get("probation_paper_enabled"),
+            outcome_label.get("probation_paper_enabled"),
+        ),
+        "probation_counts_as_a_plus": _first_present(
+            close_event.get("probation_counts_as_a_plus"),
+            outcome_label.get("probation_counts_as_a_plus"),
+        ),
+        "probation_counts_as_final_a_plus": _first_present(
+            close_event.get("probation_counts_as_final_a_plus"),
+            outcome_label.get("probation_counts_as_final_a_plus"),
+        ),
+        "probation_counts_as_live_ready": _first_present(
+            close_event.get("probation_counts_as_live_ready"),
+            outcome_label.get("probation_counts_as_live_ready"),
+        ),
+        "positive_edge_probation_rejection_reasons": _first_present(
+            close_event.get("positive_edge_probation_rejection_reasons"),
+            outcome_label.get("positive_edge_probation_rejection_reasons"),
+        ),
+        "positive_edge_probation_budget_cap_applied": _first_present(
+            close_event.get("positive_edge_probation_budget_cap_applied"),
+            outcome_label.get("positive_edge_probation_budget_cap_applied"),
+        ),
+        "positive_edge_probation_max_risk_fraction_of_normal": _first_present(
+            close_event.get("positive_edge_probation_max_risk_fraction_of_normal"),
+            outcome_label.get("positive_edge_probation_max_risk_fraction_of_normal"),
+        ),
+        "positive_edge_probation_budget_formula": _first_present(
+            close_event.get("positive_edge_probation_budget_formula"),
+            outcome_label.get("positive_edge_probation_budget_formula"),
+        ),
+        "next_probation_gate": _first_present(
+            close_event.get("next_probation_gate"),
+            outcome_label.get("next_probation_gate"),
+        ),
         "entry_price": _first_present(close_event.get("entry_price"), outcome_label.get("entry_price")),
         "exit_price": _first_present(close_event.get("exit_price"), outcome_label.get("exit_price")),
         "strategy_id": _first_present(close_event.get("strategy_id"), outcome_label.get("strategy_id")),
@@ -1219,6 +1385,37 @@ def build_strategy_hedge_exit_feedback(
             realized_net_pnl_usd=row.get("realized_net_pnl_usd"),
         ),
     )
+    confidence_at_entry = _first_present(
+        row.get("confidence_calibrated"),
+        row.get("selected_action_probability"),
+        row.get("confidence_raw"),
+    )
+    realized_bps = _coerce_float(row.get("realized_pnl_bps"))
+    realized_usd = _coerce_float(row.get("realized_net_pnl_usd"))
+    high_confidence_loss = (
+        (_coerce_float(confidence_at_entry) or 0.0) >= 0.70
+        and (
+            row.get("action_was_profitable") is False
+            or (realized_bps is not None and realized_bps < 0.0)
+            or (realized_usd is not None and realized_usd < 0.0)
+        )
+    )
+    row["high_confidence_loss"] = high_confidence_loss
+    row["confidence_at_entry"] = confidence_at_entry
+    row["confidence_bucket"] = _confidence_bucket(confidence_at_entry)
+    row["microstructure_trust_at_entry"] = _first_present(
+        row.get("microstructure_trust_at_entry"),
+        row.get("microstructure_trust_score"),
+        _mapping(row.get("microstructure_context")).get("trust_score"),
+        _mapping(row.get("microstructure_context")).get(
+            "composite_microstructure_trust_score"
+        ),
+    )
+    if high_confidence_loss:
+        row["outcome_label"] = "loss"
+        row["calibration_loss_sample"] = True
+        row["calibration_loss_reason"] = "HIGH_CONFIDENCE_NEGATIVE_REALIZED_OUTCOME"
+        row["trainer_calibration_consumable"] = True
     row["fees"] = _first_present(close_event.get("fees"), outcome_label.get("fees"), close_event.get("fees_usd"), outcome_label.get("fees_usd"))
     row["slippage"] = _first_present(close_event.get("slippage"), outcome_label.get("slippage"), close_event.get("realized_slippage_usd"), outcome_label.get("realized_slippage_usd"))
     row["funding"] = _first_present(close_event.get("funding"), outcome_label.get("funding"), close_event.get("funding_pnl_usd"), outcome_label.get("funding_pnl_usd"))
@@ -1348,6 +1545,43 @@ def apply_trainer_feedback_field_contract(row: dict[str, Any]) -> dict[str, Any]
             row.get("trade_outcome"),
             row.get("directional_outcome"),
             row.get("outcome_label_id"),
+        )
+    if row.get("preemptive_decision_id") in (None, ""):
+        row["preemptive_decision_id"] = None
+    if row.get("preemptive_decision") in (None, ""):
+        row["preemptive_decision"] = None
+    if row.get("preemptive_decision_reasons") is None:
+        row["preemptive_decision_reasons"] = []
+    if row.get("reason_blocked") in (None, ""):
+        reasons = row.get("preemptive_decision_reasons")
+        row["reason_blocked"] = (
+            reasons[0]
+            if isinstance(reasons, list) and reasons
+            else _first_present(
+                row.get("paper_fill_block_reason"),
+                row.get("paper_opportunity_tier_reason"),
+            )
+        )
+    if row.get("positive_edge_probation_rejection_reasons") is None:
+        row["positive_edge_probation_rejection_reasons"] = []
+    if row.get("positive_edge_probation_paper") is True:
+        row["probation_paper_enabled"] = True
+        row["probation_counts_as_a_plus"] = False
+        row["probation_counts_as_final_a_plus"] = False
+        row["probation_counts_as_live_ready"] = False
+        row["calibration_label_purpose"] = _first_present(
+            row.get("calibration_label_purpose"),
+            "positive_edge_probation_paper_outcome",
+        )
+    if row.get("expected_edge") in (None, ""):
+        row["expected_edge"] = _first_present(
+            row.get("expected_edge_after_cost_bps"),
+            row.get("expected_move_after_cost_bps"),
+        )
+    if row.get("expected_edge_after_cost_bps") in (None, ""):
+        row["expected_edge_after_cost_bps"] = _first_present(
+            row.get("expected_move_after_cost_bps"),
+            row.get("expected_edge"),
         )
     missing_contract_fields = [
         name for name in TRAINER_FEEDBACK_CONTRACT_FIELDS if row.get(name) in (None, "")

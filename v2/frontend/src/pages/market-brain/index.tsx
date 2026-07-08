@@ -479,14 +479,14 @@ export default function MarketBrainPage(): JSX.Element {
             <Metric label="Active Pairs" value={hl?.total_active ?? 0} color="#8b5cf6" />
           </div>
           <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 8 }}>
-            HedgeLock is disabled by default. Enabling requires operator approval (dangerous setting per CLAUDE.md). Only activates after profitable excursion ≥ 25 bps.
+            HedgeLock is disabled by default. Enabling requires operator approval (dangerous setting per CLAUDE.md). Only activates after profitable excursion &gt;= 0.25%.
           </div>
           {hl?.active_pairs?.length ? (
             <div style={S.tableWrap}>
               <table style={S.table}>
                 <thead>
                   <tr>
-                    {['Pair ID', 'Symbol', 'Original Side', 'Hedge Side', 'Status', 'Net PnL (bps)', 'Opened'].map(h => (
+                    {['Pair ID', 'Symbol', 'Original Side', 'Hedge Side', 'Status', 'Net PnL %', 'Opened'].map(h => (
                       <th key={h} style={S.th}>{h}</th>
                     ))}
                   </tr>
@@ -499,7 +499,7 @@ export default function MarketBrainPage(): JSX.Element {
                       <td style={tdStyle(p.original_side === 'LONG' ? '#022c22' : '#1a0000')}><span style={{ color: p.original_side === 'LONG' ? '#34d399' : '#f87171' }}>{p.original_side}</span></td>
                       <td style={tdStyle(p.hedge_side === 'SHORT' ? '#1a0000' : '#022c22')}><span style={{ color: p.hedge_side === 'SHORT' ? '#f87171' : '#34d399' }}>{p.hedge_side}</span></td>
                       <td style={tdStyle('#0d1117')}><span style={{ color: '#8b5cf6' }}>{p.status}</span></td>
-                      <td style={tdStyle('#0d1117')}><span style={{ color: (p.net_pnl_bps ?? 0) >= 0 ? '#10b981' : '#ef4444' }}>{p.net_pnl_bps?.toFixed(1) ?? '—'}</span></td>
+                      <td style={tdStyle('#0d1117')}><span style={{ color: (p.net_pnl_bps ?? 0) >= 0 ? '#10b981' : '#ef4444' }}>{p.net_pnl_bps != null ? `${(p.net_pnl_bps / 100).toFixed(2)}%` : '—'}</span></td>
                       <td style={tdStyle('#0d1117')}><span style={{ fontSize: 10, color: '#9ca3af' }}>{ageSecs(p.opened_utc)}</span></td>
                     </tr>
                   ))}

@@ -161,7 +161,7 @@
   ],
   "editor.largeFileOptimizations": true,
   "files.maxMemoryForLargeFilesMB": 128,
-  "git.enabled": false,
+  "git.enabled": true,
   "git.ignoreLimitWarning": true,
   "git.autoRepositoryDetection": false,
   "git.decorations.enabled": false,

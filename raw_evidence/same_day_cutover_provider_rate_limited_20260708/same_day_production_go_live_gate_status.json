@@ -1,0 +1,3514 @@
+{
+  "ceo_summary": {
+    "coinglass": {
+      "actual_payload_present": true,
+      "dashboard_color": "GREEN",
+      "feature_count": 34,
+      "heartbeat_only": false,
+      "raw_key_exposed": false,
+      "source_key": "v2:features:coinglass:BTCUSDT:1m",
+      "stale": false,
+      "status": "READY",
+      "ttl_contract_valid": true,
+      "ttl_remaining_seconds": 31
+    },
+    "headline": "Live canary is not ready; provider actual-data evidence is incomplete.",
+    "moralis": {
+      "actual_payload_present": false,
+      "dashboard_color": "GRAY",
+      "feature_count": 0,
+      "heartbeat_only": true,
+      "raw_key_exposed": false,
+      "source_key": "v2:features:moralis:BTCUSDT:1m",
+      "stale": true,
+      "status": "MISSING",
+      "ttl_contract_valid": false,
+      "ttl_remaining_seconds": -2
+    },
+    "next_gate": "operator approval plus live canary criteria, not probation-only readiness"
+  },
+  "coinglass_public_limit_exceeded": false,
+  "final_marker": "V2_SAME_DAY_PRODUCTION_CUTOVER_DATA_FEATURE_TRAINER_PREEMPTIVE_AND_LIVE_CANARY_BLOCKED",
+  "generated_utc": "2026-07-08T19:55:00Z",
+  "hard_blocks": [],
+  "heartbeat_only_green_allowed": false,
+  "live_gate": "blocked_human_only",
+  "live_ready": false,
+  "live_ready_from_probation_allowed": false,
+  "moralis_every_symbol_every_minute_allowed": false,
+  "next_patch": "configure Moralis wallet/token watchlist or subscription access, rerun provider loop, and confirm actual on-chain payloads",
+  "operator_approval_required_for_live": true,
+  "optional_provider_failures_core_blocking": false,
+  "primary_blocker": "moralis_actual_payload_absent:CONFIGURED_NO_WATCHLIST",
+  "provider_actual_data_panel": {
+    "actual_provider_count": 1,
+    "coinglass": {
+      "actual_payload_present": true,
+      "dashboard_color": "GREEN",
+      "feature_count": 34,
+      "heartbeat_only": false,
+      "raw_key_exposed": false,
+      "source_key": "v2:features:coinglass:BTCUSDT:1m",
+      "stale": false,
+      "status": "READY",
+      "ttl_contract_valid": true,
+      "ttl_remaining_seconds": 31
+    },
+    "endpoint_status": {
+      "coinglass": {
+        "actual_payload_endpoint_count": 7,
+        "core_system_blocked": false,
+        "endpoints": {
+          "funding_rate": {
+            "actual_payload_present": true,
+            "core_system_blocked": false,
+            "dashboard_color": "GREEN",
+            "endpoint_id": "funding_rate",
+            "generated_utc": "2026-07-08T19:54:04Z",
+            "heartbeat_only": false,
+            "provider": "coinglass",
+            "raw_key_exposed": false,
+            "schema_version": "coinglass_endpoint_status_v1",
+            "status": "READY",
+            "symbol": "SOLUSDT"
+          },
+          "liquidation_heatmap_or_levels": {
+            "actual_payload_present": false,
+            "core_system_blocked": false,
+            "dashboard_color": "GRAY",
+            "endpoint_id": "liquidation_heatmap_or_levels",
+            "generated_utc": "2026-07-08T19:54:55Z",
+            "heartbeat_only": true,
+            "provider": "coinglass",
+            "raw_key_exposed": false,
+            "schema_version": "coinglass_endpoint_status_v1",
+            "status": "CONFIGURED_BUT_UNAUTHORIZED_OR_UNSUBSCRIBED",
+            "symbol": "SOLUSDT"
+          },
+          "liquidation_orders": {
+            "actual_payload_present": true,
+            "core_system_blocked": false,
+            "dashboard_color": "GREEN",
+            "endpoint_id": "liquidation_orders",
+            "generated_utc": "2026-07-08T19:54:32Z",
+            "heartbeat_only": false,
+            "provider": "coinglass",
+            "raw_key_exposed": false,
+            "schema_version": "coinglass_endpoint_status_v1",
+            "status": "READY",
+            "symbol": "SOLUSDT"
+          },
+          "long_short_ratio": {
+            "actual_payload_present": true,
+            "core_system_blocked": false,
+            "dashboard_color": "GREEN",
+            "endpoint_id": "long_short_ratio",
+            "generated_utc": "2026-07-08T19:54:08Z",
+            "heartbeat_only": false,
+            "provider": "coinglass",
+            "raw_key_exposed": false,
+            "schema_version": "coinglass_endpoint_status_v1",
+            "status": "READY",
+            "symbol": "SOLUSDT"
+          },
+          "market_snapshot": {
+            "actual_payload_present": true,
+            "core_system_blocked": false,
+            "dashboard_color": "GREEN",
+            "endpoint_id": "market_snapshot",
+            "generated_utc": "2026-07-08T19:54:01Z",
+            "heartbeat_only": false,
+            "provider": "coinglass",
+            "raw_key_exposed": false,
+            "schema_version": "coinglass_endpoint_status_v1",
+            "status": "READY",
+            "symbol": "SOLUSDT"
+          },
+          "open_interest": {
+            "actual_payload_present": true,
+            "core_system_blocked": false,
+            "dashboard_color": "GREEN",
+            "endpoint_id": "open_interest",
+            "generated_utc": "2026-07-08T19:54:06Z",
+            "heartbeat_only": false,
+            "provider": "coinglass",
+            "raw_key_exposed": false,
+            "schema_version": "coinglass_endpoint_status_v1",
+            "status": "READY",
+            "symbol": "SOLUSDT"
+          },
+          "orderbook_l2_l3": {
+            "actual_payload_present": true,
+            "core_system_blocked": false,
+            "dashboard_color": "GREEN",
+            "endpoint_id": "orderbook_l2_l3",
+            "generated_utc": "2026-07-08T19:54:37Z",
+            "heartbeat_only": false,
+            "provider": "coinglass",
+            "raw_key_exposed": false,
+            "schema_version": "coinglass_endpoint_status_v1",
+            "status": "READY",
+            "symbol": "SOLUSDT"
+          },
+          "trades": {
+            "actual_payload_present": true,
+            "core_system_blocked": false,
+            "dashboard_color": "GREEN",
+            "endpoint_id": "trades",
+            "generated_utc": "2026-07-08T19:54:35Z",
+            "heartbeat_only": false,
+            "provider": "coinglass",
+            "raw_key_exposed": false,
+            "schema_version": "coinglass_endpoint_status_v1",
+            "status": "READY",
+            "symbol": "SOLUSDT"
+          }
+        },
+        "generated_utc": "2026-07-08T19:54:55Z",
+        "heartbeat_only_green_allowed": false,
+        "provider": "coinglass",
+        "raw_key_exposed": false,
+        "schema_version": "coinglass_endpoint_status_v1"
+      },
+      "moralis": {
+        "actual_payload_endpoint_count": 0,
+        "core_system_blocked": false,
+        "endpoints": {},
+        "generated_utc": "2026-07-08T19:54:37Z",
+        "heartbeat_only_green_allowed": false,
+        "provider": "moralis",
+        "raw_key_exposed": false,
+        "schema_version": "moralis_endpoint_status_v1"
+      }
+    },
+    "endpoint_to_feature_mapping": {
+      "coinglass": {
+        "exchange_metadata": {
+          "cadence_seconds": {
+            "active_symbols": 900,
+            "full_universe": 900,
+            "top_symbols": 900
+          },
+          "canonical_outputs": [
+            "coinglass_exchange_supported",
+            "coinglass_symbol_supported"
+          ],
+          "feature_outputs": [
+            "coinglass_exchange_supported",
+            "coinglass_symbol_supported"
+          ],
+          "group": "exchange_metadata",
+          "optional_if_forbidden": true,
+          "path": "/api/futures/supported-exchange-pairs",
+          "provider": "coinglass",
+          "request_budget_per_minute": 5,
+          "ttl_seconds": 900
+        },
+        "funding_rate": {
+          "cadence_seconds": {
+            "active_symbols": 120,
+            "full_universe": 600,
+            "top_symbols": 60
+          },
+          "canonical_outputs": [
+            "funding_rate",
+            "coinglass_funding_rate_zscore",
+            "coinglass_next_funding_minutes"
+          ],
+          "feature_outputs": [
+            "coinglass_funding_rate",
+            "coinglass_funding_rate_zscore",
+            "coinglass_next_funding_minutes"
+          ],
+          "group": "funding_rate",
+          "optional_if_forbidden": true,
+          "path": "/api/futures/funding-rate/exchange-list",
+          "provider": "coinglass",
+          "request_budget_per_minute": 30,
+          "ttl_seconds": 180
+        },
+        "liquidation_heatmap_or_levels": {
+          "cadence_seconds": {
+            "active_symbols": 300,
+            "full_universe": 900,
+            "top_symbols": 120
+          },
+          "canonical_outputs": [
+            "nearest_liquidation_level_above",
+            "nearest_liquidation_level_below",
+            "liquidation_level_distance_usd"
+          ],
+          "feature_outputs": [
+            "coinglass_nearest_liq_zone_above_usd",
+            "coinglass_nearest_liq_zone_below_usd",
+            "coinglass_liq_zone_distance_usd"
+          ],
+          "group": "liquidation_heatmap_or_levels",
+          "optional_if_forbidden": true,
+          "path": "/api/futures/liquidation/heatmap/model2",
+          "provider": "coinglass",
+          "request_budget_per_minute": 25,
+          "ttl_seconds": 300
+        },
+        "liquidation_orders": {
+          "cadence_seconds": {
+            "active_symbols": 60,
+            "full_universe": 300,
+            "top_symbols": 30
+          },
+          "canonical_outputs": [
+            "liquidation_buy_usd_1m",
+            "liquidation_sell_usd_1m",
+            "liquidation_imbalance_usd",
+            "liquidation_cascade_risk"
+          ],
+          "feature_outputs": [
+            "coinglass_liquidation_buy_usd_1m",
+            "coinglass_liquidation_sell_usd_1m",
+            "coinglass_liquidation_imbalance_usd",
+            "coinglass_liquidation_cascade_score"
+          ],
+          "group": "liquidation_orders",
+          "optional_if_forbidden": true,
+          "path": "/api/futures/liquidation/aggregated-history",
+          "provider": "coinglass",
+          "request_budget_per_minute": 50,
+          "ttl_seconds": 60
+        },
+        "long_short_ratio": {
+          "cadence_seconds": {
+            "active_symbols": 120,
+            "full_universe": 600,
+            "top_symbols": 60
+          },
+          "canonical_outputs": [
+            "long_account_ratio",
+            "short_account_ratio",
+            "long_short_extreme_score"
+          ],
+          "feature_outputs": [
+            "coinglass_long_ratio",
+            "coinglass_short_ratio",
+            "coinglass_long_short_extreme_score"
+          ],
+          "group": "long_short_ratio",
+          "optional_if_forbidden": true,
+          "path": "/api/futures/top-long-short-account-ratio/history",
+          "provider": "coinglass",
+          "request_budget_per_minute": 40,
+          "ttl_seconds": 300
+        },
+        "market_snapshot": {
+          "cadence_seconds": {
+            "active_symbols": 120,
+            "full_universe": 300,
+            "top_symbols": 60
+          },
+          "canonical_outputs": [
+            "coinglass_price_usd",
+            "coinglass_volume_24h_usd",
+            "coinglass_price_change_24h_pct",
+            "coinglass_exchange_count",
+            "coinglass_market_snapshot_volume_usd"
+          ],
+          "feature_outputs": [
+            "coinglass_price_usd",
+            "coinglass_volume_24h_usd",
+            "coinglass_price_change_24h_pct",
+            "coinglass_exchange_count",
+            "coinglass_market_snapshot_volume_usd"
+          ],
+          "group": "market_snapshot",
+          "optional_if_forbidden": true,
+          "path": "/api/futures/pairs-markets",
+          "provider": "coinglass",
+          "request_budget_per_minute": 20,
+          "ttl_seconds": 300
+        },
+        "open_interest": {
+          "cadence_seconds": {
+            "active_symbols": 120,
+            "full_universe": 600,
+            "top_symbols": 60
+          },
+          "canonical_outputs": [
+            "open_interest",
+            "oi_change_pct",
+            "coinglass_open_interest_delta_usd_1h",
+            "coinglass_oi_price_divergence_score"
+          ],
+          "feature_outputs": [
+            "coinglass_open_interest_usd",
+            "coinglass_open_interest_delta_usd_5m",
+            "coinglass_open_interest_delta_usd_1h",
+            "coinglass_oi_price_divergence_score"
+          ],
+          "group": "open_interest",
+          "optional_if_forbidden": true,
+          "path": "/api/futures/open-interest/exchange-list",
+          "provider": "coinglass",
+          "request_budget_per_minute": 40,
+          "ttl_seconds": 180
+        },
+        "orderbook_l2_l3": {
+          "cadence_seconds": {
+            "active_symbols": 60,
+            "full_universe": 600,
+            "top_symbols": 30
+          },
+          "canonical_outputs": [
+            "orderbook_depth_imbalance",
+            "coinglass_orderbook_trust_delta"
+          ],
+          "feature_outputs": [
+            "coinglass_orderbook_depth_imbalance_usd",
+            "coinglass_orderbook_trust_delta"
+          ],
+          "group": "orderbook_l2_l3",
+          "optional_if_forbidden": true,
+          "path": "/api/futures/orderbook/ask-bids-history",
+          "provider": "coinglass",
+          "request_budget_per_minute": 40,
+          "ttl_seconds": 60
+        },
+        "trades": {
+          "cadence_seconds": {
+            "active_symbols": 60,
+            "full_universe": 600,
+            "top_symbols": 30
+          },
+          "canonical_outputs": [
+            "trade_imbalance"
+          ],
+          "feature_outputs": [
+            "coinglass_trade_imbalance_usd"
+          ],
+          "group": "trades",
+          "optional_if_forbidden": true,
+          "path": "/api/futures/taker-buy-sell-volume/history",
+          "provider": "coinglass",
+          "request_budget_per_minute": 40,
+          "ttl_seconds": 60
+        }
+      },
+      "moralis": {
+        "multiple_token_prices": {
+          "cadence_seconds": {
+            "full_watchlist": 21600,
+            "tier0_wallet_token_stream": 900,
+            "tier1_wallet_token_stream": 900
+          },
+          "canonical_outputs": [
+            "onchain_risk_score"
+          ],
+          "compute_unit_cost": 50,
+          "feature_outputs": [
+            "moralis_onchain_risk_score"
+          ],
+          "group": "multiple_token_prices",
+          "path_template": "/erc20/prices?chain={chain}&tokens={token}",
+          "provider": "moralis",
+          "requires_token": true,
+          "requires_wallet": false,
+          "stream_based": false,
+          "ttl_seconds": 900
+        },
+        "streams": {
+          "cadence_seconds": {
+            "full_watchlist": 0,
+            "tier0_wallet_token_stream": 0,
+            "tier1_wallet_token_stream": 0
+          },
+          "canonical_outputs": [
+            "smart_money_whale_buy_usd",
+            "smart_money_whale_sell_usd",
+            "smart_money_whale_net_flow_usd"
+          ],
+          "compute_unit_cost": 10,
+          "feature_outputs": [
+            "moralis_whale_buy_usd",
+            "moralis_whale_sell_usd",
+            "moralis_whale_net_flow_usd"
+          ],
+          "group": "streams",
+          "path_template": "webhook",
+          "provider": "moralis",
+          "requires_token": false,
+          "requires_wallet": false,
+          "stream_based": true,
+          "ttl_seconds": 3600
+        },
+        "token_address_transfers": {
+          "cadence_seconds": {
+            "full_watchlist": 21600,
+            "tier0_wallet_token_stream": 600,
+            "tier1_wallet_token_stream": 900
+          },
+          "canonical_outputs": [
+            "smart_money_exchange_inflow_usd",
+            "smart_money_exchange_outflow_usd",
+            "smart_money_net_exchange_flow_usd"
+          ],
+          "compute_unit_cost": 50,
+          "feature_outputs": [
+            "moralis_exchange_inflow_usd",
+            "moralis_exchange_outflow_usd",
+            "moralis_net_exchange_flow_usd"
+          ],
+          "group": "token_address_transfers",
+          "path_template": "/erc20/{token}/transfers?chain={chain}",
+          "provider": "moralis",
+          "requires_token": true,
+          "requires_wallet": false,
+          "stream_based": false,
+          "ttl_seconds": 3600
+        },
+        "token_holders": {
+          "cadence_seconds": {
+            "full_watchlist": 86400,
+            "tier0_wallet_token_stream": 21600,
+            "tier1_wallet_token_stream": 21600
+          },
+          "canonical_outputs": [
+            "token_holder_concentration_change",
+            "token_holder_delta"
+          ],
+          "compute_unit_cost": 50,
+          "feature_outputs": [
+            "moralis_holder_concentration_change",
+            "moralis_token_holder_delta"
+          ],
+          "group": "token_holders",
+          "path_template": "/erc20/{token}/owners?chain={chain}",
+          "provider": "moralis",
+          "requires_token": true,
+          "requires_wallet": false,
+          "stream_based": false,
+          "ttl_seconds": 86400
+        },
+        "token_metadata": {
+          "cadence_seconds": {
+            "full_watchlist": 86400,
+            "tier0_wallet_token_stream": 21600,
+            "tier1_wallet_token_stream": 21600
+          },
+          "canonical_outputs": [
+            "contract_risk_penalty",
+            "onchain_risk_score"
+          ],
+          "compute_unit_cost": 25,
+          "feature_outputs": [
+            "moralis_contract_risk_penalty",
+            "moralis_onchain_risk_score"
+          ],
+          "group": "token_metadata",
+          "path_template": "/erc20/metadata?chain={chain}&addresses={token}",
+          "provider": "moralis",
+          "requires_token": true,
+          "requires_wallet": false,
+          "stream_based": false,
+          "ttl_seconds": 86400
+        },
+        "token_price": {
+          "cadence_seconds": {
+            "full_watchlist": 21600,
+            "tier0_wallet_token_stream": 900,
+            "tier1_wallet_token_stream": 900
+          },
+          "canonical_outputs": [
+            "onchain_risk_score"
+          ],
+          "compute_unit_cost": 50,
+          "feature_outputs": [
+            "moralis_onchain_risk_score"
+          ],
+          "group": "token_price",
+          "path_template": "/erc20/{token}/price?chain={chain}",
+          "provider": "moralis",
+          "requires_token": true,
+          "requires_wallet": false,
+          "stream_based": false,
+          "ttl_seconds": 900
+        },
+        "token_swaps": {
+          "cadence_seconds": {
+            "full_watchlist": 21600,
+            "tier0_wallet_token_stream": 600,
+            "tier1_wallet_token_stream": 900
+          },
+          "canonical_outputs": [
+            "dex_buy_pressure_usd",
+            "dex_sell_pressure_usd",
+            "dex_flow_imbalance_usd"
+          ],
+          "compute_unit_cost": 50,
+          "feature_outputs": [
+            "moralis_dex_buy_pressure_usd",
+            "moralis_dex_sell_pressure_usd",
+            "moralis_dex_flow_imbalance_usd"
+          ],
+          "group": "token_swaps",
+          "path_template": "/erc20/{token}/swaps?chain={chain}",
+          "provider": "moralis",
+          "requires_token": true,
+          "requires_wallet": false,
+          "stream_based": false,
+          "ttl_seconds": 3600
+        },
+        "token_transfers": {
+          "cadence_seconds": {
+            "full_watchlist": 21600,
+            "tier0_wallet_token_stream": 600,
+            "tier1_wallet_token_stream": 900
+          },
+          "canonical_outputs": [
+            "smart_money_exchange_inflow_usd",
+            "smart_money_exchange_outflow_usd",
+            "smart_money_net_exchange_flow_usd"
+          ],
+          "compute_unit_cost": 50,
+          "feature_outputs": [
+            "moralis_exchange_inflow_usd",
+            "moralis_exchange_outflow_usd",
+            "moralis_net_exchange_flow_usd"
+          ],
+          "group": "token_transfers",
+          "path_template": "/erc20/{token}/transfers?chain={chain}",
+          "provider": "moralis",
+          "requires_token": true,
+          "requires_wallet": false,
+          "stream_based": false,
+          "ttl_seconds": 3600
+        },
+        "wallet_address_transfers": {
+          "cadence_seconds": {
+            "full_watchlist": 21600,
+            "tier0_wallet_token_stream": 900,
+            "tier1_wallet_token_stream": 3600
+          },
+          "canonical_outputs": [
+            "smart_money_exchange_inflow_usd",
+            "smart_money_exchange_outflow_usd",
+            "smart_money_net_exchange_flow_usd"
+          ],
+          "compute_unit_cost": 150,
+          "feature_outputs": [
+            "moralis_exchange_inflow_usd",
+            "moralis_exchange_outflow_usd",
+            "moralis_net_exchange_flow_usd"
+          ],
+          "group": "wallet_address_transfers",
+          "path_template": "/wallets/{wallet}/history?chain={chain}",
+          "provider": "moralis",
+          "requires_token": false,
+          "requires_wallet": true,
+          "stream_based": false,
+          "ttl_seconds": 21600
+        },
+        "wallet_history": {
+          "cadence_seconds": {
+            "full_watchlist": 21600,
+            "tier0_wallet_token_stream": 900,
+            "tier1_wallet_token_stream": 3600
+          },
+          "canonical_outputs": [
+            "smart_money_exchange_inflow_usd",
+            "smart_money_exchange_outflow_usd",
+            "smart_money_net_exchange_flow_usd"
+          ],
+          "compute_unit_cost": 150,
+          "feature_outputs": [
+            "moralis_exchange_inflow_usd",
+            "moralis_exchange_outflow_usd",
+            "moralis_net_exchange_flow_usd"
+          ],
+          "group": "wallet_history",
+          "path_template": "/wallets/{wallet}/history?chain={chain}",
+          "provider": "moralis",
+          "requires_token": false,
+          "requires_wallet": true,
+          "stream_based": false,
+          "ttl_seconds": 21600
+        },
+        "wallet_networth": {
+          "cadence_seconds": {
+            "full_watchlist": 21600,
+            "tier0_wallet_token_stream": 1800,
+            "tier1_wallet_token_stream": 7200
+          },
+          "canonical_outputs": [
+            "smart_money_whale_net_flow_usd",
+            "smart_wallet_accumulation_score"
+          ],
+          "compute_unit_cost": 100,
+          "feature_outputs": [
+            "moralis_whale_net_flow_usd",
+            "moralis_smart_wallet_accumulation_score"
+          ],
+          "group": "wallet_networth",
+          "path_template": "/wallets/{wallet}/net-worth?chain={chain}",
+          "provider": "moralis",
+          "requires_token": false,
+          "requires_wallet": true,
+          "stream_based": false,
+          "ttl_seconds": 21600
+        },
+        "wallet_swaps": {
+          "cadence_seconds": {
+            "full_watchlist": 21600,
+            "tier0_wallet_token_stream": 600,
+            "tier1_wallet_token_stream": 900
+          },
+          "canonical_outputs": [
+            "dex_buy_pressure_usd",
+            "dex_sell_pressure_usd",
+            "dex_flow_imbalance_usd"
+          ],
+          "compute_unit_cost": 50,
+          "feature_outputs": [
+            "moralis_dex_buy_pressure_usd",
+            "moralis_dex_sell_pressure_usd",
+            "moralis_dex_flow_imbalance_usd"
+          ],
+          "group": "wallet_swaps",
+          "path_template": "/wallets/{wallet}/swaps?chain={chain}",
+          "provider": "moralis",
+          "requires_token": false,
+          "requires_wallet": true,
+          "stream_based": false,
+          "ttl_seconds": 3600
+        },
+        "wallet_token_balances_price": {
+          "cadence_seconds": {
+            "full_watchlist": 21600,
+            "tier0_wallet_token_stream": 1800,
+            "tier1_wallet_token_stream": 7200
+          },
+          "canonical_outputs": [
+            "smart_wallet_accumulation_score",
+            "smart_money_whale_net_flow_usd"
+          ],
+          "compute_unit_cost": 100,
+          "feature_outputs": [
+            "moralis_smart_wallet_accumulation_score",
+            "moralis_whale_net_flow_usd"
+          ],
+          "group": "wallet_token_balances_price",
+          "path_template": "/wallets/{wallet}/tokens?chain={chain}",
+          "provider": "moralis",
+          "requires_token": false,
+          "requires_wallet": true,
+          "stream_based": false,
+          "ttl_seconds": 21600
+        },
+        "wallet_transactions": {
+          "cadence_seconds": {
+            "full_watchlist": 21600,
+            "tier0_wallet_token_stream": 900,
+            "tier1_wallet_token_stream": 3600
+          },
+          "canonical_outputs": [
+            "smart_money_exchange_inflow_usd",
+            "smart_money_exchange_outflow_usd",
+            "smart_money_net_exchange_flow_usd"
+          ],
+          "compute_unit_cost": 100,
+          "feature_outputs": [
+            "moralis_exchange_inflow_usd",
+            "moralis_exchange_outflow_usd",
+            "moralis_net_exchange_flow_usd"
+          ],
+          "group": "wallet_transactions",
+          "path_template": "/wallets/{wallet}/transactions?chain={chain}",
+          "provider": "moralis",
+          "requires_token": false,
+          "requires_wallet": true,
+          "stream_based": false,
+          "ttl_seconds": 21600
+        }
+      },
+      "moralis_every_symbol_every_minute_allowed": false,
+      "optional_provider_failures_core_blocking": false,
+      "schema_version": "endpoint_to_feature_mapping_v1"
+    },
+    "health": {
+      "coinglass": {
+        "actual_payload_count_1h": 7,
+        "actual_payload_count_5m": 7,
+        "auth_status": "READY",
+        "configured": true,
+        "core_system_blocked": false,
+        "dashboard_color": "GREEN",
+        "enabled": true,
+        "features": [
+          "funding",
+          "open_interest",
+          "long_short",
+          "liquidations",
+          "market_snapshots",
+          "trades",
+          "orderbook_if_plan_allows"
+        ],
+        "generated_utc": "2026-07-08T19:54:55Z",
+        "invalid_subscription_blocks_core_system": false,
+        "last_error_at": "2026-07-08T19:54:55Z",
+        "last_error_class": "IN_BODY_401_UPGRADE_PLAN",
+        "last_http_status": 200,
+        "last_success_at": "2026-07-08T19:54:55Z",
+        "paper_only": true,
+        "places_real_order": false,
+        "provider": "coinglass",
+        "provider_shown_green_when_forbidden": false,
+        "rate_limit_status": {
+          "backoff": {
+            "active": false,
+            "consecutive_failures": 0,
+            "reason": "NONE",
+            "seconds_remaining": 0
+          },
+          "core_system_blocked": false,
+          "hard_limit_per_minute": 285,
+          "health_reserve_per_minute": 5,
+          "manual_reserve_per_minute": 15,
+          "max_concurrent_requests": 5,
+          "normal_limit_per_minute": 210,
+          "provider": "coinglass",
+          "provider_limit_source": "ACCOUNT_HEADER_DISCOVERED",
+          "public_limit_per_minute": 300,
+          "raw_key_exposed": false,
+          "refill_per_second": 1.0833333333333333,
+          "requests_per_minute": 65,
+          "schema_version": "coinglass_rate_limit_status_v1",
+          "timeout_seconds": 8.0,
+          "tokens_available": 64.5569381684157
+        },
+        "raw_key_exposed": false,
+        "redis_key": "v2:provider:coinglass:health",
+        "schema_version": "v2_coinglass_provider_health_v1",
+        "status": "READY",
+        "subscription_status": "READY"
+      },
+      "moralis": {
+        "actual_payload_count_1h": 0,
+        "actual_payload_count_5m": 0,
+        "configured": true,
+        "configured_no_watchlist_is_green": false,
+        "core_system_blocked": false,
+        "dashboard_color": "GRAY",
+        "features": [
+          "wallet_transfers",
+          "wallet_swaps",
+          "wallet_balances",
+          "wallet_pnl",
+          "token_holder_changes",
+          "wallet_event_streams",
+          "smart_accumulation",
+          "smart_distribution",
+          "exchange_inflow_outflow_if_labels_exist"
+        ],
+        "generated_utc": "2026-07-08T19:54:37Z",
+        "invalid_subscription_blocks_core_system": false,
+        "last_error_class": null,
+        "last_http_status": null,
+        "moralis_is_curated_smart_money": false,
+        "paper_only": true,
+        "places_real_order": false,
+        "provider": "moralis",
+        "provider_shown_green_when_forbidden": false,
+        "raw_key_exposed": false,
+        "redis_key": "v2:provider:moralis:health",
+        "schema_version": "v2_moralis_provider_health_v1",
+        "smart_wallet_candidate_count": 0,
+        "status": "CONFIGURED_NO_WATCHLIST",
+        "stream_configured": false,
+        "token_map_count": 9,
+        "wallet_watchlist_count": 0
+      }
+    },
+    "heartbeat_only_green_allowed": false,
+    "moralis": {
+      "actual_payload_present": false,
+      "dashboard_color": "GRAY",
+      "feature_count": 0,
+      "heartbeat_only": true,
+      "raw_key_exposed": false,
+      "source_key": "v2:features:moralis:BTCUSDT:1m",
+      "stale": true,
+      "status": "MISSING",
+      "ttl_contract_valid": false,
+      "ttl_remaining_seconds": -2
+    },
+    "optional_provider_failures_core_blocking": false,
+    "paper_only": true,
+    "places_real_order": false,
+    "raw_key_exposed": false,
+    "redis_key_contract": {
+      "coinglass": {
+        "endpoint_status": "v2:provider:coinglass:endpoint_status",
+        "features": "v2:features:coinglass:{symbol}:{timeframe}",
+        "funding": "v2:coinglass:funding:{symbol}",
+        "health": "v2:provider:coinglass:health",
+        "liquidation_levels": "v2:coinglass:liquidation_levels:{symbol}",
+        "liquidations": "v2:coinglass:liquidations:{symbol}",
+        "long_short": "v2:coinglass:long_short:{symbol}",
+        "market_snapshot": "v2:coinglass:market_snapshot:{symbol}",
+        "open_interest": "v2:coinglass:open_interest:{symbol}",
+        "orderbook": "v2:coinglass:orderbook:{symbol}",
+        "trades": "v2:coinglass:trades:{symbol}",
+        "usage": "v2:provider:coinglass:usage"
+      },
+      "health_key_is_not_sufficient_for_green": true,
+      "heartbeat_only_green_allowed": false,
+      "moralis": {
+        "endpoint_status": "v2:provider:moralis:endpoint_status",
+        "features": "v2:features:moralis:{symbol}:{timeframe}",
+        "health": "v2:provider:moralis:health",
+        "smart_money_signals": "v2:smart_money:signals:{symbol}",
+        "swaps": "v2:moralis:swaps:{chain}:{token}",
+        "token_holders": "v2:moralis:token_holders:{chain}:{token}",
+        "token_transfers": "v2:moralis:token_transfers:{chain}:{token}",
+        "usage": "v2:provider:moralis:usage",
+        "wallet": "v2:moralis:wallet:{chain}:{address}",
+        "wallet_history": "v2:moralis:wallet_history:{chain}:{address}"
+      },
+      "raw_api_key_exposure_allowed": false,
+      "schema_version": "provider_redis_key_contract_v1",
+      "ttl_required_for_payload_keys": true
+    },
+    "routes_to_live": false,
+    "schema_version": "provider_actual_data_panel_v1",
+    "status": "PROVIDER_ACTUAL_DATA_PANEL_ACTIVE",
+    "symbol": "BTCUSDT",
+    "timeframe": "1m",
+    "usage": {
+      "coinglass": {
+        "backoff": {
+          "active": false,
+          "consecutive_failures": 0,
+          "reason": "NONE",
+          "seconds_remaining": 0
+        },
+        "core_system_blocked": false,
+        "hard_limit_per_minute": 285,
+        "health_reserve_per_minute": 5,
+        "manual_reserve_per_minute": 15,
+        "max_concurrent_requests": 5,
+        "normal_limit_per_minute": 210,
+        "provider": "coinglass",
+        "provider_limit_source": "ACCOUNT_HEADER_DISCOVERED",
+        "public_limit_per_minute": 300,
+        "raw_key_exposed": false,
+        "refill_per_second": 1.0833333333333333,
+        "requests_per_minute": 65,
+        "schema_version": "coinglass_rate_limit_status_v1",
+        "timeout_seconds": 8.0,
+        "tokens_available": 64.5569381684157
+      },
+      "moralis": {
+        "backoff": {
+          "active": false,
+          "consecutive_failures": 0,
+          "reason": "NONE",
+          "seconds_remaining": 0
+        },
+        "catchup_rps": 10,
+        "compute_budget": {
+          "daily_budget": 55000,
+          "daily_reserve": 10000,
+          "monthly_budget": 2000000,
+          "remaining_month": 2000000,
+          "remaining_today": 45000,
+          "used_month": 0,
+          "used_today": 0
+        },
+        "core_system_blocked": false,
+        "current_rps": 5,
+        "hard_rps": 30,
+        "normal_rps": 5,
+        "plan": "starter",
+        "provider": "moralis",
+        "public_rps": 40,
+        "raw_key_exposed": false,
+        "schema_version": "moralis_compute_budget_status_v1",
+        "timeout_seconds": 10.0,
+        "tokens_available": 5.0
+      }
+    }
+  },
+  "provider_consumption": {
+    "allocator": {
+      "actual_provider_count": 1,
+      "consumer_role": "allocator",
+      "core_system_blocked": false,
+      "decision_time": null,
+      "feature_count": 34,
+      "heartbeat_only_green_allowed": false,
+      "live_ready_from_probation_allowed": false,
+      "optional_provider_failures": [
+        "moralis"
+      ],
+      "optional_provider_failures_core_blocking": false,
+      "payloads_for_tensor": {
+        "funding": {
+          "funding_rate": 0.01
+        },
+        "liquidation_levels": {
+          "liquidation_cascade_risk": 0.36140524504108623
+        },
+        "liquidations": {
+          "liquidation_buy_usd_1m": 2800.42,
+          "liquidation_imbalance_usd": -3169.7299999999996,
+          "liquidation_sell_usd_1m": 5970.15
+        },
+        "long_short": {
+          "long_account_ratio": 66.59,
+          "long_short_extreme_score": 0.495,
+          "short_account_ratio": 33.41
+        },
+        "microstructure": {
+          "liquidation_cascade_risk": 0.36140524504108623,
+          "trade_imbalance": -127.64300000000003
+        },
+        "open_interest": {
+          "oi_change_pct": -0.03,
+          "open_interest": 35953525.278420605
+        },
+        "open_interest_hist": {
+          "oi_change_pct": -0.03
+        },
+        "orderbook": {
+          "orderbook_depth_imbalance": 8953295.446499988
+        },
+        "smart_money": {}
+      },
+      "places_real_order": false,
+      "point_in_time_violations": [],
+      "provider_features": {
+        "coinglass_exchange_count": 27.0,
+        "coinglass_funding_rate": 0.01,
+        "coinglass_funding_rate_zscore": 0.0,
+        "coinglass_liquidation_buy_usd_1m": 2800.42,
+        "coinglass_liquidation_cascade_score": 0.36140524504108623,
+        "coinglass_liquidation_imbalance_usd": -3169.7299999999996,
+        "coinglass_liquidation_sell_usd_1m": 5970.15,
+        "coinglass_long_ratio": 66.59,
+        "coinglass_long_short_extreme_score": 0.495,
+        "coinglass_market_snapshot_volume_usd": 54313938905.95132,
+        "coinglass_next_funding_minutes": 245.9630759847005,
+        "coinglass_oi_price_divergence_score": 0.0,
+        "coinglass_open_interest_delta_usd_1h": 19.04,
+        "coinglass_open_interest_delta_usd_5m": -0.03,
+        "coinglass_open_interest_usd": 35953525.278420605,
+        "coinglass_orderbook_depth_imbalance_usd": 8953295.446499988,
+        "coinglass_orderbook_trust_delta": 0.0,
+        "coinglass_price_change_24h_pct": -2.64,
+        "coinglass_price_usd": 62140.4,
+        "coinglass_short_ratio": 33.41,
+        "coinglass_trade_imbalance_usd": -127.64300000000003,
+        "coinglass_volume_24h_usd": 54313938905.95132,
+        "funding_rate": 0.01,
+        "liquidation_buy_usd_1m": 2800.42,
+        "liquidation_cascade_risk": 0.36140524504108623,
+        "liquidation_imbalance_usd": -3169.7299999999996,
+        "liquidation_sell_usd_1m": 5970.15,
+        "long_account_ratio": 66.59,
+        "long_short_extreme_score": 0.495,
+        "oi_change_pct": -0.03,
+        "open_interest": 35953525.278420605,
+        "orderbook_depth_imbalance": 8953295.446499988,
+        "short_account_ratio": 33.41,
+        "trade_imbalance": -127.64300000000003
+      },
+      "provider_payloads": {
+        "coinglass": {
+          "actual_payload_present": true,
+          "available_at": "2026-07-08T19:54:36Z",
+          "dashboard_color": "GREEN",
+          "endpoint_id": "coinglass_aggregate",
+          "event_time": "2026-07-08T19:00:00Z",
+          "excluded_from_features": false,
+          "exclusion_reasons": [],
+          "feature_count": 34,
+          "feature_cutoff": "2026-07-08T19:00:00Z",
+          "features": {
+            "coinglass_exchange_count": 27.0,
+            "coinglass_funding_rate": 0.01,
+            "coinglass_funding_rate_zscore": 0.0,
+            "coinglass_liquidation_buy_usd_1m": 2800.42,
+            "coinglass_liquidation_cascade_score": 0.36140524504108623,
+            "coinglass_liquidation_imbalance_usd": -3169.7299999999996,
+            "coinglass_liquidation_sell_usd_1m": 5970.15,
+            "coinglass_long_ratio": 66.59,
+            "coinglass_long_short_extreme_score": 0.495,
+            "coinglass_market_snapshot_volume_usd": 54313938905.95132,
+            "coinglass_next_funding_minutes": 245.9630759847005,
+            "coinglass_oi_price_divergence_score": 0.0,
+            "coinglass_open_interest_delta_usd_1h": 19.04,
+            "coinglass_open_interest_delta_usd_5m": -0.03,
+            "coinglass_open_interest_usd": 35953525.278420605,
+            "coinglass_orderbook_depth_imbalance_usd": 8953295.446499988,
+            "coinglass_orderbook_trust_delta": 0.0,
+            "coinglass_price_change_24h_pct": -2.64,
+            "coinglass_price_usd": 62140.4,
+            "coinglass_short_ratio": 33.41,
+            "coinglass_trade_imbalance_usd": -127.64300000000003,
+            "coinglass_volume_24h_usd": 54313938905.95132,
+            "funding_rate": 0.01,
+            "liquidation_buy_usd_1m": 2800.42,
+            "liquidation_cascade_risk": 0.36140524504108623,
+            "liquidation_imbalance_usd": -3169.7299999999996,
+            "liquidation_sell_usd_1m": 5970.15,
+            "long_account_ratio": 66.59,
+            "long_short_extreme_score": 0.495,
+            "oi_change_pct": -0.03,
+            "open_interest": 35953525.278420605,
+            "orderbook_depth_imbalance": 8953295.446499988,
+            "short_account_ratio": 33.41,
+            "trade_imbalance": -127.64300000000003
+          },
+          "generated_at": "2026-07-08T19:54:53Z",
+          "heartbeat_only": false,
+          "provider": "coinglass",
+          "source_key": "v2:features:coinglass:BTCUSDT:1m",
+          "stale": false,
+          "status": "READY",
+          "symbol": "BTCUSDT",
+          "timeframe": "1m",
+          "ttl_contract_valid": true,
+          "ttl_remaining_seconds": 31
+        },
+        "moralis": {
+          "actual_payload_present": false,
+          "available_at": null,
+          "dashboard_color": "GRAY",
+          "endpoint_id": null,
+          "event_time": null,
+          "excluded_from_features": true,
+          "exclusion_reasons": [
+            "moralis:missing_payload"
+          ],
+          "feature_count": 0,
+          "feature_cutoff": null,
+          "features": {},
+          "generated_at": null,
+          "heartbeat_only": true,
+          "provider": "moralis",
+          "source_key": "v2:features:moralis:BTCUSDT:1m",
+          "stale": true,
+          "status": "MISSING",
+          "symbol": "BTCUSDT",
+          "timeframe": "1m",
+          "ttl_contract_valid": false,
+          "ttl_remaining_seconds": -2
+        }
+      },
+      "raw_key_exposed": false,
+      "required_providers": [],
+      "routes_to_live": false,
+      "schema_version": "provider_feature_context_v1",
+      "symbol": "BTCUSDT",
+      "timeframe": "1m",
+      "ttl_contract_violations": []
+    },
+    "live_dry_run": {
+      "actual_provider_count": 1,
+      "consumer_role": "live_dry_run",
+      "core_system_blocked": false,
+      "decision_time": null,
+      "feature_count": 34,
+      "heartbeat_only_green_allowed": false,
+      "live_ready_from_probation_allowed": false,
+      "optional_provider_failures": [
+        "moralis"
+      ],
+      "optional_provider_failures_core_blocking": false,
+      "payloads_for_tensor": {
+        "funding": {
+          "funding_rate": 0.01
+        },
+        "liquidation_levels": {
+          "liquidation_cascade_risk": 0.36140524504108623
+        },
+        "liquidations": {
+          "liquidation_buy_usd_1m": 2800.42,
+          "liquidation_imbalance_usd": -3169.7299999999996,
+          "liquidation_sell_usd_1m": 5970.15
+        },
+        "long_short": {
+          "long_account_ratio": 66.59,
+          "long_short_extreme_score": 0.495,
+          "short_account_ratio": 33.41
+        },
+        "microstructure": {
+          "liquidation_cascade_risk": 0.36140524504108623,
+          "trade_imbalance": -127.64300000000003
+        },
+        "open_interest": {
+          "oi_change_pct": -0.03,
+          "open_interest": 35953525.278420605
+        },
+        "open_interest_hist": {
+          "oi_change_pct": -0.03
+        },
+        "orderbook": {
+          "orderbook_depth_imbalance": 8953295.446499988
+        },
+        "smart_money": {}
+      },
+      "places_real_order": false,
+      "point_in_time_violations": [],
+      "provider_features": {
+        "coinglass_exchange_count": 27.0,
+        "coinglass_funding_rate": 0.01,
+        "coinglass_funding_rate_zscore": 0.0,
+        "coinglass_liquidation_buy_usd_1m": 2800.42,
+        "coinglass_liquidation_cascade_score": 0.36140524504108623,
+        "coinglass_liquidation_imbalance_usd": -3169.7299999999996,
+        "coinglass_liquidation_sell_usd_1m": 5970.15,
+        "coinglass_long_ratio": 66.59,
+        "coinglass_long_short_extreme_score": 0.495,
+        "coinglass_market_snapshot_volume_usd": 54313938905.95132,
+        "coinglass_next_funding_minutes": 245.9630759847005,
+        "coinglass_oi_price_divergence_score": 0.0,
+        "coinglass_open_interest_delta_usd_1h": 19.04,
+        "coinglass_open_interest_delta_usd_5m": -0.03,
+        "coinglass_open_interest_usd": 35953525.278420605,
+        "coinglass_orderbook_depth_imbalance_usd": 8953295.446499988,
+        "coinglass_orderbook_trust_delta": 0.0,
+        "coinglass_price_change_24h_pct": -2.64,
+        "coinglass_price_usd": 62140.4,
+        "coinglass_short_ratio": 33.41,
+        "coinglass_trade_imbalance_usd": -127.64300000000003,
+        "coinglass_volume_24h_usd": 54313938905.95132,
+        "funding_rate": 0.01,
+        "liquidation_buy_usd_1m": 2800.42,
+        "liquidation_cascade_risk": 0.36140524504108623,
+        "liquidation_imbalance_usd": -3169.7299999999996,
+        "liquidation_sell_usd_1m": 5970.15,
+        "long_account_ratio": 66.59,
+        "long_short_extreme_score": 0.495,
+        "oi_change_pct": -0.03,
+        "open_interest": 35953525.278420605,
+        "orderbook_depth_imbalance": 8953295.446499988,
+        "short_account_ratio": 33.41,
+        "trade_imbalance": -127.64300000000003
+      },
+      "provider_payloads": {
+        "coinglass": {
+          "actual_payload_present": true,
+          "available_at": "2026-07-08T19:54:36Z",
+          "dashboard_color": "GREEN",
+          "endpoint_id": "coinglass_aggregate",
+          "event_time": "2026-07-08T19:00:00Z",
+          "excluded_from_features": false,
+          "exclusion_reasons": [],
+          "feature_count": 34,
+          "feature_cutoff": "2026-07-08T19:00:00Z",
+          "features": {
+            "coinglass_exchange_count": 27.0,
+            "coinglass_funding_rate": 0.01,
+            "coinglass_funding_rate_zscore": 0.0,
+            "coinglass_liquidation_buy_usd_1m": 2800.42,
+            "coinglass_liquidation_cascade_score": 0.36140524504108623,
+            "coinglass_liquidation_imbalance_usd": -3169.7299999999996,
+            "coinglass_liquidation_sell_usd_1m": 5970.15,
+            "coinglass_long_ratio": 66.59,
+            "coinglass_long_short_extreme_score": 0.495,
+            "coinglass_market_snapshot_volume_usd": 54313938905.95132,
+            "coinglass_next_funding_minutes": 245.9630759847005,
+            "coinglass_oi_price_divergence_score": 0.0,
+            "coinglass_open_interest_delta_usd_1h": 19.04,
+            "coinglass_open_interest_delta_usd_5m": -0.03,
+            "coinglass_open_interest_usd": 35953525.278420605,
+            "coinglass_orderbook_depth_imbalance_usd": 8953295.446499988,
+            "coinglass_orderbook_trust_delta": 0.0,
+            "coinglass_price_change_24h_pct": -2.64,
+            "coinglass_price_usd": 62140.4,
+            "coinglass_short_ratio": 33.41,
+            "coinglass_trade_imbalance_usd": -127.64300000000003,
+            "coinglass_volume_24h_usd": 54313938905.95132,
+            "funding_rate": 0.01,
+            "liquidation_buy_usd_1m": 2800.42,
+            "liquidation_cascade_risk": 0.36140524504108623,
+            "liquidation_imbalance_usd": -3169.7299999999996,
+            "liquidation_sell_usd_1m": 5970.15,
+            "long_account_ratio": 66.59,
+            "long_short_extreme_score": 0.495,
+            "oi_change_pct": -0.03,
+            "open_interest": 35953525.278420605,
+            "orderbook_depth_imbalance": 8953295.446499988,
+            "short_account_ratio": 33.41,
+            "trade_imbalance": -127.64300000000003
+          },
+          "generated_at": "2026-07-08T19:54:53Z",
+          "heartbeat_only": false,
+          "provider": "coinglass",
+          "source_key": "v2:features:coinglass:BTCUSDT:1m",
+          "stale": false,
+          "status": "READY",
+          "symbol": "BTCUSDT",
+          "timeframe": "1m",
+          "ttl_contract_valid": true,
+          "ttl_remaining_seconds": 31
+        },
+        "moralis": {
+          "actual_payload_present": false,
+          "available_at": null,
+          "dashboard_color": "GRAY",
+          "endpoint_id": null,
+          "event_time": null,
+          "excluded_from_features": true,
+          "exclusion_reasons": [
+            "moralis:missing_payload"
+          ],
+          "feature_count": 0,
+          "feature_cutoff": null,
+          "features": {},
+          "generated_at": null,
+          "heartbeat_only": true,
+          "provider": "moralis",
+          "source_key": "v2:features:moralis:BTCUSDT:1m",
+          "stale": true,
+          "status": "MISSING",
+          "symbol": "BTCUSDT",
+          "timeframe": "1m",
+          "ttl_contract_valid": false,
+          "ttl_remaining_seconds": -2
+        }
+      },
+      "raw_key_exposed": false,
+      "required_providers": [],
+      "routes_to_live": false,
+      "schema_version": "provider_feature_context_v1",
+      "symbol": "BTCUSDT",
+      "timeframe": "1m",
+      "ttl_contract_violations": []
+    },
+    "orchestrator": {
+      "actual_provider_count": 1,
+      "consumer_role": "orchestrator",
+      "core_system_blocked": false,
+      "decision_time": null,
+      "feature_count": 34,
+      "heartbeat_only_green_allowed": false,
+      "live_ready_from_probation_allowed": false,
+      "optional_provider_failures": [
+        "moralis"
+      ],
+      "optional_provider_failures_core_blocking": false,
+      "payloads_for_tensor": {
+        "funding": {
+          "funding_rate": 0.01
+        },
+        "liquidation_levels": {
+          "liquidation_cascade_risk": 0.36140524504108623
+        },
+        "liquidations": {
+          "liquidation_buy_usd_1m": 2800.42,
+          "liquidation_imbalance_usd": -3169.7299999999996,
+          "liquidation_sell_usd_1m": 5970.15
+        },
+        "long_short": {
+          "long_account_ratio": 66.59,
+          "long_short_extreme_score": 0.495,
+          "short_account_ratio": 33.41
+        },
+        "microstructure": {
+          "liquidation_cascade_risk": 0.36140524504108623,
+          "trade_imbalance": -127.64300000000003
+        },
+        "open_interest": {
+          "oi_change_pct": -0.03,
+          "open_interest": 35953525.278420605
+        },
+        "open_interest_hist": {
+          "oi_change_pct": -0.03
+        },
+        "orderbook": {
+          "orderbook_depth_imbalance": 8953295.446499988
+        },
+        "smart_money": {}
+      },
+      "places_real_order": false,
+      "point_in_time_violations": [],
+      "provider_features": {
+        "coinglass_exchange_count": 27.0,
+        "coinglass_funding_rate": 0.01,
+        "coinglass_funding_rate_zscore": 0.0,
+        "coinglass_liquidation_buy_usd_1m": 2800.42,
+        "coinglass_liquidation_cascade_score": 0.36140524504108623,
+        "coinglass_liquidation_imbalance_usd": -3169.7299999999996,
+        "coinglass_liquidation_sell_usd_1m": 5970.15,
+        "coinglass_long_ratio": 66.59,
+        "coinglass_long_short_extreme_score": 0.495,
+        "coinglass_market_snapshot_volume_usd": 54313938905.95132,
+        "coinglass_next_funding_minutes": 245.9630759847005,
+        "coinglass_oi_price_divergence_score": 0.0,
+        "coinglass_open_interest_delta_usd_1h": 19.04,
+        "coinglass_open_interest_delta_usd_5m": -0.03,
+        "coinglass_open_interest_usd": 35953525.278420605,
+        "coinglass_orderbook_depth_imbalance_usd": 8953295.446499988,
+        "coinglass_orderbook_trust_delta": 0.0,
+        "coinglass_price_change_24h_pct": -2.64,
+        "coinglass_price_usd": 62140.4,
+        "coinglass_short_ratio": 33.41,
+        "coinglass_trade_imbalance_usd": -127.64300000000003,
+        "coinglass_volume_24h_usd": 54313938905.95132,
+        "funding_rate": 0.01,
+        "liquidation_buy_usd_1m": 2800.42,
+        "liquidation_cascade_risk": 0.36140524504108623,
+        "liquidation_imbalance_usd": -3169.7299999999996,
+        "liquidation_sell_usd_1m": 5970.15,
+        "long_account_ratio": 66.59,
+        "long_short_extreme_score": 0.495,
+        "oi_change_pct": -0.03,
+        "open_interest": 35953525.278420605,
+        "orderbook_depth_imbalance": 8953295.446499988,
+        "short_account_ratio": 33.41,
+        "trade_imbalance": -127.64300000000003
+      },
+      "provider_payloads": {
+        "coinglass": {
+          "actual_payload_present": true,
+          "available_at": "2026-07-08T19:54:36Z",
+          "dashboard_color": "GREEN",
+          "endpoint_id": "coinglass_aggregate",
+          "event_time": "2026-07-08T19:00:00Z",
+          "excluded_from_features": false,
+          "exclusion_reasons": [],
+          "feature_count": 34,
+          "feature_cutoff": "2026-07-08T19:00:00Z",
+          "features": {
+            "coinglass_exchange_count": 27.0,
+            "coinglass_funding_rate": 0.01,
+            "coinglass_funding_rate_zscore": 0.0,
+            "coinglass_liquidation_buy_usd_1m": 2800.42,
+            "coinglass_liquidation_cascade_score": 0.36140524504108623,
+            "coinglass_liquidation_imbalance_usd": -3169.7299999999996,
+            "coinglass_liquidation_sell_usd_1m": 5970.15,
+            "coinglass_long_ratio": 66.59,
+            "coinglass_long_short_extreme_score": 0.495,
+            "coinglass_market_snapshot_volume_usd": 54313938905.95132,
+            "coinglass_next_funding_minutes": 245.9630759847005,
+            "coinglass_oi_price_divergence_score": 0.0,
+            "coinglass_open_interest_delta_usd_1h": 19.04,
+            "coinglass_open_interest_delta_usd_5m": -0.03,
+            "coinglass_open_interest_usd": 35953525.278420605,
+            "coinglass_orderbook_depth_imbalance_usd": 8953295.446499988,
+            "coinglass_orderbook_trust_delta": 0.0,
+            "coinglass_price_change_24h_pct": -2.64,
+            "coinglass_price_usd": 62140.4,
+            "coinglass_short_ratio": 33.41,
+            "coinglass_trade_imbalance_usd": -127.64300000000003,
+            "coinglass_volume_24h_usd": 54313938905.95132,
+            "funding_rate": 0.01,
+            "liquidation_buy_usd_1m": 2800.42,
+            "liquidation_cascade_risk": 0.36140524504108623,
+            "liquidation_imbalance_usd": -3169.7299999999996,
+            "liquidation_sell_usd_1m": 5970.15,
+            "long_account_ratio": 66.59,
+            "long_short_extreme_score": 0.495,
+            "oi_change_pct": -0.03,
+            "open_interest": 35953525.278420605,
+            "orderbook_depth_imbalance": 8953295.446499988,
+            "short_account_ratio": 33.41,
+            "trade_imbalance": -127.64300000000003
+          },
+          "generated_at": "2026-07-08T19:54:53Z",
+          "heartbeat_only": false,
+          "provider": "coinglass",
+          "source_key": "v2:features:coinglass:BTCUSDT:1m",
+          "stale": false,
+          "status": "READY",
+          "symbol": "BTCUSDT",
+          "timeframe": "1m",
+          "ttl_contract_valid": true,
+          "ttl_remaining_seconds": 31
+        },
+        "moralis": {
+          "actual_payload_present": false,
+          "available_at": null,
+          "dashboard_color": "GRAY",
+          "endpoint_id": null,
+          "event_time": null,
+          "excluded_from_features": true,
+          "exclusion_reasons": [
+            "moralis:missing_payload"
+          ],
+          "feature_count": 0,
+          "feature_cutoff": null,
+          "features": {},
+          "generated_at": null,
+          "heartbeat_only": true,
+          "provider": "moralis",
+          "source_key": "v2:features:moralis:BTCUSDT:1m",
+          "stale": true,
+          "status": "MISSING",
+          "symbol": "BTCUSDT",
+          "timeframe": "1m",
+          "ttl_contract_valid": false,
+          "ttl_remaining_seconds": -2
+        }
+      },
+      "raw_key_exposed": false,
+      "required_providers": [],
+      "routes_to_live": false,
+      "schema_version": "provider_feature_context_v1",
+      "symbol": "BTCUSDT",
+      "timeframe": "1m",
+      "ttl_contract_violations": []
+    },
+    "paper": {
+      "actual_provider_count": 1,
+      "consumer_role": "paper",
+      "core_system_blocked": false,
+      "decision_time": null,
+      "feature_count": 34,
+      "heartbeat_only_green_allowed": false,
+      "live_ready_from_probation_allowed": false,
+      "optional_provider_failures": [
+        "moralis"
+      ],
+      "optional_provider_failures_core_blocking": false,
+      "payloads_for_tensor": {
+        "funding": {
+          "funding_rate": 0.01
+        },
+        "liquidation_levels": {
+          "liquidation_cascade_risk": 0.36140524504108623
+        },
+        "liquidations": {
+          "liquidation_buy_usd_1m": 2800.42,
+          "liquidation_imbalance_usd": -3169.7299999999996,
+          "liquidation_sell_usd_1m": 5970.15
+        },
+        "long_short": {
+          "long_account_ratio": 66.59,
+          "long_short_extreme_score": 0.495,
+          "short_account_ratio": 33.41
+        },
+        "microstructure": {
+          "liquidation_cascade_risk": 0.36140524504108623,
+          "trade_imbalance": -127.64300000000003
+        },
+        "open_interest": {
+          "oi_change_pct": -0.03,
+          "open_interest": 35953525.278420605
+        },
+        "open_interest_hist": {
+          "oi_change_pct": -0.03
+        },
+        "orderbook": {
+          "orderbook_depth_imbalance": 8953295.446499988
+        },
+        "smart_money": {}
+      },
+      "places_real_order": false,
+      "point_in_time_violations": [],
+      "provider_features": {
+        "coinglass_exchange_count": 27.0,
+        "coinglass_funding_rate": 0.01,
+        "coinglass_funding_rate_zscore": 0.0,
+        "coinglass_liquidation_buy_usd_1m": 2800.42,
+        "coinglass_liquidation_cascade_score": 0.36140524504108623,
+        "coinglass_liquidation_imbalance_usd": -3169.7299999999996,
+        "coinglass_liquidation_sell_usd_1m": 5970.15,
+        "coinglass_long_ratio": 66.59,
+        "coinglass_long_short_extreme_score": 0.495,
+        "coinglass_market_snapshot_volume_usd": 54313938905.95132,
+        "coinglass_next_funding_minutes": 245.9630759847005,
+        "coinglass_oi_price_divergence_score": 0.0,
+        "coinglass_open_interest_delta_usd_1h": 19.04,
+        "coinglass_open_interest_delta_usd_5m": -0.03,
+        "coinglass_open_interest_usd": 35953525.278420605,
+        "coinglass_orderbook_depth_imbalance_usd": 8953295.446499988,
+        "coinglass_orderbook_trust_delta": 0.0,
+        "coinglass_price_change_24h_pct": -2.64,
+        "coinglass_price_usd": 62140.4,
+        "coinglass_short_ratio": 33.41,
+        "coinglass_trade_imbalance_usd": -127.64300000000003,
+        "coinglass_volume_24h_usd": 54313938905.95132,
+        "funding_rate": 0.01,
+        "liquidation_buy_usd_1m": 2800.42,
+        "liquidation_cascade_risk": 0.36140524504108623,
+        "liquidation_imbalance_usd": -3169.7299999999996,
+        "liquidation_sell_usd_1m": 5970.15,
+        "long_account_ratio": 66.59,
+        "long_short_extreme_score": 0.495,
+        "oi_change_pct": -0.03,
+        "open_interest": 35953525.278420605,
+        "orderbook_depth_imbalance": 8953295.446499988,
+        "short_account_ratio": 33.41,
+        "trade_imbalance": -127.64300000000003
+      },
+      "provider_payloads": {
+        "coinglass": {
+          "actual_payload_present": true,
+          "available_at": "2026-07-08T19:54:36Z",
+          "dashboard_color": "GREEN",
+          "endpoint_id": "coinglass_aggregate",
+          "event_time": "2026-07-08T19:00:00Z",
+          "excluded_from_features": false,
+          "exclusion_reasons": [],
+          "feature_count": 34,
+          "feature_cutoff": "2026-07-08T19:00:00Z",
+          "features": {
+            "coinglass_exchange_count": 27.0,
+            "coinglass_funding_rate": 0.01,
+            "coinglass_funding_rate_zscore": 0.0,
+            "coinglass_liquidation_buy_usd_1m": 2800.42,
+            "coinglass_liquidation_cascade_score": 0.36140524504108623,
+            "coinglass_liquidation_imbalance_usd": -3169.7299999999996,
+            "coinglass_liquidation_sell_usd_1m": 5970.15,
+            "coinglass_long_ratio": 66.59,
+            "coinglass_long_short_extreme_score": 0.495,
+            "coinglass_market_snapshot_volume_usd": 54313938905.95132,
+            "coinglass_next_funding_minutes": 245.9630759847005,
+            "coinglass_oi_price_divergence_score": 0.0,
+            "coinglass_open_interest_delta_usd_1h": 19.04,
+            "coinglass_open_interest_delta_usd_5m": -0.03,
+            "coinglass_open_interest_usd": 35953525.278420605,
+            "coinglass_orderbook_depth_imbalance_usd": 8953295.446499988,
+            "coinglass_orderbook_trust_delta": 0.0,
+            "coinglass_price_change_24h_pct": -2.64,
+            "coinglass_price_usd": 62140.4,
+            "coinglass_short_ratio": 33.41,
+            "coinglass_trade_imbalance_usd": -127.64300000000003,
+            "coinglass_volume_24h_usd": 54313938905.95132,
+            "funding_rate": 0.01,
+            "liquidation_buy_usd_1m": 2800.42,
+            "liquidation_cascade_risk": 0.36140524504108623,
+            "liquidation_imbalance_usd": -3169.7299999999996,
+            "liquidation_sell_usd_1m": 5970.15,
+            "long_account_ratio": 66.59,
+            "long_short_extreme_score": 0.495,
+            "oi_change_pct": -0.03,
+            "open_interest": 35953525.278420605,
+            "orderbook_depth_imbalance": 8953295.446499988,
+            "short_account_ratio": 33.41,
+            "trade_imbalance": -127.64300000000003
+          },
+          "generated_at": "2026-07-08T19:54:53Z",
+          "heartbeat_only": false,
+          "provider": "coinglass",
+          "source_key": "v2:features:coinglass:BTCUSDT:1m",
+          "stale": false,
+          "status": "READY",
+          "symbol": "BTCUSDT",
+          "timeframe": "1m",
+          "ttl_contract_valid": true,
+          "ttl_remaining_seconds": 31
+        },
+        "moralis": {
+          "actual_payload_present": false,
+          "available_at": null,
+          "dashboard_color": "GRAY",
+          "endpoint_id": null,
+          "event_time": null,
+          "excluded_from_features": true,
+          "exclusion_reasons": [
+            "moralis:missing_payload"
+          ],
+          "feature_count": 0,
+          "feature_cutoff": null,
+          "features": {},
+          "generated_at": null,
+          "heartbeat_only": true,
+          "provider": "moralis",
+          "source_key": "v2:features:moralis:BTCUSDT:1m",
+          "stale": true,
+          "status": "MISSING",
+          "symbol": "BTCUSDT",
+          "timeframe": "1m",
+          "ttl_contract_valid": false,
+          "ttl_remaining_seconds": -2
+        }
+      },
+      "raw_key_exposed": false,
+      "required_providers": [],
+      "routes_to_live": false,
+      "schema_version": "provider_feature_context_v1",
+      "symbol": "BTCUSDT",
+      "timeframe": "1m",
+      "ttl_contract_violations": []
+    },
+    "risk": {
+      "actual_provider_count": 1,
+      "consumer_role": "risk",
+      "core_system_blocked": false,
+      "decision_time": null,
+      "feature_count": 34,
+      "heartbeat_only_green_allowed": false,
+      "live_ready_from_probation_allowed": false,
+      "optional_provider_failures": [
+        "moralis"
+      ],
+      "optional_provider_failures_core_blocking": false,
+      "payloads_for_tensor": {
+        "funding": {
+          "funding_rate": 0.01
+        },
+        "liquidation_levels": {
+          "liquidation_cascade_risk": 0.36140524504108623
+        },
+        "liquidations": {
+          "liquidation_buy_usd_1m": 2800.42,
+          "liquidation_imbalance_usd": -3169.7299999999996,
+          "liquidation_sell_usd_1m": 5970.15
+        },
+        "long_short": {
+          "long_account_ratio": 66.59,
+          "long_short_extreme_score": 0.495,
+          "short_account_ratio": 33.41
+        },
+        "microstructure": {
+          "liquidation_cascade_risk": 0.36140524504108623,
+          "trade_imbalance": -127.64300000000003
+        },
+        "open_interest": {
+          "oi_change_pct": -0.03,
+          "open_interest": 35953525.278420605
+        },
+        "open_interest_hist": {
+          "oi_change_pct": -0.03
+        },
+        "orderbook": {
+          "orderbook_depth_imbalance": 8953295.446499988
+        },
+        "smart_money": {}
+      },
+      "places_real_order": false,
+      "point_in_time_violations": [],
+      "provider_features": {
+        "coinglass_exchange_count": 27.0,
+        "coinglass_funding_rate": 0.01,
+        "coinglass_funding_rate_zscore": 0.0,
+        "coinglass_liquidation_buy_usd_1m": 2800.42,
+        "coinglass_liquidation_cascade_score": 0.36140524504108623,
+        "coinglass_liquidation_imbalance_usd": -3169.7299999999996,
+        "coinglass_liquidation_sell_usd_1m": 5970.15,
+        "coinglass_long_ratio": 66.59,
+        "coinglass_long_short_extreme_score": 0.495,
+        "coinglass_market_snapshot_volume_usd": 54313938905.95132,
+        "coinglass_next_funding_minutes": 245.9630759847005,
+        "coinglass_oi_price_divergence_score": 0.0,
+        "coinglass_open_interest_delta_usd_1h": 19.04,
+        "coinglass_open_interest_delta_usd_5m": -0.03,
+        "coinglass_open_interest_usd": 35953525.278420605,
+        "coinglass_orderbook_depth_imbalance_usd": 8953295.446499988,
+        "coinglass_orderbook_trust_delta": 0.0,
+        "coinglass_price_change_24h_pct": -2.64,
+        "coinglass_price_usd": 62140.4,
+        "coinglass_short_ratio": 33.41,
+        "coinglass_trade_imbalance_usd": -127.64300000000003,
+        "coinglass_volume_24h_usd": 54313938905.95132,
+        "funding_rate": 0.01,
+        "liquidation_buy_usd_1m": 2800.42,
+        "liquidation_cascade_risk": 0.36140524504108623,
+        "liquidation_imbalance_usd": -3169.7299999999996,
+        "liquidation_sell_usd_1m": 5970.15,
+        "long_account_ratio": 66.59,
+        "long_short_extreme_score": 0.495,
+        "oi_change_pct": -0.03,
+        "open_interest": 35953525.278420605,
+        "orderbook_depth_imbalance": 8953295.446499988,
+        "short_account_ratio": 33.41,
+        "trade_imbalance": -127.64300000000003
+      },
+      "provider_payloads": {
+        "coinglass": {
+          "actual_payload_present": true,
+          "available_at": "2026-07-08T19:54:36Z",
+          "dashboard_color": "GREEN",
+          "endpoint_id": "coinglass_aggregate",
+          "event_time": "2026-07-08T19:00:00Z",
+          "excluded_from_features": false,
+          "exclusion_reasons": [],
+          "feature_count": 34,
+          "feature_cutoff": "2026-07-08T19:00:00Z",
+          "features": {
+            "coinglass_exchange_count": 27.0,
+            "coinglass_funding_rate": 0.01,
+            "coinglass_funding_rate_zscore": 0.0,
+            "coinglass_liquidation_buy_usd_1m": 2800.42,
+            "coinglass_liquidation_cascade_score": 0.36140524504108623,
+            "coinglass_liquidation_imbalance_usd": -3169.7299999999996,
+            "coinglass_liquidation_sell_usd_1m": 5970.15,
+            "coinglass_long_ratio": 66.59,
+            "coinglass_long_short_extreme_score": 0.495,
+            "coinglass_market_snapshot_volume_usd": 54313938905.95132,
+            "coinglass_next_funding_minutes": 245.9630759847005,
+            "coinglass_oi_price_divergence_score": 0.0,
+            "coinglass_open_interest_delta_usd_1h": 19.04,
+            "coinglass_open_interest_delta_usd_5m": -0.03,
+            "coinglass_open_interest_usd": 35953525.278420605,
+            "coinglass_orderbook_depth_imbalance_usd": 8953295.446499988,
+            "coinglass_orderbook_trust_delta": 0.0,
+            "coinglass_price_change_24h_pct": -2.64,
+            "coinglass_price_usd": 62140.4,
+            "coinglass_short_ratio": 33.41,
+            "coinglass_trade_imbalance_usd": -127.64300000000003,
+            "coinglass_volume_24h_usd": 54313938905.95132,
+            "funding_rate": 0.01,
+            "liquidation_buy_usd_1m": 2800.42,
+            "liquidation_cascade_risk": 0.36140524504108623,
+            "liquidation_imbalance_usd": -3169.7299999999996,
+            "liquidation_sell_usd_1m": 5970.15,
+            "long_account_ratio": 66.59,
+            "long_short_extreme_score": 0.495,
+            "oi_change_pct": -0.03,
+            "open_interest": 35953525.278420605,
+            "orderbook_depth_imbalance": 8953295.446499988,
+            "short_account_ratio": 33.41,
+            "trade_imbalance": -127.64300000000003
+          },
+          "generated_at": "2026-07-08T19:54:53Z",
+          "heartbeat_only": false,
+          "provider": "coinglass",
+          "source_key": "v2:features:coinglass:BTCUSDT:1m",
+          "stale": false,
+          "status": "READY",
+          "symbol": "BTCUSDT",
+          "timeframe": "1m",
+          "ttl_contract_valid": true,
+          "ttl_remaining_seconds": 31
+        },
+        "moralis": {
+          "actual_payload_present": false,
+          "available_at": null,
+          "dashboard_color": "GRAY",
+          "endpoint_id": null,
+          "event_time": null,
+          "excluded_from_features": true,
+          "exclusion_reasons": [
+            "moralis:missing_payload"
+          ],
+          "feature_count": 0,
+          "feature_cutoff": null,
+          "features": {},
+          "generated_at": null,
+          "heartbeat_only": true,
+          "provider": "moralis",
+          "source_key": "v2:features:moralis:BTCUSDT:1m",
+          "stale": true,
+          "status": "MISSING",
+          "symbol": "BTCUSDT",
+          "timeframe": "1m",
+          "ttl_contract_valid": false,
+          "ttl_remaining_seconds": -2
+        }
+      },
+      "raw_key_exposed": false,
+      "required_providers": [],
+      "routes_to_live": false,
+      "schema_version": "provider_feature_context_v1",
+      "symbol": "BTCUSDT",
+      "timeframe": "1m",
+      "ttl_contract_violations": []
+    },
+    "trainer": {
+      "actual_provider_count": 1,
+      "consumer_role": "trainer",
+      "core_system_blocked": false,
+      "decision_time": null,
+      "feature_count": 34,
+      "heartbeat_only_green_allowed": false,
+      "live_ready_from_probation_allowed": false,
+      "optional_provider_failures": [
+        "moralis"
+      ],
+      "optional_provider_failures_core_blocking": false,
+      "payloads_for_tensor": {
+        "funding": {
+          "funding_rate": 0.01
+        },
+        "liquidation_levels": {
+          "liquidation_cascade_risk": 0.36140524504108623
+        },
+        "liquidations": {
+          "liquidation_buy_usd_1m": 2800.42,
+          "liquidation_imbalance_usd": -3169.7299999999996,
+          "liquidation_sell_usd_1m": 5970.15
+        },
+        "long_short": {
+          "long_account_ratio": 66.59,
+          "long_short_extreme_score": 0.495,
+          "short_account_ratio": 33.41
+        },
+        "microstructure": {
+          "liquidation_cascade_risk": 0.36140524504108623,
+          "trade_imbalance": -127.64300000000003
+        },
+        "open_interest": {
+          "oi_change_pct": -0.03,
+          "open_interest": 35953525.278420605
+        },
+        "open_interest_hist": {
+          "oi_change_pct": -0.03
+        },
+        "orderbook": {
+          "orderbook_depth_imbalance": 8953295.446499988
+        },
+        "smart_money": {}
+      },
+      "places_real_order": false,
+      "point_in_time_violations": [],
+      "provider_features": {
+        "coinglass_exchange_count": 27.0,
+        "coinglass_funding_rate": 0.01,
+        "coinglass_funding_rate_zscore": 0.0,
+        "coinglass_liquidation_buy_usd_1m": 2800.42,
+        "coinglass_liquidation_cascade_score": 0.36140524504108623,
+        "coinglass_liquidation_imbalance_usd": -3169.7299999999996,
+        "coinglass_liquidation_sell_usd_1m": 5970.15,
+        "coinglass_long_ratio": 66.59,
+        "coinglass_long_short_extreme_score": 0.495,
+        "coinglass_market_snapshot_volume_usd": 54313938905.95132,
+        "coinglass_next_funding_minutes": 245.9630759847005,
+        "coinglass_oi_price_divergence_score": 0.0,
+        "coinglass_open_interest_delta_usd_1h": 19.04,
+        "coinglass_open_interest_delta_usd_5m": -0.03,
+        "coinglass_open_interest_usd": 35953525.278420605,
+        "coinglass_orderbook_depth_imbalance_usd": 8953295.446499988,
+        "coinglass_orderbook_trust_delta": 0.0,
+        "coinglass_price_change_24h_pct": -2.64,
+        "coinglass_price_usd": 62140.4,
+        "coinglass_short_ratio": 33.41,
+        "coinglass_trade_imbalance_usd": -127.64300000000003,
+        "coinglass_volume_24h_usd": 54313938905.95132,
+        "funding_rate": 0.01,
+        "liquidation_buy_usd_1m": 2800.42,
+        "liquidation_cascade_risk": 0.36140524504108623,
+        "liquidation_imbalance_usd": -3169.7299999999996,
+        "liquidation_sell_usd_1m": 5970.15,
+        "long_account_ratio": 66.59,
+        "long_short_extreme_score": 0.495,
+        "oi_change_pct": -0.03,
+        "open_interest": 35953525.278420605,
+        "orderbook_depth_imbalance": 8953295.446499988,
+        "short_account_ratio": 33.41,
+        "trade_imbalance": -127.64300000000003
+      },
+      "provider_payloads": {
+        "coinglass": {
+          "actual_payload_present": true,
+          "available_at": "2026-07-08T19:54:36Z",
+          "dashboard_color": "GREEN",
+          "endpoint_id": "coinglass_aggregate",
+          "event_time": "2026-07-08T19:00:00Z",
+          "excluded_from_features": false,
+          "exclusion_reasons": [],
+          "feature_count": 34,
+          "feature_cutoff": "2026-07-08T19:00:00Z",
+          "features": {
+            "coinglass_exchange_count": 27.0,
+            "coinglass_funding_rate": 0.01,
+            "coinglass_funding_rate_zscore": 0.0,
+            "coinglass_liquidation_buy_usd_1m": 2800.42,
+            "coinglass_liquidation_cascade_score": 0.36140524504108623,
+            "coinglass_liquidation_imbalance_usd": -3169.7299999999996,
+            "coinglass_liquidation_sell_usd_1m": 5970.15,
+            "coinglass_long_ratio": 66.59,
+            "coinglass_long_short_extreme_score": 0.495,
+            "coinglass_market_snapshot_volume_usd": 54313938905.95132,
+            "coinglass_next_funding_minutes": 245.9630759847005,
+            "coinglass_oi_price_divergence_score": 0.0,
+            "coinglass_open_interest_delta_usd_1h": 19.04,
+            "coinglass_open_interest_delta_usd_5m": -0.03,
+            "coinglass_open_interest_usd": 35953525.278420605,
+            "coinglass_orderbook_depth_imbalance_usd": 8953295.446499988,
+            "coinglass_orderbook_trust_delta": 0.0,
+            "coinglass_price_change_24h_pct": -2.64,
+            "coinglass_price_usd": 62140.4,
+            "coinglass_short_ratio": 33.41,
+            "coinglass_trade_imbalance_usd": -127.64300000000003,
+            "coinglass_volume_24h_usd": 54313938905.95132,
+            "funding_rate": 0.01,
+            "liquidation_buy_usd_1m": 2800.42,
+            "liquidation_cascade_risk": 0.36140524504108623,
+            "liquidation_imbalance_usd": -3169.7299999999996,
+            "liquidation_sell_usd_1m": 5970.15,
+            "long_account_ratio": 66.59,
+            "long_short_extreme_score": 0.495,
+            "oi_change_pct": -0.03,
+            "open_interest": 35953525.278420605,
+            "orderbook_depth_imbalance": 8953295.446499988,
+            "short_account_ratio": 33.41,
+            "trade_imbalance": -127.64300000000003
+          },
+          "generated_at": "2026-07-08T19:54:53Z",
+          "heartbeat_only": false,
+          "provider": "coinglass",
+          "source_key": "v2:features:coinglass:BTCUSDT:1m",
+          "stale": false,
+          "status": "READY",
+          "symbol": "BTCUSDT",
+          "timeframe": "1m",
+          "ttl_contract_valid": true,
+          "ttl_remaining_seconds": 31
+        },
+        "moralis": {
+          "actual_payload_present": false,
+          "available_at": null,
+          "dashboard_color": "GRAY",
+          "endpoint_id": null,
+          "event_time": null,
+          "excluded_from_features": true,
+          "exclusion_reasons": [
+            "moralis:missing_payload"
+          ],
+          "feature_count": 0,
+          "feature_cutoff": null,
+          "features": {},
+          "generated_at": null,
+          "heartbeat_only": true,
+          "provider": "moralis",
+          "source_key": "v2:features:moralis:BTCUSDT:1m",
+          "stale": true,
+          "status": "MISSING",
+          "symbol": "BTCUSDT",
+          "timeframe": "1m",
+          "ttl_contract_valid": false,
+          "ttl_remaining_seconds": -2
+        }
+      },
+      "raw_key_exposed": false,
+      "required_providers": [],
+      "routes_to_live": false,
+      "schema_version": "provider_feature_context_v1",
+      "symbol": "BTCUSDT",
+      "timeframe": "1m",
+      "ttl_contract_violations": []
+    }
+  },
+  "provider_readiness_blockers": [
+    "moralis_actual_payload_absent:CONFIGURED_NO_WATCHLIST"
+  ],
+  "provider_scheduler_status": {
+    "coinglass_public_limit_exceeded": false,
+    "coinglass_registry": {
+      "core_system_blocked": false,
+      "endpoint_count": 9,
+      "endpoints": [
+        {
+          "cadence_seconds_active_symbols": 120,
+          "cadence_seconds_full_universe": 300,
+          "cadence_seconds_top_symbols": 60,
+          "default_params": [],
+          "endpoint_id": "market_snapshot",
+          "feature_outputs": [
+            "coinglass_price_usd",
+            "coinglass_volume_24h_usd",
+            "coinglass_price_change_24h_pct",
+            "coinglass_exchange_count",
+            "coinglass_market_snapshot_volume_usd"
+          ],
+          "group": "market_snapshot",
+          "optional_if_plan_forbidden": true,
+          "path": "/api/futures/pairs-markets",
+          "priority": "HIGH",
+          "purpose": "broad market context",
+          "rate_budget_per_minute": 20,
+          "supports_batch": true,
+          "symbol_format": "coin",
+          "ttl_seconds": 300
+        },
+        {
+          "cadence_seconds_active_symbols": 120,
+          "cadence_seconds_full_universe": 600,
+          "cadence_seconds_top_symbols": 60,
+          "default_params": [],
+          "endpoint_id": "funding_rate",
+          "feature_outputs": [
+            "coinglass_funding_rate",
+            "coinglass_funding_rate_zscore",
+            "coinglass_next_funding_minutes"
+          ],
+          "group": "funding_rate",
+          "optional_if_plan_forbidden": true,
+          "path": "/api/futures/funding-rate/exchange-list",
+          "priority": "HIGH",
+          "purpose": "funding pressure and crowded perp positioning",
+          "rate_budget_per_minute": 30,
+          "supports_batch": true,
+          "symbol_format": "coin",
+          "ttl_seconds": 180
+        },
+        {
+          "cadence_seconds_active_symbols": 120,
+          "cadence_seconds_full_universe": 600,
+          "cadence_seconds_top_symbols": 60,
+          "default_params": [],
+          "endpoint_id": "open_interest",
+          "feature_outputs": [
+            "coinglass_open_interest_usd",
+            "coinglass_open_interest_delta_usd_5m",
+            "coinglass_open_interest_delta_usd_1h",
+            "coinglass_oi_price_divergence_score"
+          ],
+          "group": "open_interest",
+          "optional_if_plan_forbidden": true,
+          "path": "/api/futures/open-interest/exchange-list",
+          "priority": "HIGH",
+          "purpose": "open-interest expansion, flush, and regime context",
+          "rate_budget_per_minute": 40,
+          "supports_batch": false,
+          "symbol_format": "coin",
+          "ttl_seconds": 180
+        },
+        {
+          "cadence_seconds_active_symbols": 120,
+          "cadence_seconds_full_universe": 600,
+          "cadence_seconds_top_symbols": 60,
+          "default_params": [
+            [
+              "exchange",
+              "Binance"
+            ],
+            [
+              "interval",
+              "1h"
+            ]
+          ],
+          "endpoint_id": "long_short_ratio",
+          "feature_outputs": [
+            "coinglass_long_ratio",
+            "coinglass_short_ratio",
+            "coinglass_long_short_extreme_score"
+          ],
+          "group": "long_short_ratio",
+          "optional_if_plan_forbidden": true,
+          "path": "/api/futures/top-long-short-account-ratio/history",
+          "priority": "HIGH",
+          "purpose": "crowd positioning and squeeze risk",
+          "rate_budget_per_minute": 40,
+          "supports_batch": false,
+          "symbol_format": "pair",
+          "ttl_seconds": 300
+        },
+        {
+          "cadence_seconds_active_symbols": 60,
+          "cadence_seconds_full_universe": 300,
+          "cadence_seconds_top_symbols": 30,
+          "default_params": [
+            [
+              "exchange_list",
+              "Binance"
+            ],
+            [
+              "interval",
+              "1h"
+            ]
+          ],
+          "endpoint_id": "liquidation_orders",
+          "feature_outputs": [
+            "coinglass_liquidation_buy_usd_1m",
+            "coinglass_liquidation_sell_usd_1m",
+            "coinglass_liquidation_imbalance_usd",
+            "coinglass_liquidation_cascade_score"
+          ],
+          "group": "liquidation_orders",
+          "optional_if_plan_forbidden": true,
+          "path": "/api/futures/liquidation/aggregated-history",
+          "priority": "CRITICAL_CONFLUENCE",
+          "purpose": "real-time liquidation pressure",
+          "rate_budget_per_minute": 50,
+          "supports_batch": false,
+          "symbol_format": "coin",
+          "ttl_seconds": 60
+        },
+        {
+          "cadence_seconds_active_symbols": 300,
+          "cadence_seconds_full_universe": 900,
+          "cadence_seconds_top_symbols": 120,
+          "default_params": [
+            [
+              "exchange",
+              "Binance"
+            ],
+            [
+              "range",
+              "12h"
+            ]
+          ],
+          "endpoint_id": "liquidation_heatmap_or_levels",
+          "feature_outputs": [
+            "coinglass_nearest_liq_zone_above_usd",
+            "coinglass_nearest_liq_zone_below_usd",
+            "coinglass_liq_zone_distance_usd"
+          ],
+          "group": "liquidation_heatmap_or_levels",
+          "optional_if_plan_forbidden": true,
+          "path": "/api/futures/liquidation/heatmap/model2",
+          "priority": "HIGH",
+          "purpose": "sweep targets and forced-liquidation zones",
+          "rate_budget_per_minute": 25,
+          "supports_batch": false,
+          "symbol_format": "pair",
+          "ttl_seconds": 300
+        },
+        {
+          "cadence_seconds_active_symbols": 60,
+          "cadence_seconds_full_universe": 600,
+          "cadence_seconds_top_symbols": 30,
+          "default_params": [
+            [
+              "exchange",
+              "Binance"
+            ],
+            [
+              "interval",
+              "1h"
+            ]
+          ],
+          "endpoint_id": "trades",
+          "feature_outputs": [
+            "coinglass_trade_imbalance_usd"
+          ],
+          "group": "trades",
+          "optional_if_plan_forbidden": true,
+          "path": "/api/futures/taker-buy-sell-volume/history",
+          "priority": "HIGH",
+          "purpose": "tape confirmation",
+          "rate_budget_per_minute": 40,
+          "supports_batch": false,
+          "symbol_format": "pair",
+          "ttl_seconds": 60
+        },
+        {
+          "cadence_seconds_active_symbols": 60,
+          "cadence_seconds_full_universe": 600,
+          "cadence_seconds_top_symbols": 30,
+          "default_params": [
+            [
+              "exchange",
+              "Binance"
+            ],
+            [
+              "interval",
+              "1h"
+            ]
+          ],
+          "endpoint_id": "orderbook_l2_l3",
+          "feature_outputs": [
+            "coinglass_orderbook_depth_imbalance_usd",
+            "coinglass_orderbook_trust_delta"
+          ],
+          "group": "orderbook_l2_l3",
+          "optional_if_plan_forbidden": true,
+          "path": "/api/futures/orderbook/ask-bids-history",
+          "priority": "HIGH",
+          "purpose": "microstructure, spoof-risk, and depth trust",
+          "rate_budget_per_minute": 40,
+          "supports_batch": false,
+          "symbol_format": "pair",
+          "ttl_seconds": 60
+        },
+        {
+          "cadence_seconds_active_symbols": 900,
+          "cadence_seconds_full_universe": 900,
+          "cadence_seconds_top_symbols": 900,
+          "default_params": [],
+          "endpoint_id": "exchange_metadata",
+          "feature_outputs": [
+            "coinglass_exchange_supported",
+            "coinglass_symbol_supported"
+          ],
+          "group": "exchange_metadata",
+          "optional_if_plan_forbidden": true,
+          "path": "/api/futures/supported-exchange-pairs",
+          "priority": "LOW",
+          "purpose": "endpoint support and symbol mapping",
+          "rate_budget_per_minute": 5,
+          "supports_batch": true,
+          "symbol_format": "coin",
+          "ttl_seconds": 900
+        }
+      ],
+      "hard_limit_per_minute": 285,
+      "health_reserve_per_minute": 5,
+      "major_symbols": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT",
+        "BNBUSDT",
+        "XRPUSDT"
+      ],
+      "manual_reserve_per_minute": 15,
+      "normal_mode_max_per_minute": 210,
+      "provider": "coinglass",
+      "raw_key_exposed": false,
+      "runtime_limit_note": "Effective per-minute budget is resolved at runtime by CoinGlassRateLimiter from the API-KEY-MAX-LIMIT response header (ACCOUNT_HEADER_DISCOVERED beats these doc-derived numbers; discovered 80/min on 2026-07-08 -> 65/min usable after manual reserve).",
+      "schema_version": "coinglass_endpoint_registry_v1"
+    },
+    "coinglass_schedule_plan": {
+      "endpoints": [
+        {
+          "cadence_seconds_active_symbols": 120,
+          "cadence_seconds_full_universe": 300,
+          "cadence_seconds_top_symbols": 60,
+          "endpoint_id": "market_snapshot",
+          "estimated_requests_per_cycle": 3,
+          "feature_outputs": [
+            "coinglass_price_usd",
+            "coinglass_volume_24h_usd",
+            "coinglass_price_change_24h_pct",
+            "coinglass_exchange_count",
+            "coinglass_market_snapshot_volume_usd"
+          ],
+          "group": "market_snapshot",
+          "request_budget_per_minute": 20,
+          "scheduled_symbols_per_cycle": 3
+        },
+        {
+          "cadence_seconds_active_symbols": 120,
+          "cadence_seconds_full_universe": 600,
+          "cadence_seconds_top_symbols": 60,
+          "endpoint_id": "funding_rate",
+          "estimated_requests_per_cycle": 3,
+          "feature_outputs": [
+            "coinglass_funding_rate",
+            "coinglass_funding_rate_zscore",
+            "coinglass_next_funding_minutes"
+          ],
+          "group": "funding_rate",
+          "request_budget_per_minute": 30,
+          "scheduled_symbols_per_cycle": 3
+        },
+        {
+          "cadence_seconds_active_symbols": 120,
+          "cadence_seconds_full_universe": 600,
+          "cadence_seconds_top_symbols": 60,
+          "endpoint_id": "open_interest",
+          "estimated_requests_per_cycle": 3,
+          "feature_outputs": [
+            "coinglass_open_interest_usd",
+            "coinglass_open_interest_delta_usd_5m",
+            "coinglass_open_interest_delta_usd_1h",
+            "coinglass_oi_price_divergence_score"
+          ],
+          "group": "open_interest",
+          "request_budget_per_minute": 40,
+          "scheduled_symbols_per_cycle": 3
+        },
+        {
+          "cadence_seconds_active_symbols": 120,
+          "cadence_seconds_full_universe": 600,
+          "cadence_seconds_top_symbols": 60,
+          "endpoint_id": "long_short_ratio",
+          "estimated_requests_per_cycle": 3,
+          "feature_outputs": [
+            "coinglass_long_ratio",
+            "coinglass_short_ratio",
+            "coinglass_long_short_extreme_score"
+          ],
+          "group": "long_short_ratio",
+          "request_budget_per_minute": 40,
+          "scheduled_symbols_per_cycle": 3
+        },
+        {
+          "cadence_seconds_active_symbols": 60,
+          "cadence_seconds_full_universe": 300,
+          "cadence_seconds_top_symbols": 30,
+          "endpoint_id": "liquidation_orders",
+          "estimated_requests_per_cycle": 3,
+          "feature_outputs": [
+            "coinglass_liquidation_buy_usd_1m",
+            "coinglass_liquidation_sell_usd_1m",
+            "coinglass_liquidation_imbalance_usd",
+            "coinglass_liquidation_cascade_score"
+          ],
+          "group": "liquidation_orders",
+          "request_budget_per_minute": 50,
+          "scheduled_symbols_per_cycle": 3
+        },
+        {
+          "cadence_seconds_active_symbols": 300,
+          "cadence_seconds_full_universe": 900,
+          "cadence_seconds_top_symbols": 120,
+          "endpoint_id": "liquidation_heatmap_or_levels",
+          "estimated_requests_per_cycle": 3,
+          "feature_outputs": [
+            "coinglass_nearest_liq_zone_above_usd",
+            "coinglass_nearest_liq_zone_below_usd",
+            "coinglass_liq_zone_distance_usd"
+          ],
+          "group": "liquidation_heatmap_or_levels",
+          "request_budget_per_minute": 25,
+          "scheduled_symbols_per_cycle": 3
+        },
+        {
+          "cadence_seconds_active_symbols": 60,
+          "cadence_seconds_full_universe": 600,
+          "cadence_seconds_top_symbols": 30,
+          "endpoint_id": "trades",
+          "estimated_requests_per_cycle": 3,
+          "feature_outputs": [
+            "coinglass_trade_imbalance_usd"
+          ],
+          "group": "trades",
+          "request_budget_per_minute": 40,
+          "scheduled_symbols_per_cycle": 3
+        },
+        {
+          "cadence_seconds_active_symbols": 60,
+          "cadence_seconds_full_universe": 600,
+          "cadence_seconds_top_symbols": 30,
+          "endpoint_id": "orderbook_l2_l3",
+          "estimated_requests_per_cycle": 3,
+          "feature_outputs": [
+            "coinglass_orderbook_depth_imbalance_usd",
+            "coinglass_orderbook_trust_delta"
+          ],
+          "group": "orderbook_l2_l3",
+          "request_budget_per_minute": 40,
+          "scheduled_symbols_per_cycle": 3
+        },
+        {
+          "cadence_seconds_active_symbols": 900,
+          "cadence_seconds_full_universe": 900,
+          "cadence_seconds_top_symbols": 900,
+          "endpoint_id": "exchange_metadata",
+          "estimated_requests_per_cycle": 3,
+          "feature_outputs": [
+            "coinglass_exchange_supported",
+            "coinglass_symbol_supported"
+          ],
+          "group": "exchange_metadata",
+          "request_budget_per_minute": 5,
+          "scheduled_symbols_per_cycle": 3
+        }
+      ],
+      "health_reserve_per_minute": 5,
+      "manual_reserve_per_minute": 15,
+      "never_exceeds_public_limit": true,
+      "normal_limit_per_minute": 210,
+      "public_limit_per_minute": 300,
+      "scheduled_request_budget_per_minute": 27,
+      "schema_version": "coinglass_scheduler_plan_v1"
+    },
+    "do_not_only_publish_health_keys": true,
+    "endpoint_to_feature_mapping": {
+      "coinglass": {
+        "exchange_metadata": {
+          "cadence_seconds": {
+            "active_symbols": 900,
+            "full_universe": 900,
+            "top_symbols": 900
+          },
+          "canonical_outputs": [
+            "coinglass_exchange_supported",
+            "coinglass_symbol_supported"
+          ],
+          "feature_outputs": [
+            "coinglass_exchange_supported",
+            "coinglass_symbol_supported"
+          ],
+          "group": "exchange_metadata",
+          "optional_if_forbidden": true,
+          "path": "/api/futures/supported-exchange-pairs",
+          "provider": "coinglass",
+          "request_budget_per_minute": 5,
+          "ttl_seconds": 900
+        },
+        "funding_rate": {
+          "cadence_seconds": {
+            "active_symbols": 120,
+            "full_universe": 600,
+            "top_symbols": 60
+          },
+          "canonical_outputs": [
+            "funding_rate",
+            "coinglass_funding_rate_zscore",
+            "coinglass_next_funding_minutes"
+          ],
+          "feature_outputs": [
+            "coinglass_funding_rate",
+            "coinglass_funding_rate_zscore",
+            "coinglass_next_funding_minutes"
+          ],
+          "group": "funding_rate",
+          "optional_if_forbidden": true,
+          "path": "/api/futures/funding-rate/exchange-list",
+          "provider": "coinglass",
+          "request_budget_per_minute": 30,
+          "ttl_seconds": 180
+        },
+        "liquidation_heatmap_or_levels": {
+          "cadence_seconds": {
+            "active_symbols": 300,
+            "full_universe": 900,
+            "top_symbols": 120
+          },
+          "canonical_outputs": [
+            "nearest_liquidation_level_above",
+            "nearest_liquidation_level_below",
+            "liquidation_level_distance_usd"
+          ],
+          "feature_outputs": [
+            "coinglass_nearest_liq_zone_above_usd",
+            "coinglass_nearest_liq_zone_below_usd",
+            "coinglass_liq_zone_distance_usd"
+          ],
+          "group": "liquidation_heatmap_or_levels",
+          "optional_if_forbidden": true,
+          "path": "/api/futures/liquidation/heatmap/model2",
+          "provider": "coinglass",
+          "request_budget_per_minute": 25,
+          "ttl_seconds": 300
+        },
+        "liquidation_orders": {
+          "cadence_seconds": {
+            "active_symbols": 60,
+            "full_universe": 300,
+            "top_symbols": 30
+          },
+          "canonical_outputs": [
+            "liquidation_buy_usd_1m",
+            "liquidation_sell_usd_1m",
+            "liquidation_imbalance_usd",
+            "liquidation_cascade_risk"
+          ],
+          "feature_outputs": [
+            "coinglass_liquidation_buy_usd_1m",
+            "coinglass_liquidation_sell_usd_1m",
+            "coinglass_liquidation_imbalance_usd",
+            "coinglass_liquidation_cascade_score"
+          ],
+          "group": "liquidation_orders",
+          "optional_if_forbidden": true,
+          "path": "/api/futures/liquidation/aggregated-history",
+          "provider": "coinglass",
+          "request_budget_per_minute": 50,
+          "ttl_seconds": 60
+        },
+        "long_short_ratio": {
+          "cadence_seconds": {
+            "active_symbols": 120,
+            "full_universe": 600,
+            "top_symbols": 60
+          },
+          "canonical_outputs": [
+            "long_account_ratio",
+            "short_account_ratio",
+            "long_short_extreme_score"
+          ],
+          "feature_outputs": [
+            "coinglass_long_ratio",
+            "coinglass_short_ratio",
+            "coinglass_long_short_extreme_score"
+          ],
+          "group": "long_short_ratio",
+          "optional_if_forbidden": true,
+          "path": "/api/futures/top-long-short-account-ratio/history",
+          "provider": "coinglass",
+          "request_budget_per_minute": 40,
+          "ttl_seconds": 300
+        },
+        "market_snapshot": {
+          "cadence_seconds": {
+            "active_symbols": 120,
+            "full_universe": 300,
+            "top_symbols": 60
+          },
+          "canonical_outputs": [
+            "coinglass_price_usd",
+            "coinglass_volume_24h_usd",
+            "coinglass_price_change_24h_pct",
+            "coinglass_exchange_count",
+            "coinglass_market_snapshot_volume_usd"
+          ],
+          "feature_outputs": [
+            "coinglass_price_usd",
+            "coinglass_volume_24h_usd",
+            "coinglass_price_change_24h_pct",
+            "coinglass_exchange_count",
+            "coinglass_market_snapshot_volume_usd"
+          ],
+          "group": "market_snapshot",
+          "optional_if_forbidden": true,
+          "path": "/api/futures/pairs-markets",
+          "provider": "coinglass",
+          "request_budget_per_minute": 20,
+          "ttl_seconds": 300
+        },
+        "open_interest": {
+          "cadence_seconds": {
+            "active_symbols": 120,
+            "full_universe": 600,
+            "top_symbols": 60
+          },
+          "canonical_outputs": [
+            "open_interest",
+            "oi_change_pct",
+            "coinglass_open_interest_delta_usd_1h",
+            "coinglass_oi_price_divergence_score"
+          ],
+          "feature_outputs": [
+            "coinglass_open_interest_usd",
+            "coinglass_open_interest_delta_usd_5m",
+            "coinglass_open_interest_delta_usd_1h",
+            "coinglass_oi_price_divergence_score"
+          ],
+          "group": "open_interest",
+          "optional_if_forbidden": true,
+          "path": "/api/futures/open-interest/exchange-list",
+          "provider": "coinglass",
+          "request_budget_per_minute": 40,
+          "ttl_seconds": 180
+        },
+        "orderbook_l2_l3": {
+          "cadence_seconds": {
+            "active_symbols": 60,
+            "full_universe": 600,
+            "top_symbols": 30
+          },
+          "canonical_outputs": [
+            "orderbook_depth_imbalance",
+            "coinglass_orderbook_trust_delta"
+          ],
+          "feature_outputs": [
+            "coinglass_orderbook_depth_imbalance_usd",
+            "coinglass_orderbook_trust_delta"
+          ],
+          "group": "orderbook_l2_l3",
+          "optional_if_forbidden": true,
+          "path": "/api/futures/orderbook/ask-bids-history",
+          "provider": "coinglass",
+          "request_budget_per_minute": 40,
+          "ttl_seconds": 60
+        },
+        "trades": {
+          "cadence_seconds": {
+            "active_symbols": 60,
+            "full_universe": 600,
+            "top_symbols": 30
+          },
+          "canonical_outputs": [
+            "trade_imbalance"
+          ],
+          "feature_outputs": [
+            "coinglass_trade_imbalance_usd"
+          ],
+          "group": "trades",
+          "optional_if_forbidden": true,
+          "path": "/api/futures/taker-buy-sell-volume/history",
+          "provider": "coinglass",
+          "request_budget_per_minute": 40,
+          "ttl_seconds": 60
+        }
+      },
+      "moralis": {
+        "multiple_token_prices": {
+          "cadence_seconds": {
+            "full_watchlist": 21600,
+            "tier0_wallet_token_stream": 900,
+            "tier1_wallet_token_stream": 900
+          },
+          "canonical_outputs": [
+            "onchain_risk_score"
+          ],
+          "compute_unit_cost": 50,
+          "feature_outputs": [
+            "moralis_onchain_risk_score"
+          ],
+          "group": "multiple_token_prices",
+          "path_template": "/erc20/prices?chain={chain}&tokens={token}",
+          "provider": "moralis",
+          "requires_token": true,
+          "requires_wallet": false,
+          "stream_based": false,
+          "ttl_seconds": 900
+        },
+        "streams": {
+          "cadence_seconds": {
+            "full_watchlist": 0,
+            "tier0_wallet_token_stream": 0,
+            "tier1_wallet_token_stream": 0
+          },
+          "canonical_outputs": [
+            "smart_money_whale_buy_usd",
+            "smart_money_whale_sell_usd",
+            "smart_money_whale_net_flow_usd"
+          ],
+          "compute_unit_cost": 10,
+          "feature_outputs": [
+            "moralis_whale_buy_usd",
+            "moralis_whale_sell_usd",
+            "moralis_whale_net_flow_usd"
+          ],
+          "group": "streams",
+          "path_template": "webhook",
+          "provider": "moralis",
+          "requires_token": false,
+          "requires_wallet": false,
+          "stream_based": true,
+          "ttl_seconds": 3600
+        },
+        "token_address_transfers": {
+          "cadence_seconds": {
+            "full_watchlist": 21600,
+            "tier0_wallet_token_stream": 600,
+            "tier1_wallet_token_stream": 900
+          },
+          "canonical_outputs": [
+            "smart_money_exchange_inflow_usd",
+            "smart_money_exchange_outflow_usd",
+            "smart_money_net_exchange_flow_usd"
+          ],
+          "compute_unit_cost": 50,
+          "feature_outputs": [
+            "moralis_exchange_inflow_usd",
+            "moralis_exchange_outflow_usd",
+            "moralis_net_exchange_flow_usd"
+          ],
+          "group": "token_address_transfers",
+          "path_template": "/erc20/{token}/transfers?chain={chain}",
+          "provider": "moralis",
+          "requires_token": true,
+          "requires_wallet": false,
+          "stream_based": false,
+          "ttl_seconds": 3600
+        },
+        "token_holders": {
+          "cadence_seconds": {
+            "full_watchlist": 86400,
+            "tier0_wallet_token_stream": 21600,
+            "tier1_wallet_token_stream": 21600
+          },
+          "canonical_outputs": [
+            "token_holder_concentration_change",
+            "token_holder_delta"
+          ],
+          "compute_unit_cost": 50,
+          "feature_outputs": [
+            "moralis_holder_concentration_change",
+            "moralis_token_holder_delta"
+          ],
+          "group": "token_holders",
+          "path_template": "/erc20/{token}/owners?chain={chain}",
+          "provider": "moralis",
+          "requires_token": true,
+          "requires_wallet": false,
+          "stream_based": false,
+          "ttl_seconds": 86400
+        },
+        "token_metadata": {
+          "cadence_seconds": {
+            "full_watchlist": 86400,
+            "tier0_wallet_token_stream": 21600,
+            "tier1_wallet_token_stream": 21600
+          },
+          "canonical_outputs": [
+            "contract_risk_penalty",
+            "onchain_risk_score"
+          ],
+          "compute_unit_cost": 25,
+          "feature_outputs": [
+            "moralis_contract_risk_penalty",
+            "moralis_onchain_risk_score"
+          ],
+          "group": "token_metadata",
+          "path_template": "/erc20/metadata?chain={chain}&addresses={token}",
+          "provider": "moralis",
+          "requires_token": true,
+          "requires_wallet": false,
+          "stream_based": false,
+          "ttl_seconds": 86400
+        },
+        "token_price": {
+          "cadence_seconds": {
+            "full_watchlist": 21600,
+            "tier0_wallet_token_stream": 900,
+            "tier1_wallet_token_stream": 900
+          },
+          "canonical_outputs": [
+            "onchain_risk_score"
+          ],
+          "compute_unit_cost": 50,
+          "feature_outputs": [
+            "moralis_onchain_risk_score"
+          ],
+          "group": "token_price",
+          "path_template": "/erc20/{token}/price?chain={chain}",
+          "provider": "moralis",
+          "requires_token": true,
+          "requires_wallet": false,
+          "stream_based": false,
+          "ttl_seconds": 900
+        },
+        "token_swaps": {
+          "cadence_seconds": {
+            "full_watchlist": 21600,
+            "tier0_wallet_token_stream": 600,
+            "tier1_wallet_token_stream": 900
+          },
+          "canonical_outputs": [
+            "dex_buy_pressure_usd",
+            "dex_sell_pressure_usd",
+            "dex_flow_imbalance_usd"
+          ],
+          "compute_unit_cost": 50,
+          "feature_outputs": [
+            "moralis_dex_buy_pressure_usd",
+            "moralis_dex_sell_pressure_usd",
+            "moralis_dex_flow_imbalance_usd"
+          ],
+          "group": "token_swaps",
+          "path_template": "/erc20/{token}/swaps?chain={chain}",
+          "provider": "moralis",
+          "requires_token": true,
+          "requires_wallet": false,
+          "stream_based": false,
+          "ttl_seconds": 3600
+        },
+        "token_transfers": {
+          "cadence_seconds": {
+            "full_watchlist": 21600,
+            "tier0_wallet_token_stream": 600,
+            "tier1_wallet_token_stream": 900
+          },
+          "canonical_outputs": [
+            "smart_money_exchange_inflow_usd",
+            "smart_money_exchange_outflow_usd",
+            "smart_money_net_exchange_flow_usd"
+          ],
+          "compute_unit_cost": 50,
+          "feature_outputs": [
+            "moralis_exchange_inflow_usd",
+            "moralis_exchange_outflow_usd",
+            "moralis_net_exchange_flow_usd"
+          ],
+          "group": "token_transfers",
+          "path_template": "/erc20/{token}/transfers?chain={chain}",
+          "provider": "moralis",
+          "requires_token": true,
+          "requires_wallet": false,
+          "stream_based": false,
+          "ttl_seconds": 3600
+        },
+        "wallet_address_transfers": {
+          "cadence_seconds": {
+            "full_watchlist": 21600,
+            "tier0_wallet_token_stream": 900,
+            "tier1_wallet_token_stream": 3600
+          },
+          "canonical_outputs": [
+            "smart_money_exchange_inflow_usd",
+            "smart_money_exchange_outflow_usd",
+            "smart_money_net_exchange_flow_usd"
+          ],
+          "compute_unit_cost": 150,
+          "feature_outputs": [
+            "moralis_exchange_inflow_usd",
+            "moralis_exchange_outflow_usd",
+            "moralis_net_exchange_flow_usd"
+          ],
+          "group": "wallet_address_transfers",
+          "path_template": "/wallets/{wallet}/history?chain={chain}",
+          "provider": "moralis",
+          "requires_token": false,
+          "requires_wallet": true,
+          "stream_based": false,
+          "ttl_seconds": 21600
+        },
+        "wallet_history": {
+          "cadence_seconds": {
+            "full_watchlist": 21600,
+            "tier0_wallet_token_stream": 900,
+            "tier1_wallet_token_stream": 3600
+          },
+          "canonical_outputs": [
+            "smart_money_exchange_inflow_usd",
+            "smart_money_exchange_outflow_usd",
+            "smart_money_net_exchange_flow_usd"
+          ],
+          "compute_unit_cost": 150,
+          "feature_outputs": [
+            "moralis_exchange_inflow_usd",
+            "moralis_exchange_outflow_usd",
+            "moralis_net_exchange_flow_usd"
+          ],
+          "group": "wallet_history",
+          "path_template": "/wallets/{wallet}/history?chain={chain}",
+          "provider": "moralis",
+          "requires_token": false,
+          "requires_wallet": true,
+          "stream_based": false,
+          "ttl_seconds": 21600
+        },
+        "wallet_networth": {
+          "cadence_seconds": {
+            "full_watchlist": 21600,
+            "tier0_wallet_token_stream": 1800,
+            "tier1_wallet_token_stream": 7200
+          },
+          "canonical_outputs": [
+            "smart_money_whale_net_flow_usd",
+            "smart_wallet_accumulation_score"
+          ],
+          "compute_unit_cost": 100,
+          "feature_outputs": [
+            "moralis_whale_net_flow_usd",
+            "moralis_smart_wallet_accumulation_score"
+          ],
+          "group": "wallet_networth",
+          "path_template": "/wallets/{wallet}/net-worth?chain={chain}",
+          "provider": "moralis",
+          "requires_token": false,
+          "requires_wallet": true,
+          "stream_based": false,
+          "ttl_seconds": 21600
+        },
+        "wallet_swaps": {
+          "cadence_seconds": {
+            "full_watchlist": 21600,
+            "tier0_wallet_token_stream": 600,
+            "tier1_wallet_token_stream": 900
+          },
+          "canonical_outputs": [
+            "dex_buy_pressure_usd",
+            "dex_sell_pressure_usd",
+            "dex_flow_imbalance_usd"
+          ],
+          "compute_unit_cost": 50,
+          "feature_outputs": [
+            "moralis_dex_buy_pressure_usd",
+            "moralis_dex_sell_pressure_usd",
+            "moralis_dex_flow_imbalance_usd"
+          ],
+          "group": "wallet_swaps",
+          "path_template": "/wallets/{wallet}/swaps?chain={chain}",
+          "provider": "moralis",
+          "requires_token": false,
+          "requires_wallet": true,
+          "stream_based": false,
+          "ttl_seconds": 3600
+        },
+        "wallet_token_balances_price": {
+          "cadence_seconds": {
+            "full_watchlist": 21600,
+            "tier0_wallet_token_stream": 1800,
+            "tier1_wallet_token_stream": 7200
+          },
+          "canonical_outputs": [
+            "smart_wallet_accumulation_score",
+            "smart_money_whale_net_flow_usd"
+          ],
+          "compute_unit_cost": 100,
+          "feature_outputs": [
+            "moralis_smart_wallet_accumulation_score",
+            "moralis_whale_net_flow_usd"
+          ],
+          "group": "wallet_token_balances_price",
+          "path_template": "/wallets/{wallet}/tokens?chain={chain}",
+          "provider": "moralis",
+          "requires_token": false,
+          "requires_wallet": true,
+          "stream_based": false,
+          "ttl_seconds": 21600
+        },
+        "wallet_transactions": {
+          "cadence_seconds": {
+            "full_watchlist": 21600,
+            "tier0_wallet_token_stream": 900,
+            "tier1_wallet_token_stream": 3600
+          },
+          "canonical_outputs": [
+            "smart_money_exchange_inflow_usd",
+            "smart_money_exchange_outflow_usd",
+            "smart_money_net_exchange_flow_usd"
+          ],
+          "compute_unit_cost": 100,
+          "feature_outputs": [
+            "moralis_exchange_inflow_usd",
+            "moralis_exchange_outflow_usd",
+            "moralis_net_exchange_flow_usd"
+          ],
+          "group": "wallet_transactions",
+          "path_template": "/wallets/{wallet}/transactions?chain={chain}",
+          "provider": "moralis",
+          "requires_token": false,
+          "requires_wallet": true,
+          "stream_based": false,
+          "ttl_seconds": 21600
+        }
+      },
+      "moralis_every_symbol_every_minute_allowed": false,
+      "optional_provider_failures_core_blocking": false,
+      "schema_version": "endpoint_to_feature_mapping_v1"
+    },
+    "generated_utc": "2026-07-08T19:55:00Z",
+    "heartbeat_only_green_allowed": false,
+    "moralis_every_symbol_every_minute_allowed": false,
+    "moralis_registry": {
+      "catchup_max_rps": 10,
+      "core_system_blocked": false,
+      "daily_compute_unit_budget": 55000,
+      "daily_compute_unit_reserve": 10000,
+      "endpoint_count": 14,
+      "endpoints": [
+        {
+          "cadence_seconds_full_watchlist": 21600,
+          "cadence_seconds_tier0": 1800,
+          "cadence_seconds_tier1": 7200,
+          "cu_cost": 100,
+          "endpoint_id": "wallet_token_balances_price",
+          "feature_outputs": [
+            "moralis_smart_wallet_accumulation_score",
+            "moralis_whale_net_flow_usd"
+          ],
+          "group": "wallet_token_balances_price",
+          "path_template": "/wallets/{wallet}/tokens?chain={chain}",
+          "priority": "MEDIUM",
+          "purpose": "track known wallet holdings and token balances with price",
+          "requires_token": false,
+          "requires_wallet": true,
+          "stream_based": false,
+          "ttl_seconds": 21600
+        },
+        {
+          "cadence_seconds_full_watchlist": 21600,
+          "cadence_seconds_tier0": 900,
+          "cadence_seconds_tier1": 3600,
+          "cu_cost": 150,
+          "endpoint_id": "wallet_history",
+          "feature_outputs": [
+            "moralis_exchange_inflow_usd",
+            "moralis_exchange_outflow_usd",
+            "moralis_net_exchange_flow_usd"
+          ],
+          "group": "wallet_history",
+          "path_template": "/wallets/{wallet}/history?chain={chain}",
+          "priority": "MEDIUM_HIGH",
+          "purpose": "wallet activity and realized flow",
+          "requires_token": false,
+          "requires_wallet": true,
+          "stream_based": false,
+          "ttl_seconds": 21600
+        },
+        {
+          "cadence_seconds_full_watchlist": 21600,
+          "cadence_seconds_tier0": 900,
+          "cadence_seconds_tier1": 3600,
+          "cu_cost": 100,
+          "endpoint_id": "wallet_transactions",
+          "feature_outputs": [
+            "moralis_exchange_inflow_usd",
+            "moralis_exchange_outflow_usd",
+            "moralis_net_exchange_flow_usd"
+          ],
+          "group": "wallet_transactions",
+          "path_template": "/wallets/{wallet}/transactions?chain={chain}",
+          "priority": "MEDIUM_HIGH",
+          "purpose": "wallet transaction activity and realized flow proxy",
+          "requires_token": false,
+          "requires_wallet": true,
+          "stream_based": false,
+          "ttl_seconds": 21600
+        },
+        {
+          "cadence_seconds_full_watchlist": 21600,
+          "cadence_seconds_tier0": 1800,
+          "cadence_seconds_tier1": 7200,
+          "cu_cost": 100,
+          "endpoint_id": "wallet_networth",
+          "feature_outputs": [
+            "moralis_whale_net_flow_usd",
+            "moralis_smart_wallet_accumulation_score"
+          ],
+          "group": "wallet_networth",
+          "path_template": "/wallets/{wallet}/net-worth?chain={chain}",
+          "priority": "MEDIUM",
+          "purpose": "wallet size and whale-score context",
+          "requires_token": false,
+          "requires_wallet": true,
+          "stream_based": false,
+          "ttl_seconds": 21600
+        },
+        {
+          "cadence_seconds_full_watchlist": 21600,
+          "cadence_seconds_tier0": 900,
+          "cadence_seconds_tier1": 3600,
+          "cu_cost": 150,
+          "endpoint_id": "wallet_address_transfers",
+          "feature_outputs": [
+            "moralis_exchange_inflow_usd",
+            "moralis_exchange_outflow_usd",
+            "moralis_net_exchange_flow_usd"
+          ],
+          "group": "wallet_address_transfers",
+          "path_template": "/wallets/{wallet}/history?chain={chain}",
+          "priority": "MEDIUM_HIGH",
+          "purpose": "wallet address transfer flow",
+          "requires_token": false,
+          "requires_wallet": true,
+          "stream_based": false,
+          "ttl_seconds": 21600
+        },
+        {
+          "cadence_seconds_full_watchlist": 21600,
+          "cadence_seconds_tier0": 600,
+          "cadence_seconds_tier1": 900,
+          "cu_cost": 50,
+          "endpoint_id": "token_transfers",
+          "feature_outputs": [
+            "moralis_exchange_inflow_usd",
+            "moralis_exchange_outflow_usd",
+            "moralis_net_exchange_flow_usd"
+          ],
+          "group": "token_transfers",
+          "path_template": "/erc20/{token}/transfers?chain={chain}",
+          "priority": "MEDIUM_HIGH",
+          "purpose": "exchange inflow/outflow and whale token flows",
+          "requires_token": true,
+          "requires_wallet": false,
+          "stream_based": false,
+          "ttl_seconds": 3600
+        },
+        {
+          "cadence_seconds_full_watchlist": 21600,
+          "cadence_seconds_tier0": 600,
+          "cadence_seconds_tier1": 900,
+          "cu_cost": 50,
+          "endpoint_id": "token_address_transfers",
+          "feature_outputs": [
+            "moralis_exchange_inflow_usd",
+            "moralis_exchange_outflow_usd",
+            "moralis_net_exchange_flow_usd"
+          ],
+          "group": "token_address_transfers",
+          "path_template": "/erc20/{token}/transfers?chain={chain}",
+          "priority": "MEDIUM_HIGH",
+          "purpose": "large recent token transfer participants",
+          "requires_token": true,
+          "requires_wallet": false,
+          "stream_based": false,
+          "ttl_seconds": 3600
+        },
+        {
+          "cadence_seconds_full_watchlist": 86400,
+          "cadence_seconds_tier0": 21600,
+          "cadence_seconds_tier1": 21600,
+          "cu_cost": 50,
+          "endpoint_id": "token_holders",
+          "feature_outputs": [
+            "moralis_holder_concentration_change",
+            "moralis_token_holder_delta"
+          ],
+          "group": "token_holders",
+          "path_template": "/erc20/{token}/owners?chain={chain}",
+          "priority": "LOW_MEDIUM",
+          "purpose": "holder concentration and accumulation/distribution",
+          "requires_token": true,
+          "requires_wallet": false,
+          "stream_based": false,
+          "ttl_seconds": 86400
+        },
+        {
+          "cadence_seconds_full_watchlist": 21600,
+          "cadence_seconds_tier0": 600,
+          "cadence_seconds_tier1": 900,
+          "cu_cost": 50,
+          "endpoint_id": "wallet_swaps",
+          "feature_outputs": [
+            "moralis_dex_buy_pressure_usd",
+            "moralis_dex_sell_pressure_usd",
+            "moralis_dex_flow_imbalance_usd"
+          ],
+          "group": "wallet_swaps",
+          "path_template": "/wallets/{wallet}/swaps?chain={chain}",
+          "priority": "MEDIUM",
+          "purpose": "DEX buy/sell pressure",
+          "requires_token": false,
+          "requires_wallet": true,
+          "stream_based": false,
+          "ttl_seconds": 3600
+        },
+        {
+          "cadence_seconds_full_watchlist": 21600,
+          "cadence_seconds_tier0": 600,
+          "cadence_seconds_tier1": 900,
+          "cu_cost": 50,
+          "endpoint_id": "token_swaps",
+          "feature_outputs": [
+            "moralis_dex_buy_pressure_usd",
+            "moralis_dex_sell_pressure_usd",
+            "moralis_dex_flow_imbalance_usd"
+          ],
+          "group": "token_swaps",
+          "path_template": "/erc20/{token}/swaps?chain={chain}",
+          "priority": "MEDIUM",
+          "purpose": "token-level DEX buy/sell pressure",
+          "requires_token": true,
+          "requires_wallet": false,
+          "stream_based": false,
+          "ttl_seconds": 3600
+        },
+        {
+          "cadence_seconds_full_watchlist": 86400,
+          "cadence_seconds_tier0": 21600,
+          "cadence_seconds_tier1": 21600,
+          "cu_cost": 25,
+          "endpoint_id": "token_metadata",
+          "feature_outputs": [
+            "moralis_contract_risk_penalty",
+            "moralis_onchain_risk_score"
+          ],
+          "group": "token_metadata",
+          "path_template": "/erc20/metadata?chain={chain}&addresses={token}",
+          "priority": "LOW_MEDIUM",
+          "purpose": "metadata validation for symbol-to-contract map",
+          "requires_token": true,
+          "requires_wallet": false,
+          "stream_based": false,
+          "ttl_seconds": 86400
+        },
+        {
+          "cadence_seconds_full_watchlist": 21600,
+          "cadence_seconds_tier0": 900,
+          "cadence_seconds_tier1": 900,
+          "cu_cost": 50,
+          "endpoint_id": "token_price",
+          "feature_outputs": [
+            "moralis_onchain_risk_score"
+          ],
+          "group": "token_price",
+          "path_template": "/erc20/{token}/price?chain={chain}",
+          "priority": "LOW",
+          "purpose": "onchain price confirmation only",
+          "requires_token": true,
+          "requires_wallet": false,
+          "stream_based": false,
+          "ttl_seconds": 900
+        },
+        {
+          "cadence_seconds_full_watchlist": 21600,
+          "cadence_seconds_tier0": 900,
+          "cadence_seconds_tier1": 900,
+          "cu_cost": 50,
+          "endpoint_id": "multiple_token_prices",
+          "feature_outputs": [
+            "moralis_onchain_risk_score"
+          ],
+          "group": "multiple_token_prices",
+          "path_template": "/erc20/prices?chain={chain}&tokens={token}",
+          "priority": "LOW",
+          "purpose": "batched token price confirmation where supported",
+          "requires_token": true,
+          "requires_wallet": false,
+          "stream_based": false,
+          "ttl_seconds": 900
+        },
+        {
+          "cadence_seconds_full_watchlist": 0,
+          "cadence_seconds_tier0": 0,
+          "cadence_seconds_tier1": 0,
+          "cu_cost": 10,
+          "endpoint_id": "streams",
+          "feature_outputs": [
+            "moralis_whale_buy_usd",
+            "moralis_whale_sell_usd",
+            "moralis_whale_net_flow_usd"
+          ],
+          "group": "streams",
+          "path_template": "webhook",
+          "priority": "HIGH_ONCE_CONFIGURED",
+          "purpose": "push-based wallet/address/token events",
+          "requires_token": false,
+          "requires_wallet": false,
+          "stream_based": true,
+          "ttl_seconds": 3600
+        }
+      ],
+      "hard_max_rps": 30,
+      "normal_max_rps": 5,
+      "provider": "moralis",
+      "public_monthly_compute_units": 2000000,
+      "public_plan": "starter",
+      "public_rps": 40,
+      "raw_key_exposed": false,
+      "schema_version": "moralis_endpoint_registry_v1",
+      "wallet_token_stream_cadence_contract": {
+        "full_universe": "rotating_only",
+        "t0_wallet_balances_networth_seconds": 1800,
+        "t0_wallet_history_transfers_swaps_seconds": 900,
+        "t1_wallet_balances_networth_seconds": 7200,
+        "t1_wallet_history_transfers_swaps_seconds": 3600,
+        "token_holders_seconds": "21600-86400",
+        "token_transfers_swaps_active_symbols_seconds": "600-1800"
+      }
+    },
+    "moralis_schedule_plan": {
+      "catchup_rps": 10,
+      "configured_no_watchlist_is_green": false,
+      "daily_compute_unit_budget": 55000,
+      "daily_compute_unit_reserve": 10000,
+      "does_not_poll_every_symbol_every_minute": true,
+      "endpoints": [
+        {
+          "cadence_seconds_full_watchlist": 21600,
+          "cadence_seconds_tier0": 1800,
+          "cadence_seconds_tier1": 7200,
+          "compute_unit_cost": 100,
+          "endpoint_id": "wallet_token_balances_price",
+          "estimated_compute_units_per_cycle": 0,
+          "feature_outputs": [
+            "moralis_smart_wallet_accumulation_score",
+            "moralis_whale_net_flow_usd"
+          ],
+          "group": "wallet_token_balances_price",
+          "stream_based": false,
+          "target_count": 0
+        },
+        {
+          "cadence_seconds_full_watchlist": 21600,
+          "cadence_seconds_tier0": 900,
+          "cadence_seconds_tier1": 3600,
+          "compute_unit_cost": 150,
+          "endpoint_id": "wallet_history",
+          "estimated_compute_units_per_cycle": 0,
+          "feature_outputs": [
+            "moralis_exchange_inflow_usd",
+            "moralis_exchange_outflow_usd",
+            "moralis_net_exchange_flow_usd"
+          ],
+          "group": "wallet_history",
+          "stream_based": false,
+          "target_count": 0
+        },
+        {
+          "cadence_seconds_full_watchlist": 21600,
+          "cadence_seconds_tier0": 900,
+          "cadence_seconds_tier1": 3600,
+          "compute_unit_cost": 100,
+          "endpoint_id": "wallet_transactions",
+          "estimated_compute_units_per_cycle": 0,
+          "feature_outputs": [
+            "moralis_exchange_inflow_usd",
+            "moralis_exchange_outflow_usd",
+            "moralis_net_exchange_flow_usd"
+          ],
+          "group": "wallet_transactions",
+          "stream_based": false,
+          "target_count": 0
+        },
+        {
+          "cadence_seconds_full_watchlist": 21600,
+          "cadence_seconds_tier0": 1800,
+          "cadence_seconds_tier1": 7200,
+          "compute_unit_cost": 100,
+          "endpoint_id": "wallet_networth",
+          "estimated_compute_units_per_cycle": 0,
+          "feature_outputs": [
+            "moralis_whale_net_flow_usd",
+            "moralis_smart_wallet_accumulation_score"
+          ],
+          "group": "wallet_networth",
+          "stream_based": false,
+          "target_count": 0
+        },
+        {
+          "cadence_seconds_full_watchlist": 21600,
+          "cadence_seconds_tier0": 900,
+          "cadence_seconds_tier1": 3600,
+          "compute_unit_cost": 150,
+          "endpoint_id": "wallet_address_transfers",
+          "estimated_compute_units_per_cycle": 0,
+          "feature_outputs": [
+            "moralis_exchange_inflow_usd",
+            "moralis_exchange_outflow_usd",
+            "moralis_net_exchange_flow_usd"
+          ],
+          "group": "wallet_address_transfers",
+          "stream_based": false,
+          "target_count": 0
+        },
+        {
+          "cadence_seconds_full_watchlist": 21600,
+          "cadence_seconds_tier0": 600,
+          "cadence_seconds_tier1": 900,
+          "compute_unit_cost": 50,
+          "endpoint_id": "token_transfers",
+          "estimated_compute_units_per_cycle": 0,
+          "feature_outputs": [
+            "moralis_exchange_inflow_usd",
+            "moralis_exchange_outflow_usd",
+            "moralis_net_exchange_flow_usd"
+          ],
+          "group": "token_transfers",
+          "stream_based": false,
+          "target_count": 0
+        },
+        {
+          "cadence_seconds_full_watchlist": 21600,
+          "cadence_seconds_tier0": 600,
+          "cadence_seconds_tier1": 900,
+          "compute_unit_cost": 50,
+          "endpoint_id": "token_address_transfers",
+          "estimated_compute_units_per_cycle": 0,
+          "feature_outputs": [
+            "moralis_exchange_inflow_usd",
+            "moralis_exchange_outflow_usd",
+            "moralis_net_exchange_flow_usd"
+          ],
+          "group": "token_address_transfers",
+          "stream_based": false,
+          "target_count": 0
+        },
+        {
+          "cadence_seconds_full_watchlist": 86400,
+          "cadence_seconds_tier0": 21600,
+          "cadence_seconds_tier1": 21600,
+          "compute_unit_cost": 50,
+          "endpoint_id": "token_holders",
+          "estimated_compute_units_per_cycle": 0,
+          "feature_outputs": [
+            "moralis_holder_concentration_change",
+            "moralis_token_holder_delta"
+          ],
+          "group": "token_holders",
+          "stream_based": false,
+          "target_count": 0
+        },
+        {
+          "cadence_seconds_full_watchlist": 21600,
+          "cadence_seconds_tier0": 600,
+          "cadence_seconds_tier1": 900,
+          "compute_unit_cost": 50,
+          "endpoint_id": "wallet_swaps",
+          "estimated_compute_units_per_cycle": 0,
+          "feature_outputs": [
+            "moralis_dex_buy_pressure_usd",
+            "moralis_dex_sell_pressure_usd",
+            "moralis_dex_flow_imbalance_usd"
+          ],
+          "group": "wallet_swaps",
+          "stream_based": false,
+          "target_count": 0
+        },
+        {
+          "cadence_seconds_full_watchlist": 21600,
+          "cadence_seconds_tier0": 600,
+          "cadence_seconds_tier1": 900,
+          "compute_unit_cost": 50,
+          "endpoint_id": "token_swaps",
+          "estimated_compute_units_per_cycle": 0,
+          "feature_outputs": [
+            "moralis_dex_buy_pressure_usd",
+            "moralis_dex_sell_pressure_usd",
+            "moralis_dex_flow_imbalance_usd"
+          ],
+          "group": "token_swaps",
+          "stream_based": false,
+          "target_count": 0
+        },
+        {
+          "cadence_seconds_full_watchlist": 86400,
+          "cadence_seconds_tier0": 21600,
+          "cadence_seconds_tier1": 21600,
+          "compute_unit_cost": 25,
+          "endpoint_id": "token_metadata",
+          "estimated_compute_units_per_cycle": 0,
+          "feature_outputs": [
+            "moralis_contract_risk_penalty",
+            "moralis_onchain_risk_score"
+          ],
+          "group": "token_metadata",
+          "stream_based": false,
+          "target_count": 0
+        },
+        {
+          "cadence_seconds_full_watchlist": 21600,
+          "cadence_seconds_tier0": 900,
+          "cadence_seconds_tier1": 900,
+          "compute_unit_cost": 50,
+          "endpoint_id": "token_price",
+          "estimated_compute_units_per_cycle": 0,
+          "feature_outputs": [
+            "moralis_onchain_risk_score"
+          ],
+          "group": "token_price",
+          "stream_based": false,
+          "target_count": 0
+        },
+        {
+          "cadence_seconds_full_watchlist": 21600,
+          "cadence_seconds_tier0": 900,
+          "cadence_seconds_tier1": 900,
+          "compute_unit_cost": 50,
+          "endpoint_id": "multiple_token_prices",
+          "estimated_compute_units_per_cycle": 0,
+          "feature_outputs": [
+            "moralis_onchain_risk_score"
+          ],
+          "group": "multiple_token_prices",
+          "stream_based": false,
+          "target_count": 0
+        },
+        {
+          "cadence_seconds_full_watchlist": 0,
+          "cadence_seconds_tier0": 0,
+          "cadence_seconds_tier1": 0,
+          "compute_unit_cost": 10,
+          "endpoint_id": "streams",
+          "estimated_compute_units_per_cycle": 0,
+          "feature_outputs": [
+            "moralis_whale_buy_usd",
+            "moralis_whale_sell_usd",
+            "moralis_whale_net_flow_usd"
+          ],
+          "group": "streams",
+          "stream_based": true,
+          "target_count": 0
+        }
+      ],
+      "estimated_compute_units_per_cycle": 0,
+      "hard_rps": 30,
+      "normal_rps": 5,
+      "schema_version": "moralis_scheduler_plan_v1"
+    },
+    "optional_provider_failures_core_blocking": false,
+    "raw_key_exposed": false,
+    "redis_key_contract": {
+      "coinglass": {
+        "endpoint_status": "v2:provider:coinglass:endpoint_status",
+        "features": "v2:features:coinglass:{symbol}:{timeframe}",
+        "funding": "v2:coinglass:funding:{symbol}",
+        "health": "v2:provider:coinglass:health",
+        "liquidation_levels": "v2:coinglass:liquidation_levels:{symbol}",
+        "liquidations": "v2:coinglass:liquidations:{symbol}",
+        "long_short": "v2:coinglass:long_short:{symbol}",
+        "market_snapshot": "v2:coinglass:market_snapshot:{symbol}",
+        "open_interest": "v2:coinglass:open_interest:{symbol}",
+        "orderbook": "v2:coinglass:orderbook:{symbol}",
+        "trades": "v2:coinglass:trades:{symbol}",
+        "usage": "v2:provider:coinglass:usage"
+      },
+      "health_key_is_not_sufficient_for_green": true,
+      "heartbeat_only_green_allowed": false,
+      "moralis": {
+        "endpoint_status": "v2:provider:moralis:endpoint_status",
+        "features": "v2:features:moralis:{symbol}:{timeframe}",
+        "health": "v2:provider:moralis:health",
+        "smart_money_signals": "v2:smart_money:signals:{symbol}",
+        "swaps": "v2:moralis:swaps:{chain}:{token}",
+        "token_holders": "v2:moralis:token_holders:{chain}:{token}",
+        "token_transfers": "v2:moralis:token_transfers:{chain}:{token}",
+        "usage": "v2:provider:moralis:usage",
+        "wallet": "v2:moralis:wallet:{chain}:{address}",
+        "wallet_history": "v2:moralis:wallet_history:{chain}:{address}"
+      },
+      "raw_api_key_exposure_allowed": false,
+      "schema_version": "provider_redis_key_contract_v1",
+      "ttl_required_for_payload_keys": true
+    },
+    "schema_version": "provider_scheduler_status_v1",
+    "status": "PROVIDER_SCHEDULER_RATE_LIMIT_CONTRACT_ACTIVE"
+  },
+  "raw_key_exposed": false,
+  "schema_version": "same_day_cutover_provider_rate_limited_ceo_packet_v1",
+  "status": "LIVE_CANARY_NOT_READY",
+  "symbol": "BTCUSDT",
+  "timeframe": "1m"
+}

@@ -1053,6 +1053,7 @@ def test_strategy_size_multiplier_rescales_adaptive_capital_accounting() -> None
     assert intent["adaptive_capital_accounting_adjusted_to_actual_notional"] is True
     assert intent["adaptive_capital_accounting_adjustment_ratio"] == 0.5
     assert intent["adaptive_allocation"]["target_notional_usdt"] == 500.0
+    assert intent["adaptive_allocation"]["target_notional_usd"] == 500.0
     assert intent["adaptive_allocation"]["target_quantity"] == 5.0
     assert intent["adaptive_allocation"]["gross_notional_usd"] == 500.0
     assert intent["adaptive_allocation"]["allocated_margin_usd"] == 250.0

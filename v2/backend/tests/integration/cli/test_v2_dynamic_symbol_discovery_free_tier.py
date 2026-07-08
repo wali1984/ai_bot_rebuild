@@ -140,6 +140,12 @@ def test_dynamic_discovery_expands_tradable_symbols_and_keeps_execution_empty(
     assert "USDCUSDT" not in payload["dynamic_discovered_symbols"]
     assert payload["training_symbols"] == payload["dynamic_discovered_symbols"]
     assert payload["paper_symbols"] == payload["dynamic_discovered_symbols"]
+    assert payload["binance_usdm_tradable_symbol_count"] == 3
+    assert payload["binance_usdm_tradable_symbols"] == [
+        "1000BONKUSDT",
+        "BTCUSDT",
+        "SOLUSDT",
+    ]
     assert payload["live_gate"] == "blocked_human_only"
     assert payload["live_symbols"] == []
     assert payload["execution_live_symbols"] == []

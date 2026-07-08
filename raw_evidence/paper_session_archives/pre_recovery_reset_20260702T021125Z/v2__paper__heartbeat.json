@@ -1,0 +1,66 @@
+{
+  "candidate_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
+  "classification": "V2_TRADE_MANAGEMENT_PAPER_CYCLE_RUNNING",
+  "current_allowed_paper_owner": "challenger_v2",
+  "cycle_state": "RUNNING_CYCLE",
+  "finished_at": null,
+  "frozen_selector_fingerprint": "c4b8fb1ed12aabcb87224723f1758563eefff10de90288be09866d2bf3fa74b5",
+  "heartbeat_generated_at": "2026-07-02T02:11:23.374Z",
+  "heartbeat_ttl_seconds": 3600,
+  "model_source": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA",
+  "paper_active_runtime_owner_status": {
+    "active_new_entry_owner": "v2_trade_management_paper_loop",
+    "active_process_row_count": 1,
+    "active_process_rows": [
+      {
+        "canonical_paper_loop": true,
+        "canonical_service_scope": true,
+        "command": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_trade_management_paper_loop --loop --interval-seconds 60",
+        "forbidden_runtime_markers": [],
+        "pid": 2951024
+      }
+    ],
+    "canonical_paper_runtime_enabled": true,
+    "canonical_paper_writer_count": 1,
+    "canonical_process_marker": "v2.backend.app.cli.v2_trade_management_paper_loop",
+    "canonical_service_name": "ai-bot-v2-trade-management-paper-loop.service",
+    "duplicate_paper_writer_count": 0,
+    "forbidden_entry_process_count": 0,
+    "forbidden_marker_flags": {
+      "paper_online_runtime_active": false,
+      "toy_momentum_entry_writer_active": false
+    },
+    "generated_utc": "2026-07-02T02:11:23.349Z",
+    "old_policy_new_entry_writer_active": false,
+    "paper_online_runtime_active": false,
+    "paper_online_runtime_enabled": false,
+    "paper_only": true,
+    "pass_conditions": {
+      "active_new_entry_owner_is_v2_trade_management_paper_loop": true,
+      "canonical_paper_runtime_enabled_true": true,
+      "canonical_paper_writer_count_eq_1": true,
+      "duplicate_paper_writer_count_zero": true,
+      "forbidden_entry_process_count_zero": true,
+      "paper_online_runtime_active_false": true,
+      "paper_online_runtime_enabled_false": true,
+      "toy_momentum_entry_writer_active_false": true
+    },
+    "places_real_order": false,
+    "routes_to_live": false,
+    "schema_version": "paper_active_runtime_owner_status_v1",
+    "status": "PASS_ACTIVE_RUNTIME_OWNER_VALIDATION",
+    "toy_momentum_entry_writer_active": false,
+    "writes_legacy_redis": false
+  },
+  "paper_only": true,
+  "paper_policy_owner": "challenger_v2",
+  "places_real_order": false,
+  "policy_fingerprint": "83d35e31eea385da1a283b8efab3102ac292be2904724d11777f2b7a32e68630",
+  "policy_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
+  "routes_to_live": false,
+  "schema_version": "v2_trade_management_paper_heartbeat_v2",
+  "selector_policy_fingerprint": "c4b8fb1ed12aabcb87224723f1758563eefff10de90288be09866d2bf3fa74b5",
+  "started_at": "2026-07-02T02:11:23.340Z",
+  "worker_id": "v2_trade_management_paper_loop",
+  "writes_legacy_redis": false
+}

@@ -533,7 +533,11 @@ def _build_defillama_payloads(
             "defillama_top_protocols": row.get("protocols") or [],
             "defillama_change_1d_avg": round(one_day, 6) if one_day is not None else None,
             "defillama_change_7d_avg": round(seven_day, 6) if seven_day is not None else None,
-            "defillama_liquidity_score": round(liquidity_score or 0.0, 6),
+            "defillama_liquidity_score": (
+                round(liquidity_score, 6)
+                if liquidity_score is not None and liquidity_score > 0.0
+                else None
+            ),
             "defillama_tvl_momentum_score": round(momentum if momentum is not None else 0.5, 6),
         }
     status_payload = {

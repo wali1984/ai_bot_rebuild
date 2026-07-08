@@ -45,6 +45,7 @@ struct RiskControlView: View {
         ScrollView {
             VStack(spacing: 14) {
                 liveGateCard(risk.live_gate)
+                RuntimeTruthCard(title: "Runtime Truth", truth: .risk(risk))
                 killSwitchCard(risk)
                 riskClassificationCard(risk)
                 limitsCard(risk)

@@ -113,6 +113,10 @@ def validate_trainer_argv(argv: list[str]) -> None:
 # ---------------------------------------------------------------------------
 
 CACHE_KEY = "v2:trainer:summary"
+CHAMPION_CHALLENGER_STATUS_KEY = "v2:trainer:champion_challenger_status"
+PREEMPTIVE_COUNTERFACTUAL_STATUS_KEY = (
+    "v2:trainer:preemptive_blocked_counterfactual_status"
+)
 DEFAULT_TTL_S = 30
 
 
@@ -138,7 +142,138 @@ def _empty_shape(state: str) -> dict[str, Any]:
         "drift_alarm_count": None,
         "promotion_locked": None,
         "promotion_min_role": None,
+        "champion_challenger_status": _missing_champion_challenger_status(),
     }
+
+
+def _missing_champion_challenger_status() -> dict[str, Any]:
+    return {
+        "schema_version": "v2_trainer_champion_challenger_status_v1",
+        "status": "MISSING_RUNTIME_EVIDENCE",
+        "available": False,
+        "source": f"redis:{CHAMPION_CHALLENGER_STATUS_KEY}",
+        "redis_key": CHAMPION_CHALLENGER_STATUS_KEY,
+        "best_challenger_id": None,
+        "promotion_allowed": False,
+        "promotion_reason": "runtime key missing",
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+
+
+def _read_champion_challenger_status(r: Any) -> dict[str, Any]:
+    if r is None:
+        return _missing_champion_challenger_status()
+    try:
+        raw = r.get(CHAMPION_CHALLENGER_STATUS_KEY)
+    except Exception:
+        return _missing_champion_challenger_status()
+    if raw is None:
+        return _missing_champion_challenger_status()
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8", errors="replace")
+    try:
+        payload = json.loads(str(raw))
+    except (TypeError, ValueError):
+        missing = _missing_champion_challenger_status()
+        missing["status"] = "INVALID_RUNTIME_EVIDENCE"
+        missing["promotion_reason"] = "runtime key is not valid JSON"
+        return missing
+    if not isinstance(payload, dict):
+        missing = _missing_champion_challenger_status()
+        missing["status"] = "INVALID_RUNTIME_EVIDENCE"
+        missing["promotion_reason"] = "runtime key JSON is not an object"
+        return missing
+    out = dict(payload)
+    out.setdefault("schema_version", "v2_trainer_champion_challenger_status_v1")
+    out.setdefault("source", f"redis:{CHAMPION_CHALLENGER_STATUS_KEY}")
+    out.setdefault("redis_key", CHAMPION_CHALLENGER_STATUS_KEY)
+    out["available"] = True
+    out["promotion_allowed"] = out.get("promotion_allowed") is True
+    out.setdefault("promotion_reason", "runtime status published")
+    out.setdefault("best_challenger_id", None)
+    out.setdefault("paper_only", True)
+    out.setdefault("routes_to_live", False)
+    out.setdefault("places_real_order", False)
+    safety = out.get("safety")
+    if isinstance(safety, dict):
+        out["paper_only"] = safety.get("paper_only") is not False
+        out["routes_to_live"] = safety.get("routes_to_live") is True
+        out["places_real_order"] = safety.get("places_real_order") is True
+    return out
+
+
+def _attach_champion_challenger_status(shape: dict[str, Any], r: Any) -> dict[str, Any]:
+    out = dict(shape)
+    status = _read_champion_challenger_status(r)
+    out["champion_challenger_status"] = status
+    return out
+
+
+def _read_preemptive_feedback_status(r: Any) -> dict[str, Any]:
+    fallback = {
+        "schema_version": "preemptive_trainer_feedback_status_v1",
+        "status": "PREEMPTIVE_COUNTERFACTUAL_STATUS_UNAVAILABLE",
+        "available": False,
+        "source": f"redis:{PREEMPTIVE_COUNTERFACTUAL_STATUS_KEY}",
+        "blocked_candidate_counterfactual_rows": 0,
+        "counterfactual_labels_pending": 0,
+        "consumable_labeled_counterfactual_rows": 0,
+        "trainer_consumption_state": "MISSING_RUNTIME_EVIDENCE",
+        "no_future_leakage": True,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    if r is None:
+        return fallback
+    try:
+        raw = r.get(PREEMPTIVE_COUNTERFACTUAL_STATUS_KEY)
+    except Exception:
+        return fallback
+    if raw is None:
+        return fallback
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8", errors="replace")
+    try:
+        payload = json.loads(str(raw))
+    except (TypeError, ValueError):
+        out = dict(fallback)
+        out["status"] = "PREEMPTIVE_COUNTERFACTUAL_STATUS_INVALID_JSON"
+        return out
+    if not isinstance(payload, dict):
+        return fallback
+    out = dict(payload)
+    out.setdefault("schema_version", "preemptive_trainer_feedback_status_v1")
+    out.setdefault("source", f"redis:{PREEMPTIVE_COUNTERFACTUAL_STATUS_KEY}")
+    out["available"] = True
+    out.setdefault("no_future_leakage", True)
+    out.setdefault("paper_only", True)
+    out.setdefault("routes_to_live", False)
+    out.setdefault("places_real_order", False)
+    return out
+
+
+def _attach_preemptive_feedback_status(shape: dict[str, Any], r: Any) -> dict[str, Any]:
+    out = dict(shape)
+    status = _read_preemptive_feedback_status(r)
+    out["preemptive_trainer_feedback_status"] = status
+    out["preemptive_edge_control_feedback"] = {
+        "blocked_candidates_persisted": (
+            int(status.get("blocked_candidate_counterfactual_rows") or 0) > 0
+        ),
+        "blocked_candidates_can_become_trainer_samples": True,
+        "consumable_labeled_counterfactual_rows": int(
+            status.get("consumable_labeled_counterfactual_rows") or 0
+        ),
+        "future_labels_used_as_features": False,
+        "trainer_consumption_state": status.get("trainer_consumption_state"),
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    return out
 
 
 def _normalize_subprocess_output(data: dict[str, Any]) -> dict[str, Any]:
@@ -271,6 +406,8 @@ async def get_trainer_summary() -> dict[str, Any]:
         # Before returning MISSING_EVIDENCE, try Redis fallback
         redis_shape = _redis_fallback_shape(r)
         if redis_shape is not None:
+            redis_shape = _attach_champion_challenger_status(redis_shape, r)
+            redis_shape = _attach_preemptive_feedback_status(redis_shape, r)
             _audit(
                 r,
                 source="trainer.summary.redis_fallback",
@@ -284,6 +421,8 @@ async def get_trainer_summary() -> dict[str, Any]:
                     pass
             return redis_shape
         shape = _empty_shape("MISSING_EVIDENCE")
+        shape = _attach_champion_challenger_status(shape, r)
+        shape = _attach_preemptive_feedback_status(shape, r)
         _audit(
             r,
             source="trainer.summary.stub",
@@ -303,6 +442,8 @@ async def get_trainer_summary() -> dict[str, Any]:
             except (ValueError, TypeError):
                 cached = None
             if isinstance(cached, dict):
+                cached = _attach_champion_challenger_status(cached, r)
+                cached = _attach_preemptive_feedback_status(cached, r)
                 _audit(
                     r,
                     source="trainer.summary.cache_hit",
@@ -318,6 +459,8 @@ async def get_trainer_summary() -> dict[str, Any]:
         redis_shape = _redis_fallback_shape(r)
         if redis_shape is not None:
             shape = redis_shape
+    shape = _attach_champion_challenger_status(shape, r)
+    shape = _attach_preemptive_feedback_status(shape, r)
 
     _audit(
         r,

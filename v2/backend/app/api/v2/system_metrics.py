@@ -208,6 +208,41 @@ async def get_system_metrics() -> dict[str, Any]:
     }
 
 
+@router.get("/system/health")
+async def get_system_health() -> dict[str, Any]:
+    """Minimal JSON health contract for frontend/mobile runtime truth checks."""
+    r = get_redis()
+    redis_available = False
+    if r is not None:
+        try:
+            redis_available = bool(r.ping())
+        except Exception:
+            redis_available = False
+    ts = _utc_now()
+    missing = [] if redis_available else ["redis"]
+    return {
+        "data": {
+            "status": "ok" if redis_available else "degraded",
+            "service": "ai-bot-v2-public-website-backend",
+            "redis_available": redis_available,
+            "live_gate": "blocked_human_only",
+            "live_submit_allowed": False,
+            "places_real_order": False,
+            "exchange_mutation_enabled": False,
+        },
+        "source": "fastapi:system_health + redis:ping",
+        "source_type": "redis_live" if redis_available else "unavailable",
+        "endpoint": "/api/v2/system/health",
+        "timestamp": ts,
+        "received_at": ts,
+        "lag_ms": 0,
+        "stale": not redis_available,
+        "missing_fields": missing,
+        "warnings": [] if redis_available else ["Redis ping failed; health is degraded"],
+        "mode": "read_only",
+    }
+
+
 # ---------------------------------------------------------------------------
 # Ingestor status + per-ingestor chart metrics
 # ---------------------------------------------------------------------------
@@ -451,6 +486,18 @@ def _ingestor_row(r: Any, name: str, feed: dict[str, Any], now: float) -> dict[s
         status = "stale"
     else:
         status = "offline"
+    provider_current = status == "live"
+    provider_usable = provider_current
+    provider_reason = None
+    if name.startswith("live_coinapi"):
+        if upstream_errors > 0:
+            provider_usable = False
+            provider_current = False
+            provider_reason = "COINAPI_HTTP_FORBIDDEN_OR_EXPIRED_NOT_CURRENT_SOURCE"
+        elif status != "live":
+            provider_usable = False
+            provider_current = False
+            provider_reason = "COINAPI_NOT_LIVE_NOT_CURRENT_SOURCE"
     return {
         "name": name,
         "title": feed["title"],
@@ -460,6 +507,10 @@ def _ingestor_row(r: Any, name: str, feed: dict[str, Any], now: float) -> dict[s
         "upstream_error_payloads": upstream_errors,
         "newest_event_age_seconds": round(age, 1) if age is not None else None,
         "status": status,
+        "provider_current": provider_current,
+        "provider_usable": provider_usable,
+        "provider_unusable_reason": provider_reason,
+        "must_not_label_as_current_source": bool(provider_reason),
     }
 
 

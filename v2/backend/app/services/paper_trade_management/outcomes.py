@@ -231,6 +231,7 @@ def build_close_event(
         realized = gross_pnl - fees - slippage + funding_pnl_usd
         slippage_bps = realized_slippage_bps_actual
         realized_net_pnl_bps = (realized / entry_notional * 10000.0) if entry_notional > 0 else 0.0
+    realized_pnl_usd = (realized_bps / 10000.0 * entry_notional) if entry_notional > 0 else gross_pnl
     expected_slippage_bps = (
         position.expected_slippage_bps
         if position.expected_slippage_bps is not None
@@ -503,6 +504,9 @@ def build_close_event(
         ),
     }
     outcome_targets = {
+        "realized_pnl": realized_pnl_usd,
+        "realized_pnl_usd": realized_pnl_usd,
+        "realized_pnl_usdt": realized_pnl_usd,
         "realized_net_pnl_bps": realized_net_pnl_bps,
         "realized_net_pnl_usd": realized,
         "directional_outcome": directional_outcome,
@@ -527,8 +531,9 @@ def build_close_event(
         "exit_price": exit_price,
         "exit_price_source": exit_price_source,
         "exit_price_utc": exit_time,
-        "realized_pnl_usd": realized,
-        "realized_pnl_usdt": realized,
+        "realized_pnl": realized_pnl_usd,
+        "realized_pnl_usd": realized_pnl_usd,
+        "realized_pnl_usdt": realized_pnl_usd,
         "realized_pnl_bps": realized_bps,
         "realized_net_pnl_bps": realized_net_pnl_bps,
         "realized_net_pnl_usd": realized,
@@ -630,8 +635,9 @@ def build_close_event(
         "selected_action": position.selected_action or position.side,
         "action_was_profitable": action_was_profitable,
         "holding_period": hold_time,
-        "realized_pnl": realized,
-        "realized_pnl_usd": realized,
+        "realized_pnl": realized_pnl_usd,
+        "realized_pnl_usd": realized_pnl_usd,
+        "realized_pnl_usdt": realized_pnl_usd,
         "winner": realized > 0.0,
         "close_reason": close_reason,
         "exit_reason": close_reason,

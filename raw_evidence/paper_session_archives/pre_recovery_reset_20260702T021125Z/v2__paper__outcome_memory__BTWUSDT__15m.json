@@ -1,0 +1,60 @@
+{
+  "avg_loser_bps": -94.1059,
+  "avg_winner_bps": 39.738,
+  "baseline_advisory_reasons": [],
+  "baseline_evidence_date": null,
+  "baseline_trade_count": 0,
+  "block_reason": null,
+  "bucket_scope": "symbol_timeframe",
+  "consecutive_losses": 1,
+  "data_source": "REDIS",
+  "degraded": false,
+  "degraded_since": null,
+  "drawdown_contribution_usd": -5.79897237,
+  "last_trade_ts": "2026-06-23T21:40:53.139Z",
+  "last_updated": "2026-06-23T22:29:41Z",
+  "loss_count": 1,
+  "max_drawdown_bps": 94.1059,
+  "missed_tp_then_stop_rate": null,
+  "outcome_memory_can_block_entries": true,
+  "recent_bps": [
+    35.2139239784326,
+    41.99999999999913,
+    42.00000000000024,
+    -94.10594335144951
+  ],
+  "recent_missed_tp_then_stop": [],
+  "recent_outcomes": [
+    1,
+    1,
+    1,
+    0
+  ],
+  "recent_pnl_usd": [
+    0.0004915917390469555,
+    0.09639931171294219,
+    1.2504582238137878,
+    -5.798972366876179
+  ],
+  "recent_reversal_after_entry": [],
+  "recent_slippage_failures": [
+    0,
+    0,
+    1,
+    0
+  ],
+  "reversal_after_entry_rate": null,
+  "rolling_ev_bps": 6.277,
+  "rolling_win_rate": 0.75,
+  "schema_version": "v2_outcome_memory_updater_v1",
+  "slippage_failure_rate": 0.25,
+  "soak_count": 4,
+  "symbol": "BTWUSDT",
+  "timeframe": "15m",
+  "total_trades": 4,
+  "trade_count": 4,
+  "trust_evidence_status": "TRUSTED_OUTCOME_MEMORY",
+  "trusted_trade_count": 4,
+  "untrusted_trade_count": 0,
+  "win_count": 3
+}

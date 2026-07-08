@@ -5,13 +5,16 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from v2.backend.app.services.native_trainer.model_edge_recovery_challenger import (
+    CHAMPION_CHALLENGER_STATUS_REDIS_KEY,
     CHAMPION_BASELINE,
     PAPER_CHALLENGER_TIER,
     ChallengerModel,
     EdgeRecoveryRow,
     _row_reject_reasons,
     build_paper_challenger_signal,
+    champion_challenger_status_from_result,
     evaluate_predictions,
+    publish_champion_challenger_status,
     predict_rows,
     train_challenger_model,
 )
@@ -138,6 +141,8 @@ def test_train_challenger_model_selects_on_validation_and_holdout_beats_baseline
     assert model.target_transform == "clipped_future_return_after_cost_bps"
     assert model.target_clip_bps == pytest.approx(50.0)
     assert len(model.feature_names) <= 4
+    assert model.validation_metrics["selection_validation_supply_floor"] == len(validation_rows)
+    assert model.validation_metrics["trade_count"] >= model.validation_metrics["selection_validation_supply_floor"]
     assert holdout_metrics["trade_count"] == len(holdout_rows)
     assert holdout_metrics["after_cost_expectancy_bps"] > 0.0
     assert holdout_metrics["directional_accuracy"] > CHAMPION_BASELINE["directional_accuracy"]
@@ -201,3 +206,68 @@ def test_build_paper_challenger_signal_fails_closed_on_dirty_current_snapshot() 
         snapshot=_trusted_snapshot(features=leaked_features),
         result_hash="result-hash",
     ) is None
+
+
+def test_champion_challenger_status_contract_is_paper_only_and_not_a_grade_promotion() -> None:
+    result = {
+        "generated_utc": _iso(minutes=10),
+        "goal_id": "unit-goal",
+        "status": "PASSED_PAPER_CHALLENGER_READY",
+        "result_hash": "abcdef1234567890fedcba",
+        "paper_challenger_policy": {
+            "enabled": True,
+            "paper_opportunity_tier": PAPER_CHALLENGER_TIER,
+            "counts_as_a_grade_evidence": False,
+            "a_grade_promotion_allowed": False,
+        },
+        "dataset_freeze": {"trusted_replay_rows": 300, "snapshots_scanned": 400},
+        "row_counts": {"train": 210, "validation": 45, "untouched_holdout": 45},
+        "model": {
+            "model_source": "unit-model",
+            "threshold_bps": 5.0,
+            "feature_names": ["edge"],
+            "validation_metrics": {"trade_count": 12},
+        },
+        "untouched_holdout_metrics": {"trade_count": 10, "after_cost_expectancy_bps": 7.5},
+        "point_in_time_safety": {"future_labels_used_as_features": False},
+    }
+
+    status = champion_challenger_status_from_result(result, source="unit")
+
+    assert status["status"] == "CHAMPION_CHALLENGER_EVALUATED_PAPER_READY"
+    assert status["best_challenger_id"] == "model_edge_recovery:abcdef1234567890"
+    assert status["promotion_allowed"] is False
+    assert status["promotion_reason"].startswith("paper challenger passed holdout")
+    assert status["backtests_processed"]["validation_trade_count"] == 12
+    assert status["backtests_processed"]["untouched_holdout_trade_count"] == 10
+    assert status["safety"]["paper_only"] is True
+    assert status["safety"]["routes_to_live"] is False
+    assert status["safety"]["places_real_order"] is False
+    assert status["safety"]["a_grade_promotion_allowed"] is False
+
+
+def test_publish_champion_challenger_status_writes_canonical_redis_key() -> None:
+    class FakeRedis:
+        def __init__(self) -> None:
+            self.rows: list[tuple[str, str, int | None]] = []
+
+        def set(self, key: str, value: str, ex: int | None = None) -> bool:
+            self.rows.append((key, value, ex))
+            return True
+
+    fake = FakeRedis()
+    status = publish_champion_challenger_status(
+        client=fake,
+        result={
+            "status": "BLOCKED_HOLDOUT_EDGE_NOT_PROVEN",
+            "blocker_reasons": ["POSITIVE_AFTER_COST_EXPECTANCY_FAILED"],
+            "result_hash": "1234",
+            "paper_challenger_policy": {"enabled": False},
+        },
+    )
+
+    assert status["status"] == "CHAMPION_CHALLENGER_EVALUATED_BLOCKED"
+    assert status["best_challenger_id"] is None
+    assert status["promotion_allowed"] is False
+    assert fake.rows[0][0] == CHAMPION_CHALLENGER_STATUS_REDIS_KEY
+    assert fake.rows[0][2] is not None and fake.rows[0][2] >= 60

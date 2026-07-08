@@ -638,6 +638,169 @@ def build_loss_adjusted_paper_actionability_status(
     }
 
 
+def build_high_confidence_calibration_penalty_status(
+    paper_feedback_payload: Mapping[str, Any],
+    bucket_quarantine_status: Mapping[str, Any],
+    *,
+    generated_est: str,
+) -> dict[str, Any]:
+    feedback_rows = _paper_feedback_rows(paper_feedback_payload)
+    blocked_bucket_keys = {
+        str(key)
+        for key in _as_list(bucket_quarantine_status.get("blocked_bucket_keys"))
+        if str(key)
+    }
+    bucket_rows = {
+        str(row.get("bucket_key")): _as_dict(row)
+        for row in _as_list(bucket_quarantine_status.get("quarantined_buckets"))
+        if _as_dict(row).get("bucket_key")
+    }
+    high_confidence_losses = [
+        row
+        for row in feedback_rows
+        if (_float(row.get("confidence_at_entry") or row.get("confidence_calibrated")) or 0.0) >= 0.70
+        and (
+            row.get("high_confidence_loss") is True
+            or row.get("action_was_profitable") is False
+            or str(row.get("outcome_label") or "").lower() == "loss"
+        )
+    ]
+    penalty_rows: list[dict[str, Any]] = []
+    for row in high_confidence_losses:
+        candidate_keys = sorted(_loss_quarantine_candidate_keys(row))
+        matched = sorted(set(candidate_keys) & blocked_bucket_keys)
+        confidence = _float(row.get("confidence_at_entry") or row.get("confidence_calibrated"))
+        raw_confidence = _float(row.get("confidence_raw"))
+        if raw_confidence is None:
+            raw_confidence = confidence
+        matched_bucket_payloads = [_as_dict(bucket_rows.get(key)) for key in matched]
+        max_loss_rate = max(
+            (
+                _float(bucket.get("high_confidence_loss_rate")) or 0.0
+                for bucket in matched_bucket_payloads
+            ),
+            default=1.0 if matched else 0.0,
+        )
+        recent_bucket_pf = next(
+            (
+                _float(bucket.get("profit_factor"))
+                for bucket in matched_bucket_payloads
+                if bucket.get("profit_factor") not in (None, "")
+            ),
+            None,
+        )
+        recent_bucket_expectancy = next(
+            (
+                _float(bucket.get("notional_weighted_expectancy_bps"))
+                for bucket in matched_bucket_payloads
+                if bucket.get("notional_weighted_expectancy_bps") not in (None, "")
+            ),
+            None,
+        )
+        microstructure_trust = _float(
+            row.get("microstructure_trust_at_entry")
+            or row.get("microstructure_trust_score")
+            or row.get("composite_microstructure_trust_score")
+        )
+        trust_tier = (
+            "LOW_OR_MISSING"
+            if microstructure_trust is None or microstructure_trust < 0.65
+            else "SUFFICIENT"
+        )
+        penalty = 0.0
+        reasons: list[str] = []
+        if confidence is not None and confidence > 0.70 and max_loss_rate >= 0.40:
+            penalty = max(penalty, min(0.25, 0.05 + max_loss_rate * 0.15))
+            reasons.append("HIGH_CONFIDENCE_BUCKET_LOSS_RATE")
+        if confidence is not None and confidence > 0.90 and (
+            recent_bucket_pf is None or recent_bucket_pf < 1.0
+        ):
+            penalty = max(penalty, 0.30)
+            reasons.append("HIGH_CONFIDENCE_BUCKET_PF_BELOW_1")
+        if confidence is not None and confidence > 0.70 and trust_tier == "LOW_OR_MISSING":
+            penalty = max(penalty, 0.10)
+            reasons.append("HIGH_CONFIDENCE_LOW_OR_MISSING_MICROSTRUCTURE_TRUST")
+        penalty_rows.append({
+            "symbol": row.get("symbol"),
+            "timeframe": row.get("timeframe"),
+            "side": _row_side(row),
+            "strategy": _row_strategy(row),
+            "regime": _row_regime(row),
+            "microstructure_trust_tier": trust_tier,
+            "ATR_bucket": (
+                "ATR_STOP_LOSS"
+                if "ATR" in str(row.get("exit_reason") or "").upper()
+                else "NON_ATR_EXIT"
+            ),
+            "liquidity_bucket": row.get("liquidity_bucket") or "UNKNOWN",
+            "spread_bucket": row.get("spread_bucket") or "UNKNOWN",
+            "high_confidence_loss_rate": max_loss_rate,
+            "recent_bucket_PF": recent_bucket_pf,
+            "recent_bucket_expectancy": recent_bucket_expectancy,
+            "raw_confidence": raw_confidence,
+            "calibrated_confidence": confidence,
+            "admission_confidence_after_penalty": (
+                max(0.0, confidence - penalty) if confidence is not None else None
+            ),
+            "penalty": penalty,
+            "penalty_reasons": sorted(set(reasons)),
+            "matched_loss_quarantine_bucket_keys": matched,
+            "display_confidence_changed": False,
+            "admission_only": True,
+        })
+    return {
+        "schema_version": f"{SCHEMA_VERSION}_high_confidence_calibration_penalty",
+        "generated_est": generated_est,
+        "status": (
+            "HIGH_CONFIDENCE_LOSS_PENALTY_ACTIVE"
+            if penalty_rows
+            else "NO_HIGH_CONFIDENCE_LOSS_PENALTY_ROWS"
+        ),
+        "raw_confidence_preserved": True,
+        "calibrated_confidence_display_preserved": True,
+        "paper_threshold_changed": False,
+        "live_threshold_changed": False,
+        "high_confidence_loss_rows": len(high_confidence_losses),
+        "penalty_rows": penalty_rows,
+    }
+
+
+def build_confidence_raw_vs_calibrated_distribution(
+    predictions: list[dict[str, Any]],
+    paper_feedback_payload: Mapping[str, Any],
+    *,
+    generated_est: str,
+) -> dict[str, Any]:
+    feedback_rows = _paper_feedback_rows(paper_feedback_payload)
+    prediction_raw = [_float(row.get("confidence_raw")) for row in predictions]
+    prediction_calibrated = [_float(row.get("confidence_calibrated")) for row in predictions]
+    feedback_raw = [_float(row.get("confidence_raw")) for row in feedback_rows]
+    feedback_calibrated = [
+        _float(row.get("confidence_at_entry") or row.get("confidence_calibrated"))
+        for row in feedback_rows
+    ]
+    return {
+        "schema_version": f"{SCHEMA_VERSION}_raw_vs_calibrated_distribution",
+        "generated_est": generated_est,
+        "prediction_rows": len(predictions),
+        "feedback_rows": len(feedback_rows),
+        "prediction_confidence_raw": _stats(
+            [value for value in prediction_raw if value is not None]
+        ),
+        "prediction_confidence_calibrated": _stats(
+            [value for value in prediction_calibrated if value is not None]
+        ),
+        "feedback_confidence_raw": _stats(
+            [value for value in feedback_raw if value is not None]
+        ),
+        "feedback_confidence_calibrated": _stats(
+            [value for value in feedback_calibrated if value is not None]
+        ),
+        "raw_confidence_hidden": False,
+        "calibrated_confidence_hidden": False,
+    }
+
+
 def _passes_threshold_simulation(row: Mapping[str, Any], threshold: float) -> bool:
     confidence = _float(row.get("confidence_calibrated"))
     return confidence is not None and confidence >= threshold and _valid_paper_shape(row)
@@ -942,6 +1105,16 @@ def build_confidence_actionability(
         bucket_quarantine_status,
         generated_est=generated_est,
     )
+    high_confidence_penalty = build_high_confidence_calibration_penalty_status(
+        paper_feedback_payload,
+        bucket_quarantine_status,
+        generated_est=generated_est,
+    )
+    raw_vs_calibrated = build_confidence_raw_vs_calibrated_distribution(
+        predictions,
+        paper_feedback_payload,
+        generated_est=generated_est,
+    )
     simulation = build_paper_only_threshold_simulation(predictions, generated_est=generated_est)
     proposal = build_calibrated_confidence_threshold_proposal(
         distribution,
@@ -968,6 +1141,8 @@ def build_confidence_actionability(
         "confidence_bucket_outcome_analysis.json": outcome_analysis,
         "paper_actionability_candidate_recovery.json": recovery,
         "loss_adjusted_paper_actionability_status.json": loss_adjusted,
+        "high_confidence_calibration_penalty_status.json": high_confidence_penalty,
+        "confidence_raw_vs_calibrated_distribution.json": raw_vs_calibrated,
         "calibrated_confidence_threshold_proposal.json": proposal,
         "paper_only_threshold_simulation.json": simulation,
         "post_calibration_paper_monitor_status.json": monitor,

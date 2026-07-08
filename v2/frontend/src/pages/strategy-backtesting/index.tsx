@@ -257,12 +257,12 @@ function RunForm({ onRunStarted }: { onRunStarted: (runId: string) => void }): J
           <input type="number" value={holdCandles} onChange={e => setHoldCandles(Number(e.target.value))} min={1} max={20} style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-base)', color: 'var(--text-primary)', fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
         </div>
         <div>
-          <label style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>TP (bps)</label>
-          <input type="number" value={tpBps} onChange={e => setTpBps(Number(e.target.value))} min={10} max={1000} style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-base)', color: 'var(--text-primary)', fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
+          <label style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>TP (%)</label>
+          <input type="number" value={tpBps / 100} onChange={e => setTpBps(Number(e.target.value) * 100)} min={0.1} max={10} step={0.01} style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-base)', color: 'var(--text-primary)', fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
         </div>
         <div>
-          <label style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>SL (bps)</label>
-          <input type="number" value={slBps} onChange={e => setSlBps(Number(e.target.value))} min={10} max={1000} style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-base)', color: 'var(--text-primary)', fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
+          <label style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>SL (%)</label>
+          <input type="number" value={slBps / 100} onChange={e => setSlBps(Number(e.target.value) * 100)} min={0.1} max={10} step={0.01} style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-base)', color: 'var(--text-primary)', fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
         </div>
       </div>
       {error && <div style={{ padding: '8px 12px', borderRadius: 6, background: 'rgba(239,83,80,0.1)', border: '1px solid rgba(239,83,80,0.3)', color: '#ef5350', fontSize: 12, marginBottom: 12 }}>{error}</div>}

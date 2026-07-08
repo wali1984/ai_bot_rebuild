@@ -1,0 +1,48 @@
+{
+  "avg_loser_bps": -90.2377,
+  "avg_winner_bps": null,
+  "baseline_advisory_reasons": [],
+  "baseline_evidence_date": null,
+  "baseline_trade_count": 0,
+  "block_reason": null,
+  "bucket_scope": "symbol_timeframe",
+  "consecutive_losses": 1,
+  "data_source": "REDIS",
+  "degraded": false,
+  "degraded_since": null,
+  "drawdown_contribution_usd": -6.03312955,
+  "last_trade_ts": "2026-06-23T01:06:21.470Z",
+  "last_updated": "2026-06-23T22:29:41Z",
+  "loss_count": 1,
+  "max_drawdown_bps": 90.2377,
+  "missed_tp_then_stop_rate": null,
+  "outcome_memory_can_block_entries": false,
+  "recent_bps": [
+    -90.2377389742576
+  ],
+  "recent_missed_tp_then_stop": [],
+  "recent_outcomes": [
+    0
+  ],
+  "recent_pnl_usd": [
+    -6.03312954539625
+  ],
+  "recent_reversal_after_entry": [],
+  "recent_slippage_failures": [
+    0
+  ],
+  "reversal_after_entry_rate": null,
+  "rolling_ev_bps": -90.2377,
+  "rolling_win_rate": 0.0,
+  "schema_version": "v2_outcome_memory_updater_v1",
+  "slippage_failure_rate": 0.0,
+  "soak_count": 1,
+  "symbol": "BIOUSDT",
+  "timeframe": "1h",
+  "total_trades": 1,
+  "trade_count": 1,
+  "trust_evidence_status": "UNVERIFIED_CLOSED_TRADE_OUTCOMES_ADVISORY",
+  "trusted_trade_count": 0,
+  "untrusted_trade_count": 1,
+  "win_count": 0
+}

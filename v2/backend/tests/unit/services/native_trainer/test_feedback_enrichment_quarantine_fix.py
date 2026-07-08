@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pytest
 
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import data_loader
 from v2.backend.app.services.native_trainer.feedback_enrichment import (
     REQUIRED_FEEDBACK_FIELDS,
     build_strategy_hedge_exit_feedback,
@@ -128,6 +129,99 @@ def _build_feedback(position: PaperNetPosition, *, close_event_overrides: dict |
         close_event=close_event,
         outcome_label=outcome,
     )
+
+
+def test_high_confidence_loss_feedback_fields_are_calibration_consumable() -> None:
+    position = _minimal_position(feature_snapshot_id="fs_high_conf_loss")
+    row = _build_feedback(
+        position,
+        close_event_overrides={
+            "confidence_calibrated": 0.78,
+            "confidence_raw": 0.96,
+            "expected_move_after_cost_bps": 18.0,
+            "realized_pnl_bps": -42.0,
+            "realized_net_pnl_usd": -0.42,
+            "exit_reason": "TIER_1_ATR_VOLATILITY_STOP",
+            "MFE": 4.0,
+            "MAE": 42.0,
+            "microstructure_context": {
+                "trust_score": 0.52,
+                "composite_microstructure_trust_score": 0.52,
+            },
+        },
+    )
+
+    assert row["high_confidence_loss"] is True
+    assert row["outcome_label"] == "loss"
+    assert row["confidence_at_entry"] == 0.78
+    assert row["confidence_bucket"] == "0.7-0.8"
+    assert row["calibration_loss_sample"] is True
+    assert row["trainer_calibration_consumable"] is True
+    assert row["expected_move_after_cost_bps"] is not None
+    assert row["microstructure_trust_at_entry"] is not None
+    assert row["strategy_id"] == "mean_reversion_mode"
+    assert str(row["side"]).lower() == "short"
+    assert row["timeframe"] == "1m"
+    assert row["symbol"] == "ALICEUSDT"
+    assert row["exit_reason"] == "TIER_1_ATR_VOLATILITY_STOP"
+    assert row["MFE"] == 4.0
+    assert row["MAE"] == 42.0
+
+
+def test_positive_edge_probation_feedback_is_paper_only_calibration_sample() -> None:
+    position = _minimal_position(feature_snapshot_id="fs_probation_edge")
+    row = _build_feedback(
+        position,
+        close_event_overrides={
+            "paper_opportunity_tier": "POSITIVE_EDGE_PROBATION_PAPER",
+            "positive_edge_probation_paper": True,
+            "probation_paper_enabled": True,
+            "probation_counts_as_a_plus": True,
+            "probation_counts_as_final_a_plus": True,
+            "probation_counts_as_live_ready": True,
+            "positive_edge_probation_budget_cap_applied": True,
+            "positive_edge_probation_max_risk_fraction_of_normal": 0.10,
+            "positive_edge_probation_budget_formula": "min(adaptive_budget, 0.10 * normal)",
+            "next_probation_gate": "5_PROBATION_TRADES",
+            "preemptive_decision": "POSITIVE_EDGE_PROBATION_PAPER",
+            "preemptive_decision_id": "pec_probation_unit",
+        },
+    )
+
+    assert row["positive_edge_probation_paper"] is True
+    assert row["probation_paper_enabled"] is True
+    assert row["probation_counts_as_a_plus"] is False
+    assert row["probation_counts_as_final_a_plus"] is False
+    assert row["probation_counts_as_live_ready"] is False
+    assert row["calibration_label_purpose"] == "positive_edge_probation_paper_outcome"
+    assert row["next_probation_gate"] == "5_PROBATION_TRADES"
+    assert row["preemptive_decision"] == "POSITIVE_EDGE_PROBATION_PAPER"
+
+
+def test_high_confidence_loss_calibration_sample_ignores_missing_trust_envelope_only() -> None:
+    row = {
+        "high_confidence_loss": True,
+        "outcome_label": "loss",
+        "confidence_at_entry": 0.78,
+        "confidence_calibrated": 0.78,
+        "realized_pnl_bps": -42.0,
+        "prediction_id": "pred_1",
+        "signal_id": "sig_1",
+        "decision_id": "decision_1",
+        "feature_snapshot_id": "fs_1",
+        "mtf_snapshot_id": "mtf_1",
+        "feature_cutoff": "2026-06-18T17:59:59Z",
+        "decision_time": "2026-06-18T18:00:00Z",
+        "available_at": "2026-06-18T17:59:30Z",
+        "symbol": "ALICEUSDT",
+        "timeframe": "1m",
+        "selected_action": "short",
+        "model_version": "unit_model",
+        "checkpoint_id": "unit_checkpoint",
+        "source_hashes": {},
+    }
+
+    assert data_loader._feedback_trust_rejection_reasons(row) == []  # noqa: SLF001
 
 
 # ---------------------------------------------------------------------------

@@ -34,6 +34,22 @@ def first_present(row: Mapping[str, Any], keys: tuple[str, ...]) -> Any:
     return None
 
 
+def closed_realized_pnl_usd(row: Mapping[str, Any]) -> float:
+    value = first_present(
+        row,
+        (
+            "realized_net_pnl_usd",
+            "realized_net_pnl",
+            "net_pnl_usd",
+            "realized_pnl_usd",
+            "realized_pnl_usdt",
+            "realized_pnl",
+            "pnl_usd",
+        ),
+    )
+    return float(coerce_float(value) or 0.0)
+
+
 def normalized_side(row: Mapping[str, Any]) -> str | None:
     raw = str(first_present(row, ("side", "selected_action", "action", "position_side")) or "").lower()
     if raw in {"long", "buy"}:
@@ -223,6 +239,10 @@ def classify_fill(
         "mark_price_age_seconds": mark_price_age_seconds,
         "price_delta": price_delta,
         "unrealized_pnl": unrealized_pnl,
+        "paper_session_id": row.get("paper_session_id"),
+        "session_id": row.get("session_id"),
+        "reset_session_id": row.get("reset_session_id"),
+        "starting_equity_usd": row.get("starting_equity_usd"),
         "fill_time_est": row.get("accepted_at_est") or row.get("generated_est"),
         "fill_time_utc": row.get("accepted_at_utc") or row.get("generated_utc"),
         "trainer_source": row.get("trainer_source"),
@@ -269,6 +289,10 @@ def reconstruct_positions(inventory: list[Mapping[str, Any]]) -> dict[str, Any]:
             "closed_fill_count": 0,
             "last_mark_price": None,
             "last_mark_price_source": None,
+            "paper_session_ids": set(),
+            "session_ids": set(),
+            "reset_session_ids": set(),
+            "starting_equity_usd": None,
             "fills": [],
         }
     )
@@ -306,6 +330,16 @@ def reconstruct_positions(inventory: list[Mapping[str, Any]]) -> dict[str, Any]:
         state["fill_count"] += 1
         state["last_mark_price"] = fill.get("current_mark_price")
         state["last_mark_price_source"] = fill.get("mark_price_source")
+        for field, state_field in (
+            ("paper_session_id", "paper_session_ids"),
+            ("session_id", "session_ids"),
+            ("reset_session_id", "reset_session_ids"),
+        ):
+            value = fill.get(field)
+            if value not in (None, ""):
+                state[state_field].add(str(value))
+        if state.get("starting_equity_usd") in (None, "") and fill.get("starting_equity_usd") not in (None, ""):
+            state["starting_equity_usd"] = fill.get("starting_equity_usd")
         state["fills"].append(fill.get("fill_id"))
 
     positions: list[dict[str, Any]] = []
@@ -326,6 +360,9 @@ def reconstruct_positions(inventory: list[Mapping[str, Any]]) -> dict[str, Any]:
             open_count += 1
         if state["closed_fill_count"]:
             closed_count += int(state["closed_fill_count"])
+        paper_session_ids = sorted(str(item) for item in state["paper_session_ids"])
+        session_ids = sorted(str(item) for item in state["session_ids"])
+        reset_session_ids = sorted(str(item) for item in state["reset_session_ids"])
         positions.append(
             {
                 "symbol": symbol,
@@ -338,6 +375,13 @@ def reconstruct_positions(inventory: list[Mapping[str, Any]]) -> dict[str, Any]:
                 "unrealized_pnl": position_unrealized,
                 "last_mark_price": mark,
                 "last_mark_price_source": state.get("last_mark_price_source"),
+                "paper_session_id": paper_session_ids[0] if len(paper_session_ids) == 1 else None,
+                "paper_session_ids": paper_session_ids,
+                "session_id": session_ids[0] if len(session_ids) == 1 else None,
+                "session_ids": session_ids,
+                "reset_session_id": reset_session_ids[0] if len(reset_session_ids) == 1 else None,
+                "reset_session_ids": reset_session_ids,
+                "starting_equity_usd": state.get("starting_equity_usd"),
                 "position_age_seconds": None,
                 "fill_count": int(state["fill_count"]),
                 "closed_fill_count": int(state["closed_fill_count"]),
@@ -388,12 +432,7 @@ def build_accounting_state(
     positions = reconstruct_positions(inventory)
     explicit_closed_realized = 0.0
     for row in closed_rows:
-        explicit_closed_realized += float(
-            coerce_float(
-                first_present(row, ("realized_pnl_usd", "realized_pnl_usdt", "realized_pnl", "pnl_usd"))
-            )
-            or 0.0
-        )
+        explicit_closed_realized += closed_realized_pnl_usd(row)
     reconstructed_fill_realized = float(positions["realized_pnl"])
     has_explicit_closed_ledger = bool(closed_rows)
     realized = explicit_closed_realized if has_explicit_closed_ledger else reconstructed_fill_realized

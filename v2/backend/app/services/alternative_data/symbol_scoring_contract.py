@@ -75,11 +75,31 @@ def _payload_age_seconds(payload: Mapping[str, Any], generated_utc: str) -> int 
     provider_freshness = _coerce_float(payload.get("provider_freshness_seconds"))
     if provider_freshness is not None:
         return max(0, int(provider_freshness))
+    return _payload_publication_age_seconds(payload, generated_utc)
+
+
+def _payload_publication_age_seconds(
+    payload: Mapping[str, Any], generated_utc: str
+) -> int | None:
     generated = _parse_utc(payload.get("generated_utc"))
     now = _parse_utc(generated_utc)
     if generated is None or now is None:
         return None
     return max(0, int((now - generated).total_seconds()))
+
+
+def _provider_availability_age_seconds(
+    provider_name: str,
+    payload: Mapping[str, Any],
+    generated_utc: str,
+) -> int | None:
+    if (
+        provider_name == "santiment"
+        and payload.get("data_latency_class")
+        == "SANBASE_PRO_DELAYED_NOT_LIVE_DECISION_FRESH"
+    ):
+        return _payload_publication_age_seconds(payload, generated_utc)
+    return _payload_age_seconds(payload, generated_utc)
 
 
 def _provider_freshness_score(age_seconds: int | None, max_age_seconds: int) -> float:
@@ -100,6 +120,7 @@ def _source_status(payload: Mapping[str, Any] | None) -> str:
 def _is_provider_available(
     payload: Mapping[str, Any] | None,
     *,
+    provider_name: str = "",
     generated_utc: str,
     max_provider_age_seconds: int,
 ) -> bool:
@@ -107,7 +128,11 @@ def _is_provider_available(
         return False
     if _source_status(payload) not in OK_SOURCE_STATUSES:
         return False
-    age = _payload_age_seconds(payload, generated_utc)
+    age = _provider_availability_age_seconds(
+        provider_name,
+        payload,
+        generated_utc,
+    )
     if age is None:
         return True
     return age <= max_provider_age_seconds
@@ -629,6 +654,7 @@ def build_symbol_score_payload(
     if isinstance(santiment_payload, Mapping):
         provider_available["santiment"] = santiment_signal_present and _is_provider_available(
             santiment_payload,
+            provider_name="santiment",
             generated_utc=now,
             max_provider_age_seconds=max_provider_age_seconds,
         )

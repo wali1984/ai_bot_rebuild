@@ -221,7 +221,7 @@ export function HourlyMonitorPanel(): JSX.Element {
       {tighteningActive ? (
         <>
           <Row label="Min Confidence (override)" value={fmt(lr.min_confidence_if_tightened, 2)} tone="warn" />
-          <Row label="Min Edge bps (override)" value={num(lr.min_edge_bps_if_tightened)} tone="warn" />
+          <Row label="Min Edge % (override)" value={lr.min_edge_bps_if_tightened != null ? `${(lr.min_edge_bps_if_tightened / 100).toFixed(2)}%` : '—'} tone="warn" />
         </>
       ) : null}
 

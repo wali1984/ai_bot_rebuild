@@ -158,7 +158,7 @@ export function formatExplainerPercent(value: number | null | undefined): string
 }
 
 export function formatExplainerBps(value: number | null | undefined): string {
-  return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(2)} bps` : 'Connecting stream';
+  return typeof value === 'number' && Number.isFinite(value) ? `${(value / 100).toFixed(2)}%` : 'Connecting stream';
 }
 
 export function formatExplainerPrice(value: number | null | undefined): string {

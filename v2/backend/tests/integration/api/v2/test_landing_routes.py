@@ -360,6 +360,9 @@ TRAINER_KEYS = {
     "drift_alarm_count",
     "promotion_locked",
     "promotion_min_role",
+    "champion_challenger_status",
+    "preemptive_trainer_feedback_status",
+    "preemptive_edge_control_feedback",
 }
 
 
@@ -376,6 +379,7 @@ def test_b4_trainer_stub_mode_returns_missing_evidence(
     body = res.json()
     assert set(body.keys()) == TRAINER_KEYS
     assert body["state"] == "MISSING_EVIDENCE"
+    assert body["champion_challenger_status"]["status"] == "MISSING_RUNTIME_EVIDENCE"
     # An audit event should have been appended.
     assert any(stream == "audit:trainer:reads" for stream, _ in fake_redis.audit_writes)
 
@@ -422,7 +426,42 @@ def test_b4_trainer_cache_hit_short_circuits_subprocess(
 
     monkeypatch.setattr(v2_trainer, "_run_trainer_status", _boom)
     body = client.get("/api/v2/trainer/summary").json()
-    assert body == cached
+    assert {key: body[key] for key in cached} == cached
+    assert body["champion_challenger_status"]["status"] == "MISSING_RUNTIME_EVIDENCE"
+
+
+def test_b4_trainer_summary_exposes_champion_challenger_runtime_contract(
+    client: TestClient,
+    fake_redis: FakeRedis,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("V2_TRAINER_MODE", "stub")
+    monkeypatch.setenv("LEGACY_TRAINER_PYTHON", "/usr/bin/python3")
+    monkeypatch.setenv("LEGACY_BOT_ROOT", "/tmp/legacy")
+    fake_redis.kv["v2:trainer:champion_challenger_status"] = json.dumps(
+        {
+            "schema_version": "v2_trainer_champion_challenger_status_v1",
+            "status": "CHAMPION_CHALLENGER_EVALUATED_PAPER_READY",
+            "best_challenger_id": "model_edge_recovery:abc123",
+            "promotion_allowed": False,
+            "promotion_reason": "paper challenger only",
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "backtests_processed": {"untouched_holdout_trade_count": 120},
+        }
+    )
+
+    body = client.get("/api/v2/trainer/status").json()
+    status = body["champion_challenger_status"]
+
+    assert status["available"] is True
+    assert status["status"] == "CHAMPION_CHALLENGER_EVALUATED_PAPER_READY"
+    assert status["best_challenger_id"] == "model_edge_recovery:abc123"
+    assert status["promotion_allowed"] is False
+    assert status["routes_to_live"] is False
+    assert status["places_real_order"] is False
+    assert status["backtests_processed"]["untouched_holdout_trade_count"] == 120
 
 
 def test_b4_trainer_argv_validator_rejects_dangerous_flags() -> None:

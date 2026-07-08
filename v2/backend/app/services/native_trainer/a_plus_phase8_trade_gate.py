@@ -80,7 +80,24 @@ def _baseline(now: str) -> dict[str, Any]:
                 "trade_tape_confirmation_state": "TAPE_DATA_OK",
                 "trade_tape_confirmation_score": 0.82,
             },
-            "microstructure_trust": {"microstructure_trust_score": 0.82},
+            "microstructure_trust": {
+                "composite_microstructure_trust_score": 0.82,
+                "microstructure_trust_score": 0.82,
+                "orderbook_trust_tier": "FINAL_A_PLUS_ELIGIBLE",
+                "microstructure_action": "ALLOW",
+                "public_book_can_approve_trade_alone": False,
+                "public_orderbook_can_produce_final_a_plus": False,
+                "bootstrap_reduced_size_paper_only": False,
+                "reduced_size_counts_as_final_a_plus": False,
+                "feed_integrity_pass": True,
+                "sequence_gap_free": True,
+                "latency_within_bound": True,
+                "trade_tape_confirmation_pass": True,
+                "cross_venue_confirmation_pass": True,
+                "liquidation_sweep_risk_acceptable": True,
+                "oi_funding_long_short_confirmation_pass": True,
+                "real_spread_depth_cost_evidence_pass": True,
+            },
             "feedback_rows": [],
         },
     }
@@ -151,7 +168,9 @@ def _rejection_cases(base: Mapping[str, Any]) -> list[tuple[str, str, dict[str, 
     add(
         "microstructure_trust_confirms",
         "microstructure_trust_below_floor",
-        lambda c: c["context"]["microstructure_trust"].update({"microstructure_trust_score": 0.30}),
+        lambda c: c["context"]["microstructure_trust"].update(
+            {"composite_microstructure_trust_score": 0.30, "microstructure_trust_score": 0.30}
+        ),
     )
     add("risk_allows", "risk_blocks", lambda c: c.update({"risk_result": {"allowed": False, "reasons": ["risk_block"]}}))
     add(

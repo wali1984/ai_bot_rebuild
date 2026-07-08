@@ -25,6 +25,10 @@ LIVE_GATE_STATUS = "blocked_human_only"
 SYMBOL_UNIVERSE_CONTRACT = "SYMBOL_UNIVERSE_CONTRACT_REQUIRED"
 SYMBOL_UNIVERSE_SERVICE_PATH = "v2/backend/app/services/symbol_universe/service.py"
 LEGACY_ACTIVE_SYMBOL_SOURCE = "legacy_config.py_SYMBOLS_current_25"
+ACTIVE_PAPER_POSITION_SOURCE_PATHS = (
+    Path("v2/frontend/public/operator_runtime/v2_portfolio_state/latest/v2_portfolio_state.json"),
+    Path("v2/frontend/public/operator_runtime/v2_paper_trade_management/latest/paper_lifecycle_state.json"),
+)
 
 
 def iso_now() -> str:
@@ -117,6 +121,33 @@ def _selected_subset(
     return accepted, rejected, blockers
 
 
+def _active_paper_position_symbols(root: Path) -> tuple[list[str], list[str]]:
+    symbols: set[str] = set()
+    sources: set[str] = set()
+    for relative_path in ACTIVE_PAPER_POSITION_SOURCE_PATHS:
+        path = root / relative_path
+        payload = _read_json(path)
+        if not isinstance(payload, dict):
+            continue
+        rows: list[Any] = []
+        for key in ("open_positions", "positions"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                rows.extend(value)
+        for row in rows:
+            if not isinstance(row, Mapping):
+                continue
+            is_open = row.get("open_position") is True or str(row.get("position_state") or "").lower().endswith("_open")
+            if not is_open and relative_path.name == "paper_lifecycle_state.json":
+                # Lifecycle open_positions rows are already scoped to open positions.
+                is_open = "open_positions" in payload and row in payload.get("open_positions", [])
+            symbol = str(row.get("symbol") or "").strip().upper()
+            if is_open and symbol:
+                symbols.add(symbol)
+                sources.add(_rel(path, REPO_ROOT))
+    return sorted(symbols), sorted(sources)
+
+
 def build_payload(root: Path = REPO_ROOT, *, generated_at: str | None = None) -> dict[str, Any]:
     generated_at = generated_at or iso_now()
     service = SymbolUniverseService()
@@ -132,12 +163,26 @@ def build_payload(root: Path = REPO_ROOT, *, generated_at: str | None = None) ->
     observed, observed_sources = _union(worker_payloads, "observed_symbols", "symbol")
     requested_training, training_sources = _union(worker_payloads, "training_symbols")
     requested_paper, paper_sources = _union(worker_payloads, "paper_symbols")
-    binance_confirmed, binance_sources = _union(worker_payloads, "binance_usdm_confirmed_symbols", "tradable_symbols")
+    binance_confirmed, binance_sources = _union(
+        worker_payloads,
+        "binance_usdm_confirmed_symbols",
+        "binance_usdm_tradable_symbols",
+        "tradable_symbols",
+    )
+    active_paper_symbols, active_paper_sources = _active_paper_position_symbols(root)
+    if active_paper_symbols:
+        requested_training = sorted(set(requested_training) | set(active_paper_symbols))
+        requested_paper = sorted(set(requested_paper) | set(active_paper_symbols))
+        training_sources = sorted(set(training_sources) | set(active_paper_sources))
+        paper_sources = sorted(set(paper_sources) | set(active_paper_sources))
     legacy_active = service.legacy_active_symbols()
     if not discovered:
         discovered = sorted({identity.canonical_symbol_id.upper() for identity in service.all_discovered_symbols()})
     if not dynamic_discovered:
         dynamic_discovered = list(discovered)
+    if active_paper_symbols:
+        discovered = sorted(set(discovered) | set(active_paper_symbols))
+        observed = sorted(set(observed) | set(active_paper_symbols))
     training, rejected_training, training_blockers = _selected_subset(
         requested_training,
         discovered=discovered,
@@ -150,8 +195,14 @@ def build_payload(root: Path = REPO_ROOT, *, generated_at: str | None = None) ->
         binance_confirmed=binance_confirmed,
         evidence_sources=paper_sources,
     )
+    live_data, rejected_live_data, live_data_blockers = _selected_subset(
+        active_paper_symbols,
+        discovered=discovered,
+        binance_confirmed=binance_confirmed,
+        evidence_sources=active_paper_sources,
+    )
     source_paths = sorted(set(discovered_sources + dynamic_sources + observed_sources + training_sources + paper_sources + binance_sources))
-    evidence_gaps = sorted(set(training_blockers + paper_blockers))
+    evidence_gaps = sorted(set(training_blockers + paper_blockers + live_data_blockers))
     if not binance_confirmed:
         evidence_gaps.append("missing_binance_usdm_confirmed_symbols")
 
@@ -170,13 +221,19 @@ def build_payload(root: Path = REPO_ROOT, *, generated_at: str | None = None) ->
         "observed_symbols": observed,
         "training_symbols": training,
         "paper_symbols": paper,
+        "live_data_symbols": live_data,
         "requested_training_symbols": requested_training,
         "requested_paper_symbols": requested_paper,
+        "requested_live_data_symbols": active_paper_symbols,
         "rejected_training_symbols": rejected_training,
         "rejected_paper_symbols": rejected_paper,
+        "rejected_live_data_symbols": rejected_live_data,
+        "active_paper_position_symbols": active_paper_symbols,
+        "active_paper_position_source_paths": active_paper_sources,
         "symbol_selection_evidence": {
             "training_source_paths": training_sources,
             "paper_source_paths": paper_sources,
+            "live_data_source_paths": active_paper_sources,
             "binance_confirmation_source_paths": binance_sources,
         },
         "symbol_universe_payload_evidence_gaps": sorted(set(evidence_gaps)),

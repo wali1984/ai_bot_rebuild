@@ -446,6 +446,69 @@ def iter_snapshots(
         yield snapshot
 
 
+def iter_manifest_records_from_offset(
+    root: Path | None = None,
+    *,
+    start_offset: int = 0,
+    limit: int | None = None,
+) -> Iterator[tuple[int, dict[str, Any]]]:
+    """Walk manifest.jsonl oldest-first from a byte offset.
+
+    Yields ``(next_byte_offset, record)`` so callers can persist a durable
+    replay cursor and resume without rescanning the archive (F-0013: the
+    trusted-replay training lane starved because a bounded newest-first scan
+    can never reach labelable snapshots that are older than the outcome
+    label horizon). Offsets are only valid for append-only manifests, which
+    is how the archive writes them.
+    """
+    archive_root = root or default_archive_root()
+    manifest = archive_root / "manifest.jsonl"
+    if not manifest.exists():
+        return
+    count = 0
+    with manifest.open("r", encoding="utf-8") as handle:
+        try:
+            handle.seek(max(0, int(start_offset)))
+        except (OSError, ValueError):
+            handle.seek(0)
+        while True:
+            if limit is not None and count >= int(limit):
+                return
+            line = handle.readline()
+            if not line:
+                return
+            next_offset = handle.tell()
+            try:
+                record = json.loads(line)
+            except Exception:
+                continue
+            if not isinstance(record, dict) or not record.get("snapshot_id"):
+                continue
+            count += 1
+            yield next_offset, record
+
+
+def iter_snapshots_from_offset(
+    root: Path | None = None,
+    *,
+    start_offset: int = 0,
+    limit: int | None = None,
+) -> Iterator[tuple[int, dict[str, Any]]]:
+    """Yield ``(next_byte_offset, snapshot)`` oldest-first from a byte offset."""
+    archive_root = root or default_archive_root()
+    count = 0
+    for next_offset, record in iter_manifest_records_from_offset(
+        archive_root, start_offset=start_offset
+    ):
+        if limit is not None and count >= int(limit):
+            return
+        snapshot = load_snapshot(record.get("snapshot_id"), root=archive_root)
+        if snapshot is None:
+            continue
+        count += 1
+        yield next_offset, snapshot
+
+
 def _archive_size_bytes(root: Path) -> int:
     total = 0
     if not root.exists():

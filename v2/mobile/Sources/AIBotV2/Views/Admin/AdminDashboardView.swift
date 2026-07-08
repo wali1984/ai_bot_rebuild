@@ -509,6 +509,8 @@ struct SettingsView: View {
                             .nerVyxCard()
                         }
 
+                        RuntimeTruthLiveCard(title: "Runtime Truth")
+
                         VStack(spacing: 10) {
                             SectionHeader(title: "Server", accent: NerVyx.signal)
                             VStack(alignment: .leading, spacing: 6) {

@@ -71,6 +71,7 @@ DATA_PROVIDER_CREDENTIAL_NAMES = (
     "SANBASE_API_KEY",
     "SANTIMENT_PRO_API_KEY",
     "ALPHAVANTAGE_API_KEY",
+    "MORALIS_API_KEY",
 )
 
 # Required exchange credentials (names only; aliases enumerated explicitly).

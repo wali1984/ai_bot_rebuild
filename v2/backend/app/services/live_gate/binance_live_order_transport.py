@@ -1070,6 +1070,65 @@ def evaluate_live_order_transport(
             "account_margin_status": {k: v for k, v in account_margin_status.items() if not str(k).startswith("_")},
             "adaptive_allocation": allocation_payload,
         }
+        # Preemptive edge control: live dry-run uses the SAME pre-entry
+        # evaluator as paper admission. No candidate reaches the live
+        # dry-run/pre-submit path without a preemptive decision object, and
+        # anything other than ALLOW blocks. Evaluation failure fails closed.
+        try:
+            from v2.backend.app.services.preemptive_edge_control.decision import (
+                evaluate_candidate as _evaluate_preemptive_candidate,
+            )
+
+            _pec_closed_rows = _safe_redis_get_json(client, "v2:paper:closed_trades")
+            if not isinstance(_pec_closed_rows, list):
+                _pec_closed_rows = []
+            _pec_guardian = _safe_redis_get_json(
+                client, "v2:continuous_edge_guardian:a_grade_execution_gate"
+            )
+            preemptive_decision = _evaluate_preemptive_candidate(
+                {**dict(selected_signal), **candidate_payload},
+                closed_rows=_pec_closed_rows,
+                continuous_edge_guardian_gate=(
+                    _pec_guardian if isinstance(_pec_guardian, dict) else None
+                ),
+            )
+        except Exception as exc:  # noqa: BLE001 - fail closed on any error
+            preemptive_decision = {
+                "preemptive_decision": "NO_TRADE",
+                "preemptive_decision_id": None,
+                "preemptive_decision_reasons": [
+                    f"PREEMPTIVE_EVALUATION_FAILED_FAIL_CLOSED:{type(exc).__name__}"
+                ],
+            }
+        if (
+            not preemptive_decision.get("preemptive_action")
+            and preemptive_decision.get("preemptive_decision") == "ALLOW"
+        ):
+            preemptive_decision["preemptive_action"] = "ALLOW_A_PLUS_CANDIDATE"
+            preemptive_decision["preemptive_allowed"] = True
+            preemptive_decision.setdefault("preemptive_block_reasons", [])
+        candidate_payload["preemptive_edge_control"] = preemptive_decision
+        candidate_payload["preemptive_decision_id"] = preemptive_decision.get(
+            "preemptive_decision_id"
+        )
+        candidate_payload["preemptive_action"] = preemptive_decision.get(
+            "preemptive_action"
+        )
+        candidate_payload["pre_trade_loss_probability"] = preemptive_decision.get(
+            "pre_trade_loss_probability"
+        )
+        if not preemptive_decision.get("preemptive_decision_id"):
+            blockers.append("PREEMPTIVE_DECISION_MISSING_FAIL_CLOSED")
+        if str(preemptive_decision.get("preemptive_decision") or "") != "ALLOW":
+            blockers.append(
+                "PREEMPTIVE_EDGE_CONTROL_"
+                + str(preemptive_decision.get("preemptive_decision") or "MISSING")
+            )
+        if str(preemptive_decision.get("preemptive_action") or "") != "ALLOW_A_PLUS_CANDIDATE":
+            blockers.append(
+                "PREEMPTIVE_ACTION_"
+                + str(preemptive_decision.get("preemptive_action") or "MISSING")
+            )
         live_canary_config = LiveCanaryConfig.from_mapping(
             runtime_payload.get("live_canary_config") or runtime_payload.get("live_canary") or {}
         )

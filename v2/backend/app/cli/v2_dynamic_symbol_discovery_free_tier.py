@@ -858,6 +858,8 @@ def run_once(
         "paper_shadow_live_symbols": selected_symbols,
         "binance_usdm_confirmed_symbols": confirmed_runtime_symbols,
         "tradable_symbols": confirmed_runtime_symbols,
+        "binance_usdm_tradable_symbols": sorted(tradable_symbols),
+        "binance_usdm_tradable_symbol_count": len(tradable_symbols),
         "dynamic_symbol_count": len(selected_symbols),
         "candidate_symbol_rows": [
             {

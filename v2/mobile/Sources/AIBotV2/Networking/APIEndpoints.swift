@@ -21,7 +21,7 @@ public enum APIEndpoints {
     public static let mobileAdminSummary = "/api/v2/mobile/admin/summary"
     public static let mobilePushRegister = "/api/v2/mobile/push/register"
     public static let orderbookRuntimeTruth = "/operator_runtime/v2_zero_budget_orderbook/latest/ios_orderbook_runtime_truth_status.json"
-    public static let microstructureTruth = "/operator_runtime/v2_microstructure_trust/latest/ios_microstructure_truth_status.json"
+    public static let microstructureTruth = "/operator_runtime/v2_microstructure_trust/latest/ios_trust_semantics_truth_status.json"
 
     // MARK: - WebSocket streams
     public static let wsResource = "/api/v2/ws/resource"

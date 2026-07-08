@@ -38,6 +38,7 @@ from app.api.v1 import (
     live_gate,
     codex_review,
     decisions,
+    derivatives,
     discovery,
     evidence,
     exchanges,
@@ -111,6 +112,7 @@ def _register_routers(app: FastAPI) -> None:
         risk_decisions.router,
         intents.router,
         paper.router,
+        derivatives.router,
         # §7: /risk/, /replay/, /fleet/, /monitor/, /evidence/, /audit/, /governance/
         risk.router,
         replay.router,

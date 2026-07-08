@@ -2815,7 +2815,9 @@ def test_close_event_accounts_signed_funding_pnl_for_long_and_short() -> None:
     assert long_close["funding_pnl_formula"] == FUNDING_PNL_ACCOUNTING_FORMULA
     assert long_close["funding_pnl_side_sign"] == -1.0
     assert long_close["funding_pnl_source"] == "FUNDING_RATE"
-    assert long_close["realized_pnl_usd"] == pytest.approx(-0.01)
+    assert long_close["realized_pnl_usd"] == pytest.approx(0.0)
+    assert long_close["realized_pnl"] == pytest.approx(0.0)
+    assert long_close["realized_net_pnl_usd"] == pytest.approx(-0.01)
     assert long_outcome["funding_pnl_usd"] == pytest.approx(-0.01)
     assert long_outcome["funding_pnl_accounting_version"] == FUNDING_PNL_ACCOUNTING_VERSION
     assert long_outcome["funding_pnl_accounting_status"] == "READY_FUNDING_PNL_ACCRUED"
@@ -2825,10 +2827,82 @@ def test_close_event_accounts_signed_funding_pnl_for_long_and_short() -> None:
     assert short_close["funding_pnl_formula"] == FUNDING_PNL_ACCOUNTING_FORMULA
     assert short_close["funding_pnl_side_sign"] == 1.0
     assert short_close["funding_pnl_source"] == "FUNDING_RATE"
-    assert short_close["realized_pnl_usd"] == pytest.approx(0.01)
+    assert short_close["realized_pnl_usd"] == pytest.approx(0.0)
+    assert short_close["realized_pnl"] == pytest.approx(0.0)
+    assert short_close["realized_net_pnl_usd"] == pytest.approx(0.01)
     assert short_outcome["funding_pnl_usd"] == pytest.approx(0.01)
     assert short_outcome["funding_pnl_accounting_version"] == FUNDING_PNL_ACCOUNTING_VERSION
     assert short_outcome["funding_pnl_accounting_status"] == "READY_FUNDING_PNL_ACCRUED"
+
+
+def test_p0019_close_event_populates_gross_and_net_realized_pnl_usd() -> None:
+    position = position_from_fill(
+        _fill(fill_id="p0019-close", qty=2.0, price=100.0),
+        fill_id="p0019-close",
+        side="long",
+        quantity=2.0,
+        price=100.0,
+    )
+
+    close, outcome = build_close_event(
+        position=position,
+        close_quantity=2.0,
+        exit_price=101.0,
+        exit_time="2026-06-11T11:00:00Z",
+        close_reason="TEST_CLOSE",
+        fee_bps=4.0,
+        slippage_bps=2.0,
+    )
+
+    assert close["realized_pnl_bps"] == pytest.approx(100.0)
+    assert close["gross_notional_usd"] == pytest.approx(200.0)
+    assert close["realized_pnl_usd"] == pytest.approx(2.0)
+    assert close["realized_pnl"] == pytest.approx(2.0)
+    assert close["realized_net_pnl_usd"] == pytest.approx(2.0 - close["fees"] - close["slippage"])
+    assert outcome["realized_pnl_usd"] == close["realized_pnl_usd"]
+    assert outcome["realized_net_pnl_usd"] == close["realized_net_pnl_usd"]
+
+
+def test_p0019_carried_closed_rows_populate_missing_realized_pnl_usd_aliases() -> None:
+    closed = {
+        "close_id": "p0019-carried-close",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "side": "long",
+        "source_fill_ids": ["p0019-carried"],
+        "entry_price": 100.0,
+        "exit_price": 101.0,
+        "closed_quantity": 2.0,
+        "gross_notional_usd": 200.0,
+        "realized_pnl_bps": 100.0,
+        "fees": 0.08,
+        "slippage": 0.04,
+        "funding_pnl_usd": -0.01,
+        "paper_only": True,
+        "places_real_order": False,
+    }
+    outcome = {
+        **closed,
+        "outcome_label_id": "p0019-carried-outcome",
+        "trainer_feedback_id": "p0019-carried-feedback",
+    }
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger={"closed_trades": [closed], "outcome_labels": [outcome]},
+        accepted_fills=[_fill(fill_id="p0019-carried", qty=2.0, price=100.0)],
+        mark_prices={"BTCUSDT": 101.0},
+        generated_utc="2026-06-11T12:00:00Z",
+        config=PaperLifecycleConfig(portfolio_equity_usdt=10000.0),
+    )
+
+    repaired_close = result["closed_trades"][0]
+    repaired_outcome = result["outcome_labels"][0]
+    assert repaired_close["realized_pnl_usd"] == pytest.approx(2.0)
+    assert repaired_close["realized_pnl"] == pytest.approx(2.0)
+    assert repaired_close["realized_net_pnl_usd"] == pytest.approx(1.87)
+    assert repaired_outcome["realized_pnl_usd"] == pytest.approx(2.0)
+    assert repaired_outcome["realized_net_pnl_usd"] == pytest.approx(1.87)
+    assert result["realized_pnl_usd"] == pytest.approx(1.87)
 
 
 def test_position_from_fill_preserves_adaptive_allocation_and_correlation_evidence() -> None:
@@ -3319,3 +3393,40 @@ def test_reduce_only_latch_blocks_new_entry_but_allows_close() -> None:
 
     assert blocked.allowed is False
     assert allowed.allowed is True
+
+
+def test_admission_invalidated_position_still_stop_closes_within_one_cycle() -> None:
+    """P-0018 regression (F-0015): a position flagged admission-invalidated
+    must remain under lifecycle management — a mark beyond its stop closes it
+    in the SAME reconcile cycle. The BASUSDT incident realized -1397bps against
+    a 63bps designed stop because the limbo position was dropped from the open
+    set and its stop was never evaluated."""
+    existing_ledger = {
+        "accepted": [_fill(fill_id="a", qty=1, price=100)],
+        "open_positions": [
+            {
+                "symbol": "BTCUSDT",
+                "position_id": "paper_pos_BTCUSDT",
+                "side": "long",
+                "opened_est": "2026-06-11T10:00:00Z",
+                "admission_invalidated": True,
+                "new_entry_admission_eligible": False,
+                "admission_drop_reason": "OPEN_POSITION_FILL_NO_LONGER_ADMISSION_VALID",
+            }
+        ],
+    }
+    result = reconcile_paper_lifecycle(
+        existing_ledger=existing_ledger,
+        accepted_fills=[_fill(fill_id="a", qty=1, price=100)],
+        mark_prices={"BTCUSDT": 98.0},  # -200bps, beyond the 100bps stop
+        generated_utc="2026-06-11T10:05:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(stop_loss_bps=100.0, take_profit_bps=99999.0),
+        ),
+    )
+    closed = result["closed_trades"]
+    assert closed, "admission-invalidated position must be closeable"
+    assert closed[0]["close_reason"] == "TIER_1_STOP_LOSS"
+    assert result["open_positions"] == []

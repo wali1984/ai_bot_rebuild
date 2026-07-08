@@ -20,6 +20,24 @@ public struct LiveGateState: Decodable, Sendable {
 }
 
 public struct PaperState: Decodable, Sendable {
+    public let paper_session_id: String?
+    public let equity: Double?
+    public let paper_equity: Double?
+    public let paper_balance: Double?
+    public let initial_capital: Double?
+    public let starting_equity_usd: Double?
+    public let new_entries_allowed: Bool?
+    public let performance: MobileRuntimePerformance?
+    public let entry_freeze: MobileRuntimeEntryFreeze?
+    public let a_plus_gate: MobileRuntimeAPlusGate?
+    public let reduced_size_bootstrap: MobileRuntimeReducedSizeBootstrap?
+    public let trainer_learning: MobileRuntimeTrainerLearning?
+    public let real_trader_readiness: MobileRuntimeReadiness?
+    public let market_data_freshness: MobileMarketDataFreshness?
+    public let preemptive_edge_control: MobilePreemptiveEdgeControl?
+    public let adaptive_hedge_cross_margin: MobileHedgeCrossMargin?
+    public let provider_readiness: MobileProviderReadiness?
+    public let top_blockers: [String]?
     public let open_positions: Int
     public let closed_trades: Int
     public let realized_pnl_usd: Double
@@ -30,17 +48,175 @@ public struct PaperState: Decodable, Sendable {
     public let classification: String
     public let places_real_order: Bool
     public var total_pnl: Double { realized_pnl_usd + unrealized_pnl_usd }
+    public var effectiveEquity: Double? { paper_equity ?? equity ?? paper_balance }
+}
+
+public struct MobileRuntimePerformance: Decodable, Sendable {
+    public let profit_factor: Double?
+    public let expectancy_usd: Double?
+    public let realized_pnl_usd: Double?
+    public let notional_weighted_expectancy_bps: Double?
+    public let win_rate: Double?
+    public let closed_outcome_count: Int?
+    public let governor_state: String?
+}
+
+public struct MobileRuntimeEntryFreeze: Decodable, Sendable {
+    public let new_entries_allowed: Bool?
+    public let halt_reasons: [String]?
+    public let future_gate_blockers: [String]?
+    public let allow_close: Bool?
+    public let allow_reduce: Bool?
+}
+
+public struct MobileRuntimeAPlusGate: Decodable, Sendable {
+    public let evaluated_candidates: Int?
+    public let a_plus_candidates: Int?
+    public let rejected_reason_matrix: [String: Int]?
+    public let gate_is_hard_entry_condition: Bool?
+}
+
+public struct MobileRuntimeReducedSizeBootstrap: Decodable, Sendable {
+    public let final_a_plus_candidates: Int?
+    public let reduced_size_bootstrap_candidates: Int?
+    public let closed_rows: Int?
+    public let counts_as_final_a_plus: Bool?
+    public let b_grade_counts_as_final_a_plus: Bool?
+    public let routes_to_live: Bool?
+    public let paper_only: Bool?
+    public let generated_at: String?
+}
+
+public struct MobileRuntimeTrainerLearning: Decodable, Sendable {
+    public let effective_trainer_mode: String?
+    public let online_learning_status: String?
+    public let last_successful_weight_update_at: String?
+    public let checkpoint_id: String?
+}
+
+public struct MobileRuntimeReadiness: Decodable, Sendable {
+    public let live_gate: String?
+    public let operator_flip_required: Bool?
+    public let order_submitted: Bool?
+    public let test_order_submitted: Bool?
+    public let live_ready: Bool?
+}
+
+public struct MobileMarketDataFreshness: Decodable, Sendable {
+    public let source: String?
+    public let generated_at: String?
+    public let age_seconds: Int?
+    public let freshness_state: String?
+}
+
+public struct MobileAdvancedIndicators: Decodable, Sendable {
+    public let status: String?
+    public let candidate_count: Int?
+    public let fvg_present_count: Int?
+    public let fvg_side_aligned_count: Int?
+    public let accepted_advanced_indicator_block_count: Int?
+    public let fvg_standalone_allows_trade: Bool?
+    public let fvg_alone_can_approve_trade: Bool?
+    public let sweep_risk_can_block_or_reduce: Bool?
+    public let block_reason_counts: [String: Int]?
+    public let caution_reason_counts: [String: Int]?
+}
+
+public struct MobilePreemptiveEdgeControl: Decodable, Sendable {
+    public let preemptive_decision_id: String?
+    public let status: String?
+    public let candidate_count: Int?
+    public let accepted_count: Int?
+    public let decision_counts: [String: Int]?
+    public let action_counts: [String: Int]?
+    public let preemptive_action: String?
+    public let preemptive_allowed: Bool?
+    public let preemptive_block_reasons: [String]?
+    public let pre_trade_expected_net_pnl_usd: Double?
+    public let pre_trade_loss_probability: Double?
+    public let confidence_overstatement_risk: Double?
+    public let regime_compatibility_score: Double?
+    public let exit_feasibility_score: Double?
+    public let bucket_profit_factor: Double?
+    public let positive_edge_probation_status: String?
+    public let positive_edge_probation_supply_state: String?
+    public let positive_edge_probation_candidates: Int?
+    public let positive_edge_probation_accepted: Int?
+    public let closed_probation_trade_count: Int?
+    public let probation_5_trade_gate_status: String?
+    public let probation_counts_as_final_a_plus: Bool?
+    public let probation_counts_as_live_ready: Bool?
+    public let why_trade_was_prevented: [String]?
+    public let governor_auto_action: String?
+    public let next_remediation: String?
+    public let hard_fail: Bool?
+    public let advanced_indicators: MobileAdvancedIndicators?
+    public let advanced_indicator_status: String?
+    public let advanced_indicator_block_reason_counts: [String: Int]?
+    public let advanced_indicator_caution_reason_counts: [String: Int]?
+    public let paper_only: Bool?
+    public let routes_to_live: Bool?
+    public let places_real_order: Bool?
+
+    public var preventedCount: Int {
+        (decision_counts?["NO_TRADE"] ?? 0) + (decision_counts?["SHADOW_ONLY"] ?? 0)
+    }
+}
+
+public struct MobileHedgeCrossMargin: Decodable, Sendable {
+    public let status: String?
+    public let recommended_leverage_distribution: [Double]?
+    public let recommended_margin_mode_distribution: [String]?
+    public let current_notional_distribution_usd: [Double]?
+    public let hedge_state: String?
+    public let hedge_rows: Int?
+    public let cross_margin_state: String?
+    public let cross_margin_safe: Bool?
+    public let net_delta_usd: Double?
+    public let gross_exposure_usd: Double?
+    public let portfolio_liquidation_buffer_usd: Double?
+    public let worst_case_portfolio_loss_usd: Double?
+    public let margin_call_risk: String?
+    public let operator_display_currency: String?
+    public let operator_display_timezone: String?
+}
+
+public struct MobileProviderReadiness: Decodable, Sendable {
+    public let status: String?
+    public let coinglass_status: String?
+    public let moralis_status: String?
+    public let coinglass_dashboard_color: String?
+    public let moralis_dashboard_color: String?
+    public let coinglass_actual_payload_present: Bool?
+    public let moralis_actual_payload_present: Bool?
+    public let coinglass_heartbeat_only: Bool?
+    public let moralis_heartbeat_only: Bool?
+    public let heartbeat_only_green_allowed: Bool?
+    public let raw_keys_exposed: Bool?
+    public let invalid_subscription_blocks_core_system: Bool?
 }
 
 public struct TrainerState: Decodable, Sendable {
     public let state: String
     public let checkpoint: String
     public let model_source: String
+    public let champion_challenger_status: ChampionChallengerStatus?
     public let cuda_active: Bool
     public let data_coverage: Double
     public let training_steps_total: Int
     public let training_steps_last_hour: Int
     public var isActive: Bool { state.hasPrefix("ACTIVE") }
+}
+
+public struct ChampionChallengerStatus: Decodable, Sendable {
+    public let status: String?
+    public let result_status: String?
+    public let best_challenger_id: String?
+    public let promotion_allowed: Bool?
+    public let promotion_reason: String?
+    public let paper_challenger_enabled: Bool?
+    public let replay_windows_processed: Int?
+    public let replay_snapshots_scanned: Int?
 }
 
 public struct GPUState: Decodable, Sendable {
@@ -222,6 +398,7 @@ public struct HealthTrainer: Decodable, Sendable {
     public let cuda_active: Bool
     public let training_active: Bool
     public let checkpoint: String
+    public let champion_challenger_status: ChampionChallengerStatus?
 }
 
 public struct HealthGPU: Decodable, Sendable {
@@ -233,6 +410,20 @@ public struct HealthGPU: Decodable, Sendable {
 }
 
 public struct HealthPaper: Decodable, Sendable {
+    public let paper_session_id: String?
+    public let equity: Double?
+    public let paper_equity: Double?
+    public let performance: MobileRuntimePerformance?
+    public let entry_freeze: MobileRuntimeEntryFreeze?
+    public let a_plus_gate: MobileRuntimeAPlusGate?
+    public let reduced_size_bootstrap: MobileRuntimeReducedSizeBootstrap?
+    public let trainer_learning: MobileRuntimeTrainerLearning?
+    public let real_trader_readiness: MobileRuntimeReadiness?
+    public let market_data_freshness: MobileMarketDataFreshness?
+    public let preemptive_edge_control: MobilePreemptiveEdgeControl?
+    public let adaptive_hedge_cross_margin: MobileHedgeCrossMargin?
+    public let provider_readiness: MobileProviderReadiness?
+    public let top_blockers: [String]?
     public let classification: String
     public let open_positions: Int
     public let intents_accepted: Int
@@ -285,7 +476,17 @@ public struct MicrostructureTruth: Decodable, Sendable {
     public let coinapi_expired_or_not_required: Bool
     public let coinapi_not_required_to_solve_book_trust: Bool
     public let public_book_default_trust: String
+    public let public_orderbook_default_trust_cap: Double?
+    public let public_book_trust_live_ready: Bool?
     public let public_book_can_approve_trade_alone: Bool
+    public let composite_microstructure_trust_required: Bool?
+    public let final_a_plus_min_composite_trust: Double?
+    public let final_a_plus_candidates: Int?
+    public let reduced_size_bootstrap_tier: String?
+    public let reduced_size_bootstrap_candidates: Int?
+    public let reduced_size_bootstrap_paper_only: Bool?
+    public let reduced_size_counts_as_final_a_plus: Bool?
+    public let reduced_size_routes_to_live: Bool?
     public let direct_binance_kucoin_active: Bool
     public let symbols_covered: Int
     public let stale_symbols: [String]
@@ -296,6 +497,7 @@ public struct MicrostructureTruth: Decodable, Sendable {
     public let allocator_consumes_microstructure: Bool
     public let paper_fills_consume_microstructure: Bool
     public let why_candidate_blocked_visible: Bool
+    public let why_candidate_is_not_final_a_plus_visible: Bool?
 }
 
 // MARK: - Risk
@@ -303,6 +505,17 @@ public struct MicrostructureTruth: Decodable, Sendable {
 public struct MobileRiskStatus: Decodable, Sendable {
     public let generated_utc: String
     public let live_gate: LiveGateState
+    public let performance: MobileRuntimePerformance?
+    public let entry_freeze: MobileRuntimeEntryFreeze?
+    public let a_plus_gate: MobileRuntimeAPlusGate?
+    public let reduced_size_bootstrap: MobileRuntimeReducedSizeBootstrap?
+    public let trainer_learning: MobileRuntimeTrainerLearning?
+    public let real_trader_readiness: MobileRuntimeReadiness?
+    public let market_data_freshness: MobileMarketDataFreshness?
+    public let preemptive_edge_control: MobilePreemptiveEdgeControl?
+    public let adaptive_hedge_cross_margin: MobileHedgeCrossMargin?
+    public let provider_readiness: MobileProviderReadiness?
+    public let top_blockers: [String]?
     public let risk_state: String
     public let paper_blocked_count: Int
     public let paper_accepted_count: Int
@@ -321,11 +534,29 @@ public struct MobilePaperSummary: Decodable, Sendable {
     public let mode: String
     public let places_real_order: Bool
     public let live_gate: String
+    public let paper_session_id: String?
+    public let equity: Double?
+    public let paper_equity: Double?
+    public let paper_balance: Double?
+    public let initial_capital: Double?
+    public let starting_equity_usd: Double?
+    public let performance: MobileRuntimePerformance?
+    public let entry_freeze: MobileRuntimeEntryFreeze?
+    public let a_plus_gate: MobileRuntimeAPlusGate?
+    public let reduced_size_bootstrap: MobileRuntimeReducedSizeBootstrap?
+    public let trainer_learning: MobileRuntimeTrainerLearning?
+    public let real_trader_readiness: MobileRuntimeReadiness?
+    public let market_data_freshness: MobileMarketDataFreshness?
+    public let preemptive_edge_control: MobilePreemptiveEdgeControl?
+    public let adaptive_hedge_cross_margin: MobileHedgeCrossMargin?
+    public let provider_readiness: MobileProviderReadiness?
+    public let top_blockers: [String]?
     public let loop: PaperLoop
     public let positions: PaperPositions
     public let position_pricing: PositionPricing?
     public let pnl: PaperPnL
     public let trainer_feedback: TrainerFeedback
+    public var effectiveEquity: Double? { paper_equity ?? equity ?? paper_balance }
 }
 
 public struct PaperLoop: Decodable, Sendable {
@@ -341,6 +572,7 @@ public struct PaperLoop: Decodable, Sendable {
     public let paper_policy_owner: String?
     public let policy_fingerprint: String?
     public let model_source: String?
+    public let preemptive_edge_control: MobilePreemptiveEdgeControl?
     public let paper_only: Bool?
     public let routes_to_live: Bool?
     public let places_real_order: Bool?
@@ -395,6 +627,7 @@ public struct MobileAdminSummary: Decodable, Sendable {
 public struct AdminActor:   Decodable, Sendable { public let user_id, email, role: String }
 public struct AdminTrainer: Decodable, Sendable {
     public let state, checkpoint: String
+    public let champion_challenger_status: ChampionChallengerStatus?
     public let cuda_active: Bool
     public let training_steps_total, training_steps_last_hour: Int
 }
