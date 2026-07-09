@@ -6,12 +6,284 @@ final class AIBotV2CoreTests: XCTestCase {
     func testAPIEndpointsNotEmpty() {
         XCTAssertFalse(APIEndpoints.mobileDashboard.isEmpty)
         XCTAssertTrue(APIEndpoints.mobileDashboard.hasPrefix("/"))
+        XCTAssertEqual(APIEndpoints.authHealth, "/api/auth/health")
+        XCTAssertEqual(APIEndpoints.trainerStatus, "/api/v2/trainer/status")
+        XCTAssertEqual(APIEndpoints.providersStatus, "/api/v2/providers/status")
+        XCTAssertEqual(APIEndpoints.liveCanaryStatus, "/api/v2/live-canary/status")
+        XCTAssertEqual(APIEndpoints.aPlusInventory, "/api/v2/a-plus/inventory")
+        XCTAssertEqual(APIEndpoints.currentSignal, "/api/v2/signals/current")
     }
 
     func testAPIErrorMessages() {
         XCTAssertTrue(APIError.unauthorized.isUnauthorized)
         XCTAssertTrue(APIError.http(statusCode: 401, message: "").isUnauthorized)
         XCTAssertFalse(APIError.http(statusCode: 403, message: "").isUnauthorized)
+    }
+
+    func testAuthHealthDecodingKeepsLoginAndLiveSafetyTruth() throws {
+        let json = """
+        {
+          "schema_version": "auth_health_v1",
+          "generated_at_utc": "2026-07-09T12:00:00Z",
+          "generated_at_et": "2026-07-09 08:00:00 EDT",
+          "source": "auth_user_store_status",
+          "status": "ok",
+          "staleness_seconds": 0,
+          "freshness_status": "fresh",
+          "canonical_owner": "/api/auth/health",
+          "data_quality_status": "degraded",
+          "login_endpoint_available": true,
+          "auth_store_backend": "local_file",
+          "durable_user_store_configured": false,
+          "production_ready": false,
+          "contains_secret_values": false,
+          "raw_credential_value_exposed": false,
+          "live_gate": "blocked_human_only",
+          "places_real_order": false,
+          "routes_to_live": false,
+          "exchange_mutation_enabled": false,
+          "session_security": {
+            "cookie_name": "access_token",
+            "token_type": "bearer",
+            "http_only_cookie": true,
+            "secure_cookie": true,
+            "same_site": "lax"
+          },
+          "warnings": ["durable_user_store_not_configured"]
+        }
+        """.data(using: .utf8)!
+
+        let health = try JSONDecoder().decode(AuthHealth.self, from: json)
+        XCTAssertEqual(health.schema_version, "auth_health_v1")
+        XCTAssertTrue(health.isLoginReachable)
+        XCTAssertTrue(health.isLiveBlocked)
+        XCTAssertEqual(health.data_quality_status, "degraded")
+        XCTAssertEqual(health.auth_store_backend, "local_file")
+        XCTAssertEqual(health.production_ready, false)
+        XCTAssertFalse(health.contains_secret_values)
+        XCTAssertFalse(health.raw_credential_value_exposed)
+        XCTAssertFalse(health.exchange_mutation_enabled ?? true)
+        XCTAssertTrue(health.hasNoLiveRoutingOrSecretExposure)
+        XCTAssertEqual(health.accountRuntimeSafetyStatus, "NO_LIVE_ROUTING_OR_SECRET_EXPOSURE")
+        XCTAssertEqual(health.accountSettingsCanonicalSource, "/api/auth/health")
+        XCTAssertEqual(health.session_security?.cookie_name, "access_token")
+    }
+
+    func testAuthHealthFlagsSettingsSafetyReviewWhenLiveRoutingOrSecretsAppear() throws {
+        let json = """
+        {
+          "schema_version": "auth_health_v1",
+          "status": "ok",
+          "canonical_owner": "/api/auth/health",
+          "login_endpoint_available": true,
+          "contains_secret_values": true,
+          "raw_credential_value_exposed": false,
+          "live_gate": "blocked_human_only",
+          "places_real_order": false,
+          "routes_to_live": false,
+          "exchange_mutation_enabled": false
+        }
+        """.data(using: .utf8)!
+
+        let health = try JSONDecoder().decode(AuthHealth.self, from: json)
+        XCTAssertTrue(health.isLiveBlocked)
+        XCTAssertFalse(health.hasNoLiveRoutingOrSecretExposure)
+        XCTAssertEqual(health.accountRuntimeSafetyStatus, "REVIEW_REQUIRED")
+    }
+
+    func testControlCenterStatusContractsDecodeForIOSParity() throws {
+        let providerJSON = """
+        {
+          "schema_version": "control_center_provider_status_v1",
+          "generated_at_utc": "2026-07-09T12:00:00Z",
+          "generated_at_et": "2026-07-09T08:00:00-04:00",
+          "source": "compact_live_fallback",
+          "staleness_seconds": 0,
+          "freshness_status": "fresh",
+          "canonical_owner": "/api/v2/providers/status",
+          "live_gate": "blocked_human_only",
+          "places_real_order": false,
+          "routes_to_live": false,
+          "data_quality_status": "fresh",
+          "data": {
+            "schema_version": "enterprise_provider_cards_v1",
+            "providers": [
+              {
+                "provider": "coinglass",
+                "display_name": "CoinGlass",
+                "dashboard_color": "yellow",
+                "actual_payload_count": 3,
+                "feature_count": 12,
+                "consumer_roles": ["trainer", "risk", "UI"],
+                "heartbeat_only": false,
+                "actual_payload_present": true,
+                "raw_key_exposed": false,
+                "routes_to_live": false,
+                "places_real_order": false
+              },
+              {
+                "provider": "moralis",
+                "display_name": "Moralis",
+                "dashboard_color": "yellow",
+                "actual_payload_count": 2,
+                "watchlist_count": 250,
+                "smart_wallet_candidate_count": 250,
+                "raw_key_exposed": false,
+                "routes_to_live": false,
+                "places_real_order": false
+              },
+              {
+                "provider": "santiment",
+                "display_name": "Santiment/Sanbase",
+                "dashboard_color": "yellow",
+                "actual_payload_count": 4,
+                "metric_count": 22,
+                "missing_high_value_metrics": [],
+                "raw_key_exposed": false,
+                "routes_to_live": false,
+                "places_real_order": false
+              }
+            ],
+            "provider_count": 3,
+            "heartbeat_only_green_count": 0,
+            "live_gate": "blocked_human_only",
+            "paper_only": true,
+            "routes_to_live": false,
+            "places_real_order": false
+          }
+        }
+        """.data(using: .utf8)!
+        let providers = try JSONDecoder().decode(ControlCenterProviderStatus.self, from: providerJSON)
+        XCTAssertTrue(providers.isReadOnlyBlockedLive)
+        XCTAssertEqual(providers.data.provider_count, 3)
+        XCTAssertEqual(providers.data.providers.map(\.provider), ["coinglass", "moralis", "santiment"])
+        XCTAssertEqual(providers.data.providers.first?.raw_key_exposed, false)
+
+        let liveCanaryJSON = """
+        {
+          "schema_version": "control_center_live_canary_status_v1",
+          "generated_at_utc": "2026-07-09T12:00:00Z",
+          "generated_at_et": "2026-07-09T08:00:00-04:00",
+          "source": "redis:v2:live_canary:status",
+          "staleness_seconds": 12.5,
+          "freshness_status": "fresh",
+          "canonical_owner": "/api/v2/live-canary/status",
+          "live_gate": "blocked_human_only",
+          "places_real_order": false,
+          "routes_to_live": false,
+          "data_quality_status": "fresh",
+          "data": {
+            "selected_a_plus_candidate": null,
+            "why_none": "NO_A_PLUS_CANDIDATE",
+            "dry_run": true,
+            "operator_approval_required": true,
+            "no_mutation_flags": {
+              "real_order_attempted": false,
+              "real_order_submitted": false,
+              "test_order_submitted": false,
+              "leverage_changed": false,
+              "margin_mode_changed": false,
+              "places_real_order": false,
+              "routes_to_live": false
+            }
+          }
+        }
+        """.data(using: .utf8)!
+        let liveCanary = try JSONDecoder().decode(ControlCenterLiveCanaryStatus.self, from: liveCanaryJSON)
+        XCTAssertTrue(liveCanary.isReadOnlyBlockedLive)
+        XCTAssertEqual(liveCanary.data.why_none, "NO_A_PLUS_CANDIDATE")
+        XCTAssertEqual(liveCanary.data.no_mutation_flags?.hasNoExchangeMutation, true)
+
+        let aPlusJSON = """
+        {
+          "schema_version": "control_center_a_plus_inventory_v1",
+          "generated_at_utc": "2026-07-09T12:00:00Z",
+          "generated_at_et": "2026-07-09T08:00:00-04:00",
+          "source": "redis:v2:paper:a_plus_gate:status",
+          "staleness_seconds": 22,
+          "freshness_status": "fresh",
+          "canonical_owner": "/api/v2/a-plus/inventory",
+          "live_gate": "blocked_human_only",
+          "places_real_order": false,
+          "routes_to_live": false,
+          "data_quality_status": "fresh",
+          "data": {
+            "schema_version": "v2_paper_a_plus_gate_status_v1",
+            "generated_utc": "2026-07-09T12:00:00Z",
+            "paper_session_id": "paper-session",
+            "evaluated_candidates": 430,
+            "a_plus_candidates": 0,
+            "live_ready_rows": 0,
+            "counts_as_final_a_plus": false,
+            "b_grade_counts_as_final_a_plus": false,
+            "probation_counts_as_final_a_plus": false,
+            "full_candidate_count": 430,
+            "payload_compacted": true,
+            "candidate_matrix_preview": [
+              {
+                "symbol": "BTCUSDT",
+                "timeframe": "5m",
+                "side": "hold",
+                "strategy_id": "no_trade_mode",
+                "a_plus": false,
+                "failed_checks": ["allocator_allows"],
+                "missing_evidence_checks": [],
+                "passed_check_count": 5,
+                "check_count": 13
+              }
+            ],
+            "a_plus_preview": []
+          }
+        }
+        """.data(using: .utf8)!
+        let aPlus = try JSONDecoder().decode(ControlCenterAPlusInventoryStatus.self, from: aPlusJSON)
+        XCTAssertTrue(aPlus.isReadOnlyBlockedLive)
+        XCTAssertEqual(aPlus.data.verifiedAPlusCount, 0)
+        XCTAssertEqual(aPlus.data.counts_as_final_a_plus, false)
+        XCTAssertEqual(aPlus.data.candidate_matrix_preview?.first?.symbol, "BTCUSDT")
+
+        let signalJSON = """
+        {
+          "schema_version": "api_v2_readonly_envelope_v1",
+          "generated_at_utc": "2026-07-09T12:00:00Z",
+          "generated_at_et": "2026-07-09T08:00:00-04:00",
+          "source": "Redis paper signal publisher v2:signals:paper:BTCUSDT:5m",
+          "staleness_seconds": 0,
+          "freshness_status": "fresh",
+          "canonical_owner": "/api/v2/signals/current",
+          "live_gate": "blocked_human_only",
+          "places_real_order": false,
+          "routes_to_live": false,
+          "data_quality_status": "fresh",
+          "data": {
+            "active_signal": {
+              "symbol": "BTCUSDT",
+              "timeframe": "5m",
+              "action": "long",
+              "side": "Long",
+              "proposed_action": "LONG",
+              "actionable": false,
+              "signal_id": "sig-1",
+              "prediction_id": "pred-1",
+              "confidence": 0.72,
+              "live_gate": "blocked_human_only",
+              "exchange_action_taken": false,
+              "exchange_call_invariant": "LIVE_TRADING_BLOCKED",
+              "market_age_seconds": 4,
+              "risk_result": "Risk Blocked",
+              "blocked_reason": "operator gated"
+            },
+            "account_scope": "public_read_only",
+            "account_specific": false,
+            "public_paper_signal": true
+          }
+        }
+        """.data(using: .utf8)!
+        let signal = try JSONDecoder().decode(ControlCenterCurrentSignalStatus.self, from: signalJSON)
+        XCTAssertTrue(signal.isReadOnlyBlockedLive)
+        XCTAssertEqual(signal.data.active_signal?.symbol, "BTCUSDT")
+        XCTAssertEqual(signal.data.active_signal?.exchange_action_taken, false)
+        XCTAssertEqual(signal.data.active_signal?.exchange_call_invariant, "LIVE_TRADING_BLOCKED")
     }
 
     func testTokenStoreRoundTrip() {
@@ -258,6 +530,12 @@ final class AIBotV2CoreTests: XCTestCase {
             "moralis_stale_mask_true": false,
             "moralis_token_map_count": 9,
             "moralis_wallet_watchlist_count": 0,
+            "santiment_status": "V2_SANTIMENT_PRO_INGESTOR_READY",
+            "santiment_symbol_count": 115,
+            "santiment_regime_only": true,
+            "santiment_data_lag_note": "sanbase_pro_31d_lag_regime_layer_only",
+            "santiment_rate_limit_month_limit": 5000,
+            "santiment_rate_limit_remaining_month": 4873,
             "heartbeat_only_green_allowed": false
           },
           "trainer_feedback": {
@@ -290,6 +568,128 @@ final class AIBotV2CoreTests: XCTestCase {
         XCTAssertEqual(summary.provider_readiness?.moralis_missing_feature_flags?.first, "moralis_whale_buy_usd")
         XCTAssertEqual(summary.provider_readiness?.moralis_missing_mask_true, true)
         XCTAssertEqual(summary.provider_readiness?.moralis_wallet_watchlist_count, 0)
+        XCTAssertEqual(summary.provider_readiness?.santiment_status, "V2_SANTIMENT_PRO_INGESTOR_READY")
+        XCTAssertEqual(summary.provider_readiness?.santiment_symbol_count, 115)
+        XCTAssertEqual(summary.provider_readiness?.santiment_regime_only, true)
+        XCTAssertEqual(summary.provider_readiness?.santiment_rate_limit_month_limit, 5000)
+        XCTAssertEqual(summary.provider_readiness?.santiment_rate_limit_remaining_month, 4873)
+    }
+
+    func testRuntimeTruthCardDisplaysSantimentProviderTruth() throws {
+        let packageRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let source = try String(contentsOf: packageRoot.appendingPathComponent("Sources/AIBotV2/Views/Components/RuntimeTruthCard.swift"))
+
+        XCTAssertTrue(source.contains("santimentRuntimeText"))
+        XCTAssertTrue(source.contains("Santiment/Sanbase"))
+        XCTAssertTrue(source.contains("santiment_symbol_count"))
+        XCTAssertTrue(source.contains("santiment_rate_limit_remaining_month"))
+    }
+
+    func testIOSProviderIngestorTruthScreenUsesCanonicalStatus() throws {
+        let packageRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let sourceRoot = packageRoot.appendingPathComponent("Sources/AIBotV2")
+        let appState = try String(contentsOf: sourceRoot.appendingPathComponent("App/AppState.swift"), encoding: .utf8)
+        let rootView = try String(contentsOf: sourceRoot.appendingPathComponent("Views/Root/RootView.swift"), encoding: .utf8)
+        let viewModel = try String(contentsOf: sourceRoot.appendingPathComponent("ViewModels/ProviderStatusViewModel.swift"), encoding: .utf8)
+        let providersView = try String(contentsOf: sourceRoot.appendingPathComponent("Views/Providers/ProvidersView.swift"), encoding: .utf8)
+        let appModels = try String(contentsOf: sourceRoot.appendingPathComponent("Models/APIModels.swift"), encoding: .utf8)
+
+        XCTAssertTrue(appState.contains("case providers"), "iOS app tabs must expose the providers and ingestors surface")
+        XCTAssertTrue(rootView.contains("sidebarRow(.providers"))
+        XCTAssertTrue(rootView.contains("Providers & Ingestors"))
+        XCTAssertTrue(rootView.contains("ProvidersView()"))
+
+        for snippet in [
+            "APIEndpoints.providersStatus",
+            "APIEndpoints.wsResourceURL",
+            "decodeMobileResourceSnapshot(ControlCenterProviderStatus.self",
+            "providerStatus == nil",
+            "requiredAltDataProvidersVisible",
+            "retiredActiveProviders",
+        ] {
+            XCTAssertTrue(
+                viewModel.contains(snippet),
+                "ProviderStatusViewModel.swift must keep provider truth on the canonical realtime/API contract: \(snippet)"
+            )
+        }
+
+        for snippet in [
+            "CoinGlass",
+            "Moralis",
+            "Santiment/Sanbase",
+            "Provider and Ingestor Truth",
+            "Heartbeat only",
+            "Raw key exposed",
+            "Disabled heatmap",
+            "Smart wallet candidates",
+            "Missing high-value metrics",
+        ] {
+            XCTAssertTrue(
+                providersView.contains(snippet),
+                "ProvidersView.swift must visibly render active provider truth: \(snippet)"
+            )
+        }
+
+        for retiredName in ["Alpha Vantage", "LunarCrush", "Nansen"] {
+            XCTAssertFalse(
+                providersView.contains(retiredName),
+                "ProvidersView.swift must not show retired providers as active panels: \(retiredName)"
+            )
+        }
+
+        for field in [
+            "last_success_utc",
+            "last_error_utc",
+            "source_lag_seconds",
+            "keys_published",
+            "rate_limit_used",
+            "rate_limit_remaining",
+            "daily_quota_used",
+            "monthly_quota_used",
+        ] {
+            XCTAssertTrue(
+                appModels.contains(field),
+                "AIBotV2 app models must decode provider runtime field: \(field)"
+            )
+        }
+    }
+
+    func testIOSLiveReadinessShowsCanonicalLiveCanaryAndAPlusTruth() throws {
+        let packageRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        let sourceRoot = packageRoot.appendingPathComponent("Sources/AIBotV2")
+        let viewModel = try String(contentsOf: sourceRoot.appendingPathComponent("ViewModels/LiveReadinessViewModel.swift"), encoding: .utf8)
+        let liveReadinessView = try String(contentsOf: sourceRoot.appendingPathComponent("Views/LiveReadiness/LiveReadinessView.swift"), encoding: .utf8)
+
+        for snippet in [
+            "ControlCenterLiveCanaryStatus",
+            "ControlCenterAPlusInventoryStatus",
+            "APIEndpoints.liveCanaryStatus",
+            "APIEndpoints.aPlusInventory",
+            "liveCanaryStatus",
+            "aPlusInventoryStatus",
+        ] {
+            XCTAssertTrue(
+                viewModel.contains(snippet),
+                "LiveReadinessViewModel.swift must consume canonical live-canary/A+ contracts: \(snippet)"
+            )
+        }
+
+        for snippet in [
+            "Live Canary",
+            "Selected A+ candidate",
+            "Why none",
+            "Dry run",
+            "Operator approval",
+            "No mutation flags",
+            "A+ candidates",
+            "Live-ready rows",
+            "Inventory source",
+        ] {
+            XCTAssertTrue(
+                liveReadinessView.contains(snippet),
+                "LiveReadinessView.swift must expose live-canary and A+ runtime truth: \(snippet)"
+            )
+        }
     }
 
     func testIOSViewModelsUseResourceWebSocketStreams() throws {

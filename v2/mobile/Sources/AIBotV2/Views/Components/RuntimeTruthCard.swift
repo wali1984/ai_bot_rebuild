@@ -33,6 +33,25 @@ private func providerActualText(color: String?, actual: Bool?, status: String?) 
     return "\(runtimeText(marker))/\(actualText)"
 }
 
+private func santimentRuntimeText(
+    status: String?,
+    symbolCount: Int?,
+    regimeOnly: Bool?,
+    remainingMonth: Int?
+) -> String {
+    var parts = [runtimeText(status)]
+    if let symbolCount {
+        parts.append("symbols \(symbolCount)")
+    }
+    if let regimeOnly {
+        parts.append(regimeOnly ? "regime-only" : "current")
+    }
+    if let remainingMonth {
+        parts.append("month left \(remainingMonth)")
+    }
+    return parts.joined(separator: "/")
+}
+
 private func runtimePercent(_ value: Double?) -> String {
     guard let value else { return "not reported" }
     let percent = abs(value) <= 1 ? value * 100 : value
@@ -79,6 +98,7 @@ struct RuntimeTruthDisplay {
     let notionalDistributionUsd: [Double]
     let coinglassStatus: String?
     let moralisStatus: String?
+    let santimentStatus: String?
     let providerTensorConsumption: Bool?
     let providerRiskConsumption: Bool?
     let providerAllocatorConsumption: Bool?
@@ -154,6 +174,12 @@ struct RuntimeTruthDisplay {
                 color: summary.provider_readiness?.moralis_dashboard_color,
                 actual: summary.provider_readiness?.moralis_actual_payload_present,
                 status: summary.provider_readiness?.moralis_status
+            ),
+            santimentStatus: santimentRuntimeText(
+                status: summary.provider_readiness?.santiment_status,
+                symbolCount: summary.provider_readiness?.santiment_symbol_count,
+                regimeOnly: summary.provider_readiness?.santiment_regime_only,
+                remainingMonth: summary.provider_readiness?.santiment_rate_limit_remaining_month
             ),
             providerTensorConsumption: summary.provider_readiness?.provider_tensor_consumption,
             providerRiskConsumption: summary.provider_readiness?.provider_risk_consumption,
@@ -233,6 +259,12 @@ struct RuntimeTruthDisplay {
                 actual: paper.provider_readiness?.moralis_actual_payload_present,
                 status: paper.provider_readiness?.moralis_status
             ),
+            santimentStatus: santimentRuntimeText(
+                status: paper.provider_readiness?.santiment_status,
+                symbolCount: paper.provider_readiness?.santiment_symbol_count,
+                regimeOnly: paper.provider_readiness?.santiment_regime_only,
+                remainingMonth: paper.provider_readiness?.santiment_rate_limit_remaining_month
+            ),
             providerTensorConsumption: paper.provider_readiness?.provider_tensor_consumption,
             providerRiskConsumption: paper.provider_readiness?.provider_risk_consumption,
             providerAllocatorConsumption: paper.provider_readiness?.provider_allocator_consumption,
@@ -310,6 +342,12 @@ struct RuntimeTruthDisplay {
                 color: risk.provider_readiness?.moralis_dashboard_color,
                 actual: risk.provider_readiness?.moralis_actual_payload_present,
                 status: risk.provider_readiness?.moralis_status
+            ),
+            santimentStatus: santimentRuntimeText(
+                status: risk.provider_readiness?.santiment_status,
+                symbolCount: risk.provider_readiness?.santiment_symbol_count,
+                regimeOnly: risk.provider_readiness?.santiment_regime_only,
+                remainingMonth: risk.provider_readiness?.santiment_rate_limit_remaining_month
             ),
             providerTensorConsumption: risk.provider_readiness?.provider_tensor_consumption,
             providerRiskConsumption: risk.provider_readiness?.provider_risk_consumption,
@@ -444,7 +482,7 @@ struct RuntimeTruthCard: View {
             )
             DataRow(
                 label: "Provider actual data",
-                value: "CoinGlass \(runtimeText(truth.coinglassStatus)) · Moralis \(runtimeText(truth.moralisStatus))",
+                value: "CoinGlass \(runtimeText(truth.coinglassStatus)) · Moralis \(runtimeText(truth.moralisStatus)) · Santiment/Sanbase \(runtimeText(truth.santimentStatus))",
                 mono: true
             )
             DataRow(

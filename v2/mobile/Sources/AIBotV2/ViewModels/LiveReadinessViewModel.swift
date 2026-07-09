@@ -6,6 +6,8 @@ import Observation
 public final class LiveReadinessViewModel {
 
     public private(set) var gates: [LiveReadinessGate] = []
+    public private(set) var liveCanaryStatus: ControlCenterLiveCanaryStatus?
+    public private(set) var aPlusInventoryStatus: ControlCenterAPlusInventoryStatus?
     public private(set) var isLoading = false
     public private(set) var error: String?
     public private(set) var lastUpdated: String?
@@ -27,6 +29,7 @@ public final class LiveReadinessViewModel {
     public func load(token: String?, baseURL: String) async {
         isLoading = true
         error = nil
+
         do {
             gates = try await APIClient.shared.get(
                 path: APIEndpoints.liveReadinessGates,
@@ -35,8 +38,35 @@ public final class LiveReadinessViewModel {
             )
             lastUpdated = ISO8601DateFormatter().string(from: Date())
         } catch {
-            self.error = error.localizedDescription
+            if gates.isEmpty {
+                self.error = error.localizedDescription
+            }
         }
+
+        do {
+            liveCanaryStatus = try await APIClient.shared.get(
+                path: APIEndpoints.liveCanaryStatus,
+                token: token,
+                baseURL: baseURL
+            )
+        } catch {
+            if gates.isEmpty && liveCanaryStatus == nil {
+                self.error = error.localizedDescription
+            }
+        }
+
+        do {
+            aPlusInventoryStatus = try await APIClient.shared.get(
+                path: APIEndpoints.aPlusInventory,
+                token: token,
+                baseURL: baseURL
+            )
+        } catch {
+            if gates.isEmpty && aPlusInventoryStatus == nil {
+                self.error = error.localizedDescription
+            }
+        }
+
         isLoading = false
     }
 

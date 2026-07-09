@@ -23,6 +23,7 @@ public struct PaperState: Decodable, Sendable {
     public let paper_session_id: String?
     public let equity: Double?
     public let paper_equity: Double?
+    public let paper_equity_usd: Double?
     public let paper_balance: Double?
     public let initial_capital: Double?
     public let starting_equity_usd: Double?
@@ -41,14 +42,20 @@ public struct PaperState: Decodable, Sendable {
     public let open_positions: Int
     public let closed_trades: Int
     public let realized_pnl_usd: Double
+    public let paper_realized_pnl_usd: Double?
     public let unrealized_pnl_usd: Double
+    public let paper_unrealized_pnl_usd: Double?
+    public let paper_total_pnl_usd: Double?
+    public let data_source: String?
+    public let staleness_seconds: Double?
+    public let freshness_status: String?
     public let signals_seen: Int
     public let intents_accepted: Int
     public let intents_blocked: Int
     public let classification: String
     public let places_real_order: Bool
-    public var total_pnl: Double { realized_pnl_usd + unrealized_pnl_usd }
-    public var effectiveEquity: Double? { paper_equity ?? equity ?? paper_balance }
+    public var total_pnl: Double { paper_total_pnl_usd ?? realized_pnl_usd + unrealized_pnl_usd }
+    public var effectiveEquity: Double? { paper_equity_usd ?? paper_equity ?? equity ?? paper_balance }
 }
 
 public struct MobileRuntimePerformance: Decodable, Sendable {
@@ -185,6 +192,7 @@ public struct MobileProviderReadiness: Decodable, Sendable {
     public let status: String?
     public let coinglass_status: String?
     public let moralis_status: String?
+    public let santiment_status: String?
     public let coinglass_dashboard_color: String?
     public let moralis_dashboard_color: String?
     public let coinglass_actual_payload_present: Bool?
@@ -200,6 +208,11 @@ public struct MobileProviderReadiness: Decodable, Sendable {
     public let moralis_stale_mask_true: Bool?
     public let moralis_token_map_count: Int?
     public let moralis_wallet_watchlist_count: Int?
+    public let santiment_symbol_count: Int?
+    public let santiment_regime_only: Bool?
+    public let santiment_data_lag_note: String?
+    public let santiment_rate_limit_month_limit: Int?
+    public let santiment_rate_limit_remaining_month: Int?
     public let provider_tensor_consumption: Bool?
     public let provider_risk_consumption: Bool?
     public let provider_orchestrator_consumption: Bool?
@@ -399,6 +412,66 @@ public struct MobileAlertsResponse: Decodable, Sendable {
     public let generated_utc: String
     public let alerts: [MobileAlert]
     public let total_returned: Int
+}
+
+// MARK: - Auth Health
+
+public struct AuthHealth: Decodable, Sendable {
+    public let schema_version: String
+    public let generated_at_utc: String?
+    public let generated_at_et: String?
+    public let source: String?
+    public let status: String
+    public let staleness_seconds: Double?
+    public let freshness_status: String?
+    public let canonical_owner: String?
+    public let data_quality_status: String?
+    public let login_endpoint_available: Bool
+    public let auth_store_backend: String?
+    public let durable_user_store_configured: Bool?
+    public let production_ready: Bool?
+    public let contains_secret_values: Bool
+    public let raw_credential_value_exposed: Bool
+    public let live_gate: String
+    public let places_real_order: Bool
+    public let routes_to_live: Bool
+    public let exchange_mutation_enabled: Bool?
+    public let session_security: AuthHealthSessionSecurity?
+    public let warnings: [String]?
+
+    public var isLoginReachable: Bool {
+        login_endpoint_available && status.lowercased() == "ok"
+    }
+
+    public var isLiveBlocked: Bool {
+        live_gate == "blocked_human_only" && !places_real_order && !routes_to_live
+    }
+
+    public var hasNoLiveRoutingOrSecretExposure: Bool {
+        !places_real_order
+            && !routes_to_live
+            && !(exchange_mutation_enabled ?? false)
+            && !raw_credential_value_exposed
+            && !contains_secret_values
+    }
+
+    public var accountRuntimeSafetyStatus: String {
+        isLiveBlocked && hasNoLiveRoutingOrSecretExposure
+            ? "NO_LIVE_ROUTING_OR_SECRET_EXPOSURE"
+            : "REVIEW_REQUIRED"
+    }
+
+    public var accountSettingsCanonicalSource: String {
+        canonical_owner ?? "/api/auth/health"
+    }
+}
+
+public struct AuthHealthSessionSecurity: Decodable, Sendable {
+    public let cookie_name: String?
+    public let token_type: String?
+    public let http_only_cookie: Bool?
+    public let secure_cookie: Bool?
+    public let same_site: String?
 }
 
 // MARK: - Health
@@ -699,6 +772,10 @@ public struct CanonicalPnL: Decodable, Sendable, Equatable {
     public let display_timezone: String?
     public let paper_session_id: String?
     public let account_scope: String
+    public let paper_equity_usd: Double?
+    public let paper_realized_pnl_usd: Double?
+    public let paper_unrealized_pnl_usd: Double?
+    public let paper_total_pnl_usd: Double?
     public let equity_usd: Double?
     public let starting_equity_usd: Double?
     public let realized_net_pnl_usd: Double?
@@ -710,7 +787,10 @@ public struct CanonicalPnL: Decodable, Sendable, Equatable {
     public let net_pnl_usd: Double?
     public let closed_trade_count: Int?
     public let source: String?
+    public let data_source: String?
     public let source_lag_seconds: Double?
+    public let staleness_seconds: Double?
+    public let freshness_status: String?
     public let reconciliation_status: String
     public let reconciliation_delta_usd: Double?
     public let missing_fields: [String]?
@@ -723,6 +803,7 @@ public struct CanonicalPnL: Decodable, Sendable, Equatable {
 public struct EnterpriseProviderCard: Decodable, Sendable, Equatable {
     public let provider: String
     public let display_name: String?
+    public let subscription_tier: String?
     public let status: String?
     public let dashboard_color: String?
     public let dashboard_color_reason: String?
@@ -733,14 +814,26 @@ public struct EnterpriseProviderCard: Decodable, Sendable, Equatable {
     public let keys_published: [String]?
     public let feature_count: Int?
     public let consumer_count: Int?
+    public let consumer_roles: [String]?
+    public let symbols_covered: [String]?
+    public let endpoints_active: [String]?
+    public let endpoints_disabled: [String]?
+    public let rate_limit_used: Double?
+    public let rate_limit_remaining: Double?
+    public let daily_quota_used: Double?
+    public let monthly_quota_used: Double?
     public let heartbeat_only: Bool?
     public let actual_payload_present: Bool?
     public let raw_key_exposed: Bool?
     public let routes_to_live: Bool?
     public let places_real_order: Bool?
     public let watchlist_count: Int?
+    public let smart_wallet_candidate_count: Int?
+    public let verified_smart_wallet_count: Int?
     public let token_map_count: Int?
     public let metric_count: Int?
+    public let missing_high_value_metrics: [String]?
+    public let disabled_heatmap_endpoint: Bool?
 }
 
 public struct EnterpriseProviderCards: Decodable, Sendable, Equatable {
@@ -752,6 +845,171 @@ public struct EnterpriseProviderCards: Decodable, Sendable, Equatable {
     public let paper_only: Bool?
     public let routes_to_live: Bool?
     public let places_real_order: Bool?
+}
+
+public struct ControlCenterProviderStatus: Decodable, Sendable, Equatable {
+    public let schema_version: String
+    public let generated_at_utc: String
+    public let generated_at_et: String?
+    public let source: String
+    public let staleness_seconds: Double?
+    public let freshness_status: String?
+    public let canonical_owner: String
+    public let live_gate: String
+    public let places_real_order: Bool
+    public let routes_to_live: Bool
+    public let data_quality_status: String
+    public let data: EnterpriseProviderCards
+
+    public var isReadOnlyBlockedLive: Bool {
+        live_gate == "blocked_human_only" && !places_real_order && !routes_to_live
+    }
+}
+
+public struct ControlCenterLiveCanaryStatus: Decodable, Sendable, Equatable {
+    public let schema_version: String
+    public let generated_at_utc: String
+    public let generated_at_et: String?
+    public let source: String
+    public let staleness_seconds: Double?
+    public let freshness_status: String?
+    public let canonical_owner: String
+    public let live_gate: String
+    public let places_real_order: Bool
+    public let routes_to_live: Bool
+    public let data_quality_status: String
+    public let data: ControlCenterLiveCanaryData
+
+    public var isReadOnlyBlockedLive: Bool {
+        live_gate == "blocked_human_only" && !places_real_order && !routes_to_live
+    }
+}
+
+public struct ControlCenterLiveCanaryData: Decodable, Sendable, Equatable {
+    public let selected_a_plus_candidate: String?
+    public let why_none: String?
+    public let dry_run: Bool?
+    public let operator_approval_required: Bool?
+    public let no_mutation_flags: ControlCenterNoMutationFlags?
+}
+
+public struct ControlCenterNoMutationFlags: Decodable, Sendable, Equatable {
+    public let real_order_attempted: Bool?
+    public let real_order_submitted: Bool?
+    public let test_order_submitted: Bool?
+    public let leverage_changed: Bool?
+    public let margin_mode_changed: Bool?
+    public let places_real_order: Bool?
+    public let routes_to_live: Bool?
+
+    public var hasNoExchangeMutation: Bool {
+        !(real_order_attempted ?? false)
+            && !(real_order_submitted ?? false)
+            && !(test_order_submitted ?? false)
+            && !(leverage_changed ?? false)
+            && !(margin_mode_changed ?? false)
+            && !(places_real_order ?? false)
+            && !(routes_to_live ?? false)
+    }
+}
+
+public struct ControlCenterAPlusInventoryStatus: Decodable, Sendable, Equatable {
+    public let schema_version: String
+    public let generated_at_utc: String
+    public let generated_at_et: String?
+    public let source: String
+    public let staleness_seconds: Double?
+    public let freshness_status: String?
+    public let canonical_owner: String
+    public let live_gate: String
+    public let places_real_order: Bool
+    public let routes_to_live: Bool
+    public let data_quality_status: String
+    public let data: ControlCenterAPlusInventoryData
+
+    public var isReadOnlyBlockedLive: Bool {
+        live_gate == "blocked_human_only" && !places_real_order && !routes_to_live
+    }
+}
+
+public struct ControlCenterAPlusInventoryData: Decodable, Sendable, Equatable {
+    public let schema_version: String?
+    public let generated_utc: String?
+    public let paper_session_id: String?
+    public let evaluated_candidates: Int?
+    public let a_plus_candidates: Int?
+    public let live_ready_rows: Int?
+    public let counts_as_final_a_plus: Bool?
+    public let b_grade_counts_as_final_a_plus: Bool?
+    public let probation_counts_as_final_a_plus: Bool?
+    public let full_candidate_count: Int?
+    public let payload_compacted: Bool?
+    public let candidate_matrix_preview: [ControlCenterAPlusCandidatePreview]?
+    public let a_plus_preview: [ControlCenterAPlusCandidatePreview]?
+
+    public var verifiedAPlusCount: Int {
+        a_plus_candidates ?? a_plus_preview?.count ?? 0
+    }
+}
+
+public struct ControlCenterAPlusCandidatePreview: Decodable, Sendable, Equatable {
+    public let symbol: String?
+    public let timeframe: String?
+    public let side: String?
+    public let strategy_id: String?
+    public let bucket_key: String?
+    public let a_plus: Bool?
+    public let failed_checks: [String]?
+    public let missing_evidence_checks: [String]?
+    public let passed_check_count: Int?
+    public let check_count: Int?
+    public let generated_utc: String?
+}
+
+public struct ControlCenterCurrentSignalStatus: Decodable, Sendable, Equatable {
+    public let schema_version: String
+    public let generated_at_utc: String
+    public let generated_at_et: String?
+    public let source: String
+    public let staleness_seconds: Double?
+    public let freshness_status: String?
+    public let canonical_owner: String
+    public let live_gate: String
+    public let places_real_order: Bool
+    public let routes_to_live: Bool
+    public let data_quality_status: String
+    public let data: ControlCenterCurrentSignalData
+
+    public var isReadOnlyBlockedLive: Bool {
+        live_gate == "blocked_human_only" && !places_real_order && !routes_to_live
+    }
+}
+
+public struct ControlCenterCurrentSignalData: Decodable, Sendable, Equatable {
+    public let active_signal: ControlCenterCurrentSignal?
+    public let trader_id: String?
+    public let paper_account_id: String?
+    public let account_scope: String?
+    public let account_specific: Bool?
+    public let public_paper_signal: Bool?
+}
+
+public struct ControlCenterCurrentSignal: Decodable, Sendable, Equatable {
+    public let symbol: String?
+    public let timeframe: String?
+    public let action: String?
+    public let side: String?
+    public let proposed_action: String?
+    public let actionable: Bool?
+    public let signal_id: String?
+    public let prediction_id: String?
+    public let confidence: Double?
+    public let live_gate: String?
+    public let exchange_action_taken: Bool?
+    public let exchange_call_invariant: String?
+    public let market_age_seconds: Double?
+    public let risk_result: String?
+    public let blocked_reason: String?
 }
 
 public struct EnterpriseUiSnapshot: Decodable, Sendable, Equatable {

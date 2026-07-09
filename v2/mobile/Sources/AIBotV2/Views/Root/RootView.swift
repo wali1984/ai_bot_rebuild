@@ -91,6 +91,7 @@ struct iPadLayout: View {
                 }
                 Section("NERVYX OBSERVE") {
                     sidebarRow(.monitor,     "System Monitor",  "server.rack")
+                    sidebarRow(.providers,   "Providers",       "antenna.radiowaves.left.and.right")
                 }
                 if auth.currentSession?.isAdmin == true {
                     Section("Ops Terminal") {
@@ -131,6 +132,7 @@ struct iPadLayout: View {
         case .alerts:      AlertsView()
         case .risk:        RiskControlView()
         case .monitor:     MonitorView()
+        case .providers:   ProvidersView()
         case .admin:       AdminDashboardView()
         case .settings:    SettingsView()
         case .predictions: TrainerPredictionView()
@@ -153,6 +155,7 @@ struct MoreView: View {
                 Section("NERVYX OBSERVE") {
                     NavigationLink("Alerts", destination: AlertsView())
                     NavigationLink("System Monitor", destination: MonitorView())
+                    NavigationLink("Providers & Ingestors", destination: ProvidersView())
                     NavigationLink("Live Readiness", destination: LiveReadinessView())
                 }
                 Section("NERVYX GUARD") {

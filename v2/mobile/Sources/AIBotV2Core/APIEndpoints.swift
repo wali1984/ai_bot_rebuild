@@ -3,6 +3,7 @@ import Foundation
 public enum APIEndpoints {
     public static let login              = "/api/auth/login"
     public static let logout             = "/api/auth/logout"
+    public static let authHealth         = "/api/auth/health"
     public static let me                 = "/api/auth/me"
 
     public static let mobileDashboard    = "/api/v2/mobile/dashboard"
@@ -19,7 +20,11 @@ public enum APIEndpoints {
 
     public static let health             = "/health"
     public static let publicStatus       = "/api/v2/public/status"
-    public static let trainerStatus      = "/api/v2/status"
+    public static let trainerStatus      = "/api/v2/trainer/status"
+    public static let providersStatus    = "/api/v2/providers/status"
+    public static let liveCanaryStatus   = "/api/v2/live-canary/status"
+    public static let aPlusInventory     = "/api/v2/a-plus/inventory"
+    public static let currentSignal      = "/api/v2/signals/current"
     public static let auditLedger        = "/api/v2/audit-ledger"
     public static let liveGateStatus     = "/api/v2/live-gate/status"
     public static let paperActivity      = "/api/v2/paper/activity"

@@ -1,5 +1,20 @@
 import SwiftUI
 
+private func readinessText(_ value: String?) -> String {
+    guard let value, !value.isEmpty else { return "-" }
+    return nervyxPublicRuntimeText(value)
+}
+
+private func readinessIntText(_ value: Int?) -> String {
+    guard let value else { return "-" }
+    return "\(value)"
+}
+
+private func readinessBoolText(_ value: Bool?) -> String {
+    guard let value else { return "-" }
+    return value ? "true" : "false"
+}
+
 struct LiveReadinessView: View {
     @Environment(AuthManager.self) private var auth
     @Environment(AppState.self) private var appState
@@ -63,6 +78,7 @@ struct LiveReadinessView: View {
             VStack(spacing: 14) {
                 overallStatusCard
                 RuntimeTruthLiveCard(title: "Runtime Truth")
+                liveCanaryRuntimeCard
                 blockedNote
                 gatesList
                 liveBlockedNote
@@ -98,6 +114,43 @@ struct LiveReadinessView: View {
         .background(overallColor.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(overallColor.opacity(0.3), lineWidth: 1))
+    }
+
+    private var liveCanaryRuntimeCard: some View {
+        VStack(spacing: 10) {
+            SectionHeader(title: "Live Canary", accent: NerVyx.signal)
+
+            if let canary = vm.liveCanaryStatus {
+                let noMutation = canary.data.no_mutation_flags?.hasNoExchangeMutation
+                DataRow(
+                    label: "Selected A+ candidate",
+                    value: readinessText(canary.data.selected_a_plus_candidate ?? "none"),
+                    valueColor: canary.data.selected_a_plus_candidate == nil ? NerVyx.warning : NerVyx.validation,
+                    mono: true
+                )
+                DataRow(label: "Why none", value: readinessText(canary.data.why_none), mono: true)
+                DataRow(label: "Dry run", value: readinessBoolText(canary.data.dry_run), valueColor: canary.data.dry_run == true ? NerVyx.validation : NerVyx.warning, mono: true)
+                DataRow(label: "Operator approval", value: readinessBoolText(canary.data.operator_approval_required), valueColor: canary.data.operator_approval_required == true ? NerVyx.warning : NerVyx.textSecondary, mono: true)
+                DataRow(label: "No mutation flags", value: readinessBoolText(noMutation), valueColor: noMutation == true ? NerVyx.validation : NerVyx.sell, mono: true)
+                DataRow(label: "Live gate", value: readinessText(canary.live_gate), valueColor: NerVyx.sell, mono: true)
+                DataRow(label: "Source", value: readinessText(canary.canonical_owner), mono: true)
+            } else {
+                DataRow(label: "Live canary", value: "not loaded", valueColor: NerVyx.warning)
+            }
+
+            NerVyxDivider()
+
+            if let inventory = vm.aPlusInventoryStatus {
+                DataRow(label: "A+ candidates", value: readinessIntText(inventory.data.verifiedAPlusCount), valueColor: inventory.data.verifiedAPlusCount > 0 ? NerVyx.validation : NerVyx.warning, mono: true)
+                DataRow(label: "Live-ready rows", value: readinessIntText(inventory.data.live_ready_rows), valueColor: (inventory.data.live_ready_rows ?? 0) > 0 ? NerVyx.validation : NerVyx.warning, mono: true)
+                DataRow(label: "Evaluated candidates", value: readinessIntText(inventory.data.evaluated_candidates), mono: true)
+                DataRow(label: "Final A+ counted", value: readinessBoolText(inventory.data.counts_as_final_a_plus), valueColor: inventory.data.counts_as_final_a_plus == true ? NerVyx.validation : NerVyx.warning, mono: true)
+                DataRow(label: "Inventory source", value: readinessText(inventory.canonical_owner), mono: true)
+            } else {
+                DataRow(label: "A+ inventory", value: "not loaded", valueColor: NerVyx.warning)
+            }
+        }
+        .nerVyxElevatedCard(accent: NerVyx.signal)
     }
 
     private func readinessChip(count: Int, label: String, color: Color) -> some View {
