@@ -128,6 +128,11 @@ import positionsMeta from './positions/meta';
 import positionsRbac from './positions/rbac';
 import positionsRoute from './positions/route';
 
+import RiskPage from './risk';
+import riskMeta from './risk/meta';
+import riskRbac from './risk/rbac';
+import riskRoute from './risk/route';
+
 import RiskControlPage from './risk-control';
 import riskControlMeta from './risk-control/meta';
 import riskControlRbac from './risk-control/rbac';
@@ -187,6 +192,11 @@ import SystemHealthPage from './system-health';
 import systemHealthMeta from './system-health/meta';
 import systemHealthRbac from './system-health/rbac';
 import systemHealthRoute from './system-health/route';
+
+import LiveCanaryPage from './live-canary';
+import liveCanaryMeta from './live-canary/meta';
+import liveCanaryRbac from './live-canary/rbac';
+import liveCanaryRoute from './live-canary/route';
 
 import LiveReadinessPage from './live-readiness';
 import liveReadinessMeta from './live-readiness/meta';
@@ -404,6 +414,7 @@ const RAW_PAGES: ReadonlyArray<PageModule> = [
   { meta: signalsMeta, rbac: signalsRbac, route: signalsRoute, Component: SignalsPage },
   { meta: executionsMeta, rbac: executionsRbac, route: executionsRoute, Component: ExecutionsPage },
   { meta: positionsMeta, rbac: positionsRbac, route: positionsRoute, Component: PositionsPage },
+  { meta: riskMeta, rbac: riskRbac, route: riskRoute, Component: RiskPage },
   { meta: riskControlMeta, rbac: riskControlRbac, route: riskControlRoute, Component: RiskControlPage },
   { meta: exchangeManagerMeta, rbac: exchangeManagerRbac, route: exchangeManagerRoute, Component: ExchangeManagerPage },
   { meta: externalManualPositionQuarantineMeta, rbac: externalManualPositionQuarantineRbac, route: externalManualPositionQuarantineRoute, Component: ExternalManualPositionQuarantinePage },
@@ -416,6 +427,7 @@ const RAW_PAGES: ReadonlyArray<PageModule> = [
   { meta: replayMeta, rbac: replayRbac, route: replayRoute, Component: ReplayPage },
   { meta: auditLedgerMeta, rbac: auditLedgerRbac, route: auditLedgerRoute, Component: AuditLedgerPage },
   { meta: systemHealthMeta, rbac: systemHealthRbac, route: systemHealthRoute, Component: SystemHealthPage },
+  { meta: liveCanaryMeta, rbac: liveCanaryRbac, route: liveCanaryRoute, Component: LiveCanaryPage },
   { meta: liveReadinessMeta, rbac: liveReadinessRbac, route: liveReadinessRoute, Component: LiveReadinessPage },
   { meta: claudeAdminAiMeta, rbac: claudeAdminAiRbac, route: claudeAdminAiRoute, Component: ClaudeAdminAiPage },
   { meta: ollamaLocalAssistantMeta, rbac: ollamaLocalAssistantRbac, route: ollamaLocalAssistantRoute, Component: OllamaLocalAssistantPage },
